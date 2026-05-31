@@ -221,7 +221,7 @@ bp_encoding_admin = Blueprint("encoding_admin", __name__)
 def xor_encoding_status():
     """Admin info page: XOR encoding layer status and test tool."""
     from flask import render_template_string, redirect, url_for, request as flask_req
-    from ..auth import is_logged_in
+    from .auth import is_logged_in
     if not is_logged_in():
         return redirect(url_for("auth.login", next=flask_req.path))
     html = """

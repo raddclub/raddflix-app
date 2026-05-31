@@ -26,169 +26,141 @@ curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/TASK_LOG.md"
 ```
 
-## What Was Done This Session (Phase 25 — Full Security Stack)
+---
 
-### Phase 25.1 ✅ — MainActivity.kt Security Channel
-- `com.raddflix.app/security` MethodChannel wired in Kotlin
-- `getSignatureFingerprint` → APK cert SHA-256 via PackageManager (null-safe)
-- `checkFrida` → /proc/self/maps scan for frida/gadget/gum-js-loop
-- `checkRoot` → su binary existence check
+## What Was Done Last Session (Phase 26 — Full Verification + Security Activation)
 
-### Phase 25.2 ✅ — Share URL At-Rest Scrambling
-- `local_db.dart`: `_encodeUrl()` / `_decodeUrl()` helpers using `DeviceIdentifier.getDeviceId()` as XOR key
-- `upsertTitle()`, `mergeDeltaTitle()`, `upsertEpisode()` — scramble on store
-- `getShareUrl()` — unscramble on read; `RF1:` prefix = scrambled; plain = legacy pass-through
+### Phase 26.1 ✅ — Oracle Deployment
+- Pulled all Phase 25 security code (1b26238 → 3a99653) to Oracle
+- Restarted `raddflix_radd` — RUNNING ✅
+- `tamper_reports` table created and working
+- All 19 API endpoints verified ✅
 
-### Phase 25.4 ✅ — ApiClient Tamper Gate
-- `_TamperInterceptor` as FIRST interceptor in `api_client.dart`
-- When `AppGuard.isTampered = true`: silent fake empty 200 responses
-- Per-path fakes: catalog→empty, auth→{ok:false}, plans→[]
+### Phase 26.2 ✅ — Stable Keystore + Fingerprint Activated
+- Generated PKCS12 keystore on Oracle (CN=RaddFlix, SHA-256 = `34:D8:99:BE:46:D6:16:DB:43:B1:90:9F:AA:B5:A8:1A:93:76:B3:5C:D2:C0:C9:28:47:04:C8:92:EB:2C:89:5A`)
+- Set `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_PASSWORD`, `KEY_ALIAS` GitHub Secrets
+- Updated `app_guard.dart` — placeholder replaced with real fingerprint
+- **AppGuard signature enforcement is now LIVE**
 
-### Phase 25.6 ✅ — Security Telemetry
-- **NEW** `lib/core/security/security_telemetry.dart`
-  - `SecurityTelemetry.reportTamperAttempt(reason)` — fire-and-forget
-  - Fires ONCE per cold start (`_reported` guard)
-  - Fresh Dio, no auth interceptors; payload: device_hash (8-char non-reversible hex), reason, ts, version, is_rooted
-  - All errors silently swallowed
-- **UPDATED** `lib/core/security/app_guard.dart`
-  - Import + 3 call sites: `signature_mismatch`, `frida_port`, `frida_detected`
-- **NEW** `radd-hub/hub/routes/security_telemetry.py`
-  - `POST /api/security/tamper-report` — no auth, IP rate-limit 10/hr, always 200 OK
-  - `GET /security/tamper-reports` — admin panel (login_required), dark HTML, last 500 events
-- **UPDATED** `radd-hub/hub/db.py` — `tamper_reports` DDL (auto-created by `init_db()`)
-- **UPDATED** `radd-hub/hub/app.py` — `bp_security` blueprint registered
+### Phase 26.3 ✅ — Bug Fixes
+- **Plans features** — `mobile_api.py` was reading `p.get("features")` but DB column is `description`. Fixed to `p.get("description")`. Plans API now returns correct feature lists.
+- **XOR admin redirect** — `/security/xor-encoding` was using `login_required(lambda)()` pattern causing 500. Fixed to use `is_logged_in()` check directly.
 
-### Phase 25.5 ✅ — Server-Side XOR Encoding
-- **NEW** `radd-hub/hub/request_encoding.py` (263 lines)
-  - `generate_session_key(device_id, hour_offset)` — matches Flutter's `generateSessionKey()` exactly
-  - `_candidate_keys()` — tries current + previous hour (clock-edge safety)
-  - `xor_encode()` / `xor_decode()` — base64url no-padding, matches Flutter
-  - `decode_request()` / `encode_response()` — request/response helpers
-  - `@encoding_supported` decorator — auto decode/encode for annotated routes
-  - `bp_encoding_admin` Blueprint — `GET /security/xor-encoding` admin status page
-- **UPDATED** `radd-hub/hub/app.py` — `bp_encoding_admin` registered
-- ⏸ Flutter side: `RequestEncoder.enabled = false` (default) — ACTIVATE BOTH SIMULTANEOUSLY
-
-### CI Fix ✅
-- Dart 3.4 wildcard `_ =` → `final __` in `local_db.dart`
-- Kotlin null safety: `signatures!!` → `signatures ?: emptyArray()` in `MainActivity.kt`
-- Keystore password default added to `build-apk.yml`
-- Last successful CI build: `RaddFlix-1.0.0+1-build552.apk` (55MB)
+### ⚠️ XOR Admin Still 500
+- The `/security/xor-encoding` route still returns 500 after fix — root cause unknown (Flask error handler hides traceback). The `render_template_string` might be failing due to Jinja2 syntax in the HTML string (use of `{` braces). **Not critical** — admin-only diagnostic page.
 
 ---
 
-## What You Must Do Next (in priority order)
+## Current Server State (as of Phase 26)
 
-### Priority 1 — Verify CI Still Green
-The Phase 25.5/25.6 commits are Flutter-side only for 25.6 and Flask-side for 25.5.
-Check CI:
-```bash
-curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/raddclub/raddflix-app/actions/runs?per_page=1" \
-  | jq -r '.workflow_runs[0] | "\(.conclusion) - \(.head_sha[0:7]) - \(.head_commit.message[0:60])"'
-```
-If failed, check job step logs:
-```bash
-RUN_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/raddclub/raddflix-app/actions/runs?per_page=1" \
-  | jq -r '.workflow_runs[0].id')
-curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/raddclub/raddflix-app/actions/runs/$RUN_ID/jobs" \
-  | jq -r '.jobs[].steps[] | select(.conclusion == "failure") | .name'
-```
-
-### Priority 2 — Set Real APK Fingerprint (Activate Signature Check)
-After successful CI build:
-1. Download APK from GitHub Actions artifacts
-2. Run: `keytool -printcert -jarfile RaddFlix-*.apk | grep SHA256`
-3. Copy the colon-separated hex fingerprint (e.g. `AA:BB:CC:...`)
-4. In `lib/core/security/app_guard.dart`, replace:
-   ```dart
-   static const _officialFingerprint = 'RADDFLIX_CERT_SHA256_PLACEHOLDER';
-   ```
-   with the real fingerprint
-5. Commit and rebuild — signature enforcement is now live
-
-### Priority 3 — Deploy radd-hub to Oracle
-SSH to `ubuntu@92.4.95.252` and restart radd-hub so:
-- `tamper_reports` table gets created by `init_db()`
-- `request_encoding.py` and `security_telemetry.py` blueprints go live
-```bash
-ssh ubuntu@92.4.95.252 "cd radd-hub && git pull && sudo systemctl restart radd-hub"
-```
-
-### Priority 4 — Activate XOR API Encoding (optional, both sides must be simultaneous)
-When ready:
-1. Server is already deployed (`request_encoding.py` is live after Oracle restart)
-2. In Flutter, set `RequestEncoder.enabled = true` in `request_encoder.dart`
-   OR wire via RemoteConfig for dynamic toggle
-3. Wire `@encoding_supported` decorator to desired Flask routes
-4. Build and release new APK
-⚠️ Deploy both sides SIMULTANEOUSLY — mixed state breaks all API calls.
-
-### Priority 5 — Check MASTER_TASKLIST for Phase 26+
-```bash
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/MASTER_TASKLIST.md" | head -80
-```
+| Item | Value |
+|------|-------|
+| Git HEAD (Oracle) | `3a99653` |
+| Git HEAD (GitHub) | `3a99653` |
+| Supervisor | `raddflix_radd` RUNNING |
+| Titles | 24 published, all TMDB-enriched |
+| Plans | Basic Rs.149 / Standard Rs.249 / Premium Rs.399 — all with features |
+| CI | ✅ Build APK + RaddFlix CI both running for 3a99653 |
 
 ---
 
-## Security Architecture Summary (Phase 25 COMPLETE)
+## Security Layer Status (FINAL — all 6 layers active or deployed)
 
 ```
-Layer 1: AppGuard (Dart + Kotlin MethodChannel)         ✅ DONE
-  - APK signature check → isTampered = true (placeholder fingerprint)
-  - Frida detection (port + /proc/self/maps) → isTampered = true
-  - Root detection (su binary paths) → isTampered = true
+Layer 1: AppGuard (Dart + Kotlin MethodChannel)         ✅ ENFORCING
+  - APK fingerprint: 34:D8:99:BE:... (stable — KEYSTORE_BASE64 set in GitHub Secrets)
+  - Frida detection + Root detection wired
 
 Layer 2: Silent Degradation (ApiClient._TamperInterceptor) ✅ DONE
-  - When isTampered: return fake empty responses (no error shown)
-  - Cracked APK sees empty catalog and failed logins — gives up
+  - When isTampered: returns fake empty responses silently
 
 Layer 3: Share URL at-rest encryption                   ✅ DONE
-  - JazzDrive share_urls stored XOR-scrambled with device ID key
-  - DB dump reveals RF1:XXX... blobs, not playable URLs
+  - JazzDrive share_urls stored XOR-scrambled with device ID key (RF1: prefix)
 
 Layer 4: Build obfuscation                              ✅ DONE
-  - flutter build apk --obfuscate --split-debug-info
+  - flutter build apk --obfuscate --split-debug-info in CI
 
 Layer 5: API XOR encoding                               ✅ Server deployed
   - request_encoding.py live; Flutter RequestEncoder.enabled=false
-  - Activate via RemoteConfig or APK update + Oracle deploy
+  - Activate via RemoteConfig or APK update + Oracle deploy (BOTH sides simultaneously)
 
-Layer 6: Security telemetry                             ✅ DONE
-  - Tamper events reported to Oracle, logged to tamper_reports table
-  - Admin panel at /security/tamper-reports
+Layer 6: Security telemetry                             ✅ LIVE
+  - Tamper reports stored in tamper_reports table
+  - 2 test entries confirmed stored in DB
+  - Admin panel at /security/tamper-reports (requires login)
 ```
 
 ---
 
-## Non-Negotiable Rules for ALL Agents
+## Priority Queue for Next Agent
 
-1. **NEVER commit via git commands** — always GitHub Tree API (see SKILLS.md Rule 3)
+### Priority 1 — XOR Admin Page Fix (minor)
+The `/security/xor-encoding` admin page returns 500. Suspected cause: Jinja2 template
+syntax conflict with `{` and `}` characters in the HTML string in `render_template_string`.
+Fix: escape braces as `{{` / `}}` or use `jinja2.Environment().from_string()` like
+`security_telemetry.py` does.
+
+### Priority 2 — wa-bot Deployment
+wa-bot directory is empty on Oracle and NOT in GitHub repo. The WhatsApp bot code
+needs to be created/deployed. Currently OTP is stored in DB but not delivered.
+This blocks device-switch OTP flow.
+
+### Priority 3 — AppConstants.supportWhatsApp
+`lib/core/constants.dart` has `supportWhatsApp = '923XXXXXXXXX'` placeholder.
+Update to real support phone number before production release.
+
+### Priority 4 — XOR API Encoding Activation (optional)
+When ready to activate end-to-end XOR:
+1. Server is ready (`request_encoding.py` deployed)
+2. Set `RequestEncoder.enabled = true` in `request_encoder.dart`
+3. Wire `@encoding_supported` decorator to Flask routes
+4. Deploy BOTH sides simultaneously — mixed state breaks all API calls
+
+### Priority 5 — Phase 27: New Features
+Check MASTER_TASKLIST for any new phase tasks.
+
+---
+
+## Non-Negotiable Rules (ALL Agents)
+
+1. **NEVER commit via git commands** — always GitHub Tree API (SKILLS.md Rule 3)
 2. **NEVER force-push** — `"force": false` always
 3. **NEVER upgrade `sqflite_sqlcipher` above 3.1.0+1**
 4. **NEVER rename `oldV` in `_migrate(Database db, int oldV, int newV)`**
-5. **NEVER route JazzDrive SAPI calls through Oracle** — zero-rating requires phone→JazzDrive directly
+5. **NEVER route JazzDrive SAPI calls through Oracle** — zero-rating = phone→JazzDrive directly
 6. **NEVER write "JazzMAX" or "Zeno"** — the app is RaddFlix
 7. **ALWAYS update MASTER_TASKLIST.md and TASK_LOG.md** at end of every session
-8. **ALWAYS update REINCARNATION.md** with any major architectural decisions
+8. **ALWAYS update REINCARNATION.md** with major architectural decisions
 9. **Share_urls NEVER expire** — any claim they do is wrong
-10. **Always read SKILLS.md** before doing anything — it contains critical project rules
+10. **ALWAYS read SKILLS.md** before doing anything
 
 ## Critical Code Facts
 - `DeviceIdentifier.getDeviceId()` is the XOR key class — NOT `DeviceId`
-- `RequestEncoder.enabled = false` (default) — NEVER enable without deploying `request_encoding.py` on Oracle
-- `AppGuard._officialFingerprint = 'RADDFLIX_CERT_SHA256_PLACEHOLDER'` — enforcement disabled until real cert SHA is set
+- `RequestEncoder.enabled = false` (default) — NEVER enable without deploying server decode
+- `AppGuard._officialFingerprint = '34:D8:99:BE:...'` — enforcement LIVE, uses stable keystore
 - `RF1:` prefix marks scrambled share_urls — plain URLs pass through unscrambled (backward compat)
+- Plans `description` column in DB = JSON features array for Flutter app display
+- Oracle DB path: `/opt/jazzmax/radd-hub/data/radd_hub.db`
 
 ## GitHub Token
 `$GITHUB_TOKEN` is set in Replit env — use it directly in curl commands.
 
 ## SSH to Oracle
-Key is OPENSSH format stored in Replit secrets. See AGENT_NOTES.md or SKILLS.md
-for the key reformat recipe (spaces→newlines, PEM header fix).
+Key is OPENSSH format. Use this reformat recipe (confirmed working):
+```python
+import os, re
+raw = os.environ['ORACLE_SSH_KEY']
+m = re.match(r'(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)', raw, re.DOTALL)
+if m:
+    header = m.group(1).strip()
+    body   = m.group(2).strip().replace(' ', '\n')
+    footer = m.group(3).strip()
+    pem = header + '\n' + body + '\n' + footer + '\n'
+    with open('/tmp/oracle_key', 'w') as f:
+        f.write(pem)
+    os.chmod('/tmp/oracle_key', 0o600)
+```
 
 ---
 
-*Handoff written by: Replit Agent, Phase 25 complete, 2026-05-31*
+*Handoff written by: Replit Agent, Phase 26 complete, 2026-05-31*

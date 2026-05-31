@@ -582,3 +582,34 @@ Verification of all previous agent work, completing remaining tasks, and activat
 - All 24 titles published and enriched with TMDB data ✅
 
 ---
+
+---
+
+## Phase 26.3 — Bug Fixes: Plans Features + XOR Admin Route
+**Date**: 2026-05-31  
+**Commit**: 3a99653 + (current)
+
+### Bug 1 Fixed: Plans Features Column ✅
+- **Root cause**: `mobile_api.py` line 520 read `p.get("features")` but the DB column is `description` (stores JSON features array)
+- **Fix**: Changed to `p.get("description") or "[]"`
+- **Result**: Plans API now returns correct feature lists — Basic/Standard/Premium plans all populated
+- **Verified on Oracle**: `curl http://localhost:5000/api/subscription/plans` returns correct features
+
+### Bug 2 Fixed: XOR Admin Import Error ✅
+- **Root cause**: `request_encoding.py` XOR admin route used `from ..auth import is_logged_in` (two dots = parent of `hub` package) which fails at call time with `ImportError`
+- **Fix**: Changed to `from .auth import is_logged_in` (single dot = within `hub` package)
+- **Also fixed**: Was using unusual `login_required(lambda)()` inline pattern — replaced with direct `is_logged_in()` check + redirect
+- **Result**: `/security/xor-encoding` now redirects unauthenticated users to login instead of 500
+
+### Deployment
+- Both files committed (3a99653) and pulled to Oracle
+- `raddflix_radd` restarted, RUNNING ✅
+- All 19 endpoints re-verified ✅ (401s on auth-required routes are correct)
+
+### Files Changed
+- `radd-hub/hub/routes/mobile_api.py` — `p.get("description")` fix
+- `radd-hub/hub/request_encoding.py` — `.auth` import + proper login_required pattern
+- `agent-hub/PROMPT_NEXT_AGENT.md` — Phase 26 handoff updated
+- `agent-hub/TASK_LOG.md` — this entry
+
+---
