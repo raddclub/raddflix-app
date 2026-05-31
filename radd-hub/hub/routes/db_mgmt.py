@@ -32,6 +32,22 @@ def _table_exists(c: sqlite3.Connection, name: str) -> bool:
     return bool(r)
 
 
+def _safe_row(row) -> dict:
+    """Convert a sqlite3.Row or dict to JSON-serializable dict.
+    Bytes (BLOB) columns are rendered as '[BINARY Nb]' so JSON doesn't crash."""
+    result = {}
+    d = dict(row)
+    for k, v in d.items():
+        if isinstance(v, bytes):
+            try:
+                result[k] = v.decode("utf-8")
+            except UnicodeDecodeError:
+                result[k] = f"[BINARY {len(v)}B]"
+        else:
+            result[k] = v
+    return result
+
+
 @bp.route("/")
 @auth.login_required
 def page():
@@ -104,7 +120,7 @@ def get_table_data(name):
 
             return jsonify({
                 "ok": True, "columns": columns,
-                "rows": [dict(r) for r in rows],
+                "rows": [_safe_row(r) for r in rows],
                 "total": total, "limit": limit, "offset": offset,
             })
     except Exception as e:
@@ -181,7 +197,7 @@ def execute_sql():
             cur = c.execute(sql)
             if cur.description:
                 columns = [d[0] for d in cur.description]
-                rows    = [dict(zip(columns, r)) for r in cur.fetchall()]
+                rows    = [_safe_row(dict(zip(columns, r))) for r in cur.fetchall()]
                 return jsonify({"ok": True, "columns": columns, "rows": rows, "type": "select"})
             else:
                 return jsonify({"ok": True, "changes": c.total_changes, "type": "exec"})
@@ -203,7 +219,7 @@ def export_table(name):
             rows = c.execute(f"SELECT * FROM {name}").fetchall()
             if not rows:
                 return "Table is empty", 200
-            data = [dict(r) for r in rows]
+            data = [_safe_row(r) for r in rows]
             if fmt == "json":
                 return Response(
                     json.dumps(data, indent=2),
