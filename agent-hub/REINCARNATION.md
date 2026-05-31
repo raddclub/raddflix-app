@@ -14,7 +14,7 @@ You are the AI agent continuing development of **RaddFlix** — a Pakistani stre
 - Flutter app package: `com.raddflix.app`
 - Admin panel: Flask on port 5000 at `http://92.4.95.252`
 
-Previous sessions built Phases 1–12. A full deep audit was completed on 2026-05-30. CI is green as of commit `c0d940a` (sqflite fix). Latest code changes may be ahead — always fetch fresh.
+Previous sessions built Phases 1–12. A full deep audit was completed on 2026-05-30. ⚠️ CI is FAILING as of `2a73e90` (Build release APK step fails). Fix CI before Flutter changes. Latest server-only changes are deployed and running.
 
 ---
 
@@ -242,8 +242,9 @@ Server must return `"show"` for TV series. Flutter filters on `item.mediaType ==
 ### OTP Device Switch
 - `AppConstants.otpDeviceSwitchEnabled = false` — hidden
 - UI exists in `_DeviceConflictPanel` (StatefulWidget with OTP step)
-- Server endpoints `/api/auth/device-switch/request` and `/verify` **DO NOT EXIST** on server
-- To activate: flip constant + implement server endpoints + replace stubs in `AuthApi`
+- Server endpoints **EXIST**: `POST /api/auth/device-switch/request` and `POST /api/auth/device-switch/verify` ✅ (implemented Phase 17)
+- `AppConstants.otpDeviceSwitchEnabled = true` — enabled (Phase 17)
+- WhatsApp delivery: wa-bot must be running on port 3000 (currently down)
 
 ### History Sync Gap
 - Server: full `/api/history` (GET list) and `/api/history/<file_id>` (POST position) API implemented
@@ -342,10 +343,87 @@ sudo supervisorctl status
 ```
 
 ### Git State
-- Server at commit `44791ec` (latest main)
+- Server at commit `2a73e90` (latest main)
 - radd-hub Python changes at commit `46983977`
 - All conflicts resolved
 
 ### SSH Key Pattern
 See AGENT_NOTES.md — key is OPENSSH format with spaces instead of newlines.
 Use `re.match(r'(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)', raw)` to reformat.
+
+
+---
+
+## Addendum — Verified Live State (2026-05-31 Full Audit)
+
+### Server (Oracle 92.4.95.252) — Verified
+| Item | Value |
+|------|-------|
+| Git HEAD | `2a73e90` (feat(settings): Getting Started card + setup-status API) |
+| Supervisor | `raddflix_radd` RUNNING pid 488081 |
+| Disk | 30 GB used / 193 GB total |
+| Staging | EMPTY |
+| Media folder | Off_Campus_S01 only |
+| wa-bot | NOT running (port 3000 dead — OTP stored but not delivered) |
+
+### Database — Verified
+| Table | Count | Notes |
+|-------|-------|-------|
+| titles | **24** (16 movies, 8 shows) | All is_published=1 |
+| files | 44 | |
+| plans | 3 | Basic Rs.149/30GB, Standard Rs.249/50GB, Premium Rs.399/100GB |
+| keys | 8 | 2 TMDB ✅, 2 OMDB ✅, 2 Gemini ✅, 2 Groq ✅ (all active, last_status=ok) |
+| accounts | 1 | 03029688227, role=flix, is_active=1 |
+
+Note: `plans` table columns are `monthly_limit_gb` / `daily_limit_gb` — NOT `data_gb`.
+
+### CI Status — WARNING
+Both `Build RaddFlix APK` and `RaddFlix CI` are **FAILING** at HEAD `2a73e90`.
+Failure step: "Build release APK". Server-side changes still work fine.
+**Fix CI before any new Flutter changes.**
+
+### All 18 API Endpoints — Verified ✅
+| Endpoint | Status |
+|----------|--------|
+| GET /health | 200 "RaddFlix Oracle OK" |
+| GET /healthz | 200 {"ok":true,"version":"3.0.0"} |
+| GET /api/ping | 200 |
+| GET /api/catalog/version | 200 {"count":24} |
+| GET /api/catalog/sync | 200 (24 titles, media_type normalized, poster_jd_url correct) |
+| GET /api/catalog/delta | 200 |
+| GET /api/search?q=test | 200 |
+| POST /api/app/check | 200 {"ok":true,"blocked":false} |
+| GET /api/payment-methods | 200 |
+| GET /api/auth/me | 401 (auth required — correct) |
+| GET /api/subscription/status | 401 |
+| GET /api/usage/quota | 401 |
+| GET /api/notifications/ | 401 |
+| GET /api/history | 401 |
+| GET /api/recommend | 401 |
+| GET /api/subscription/plans | 200 (3 plans) |
+| POST /api/ping | 405 (method guard working) |
+| POST /api/auth/device-switch/request | 200 |
+| POST /api/auth/device-switch/verify | 400 (bad OTP — correct) |
+
+### Confirmed Bug Fixes (verified against live server)
+| Bug | Fix Verified |
+|-----|-------------|
+| BUG-A01 year TEXT→INTEGER | ✅ years are integers in DB and API response |
+| BUG-A02 media_type normalization | ✅ DB and sync show "movie"/"show" only |
+| BUG-A32 Flask secret persisted | ✅ SESSION_SECRET in supervisor env + FLASK_SECRET_KEY in .env |
+| BUG-B01 poster_proxy path | ✅ RADD_HUB_DATA_DIR in supervisor env |
+| BUG-B02 405 handler | ✅ POST /api/ping → 405 |
+| BUG-016 plan prices | ✅ Basic Rs.149, Standard Rs.249, Premium Rs.399 |
+| BUG-017 /api/catalog/delta | ✅ returns 200 |
+| BUG-018 poster_jd_url route | ✅ points to /api/catalog/poster/<id> |
+
+### Phases Not in REINCARNATION.md (completed after last update)
+- **Phase 15** — Server bug sweep (poster_proxy path, 405 handler, search media_type filter)
+- **Phase 16** — Deep Flutter-backend route audit + 3 bug fixes
+- **Phase 17** — WhatsApp OTP device switch + API contract audit + download pipeline
+- **Phase 18** — Full system verification (delta bug, plans seeded, 15 titles discovered via scan)
+- **Phase 19** — Flutter video player fixes, external player, system "Open With", vault thumbnails
+- **Phase 20** — 2026 UI Polish (Home, Downloads, Profile screens)
+- **Phase 21** — 2026 UI Polish (Search, Local Media, Vault) + full audit
+- **Phase 22** — DB Studio smart bulk enrichment (IMDbAPI-first 6-source pipeline, SSE progress)
+- **Phase 23** — Settings: Getting Started card + setup-status API

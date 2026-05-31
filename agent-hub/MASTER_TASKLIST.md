@@ -335,10 +335,10 @@ All 34 audit bugs resolved:
 - Commit: cd8707bee27bf06225f876f0beaf959e8b709cec
 
 ### T011: Catalog Notes ✅ DOCUMENTED 2026-05-30
-- Titles table has 0 rows — requires TMDB or OMDB API key in keys table
-- Keys table: provider, label, value_enc, is_active (0 rows currently)
-- Titles auto-enrich and populate after upload once keys are set
-- Add via admin UI (/settings/api/keys) or direct DB insert
+- Titles table: **24 titles** (16 movies, 8 shows) — all is_published=1 ✅ (verified 2026-05-31)
+- Keys table: 2 TMDB + 2 OMDB + 2 Gemini + 2 Groq (all active, last_status=ok) ✅
+- Plans: 3 seeded (Basic/Standard/Premium) ✅
+- Catalog fully populated and enriched
 
 ---
 
@@ -480,3 +480,57 @@ All reported "failures" were false-positive grep patterns; actual code verified 
 - Circle icon empty states: Downloads ✅ Search ✅ Local Media ✅
 - Gradient CTA buttons: Downloads ✅ Local Media ✅ Profile ✅
 - Dark AppBar (AppColors.background): Downloads ✅ Profile ✅ Vault ✅ Local Media ✅
+
+
+---
+
+## Phase 22 — DB Studio Smart Bulk Enrichment (2026-05-31)
+
+### Completed ✅
+- [x] 6-source merge pipeline in db_mgmt.py: IMDbAPI.dev → TMDB → OMDB → AI → YouTube → Google KG
+- [x] IMDbAPI.dev as #1 source (best Pakistani/South Asian/Bollywood coverage, no key needed)
+- [x] `/api/enrich` POST endpoint with SSE streaming progress
+- [x] `/api/titles/nullstats` — per-field null/filled counts
+- [x] `/api/export/<table>` — CSV + JSON download with optional ?q= filter
+- [x] `mt` + `nullsonly` query params on `/api/table/<name>`
+- [x] Enrichment UI: Enrich Selected, Enrich All Missing, Force Re-Enrich (bulk + per-row)
+- [x] Live SSE progress modal: per-row status, source log, progress bar
+- [x] Null stats bar, filter bar, cell improvements, keyboard shortcuts
+- Commits: 5949959 → 2ac82ef
+
+---
+
+## Phase 23 — Settings: Getting Started Card (2026-05-31)
+
+### Completed ✅
+- [x] Getting Started card in Settings page
+- [x] Setup-status API endpoint
+- Commit: 2a73e90
+
+---
+
+## Phase 24 — Full System Verification Audit (2026-05-31)
+
+### Verification Results
+- **Server HEAD**: `2a73e90` ✅ (latest)
+- **Supervisor**: `raddflix_radd` RUNNING ✅
+- **Titles in DB**: 24 (16 movies, 8 shows) ✅
+- **API Keys**: 2 TMDB + 2 OMDB + 2 Gemini + 2 Groq (all active) ✅
+- **All 18+ API endpoints**: responding correctly ✅
+- **Staging**: empty ✅
+- **Flask secret**: persisted in supervisor env + .env ✅
+
+### Corrections Made to Docs
+- REINCARNATION.md: fixed server commit hash, SSH access note, OTP endpoint status, supervisor name, phases 15–23 added
+- MASTER_TASKLIST.md: Phase 17 T011 corrected (24 titles, not 0)
+- PRODUCT_CONTEXT.md: supervisor name fixed, SSH note fixed
+
+### Open Items (still pending — need human action)
+| Item | Blocker |
+|------|---------|
+| CI FAILING | Fix Flutter APK build (Build release APK step fails at `2a73e90`) |
+| wa-bot not running | Start wa-bot on Oracle for WhatsApp OTP delivery |
+| AppConstants.supportWhatsApp | Update to real number before production |
+| Let's Encrypt SSL | Needs domain name configured |
+| Publish new titles (IDs 8-28) | Admin reviews + publishes via admin panel |
+| Avatar/Dark Knight TMDB miss | Manual title mapping needed |

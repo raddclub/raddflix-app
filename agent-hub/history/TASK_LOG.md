@@ -4757,3 +4757,75 @@ Smart bulk enrichment system for DB Studio titles table + comprehensive DB Studi
 - Null stats bar auto-loads whenever titles table is opened
 - CSV/JSON export supports `?q=` search filter (same as the browse view)
 - `mt` and `nullsonly` are extra filter params supported by `/api/table/titles`
+
+---
+
+## [2026-05-31] — Agent: Replit Agent (Full Verification + .md Update)
+
+### Task
+Verify all previous agents' claims and update all .md files with accurate current state.
+
+### Verification Results
+
+#### Live Server (Oracle 92.4.95.252) — All Verified
+- Git HEAD: `2a73e90` (feat(settings): Getting Started card + setup-status API)
+- `raddflix_radd` RUNNING pid 488081
+- 24 titles in DB (16 movies, 8 shows, all is_published=1)
+- 44 files in DB
+- 8 API keys in vault (2 TMDB, 2 OMDB, 2 Gemini, 2 Groq — all active, last_status=ok)
+- 3 subscription plans seeded (Basic Rs.149, Standard Rs.249, Premium Rs.399)
+- 1 scan account (03029688227, role=flix)
+- Flask secret key: persisted in supervisor env + .env ✅
+- Staging: EMPTY
+- wa-bot: NOT running (port 3000 dead)
+
+#### API Smoke Test — 18/18 Passed
+GET /health → 200, GET /healthz → 200, GET /api/ping → 200, GET /api/catalog/version → 200 (count=24),
+GET /api/catalog/sync → 200 (24 titles, correct media_types, correct poster URLs),
+GET /api/catalog/delta → 200, GET /api/search → 200, POST /api/app/check → 200,
+GET /api/payment-methods → 200, GET /api/subscription/plans → 200 (3 plans),
+GET /api/auth/me → 401, GET /api/subscription/status → 401, GET /api/usage/quota → 401,
+GET /api/notifications/ → 401, GET /api/history → 401, GET /api/recommend → 401,
+POST /api/ping → 405, POST /api/auth/device-switch/request → 200,
+POST /api/auth/device-switch/verify → 400 (correct — bad OTP)
+
+#### Confirmed Bug Fixes (verified live)
+- BUG-A01 (year INTEGER): ✅ confirmed
+- BUG-A02 (media_type "show"): ✅ confirmed  
+- BUG-A32 (secret key persisted): ✅ confirmed
+- BUG-B01 (poster_proxy path): ✅ confirmed
+- BUG-B02 (405 handler): ✅ confirmed
+- BUG-016 (plan prices): ✅ confirmed
+- BUG-017 (/api/catalog/delta): ✅ confirmed
+- BUG-018 (poster_jd_url route): ✅ confirmed
+- Phase 17 OTP endpoints (device-switch/request+verify): ✅ confirmed working
+
+#### Discrepancies Found (previous agents were wrong)
+| Claim | Reality |
+|-------|---------|
+| REINCARNATION.md: "server at 44791ec" | Actual HEAD: 2a73e90 |
+| REINCARNATION.md: "Oracle SSH unreachable from Replit" | SSH works fine from Replit |
+| REINCARNATION.md: "OTP server endpoints DO NOT EXIST" | They exist and return 200 |
+| REINCARNATION.md: "jazzmax_radd supervisor" | It's raddflix_radd |
+| PRODUCT_CONTEXT.md: "jazzmax_radd" | raddflix_radd |
+| PRODUCT_CONTEXT.md: "SSH unreachable" | SSH works |
+| MASTER_TASKLIST T011: "0 titles, 0 keys" | 24 titles, 8 keys active |
+| Phases 15–23: not in REINCARNATION.md | Added in this session |
+| CI: "green" | FAILING at Build release APK step (both workflows) |
+
+### Files Changed
+- `agent-hub/REINCARNATION.md` — fixed server commit hash, SSH note, OTP status, supervisor name; added verified state addendum; added phases 15–23 summary
+- `agent-hub/MASTER_TASKLIST.md` — corrected Phase 17 T011 (24 titles not 0); appended Phase 22/23/24 sections
+- `agent-hub/PRODUCT_CONTEXT.md` — fixed supervisor names (jazzmax_radd→raddflix_radd), SSH access note, decommissioned watch API row
+- `agent-hub/history/TASK_LOG.md` — this entry
+
+### Notes for Next Agent
+- **CI is BROKEN** — both Flutter CI workflows fail at "Build release APK" on commit 2a73e90. Fix this before any Flutter changes.
+- **wa-bot is down** — OTP is generated and stored in DB but WhatsApp delivery is broken until wa-bot started
+- **Server is healthy** — all 18+ API endpoints returning correct responses
+- **DB is populated** — 24 titles, 8 active API keys, 3 plans
+- **Plans table**: column is `monthly_limit_gb` not `data_gb` — don't query wrong column
+- **Staging is empty** — no pending uploads
+- Owner-action items: supportWhatsApp real number, Let's Encrypt SSL (needs domain), review/publish new titles (IDs 8-28), fix CI
+
+---

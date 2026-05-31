@@ -54,8 +54,8 @@ Protection: SQLCipher encryption + Android Keystore.
 
 | Component | Location | Tech | Supervisor name |
 |-----------|---------|------|----------------|
-| Flask admin panel (Radd Hub) | Oracle server /opt/jazzmax/radd-hub/ | Python 3.12 + Flask + SQLite | jazzmax_radd (port 5000) |
-| Watch API | Oracle server /opt/jazzmax/ | Python | jazzmax_watch (port 6000) |
+| Flask admin panel (Radd Hub) | Oracle server /opt/jazzmax/radd-hub/ | Python 3.12 + Flask + SQLite | raddflix_radd (port 5000) |
+| Watch API | ~~DECOMMISSIONED 2026-05-30~~ | Migrated to radd-hub port 5000 | — |
 | Flutter mobile app | raddflix_flutter/ | Flutter/Dart | N/A (build on dev machine) |
 | WhatsApp bot | /opt/jazzmax/wa-bot/ | Node.js 20 | N/A |
 | GitHub repo | raddclub/raddflix-app | — | main branch |
