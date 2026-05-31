@@ -199,5 +199,5 @@ jobs:
           ssh-keyscan -H "$ORACLE_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             "${ORACLE_USER}@${ORACLE_HOST}" \
-            "cd /opt/jazzmax && git pull origin main && sudo supervisorctl restart jazzmax_watch && echo DEPLOYED_OK"
+            "cd /opt/jazzmax && git pull origin main && sudo supervisorctl restart raddflix_radd && echo DEPLOYED_OK"
           echo "Oracle server updated at $(date -u)." >> $GITHUB_STEP_SUMMARY

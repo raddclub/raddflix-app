@@ -9,7 +9,6 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-// Cast SDK imports
 import com.google.android.gms.cast.MediaInfo
 import com.google.android.gms.cast.MediaLoadRequestData
 import com.google.android.gms.cast.MediaMetadata
@@ -35,49 +34,29 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
         // ── MediaStore Plugin (local video browser) ──────────────────────
         flutterEngine.plugins.add(MediaStorePlugin())
 
         // ── Intent Channel: incoming video "Open with" from file managers ─
-        intentMethodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, INTENT_CHANNEL)
+        intentMethodChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger, INTENT_CHANNEL
+        )
         intentMethodChannel!!.setMethodCallHandler { call, result ->
             when (call.method) {
                 "getPendingVideoUri" -> {
                     result.success(pendingVideoUri)
                     pendingVideoUri = null
-                
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        extractVideoUri(intent)
-        val uri = pendingVideoUri
-        if (uri != null) {
-            intentMethodChannel?.invokeMethod("onVideoUri", uri)
-            pendingVideoUri = null
-        }
-    }
-
-    private fun extractVideoUri(intent: Intent?) {
-        if (intent?.action == Intent.ACTION_VIEW) {
-            val uri = intent.data?.toString()
-            if (uri != null && uri.isNotEmpty()) {
-                pendingVideoUri = uri
-            }
-        }
-    }
-}
+                }
                 "openVideoWith" -> {
                     val uri = call.argument<String>("uri") ?: ""
                     try {
                         val intent = Intent(Intent.ACTION_VIEW).apply {
-                            setDataAndType(
-                                android.net.Uri.parse(uri),
-                                "video/*"
-                            )
+                            setDataAndType(android.net.Uri.parse(uri), "video/*")
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        val chooser = Intent.createChooser(intent, "Open with")
-                        startActivity(chooser)
+                        startActivity(Intent.createChooser(intent, "Open with"))
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("OPEN_WITH_FAILED", e.message, null)
@@ -86,7 +65,7 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        // Extract video URI from the intent that launched the activity
+        // Extract video URI from the cold-start intent
         extractVideoUri(intent)
 
         // ── PiP Channel ──────────────────────────────────────────────────
@@ -108,21 +87,23 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-
-        // ── Media Scanner Channel ────────────────────────────────────
+        // ── Media Scanner Channel ────────────────────────────────────────
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "scanFile" -> {
                         val scanPath = call.argument<String>("path")
                         if (scanPath != null) {
-                            MediaScannerConnection.scanFile(this, arrayOf(scanPath), null, null)
+                            MediaScannerConnection.scanFile(
+                                this, arrayOf(scanPath), null, null
+                            )
                         }
                         result.success(null)
                     }
                     else -> result.notImplemented()
                 }
             }
+
         // ── Cast Channel ─────────────────────────────────────────────────
         try {
             castContext = CastContext.getSharedInstance(this)
@@ -136,61 +117,56 @@ class MainActivity : FlutterActivity() {
                     "discoverDevices" -> {
                         try {
                             val devices = mutableListOf<Map<String, String>>()
-                            // Return current cast device if connected
                             val sess = castContext?.sessionManager?.currentCastSession
                             if (sess != null && sess.isConnected) {
                                 val ri = sess.castDevice
                                 if (ri != null) devices.add(mapOf(
-                                    "id" to (ri.deviceId ?: ""),
-                                    "name" to (ri.friendlyName ?: "Chromecast"),
-                                    "model" to (ri.modelName ?: "")
+                                    "id"    to (ri.deviceId     ?: ""),
+                                    "name"  to (ri.friendlyName ?: "Chromecast"),
+                                    "model" to (ri.modelName    ?: "")
                                 ))
                             }
                             result.success(devices)
-                        } catch (e: Exception) { result.success(listOf<Map<String,String>>()) }
+                        } catch (e: Exception) {
+                            result.success(listOf<Map<String, String>>())
+                        }
                     }
-
                     "castVideo" -> {
                         try {
-                            val url       = call.argument<String>("url") ?: ""
-                            val title     = call.argument<String>("title") ?: ""
-                            val posterUrl = call.argument<String>("posterUrl") ?: ""
-                            val posMs     = call.argument<Int>("positionMs") ?: 0
-
+                            val url       = call.argument<String>("url")       ?: ""
+                            val title     = call.argument<String>("title")     ?: ""
+                            val posMs     = call.argument<Int>("positionMs")   ?: 0
                             val sess = castContext?.sessionManager?.currentCastSession
                             if (sess == null || !sess.isConnected) {
                                 result.success(false); return@setMethodCallHandler
                             }
                             val meta = MediaMetadata(MediaMetadata.MEDIA_TYPE_MOVIE)
                             meta.putString(MediaMetadata.KEY_TITLE, title)
-
                             val mediaInfo = MediaInfo.Builder(url)
                                 .setStreamType(MediaInfo.STREAM_TYPE_BUFFERED)
                                 .setContentType("video/mp4")
                                 .setMetadata(meta)
                                 .build()
-
                             val loadRequest = MediaLoadRequestData.Builder()
                                 .setMediaInfo(mediaInfo)
                                 .setCurrentTime(posMs.toLong())
                                 .setAutoplay(true)
                                 .build()
-
                             sess.remoteMediaClient?.load(loadRequest)
                             result.success(true)
                         } catch (e: Exception) { result.success(false) }
                     }
-
-                    "pause"  -> { castSession?.remoteMediaClient?.pause();  result.success(null) }
-                    "resume" -> { castSession?.remoteMediaClient?.play();   result.success(null) }
-                    "stop"   -> { castSession?.remoteMediaClient?.stop();   result.success(null) }
+                    "pause"  -> { castSession?.remoteMediaClient?.pause(); result.success(null) }
+                    "resume" -> { castSession?.remoteMediaClient?.play();  result.success(null) }
+                    "stop"   -> { castSession?.remoteMediaClient?.stop();  result.success(null) }
                     "seek"   -> {
                         val ms = call.argument<Int>("positionMs") ?: 0
                         castSession?.remoteMediaClient?.seek(ms.toLong())
                         result.success(null)
                     }
                     "isConnected" -> {
-                        val connected = castContext?.sessionManager?.currentCastSession?.isConnected == true
+                        val connected =
+                            castContext?.sessionManager?.currentCastSession?.isConnected == true
                         result.success(connected)
                     }
                     "disconnect" -> {
@@ -200,5 +176,25 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    // ── Warm-start intent (user taps "Open with RaddFlix" while app is running) ─
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        extractVideoUri(intent)
+        val uri = pendingVideoUri
+        if (uri != null) {
+            intentMethodChannel?.invokeMethod("onVideoUri", uri)
+            pendingVideoUri = null
+        }
+    }
+
+    private fun extractVideoUri(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW) {
+            val uri = intent.data?.toString()
+            if (!uri.isNullOrEmpty()) {
+                pendingVideoUri = uri
+            }
+        }
     }
 }

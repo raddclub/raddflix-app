@@ -4829,3 +4829,52 @@ POST /api/auth/device-switch/verify → 400 (correct — bad OTP)
 - Owner-action items: supportWhatsApp real number, Let's Encrypt SSL (needs domain), review/publish new titles (IDs 8-28), fix CI
 
 ---
+
+---
+
+## [2026-05-31] — Agent: Replit Agent (CI Fix — gradle-wrapper + MainActivity.kt + ci-tests.yml)
+
+### Task
+Fix both CI workflows (`Build RaddFlix APK` + `RaddFlix CI`) which were failing on every push.
+
+### Root Causes Found
+
+#### 1. `gradle-wrapper.properties` — MISSING (404)
+Without this file Gradle cannot determine which version to download.
+The file had never been committed to the repository. AGP 8.1.0 requires Gradle 8.x.
+**Fix**: Created `raddflix_flutter/android/gradle/wrapper/gradle-wrapper.properties`
+with `distributionUrl=...gradle-8.3-bin.zip`.
+
+#### 2. `MainActivity.kt` — Malformed Kotlin (Kotlin compile error)
+`onNewIntent` and `extractVideoUri` were embedded *inside* the `when (call.method)` block
+inside the `intentMethodChannel` lambda — invalid Kotlin syntax, parse error.
+The `getPendingVideoUri` case was also missing its closing `}`.
+The `openVideoWith` case was placed at the wrong indentation level outside the `when` block.
+**Fix**: Full rewrite with correct brace structure. `onNewIntent` and `extractVideoUri`
+are now proper class-level `override`/`private` methods outside `configureFlutterEngine`.
+
+#### 3. `ci-tests.yml` — Deploy step used decommissioned `jazzmax_watch`
+The deploy job called `sudo supervisorctl restart jazzmax_watch` — a service decommissioned
+2026-05-30. This caused the (continue-on-error) deploy job to fail every run.
+**Fix**: Changed to `raddflix_radd`.
+
+### Verified Pre-Fix
+- `flutter analyze` was PASSING — no Dart errors
+- Both workflows failed at exactly "Build release APK" / "Build APK" step
+- `gradle-wrapper.properties` confirmed 404 via GitHub API
+- `MainActivity.kt` brace mismatch visually confirmed in raw file
+
+### Files Changed
+- `raddflix_flutter/android/gradle/wrapper/gradle-wrapper.properties` — CREATED (was missing)
+- `raddflix_flutter/android/app/src/main/kotlin/com/raddflix/app/MainActivity.kt` — fix Kotlin brace structure
+- `.github/workflows/ci-tests.yml` — fix deploy step service name
+
+### Notes for Next Agent
+- CI should now pass after this commit — watch the GitHub Actions run triggered by this push
+- If build still fails after this fix, check if `disk_space_plus` or `saver_gallery` packages
+  need namespace patches (the AGP 8 namespace patch step in the workflow already handles most of these)
+- `compileSdk 36` in app/build.gradle is very new — if Gradle can't find SDK 36 on CI,
+  downgrade to `compileSdk 34` (or use `flutter.compileSdkVersion`)
+- Deploy auto-runs after successful build — Oracle server will be updated automatically
+
+---
