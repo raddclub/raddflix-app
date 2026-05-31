@@ -534,18 +534,20 @@ def _omdb_full(title: str, year, keys_list: list) -> dict:
     return {}
 
 
-def _enrich_merged(row: dict, log_fn=None) -> dict:
+def _enrich_merged(row: dict, log_fn=None, force: bool = False) -> dict:
     """
     Run all 6 enrichment sources and merge their results.
+    IMDbAPI leads because it has the best Asian/Pakistani/Bollywood coverage and is free.
     Priority per field:
-      poster      → TMDB > IMDbAPI > YouTube > Google KG > OMDB
-      imdb_rating → OMDB > IMDbAPI > AI
-      rating      → TMDB > IMDbAPI > AI
-      overview    → TMDB > OMDB > IMDbAPI > AI > Google KG
-      genres_csv  → TMDB > OMDB > IMDbAPI > AI
-      cast_names  → OMDB > TMDB > IMDbAPI > AI
-      director    → OMDB > TMDB > AI
-    Returns dict of fields to UPDATE (only for currently-null fields).
+      poster      → IMDbAPI > TMDB > YouTube > Google KG > OMDB
+      imdb_rating → IMDbAPI > OMDB > AI
+      rating      → IMDbAPI > TMDB > AI
+      overview    → IMDbAPI > TMDB > OMDB > AI > Google KG
+      genres_csv  → IMDbAPI > TMDB > OMDB > AI
+      cast_names  → IMDbAPI > OMDB > TMDB > AI
+      director    → IMDbAPI > OMDB > TMDB > AI
+    When force=True, overwrites even existing non-null fields.
+    Returns dict of fields to UPDATE.
     """
     from .. import metadata_lookup as ml
 
@@ -657,7 +659,8 @@ def _enrich_merged(row: dict, log_fn=None) -> dict:
         return {}
 
     # ── Merge ────────────────────────────────────────────────────────────────
-    PRIO = ["tmdb", "omdb", "imdbapi", "ai", "youtube", "gkg"]
+    # IMDbAPI leads — best Asian/Pakistani/Bollywood/South Asian coverage, fully free
+    PRIO = ["imdbapi", "tmdb", "omdb", "ai", "youtube", "gkg"]
 
     def pick(field: str, prio: list | None = None):
         for src in (prio or PRIO):
@@ -669,52 +672,52 @@ def _enrich_merged(row: dict, log_fn=None) -> dict:
     updates: dict = {}
 
     def merge(field: str, value, existing_key: str | None = None):
-        """Write to updates only if the current row is missing this field."""
+        """Write to updates only if row is missing this field, or force=True overwrites."""
         ek  = existing_key or field
         cur = row.get(ek)
-        if cur in (None, "", 0, "N/A") and value not in (None, "", 0, "N/A"):
+        if (force or cur in (None, "", 0, "N/A")) and value not in (None, "", 0, "N/A"):
             updates[field] = value
 
     # External IDs
-    merge("tmdb_id",        pick("tmdb_id",        ["tmdb"]))
-    merge("imdb_id",        pick("imdb_id",        ["omdb", "imdbapi", "tmdb"]))
+    merge("tmdb_id",        pick("tmdb_id",        ["tmdb", "imdbapi"]))
+    merge("imdb_id",        pick("imdb_id",        ["imdbapi", "omdb", "tmdb"]))
     merge("original_title", pick("original_title"))
-    merge("release_date",   pick("release_date",   ["tmdb", "omdb"]))
+    merge("release_date",   pick("release_date",   ["imdbapi", "tmdb", "omdb"]))
 
     # Core metadata
-    yr = pick("year")
+    yr = pick("year", ["imdbapi", "tmdb", "omdb"])
     if yr is not None:
         merge("year", str(yr))
     merge("media_type", pick("media_type"))
 
     # Ratings
-    merge("rating",      pick("rating",      ["tmdb", "imdbapi", "ai"]))
-    merge("imdb_rating", pick("imdb_rating", ["omdb", "imdbapi", "ai"]))
-    merge("vote_count",  pick("vote_count",  ["tmdb"]))
+    merge("rating",      pick("rating",      ["imdbapi", "tmdb", "ai"]))
+    merge("imdb_rating", pick("imdb_rating", ["imdbapi", "omdb", "ai"]))
+    merge("vote_count",  pick("vote_count",  ["tmdb", "imdbapi"]))
 
     # Descriptive text
-    ov = pick("overview", ["tmdb", "omdb", "imdbapi", "ai", "gkg"])
+    ov = pick("overview", ["imdbapi", "tmdb", "omdb", "ai", "gkg"])
     merge("overview", ov)
     merge("plot",     ov, existing_key="plot")
-    merge("genres_csv", pick("genres_csv", ["tmdb", "omdb", "imdbapi", "ai"]))
-    merge("genres",     pick("genres",     ["tmdb"]))
-    merge("cast_names", pick("cast_names", ["omdb", "tmdb", "imdbapi", "ai"]))
-    merge("cast",       pick("cast",       ["tmdb"]))
-    merge("director",   pick("director",   ["omdb", "tmdb", "ai"]))
+    merge("genres_csv", pick("genres_csv", ["imdbapi", "tmdb", "omdb", "ai"]))
+    merge("genres",     pick("genres",     ["imdbapi", "tmdb"]))
+    merge("cast_names", pick("cast_names", ["imdbapi", "omdb", "tmdb", "ai"]))
+    merge("cast",       pick("cast",       ["imdbapi", "tmdb"]))
+    merge("director",   pick("director",   ["imdbapi", "omdb", "tmdb", "ai"]))
 
     # Media specs
-    merge("runtime",       pick("runtime",       ["omdb", "tmdb"]))
-    merge("season_count",  pick("season_count",  ["omdb", "tmdb"]))
-    merge("episode_count", pick("episode_count", ["tmdb"]))
+    merge("runtime",       pick("runtime",       ["imdbapi", "omdb", "tmdb"]))
+    merge("season_count",  pick("season_count",  ["imdbapi", "omdb", "tmdb"]))
+    merge("episode_count", pick("episode_count", ["imdbapi", "tmdb"]))
 
-    # Assets
-    merge("poster",      pick("poster",      ["tmdb", "imdbapi", "youtube", "gkg", "omdb"]))
-    merge("backdrop",    pick("backdrop",    ["tmdb"]))
-    merge("trailer_url", pick("trailer_url", ["youtube"]))
+    # Assets  — IMDbAPI first for Asian content, TMDB as quality backup
+    merge("poster",      pick("poster",      ["imdbapi", "tmdb", "youtube", "gkg", "omdb"]))
+    merge("backdrop",    pick("backdrop",    ["tmdb", "imdbapi"]))
+    merge("trailer_url", pick("trailer_url", ["youtube", "imdbapi"]))
 
     # Country / language
-    merge("country",  pick("country",  ["omdb", "tmdb", "ai"]))
-    merge("language", pick("language", ["omdb", "tmdb", "ai"]))
+    merge("country",  pick("country",  ["imdbapi", "omdb", "tmdb", "ai"]))
+    merge("language", pick("language", ["imdbapi", "omdb", "tmdb", "ai"]))
 
     return {k: v for k, v in updates.items() if v not in (None, "", 0)}
 
@@ -725,8 +728,9 @@ def enrich_titles():
     """Bulk enrichment with multi-source merge. Streams SSE progress events."""
     from flask import stream_with_context as _swc
 
-    data = request.get_json(force=True, silent=True) or {}
-    ids  = data.get("ids", [])
+    data     = request.get_json(force=True, silent=True) or {}
+    ids      = data.get("ids", [])
+    do_force = bool(data.get("force", False))
 
     def generate():
         try:
@@ -752,12 +756,15 @@ def enrich_titles():
                 ttl = rd.get("title") or f"ID {rid}"
 
                 missing = _needs_enrichment(rd)
-                if not missing:
+                if not do_force and not missing:
                     skipped += 1
                     yield (f"event: row\ndata: "
                            f"{json.dumps({'id': rid, 'title': ttl, 'status': 'skipped', 'reason': 'already complete'})}"
                            f"\n\n")
                     continue
+
+                if do_force:
+                    missing = _ENRICH_REQD  # all fields shown as targets when force-refreshing
 
                 logs: list[str] = []
                 yield (f"event: row\ndata: "
@@ -765,7 +772,7 @@ def enrich_titles():
                        f"\n\n")
 
                 try:
-                    updates = _enrich_merged(rd, log_fn=logs.append)
+                    updates = _enrich_merged(rd, log_fn=logs.append, force=do_force)
                     if updates:
                         sets = ", ".join(f"{k} = ?" for k in updates)
                         vals = list(updates.values()) + [int(time.time()), rid]
