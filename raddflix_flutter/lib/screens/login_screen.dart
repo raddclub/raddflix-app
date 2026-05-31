@@ -7,6 +7,7 @@ import '../core/constants.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/radd_text_field.dart';
+import '../core/utils/auth_utils.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -44,7 +45,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         setState(() { _loading = false; });
         return;
       }
-      setState(() { _error = _friendly(e.toString()); _loading = false; });
+      setState(() { _error = AuthErrors.login(e.toString()); _loading = false; });
     }
   }
 
@@ -56,12 +57,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } catch (e) {
       setState(() { _error = 'Cannot connect. Check your internet.'; _loading = false; });
     }
-  }
-
-  String _friendly(String raw) {
-    if (raw.contains('401') || raw.contains('Invalid')) return 'Wrong phone or password.';
-    if (raw.contains('SocketException') || raw.contains('connection')) return 'No internet connection.';
-    return 'Login failed. Please try again.';
   }
 
   @override

@@ -1,7 +1,7 @@
 # MASTER_PLAN.md — RaddFlix Task Queue
 > **This is the single source of truth for what to work on next.**
 > Always check this before starting any work. Update status when done.
-> Last Updated: 2026-05-31 (Session 2: P1.1-P1.4, P2.2, P2.3, P2.6, P3.2, P3.6 completed)
+> Last Updated: 2026-05-31 (Session 2 final: all P1/P2 bugs fixed; P3.4 done; P4.2-P4.5 verified already done)
 
 ---
 
@@ -110,7 +110,7 @@ def _watch_base() -> str:
 **Effort:** 30 min (do same session as P1.1)
 
 ### P2.4 — Enable XOR request encoding
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE (RequestEncoder.enabled = true already set; XorWsgiMiddleware wired in app.py)
 **File:** `raddflix_flutter/lib/core/security/request_encoder.dart` (set `enabled = true`)
 **Problem:** Both Flutter and server side fully implemented but Flutter side is disabled.
 **Note:** Must coordinate — enable both sides simultaneously to avoid breaking existing requests.
@@ -161,7 +161,7 @@ auth_info/
 **Effort:** 5 min
 
 ### P3.4 — Deduplicate _extract_error + _friendly_error
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE (created core/utils/auth_utils.dart with AuthErrors; login/register screens updated)
 **Files:** `login_screen.dart` + `register_screen.dart`
 **Fix:** Move to `core/utils/auth_utils.dart`.
 **Effort:** 30 min
@@ -196,25 +196,25 @@ auth_info/
 **Effort:** 2h
 
 ### P4.2 — Wire recommendation API endpoint
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE (bp_rec + /recommend route exist and registered at /api prefix in app.py)
 **File:** `radd-hub/hub/routes/mobile_api.py`
 **Fix:** Add `GET /api/recommend?title_id=N` route that calls `radd_recommend.get_recommendations(title_id)`.
 **Effort:** 30 min
 
 ### P4.3 — Fix Chromecast Gradle dependency
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE (cast-framework 21.5.0 + exoplayer-cast 2.19.1 already in build.gradle)
 **File:** `raddflix_flutter/android/app/build.gradle`
 **Fix:** Add `implementation 'com.google.android.gms:play-services-cast-framework:21.4.0'`.
 **Effort:** 15 min
 
 ### P4.4 — Runtime permission request for local media
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE (MediaStorePlugin in MainActivity handles checkMediaPermission/requestMediaPermission; local_media_screen.dart uses it correctly)
 **File:** `raddflix_flutter/lib/screens/local_media_screen.dart`
 **Fix:** Add `permission_handler` or use built-in `file_picker` permission flow to request `READ_MEDIA_VIDEO` at runtime before scanning.
 **Effort:** 1h
 
 ### P4.5 — Enable share_url scrambling at rest
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE (_encodeUrl()/_decodeUrl() fully wired in local_db.dart using RequestEncoder.scrambleUrl/unscrambleUrl)
 **Files:** `local_db.dart` (write), `catalog_api.dart` (read + unscramble)
 **Problem:** `RequestEncoder.scrambleUrl()` exists but is never called when writing to SQLite.
 **Effort:** 2h

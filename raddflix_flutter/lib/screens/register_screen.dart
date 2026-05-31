@@ -6,6 +6,7 @@ import '../core/constants.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/radd_text_field.dart';
+import '../core/utils/auth_utils.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -36,9 +37,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       final serverMsg = (_errData is Map
           ? ((_errData['error'] ?? _errData['message']) as String?)
           : (_errData is String && _errData.isNotEmpty ? _errData : null));
-      setState(() { _error = serverMsg ?? _friendly(e.toString()); _loading = false; });
+      setState(() { _error = serverMsg ?? AuthErrors.register(e.toString()); _loading = false; });
     } catch (e) {
-      setState(() { _error = _friendly(e.toString()); _loading = false; });
+      setState(() { _error = AuthErrors.register(e.toString()); _loading = false; });
     }
   }
 
@@ -50,12 +51,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     } catch (e) {
       setState(() { _error = 'Cannot connect. Check your internet.'; _loading = false; });
     }
-  }
-
-  String _friendly(String raw) {
-    if (raw.contains('409') || raw.contains('already')) return 'Phone already registered. Try signing in.';
-    if (raw.contains('SocketException')) return 'No internet connection.';
-    return 'Registration failed. Please try again.';
   }
 
   @override
