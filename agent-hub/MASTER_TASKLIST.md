@@ -570,7 +570,7 @@ All reported "failures" were false-positive grep patterns; actual code verified 
 ### Pending ⬜ (for next agent)
 | # | Task | Notes |
 |---|------|-------|
-| 25.3 | Get official APK cert fingerprint + set `_officialFingerprint` | Build signed APK → keytool -printcert -jarfile → copy SHA-256 → update app_guard.dart |
+| 25.3 | ✅ Get official APK cert fingerprint + set `_officialFingerprint` | Stable keystore generated, KEYSTORE_BASE64 GitHub Secret set, fingerprint activated in app_guard.dart |
 | 25.5 | ~~Server XOR encoding (radd-hub)~~ | ✅ DONE — `request_encoding.py` deployed + `@encoding_supported` decorator ready. Flutter `RequestEncoder.enabled=false` until both sides activated. |
 | 25.6 | ~~Telemetry on tamper detection~~ | ✅ DONE — `security_telemetry.dart` + Flask endpoint + tamper_reports DB table |
 

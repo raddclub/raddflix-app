@@ -45,7 +45,7 @@ class AppGuard {
   /// Run: keytool -printcert -jarfile app-release.apk  to get this.
   /// Then replace the placeholder and re-deploy.
   static const String _officialFingerprint =
-      'RADDFLIX_CERT_SHA256_PLACEHOLDER';
+      '34:D8:99:BE:46:D6:16:DB:43:B1:90:9F:AA:B5:A8:1A:93:76:B3:5C:D2:C0:C9:28:47:04:C8:92:EB:2C:89:5A';
 
   static const MethodChannel _channel =
       MethodChannel('com.raddflix.app/security');
