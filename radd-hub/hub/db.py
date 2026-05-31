@@ -475,6 +475,20 @@ _DDL = [
         is_enabled     INTEGER DEFAULT 1,
         sort_order     INTEGER DEFAULT 0
     )""",
+    # ── Security telemetry (Phase 25.6) ─────────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS tamper_reports (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        device_hash TEXT NOT NULL,
+        reason      TEXT NOT NULL DEFAULT 'unknown',
+        reported_at INTEGER NOT NULL DEFAULT 0,
+        app_version TEXT,
+        is_rooted   INTEGER DEFAULT 0,
+        ip_addr     TEXT
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_tamper_reports_device
+       ON tamper_reports(device_hash)""",
+    """CREATE INDEX IF NOT EXISTS idx_tamper_reports_ts
+       ON tamper_reports(reported_at DESC)""",
 ]
 
 

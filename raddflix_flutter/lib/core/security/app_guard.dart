@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'security_telemetry.dart';
 
 /// AppGuard — Multi-layer runtime security shield for RaddFlix.
 ///
@@ -75,6 +76,7 @@ class AppGuard {
           await _channel.invokeMethod<String>('getSignatureFingerprint');
       if (fingerprint != null && fingerprint != _officialFingerprint) {
         isTampered = true;
+        SecurityTelemetry.reportTamperAttempt('signature_mismatch');
       }
     } catch (_) {
       // Native channel unavailable (unit tests, emulator, etc.) — skip
@@ -103,6 +105,7 @@ class AppGuard {
       socket.destroy();
       // Connection succeeded → Frida server is running
       isTampered = true;
+      SecurityTelemetry.reportTamperAttempt('frida_port');
       return;
     } catch (_) {
       // Connection refused = Frida not running = good
@@ -112,7 +115,10 @@ class AppGuard {
     try {
       final hasFrida =
           await _channel.invokeMethod<bool>('checkFrida') ?? false;
-      if (hasFrida) isTampered = true;
+      if (hasFrida) {
+        isTampered = true;
+        SecurityTelemetry.reportTamperAttempt('frida_detected');
+      }
     } catch (_) {}
   }
 

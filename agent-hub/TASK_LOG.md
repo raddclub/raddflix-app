@@ -404,3 +404,65 @@ Architecture decisions made this session (permanent):
 - AppGuard.isTampered detection works end-to-end: Kotlin channel → Dart → ApiClient interceptor
 - share_url scrambling is live but ONLY for new writes — old plain URLs in DB are backward-compatible
 - WA bot still not running on Oracle (BUG-P17-08)
+
+---
+
+## Session 2026-05-31c — Phase 25.6 Security Telemetry
+
+### Done
+
+**SecurityTelemetry wired end-to-end:**
+
+Flutter (`lib/core/security/security_telemetry.dart` — NEW):
+- Class `SecurityTelemetry` with static `reportTamperAttempt(reason)` method
+- Fires ONCE per cold start (`_reported` flag prevents duplicate pings)
+- Background fire-and-forget — never awaited, never delays startup
+- Uses fresh Dio instance (no auth interceptors — tampered app may lack JWT)
+- Sends: `device_hash` (8-char hex of hashCode, non-reversible), `reason`,
+  `timestamp`, `app_version`, `is_rooted`
+- Silent: all errors swallowed, never shows UI
+
+AppGuard (`lib/core/security/app_guard.dart` — updated):
+- Import `security_telemetry.dart`
+- `_checkSignature()`: `reportTamperAttempt('signature_mismatch')` when cert mismatch
+- `_checkFrida()` port probe: `reportTamperAttempt('frida_port')` when Frida port open
+- `_checkFrida()` native scan: `reportTamperAttempt('frida_detected')` when maps match
+
+Flask (`radd-hub/hub/routes/security_telemetry.py` — NEW):
+- Blueprint `bp_security`
+- `POST /api/security/tamper-report` — no auth, in-memory IP rate limit (10/IP/hr)
+- Stores to `tamper_reports` SQLite table (device_hash, reason, ts, version, rooted, ip)
+- Always returns 200 OK (don't reveal to attacker whether logged)
+- `GET /security/tamper-reports` — admin-only panel, dark theme HTML table, last 500 events
+
+DB (`radd-hub/hub/db.py` — updated):
+- Add `tamper_reports` table to `_DDL`:
+  columns: id, device_hash, reason, reported_at, app_version, is_rooted, ip_addr
+- Indexes: `idx_tamper_reports_device` (device_hash), `idx_tamper_reports_ts` (reported_at DESC)
+- Table created automatically by `init_db()` on next Oracle restart
+
+App factory (`radd-hub/hub/app.py` — updated):
+- Register `bp_security` blueprint (no url_prefix — endpoints specify full paths)
+
+### Files Changed
+- `raddflix_flutter/lib/core/security/security_telemetry.dart` (NEW)
+- `raddflix_flutter/lib/core/security/app_guard.dart` (telemetry import + 3 call sites)
+- `radd-hub/hub/routes/security_telemetry.py` (NEW)
+- `radd-hub/hub/db.py` (tamper_reports DDL)
+- `radd-hub/hub/app.py` (blueprint registration)
+
+### Phase 25 Status After This Session
+- Layer 1: AppGuard ✅  Layer 2: TamperInterceptor ✅  Layer 3: URL encryption ✅
+- Layer 4: Obfuscation ✅  Layer 5: API XOR ⏸ pending  Layer 6: Telemetry ✅
+- CI: ✅ green — `RaddFlix-1.0.0+1-build552.apk` (55MB) builds and passes
+
+### What Was NOT Done
+- Official APK fingerprint not set (placeholder — enforcement disabled)
+- Server XOR encoding not deployed (RequestEncoder.enabled=false)
+- Oracle deployment needed for telemetry DB to take effect (restart radd-hub)
+
+### Notes
+- Telemetry endpoint is unauthenticated by design — attacker has no JWT
+- Device hash is non-reversible (hashCode hex) — privacy safe
+- Rate limiter is in-memory — resets on server restart (acceptable for abuse prevention)
+- CI fix for Dart 3.4 wildcard `_ =` and Kotlin null safety both applied this session

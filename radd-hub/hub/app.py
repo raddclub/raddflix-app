@@ -108,6 +108,10 @@ def create_app() -> Flask:
     app.register_blueprint(catalog_api.bp)   # url_prefix in blueprint: /api/catalog
     app.register_blueprint(search_api.bp)    # url_prefix in blueprint: /api/search
     app.register_blueprint(poster_proxy.poster_proxy_bp)  # /api/poster/*
+    # ── Security telemetry (Phase 25.6) ──────────────────────────────────────
+    from .routes.security_telemetry import bp_security
+    app.register_blueprint(bp_security)   # POST /api/security/tamper-report
+                                          # GET  /security/tamper-reports (admin)
 
     # ------------------------------------------------------------------
     # Download proxy — /d/<remote_id>
