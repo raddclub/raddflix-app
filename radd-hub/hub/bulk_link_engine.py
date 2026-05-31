@@ -1,6 +1,6 @@
 """Bulk Link Engine — proactively refreshes stream links for the library.
 
-This ensures instant playback in JazzBuzz by pre-generating time-limited 
+This ensures instant playback in RaddFlix by pre-generating time-limited 
 direct download links from JazzDrive shares.
 """
 from __future__ import annotations

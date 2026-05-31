@@ -34,14 +34,27 @@ _RATE_LIMIT_MAX    = 10    # max reports per IP per window
 
 
 def _rate_check(ip: str) -> bool:
-    """Return True if the request is allowed, False if rate-limited."""
+    """Return True if the request is allowed, False if rate-limited.
+
+    Also prunes the global _ip_window dict to prevent unbounded memory growth
+    under sustained DoS from rotating IPs (P2.2 fix).
+    """
     now = time.time()
     hits = _ip_window.get(ip, [])
     hits = [t for t in hits if now - t < _RATE_LIMIT_WINDOW]
     if len(hits) >= _RATE_LIMIT_MAX:
+        _ip_window[ip] = hits  # keep for rate-limit enforcement
         return False
     hits.append(now)
     _ip_window[ip] = hits
+
+    # Prune stale IPs every ~100 calls (cheap amortized cleanup)
+    if len(_ip_window) > 500:
+        stale = [k for k, v in list(_ip_window.items())
+                 if not any(now - t < _RATE_LIMIT_WINDOW for t in v)]
+        for k in stale:
+            del _ip_window[k]
+
     return True
 
 

@@ -20,6 +20,10 @@ Device binding (Phase 5):
 from __future__ import annotations
 import base64 as _b64
 import hashlib
+try:
+    import bcrypt as _bcrypt
+except ImportError:
+    _bcrypt = None  # bcrypt not installed — password hashing will fall back to legacy
 import hmac as _hmac
 import json
 import logging
@@ -105,10 +109,53 @@ def _refresh_token_jwt(user_id: int, device_id: str) -> str:
     return _make_jwt({"sub": user_id, "type": "refresh", "device": device_id}, 7_776_000)
 
 def _hash_password(pw: str) -> str:
+    """Legacy SHA-256 hash — used for OTP codes only (deterministic comparison needed).
+    For user passwords, use _hash_user_password() / _verify_user_password().
+    """
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+# ── Bcrypt user-password helpers (P1.3 security fix) ─────────────────────────
+
+def _hash_user_password(pw: str) -> str:
+    """Hash a user password with bcrypt (salted, one-way). Use for registration."""
+    if _bcrypt is None:
+        # Fallback if bcrypt not installed (should not happen in production)
+        log.error("bcrypt not available — falling back to SHA-256. Install bcrypt!")
+        return hashlib.sha256(pw.encode()).hexdigest()
+    return _bcrypt.hashpw(pw.encode(), _bcrypt.gensalt()).decode()
+
+def _verify_user_password(pw: str, stored_hash: str) -> bool:
+    """Verify a user password.
+
+    Handles:
+      - Modern bcrypt hashes ($2b$ / $2a$) — full bcrypt verify
+      - Legacy unsalted SHA-256 (40-char hex) — migration path: verifies
+        with SHA-256 so existing users can still log in; caller should
+        re-hash and store the bcrypt hash immediately after.
+    """
+    if stored_hash.startswith(("$2b$", "$2a$")):
+        if _bcrypt is None:
+            return False
+        try:
+            return _bcrypt.checkpw(pw.encode(), stored_hash.encode())
+        except Exception:
+            return False
+    # Legacy SHA-256 (no salt) — migration path
+    return hashlib.sha256(pw.encode()).hexdigest() == stored_hash
+
+def _migrate_password_hash(user_id: int, plaintext_pw: str) -> None:
+    """Silently upgrade a legacy SHA-256 hash to bcrypt after successful login."""
+    try:
+        new_hash = _hash_user_password(plaintext_pw)
+        with db.conn() as _mc:
+            _mc.execute("UPDATE app_users SET password_hash=? WHERE id=?",
+                        (new_hash, user_id))
+        log.info("password_migrated user_id=%s sha256→bcrypt", user_id)
+    except Exception as _e:
+        log.warning("password_migration_failed user_id=%s: %s", user_id, _e)
 
 def _require_auth(fn):
     """Decorator: validate Bearer access token; injects _user_id and _phone."""
@@ -146,7 +193,7 @@ def register():
         return jsonify({"error": "phone and password required"}), 400
     if len(password) < 6:
         return jsonify({"error": "password must be at least 6 characters"}), 400
-    pw_hash = _hash_password(password)
+    pw_hash = _hash_user_password(password)
     now     = int(time.time())
     try:
         with db.conn() as c:
@@ -176,17 +223,19 @@ def login():
     if not phone or not password:
         return jsonify({"error": "phone and password required"}), 400
 
-    pw_hash = _hash_password(password)
-    now     = int(time.time())
+    now = int(time.time())
 
     with db.conn() as c:
-        user = c.execute(
-            "SELECT * FROM app_users WHERE phone=? AND password_hash=?",
-            (phone, pw_hash)
+        # Fetch by phone only — password verified in Python (supports bcrypt + legacy)
+        _urow = c.execute(
+            "SELECT * FROM app_users WHERE phone=?", (phone,)
         ).fetchone()
-        if not user:
+        if not _urow or not _verify_user_password(password, _urow["password_hash"]):
             return jsonify({"error": "Invalid phone or password"}), 401
-        user = dict(user)
+        user = dict(_urow)
+        # Silently migrate legacy SHA-256 → bcrypt on every successful login
+        if not user["password_hash"].startswith(("$2b$", "$2a$")):
+            _migrate_password_hash(user["id"], password)
         if not user.get("is_active", 1):
             return jsonify({"error": "Account suspended. Contact support."}), 403
 

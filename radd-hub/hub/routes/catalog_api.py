@@ -41,11 +41,16 @@ _poster_push_jobs: dict = {}
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _watch_base() -> str:
+    """Return the external watch-server base URL from DB settings.
+
+    Falls back to empty string — callers that need an absolute URL should
+    check for empty and handle gracefully. No hardcoded IPs allowed.
+    """
     try:
         v = (db.setting("WATCH_SERVER_EXTERNAL_URL") or "").strip()
-        return v.rstrip("/") if v else "http://92.4.95.252"
+        return v.rstrip("/")
     except Exception:
-        return "http://92.4.95.252"
+        return ""
 
 
 def _catalog_version() -> int:

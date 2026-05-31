@@ -1,7 +1,7 @@
 # MASTER_PLAN.md — RaddFlix Task Queue
 > **This is the single source of truth for what to work on next.**
 > Always check this before starting any work. Update status when done.
-> Last Updated: 2026-05-31
+> Last Updated: 2026-05-31 (Session 2: P1.1-P1.4, P2.2, P2.3, P2.6, P3.2, P3.6 completed)
 
 ---
 
@@ -17,7 +17,7 @@
 ## ⚡ PRIORITY 1 — Critical Bugs (do these first, in order)
 
 ### P1.1 — Wire SECURITY_CHANNEL in MainActivity.kt
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE
 **File:** `raddflix_flutter/android/app/src/main/kotlin/com/raddflix/app/MainActivity.kt`
 **Problem:** `SECURITY_CHANNEL = "com.raddflix.app/security"` is declared but has NO `setMethodCallHandler`. `AppGuard._checkSignature()` throws `PlatformException` which is silently caught → APK signature enforcement is completely inactive. A cracked APK with different signing cert passes all checks freely.
 **Fix:** Add handler responding to `getSignatureFingerprint` (SHA-256 of APK signing cert), `isFridaRunning`, `isRooted` in `configureFlutterEngine()`.
@@ -28,7 +28,7 @@
 ---
 
 ### P1.2 — Fix bulk_link_engine.py stream_links SQL crash
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE (was false alarm — stream_links table + folder_share_url both exist in DDL)
 **File:** `radd-hub/hub/bulk_link_engine.py` + `radd-hub/hub/db.py`
 **Problem:** `BulkLinkEngine.refresh_links()` runs `SELECT * FROM stream_links ...` but `stream_links` table is NOT in `db.py` DDL. Throws `OperationalError: no such table: stream_links` every 2 hours (silently caught). JazzDrive link pre-generation never works.
 **Fix Option A (recommended):** Add `stream_links` table to `db.py` DDL:
@@ -48,7 +48,7 @@ Then verify `bulk_link_engine.py` query matches this schema.
 ---
 
 ### P1.3 — Migrate password hashing to bcrypt
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE
 **File:** `radd-hub/hub/routes/mobile_api.py`
 **Problem:** `_hash_password(pw)` returns `hashlib.sha256(pw.encode()).hexdigest()` — no salt. All identical passwords have identical hashes. Rainbow table attacks expose all passwords on any DB breach.
 **Fix:**
@@ -69,7 +69,7 @@ def _verify_password(pw: str, hashed: str) -> bool:
 ---
 
 ### P1.4 — Remove hardcoded IP from catalog_api.py
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE
 **File:** `radd-hub/hub/routes/catalog_api.py`
 **Problem:** `_watch_base()` has `return "http://92.4.95.252"` as fallback — hardcoded production IP + HTTP not HTTPS.
 **Fix:** Return empty string as fallback (or read from a required env var). Callers must handle empty base URL gracefully.
@@ -97,14 +97,14 @@ def _watch_base() -> str:
 **Effort:** 1h
 
 ### P2.2 — Fix _ip_window memory leak in security_telemetry.py
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE
 **File:** `radd-hub/hub/routes/security_telemetry.py`
 **Problem:** `_ip_window` dict grows without bound under DoS from rotating IPs.
 **Fix:** Prune keys where all timestamps are older than `_RATE_LIMIT_WINDOW` during the cleanup pass.
 **Effort:** 15 min
 
 ### P2.3 — Add Frida + root detection to MainActivity.kt
-**Status:** ⏳ PENDING (BLOCKED: depends on P1.1 being done first)
+**Status:** ✅ DONE (implemented alongside P1.1 in MainActivity.kt — checkFrida + checkRoot handlers active)
 **Problem:** `_checkFrida()` and `_checkRoot()` in `AppGuard` silently fail because Kotlin handlers are missing.
 **Fix:** Wire handlers in the same SECURITY_CHANNEL handler added for P1.1.
 **Effort:** 30 min (do same session as P1.1)
@@ -123,7 +123,7 @@ def _watch_base() -> str:
 **Effort:** 30 min
 
 ### P2.6 — Ensure bcrypt/cryptography in requirements.txt
-**Status:** ⏳ PENDING (check as part of P1.3)
+**Status:** ✅ DONE (bcrypt>=4.0 added; cryptography>=42.0 was already present)
 **File:** `radd-hub/hub/requirements.txt`
 **Check:** `bcrypt` must be listed; `cryptography` must be listed for keys.py Fernet.
 **Effort:** 5 min
@@ -141,7 +141,7 @@ def _watch_base() -> str:
 **Effort:** 15 min
 
 ### P3.2 — Add bot state files to .gitignore
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE
 **Files:** `radd-hub/bots/whatsapp/.gitignore` (create or update)
 **Add:**
 ```
@@ -174,7 +174,7 @@ auth_info/
 **Effort:** 2h
 
 ### P3.6 — Fix dead product name in bulk_link_engine.py
-**Status:** ⏳ PENDING (do same session as P1.2)
+**Status:** ✅ DONE (JazzBuzz → RaddFlix)
 **File:** `radd-hub/hub/bulk_link_engine.py`
 **Fix:** Replace "JazzBuzz" in docstring with "RaddFlix".
 **Effort:** 2 min
@@ -265,3 +265,4 @@ auth_info/
 
 *End of MASTER_PLAN.md — 2026-05-31*
 *Update this file after EVERY task completion.*
+

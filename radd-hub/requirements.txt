@@ -20,3 +20,4 @@ feedparser>=6.0
 playwright>=1.40
 flask-cors>=4.0
 nest-asyncio
+bcrypt>=4.0
