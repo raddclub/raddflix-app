@@ -261,3 +261,545 @@ def db_stats():
                         "ts": int(time.time())})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Smart Bulk Enrichment — multi-source merge strategy
+# Sources: TMDB (full details+credits) → OMDB → IMDbAPI.dev → AI → YouTube → Google KG
+# Only missing fields are filled; existing data is NEVER overwritten.
+# ─────────────────────────────────────────────────────────────────────────────
+import urllib.parse as _uparse
+import urllib.request as _ureq
+import re as _re
+
+_TMDB_W500    = "https://image.tmdb.org/t/p/w500"
+_TMDB_ORIG    = "https://image.tmdb.org/t/p/original"
+_ENRICH_REQD  = ["poster", "overview", "genres_csv", "cast_names", "director",
+                  "rating", "imdb_rating"]
+
+
+def _needs_enrichment(row: dict) -> list[str]:
+    """Return list of missing field names. Empty list → row is complete, skip."""
+    missing = []
+    for f in _ENRICH_REQD:
+        # overview and plot are aliases
+        val = row.get(f) or (row.get("plot") if f == "overview" else None)
+        if not val:
+            missing.append(f)
+    return missing
+
+
+def _http_json(url: str, timeout: float = 12.0):
+    """GET url → parsed JSON, or None on any failure."""
+    try:
+        req = _ureq.Request(url, headers={
+            "User-Agent": "Radd-Hub/4.0",
+            "Accept":     "application/json",
+        })
+        with _ureq.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode("utf-8", errors="replace"))
+    except Exception:
+        return None
+
+
+def _tmdb_full(title: str, year, media_type: str, keys_list: list) -> dict:
+    """Search TMDB → fetch full detail+credits response → return rich field dict."""
+    q  = _uparse.quote_plus(title or "")
+    yr = str(year or "")[:4]
+    yr_int = int(yr) if yr.isdigit() else None
+    mt = (media_type or "movie").lower()
+
+    for key in keys_list:
+        try:
+            hit = None
+            hit_kind = "movie"
+            search_order = ["tv", "movie"] if mt in ("tv", "drama", "anime", "series") else ["movie", "tv"]
+
+            for kind in search_order:
+                yp = (f"&year={yr_int}" if yr_int and kind == "movie"
+                      else (f"&first_air_date_year={yr_int}" if yr_int else ""))
+                for lang_p in ["", "&language=hi-IN"]:
+                    data = _http_json(
+                        f"https://api.themoviedb.org/3/search/{kind}"
+                        f"?api_key={key}&query={q}{yp}{lang_p}"
+                    )
+                    results = (data or {}).get("results") or []
+                    if results:
+                        wt   = title.lower().strip()
+                        best = results[0]
+                        for r in results:
+                            tn = (r.get("title") or r.get("name") or "").lower()
+                            if tn == wt:
+                                best = r
+                                break
+                        hit      = best
+                        hit_kind = kind
+                        break
+                if hit:
+                    break
+
+            if not hit or not hit.get("id"):
+                continue
+
+            tmdb_id = hit["id"]
+            det = _http_json(
+                f"https://api.themoviedb.org/3/{hit_kind}/{tmdb_id}"
+                f"?api_key={key}&append_to_response=credits,external_ids"
+            )
+            if not det:
+                continue
+
+            out: dict = {"tmdb_id": tmdb_id, "media_type": hit_kind}
+
+            # Title / original
+            out["title"]          = hit.get("title") or hit.get("name") or title
+            out["original_title"] = (hit.get("original_title") or
+                                     hit.get("original_name") or title)
+
+            # Year / release_date
+            rd = hit.get("release_date") or hit.get("first_air_date") or ""
+            if rd:
+                out["release_date"] = rd
+                try:
+                    out["year"] = int(rd[:4])
+                except Exception:
+                    pass
+            if not out.get("year") and yr_int:
+                out["year"] = yr_int
+
+            # Poster + backdrop
+            pp = det.get("poster_path") or ""
+            if pp:
+                out["poster"] = f"{_TMDB_W500}{pp}"
+            bp = det.get("backdrop_path") or ""
+            if bp:
+                out["backdrop"] = f"{_TMDB_ORIG}{bp}"
+
+            # Rating
+            va = det.get("vote_average")
+            if va:
+                out["rating"] = round(float(va), 1)
+            vc = det.get("vote_count")
+            if vc:
+                out["vote_count"] = int(vc)
+
+            # Overview
+            ov = (det.get("overview") or "").strip()
+            if ov:
+                out["overview"] = ov
+                out["plot"]     = ov
+
+            # Genres
+            genres = [g["name"] for g in (det.get("genres") or []) if g.get("name")]
+            if genres:
+                out["genres_csv"] = ", ".join(genres)
+                out["genres"]     = json.dumps(genres)
+
+            # Runtime / seasons
+            if hit_kind == "movie":
+                rt = det.get("runtime")
+                if rt:
+                    out["runtime"] = int(rt)
+            else:
+                rts = det.get("episode_run_time") or []
+                if rts:
+                    out["runtime"] = int(rts[0])
+                sc = det.get("number_of_seasons")
+                if sc:
+                    out["season_count"] = int(sc)
+                ec = det.get("number_of_episodes")
+                if ec:
+                    out["episode_count"] = int(ec)
+
+            # External IDs → imdb_id
+            ext  = det.get("external_ids") or {}
+            imdb = ext.get("imdb_id") or ""
+            if imdb:
+                out["imdb_id"] = imdb
+
+            # Credits → cast + director
+            credits   = det.get("credits") or {}
+            cast_list = (credits.get("cast") or [])[:10]
+            if cast_list:
+                out["cast_names"] = ", ".join(
+                    c["name"] for c in cast_list if c.get("name")
+                )
+                out["cast"] = json.dumps([
+                    {"name": c.get("name"), "character": c.get("character", "")}
+                    for c in cast_list if c.get("name")
+                ])
+            crew       = credits.get("crew") or []
+            directors  = [c["name"] for c in crew
+                          if c.get("job") == "Director" and c.get("name")]
+            if directors:
+                out["director"] = ", ".join(directors)
+
+            # Language
+            ol = det.get("original_language") or ""
+            if ol:
+                out["original_lang"] = ol
+
+            return out
+
+        except Exception:
+            continue
+
+    return {}
+
+
+def _omdb_full(title: str, year, keys_list: list) -> dict:
+    """OMDB → IMDB rating, director, cast, genres, runtime, full plot."""
+    q  = _uparse.quote_plus(title or "")
+    yp = f"&y={str(year or '')[:4]}" if year else ""
+
+    for key in keys_list:
+        try:
+            data = None
+            for ttype in ["movie", "series", ""]:
+                tp = f"&type={ttype}" if ttype else ""
+                d  = _http_json(
+                    f"https://www.omdbapi.com/?apikey={key}&t={q}{yp}{tp}&plot=full"
+                )
+                if d and d.get("Response") == "True":
+                    data = d
+                    break
+            if not data:
+                continue
+
+            def clean(v: str) -> str:
+                s = (v or "").strip()
+                return "" if s in ("N/A", "None", "null", "-", "") else s
+
+            def flt(s) -> float | None:
+                try:
+                    return float(_re.sub(r"[^0-9.]", "", str(s or ""))) or None
+                except Exception:
+                    return None
+
+            # IMDB rating from Ratings list first, then imdbRating field
+            imdb_rating = None
+            for r in (data.get("Ratings") or []):
+                if "Internet Movie Database" in r.get("Source", ""):
+                    try:
+                        imdb_rating = float(r["Value"].split("/")[0])
+                    except Exception:
+                        pass
+            if not imdb_rating:
+                imdb_rating = flt(data.get("imdbRating"))
+
+            rt_m    = _re.search(r"(\d+)", data.get("Runtime") or "")
+            runtime = int(rt_m.group(1)) if rt_m else None
+
+            genres_csv = ", ".join(
+                g.strip() for g in clean(data.get("Genre") or "").split(",") if g.strip()
+            )
+            cast_names = ", ".join(
+                a.strip() for a in clean(data.get("Actors") or "").split(",") if a.strip()
+            )
+
+            poster = clean(data.get("Poster") or "")
+            if poster and not poster.startswith("http"):
+                poster = ""
+
+            yr_m = _re.search(r"(?:19|20)\d{2}", data.get("Year") or "")
+            yr_v = int(yr_m.group()) if yr_m else None
+
+            ts           = flt(data.get("totalSeasons"))
+            season_count = int(ts) if ts else None
+
+            out = {
+                "imdb_id":     clean(data.get("imdbID") or ""),
+                "title":       clean(data.get("Title") or "") or title,
+                "year":        yr_v,
+                "media_type":  "tv" if data.get("Type") == "series" else "movie",
+                "overview":    clean(data.get("Plot") or ""),
+                "plot":        clean(data.get("Plot") or ""),
+                "genres_csv":  genres_csv,
+                "cast_names":  cast_names,
+                "director":    clean(data.get("Director") or ""),
+                "imdb_rating": imdb_rating,
+                "poster":      poster,
+                "runtime":     runtime,
+                "language":    clean((data.get("Language") or "").split(",")[0].strip()),
+                "country":     clean((data.get("Country") or "").split(",")[0].strip()[:2].upper()),
+            }
+            if season_count:
+                out["season_count"] = season_count
+
+            return {k: v for k, v in out.items() if v not in (None, "", 0)}
+
+        except Exception:
+            continue
+
+    return {}
+
+
+def _enrich_merged(row: dict, log_fn=None) -> dict:
+    """
+    Run all 6 enrichment sources and merge their results.
+    Priority per field:
+      poster      → TMDB > IMDbAPI > YouTube > Google KG > OMDB
+      imdb_rating → OMDB > IMDbAPI > AI
+      rating      → TMDB > IMDbAPI > AI
+      overview    → TMDB > OMDB > IMDbAPI > AI > Google KG
+      genres_csv  → TMDB > OMDB > IMDbAPI > AI
+      cast_names  → OMDB > TMDB > IMDbAPI > AI
+      director    → OMDB > TMDB > AI
+    Returns dict of fields to UPDATE (only for currently-null fields).
+    """
+    from .. import metadata_lookup as ml
+
+    title = (row.get("title") or "").strip()
+    year  = row.get("year")
+    mt    = row.get("media_type") or "movie"
+    if not title:
+        return {}
+
+    def say(msg: str):
+        if log_fn:
+            log_fn(msg)
+
+    sources: dict[str, dict] = {}
+    tmdb_keys = ml._tmdb_keys({})
+    omdb_keys = ml._omdb_keys({})
+
+    # 1. TMDB — best poster quality + full credits
+    if tmdb_keys:
+        say("→ TMDB …")
+        r = _tmdb_full(title, year, mt, tmdb_keys)
+        if r:
+            sources["tmdb"] = r
+            say(f"  ✓ TMDB: {r.get('title')} ({r.get('year')}) "
+                f"poster={bool(r.get('poster'))} rating={r.get('rating')} "
+                f"cast={bool(r.get('cast_names'))}")
+        else:
+            say("  ✗ TMDB: not found")
+    else:
+        say("  — TMDB: no keys configured")
+
+    # 2. OMDB — IMDB rating, director, full cast, runtime
+    if omdb_keys:
+        say("→ OMDB …")
+        r = _omdb_full(title, year, omdb_keys)
+        if r:
+            sources["omdb"] = r
+            say(f"  ✓ OMDB: imdb_rating={r.get('imdb_rating')} "
+                f"dir={r.get('director')!r} cast={bool(r.get('cast_names'))}")
+        else:
+            say("  ✗ OMDB: not found")
+    else:
+        say("  — OMDB: no keys configured")
+
+    # 3. IMDbAPI.dev — free, no key, great for Pakistani/Bollywood/South Asian
+    say("→ IMDbAPI.dev …")
+    try:
+        r = ml._imdbapi_search(title, year, mt) or {}
+        if r:
+            sources["imdbapi"] = r
+            say(f"  ✓ IMDbAPI: {r.get('title')} imdb={r.get('imdb_id')!r} "
+                f"poster={bool(r.get('poster'))}")
+        else:
+            say("  ✗ IMDbAPI: not found")
+    except Exception as exc:
+        say(f"  ✗ IMDbAPI error: {exc}")
+
+    # 4. AI (Groq→Gemini→OpenAI→OpenRouter) — only if fields still missing
+    still_missing = [f for f in _ENRICH_REQD
+                     if not row.get(f) and not any(s.get(f) for s in sources.values())]
+    if still_missing:
+        say(f"→ AI fallback (missing: {', '.join(still_missing)}) …")
+        try:
+            r = ml._ai_search(title, year, {}) or {}
+            if r:
+                sources["ai"] = r
+                say(f"  ✓ AI ({r.get('source','ai')}): {r.get('title')} ({r.get('year')})")
+            else:
+                say("  ✗ AI: no result from any provider")
+        except Exception as exc:
+            say(f"  ✗ AI error: {exc}")
+    else:
+        say("  — AI: skipped (all required fields covered)")
+
+    # 5. YouTube — poster-only last resort
+    need_poster = (not row.get("poster") and
+                   not any(s.get("poster") for s in sources.values()))
+    if need_poster:
+        say("→ YouTube (poster fallback) …")
+        try:
+            r = ml._youtube_search(title, year) or {}
+            if r.get("poster"):
+                sources["youtube"] = r
+                say(f"  ✓ YouTube: poster acquired")
+            else:
+                say("  ✗ YouTube: no poster found")
+        except Exception as exc:
+            say(f"  ✗ YouTube error: {exc}")
+
+    # 6. Google Knowledge Graph — poster + overview, absolute last resort
+    need_gkg = (
+        (not row.get("poster") and
+         not any(s.get("poster") for s in sources.values())) or
+        (not row.get("overview") and not row.get("plot") and
+         not any(s.get("overview") for s in sources.values()))
+    )
+    if need_gkg:
+        say("→ Google Knowledge Graph …")
+        try:
+            r = ml._google_search(title, year) or {}
+            if r:
+                sources["gkg"] = r
+                say(f"  ✓ Google KG: overview={bool(r.get('overview'))} "
+                    f"poster={bool(r.get('poster'))}")
+        except Exception as exc:
+            say(f"  ✗ Google KG error: {exc}")
+
+    if not sources:
+        return {}
+
+    # ── Merge ────────────────────────────────────────────────────────────────
+    PRIO = ["tmdb", "omdb", "imdbapi", "ai", "youtube", "gkg"]
+
+    def pick(field: str, prio: list | None = None):
+        for src in (prio or PRIO):
+            v = sources.get(src, {}).get(field)
+            if v is not None and v != "" and v != "N/A":
+                return v
+        return None
+
+    updates: dict = {}
+
+    def merge(field: str, value, existing_key: str | None = None):
+        """Write to updates only if the current row is missing this field."""
+        ek  = existing_key or field
+        cur = row.get(ek)
+        if cur in (None, "", 0, "N/A") and value not in (None, "", 0, "N/A"):
+            updates[field] = value
+
+    # External IDs
+    merge("tmdb_id",        pick("tmdb_id",        ["tmdb"]))
+    merge("imdb_id",        pick("imdb_id",        ["omdb", "imdbapi", "tmdb"]))
+    merge("original_title", pick("original_title"))
+    merge("release_date",   pick("release_date",   ["tmdb", "omdb"]))
+
+    # Core metadata
+    yr = pick("year")
+    if yr is not None:
+        merge("year", str(yr))
+    merge("media_type", pick("media_type"))
+
+    # Ratings
+    merge("rating",      pick("rating",      ["tmdb", "imdbapi", "ai"]))
+    merge("imdb_rating", pick("imdb_rating", ["omdb", "imdbapi", "ai"]))
+    merge("vote_count",  pick("vote_count",  ["tmdb"]))
+
+    # Descriptive text
+    ov = pick("overview", ["tmdb", "omdb", "imdbapi", "ai", "gkg"])
+    merge("overview", ov)
+    merge("plot",     ov, existing_key="plot")
+    merge("genres_csv", pick("genres_csv", ["tmdb", "omdb", "imdbapi", "ai"]))
+    merge("genres",     pick("genres",     ["tmdb"]))
+    merge("cast_names", pick("cast_names", ["omdb", "tmdb", "imdbapi", "ai"]))
+    merge("cast",       pick("cast",       ["tmdb"]))
+    merge("director",   pick("director",   ["omdb", "tmdb", "ai"]))
+
+    # Media specs
+    merge("runtime",       pick("runtime",       ["omdb", "tmdb"]))
+    merge("season_count",  pick("season_count",  ["omdb", "tmdb"]))
+    merge("episode_count", pick("episode_count", ["tmdb"]))
+
+    # Assets
+    merge("poster",      pick("poster",      ["tmdb", "imdbapi", "youtube", "gkg", "omdb"]))
+    merge("backdrop",    pick("backdrop",    ["tmdb"]))
+    merge("trailer_url", pick("trailer_url", ["youtube"]))
+
+    # Country / language
+    merge("country",  pick("country",  ["omdb", "tmdb", "ai"]))
+    merge("language", pick("language", ["omdb", "tmdb", "ai"]))
+
+    return {k: v for k, v in updates.items() if v not in (None, "", 0)}
+
+
+@bp.route("/api/enrich", methods=["POST"])
+@auth.login_required
+def enrich_titles():
+    """Bulk enrichment with multi-source merge. Streams SSE progress events."""
+    from flask import stream_with_context as _swc
+
+    data = request.get_json(force=True, silent=True) or {}
+    ids  = data.get("ids", [])
+
+    def generate():
+        try:
+            with db.conn() as c:
+                if not ids or ids == "all":
+                    rows = c.execute("SELECT * FROM titles ORDER BY id").fetchall()
+                else:
+                    ph   = ",".join("?" * len(ids))
+                    rows = c.execute(
+                        f"SELECT * FROM titles WHERE id IN ({ph}) ORDER BY id",
+                        [int(i) for i in ids]
+                    ).fetchall()
+
+            total = len(rows)
+            yield f"event: start\ndata: {json.dumps({'total': total})}\n\n"
+
+            enriched = skipped = failed = 0
+            t0 = time.time()
+
+            for row in rows:
+                rd  = _safe_row(row)
+                rid = rd.get("id")
+                ttl = rd.get("title") or f"ID {rid}"
+
+                missing = _needs_enrichment(rd)
+                if not missing:
+                    skipped += 1
+                    yield (f"event: row\ndata: "
+                           f"{json.dumps({'id': rid, 'title': ttl, 'status': 'skipped', 'reason': 'already complete'})}"
+                           f"\n\n")
+                    continue
+
+                logs: list[str] = []
+                yield (f"event: row\ndata: "
+                       f"{json.dumps({'id': rid, 'title': ttl, 'status': 'enriching', 'missing': missing})}"
+                       f"\n\n")
+
+                try:
+                    updates = _enrich_merged(rd, log_fn=logs.append)
+                    if updates:
+                        sets = ", ".join(f"{k} = ?" for k in updates)
+                        vals = list(updates.values()) + [int(time.time()), rid]
+                        with db.conn() as c:
+                            c.execute(
+                                f"UPDATE titles SET {sets}, updated_at = ? WHERE id = ?",
+                                vals
+                            )
+                        enriched += 1
+                        yield (f"event: row\ndata: "
+                               f"{json.dumps({'id': rid, 'title': ttl, 'status': 'done', 'updated': list(updates.keys()), 'log': logs})}"
+                               f"\n\n")
+                    else:
+                        failed += 1
+                        yield (f"event: row\ndata: "
+                               f"{json.dumps({'id': rid, 'title': ttl, 'status': 'failed', 'reason': 'no data from any source', 'log': logs})}"
+                               f"\n\n")
+
+                except Exception as exc:
+                    failed += 1
+                    yield (f"event: row\ndata: "
+                           f"{json.dumps({'id': rid, 'title': ttl, 'status': 'failed', 'reason': str(exc), 'log': logs})}"
+                           f"\n\n")
+
+            elapsed = round(time.time() - t0, 1)
+            yield (f"event: done\ndata: "
+                   f"{json.dumps({'enriched': enriched, 'skipped': skipped, 'failed': failed, 'elapsed': elapsed})}"
+                   f"\n\n")
+
+        except Exception as exc:
+            yield f"event: error\ndata: {json.dumps({'error': str(exc)})}\n\n"
+
+    return Response(
+        _swc(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
