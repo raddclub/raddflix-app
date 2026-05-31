@@ -112,6 +112,9 @@ def create_app() -> Flask:
     from .routes.security_telemetry import bp_security
     app.register_blueprint(bp_security)   # POST /api/security/tamper-report
                                           # GET  /security/tamper-reports (admin)
+    # ── XOR Encoding layer (Phase 25.5 — server deployed, Flutter side pending) ─
+    from .request_encoding import bp_encoding_admin
+    app.register_blueprint(bp_encoding_admin)  # GET /security/xor-encoding (admin)
 
     # ------------------------------------------------------------------
     # Download proxy — /d/<remote_id>

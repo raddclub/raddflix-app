@@ -466,3 +466,49 @@ App factory (`radd-hub/hub/app.py` — updated):
 - Device hash is non-reversible (hashCode hex) — privacy safe
 - Rate limiter is in-memory — resets on server restart (acceptable for abuse prevention)
 - CI fix for Dart 3.4 wildcard `_ =` and Kotlin null safety both applied this session
+
+---
+
+## Session 2026-05-31d — Phase 25.5 Server XOR Encoding
+
+### Done
+
+**`radd-hub/hub/request_encoding.py` — NEW (263 lines):**
+- Python counterpart to Flutter's `RequestEncoder`
+- `generate_session_key(device_id, hour_offset)` — SHA-256 hourly key, matches Dart exactly
+  - `_candidate_keys()` tries current + previous hour to handle clock-edge requests
+- `xor_encode(data_bytes, key)` — XOR + base64url (no padding), matches Flutter base64Url.encode
+- `xor_decode(encoded_str, key)` — base64url decode + XOR
+- `is_encoded_request(req)` — checks `X-Encoded: 1` header
+- `get_request_device_id(req)` — tries `X-Device-Id` header then JWT payload
+- `decode_request(req)` — tries current + prev hour keys, returns parsed JSON dict
+- `encode_response(data, device_id)` — returns octet-stream Response with XOR body
+- `@encoding_supported` decorator — auto decode request, auto encode response for annotated routes
+- `bp_encoding_admin` Blueprint — GET `/security/xor-encoding` admin status page
+
+**`radd-hub/hub/app.py` — updated:**
+- Register `bp_encoding_admin` blueprint (after security telemetry blueprint)
+
+**`agent-hub/SECURITY_ARCHITECTURE.md` — updated:**
+- Layer 5 table entry: "⚠️ Disabled" → "✅ Server deployed, Flutter enabled=false"
+- Layer 5 section header updated with deployment status note
+- Activation step marked complete (server side)
+
+### Activation Instructions
+To enable XOR API encoding end-to-end:
+1. ✅ Server deployed: `radd-hub/hub/request_encoding.py` + registered in app.py
+2. ⏸ Flutter: set `RequestEncoder.enabled = true` in `request_encoder.dart`
+   OR via RemoteConfig (dynamic toggle without APK update)
+3. ⚠️ MUST deploy both sides simultaneously — mixed state breaks ALL API calls
+4. Wire `@encoding_supported` decorator to desired Flask routes
+5. Wire `RequestEncoder.encode/decode` to desired Dart API calls
+
+### Files Changed
+- `radd-hub/hub/request_encoding.py` (NEW)
+- `radd-hub/hub/app.py` (encoding admin blueprint)
+- `agent-hub/SECURITY_ARCHITECTURE.md` (Layer 5 status updated)
+
+### Phase 25 Status After This Session
+- Layer 1 AppGuard ✅  Layer 2 TamperGate ✅  Layer 3 URL-crypt ✅
+- Layer 4 Obfuscation ✅  Layer 5 XOR-API ✅ server deployed (Flutter pending)
+- Layer 6 Telemetry ✅

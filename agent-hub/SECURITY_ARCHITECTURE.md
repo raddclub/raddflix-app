@@ -141,6 +141,10 @@ but `local_db.dart` does not yet call them on share_url read/write.
 
 ## Layer 5: XOR API Encoding (RequestEncoder)
 
+> ✅ **Server-side deployed** as `radd-hub/hub/request_encoding.py`.  
+> ⏸ **Flutter side: `RequestEncoder.enabled = false`** (default).  
+> To activate: set `RequestEncoder.enabled = true` in Flutter and deploy both sides together.
+
 **File**: `raddflix_flutter/lib/core/security/request_encoder.dart`
 
 ### What It Does
@@ -280,7 +284,7 @@ MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.raddflix.app/secu
 | Frida detection | AppGuard._checkFrida() (port+native) | ⚠️ Native channel not wired | Yes (isTampered) |
 | Build obfuscation | --obfuscate in CI | ✅ Active | No |
 | share_url scrambling | RequestEncoder.scrambleUrl() | ⚠️ Not wired in local_db | No |
-| XOR API encoding | RequestEncoder.encode/decode | ⚠️ Disabled (server not ready) | No |
+| XOR API encoding | RequestEncoder.encode/decode | ✅ Server deployed, Flutter `enabled=false` | Activate via RemoteConfig |
 | SQLCipher AES-256 | sqflite_sqlcipher 3.1.0+1 | ✅ Active | No |
 
 ---
@@ -292,7 +296,7 @@ MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.raddflix.app/secu
 2. **Wire share_url scrambling** — In `local_db.dart`: call `RequestEncoder.scrambleUrl()`
    on write and `.unscrambleUrl()` on read for all share_url columns
 3. **Get the official fingerprint** — Build signed APK, run keytool, set `_officialFingerprint`
-4. **Server XOR encoding** — Implement `request_encoding.py` in radd-hub when ready
+4. ✅ **Server XOR encoding** — `request_encoding.py` deployed in radd-hub. To activate: set `RequestEncoder.enabled = true` in Flutter (RemoteConfig or APK update)
 
 ---
 

@@ -565,11 +565,12 @@ All reported "failures" were false-positive grep patterns; actual code verified 
 - [x] **25.2** share_url scrambling in `local_db.dart` — `_encodeUrl()` / `_decodeUrl()` wired in upsertTitle, mergeDeltaTitle, upsertEpisode, getShareUrl
 - [x] **25.4** `ApiClient` tamper gate — `_TamperInterceptor` as first interceptor, silent empty-response degradation
 - [x] **25.6** Security telemetry — `security_telemetry.dart` + Flask `POST /api/security/tamper-report` + `tamper_reports` DB table + admin panel at `/security/tamper-reports`
+- [x] **25.5** Server XOR encoding — `radd-hub/hub/request_encoding.py` + `@encoding_supported` decorator; Flutter activation pending (`RequestEncoder.enabled=false`)
 
 ### Pending ⬜ (for next agent)
 | # | Task | Notes |
 |---|------|-------|
 | 25.3 | Get official APK cert fingerprint + set `_officialFingerprint` | Build signed APK → keytool -printcert -jarfile → copy SHA-256 → update app_guard.dart |
-| 25.5 | Server XOR encoding (radd-hub) | Implement `request_encoding.py` per spec in SECURITY_ARCHITECTURE.md — only when ready to enable encoding layer |
+| 25.5 | ~~Server XOR encoding (radd-hub)~~ | ✅ DONE — `request_encoding.py` deployed + `@encoding_supported` decorator ready. Flutter `RequestEncoder.enabled=false` until both sides activated. |
 | 25.6 | ~~Telemetry on tamper detection~~ | ✅ DONE — `security_telemetry.dart` + Flask endpoint + tamper_reports DB table |
 
