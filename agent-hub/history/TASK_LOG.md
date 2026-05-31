@@ -4878,3 +4878,26 @@ The deploy job called `sudo supervisorctl restart jazzmax_watch` — a service d
 - Deploy auto-runs after successful build — Oracle server will be updated automatically
 
 ---
+
+## [2026-05-31 UTC] — Agent: Replit Agent (Read-only: find out what last agent did)
+
+### Task
+User asked: "find out what last agent did."
+
+### Done
+- Ran install script (SSH key written to /tmp/oracle_key; Oracle TCP connection timed out from Replit)
+- Read agent-hub/README.md, agent-hub/SKILLS.md, and agent-hub/history/TASK_LOG.md from GitHub
+- Reported full summary of the last agent session to user
+
+### Files Changed
+None — read-only session.
+
+### Notes for Next Agent
+Last agent (2026-05-31) fixed both CI workflows:
+1. Created missing `gradle-wrapper.properties` (gradle-8.3-bin.zip, required by AGP 8.1.0)
+2. Fixed `MainActivity.kt` — Kotlin brace structure was broken (methods nested inside a when/lambda block)
+3. Fixed `.github/workflows/ci-tests.yml` deploy step (jazzmax_watch → raddflix_radd)
+Oracle HEAD at time of this session: 1b1ac4f. raddflix_radd RUNNING. 24 titles, 8 API keys active.
+CI fix outcome not confirmed yet — check GitHub Actions to see if build is green.
+
+---
