@@ -14,16 +14,17 @@ Secrets in Replit: $GITHUB_TOKEN, $ORACLE_SSH_KEY
 
 == STEP 1: Decode SSH key (run this first) ==
 python3 -c "
-import os,base64,subprocess
-raw=os.environ['ORACLE_SSH_KEY'].strip()
-h='-----BEGIN OPENSSH PRIVATE KEY-----'
-f='-----END OPENSSH PRIVATE KEY-----'
-body=raw.replace(h,'').replace(f,'').strip().replace(' ','')
-lines='\\n'.join(body[i:i+64] for i in range(0,len(body),64))
-key=h+'\\n'+lines+'\\n'+f+'\\n'
-open('/tmp/oracle_key','w').write(key)
-subprocess.run(['chmod','600','/tmp/oracle_key'])
-print('SSH ready')
+import os, re, subprocess
+raw = os.environ['ORACLE_SSH_KEY']
+m = re.match(r'(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)', raw, re.DOTALL)
+if m:
+    header = m.group(1).strip()
+    body   = m.group(2).strip().replace(' ', '\n')
+    footer = m.group(3).strip()
+    pem = header + '\n' + body + '\n' + footer + '\n'
+    open('/tmp/oracle_key','w').write(pem)
+    subprocess.run(['chmod','600','/tmp/oracle_key'])
+    print('SSH ready')
 "
 
 == STEP 2: Verify connections ==
@@ -31,14 +32,13 @@ ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 "echo OK &
 curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/raddclub/raddflix-app | python3 -c "import sys,json; d=json.load(sys.stdin); print('GitHub OK:',d['full_name'])"
 
 == STEP 3: Read context files before doing anything ==
-curl -sL -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/raddclub/raddflix-app/contents/agent-hub/HANDOFF_2026_05_26.md" \
-  | python3 -c "import sys,json,base64; print(base64.b64decode(json.load(sys.stdin)['content']).decode())"
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/REINCARNATION.md"
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/SKILLS.md"
 
-Also read (last 80 lines):
+Also read TASK_LOG (last 80 lines):
 curl -sL -H "Authorization: token $GITHUB_TOKEN" \
   "https://api.github.com/repos/raddclub/raddflix-app/contents/agent-hub/history/TASK_LOG.md" \
-  | python3 -c "import sys,json,base64; c=base64.b64decode(json.load(sys.stdin)['content']).decode(); print('\\n'.join(c.split('\\n')[-80:]))"
+  | python3 -c "import sys,json,base64; c=base64.b64decode(json.load(sys.stdin)['content']).decode(); print('\n'.join(c.split('\n')[-80:]))"
 
 == STEP 4: After finishing, append to TASK_LOG ==
 Format in SKILLS.md Rule 8. Use GitHub Contents API (PUT with base64 + SHA).
