@@ -4363,3 +4363,67 @@ Catalog has 6 titles / 10 episodes. Keys table is empty — no TMDB/OMDB keys ad
 Remaining open items: BUG-P17-05 (Pathaan search variant), BUG-P17-06 (rogmovies DNS dead), BUG-P17-08 (wa-bot not running — OTP stored but not sent via WA).
 
 ---
+
+## [2026-05-31 UTC] — Agent: Replit Agent (Screenshot Analysis + Deep Fix)
+
+### Task
+Analyze 4 admin panel screenshots (Dashboard, Library, Settings, Upload/Flix)
+and find + fix all issues discovered.
+
+### Bugs Found (10 total)
+
+| # | Severity | Component | Bug | Fix |
+|---|----------|-----------|-----|-----|
+| 1 | 🔴 | home.html JS | Watch Service port 6000 hardcoded as "running" always — service decommissioned | setH() now shows "decommissioned" with muted badge |
+| 2 | 🔴 | poster_proxy.py | `_get_active_keys()` skipped all Fernet-encrypted keys (starts with gAAAAA) → tmdb/omdb showed 0 keys | Fixed to use `keys.decrypt()` — now shows tmdb=2, omdb=2 |
+| 3 | 🔴 | home.html JS | API Keys badge checked only groq/gemini, not tmdb/omdb | Added tmdb_keys + omdb_keys from /api/health |
+| 4 | 🔴 | api.py | `/api/health` didn't return tmdb/omdb key counts | Added `tmdb_keys` and `omdb_keys` to response |
+| 5 | 🟡 | DB: titles | 11 titles had `is_published=NULL` → invisible to Flutter users | `UPDATE titles SET is_published=1` |
+| 6 | 🟡 | DB: titles | Duplicate title entries (Off Campus ×2, FaF Spy Racers ×2, Reborn ×2) | Deleted ids 16,17,18; reassigned file 117 to title 7 |
+| 7 | 🟡 | DB: titles | Inuyashiki + Fast&Furious Spy Racers had wrong media_type (series/movie) | Fixed to `show` |
+| 8 | 🟡 | DB: files | 39 orphan files with no title_id | 19 deleted (duplicates) + 10 new titles created and linked |
+| 9 | 🟡 | DB: files | All Of Us Are Dead S01E02 duplicated twice | Deleted duplicate id=28 |
+| 10 | 🟡 | DB: files | Chal Mera Putt 3 appeared twice | Deleted duplicate id=37 |
+
+### New Titles Created (10)
+All Of Us Are Dead (KR, 2022), Berlin And The Lady With An Ermine (PL, 2025),
+Farzi (IN, 2023), Chal Mera Putt 3 (PK, 2021), I Can Only Imagine 2, Kuriyan
+Jawan Bapu Preshaan 2 (PK, 2025), Avatar Fire And Ash (2025), Mithde (PK, 2025),
+The Dark Knight (2008), The Wonderfools (2024)
+
+### Files Changed (GitHub)
+- `radd-hub/hub/routes/poster_proxy.py` — `_get_active_keys` now decrypts Fernet values
+- `radd-hub/hub/templates/home.html` — Watch Service shows decommissioned; setH null/muted state; tmdb/omdb key count
+- `radd-hub/hub/routes/api.py` — `/api/health` now returns `tmdb_keys` and `omdb_keys` counts
+- (DB changes applied directly on Oracle — not in GitHub)
+
+### Commits
+- `258e5b6a` — fix: Watch Service false indicator + Fernet key decrypt + 24 titles catalog expansion
+
+### Final Verification (all pass ✅)
+- /api/ping → ok
+- /api/catalog/version → count=24
+- /api/catalog/sync → 24 titles, 26 episodes
+- /api/poster/keys → tmdb=2, omdb=2 ✅ (was 0,0)
+- /api/search → Pathaan, Interstellar, All Of Us Are Dead, Dark Knight, Farzi, Inception — all found ✅
+- /api/auth/guest → access_token len=176 ✅
+- /api/subscription/plans → 3 plans ✅
+- /api/catalog/share_url?file_id=5 → OK ✅
+- raddflix_radd RUNNING pid 474258 ✅
+
+### Service Status at Close
+```
+raddflix_radd    RUNNING   pid 474258   port 5000
+nginx            ACTIVE    HTTP:80 + HTTPS:443
+```
+
+### Notes for Next Agent
+- Catalog now has 24 published titles, 0 orphans, 0 duplicate entries
+- API Keys dashboard badge will now correctly show "4 configured" (tmdb×2 + omdb×2) after page reload
+- Watch Service row in dashboard now shows "decommissioned" (grey) instead of false "running" (green)
+- New titles (All Of Us Are Dead etc.) have basic metadata; run enrichment via admin panel to fill in posters/ratings
+- Off Campus share_urls are all folder-level URLs (expected behavior — jazzdrive.generate_direct_link uses 3-pass filename matching per BUG-10 fix)
+- WA bot still not running (OTP stored but not sent via WA) — BUG-P17-08 still open
+- Payment account numbers for JazzCash/EasyPaisa still blank — need to be set in admin settings
+
+---
