@@ -450,7 +450,6 @@ class LocalDb {
     // poster_share_url is stored in stream_cache table (no column in titles yet).
     // folder_share_url and fileId are used by the player at runtime via getShareUrl().
     // Future migration: add folder_share_url column to titles when needed.
-    _ = posterShareUrl; _ = folderShareUrl; _ = fileId; // suppress unused warnings
   }
 
     /// Get the JazzDrive share_url for a file_id.
