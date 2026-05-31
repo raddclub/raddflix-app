@@ -4685,3 +4685,75 @@ User asked: deep analyze DB Studio at /api/db_mgmt/ and fix all issues + improve
 - The stashed server-local file changes (3 files) were from a previous direct-edit session; they are now overwritten by the pull
 
 ---
+
+
+---
+
+## Session — 2026-05-31 (Agent Session)
+
+### Goal
+Smart bulk enrichment system for DB Studio titles table + comprehensive DB Studio enhancements.
+
+### Work Done
+
+#### 1. Smart Bulk Enrichment Backend (`db_mgmt.py`)
+- **6-source merge pipeline**: IMDbAPI.dev (free, best Asian/Pakistani coverage) → TMDB → OMDB → AI (Groq/Gemini/OpenAI) → YouTube → Google KG
+- `_tmdb_full()`: full TMDB details+credits (poster, cast, director, genres, imdb_id, rating, backdrop)
+- `_omdb_full()`: IMDB rating, director, cast, runtime, full plot
+- `_enrich_merged(row, force=False)`: 6-source merge with per-field priorities; IMDbAPI leads all fields
+- `_needs_enrichment()`: skip rows where all 7 key fields are non-null
+- `/api/enrich` (POST, SSE): bulk enrichment stream — yields `start/row/done/error` events
+- `/api/titles/nullstats`: per-field null/filled counts for titles table
+- `/api/export/<table>`: CSV + JSON download with optional `?q=` search and `?format=json`
+- `mt` + `nullsonly` query params added to `/api/table/<name>` — filter by media_type or show only incomplete rows
+
+#### 2. Source Priority (IMDbAPI-first, best for Asian content)
+- poster: IMDbAPI › TMDB › YouTube › Google KG › OMDB
+- imdb_rating: IMDbAPI › OMDB › AI
+- rating: IMDbAPI › TMDB › AI
+- overview/plot: IMDbAPI › TMDB › OMDB › AI › Google KG
+- cast_names: IMDbAPI › OMDB › TMDB › AI
+- director: IMDbAPI › OMDB › TMDB › AI
+- genres_csv: IMDbAPI › TMDB › OMDB › AI
+
+#### 3. Enrichment UI (`db_mgmt.html`)
+- **⚡ Enrich Selected** — bulk enrich checked rows (titles table only)
+- **⚡ Enrich All Missing** — enrich all rows with any null field
+- **🔄 Force Re-Enrich** — overwrites even existing non-null fields
+- **⚡ per-row button** — single-row quick-enrich (opens main modal for 1 row)
+- **🔄 per-row button** — single-row force re-enrich
+- Live SSE progress modal: per-row status badges (enriching/done/failed/skipped), field tags, source log panel, progress bar, stats counter
+
+#### 4. DB Studio General Enhancements
+- **Null stats bar**: per-field coverage % shown as colored mini-bars when titles table is open
+- **⬇ CSV** export button in toolbar; `/api/export/<table>?format=json` also supported
+- **Titles quick-filter bar**: media_type dropdown (All/Movies/TV) + "Incomplete only" checkbox
+- **Cell improvements**: imdb_id → 🎬 IMDB link; media_type → colored pill (movie/tv); rating/imdb_rating → ⭐ prefix; timestamps show full date on hover; large numbers formatted with commas; text cells copy-on-click (clipboard)
+- **Missing-fields red dot** on rows with any null enrichment field
+- **Jump-to-page** input in paginator (Enter to jump)
+- **Keyboard shortcuts**: `[` / `]` for prev/next page; `Home`/`End` for first/last; `r` to refresh; `/` or `f` to focus search
+- `applySmartDefaults()` already handled column visibility
+
+### Commits
+- `5949959a` — feat(db-studio): smart bulk enrichment — TMDB+OMDB+IMDbAPI+AI+YouTube+GKG merge, SSE progress
+- `edc5a390` — feat(db-studio): enrichment modal UI
+- `cecebc05` — feat(enrichment): IMDbAPI first priority + force re-enrich mode
+- `36d0311` — feat(enrichment): Force Re-Enrich button + IMDbAPI-first subtitle
+- `cc1ab37b` — feat(db-studio): mt/nullsonly filters, nullstats API, CSV export
+- `0128d23a` — feat(db-studio): per-row enrich buttons, null stats bar, filter bar, cell improvements, keyboard shortcuts
+- `2ac82ef2` — fix(db-studio): remove duplicate export_table route; add JSON format support
+
+### Deploy
+- Oracle ubuntu@92.4.95.252 — all commits deployed, service RUNNING
+
+### Files Changed
+- `radd-hub/hub/routes/db_mgmt.py` — 897 lines (was 247)
+- `radd-hub/hub/templates/db_mgmt.html` — 1160+ lines (was ~780)
+
+### Notes for Next Agent
+- IMDbAPI.dev is free and has the best Pakistani/Bollywood/South Asian data — keep it as #1 source
+- Force re-enrich overwrites existing non-null fields (useful for stale ratings/posters)
+- Enrichment is SSE-streamed; long-running; do not set Flask timeout too short
+- Null stats bar auto-loads whenever titles table is opened
+- CSV/JSON export supports `?q=` search filter (same as the browse view)
+- `mt` and `nullsonly` are extra filter params supported by `/api/table/titles`
