@@ -85,6 +85,7 @@ class CatalogApi {
       return [];
     }
   }
+}
 
 class CatalogVersion {
   final int version;

@@ -597,6 +597,9 @@ class _ContentSection extends StatelessWidget {
                 .slideX(begin: 0.1, end: 0, duration: 300.ms, curve: AppCurves.standard),
           ),
         ),
+      ),
+    ]);
+  }
 
   void _showRemoveDialog(BuildContext context, CatalogItem item) {
     showModalBottomSheet(
