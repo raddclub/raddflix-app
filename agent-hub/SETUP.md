@@ -5,18 +5,7 @@
 | Secret | What it is |
 |---|---|
 | `GITHUB_TOKEN` | GitHub personal access token for `raddclub` account (repo scope) |
-| `ORACLE_SSH_KEY` | SSH private key for Oracle server — base64-encoded (see below) |
-
----
-
-## How to encode the SSH key
-
-On your local machine:
-```bash
-base64 -w 0 ~/.ssh/your_oracle_key > key_encoded.txt
-cat key_encoded.txt
-```
-Paste the entire output (one long line) as the `ORACLE_SSH_KEY` Replit secret.
+| `ORACLE_SSH_KEY` | SSH private key for Oracle server — paste as plain text (no encoding needed) |
 
 ---
 
@@ -26,16 +15,17 @@ The key may have embedded spaces when retrieved from Replit secrets. Always use 
 
 ```python
 python3 -c "
-import os, base64, subprocess
-raw = os.environ['ORACLE_SSH_KEY'].strip()
-header = '-----BEGIN OPENSSH PRIVATE KEY-----'
-footer = '-----END OPENSSH PRIVATE KEY-----'
-body = raw.replace(header,'').replace(footer,'').strip().replace(' ','')
-lines = '\\n'.join(body[i:i+64] for i in range(0,len(body),64))
-key = header + '\\n' + lines + '\\n' + footer + '\\n'
-open('/tmp/oracle_key','w').write(key)
-subprocess.run(['chmod','600','/tmp/oracle_key'])
-print('SSH key written OK')
+import os, re, subprocess
+raw = os.environ['ORACLE_SSH_KEY']
+m = re.match(r'(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)', raw, re.DOTALL)
+if m:
+    header = m.group(1).strip()
+    body   = m.group(2).strip().replace(' ', '\n')
+    footer = m.group(3).strip()
+    pem = header + '\n' + body + '\n' + footer + '\n'
+    open('/tmp/oracle_key','w').write(pem)
+    subprocess.run(['chmod','600','/tmp/oracle_key'])
+    print('SSH key written OK')
 "
 ```
 
@@ -66,7 +56,8 @@ User:       ubuntu
 Root dir:   /opt/jazzmax/
 Python:     3.12
 Java:       OpenJDK 21 (pre-installed)
-Supervisor: jazzmax_radd (port 5000), jazzmax_watch (port 6000)
+Supervisor: raddflix_radd (port 5000) — only active service
+            (raddflix_watch/port 6000 decommissioned 2026-05-30)
 SQLite DB:  /opt/jazzmax/radd-hub/data/raddflix.db
 ```
 
@@ -74,8 +65,7 @@ SQLite DB:  /opt/jazzmax/radd-hub/data/raddflix.db
 
 ## GitHub Notes
 
-- **Repo is PUBLIC** (changed in Session 5) — unlimited free GitHub Actions minutes on `ubuntu-latest`
+- **Repo is PUBLIC** — unlimited free GitHub Actions minutes on `ubuntu-latest`
 - Active workflows: `build-apk.yml` and `ci-tests.yml`
-- Legacy workflow `build_apk.yml` (underscore) — **DELETE IT** (wrong paths, old Flutter)
 - All GitHub file writes must use the Contents API (PUT with base64 content + current file SHA)
 - Never use git shell commands from Replit main agent
