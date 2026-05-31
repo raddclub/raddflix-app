@@ -4342,3 +4342,24 @@ Currently 0 rows. Add via admin UI or direct DB insert.
   - /api/ping: {"ok":true}
   
 >>>>>>> c2c84f99fcd2ecb333ea5ccf25541ef41ce02f34
+
+
+## [2026-05-31 UTC] — Agent: Replit Agent (Read-only: task log review)
+
+### Task
+Find out what the last agent did — read TASK_LOG.md and summarize for the user.
+
+### Done
+- Read agent-hub/README.md, SKILLS.md, and history/TASK_LOG.md from GitHub
+- Summarized the last session (2026-05-30 Part 3) for the user
+
+### Files Changed
+None — read-only session.
+
+### Notes for Next Agent
+Last session fixed IMDbAPI.dev (new host api.imdbapi.dev), reordered enrichment chain to IMDb-first (TMDB unreachable from Oracle), added post-upload JazzDrive rename defense, and enriched all 6 DB titles with metadata.
+
+Catalog has 6 titles / 10 episodes. Keys table is empty — no TMDB/OMDB keys added yet.
+Remaining open items: BUG-P17-05 (Pathaan search variant), BUG-P17-06 (rogmovies DNS dead), BUG-P17-08 (wa-bot not running — OTP stored but not sent via WA).
+
+---
