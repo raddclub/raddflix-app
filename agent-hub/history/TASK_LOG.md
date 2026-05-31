@@ -4924,3 +4924,44 @@ None — read-only session.
 - BUG-A19 (HistoryApi missing) is actually FIXED — `history_api.dart` exists in `core/api/`
 
 ---
+
+## [2026-05-31 UTC] — Agent: Replit Agent (Documentation cleanup — zero-rating correction)
+
+### Task
+User clarified the actual meaning of Jazz SIM zero-rating in Pakistan (no bundle needed, not airplane mode).
+Update all .md files to reflect the correct model and remove stale/outdated files.
+
+### Done
+
+**5 files deleted (stale / wrong info):**
+- `agent-hub/HANDOFF_2026_05_26.md` — superseded by REINCARNATION.md
+- `agent-hub/HANDOFF_2026_05_28.md` — superseded by REINCARNATION.md
+- `agent-hub/HANDOFF_2026_05_29.md` — superseded by REINCARNATION.md
+- `agent-hub/history/API_AUDIT.md` — referenced decommissioned port 6000 Watch API
+- `agent-hub/history/API_FULL_AUDIT_2026_05_27.md` — referenced decommissioned port 6000 Watch API
+
+**8 files updated:**
+- `agent-hub/STREAMING_ARCHITECTURE.md` — **full rewrite** with accurate zero-rating model
+- `agent-hub/PRODUCT_CONTEXT.md` — fixed "Core Trick", streaming diagram, security table, zero-rated flow, poster gaps
+- `agent-hub/REINCARNATION.md` — fixed Rule 1, CI status, JazzDrive/Streaming section, removed stale API_FULL_AUDIT ref
+- `agent-hub/README.md` — fixed supervisor service names (jazzmax_radd→raddflix_radd, removed jazzmax_watch)
+- `agent-hub/SETUP.md` — fixed supervisor names in server reference
+- `agent-hub/PROMPT.md` — replaced deleted HANDOFF_2026_05_26.md ref with REINCARNATION.md
+- `agent-hub/projects/radd-hub.md` — fixed supervisor service name throughout
+
+### Key Correction Made Everywhere
+
+**OLD (wrong):** "App generates stream/download links LOCALLY from SQLite"
+**CORRECT:** App reads share_url from local SQLite, then makes 2 API calls directly to
+  cloud.jazzdrive.com.pk (zero-rated by Jazz network-level whitelist):
+  1. POST /sapi/link/login → validationKey
+  2. GET /sapi/media/video → CDN stream URL
+  Oracle is NOT involved at playback time. JazzDrive API IS involved (zero-rated).
+
+**Zero-rating in Pakistan means:** Jazz network whitelists cloud.jazzdrive.com.pk.
+Works without any data bundle on Jazz SIM — not "free with a bundle" but "bundle not required at all".
+
+### Files Changed
+See above (5 deleted, 8 updated)
+
+---
