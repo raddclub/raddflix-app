@@ -21,7 +21,7 @@ Jazz Pakistan zero-rates JazzDrive traffic. This means:
 - Watches a full movie
 - Rs.0 data charged
 
-This is not magic — all video files live on JazzDrive. The app reads JazzDrive share folder URLs from its local SQLite database and generates stream/download links directly. No RaddFlix server involved at playback time.
+This is not magic — all video files live on JazzDrive (cloud.jazzdrive.com.pk). The app reads a share_url (a JazzDrive file share link) from its local SQLite DB, then makes two API calls directly to cloud.jazzdrive.com.pk to get a time-limited CDN stream URL. Both calls are zero-rated by the Jazz network. No RaddFlix server is involved at playback time.
 
 ---
 
@@ -32,19 +32,19 @@ RaddFlix Server (92.4.95.252)
   → Does: accounts, subscriptions, data tracking, admin panel, metadata
   → Does NOT: serve video, store stream URLs, proxy streams
 
-JazzDrive CDN (jazzdrive.com.pk)
-  → Stores: all video files, in organized share folders
-  → Zero-rated: Jazz does not charge data for this traffic
-  → Also stores: delta catalog JSON (updated every 24h)
+JazzDrive CDN (cloud.jazzdrive.com.pk)
+  → Stores: all video files
+  → Zero-rated: Jazz network-level whitelist — no data bundle needed for this domain
+  → Also stores: delta catalog JSON (when configured — see STREAMING_ARCHITECTURE.md)
 
 User's Phone (RaddFlix Flutter App)
-  → Local SQLite: full catalog + JazzDrive share folder URLs
-  → App generates stream/download links LOCALLY from SQLite
-  → Streams directly from JazzDrive (zero-rated)
-  → No server call at playback time — EVER
+  → Local SQLite: full catalog + JazzDrive share_urls (file share links)
+  → At playback: 2 zero-rated API calls to cloud.jazzdrive.com.pk → CDN URL → plays
+  → Oracle NOT involved at playback time
+  → JazzDrive API IS involved (zero-rated — no bundle needed on Jazz SIM)
 ```
 
-**The most important secret in the system: JazzDrive share folder URLs stored in SQLite.**
+**The most important secret in the system: JazzDrive share_url values stored in SQLite.**
 If someone extracts those → they can stream everything without the app.
 Protection: SQLCipher encryption + Android Keystore.
 
@@ -104,7 +104,7 @@ Not maximum security — just make the database hard enough to decrypt that:
 |-------|-----|-----|
 | Local SQLite | SQLCipher encryption | Key from Android Keystore (hardware-backed) |
 | Delta JSON on JazzDrive | Metadata only | NO share folder URLs, NO file IDs |
-| Stream URLs | Generated locally | Never touch the server, never in transit |
+| Stream URLs | Generated via 2 zero-rated API calls to cloud.jazzdrive.com.pk | Oracle never involved; calls go phone→JazzDrive directly |
 | Auth tokens | FlutterSecureStorage | Android Keystore, not SQLite |
 
 ### Android Keystore
@@ -171,9 +171,10 @@ Tries to fetch delta JSON from JazzDrive (zero-rated)
   → New titles added in last 24h → merged into SQLite
         ↓
 User picks something to watch
-  → App reads share folder URL from local SQLite
-  → Calls JazzDrive API to list files (zero-rated)
-  → Gets video URL → streams (zero-rated)
+  → App reads share_url from local SQLite
+  → POST cloud.jazzdrive.com.pk/sapi/link/login → validationKey (zero-rated)
+  → GET cloud.jazzdrive.com.pk/sapi/media/video → CDN stream URL (zero-rated)
+  → Streams from CDN (zero-rated, no bundle needed on Jazz SIM)
         ↓
 Byte counter runs locally
   → Reports to server when internet available
@@ -196,10 +197,10 @@ Online (has bundle):    Local file → TMDB/OMDB URL download → placeholder
 Zero-rated (Rs.0):      Local file → JazzDrive thumbnail (free) → placeholder
 ```
 
-### Known gaps (NOT YET FIXED — see MASTER_TASKLIST.md)
-1. home_screen.dart uses CachedNetworkImage(url) instead of local file path
-2. downloadAndCache() never calls LocalDb.savePosterPath() after saving
-3. saveFromJazzDrive() exists but is never called from jazzdrive_service.dart
+### Status (all three gaps fixed — Phase 13, commit 2833a37)
+1. home_screen.dart _HeroCard checks item.posterPath (local file) before network URL ✅
+2. downloadAndCache() calls LocalDb.savePosterPath() after saving ✅
+3. saveFromJazzDrive() called from jazzdrive_service.dart getStreamLink() ✅
 
 ---
 
