@@ -295,6 +295,9 @@ def health():
     for provider in ("groq", "gemini", "openai", "openrouter"):
         key_val = keys.get_active_value(provider)
         out["ai_providers"][provider] = bool(key_val)
+    # Also count TMDB/OMDB keys
+    out["tmdb_keys"] = sum(1 for _ in [keys.get_active_value("tmdb")] if _)
+    out["omdb_keys"] = sum(1 for _ in [keys.get_active_value("omdb")] if _)
 
     # Scraper sites check
     try:

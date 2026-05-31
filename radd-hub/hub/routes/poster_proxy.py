@@ -48,25 +48,30 @@ def _radd_db() -> sqlite3.Connection:
 
 def _get_active_keys(provider: str) -> list[str]:
     """
-    Read all active keys for provider directly from DB as plaintext.
-    value_enc column stores the key as plain UTF-8 text (no Fernet).
+    Read all active keys for provider from DB, decrypting Fernet values.
+    Uses the keys vault module for proper decryption.
     """
     try:
+        from hub import keys as _keys_mod
         conn = _radd_db()
         rows = conn.execute(
             "SELECT value_enc FROM keys WHERE provider=? AND is_active=1 ORDER BY last_used_at ASC",
             (provider,)
         ).fetchall()
         conn.close()
-        keys = []
+        result = []
         for r in rows:
             val = r["value_enc"]
-            if isinstance(val, (bytes, bytearray)):
-                val = val.decode("utf-8", errors="ignore")
-            # Skip Fernet-encrypted values (they start with gAAAAA)
-            if val and not val.startswith("gAAAAA"):
-                keys.append(val.strip())
-        return keys
+            try:
+                if isinstance(val, (bytes, bytearray)):
+                    decrypted = _keys_mod.decrypt(val)
+                else:
+                    decrypted = _keys_mod.decrypt(val.encode("utf-8") if isinstance(val, str) else val)
+                if decrypted and decrypted.strip():
+                    result.append(decrypted.strip())
+            except Exception:
+                pass
+        return result
     except Exception as e:
         log.warning("Failed to read keys from DB: %s", e)
         return []

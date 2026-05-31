@@ -263,19 +263,21 @@ async function loadHealth(){
     const setH = (dotId, badgeId, ok, label) => {
       const dot = document.getElementById(dotId);
       const badge = document.getElementById(badgeId);
-      if(dot) dot.className = 'health-dot ' + (ok ? 'ok' : 'err');
-      if(badge){ badge.textContent = label; badge.className = 'badge ' + (ok ? 'b-ok' : 'b-err'); }
+      if(dot) dot.className = 'health-dot ' + (ok === null ? 'mut' : ok ? 'ok' : 'err');
+      if(badge){ badge.textContent = label; badge.className = 'badge ' + (ok === null ? 'b-mut' : ok ? 'b-ok' : 'b-err'); }
     };
 
-    setH('dot-watch', 'h-watch', true, 'running');
+    setH('dot-watch', 'h-watch', null, 'decommissioned');
 
     const dbOk = d.db_ok !== false;
     const dbSz = d.db_size_mb ? d.db_size_mb + ' MB' : 'ok';
     setH('dot-db', 'h-db', dbOk, dbOk ? dbSz : 'error');
 
     const ai = d.ai_providers || {};
-    const aiOk = Object.values(ai).some(Boolean);
-    const keyCount = Object.values(ai).filter(Boolean).length;
+    const tmdbCount = d.tmdb_keys || 0;
+    const omdbCount = d.omdb_keys || 0;
+    const aiOk = Object.values(ai).some(Boolean) || tmdbCount > 0 || omdbCount > 0;
+    const keyCount = Object.values(ai).filter(Boolean).length + (tmdbCount > 0 ? 1 : 0) + (omdbCount > 0 ? 1 : 0);
     setH('dot-keys', 'h-keys', aiOk, aiOk ? keyCount + ' configured' : 'no keys');
 
   } catch(e){
