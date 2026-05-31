@@ -220,8 +220,10 @@ bp_encoding_admin = Blueprint("encoding_admin", __name__)
 @bp_encoding_admin.route("/security/xor-encoding")
 def xor_encoding_status():
     """Admin info page: XOR encoding layer status and test tool."""
-    from flask import render_template_string
-    from ..auth import login_required
+    from flask import render_template_string, redirect, url_for, request as flask_req
+    from ..auth import is_logged_in
+    if not is_logged_in():
+        return redirect(url_for("auth.login", next=flask_req.path))
     html = """
     <!doctype html><html lang="en">
     <head><meta charset="utf-8"><title>XOR Encoding — RaddHub</title>
@@ -260,4 +262,4 @@ body = decode_request() if is_encoded_request() else request.json
 return encode_response(result, device_id) if is_encoded_request() else jsonify(result)</pre>
     </body></html>
     """
-    return login_required(lambda: render_template_string(html))()
+    return render_template_string(html)

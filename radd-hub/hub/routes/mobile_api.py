@@ -517,7 +517,7 @@ def plans():
     out = []
     for p in plan_rows:
         try:
-            features = json.loads(p.get("features") or "[]")
+            features = json.loads(p.get("description") or "[]")
         except Exception:
             features = []
         # Derive Jazz savings message
