@@ -221,37 +221,6 @@ def execute_sql():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
-@bp.route("/api/export/<name>")
-@auth.login_required
-def export_table(name):
-    """Export a table as CSV or JSON. Strict whitelist enforced."""
-    if name not in ALL_TABLES:
-        abort(403)
-    fmt = request.args.get("format", "csv").lower()
-    try:
-        with db.conn() as c:
-            if not _table_exists(c, name):
-                return "Table not found", 404
-            rows = c.execute(f"SELECT * FROM {name}").fetchall()
-            if not rows:
-                return "Table is empty", 200
-            data = [_safe_row(r) for r in rows]
-            if fmt == "json":
-                return Response(
-                    json.dumps(data, indent=2),
-                    mimetype="application/json",
-                    headers={"Content-Disposition": f"attachment; filename={name}.json"},
-                )
-            output = io.StringIO()
-            writer = csv.DictWriter(output, fieldnames=data[0].keys())
-            writer.writeheader()
-            writer.writerows(data)
-            return Response(
-                output.getvalue(), mimetype="text/csv",
-                headers={"Content-Disposition": f"attachment; filename={name}.csv"},
-            )
-    except Exception as e:
-        return str(e), 500
 
 
 @bp.route("/api/stats")
@@ -870,9 +839,10 @@ def titles_null_stats():
 @bp.route("/api/export/<table>")
 @auth.login_required
 def export_table(table: str):
-    """Stream a table as a CSV download. Respects ?q= search filter."""
+    """Export a table as CSV or JSON. Supports ?q= search and ?format=json."""
     if table not in ALL_TABLES:
         abort(404)
+    fmt = request.args.get("format", "csv").lower()
     q = request.args.get("q", "").strip()
     try:
         with db.conn() as c:
@@ -894,14 +864,25 @@ def export_table(table: str):
             rows      = cur.fetchall()
             col_names = [d[0] for d in cur.description]
 
+            def _clean(v):
+                if isinstance(v, bytes):
+                    try:    return v.decode("utf-8")
+                    except: return f"[BINARY {len(v)}B]"
+                return v
+
+            if fmt == "json":
+                data = [dict(zip(col_names, [_clean(v) for v in row])) for row in rows]
+                return Response(
+                    json.dumps(data, indent=2, default=str),
+                    mimetype="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="{table}.json"'},
+                )
+
             out = io.StringIO()
             w   = csv.writer(out)
             w.writerow(col_names)
             for row in rows:
-                w.writerow([
-                    v.decode("utf-8", errors="replace") if isinstance(v, bytes) else v
-                    for v in row
-                ])
+                w.writerow([_clean(v) for v in row])
 
             return Response(
                 out.getvalue(),
