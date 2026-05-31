@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../constants.dart';
 import '../security/keystore.dart';
 import '../security/app_guard.dart';
+import '../security/request_encoder.dart';
+import '../security/device_id.dart';
 import '../debug/debug_logger.dart';
 
 /// Singleton Dio HTTP client.
@@ -12,6 +15,9 @@ import '../debug/debug_logger.dart';
 /// Security: if AppGuard.isTampered is true (cracked APK / Frida detected),
 /// the _TamperInterceptor short-circuits ALL requests with fake empty responses.
 /// The attacker sees empty catalog / failed login — never real data.
+///
+/// XOR encoding: _XorInterceptor encodes request bodies and decodes responses
+/// using an hourly rotating session key derived from device ID + time.
 class ApiClient {
   static ApiClient? _instance;
   late final Dio _dio;
@@ -26,10 +32,15 @@ class ApiClient {
       ),
     );
 
-    // Order matters: tamper check must run FIRST before any network call
+    // Order matters:
+    // 1. Tamper check: block cracked APKs before any network activity
+    // 2. Logging: log original (pre-encoding) data for debug readability
+    // 3. Auth: attach Bearer token
+    // 4. XOR: encode outbound body, decode inbound response (last for requests, first for responses)
     _dio.interceptors.add(_TamperInterceptor());
     _dio.interceptors.add(_LoggingInterceptor());
     _dio.interceptors.add(_AuthInterceptor(_dio));
+    _dio.interceptors.add(_XorInterceptor());
   }
 
   static ApiClient get instance {
@@ -243,5 +254,90 @@ class _AuthInterceptor extends Interceptor {
       DebugLogger.logError('AUTH', '_tryRefresh network error', e);
     }
     return false;
+  }
+}
+
+// ── XOR Interceptor ───────────────────────────────────────────────────────────
+/// Adds XOR obfuscation layer on top of HTTPS for all Oracle API traffic.
+///
+/// Request: encodes POST/PUT/PATCH body with hourly session key.
+///   Adds X-Encoded: 1 and X-Device-Id headers so server can decode.
+/// Response: decodes application/octet-stream responses from server.
+///
+/// Only active when RequestEncoder.enabled == true.
+/// Runs last for requests (encodes after auth) and first for responses (decodes first).
+///
+/// See: lib/core/security/request_encoder.dart for encoding details.
+class _XorInterceptor extends Interceptor {
+  String? _cachedDeviceId;
+
+  Future<String> _getDeviceId() async {
+    _cachedDeviceId ??= await DeviceIdentifier.getDeviceId();
+    return _cachedDeviceId!;
+  }
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+    if (!RequestEncoder.enabled) return handler.next(options);
+
+    try {
+      final deviceId   = await _getDeviceId();
+      final sessionKey = RequestEncoder.generateSessionKey(deviceId);
+
+      // Mark all requests as XOR-capable so server can encode responses
+      options.headers['X-Encoded']   = '1';
+      options.headers['X-Device-Id'] = deviceId;
+
+      // Encode request body for write methods only
+      final method = options.method.toUpperCase();
+      if (options.data != null && (method == 'POST' || method == 'PUT' || method == 'PATCH')) {
+        final jsonBody = options.data is String
+            ? options.data as String
+            : jsonEncode(options.data);
+        final encoded = RequestEncoder.encode(jsonBody, sessionKey);
+        options.data        = encoded;
+        options.contentType = 'text/plain; charset=utf-8';
+        DebugLogger.log('XOR', 'Encoded request body for ${options.path}');
+      }
+
+      // Store session key for response decoding
+      options.extra['_xor_session_key'] = sessionKey;
+    } catch (e) {
+      DebugLogger.logWarn('XOR', 'Encoding error for ${options.path}: $e');
+    }
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    if (!RequestEncoder.enabled) return handler.next(response);
+
+    try {
+      final sessionKey =
+          response.requestOptions.extra['_xor_session_key'] as String?;
+      if (sessionKey != null) {
+        final contentType = response.headers.value('content-type') ?? '';
+        if (contentType.contains('octet-stream')) {
+          final rawData = response.data?.toString() ?? '';
+          if (rawData.isNotEmpty) {
+            final decoded = RequestEncoder.decode(rawData, sessionKey);
+            try {
+              response.data = jsonDecode(decoded);
+              DebugLogger.log('XOR', 'Decoded response for ${response.requestOptions.path}');
+            } catch (_) {
+              response.data = decoded;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      DebugLogger.logWarn('XOR', 'Decode error: $e');
+    }
+    handler.next(response);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    handler.next(err);
   }
 }

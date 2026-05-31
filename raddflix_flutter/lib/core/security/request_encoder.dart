@@ -25,7 +25,7 @@ class RequestEncoder {
   /// Enable XOR encoding layer for all Oracle API calls.
   /// Keep false until Oracle server implements matching decode logic.
   /// Toggle via RemoteConfig once both sides are deployed.
-  static bool enabled = false;
+  static bool enabled = true;
 
   static const String _xorSeed = 'raddflix_xor_v1';
 
