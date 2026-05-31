@@ -332,6 +332,34 @@ code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:12px;
   .grid-4,.grid-3,.grid-2{grid-template-columns:1fr}
   h2{font-size:17px}
 }
+
+/* ── Desktop sidebar collapse toggle ─────────────────────────────────── */
+.sb-toggle-btn{
+  background:none;border:1px solid var(--border);color:var(--muted);
+  border-radius:6px;padding:3px 8px;font-size:13px;cursor:pointer;
+  line-height:1.6;transition:.2s;flex-shrink:0;
+}
+.sb-toggle-btn:hover{color:var(--text);border-color:var(--accent);filter:none}
+
+/* collapsed state */
+body.sb-col{--sidebar-w:52px}
+body.sb-col .sidebar{overflow:hidden}
+body.sb-col .brand>div{display:none}
+body.sb-col .brand{justify-content:center;padding:12px 6px}
+body.sb-col .sb-toggle-btn{transform:rotate(180deg)}
+body.sb-col .nav-section,
+body.sb-col .nav-label,
+body.sb-col .tool-badges{display:none}
+body.sb-col .nav a{padding:10px;justify-content:center}
+body.sb-col .nav .icon{width:auto;color:var(--muted)}
+body.sb-col .nav a.active .icon{color:var(--accent)}
+body.sb-col .nav a span.nav-label{display:none}
+@media(max-width:767px){
+  body.sb-col{--sidebar-w:var(--sidebar-w-sm)}
+  body.sb-col .sidebar{overflow-y:auto}
+  body.sb-col .brand>div{display:block}
+}
+
 </style>
 </head>
 <body>
@@ -355,9 +383,12 @@ code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:12px;
 
 <div class="layout">
   <aside class="sidebar" id="sidebar">
-    <div class="brand">
-      <h1>Radd Hub</h1>
-      <div class="v">v3.0</div>
+    <div class="brand" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div>
+        <h1 style="margin:0">Radd Hub</h1>
+        <div class="v">v3.0</div>
+      </div>
+      <button class="sb-toggle-btn" id="sb-toggle-btn" onclick="toggleSidebarDesktop()" title="Collapse sidebar">◀</button>
     </div>
 
     <!-- Live tool-status badges -->
@@ -744,6 +775,20 @@ function fmtTime(t){if(!t)return '—';return new Date(t*1000).toLocaleString()}
   setTimeout(fetchBadges, 2000);
   setInterval(fetchBadges, 30000);
 })();
+
+/* ── Desktop sidebar collapse ─────────────────────────────────────────── */
+function toggleSidebarDesktop(){
+  const col = document.body.classList.toggle('sb-col');
+  localStorage.setItem('sb-col', col ? '1' : '0');
+  const btn = document.getElementById('sb-toggle-btn');
+  if(btn) btn.title = col ? 'Expand sidebar' : 'Collapse sidebar';
+}
+(function(){
+  if(window.innerWidth > 767 && localStorage.getItem('sb-col') === '1'){
+    document.body.classList.add('sb-col');
+  }
+})();
+
 </script>
 {% block scripts %}{% endblock %}
 </body></html>
