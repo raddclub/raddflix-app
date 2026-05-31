@@ -8,7 +8,7 @@
 
 ## What is RaddFlix?
 
-RaddFlix is a Pakistani streaming platform. Jazz SIM users stream movies/dramas for free (zero-rated via JazzDrive CDN). There is a Flutter mobile app, a Flask admin panel, and a WhatsApp bot in development.
+RaddFlix is a Pakistani streaming platform. Jazz SIM users stream movies/dramas for free via JazzDrive zero-rating — traffic to `cloud.jazzdrive.com.pk` does not require a data bundle on Jazz SIM. There is a Flutter mobile app, a Flask admin panel, and a WhatsApp bot in development.
 
 **Previous names (do not use these anywhere):** JazzMAX, Zeno
 
@@ -25,8 +25,9 @@ RaddFlix is a Pakistani streaming platform. Jazz SIM users stream movies/dramas 
 ### Services (managed by Supervisor)
 | Supervisor name | What it does | Port | Start/stop command |
 |----------------|-------------|------|-------------------|
-| `jazzmax_radd` | Flask admin panel (Radd Hub v3.0) | 5000 | `sudo supervisorctl restart jazzmax_radd` |
-| `jazzmax_watch` | Mobile watch API | 6000 | `sudo supervisorctl restart jazzmax_watch` |
+| `raddflix_radd` | Flask admin panel + all mobile API (Radd Hub v3.0) | 5000 | `sudo supervisorctl restart raddflix_radd` |
+
+> **Note:** `raddflix_watch` (port 6000) was decommissioned on 2026-05-30. All API now runs through `raddflix_radd` on port 5000 only.
 
 ### GitHub
 - **Repo:** `raddclub/raddflix-app`
@@ -40,7 +41,7 @@ RaddFlix is a Pakistani streaming platform. Jazz SIM users stream movies/dramas 
 
 ```
 /opt/jazzmax/
-├── radd-hub/                  ← Flask admin panel
+├── radd-hub/                  ← Flask admin panel + all mobile API
 │   ├── hub/
 │   │   ├── app.py             ← Flask app entry point
 │   │   ├── routes/            ← All API route blueprints (library, admin, stream, etc.)
@@ -48,7 +49,7 @@ RaddFlix is a Pakistani streaming platform. Jazz SIM users stream movies/dramas 
 │   │   └── templates/         ← Jinja2 HTML templates
 │   └── requirements.txt
 ├── raddflix_flutter/           ← Flutter mobile app source (build on dev machine, not server)
-├── _watch_prototype/          ← Early prototype, reference only
+├── _watch_prototype/          ← Early prototype, reference only — decommissioned
 ├── wa-bot/                    ← WhatsApp bot (Node.js)
 └── scripts/                   ← Utility scripts
 ```
@@ -63,6 +64,7 @@ RaddFlix is a Pakistani streaming platform. Jazz SIM users stream movies/dramas 
 4. **Never hardcode secrets** — always use `ORACLE_SSH_KEY` and `GITHUB_TOKEN` env vars.
 5. **Never force-push to GitHub** — use `"force": False` in all PATCH calls.
 6. **Always append to TASK_LOG.md after your work** — future agents depend on this.
+7. **Never route JazzDrive API calls through Oracle** — stream URLs must be generated phone→JazzDrive directly or zero-rating breaks. See STREAMING_ARCHITECTURE.md.
 
 ---
 
@@ -70,7 +72,7 @@ RaddFlix is a Pakistani streaming platform. Jazz SIM users stream movies/dramas 
 
 1. Make sure `GITHUB_TOKEN` and `ORACLE_SSH_KEY` are set in Replit Secrets
 2. Run the install script: `curl -sL https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/scripts/install.sh | bash`
-3. Read `agent-hub/HANDOFF_2026_05_28.md` for the current state, then `TASK_LOG.md` for full history
+3. Read `agent-hub/REINCARNATION.md` for current state, then `TASK_LOG.md` for full history
 4. Do your work
 5. Append your summary to `TASK_LOG.md` via GitHub API
 
