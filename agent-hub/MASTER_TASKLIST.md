@@ -574,3 +574,95 @@ All reported "failures" were false-positive grep patterns; actual code verified 
 | 25.5 | ~~Server XOR encoding (radd-hub)~~ | ✅ DONE — `request_encoding.py` deployed + `@encoding_supported` decorator ready. Flutter `RequestEncoder.enabled=false` until both sides activated. |
 | 25.6 | ~~Telemetry on tamper detection~~ | ✅ DONE — `security_telemetry.dart` + Flask endpoint + tamper_reports DB table |
 
+
+---
+
+## Phase 26 — CI Fix + APK Keystore Regeneration (2026-05-31)
+
+**Status**: ✅ COMPLETE
+**Commits**: be18ca4
+
+### Problem
+`Build RaddFlix APK` CI was FAILING — Phase 26 keystore had unknown password (generated with RaddFlix_2024_Store but secret was empty).
+
+### Solution
+- Generated fresh PKCS12 keystore on Oracle at `/tmp/raddflix_new.keystore` (password: `RaddFlix_2026_Secure`)
+- Updated 4 GitHub Secrets via NaCl-encrypted API: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
+- Updated `app_guard.dart` `_officialFingerprint` to new SHA-256 fingerprint
+- New fingerprint: `BA:4E:41:2D:F4:68:EF:60:41:05:24:CC:A4:24:77:70:83:7F:E9:C1:29:46:D0:18:35:3D:64:88:1C:E5:CD:07`
+
+### CI Result
+- `Build RaddFlix APK`: ✅ GREEN (commit be18ca4)
+- `RaddFlix CI`: ✅ GREEN (commit be18ca4)
+
+### Completed ✅
+- [x] Generated fresh PKCS12 keystore (alias: raddflix, password: RaddFlix_2026_Secure)
+- [x] Updated all 4 GitHub Secrets via NaCl API
+- [x] Updated app_guard.dart with correct APK fingerprint
+- [x] Verified both CI checks pass on commit be18ca4
+
+---
+
+## Phase 27 — wa-bot Deployment (2026-05-31)
+
+**Status**: ✅ COMPLETE (bot running, needs WhatsApp pairing)
+**Commits**: (this commit)
+
+### What Was Built
+Node.js WhatsApp OTP delivery bot using @whiskeysockets/baileys:
+
+- **Location**: `/opt/jazzmax/radd-hub/hub/bots/whatsapp/index.js` (295 lines)
+- **Port**: 3000 (HTTP, localhost only)
+- **Supervisor**: `raddflix_wa_bot` (RUNNING, autostart=false)
+
+### HTTP API
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/send-message` | Send WhatsApp message `{jid, text}` |
+| GET  | `/api/status` | Bot connection status |
+| GET  | `/api/qr` | QR / pairing code info |
+| GET  | `/health` | Health check |
+| POST | `/api/stop` | Graceful shutdown |
+
+### Integration
+- `mobile_api.py _send_whatsapp_otp()` → POST `http://127.0.0.1:3000/api/send-message` ✅
+- `hub/bots/whatsapp.py send_message()` → file IPC `/tmp/radd_bot_cmd/` ✅
+- Baileys v2.3000.x connected, QR code generated at startup
+
+### Completed ✅
+- [x] Node.js wa-bot (index.js + package.json) deployed to Oracle
+- [x] `npm install` — 179 packages installed
+- [x] Supervisor config: `raddflix_wa_bot` added to `/etc/supervisor/conf.d/raddflix.conf`
+- [x] Bot RUNNING on port 3000 ✅
+- [x] Health check passing: `{"ok":true,"connected":false,"running":true}`
+- [x] QR code auto-generated and saved to `whatsapp-qr.png`
+- [x] File IPC polling `/tmp/radd_bot_cmd/` active
+- [x] code committed to GitHub (index.js + package.json)
+
+### Pending ⬜ (needs human action — WhatsApp account required)
+| # | Task | Notes |
+|---|------|-------|
+| 27.1 | Link WhatsApp account | Write phone to `pairing-number.txt`, restart bot, get pairing code |
+| 27.2 | Test OTP delivery | Trigger device-switch-request API, verify WhatsApp message received |
+
+### How to Link WhatsApp
+```bash
+# SSH to Oracle:
+echo "923001234567" > /opt/jazzmax/radd-hub/hub/bots/whatsapp/pairing-number.txt
+sudo supervisorctl restart raddflix_wa_bot
+# Check logs for 8-digit pairing code:
+sudo supervisorctl tail raddflix_wa_bot
+# Enter pairing code in WhatsApp app: Settings → Linked Devices → Link with phone number
+```
+
+---
+
+## Open Items (as of 2026-05-31)
+
+| Item | Blocker | Owner |
+|------|---------|-------|
+| WhatsApp pairing (T005) | Need WA account on server | Human (DevOps) |
+| Let's Encrypt SSL | Needs domain name | Human (DevOps) |
+| XOR encoding activation | Simultaneous deploy both sides | Next Agent |
+| AppConstants.supportWhatsApp | Update to real number | Human |
+| TMDB miss (Avatar/Dark Knight) | Manual mapping | Next Agent |
