@@ -1,12 +1,17 @@
 import 'package:dio/dio.dart';
 import '../constants.dart';
 import '../security/keystore.dart';
+import '../security/app_guard.dart';
 import '../debug/debug_logger.dart';
 
 /// Singleton Dio HTTP client.
 /// Automatically attaches Bearer token to every request.
 /// On 401 → auto-refreshes access token using refresh token → retries.
 /// On refresh failure → clears tokens (user must log in again).
+///
+/// Security: if AppGuard.isTampered is true (cracked APK / Frida detected),
+/// the _TamperInterceptor short-circuits ALL requests with fake empty responses.
+/// The attacker sees empty catalog / failed login — never real data.
 class ApiClient {
   static ApiClient? _instance;
   late final Dio _dio;
@@ -21,6 +26,8 @@ class ApiClient {
       ),
     );
 
+    // Order matters: tamper check must run FIRST before any network call
+    _dio.interceptors.add(_TamperInterceptor());
     _dio.interceptors.add(_LoggingInterceptor());
     _dio.interceptors.add(_AuthInterceptor(_dio));
   }
@@ -48,6 +55,49 @@ class ApiClient {
 
   Future<Response> put(String path, {dynamic data}) =>
       _dio.put(path, data: data);
+}
+
+// ── Tamper Interceptor ────────────────────────────────────────────────────────
+/// Security: blocks ALL API calls when AppGuard.isTampered = true.
+///
+/// Returns a fake 200 response with empty data instead of making a real call.
+/// This implements "silent degradation":
+///   - Cracked APK sees empty catalog, login always "fails" silently
+///   - Attacker thinks the crack doesn't work and gives up
+///   - We never crash or show an error that reveals the check exists
+///
+/// Runs BEFORE _LoggingInterceptor so tampered requests don't appear in logs.
+class _TamperInterceptor extends Interceptor {
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (!AppGuard.isTampered) {
+      return handler.next(options);
+    }
+    // Return fake empty response — never hits the real network
+    final fake = Response(
+      requestOptions: options,
+      statusCode: 200,
+      data: _fakeResponse(options.path),
+    );
+    handler.resolve(fake);
+  }
+
+  /// Generate a plausible-looking fake response for common API paths.
+  static dynamic _fakeResponse(String path) {
+    if (path.contains('/catalog/sync') || path.contains('/catalog/version')) {
+      return {'items': [], 'version': 0, 'count': 0};
+    }
+    if (path.contains('/auth/login') || path.contains('/auth/register')) {
+      return {'ok': false, 'error': 'Invalid credentials'};
+    }
+    if (path.contains('/subscription/plans')) {
+      return {'plans': []};
+    }
+    if (path.contains('/notifications')) {
+      return {'notifications': []};
+    }
+    return {'ok': false};
+  }
 }
 
 // ── Logging Interceptor ───────────────────────────────────────────────────────

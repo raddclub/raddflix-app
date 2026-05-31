@@ -3,6 +3,7 @@ package com.raddflix.app
 import android.app.PictureInPictureParams
 import android.media.MediaScannerConnection
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Rational
 import io.flutter.embedding.android.FlutterActivity
@@ -20,10 +21,11 @@ import org.json.JSONObject
 
 class MainActivity : FlutterActivity() {
 
-    private val PIP_CHANNEL    = "com.raddflix.app/pip"
-    private val MEDIA_CHANNEL  = "com.raddflix.app/media"
-    private val CAST_CHANNEL   = "com.raddflix.app/cast"
-    private val INTENT_CHANNEL = "com.raddflix.app/intent"
+    private val PIP_CHANNEL      = "com.raddflix.app/pip"
+    private val MEDIA_CHANNEL    = "com.raddflix.app/media"
+    private val CAST_CHANNEL     = "com.raddflix.app/cast"
+    private val INTENT_CHANNEL   = "com.raddflix.app/intent"
+    private val SECURITY_CHANNEL = "com.raddflix.app/security"
 
     private var pendingVideoUri: String? = null
     private var intentMethodChannel: MethodChannel? = null
@@ -99,6 +101,64 @@ class MainActivity : FlutterActivity() {
                             )
                         }
                         result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        // ── Security Channel ─────────────────────────────────────────────
+        // Used by AppGuard for: APK signature check, Frida detection, root check.
+        // Tampered APK / Frida detected → AppGuard.isTampered = true → fake empty data.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SECURITY_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getSignatureFingerprint" -> {
+                        try {
+                            val pkgInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                packageManager.getPackageInfo(
+                                    packageName,
+                                    PackageManager.GET_SIGNING_CERTIFICATES
+                                )
+                            } else {
+                                @Suppress("DEPRECATION")
+                                packageManager.getPackageInfo(
+                                    packageName,
+                                    PackageManager.GET_SIGNATURES
+                                )
+                            }
+                            val certBytes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                pkgInfo.signingInfo.apkContentsSigners[0].toByteArray()
+                            } else {
+                                @Suppress("DEPRECATION")
+                                pkgInfo.signatures[0].toByteArray()
+                            }
+                            val md = java.security.MessageDigest.getInstance("SHA-256")
+                            val hash = md.digest(certBytes)
+                            val fingerprint = hash.joinToString(":") { "%02X".format(it) }
+                            result.success(fingerprint)
+                        } catch (e: Exception) {
+                            result.error("SIGN_CHECK_FAILED", e.message, null)
+                        }
+                    }
+                    "checkFrida" -> {
+                        try {
+                            val maps = java.io.File("/proc/self/maps").readText()
+                            val hasFrida = maps.contains("frida") ||
+                                           maps.contains("gadget") ||
+                                           maps.contains("gum-js-loop") ||
+                                           maps.contains("linjector")
+                            result.success(hasFrida)
+                        } catch (e: Exception) {
+                            result.success(false)
+                        }
+                    }
+                    "checkRoot" -> {
+                        val suPaths = listOf(
+                            "/system/bin/su", "/system/xbin/su", "/sbin/su",
+                            "/data/local/su", "/data/local/bin/su",
+                            "/data/local/xbin/su"
+                        )
+                        result.success(suPaths.any { java.io.File(it).exists() })
                     }
                     else -> result.notImplemented()
                 }
