@@ -13,6 +13,239 @@
   <span class="muted" style="font-size:13px">Keys live here — add many per provider, they auto-rotate.</span>
 </div>
 
+<!-- Getting Started / Setup Health Card -->
+<div id="gs-card" class="card" style="border:1px solid #2a3550;background:linear-gradient(135deg,#0d1525 0%,#111928 100%);margin-bottom:8px">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+    <div>
+      <h3 style="margin:0 0 2px;font-size:1rem;color:#e7eaf2">⚡ Setup & Metadata Health</h3>
+      <div class="muted" style="font-size:.8rem">Quick status of API keys and catalog enrichment</div>
+    </div>
+    <button class="ghost" onclick="gsHide()" style="font-size:.75rem;padding:4px 10px;opacity:.6" title="Dismiss">✕ Dismiss</button>
+  </div>
+
+  <!-- Key Status Badges -->
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px" id="gs-key-status">
+    <div class="gs-badge" id="gs-tmdb">
+      <span class="gs-dot">●</span>
+      <span>TMDB</span>
+      <span class="gs-count" id="gs-tmdb-n">…</span>
+      <a href="https://www.themoviedb.org/settings/api" target="_blank" class="gs-link" title="Get free TMDB key">+ Get Key</a>
+    </div>
+    <div class="gs-badge" id="gs-omdb">
+      <span class="gs-dot">●</span>
+      <span>OMDB</span>
+      <span class="gs-count" id="gs-omdb-n">…</span>
+      <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" class="gs-link" title="Get free OMDB key">+ Get Key</a>
+    </div>
+    <div class="gs-badge" id="gs-ai">
+      <span class="gs-dot">●</span>
+      <span>AI (Groq/Gemini)</span>
+      <span class="gs-count" id="gs-ai-n">…</span>
+      <a href="https://console.groq.com/keys" target="_blank" class="gs-link" title="Get free Groq key">+ Get Key</a>
+    </div>
+  </div>
+
+  <!-- Enrichment Stats Bars -->
+  <div id="gs-stats" style="display:none">
+    <div style="font-size:.8rem;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Catalog Enrichment</div>
+    <div class="gs-stat-row">
+      <span>Posters</span>
+      <div class="gs-bar-wrap"><div class="gs-bar" id="gs-bar-poster"></div></div>
+      <span class="gs-pct" id="gs-pct-poster">–</span>
+    </div>
+    <div class="gs-stat-row">
+      <span>Ratings</span>
+      <div class="gs-bar-wrap"><div class="gs-bar gs-bar-b" id="gs-bar-rating"></div></div>
+      <span class="gs-pct" id="gs-pct-rating">–</span>
+    </div>
+    <div class="gs-stat-row">
+      <span>Overviews</span>
+      <div class="gs-bar-wrap"><div class="gs-bar gs-bar-g" id="gs-bar-overview"></div></div>
+      <span class="gs-pct" id="gs-pct-overview">–</span>
+    </div>
+    <div class="gs-stat-row">
+      <span>Genres</span>
+      <div class="gs-bar-wrap"><div class="gs-bar gs-bar-y" id="gs-bar-genres"></div></div>
+      <span class="gs-pct" id="gs-pct-genres">–</span>
+    </div>
+  </div>
+
+  <!-- Action buttons -->
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center">
+    <button id="gs-enrich-btn" onclick="gsEnrich(false)" style="background:linear-gradient(90deg,#7c5cff,#9d78ff);border:none;color:#fff;padding:8px 18px;border-radius:8px;font-weight:600;cursor:pointer;font-size:.85rem">⚡ Enrich Missing Titles</button>
+    <button class="ghost" onclick="gsEnrich(true)" style="font-size:.82rem">🔄 Force Re-Enrich All</button>
+    <a href="/api/db_mgmt/" class="ghost" style="font-size:.82rem;text-decoration:none;display:inline-flex;align-items:center;padding:6px 14px;border:1px solid #2a3550;border-radius:6px;color:#9ca3af">Open DB Studio →</a>
+    <span id="gs-enrich-status" style="font-size:.8rem;color:#7e859b"></span>
+  </div>
+</div>
+
+<!-- Enrich progress overlay -->
+<div id="gs-progress-overlay" style="display:none;position:fixed;inset:0;background:#000a;z-index:200;align-items:center;justify-content:center;padding:24px">
+  <div class="card" style="width:min(560px,100%);margin:0;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0;font-size:1rem">⚡ Enriching Titles…</h3>
+      <span id="gs-prog-summary" style="font-size:.82rem;color:#9ca3af"></span>
+    </div>
+    <div style="background:#181d28;border-radius:6px;height:6px;overflow:hidden;margin-bottom:14px">
+      <div id="gs-prog-bar" style="height:100%;background:linear-gradient(90deg,#7c5cff,#9d78ff);width:0%;transition:width .3s"></div>
+    </div>
+    <div id="gs-prog-rows" style="font-size:.8rem;max-height:300px;overflow-y:auto;display:grid;gap:4px"></div>
+    <button id="gs-prog-close" onclick="gsCloseProgress()" style="margin-top:14px;display:none;padding:7px 18px;background:#1e2530;border:none;border-radius:6px;color:#e7eaf2;cursor:pointer">Close</button>
+  </div>
+</div>
+
+<style>
+.gs-badge{display:inline-flex;align-items:center;gap:6px;background:#141b27;border:1px solid #1e2d47;border-radius:20px;padding:5px 12px;font-size:.82rem;transition:border-color .2s}
+.gs-badge.ok{border-color:#00c853}
+.gs-badge.warn{border-color:#ff6b35}
+.gs-badge .gs-dot{font-size:10px;color:#7e859b}
+.gs-badge.ok .gs-dot{color:#00c853}
+.gs-badge.warn .gs-dot{color:#ff6b35}
+.gs-count{background:#1e2530;border-radius:10px;padding:1px 7px;font-size:.75rem;font-weight:600;color:#9ca3af}
+.gs-link{font-size:.72rem;color:#7c5cff;text-decoration:none;display:none}
+.gs-badge.warn .gs-link{display:inline}
+.gs-stat-row{display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:.82rem;color:#9ca3af}
+.gs-stat-row>span:first-child{width:72px;flex-shrink:0}
+.gs-bar-wrap{flex:1;height:6px;background:#141b27;border-radius:3px;overflow:hidden}
+.gs-bar{height:100%;background:linear-gradient(90deg,#7c5cff,#9d78ff);width:0%;border-radius:3px;transition:width .5s}
+.gs-bar-b{background:linear-gradient(90deg,#1976d2,#42a5f5)}
+.gs-bar-g{background:linear-gradient(90deg,#00897b,#26a69a)}
+.gs-bar-y{background:linear-gradient(90deg,#f57c00,#ffa726)}
+.gs-pct{width:36px;text-align:right;font-size:.75rem;font-weight:600;color:#7e859b}
+</style>
+
+<script>
+(function(){
+// Check if dismissed
+if(localStorage.getItem('gs-dismissed') === '1'){
+  document.getElementById('gs-card').style.display='none';
+}
+function gsHide(){
+  localStorage.setItem('gs-dismissed','1');
+  document.getElementById('gs-card').style.display='none';
+}
+window.gsHide = gsHide;
+
+function pct(n,total){ return total ? Math.round(n/total*100) : 0; }
+function setBar(id, pctVal){ document.getElementById(id).style.width = pctVal + '%'; }
+function setPct(id, n, total){ document.getElementById(id).textContent = pct(n,total)+'%'; }
+
+function setBadge(id, count){
+  var el=document.getElementById(id);
+  var nEl=document.getElementById(id+'-n');
+  if(count>0){
+    el.classList.add('ok'); el.classList.remove('warn');
+    nEl.textContent=count+' key'+(count>1?'s':'');
+  } else {
+    el.classList.add('warn'); el.classList.remove('ok');
+    nEl.textContent='No key';
+  }
+}
+
+async function loadStatus(){
+  try{
+    const d = await api('/settings/api/setup-status');
+    setBadge('gs-tmdb', d.keys.tmdb||0);
+    setBadge('gs-omdb', d.keys.omdb||0);
+    var aiCount=(d.keys.groq||0)+(d.keys.gemini||0)+(d.keys.openai||0)+(d.keys.openrouter||0);
+    setBadge('gs-ai', aiCount);
+
+    if(d.titles && d.titles.total > 0){
+      var t=d.titles;
+      document.getElementById('gs-stats').style.display='block';
+      setBar('gs-bar-poster',   pct(t.poster,   t.total));
+      setBar('gs-bar-rating',   pct(t.rating,   t.total));
+      setBar('gs-bar-overview', pct(t.overview, t.total));
+      setBar('gs-bar-genres',   pct(t.genres,   t.total));
+      setPct('gs-pct-poster',   t.poster,   t.total);
+      setPct('gs-pct-rating',   t.rating,   t.total);
+      setPct('gs-pct-overview', t.overview, t.total);
+      setPct('gs-pct-genres',   t.genres,   t.total);
+    }
+  }catch(e){}
+}
+loadStatus();
+
+var _gsSource = null;
+window.gsEnrich = function(force){
+  if(!confirm(force ? 'Force re-enrich ALL titles (overwrites existing data)?' : 'Enrich all titles missing metadata?')) return;
+  if(_gsSource){ _gsSource.close(); }
+
+  var overlay = document.getElementById('gs-progress-overlay');
+  var rows    = document.getElementById('gs-prog-rows');
+  var bar     = document.getElementById('gs-prog-bar');
+  var summary = document.getElementById('gs-prog-summary');
+  var closeBtn= document.getElementById('gs-prog-close');
+  overlay.style.display='flex';
+  rows.innerHTML='';
+  bar.style.width='0%';
+  closeBtn.style.display='none';
+  summary.textContent='Starting…';
+
+  var total=0, done=0, enriched=0, failed=0;
+  _gsSource = new EventSource('/api/db_mgmt/api/enrich?' + (force?'force=1':''));
+
+  // For POST we need to use fetch+ReadableStream since EventSource only does GET
+  // Use the existing db_mgmt endpoint via a reload trick
+  _gsSource.close();
+
+  fetch('/api/db_mgmt/api/enrich', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ids:'all', force:force})
+  }).then(function(resp){
+    var reader = resp.body.getReader();
+    var decoder= new TextDecoder();
+    var buf='';
+    function read(){
+      reader.read().then(function(r){
+        if(r.done){ closeBtn.style.display='block'; loadStatus(); return; }
+        buf += decoder.decode(r.value, {stream:true});
+        var parts = buf.split('\n\n');
+        buf = parts.pop();
+        parts.forEach(function(chunk){
+          var m = chunk.match(/^event: (\w+)\ndata: (.+)$/s);
+          if(!m) return;
+          var evName=m[1], data;
+          try{ data=JSON.parse(m[2]); }catch(e){ return; }
+          if(evName==='start'){
+            total=data.total;
+            summary.textContent='0 / '+total;
+          } else if(evName==='row'){
+            done++;
+            var pctVal = total ? Math.round(done/total*100) : 0;
+            bar.style.width=pctVal+'%';
+            summary.textContent=done+' / '+total;
+            var color = data.status==='done'?'#00c853':data.status==='skipped'?'#9ca3af':data.status==='enriching'?'#7c5cff':'#ff6b35';
+            var icon  = data.status==='done'?'✓':data.status==='skipped'?'–':data.status==='enriching'?'…':'✗';
+            var row=document.createElement('div');
+            row.style.cssText='display:flex;gap:8px;align-items:baseline;padding:4px 8px;background:#0a0c11;border-radius:4px';
+            var upd = data.updated ? ' <span style="color:#7c5cff;font-size:.72rem">'+data.updated.join(', ')+'</span>' : '';
+            row.innerHTML='<span style="color:'+color+';width:14px;flex-shrink:0">'+icon+'</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+data.title+'</span>'+upd;
+            rows.prepend(row);
+            if(data.status==='done') enriched++;
+            if(data.status==='failed') failed++;
+          } else if(evName==='done'){
+            summary.textContent='Done — '+data.enriched+' enriched, '+data.skipped+' skipped, '+data.failed+' failed ('+data.elapsed+'s)';
+            bar.style.width='100%';
+            closeBtn.style.display='block';
+            loadStatus();
+          }
+        });
+        read();
+      }).catch(function(){ closeBtn.style.display='block'; });
+    }
+    read();
+  }).catch(function(e){ summary.textContent='Error: '+e.message; closeBtn.style.display='block'; });
+};
+window.gsCloseProgress=function(){
+  document.getElementById('gs-progress-overlay').style.display='none';
+};
+})();
+</script>
+
+
+
 {% for item in groups %}
 <div class="card">
   <h3>{{ item.group.title }}</h3>

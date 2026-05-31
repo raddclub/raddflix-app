@@ -161,6 +161,44 @@ def api_test(kid):
     return jsonify(res)
 
 
+
+
+# ---------- setup status (used by Getting Started card) -------------------- #
+
+@bp.route("/api/setup-status")
+@auth.login_required
+def api_setup_status():
+    """Return key counts + title enrichment stats for the Getting Started card."""
+    providers = ["tmdb", "omdb", "groq", "gemini", "openai", "openrouter"]
+    key_counts = {}
+    for p in providers:
+        active = [k for k in keys.list_keys(p) if k.get("is_active")]
+        key_counts[p] = len(active)
+
+    stats = {"total": 0, "poster": 0, "rating": 0, "overview": 0, "genres": 0}
+    try:
+        with db.conn() as c:
+            stats["total"]    = c.execute("SELECT COUNT(*) FROM titles").fetchone()[0]
+            stats["poster"]   = c.execute("SELECT COUNT(*) FROM titles WHERE poster_url IS NOT NULL AND CAST(poster_url AS TEXT) != ''").fetchone()[0]
+            stats["rating"]   = c.execute("SELECT COUNT(*) FROM titles WHERE imdb_rating IS NOT NULL").fetchone()[0]
+            stats["overview"] = c.execute("SELECT COUNT(*) FROM titles WHERE overview IS NOT NULL AND CAST(overview AS TEXT) != ''").fetchone()[0]
+            stats["genres"]   = c.execute("SELECT COUNT(*) FROM titles WHERE genres_csv IS NOT NULL AND CAST(genres_csv AS TEXT) != ''").fetchone()[0]
+    except Exception:
+        pass
+
+    has_tmdb = key_counts.get("tmdb", 0) > 0
+    has_omdb = key_counts.get("omdb", 0) > 0
+    has_ai   = any(key_counts.get(p, 0) > 0 for p in ["groq", "gemini", "openai", "openrouter"])
+
+    return jsonify({
+        "keys": key_counts,
+        "has_tmdb": has_tmdb,
+        "has_omdb": has_omdb,
+        "has_ai": has_ai,
+        "titles": stats,
+        "ready": has_tmdb or has_omdb or has_ai,
+    })
+
 # ---------- non-vault settings (repo names, sheet IDs) -------------------- #
 
 @bp.route("/api/settings", methods=["POST"])
