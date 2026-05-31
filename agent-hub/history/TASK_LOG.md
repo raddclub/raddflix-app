@@ -4529,3 +4529,62 @@ DB Manager /api/db_mgmt/ → 401 (correct, needs auth header)
 Service restarted: raddflix_radd RUNNING pid 476357
 
 ---
+
+## [2026-05-31 UTC] — Agent: Replit Agent (Full Admin Route Audit)
+
+### Task
+User reported /billing/ returning {"error":"internal error"}. Check every admin URL and fix all broken pages.
+
+### Root Cause
+`received_sms_payments` table did not exist in the DB. Two routes crashed querying it:
+- `/billing/` (payment_gateway.py) — 5 queries against received_sms_payments
+- `/tid/` (tid_panel.py) — 4 queries against received_sms_payments
+
+### Full Audit Results (18 routes tested with authenticated session)
+
+| Route | URL | Result |
+|-------|-----|--------|
+| Dashboard | / | ✅ 200 |
+| Downloader | /stream/ | ✅ 200 |
+| Flix | /upload/ | ✅ 200 |
+| JD Indexer | /scan/ | ✅ 200 |
+| Organizer | /organizer/ | ✅ 200 |
+| Bot Manager | /bots/ | ✅ 200 |
+| TID Payments | /tid/ | ✅ 200 (was broken) |
+| App Users | /app-users/ | ✅ 200 |
+| Subscriptions | /subscriptions/ | ✅ 200 |
+| Plans & Pricing | /plans/ | ✅ 200 |
+| Payment Gateway | /billing/ | ✅ 200 (was broken) |
+| Analytics | /analytics/ | ✅ 200 |
+| Zero-Rating | /zero-rating/ | ✅ 200 |
+| Broadcast | /broadcast/ | ✅ 200 |
+| Media Library | /library/ | ✅ 200 |
+| Settings | /settings/ | ✅ 200 |
+| Admin | /admin/ | ✅ 200 |
+| DB Manager | /api/db_mgmt/ | ✅ 200 |
+
+**18/18 OK — 0 failures**
+
+### Fix Applied (DB only — no code change)
+Created `received_sms_payments` table:
+```sql
+CREATE TABLE IF NOT EXISTS received_sms_payments (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    source             TEXT    NOT NULL DEFAULT '',
+    tid                TEXT    NOT NULL DEFAULT '',
+    amount_pkr         REAL,
+    sender_phone       TEXT,
+    received_at        INTEGER NOT NULL DEFAULT 0,
+    matched_payment_id INTEGER REFERENCES tid_payments(id),
+    raw_sms            TEXT
+)
+```
+Table starts empty — rows are inserted by the JazzPay Monitor app when it forwards SMS payments.
+
+### Notes for Next Agent
+- received_sms_payments is populated by external SMS gateway (JazzPay Monitor Android app)
+  that reads JazzCash/EasyPaisa incoming SMS and POSTs to /billing/api/sms-webhook (or similar)
+- The billing page SMS section will show "No SMS payments" until that app is configured
+- All 18 admin routes are confirmed working as of this session
+
+---
