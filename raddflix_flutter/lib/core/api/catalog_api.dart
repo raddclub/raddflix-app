@@ -67,7 +67,6 @@ class CatalogApi {
       return null;
     }
   }
-}
 
   /// Fetch TMDB-seeded recommendations — titles similar to the current library
   /// that are NOT yet available on RaddFlix.  Requires active JWT session.
