@@ -263,3 +263,55 @@ return encode_response(result, device_id) if is_encoded_request() else jsonify(r
     </body></html>
     """
     return render_template_string(html)
+
+
+# ── WSGI Middleware ────────────────────────────────────────────────────────────
+
+class XorWsgiMiddleware:
+    """WSGI middleware: transparently XOR-decode request bodies before Flask sees them.
+
+    When Flutter sends a request with X-Encoded: 1 + X-Device-Id, this middleware:
+    1. Reads the raw XOR-encoded body from wsgi.input
+    2. Decodes it back to JSON using the hourly session key
+    3. Replaces wsgi.input so all Flask routes call request.get_json() normally
+       without any per-route changes needed.
+    """
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        encoded   = environ.get("HTTP_X_ENCODED", "0")
+        device_id = environ.get("HTTP_X_DEVICE_ID", "").strip()
+
+        if encoded == "1" and device_id:
+            try:
+                content_length = int(environ.get("CONTENT_LENGTH", 0) or 0)
+                if content_length > 0:
+                    raw_bytes = environ["wsgi.input"].read(content_length)
+                    body_str  = raw_bytes.decode("utf-8", errors="replace").strip()
+                    if body_str:
+                        decoded_body = None
+                        for offset in (0, -1):
+                            key = generate_session_key(device_id, offset)
+                            try:
+                                dec = xor_decode(body_str, key)
+                                json.loads(dec)      # validate JSON
+                                decoded_body = dec
+                                break
+                            except Exception:
+                                continue
+
+                        if decoded_body:
+                            from io import BytesIO
+                            environ["wsgi.input"]     = BytesIO(decoded_body)
+                            environ["CONTENT_LENGTH"] = str(len(decoded_body))
+                            environ["CONTENT_TYPE"]   = "application/json; charset=utf-8"
+                            log.debug("XOR middleware: decoded for device %s...", device_id[:8])
+                        else:
+                            from io import BytesIO
+                            environ["wsgi.input"] = BytesIO(raw_bytes)
+                            log.warning("XOR middleware: decode failed for device %s...", device_id[:8])
+            except Exception as _e:
+                log.warning("XOR middleware: exception %s", _e)
+
+        return self.wsgi_app(environ, start_response)

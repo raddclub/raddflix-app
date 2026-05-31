@@ -666,3 +666,49 @@ sudo supervisorctl tail raddflix_wa_bot
 | XOR encoding activation | Simultaneous deploy both sides | Next Agent |
 | AppConstants.supportWhatsApp | Update to real number | Human |
 | TMDB miss (Avatar/Dark Knight) | Manual mapping | Next Agent |
+
+---
+
+## Phase 28 — XOR Encoding Activation + WhatsApp Pairing (2026-05-31)
+
+**Status**: ✅ COMPLETE (XOR fully active; WA pairing in progress)
+**Commits**: f1fd2541 (Flutter), + server (this commit)
+
+### XOR Encoding — ACTIVATED ✅
+
+Both sides active simultaneously:
+
+| Side | Change | Status |
+|------|--------|--------|
+| Flutter `request_encoder.dart` | `enabled = false` → `enabled = true` | ✅ |
+| Flutter `api_client.dart` | Added `_XorInterceptor` | ✅ |
+| Server `request_encoding.py` | Added `XorWsgiMiddleware` class | ✅ |
+| Server `app.py` | WSGI middleware + `_xor_encode_response` after_request | ✅ |
+
+**Interceptor order** (Dio): Tamper → Log → Auth → XOR  
+**Server**: WSGI middleware decodes request bodies (transparent to all routes); `after_request` encodes `/api/*` JSON responses
+
+**End-to-end test results:**
+- `GET /api/catalog/version` with `X-Encoded:1` → response `application/octet-stream`, decoded: `count=24` ✅
+- `POST /api/auth/guest` with XOR body → middleware decodes body, response XOR-encoded ✅
+
+### WhatsApp Bot Pairing
+- Bot RUNNING, pairing code: `89RBTTMF` (for phone 03257719165 / 923257719165)
+- Waiting for user to enter code: WhatsApp → Settings → Linked Devices → Link with phone number
+- Once connected, OTP delivery fully operational
+
+### Completed ✅
+- [x] `request_encoder.dart`: `enabled = true`
+- [x] `api_client.dart`: `_XorInterceptor` added (encode POST bodies + decode octet-stream responses)
+- [x] `request_encoding.py`: `XorWsgiMiddleware` class added
+- [x] `app.py`: WSGI middleware + `after_request` XOR hook (import fix applied)
+- [x] End-to-end XOR test passed (GET + POST)
+- [x] Server restarted and healthy
+- [x] WhatsApp pairing code generated: `89RBTTMF` for 923257719165
+
+### Open Items
+| # | Task | Notes |
+|---|------|-------|
+| 28.1 | Scan QR / enter pairing code | WA → Linked Devices → Link with phone number → enter `89RBTTMF` |
+| 28.2 | Test OTP delivery | Trigger `/api/auth/device-switch/request` with a registered phone |
+| 28.3 | SSL/HTTPS | Needs domain name |

@@ -374,4 +374,27 @@ def create_app() -> Flask:
         app.logger.error('Exception: %s', type(e).__name__)
         return _ej({'error': 'internal error'}), 500
 
+
+    # ── XOR encoding layer — Phase 25.5/28: activate both sides simultaneously ─
+    from .request_encoding import XorWsgiMiddleware
+    app.wsgi_app = XorWsgiMiddleware(app.wsgi_app)
+
+    @app.after_request
+    def _xor_encode_response(resp):
+        """Auto-encode JSON responses for XOR clients (X-Encoded: 1).
+        Only applies to /api/* routes so admin panel HTML is never encoded.
+        """
+        from flask import request as _req
+        try:
+            if (_req.headers.get('X-Encoded') == '1'
+                    and resp.is_json
+                    and _req.path.startswith('/api/')):
+                device_id = _req.headers.get('X-Device-Id', '').strip()
+                if device_id:
+                    from .request_encoding import encode_response
+                    return encode_response(resp.get_json(), device_id)
+        except Exception:
+            pass
+        return resp
+
     return app
