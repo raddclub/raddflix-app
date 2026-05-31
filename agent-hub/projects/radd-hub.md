@@ -1,12 +1,12 @@
 # Radd Hub v3.0 — Flask Admin Panel
 
 ## What it is
-The admin panel for RaddFlix. Admins manage content (movies/dramas), users, subscriptions, payments, and analytics from a web dashboard.
+The admin panel for RaddFlix. Admins manage content (movies/dramas), users, subscriptions, payments, and analytics from a web dashboard. Also serves ALL mobile API routes (auth, catalog, search, history, notifications, usage).
 
 ## Location
 - **Server:** `/opt/jazzmax/radd-hub/`
 - **GitHub:** `radd-hub/` folder in `raddclub/raddflix-app`
-- **Runs on:** port 5000 (supervisor service: `jazzmax_radd`)
+- **Runs on:** port 5000 (supervisor service: `raddflix_radd`)
 
 ## Tech Stack
 - Python 3.12
@@ -21,12 +21,13 @@ The admin panel for RaddFlix. Admins manage content (movies/dramas), users, subs
 |------|---------|
 | `hub/app.py` | Flask app factory, registers all blueprints, /health route |
 | `hub/routes/library.py` | Content library API (movies, dramas, trending) |
-| `hub/routes/admin.py` | Admin user management |
-| `hub/routes/stream.py` | Stream URL generation (calls JazzDrive) |
+| `hub/routes/mobile_api.py` | ALL mobile API (auth, subscription, history, usage, notifications) |
+| `hub/routes/catalog_api.py` | Flutter catalog sync (version/sync/delta/posters) |
+| `hub/routes/search_api.py` | Flutter app search |
+| `hub/routes/stream.py` | Admin stream URL generation (calls JazzDrive server-side for admin use only) |
 | `hub/routes/subscriptions.py` | Subscription management |
 | `hub/routes/analytics.py` | View stats, watch counts |
-| `hub/routes/payment_gateway.py` | Payment processing |
-| `hub/jazzdrive.py` | JazzDrive CDN integration (generates stream URLs) |
+| `hub/jazzdrive.py` | JazzDrive CDN integration (admin/server-side only) |
 | `hub/scanner.py` | Content scanner (scans JazzDrive for new content) |
 | `hub/_legacy/` | **DO NOT TOUCH** — jazzdrive.py and scanner.py import from here |
 | `hub/templates/` | Jinja2 HTML templates for admin UI |
@@ -34,16 +35,16 @@ The admin panel for RaddFlix. Admins manage content (movies/dramas), users, subs
 ## How to Restart
 
 ```bash
-sudo supervisorctl restart jazzmax_radd
+sudo supervisorctl restart raddflix_radd
 sudo supervisorctl status
 ```
 
 ## How to Check Logs
 
 ```bash
-sudo supervisorctl tail -f jazzmax_radd
+sudo supervisorctl tail -f raddflix_radd
 # or
-tail -f /var/log/supervisor/jazzmax_radd-stdout.log
+tail -f /var/log/supervisor/raddflix_radd-stdout.log
 ```
 
 ## Routes / Endpoints (summary)
@@ -51,21 +52,22 @@ tail -f /var/log/supervisor/jazzmax_radd-stdout.log
 | Route | Method | Purpose |
 |-------|--------|---------|
 | `/` | GET | Admin dashboard home |
-| `/api/trending` | GET | Trending titles (used by mobile app) |
-| `/api/library` | GET | Full content library |
-| `/api/stream` | GET | Generate stream URL for a title |
-| `/health` | GET | Health check (returns OK) |
+| `/api/catalog/sync` | GET | Flutter catalog sync (full or delta) |
+| `/api/search` | GET | Flutter app search |
+| `/api/auth/*` | POST | Mobile auth (login, register, guest, device) |
+| `/api/subscription/*` | GET/POST | Subscription plans and status |
+| `/api/history/*` | GET/POST | Watch history |
+| `/api/usage/*` | GET/POST | Data usage tracking |
+| `/health` | GET | Health check (returns "RaddFlix Oracle OK") |
 | `/admin/users` | GET | User management |
-| `/admin/subscriptions` | GET | Subscription management |
 
 ## Database
-- SQLite file on server: `/opt/jazzmax/radd-hub/radd.db`
-- Schema managed via Flask-SQLAlchemy or raw SQL (check `hub/db.py`)
+- SQLite file on server: `/opt/jazzmax/radd-hub/data/raddflix.db`
+- Schema managed in `hub/db.py` (25+ tables)
 
 ## CRITICAL: _legacy folder
-`hub/_legacy/` contains early JazzDrive auth code. `jazzdrive.py` and `scanner.py` do:
-```python
-from hub._legacy.jazzdrive_login import ...
-from hub._legacy.otp_handler import ...
-```
-If this folder is missing, streaming completely breaks. It is intentionally not in GitHub (added to .gitignore). It exists only on the server.
+`hub/_legacy/` contains early JazzDrive auth code. `jazzdrive.py` and `scanner.py` import from here.
+If this folder is missing, the service fails to start with ImportError.
+It IS in GitHub (commit 1a65f8c8). A fresh `git pull` on the server includes it.
+
+→ Full documentation: [`agent-hub/projects/radd-hub.md`](../agent-hub/projects/radd-hub.md)
