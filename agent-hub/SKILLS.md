@@ -13,7 +13,7 @@ Before doing anything else, read these 4 files from GitHub in this order:
 1. agent-hub/REINCARNATION.md      ← checklist + the 7 most important facts
 2. agent-hub/PRODUCT_CONTEXT.md    ← full product, architecture, every decision ever made
 3. agent-hub/MASTER_TASKLIST.md    ← every task with status ✅/🔧/⬜, what to do next
-4. agent-hub/history/TASK_LOG.md   ← what each previous session did (most recent at bottom)
+4. agent-hub/TASK_LOG.md   ← what each previous session did (most recent at bottom)
 ```
 
 Fetch them like this:
@@ -21,7 +21,7 @@ Fetch them like this:
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/REINCARNATION.md"
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/PRODUCT_CONTEXT.md"
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/MASTER_TASKLIST.md"
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/history/TASK_LOG.md"
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/TASK_LOG.md"
 ```
 
 After reading, tell the user:
@@ -37,7 +37,7 @@ After reading, tell the user:
 ## Rule 1 — Read Before You Touch
 
 Before making any change:
-1. Read `agent-hub/history/TASK_LOG.md` — know what was already done
+1. Read `agent-hub/TASK_LOG.md` — know what was already done
 2. Read the relevant project doc in `agent-hub/projects/`
 3. If touching the server, SSH in and `cat` the file before editing it
 
@@ -142,7 +142,7 @@ Always verify services are RUNNING after any server-side change.
 
 ## Rule 8 — Task Log Update (Required After Every Session)
 
-After completing your work, append to `agent-hub/history/TASK_LOG.md` via GitHub API.
+After completing your work, append to `agent-hub/TASK_LOG.md` via GitHub API.
 
 Format:
 ```
@@ -351,3 +351,69 @@ If something looks wrong, fix it before logging it as done.
   - `LocalDb.clearPosition()` — needs UI trigger (BUG-A22)
   - `SceneBookmarkStore.deleteAll()` — needs UI trigger (BUG-A23)
 
+
+---
+
+## Addendum — Phase 25: Security Architecture (2026-05-31)
+
+### CRITICAL: Share URLs NEVER Expire
+JazzDrive share_urls are **permanent links** — they do not expire.
+The previous "24h expiry" claim was WRONG and has been corrected.
+Any agent/code/doc claiming links expire in 24h is wrong. Do not reintroduce it.
+
+### Security Files — Read These Too
+```bash
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/SECURITY_ARCHITECTURE.md"
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/ZERO_RATING_DELTA.md"
+```
+
+### New Security Files (Phase 25)
+| File | Purpose |
+|------|---------|
+| `lib/core/security/app_guard.dart` | APK signature check + Frida detection + root detect |
+| `lib/core/security/request_encoder.dart` | XOR encoding layer + share_url scrambling |
+| `agent-hub/SECURITY_ARCHITECTURE.md` | Full 6-layer security spec, activation steps |
+| `agent-hub/PROMPT_NEXT_AGENT.md` | Handoff prompt for each new agent |
+
+### Security Rules for All Agents
+
+**Rule 11 — Never Disable AppGuard**
+`AppGuard.initialize()` runs in `main.dart` before `runApp()`. Never remove it.
+When `isTampered=true`, ApiClient must return fake empty responses (silent degradation).
+The attacker sees a broken app and gives up — never give them a real error message.
+
+**Rule 12 — RequestEncoder defaults: enabled=false**
+`RequestEncoder.enabled` is `false` by default (passthrough mode).
+Never set it to `true` without also deploying the server-side decode in radd-hub.
+Enabling one side without the other breaks ALL API calls.
+
+**Rule 13 — share_url scrambling (RF1: prefix)**
+`RequestEncoder.scrambleUrl()` returns `RF1:<base64url_xor>`.
+`RequestEncoder.unscrambleUrl()` passes through any string NOT starting with `RF1:`.
+This backward-compat check is sacred — removing it breaks legacy unscrambled URLs.
+
+**Rule 14 — APK fingerprint placeholder means NO enforcement**
+`_officialFingerprint = 'RADDFLIX_CERT_SHA256_PLACEHOLDER'` means the signature check
+is disabled. Do not remove the check — just leave the placeholder until the real cert
+SHA-256 fingerprint is configured. Enforcement activates automatically when set.
+
+**Rule 15 — Build must use --obfuscate**
+`flutter build apk --release` MUST include `--obfuscate --split-debug-info=build/debug-info`.
+This is now in `build-apk.yml`. Never remove these flags from the CI workflow.
+
+### CI Fix Reference
+Build was failing since commit 978d661 due to keystore password mismatch.
+Root cause: `KEYSTORE_PASSWORD` GitHub secret was empty → keystore created with
+`RaddFlix_2024_Store` but build step got `""` → Gradle signing failed.
+Fixed in commit 81a76ea with `${{ secrets.KEYSTORE_PASSWORD || 'RaddFlix_2024_Store' }}`.
+
+### Architecture: Zero-Rating Works for ALL Users
+- Jazz SIM (paid bundle): Oracle sync ✅ + delta fallback ✅
+- Jazz SIM (no bundle): Oracle sync ❌ + delta sync ✅ (zero-rated `cloud.jazzdrive.com.pk`)
+- Jazz SIM (guest): delta sync ✅ (can browse free content)
+- Registration: one-time internet required (Oracle account creation + device binding)
+- After registration: works with just zero-rated CDN
+
+### Next Handoff
+Read `agent-hub/PROMPT_NEXT_AGENT.md` for a complete ready-to-paste handoff prompt.
+Update it at the end of every session.
