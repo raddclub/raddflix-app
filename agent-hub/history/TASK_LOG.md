@@ -4614,3 +4614,74 @@ Fix: Created the table directly in the DB (no code files changed). All 18/18 adm
 - Remaining owner-action items (unchanged): supportWhatsApp number, Let's Encrypt SSL, catalog content population
 
 ---
+
+## [2026-05-31 UTC] — Agent: Replit Agent (DB Studio Redesign + Sidebar Toggle)
+
+### Task
+User asked: deep analyze DB Studio at /api/db_mgmt/ and fix all issues + improve UI. Also add desktop sidebar collapse/expand toggle.
+
+### Issues Found & Fixed
+
+#### Backend (db_mgmt.py)
+1. **Only 2 of 25+ tables were exposed** — hardcoded `["titles","files"]` list
+2. **Export route had no whitelist** — `export_table(name)` ran `SELECT * FROM {name}` on any table name, including SQL injection risk
+3. **FTS5 search not used** — browse search used slow `OR LIKE` on all text columns; titles table has `catalog_fts` FTS5 virtual table
+
+#### Frontend (db_mgmt.html)
+4. **No pagination buttons** — `currentPage` variable existed but no Prev/Next buttons were rendered; users stuck on page 1
+5. **All 50+ columns shown at once** — no column visibility control
+6. **Edit form showed all fields as plain text inputs** — no grouping, no type-awareness, no lock on auto-fields
+7. **No sort by column** — clicking column headers did nothing
+
+#### base.html
+8. **Sidebar not collapsible on desktop** — wastes horizontal space, no toggle
+
+### Done
+
+#### db_mgmt.py (full rewrite)
+- `TABLE_GROUPS` dict: 25+ tables organized into 8 groups: Library, Vault, Users, Payments, Subscriptions, Analytics, System, App
+- `ALL_TABLES` whitelist applied to ALL routes (browse, create, update, delete, export) — no SQL injection possible
+- `_table_exists()` helper — gracefully skips tables not yet in older DBs
+- FTS5 search for titles table — uses `catalog_fts MATCH ?` before falling back to LIKE
+- `sort` and `order` query params — safe column sorting (defaults to id DESC)
+- Export route now strictly whitelisted with `abort(403)` on unknown table names
+
+#### db_mgmt.html (full redesign)
+- **Categorized sidebar** — tables grouped by Library/Users/Payments/etc with live row counts per table
+- **Column visibility panel** — checkboxes per column with Smart Defaults button (hides JSON blobs, redundant URLs, etc.)
+- **Working pagination** — First/Prev/Next/Last buttons, page N/total display, rows per page selector (25/50/100/250)
+- **Sort by column** — click any column header, click again to reverse, active column highlighted
+- **Browse enhancements**: poster thumbnails, URL "↗ link" cells, bool ✓/— display, JSON `{…}` preview, timestamp → date display
+- **Smart edit form** — 6 sections (Identity/Metadata/Flags/Assets/Timestamps/Other), readonly lock on auto-cols, selects for booleans, textareas for JSON/big-text, poster preview in form
+- **SQL Console snippets** — 6 one-click query templates (SELECT *, COUNT, published titles, app users, active subs, payments)
+- **Export info** — shows row count + column count before downloading
+- **Bulk select counter** — shows "N selected" as you check rows
+- **Keyboard Escape** to close modal
+
+#### base.html (sidebar toggle)
+- Added `◀` collapse button in sidebar brand area
+- CSS: `body.sb-col` collapses sidebar to 52px (icons only)
+- JS: `toggleSidebarDesktop()` toggles class + persists to `localStorage`
+- Auto-restores state on page load
+- Mobile-only: toggle hidden on screens ≤767px (hamburger still works)
+
+### Commit
+- `7c08f98` — feat(admin): DB Studio full redesign + sidebar collapse toggle
+
+### Server Deploy
+- `git stash` (cleared 3 local file conflicts) → `git pull` → `supervisorctl restart raddflix_radd`
+- Oracle at HEAD (7c08f98). `raddflix_radd` RUNNING pid 478290. No errors in logs.
+
+### Files Changed
+- `radd-hub/hub/routes/db_mgmt.py` — full rewrite (25+ tables, whitelist, FTS5, sorting)
+- `radd-hub/hub/templates/db_mgmt.html` — full redesign (categorized sidebar, pagination, column toggles, smart form)
+- `radd-hub/hub/templates/base.html` — sidebar collapse toggle (desktop)
+
+### Notes for Next Agent
+- DB Studio now shows ALL tables — verify by going to /api/db_mgmt/ and checking sidebar groups
+- Sidebar toggle state is stored in localStorage key `sb-col`
+- BUG-A01 (year TEXT not INTEGER) still exists in DB schema — fixable via SQL Console: `UPDATE titles SET year = CAST(year AS INTEGER)` (harmless since SQLite stores numbers correctly regardless of declared type)
+- `received_sms_payments` and other newer tables are in OPTIONAL_TABLES set — skipped gracefully if missing
+- The stashed server-local file changes (3 files) were from a previous direct-edit session; they are now overwritten by the pull
+
+---
