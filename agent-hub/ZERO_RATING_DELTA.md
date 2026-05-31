@@ -13,27 +13,47 @@ After that, Jazz SIM users can get **new catalog updates without any data bundle
 because `cloud.jazzdrive.com.pk` is zero-rated on the Jazz network (whitelisted
 at the network level — no bundle required, not "free with a bundle").
 
-The delta system is a **24-hour rolling database snapshot** uploaded to JazzDrive
-every 24 hours. It is the bridge between Oracle (the real database) and users
+The delta system is a **snapshot of all published titles** uploaded to JazzDrive
+periodically. It is the bridge between Oracle (the real database) and users
 who have no active internet package.
+
+---
+
+## CRITICAL ARCHITECTURE DECISION — Share URL Permanence
+
+**JazzDrive share_urls NEVER expire.** (Confirmed by user 2026-05-31)
+
+This is intentional and permanent. The previous "24h expiry" claim in this
+document was WRONG and has been corrected here.
+
+Consequences:
+- delta.json can contain share_urls that will work indefinitely
+- Security must focus on APK integrity (cracked APK = attacker gets permanent URLs)
+- The APK signature check in AppGuard is critical — see SECURITY_ARCHITECTURE.md
+- Server regenerates delta.json periodically but NOT because links expire
 
 ---
 
 ## What delta.json Is
 
-- **24-hour rolling window** of all titles published/updated in the last 24 hours
+- **Snapshot of all published titles** — full catalog at time of generation
 - **Full playback data** — includes everything Flutter needs to play a video:
   `file_id`, `share_url`, `folder_share_url`, complete episode list per show
-- **Auto-expires in 24 hours** — regenerated and re-uploaded by the scheduler
-- **Publicly downloadable** from JazzDrive (that's how zero-rating works)
+- **JazzDrive hosted** — downloadable via zero-rated CDN
 - **Format**: `delta_v2`
 
-### Security Model
-JazzDrive links in delta.json expire within 24 hours. Even if a hacker downloads
-the file, the links go stale fast. The **main Oracle database is never exposed** —
-that is the real asset being protected. Local SQLite on user devices is
-**AES-256 encrypted via SQLCipher** (device-bound key from Android Keystore) —
-even a rooted phone cannot read the DB.
+### Security Model (CORRECTED)
+The share_urls in delta.json are **permanent links**. Security is enforced by:
+1. **APK signature check** (AppGuard) — cracked APK gets fake empty data, never real URLs
+2. **Frida detection** (AppGuard) — runtime hooking attempt → fake data
+3. **Build obfuscation** — compiled APK class names randomised, hard to find security checks
+4. **SQLCipher AES-256** — local DB is device-bound encrypted (Phase 4)
+5. **share_url scrambling** (RequestEncoder) — XOR-scrambled at rest in SQLite
+
+The **main Oracle database is never exposed** — that contains admin credentials,
+user accounts, subscription data. The delta.json contains only catalog/playback data.
+
+See `agent-hub/SECURITY_ARCHITECTURE.md` for the full threat model and implementation.
 
 ---
 
@@ -43,15 +63,14 @@ even a rooted phone cannot read the DB.
 {
   "format": "delta_v2",
   "generated_at": 1748700000,
-  "expires_at": 1748786400,
-  "count": 5,
+  "count": 24,
   "titles": [ /* array of title objects — see below */ ]
 }
 ```
 
-`expires_at` = `generated_at + 86400`. Flutter currently stores it but does not enforce it
-(future: auto-refresh before expiry). The 24h expiry is enforced server-side by the scheduler
-overwriting the JazzDrive file every 24 hours.
+`generated_at` = Unix timestamp when delta was generated.
+Flutter stores this for display purposes. There is no `expires_at` —
+links never expire, so no expiry enforcement is needed or correct.
 
 ---
 
@@ -102,6 +121,7 @@ For TV shows `episodes` is a full list:
 ### What Is NEVER in delta.json
 - Raw validation_key / jsessionid / OAuth tokens
 - Oracle internal credentials
+- User account data, subscription data, payment data
 - Any field beyond what Flutter needs to play and display
 
 ---
@@ -121,6 +141,35 @@ Flutter poster load priority:
 
 ---
 
+## Who Gets Zero-Rating? (All Users)
+
+Zero-rating via JazzDrive works for **ALL** Jazz SIM users — paid, free, or no bundle.
+The network whitelists `cloud.jazzdrive.com.pk` at the packet level.
+
+| User Type | Oracle Sync | Delta Sync |
+|-----------|-------------|------------|
+| Has internet bundle | ✅ Full Oracle sync | ✅ Also available |
+| No bundle (Jazz SIM) | ❌ Fails | ✅ Works (zero-rated) |
+| Registered (one-time) | Required once for account creation | N/A |
+| Guest | ❌ | ✅ Can browse catalog |
+
+**First registration requires internet once** — account is created, device bound,
+subscription checked. After that: Oracle sync when online, delta when not.
+
+---
+
+## Free vs Paid Content
+
+| Type | `is_free` | Who Can Play |
+|------|-----------|-------------|
+| Free movies (max ~50) | 1 | Everyone (guests too) |
+| Paid movies/dramas | 0 | Subscribed users only |
+
+Subscription packages: Basic Rs.149/30GB, Standard Rs.249/50GB, Premium Rs.399/100GB.
+SIMOSA partnership gives Jazz SIM users daily free MBs (see AppConstants.simosaDailyMb).
+
+---
+
 ## Why NOT a `.db` File
 
 SQLite `.db` file merging is dangerous:
@@ -133,11 +182,11 @@ SQLite `.db` file merging is dangerous:
 ## Server Side (Oracle / radd-hub)
 
 ### File: `radd-hub/hub/routes/zero_rating.py`
-- `generate_delta_payload()` — queries titles WHERE `updated_at >= now-86400`,
+- `generate_delta_payload()` — queries all published titles,
   joins files for `file_id`/`share_url`, queries episodes for shows
 - `upload_delta()` route — calls `jazzdrive.upload_json_to_jazzdrive()` (bypasses
   media extension block), saves share URL to `settings.jd_delta_url`
-- Scheduler (`hub/scheduler.py`) calls this every 24h automatically
+- Scheduler (`hub/scheduler.py`) calls this periodically
 
 ### File: `radd-hub/hub/jazzdrive.py`
 - `upload_json_to_jazzdrive(file_path)` — uploads `.json` directly via SAPI
@@ -186,7 +235,7 @@ SQLite `.db` file merging is dangerous:
 
 ```
 Admin → "Generate + Upload to JazzDrive"
-  → delta.json generated (last 24h titles, full playback data)
+  → delta.json generated (all published titles, full playback data)
   → uploaded to JazzDrive via SAPI (upload_json_to_jazzdrive)
   → share URL saved to settings.jd_delta_url
   → /api/config now returns jd_delta_url
@@ -203,10 +252,10 @@ User opens app WITHOUT bundle (Jazz SIM):
       GET  /sapi/media/video  (zero-rated ✅)
       GET  <CDN URL>          (zero-rated ✅)
   → delta.json downloaded, merged into local SQLite
-  → User sees new titles, can play them
+  → User sees full catalog, can play content
 
 User eventually gets a bundle:
-  → Oracle sync fills in all missed days automatically
+  → Oracle sync fills in everything automatically
   → delta.json data stays as base; Oracle overwrites where data is fresher
 ```
 
@@ -229,12 +278,12 @@ for any realistic catalog size — trivial to download over zero-rated CDN.
 ## Admin Panel
 
 Zero-Rating Manager at `/zero-rating/`:
-1. **Generate Delta Now** — creates delta.json from last 24h data
+1. **Generate Delta Now** — creates delta.json from all published titles
 2. **Generate + Upload to JazzDrive** — creates + uploads, saves share URL
 3. **JD Delta URL field** — shows current URL, can be manually set
 4. **Free/Paid toggle** — per-title is_free flag
 
-Scheduler auto-runs steps 1+2 every 24 hours (tracked in `settings.last_delta_generated_at`).
+Scheduler auto-runs periodically (tracked in `settings.last_delta_generated_at`).
 
 ---
 
@@ -249,4 +298,6 @@ Scheduler auto-runs steps 1+2 every 24 hours (tracked in `settings.last_delta_ge
    (requires SQLite 3.24+, crashes Android 8, BUG-A04)
 5. **Both SAPI calls are zero-rated** — they hit `cloud.jazzdrive.com.pk` which is
    Jazz network-whitelisted. Never proxy these through Oracle
-6. **delta.json expires in 24h by design** — this is the security model, not a bug
+6. **Share_urls NEVER expire** — this is confirmed architecture. Any code/doc claiming
+   "links expire 24h" is WRONG. Do not reintroduce that claim.
+7. **Security relies on APK integrity, not link expiry** — see SECURITY_ARCHITECTURE.md

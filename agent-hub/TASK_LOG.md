@@ -276,3 +276,75 @@ Security model: links expire 24h, Oracle DB never exposed, local SQLite AES-256 
 - WA bot still not running (BUG-P17-08).
 
 ---
+---
+
+## [2026-05-31 UTC] — Agent: Replit Agent (Security Architecture + CI Fix — Phase 25)
+
+### Session Context
+Continuing from previous agent who implemented delta_v2 zero-rating (commit 978d661).
+CI was failing since that commit. User confirmed: share_urls NEVER expire (correcting
+the wrong "24h expiry" security claim in ZERO_RATING_DELTA.md).
+
+Architecture decisions made this session (permanent):
+- delta.json contains permanent share_urls — security relies on APK integrity NOT link rotation
+- Zero-rating works for ALL users (paid/free/guest) after initial registration sync
+- Registration = one-time internet required for Oracle account creation
+- SIMOSA = Jazz SIM daily free MB offer (partners with RaddFlix)
+- Free content max ~50 titles (is_free=1), paid requires subscription package
+
+### Done
+**CI Fix:**
+- Root cause: `build-apk.yml` had no password defaults in "Build release APK" step.
+  Keystore setup used `${KS_PASS:-RaddFlix_2024_Store}` but build step got empty string
+  from unconfigured GitHub secret → signing failed.
+- Fix: `KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'RaddFlix_2024_Store' }}` etc.
+- Also added `--obfuscate --split-debug-info` for build obfuscation (Layer 3 security).
+
+**Security Flutter files (NEW):**
+- `lib/core/security/app_guard.dart` — APK signature integrity + Frida detection + root check.
+  Silent degradation: isTampered=true → fake empty data, attacker never sees real content.
+  Fingerprint placeholder: enforcement disabled until `_officialFingerprint` is set.
+- `lib/core/security/request_encoder.dart` — XOR session-key encoding layer (disabled by default).
+  Also provides `scrambleUrl()`/`unscrambleUrl()` for share_url at-rest scrambling in SQLite.
+- `lib/main.dart` — Added `AppGuard.initialize()` import + call before runApp().
+
+**New docs:**
+- `agent-hub/SECURITY_ARCHITECTURE.md` — Full 6-layer security spec, threat model, activation steps,
+  server XOR implementation spec, native channel Kotlin TODO code.
+- `agent-hub/PROMPT_NEXT_AGENT.md` — Complete handoff prompt for next agent.
+
+**Updated docs:**
+- `agent-hub/ZERO_RATING_DELTA.md` — Corrected "24h link expiry" (links NEVER expire),
+  updated security model, added free vs paid table, added who-gets-zero-rating table.
+- `agent-hub/MASTER_TASKLIST.md` — Added Phase 25 with completed + pending tasks.
+- `agent-hub/REINCARNATION.md` — Added Phase 25 section + security architecture summary.
+
+### Files Changed
+- `.github/workflows/build-apk.yml` (CI fix + obfuscation flag)
+- `raddflix_flutter/lib/core/security/app_guard.dart` (NEW)
+- `raddflix_flutter/lib/core/security/request_encoder.dart` (NEW)
+- `raddflix_flutter/lib/main.dart` (AppGuard.initialize() added)
+- `agent-hub/SECURITY_ARCHITECTURE.md` (NEW)
+- `agent-hub/ZERO_RATING_DELTA.md` (corrected)
+- `agent-hub/MASTER_TASKLIST.md` (Phase 25 added)
+- `agent-hub/TASK_LOG.md` (this entry)
+- `agent-hub/REINCARNATION.md` (Phase 25 + security section)
+- `agent-hub/PROMPT_NEXT_AGENT.md` (NEW — handoff)
+
+### Commits
+- 81a76ea — feat(security): APK guard + XOR encoder + CI fix + obfuscation
+- [this batch] — docs: Phase 25 docs update + handoff prompt
+
+### What Was NOT Done (next agent picks up)
+- MainActivity.kt security channel not wired (Kotlin code in SECURITY_ARCHITECTURE.md)
+- share_url scrambling not yet wired in local_db.dart (RequestEncoder exists, calls missing)
+- Official APK fingerprint not set (placeholder in app_guard.dart)
+- ApiClient tamper-check gate not added
+- Server-side XOR encoding not implemented
+
+### Notes for Next Agent
+- **Read PROMPT_NEXT_AGENT.md** — it's a complete handoff with everything you need
+- CI should now pass — verify before making any new Flutter changes
+- AppGuard works but is NOT enforcing signature check yet (fingerprint placeholder)
+- RequestEncoder.scrambleUrl() exists — wire it in local_db.dart (see SECURITY_ARCHITECTURE.md)
+- WA bot still not running on Oracle (BUG-P17-08) — OTP stored not delivered

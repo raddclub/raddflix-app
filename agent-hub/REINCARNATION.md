@@ -428,3 +428,42 @@ Failure step: "Build release APK". Server-side changes still work fine.
 - **Phase 21** — 2026 UI Polish (Search, Local Media, Vault) + full audit
 - **Phase 22** — DB Studio smart bulk enrichment (IMDbAPI-first 6-source pipeline, SSE progress)
 - **Phase 23** — Settings: Getting Started card + setup-status API
+
+---
+
+## Phase 25 — Security Architecture (2026-05-31)
+
+### Key Architecture Decisions (PERMANENT — do not change without reading SECURITY_ARCHITECTURE.md)
+
+**JazzDrive share_urls NEVER expire** — this was confirmed by the user. The previous
+"24h expiry" claim in ZERO_RATING_DELTA.md was WRONG and has been corrected.
+
+**Security = APK Integrity, not link rotation.** We protect permanent links by:
+1. APK signature check — cracked APK → fake empty data (silent degradation)
+2. Frida detection — runtime hooking attempt → fake data
+3. Build obfuscation — compiled APK class names randomised
+4. SQLCipher AES-256 — local DB encrypted with device-bound key (Phase 4, active)
+5. share_url scrambling — XOR-scrambled at rest in SQLite (implemented, not yet wired)
+6. XOR API encoding — session-key layer on top of HTTPS (implemented, disabled)
+
+### New Files (Phase 25)
+| File | Purpose |
+|------|---------|
+| `lib/core/security/app_guard.dart` | APK sig check + Frida detect + root detect |
+| `lib/core/security/request_encoder.dart` | XOR encoding + share_url scrambling |
+| `agent-hub/SECURITY_ARCHITECTURE.md` | Full 6-layer security spec + server impl |
+| `agent-hub/PROMPT_NEXT_AGENT.md` | Handoff prompt for next agent |
+
+### CI Fix
+Build was failing since commit `978d661` due to keystore password mismatch.
+Fixed in `build-apk.yml`: added `|| 'RaddFlix_2024_Store'` defaults.
+Also added `--obfuscate --split-debug-info` to release build.
+
+### What Next Agent Must Do
+1. Wire `MainActivity.kt` security MethodChannel (see SECURITY_ARCHITECTURE.md)
+2. Wire `RequestEncoder.scrambleUrl()` in `local_db.dart` for share_url at-rest scrambling
+3. Get official APK fingerprint and activate `_officialFingerprint` in `app_guard.dart`
+4. Wire `ApiClient` tamper-check gate
+5. Server XOR encoding in radd-hub (when ready)
+
+Read `agent-hub/PROMPT_NEXT_AGENT.md` for full handoff with all priorities.

@@ -534,3 +534,41 @@ All reported "failures" were false-positive grep patterns; actual code verified 
 | Let's Encrypt SSL | Needs domain name configured |
 | Publish new titles (IDs 8-28) | Admin reviews + publishes via admin panel |
 | Avatar/Dark Knight TMDB miss | Manual title mapping needed |
+
+---
+
+## Phase 25 — Security Architecture (2026-05-31)
+
+**Status**: 🔧 IN PROGRESS
+**Branch**: main
+**Commits**: 81a76ea
+
+### Architecture Decisions (permanent)
+- JazzDrive share_urls NEVER expire — security = APK integrity, not link rotation
+- Silent degradation: tampered APK gets fake data, never crashes or alerts attacker
+- All 6 security layers documented in `agent-hub/SECURITY_ARCHITECTURE.md`
+
+### Completed ✅
+- [x] CI Fix: `build-apk.yml` keystore password defaults — fixes "Build release APK" failure
+      since commit 978d661. Cause: `KEYSTORE_PASSWORD` secret empty → keystore created
+      with "RaddFlix_2024_Store" but build step got empty string.
+- [x] `--obfuscate --split-debug-info` added to `flutter build apk --release`
+- [x] `lib/core/security/app_guard.dart` — APK signature check + Frida detection + root check
+      Silent degradation: `isTampered=true` → ApiClient returns fake empty data
+- [x] `lib/core/security/request_encoder.dart` — XOR session-key encoding + share_url scrambler
+      `enabled=false` (passthrough) until Oracle server implements matching decode
+- [x] `main.dart` — `AppGuard.initialize()` called before `runApp()`
+- [x] `agent-hub/SECURITY_ARCHITECTURE.md` — NEW full security spec, threat model, 6 layers
+- [x] `agent-hub/ZERO_RATING_DELTA.md` — Fixed wrong "24h link expiry" security claim
+- [x] `agent-hub/PROMPT_NEXT_AGENT.md` — Handoff prompt for next agent
+
+### Pending ⬜ (for next agent)
+| # | Task | Notes |
+|---|------|-------|
+| 25.1 | Wire `MainActivity.kt` security MethodChannel | Add getSignatureFingerprint / checkFrida / checkRoot handlers — exact Kotlin code in SECURITY_ARCHITECTURE.md |
+| 25.2 | Wire share_url scrambling in `local_db.dart` | Call `RequestEncoder.scrambleUrl()` on write, `.unscrambleUrl()` on read for all share_url columns in titles + episodes |
+| 25.3 | Get official APK cert fingerprint + set `_officialFingerprint` | Build signed APK → keytool -printcert -jarfile → copy SHA-256 → update app_guard.dart |
+| 25.4 | Wire `ApiClient` tamper check | `if (AppGuard.isTampered) return fake response` in all protected endpoints |
+| 25.5 | Server XOR encoding (radd-hub) | Implement `request_encoding.py` per spec in SECURITY_ARCHITECTURE.md — only when ready to enable encoding layer |
+| 25.6 | Telemetry on tamper detection | Ping Oracle with tamper event (device hash, timestamp) — silent, best-effort |
+
