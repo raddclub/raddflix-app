@@ -37,6 +37,24 @@ even a rooted phone cannot read the DB.
 
 ---
 
+## Outer Envelope Format
+
+```json
+{
+  "format": "delta_v2",
+  "generated_at": 1748700000,
+  "expires_at": 1748786400,
+  "count": 5,
+  "titles": [ /* array of title objects — see below */ ]
+}
+```
+
+`expires_at` = `generated_at + 86400`. Flutter currently stores it but does not enforce it
+(future: auto-refresh before expiry). The 24h expiry is enforced server-side by the scheduler
+overwriting the JazzDrive file every 24 hours.
+
+---
+
 ## What delta.json Contains Per Title
 
 ```json
