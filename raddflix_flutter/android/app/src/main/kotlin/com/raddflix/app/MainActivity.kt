@@ -127,10 +127,10 @@ class MainActivity : FlutterActivity() {
                                 )
                             }
                             val certBytes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                pkgInfo.signingInfo.apkContentsSigners[0].toByteArray()
+                                pkgInfo.signingInfo!!.apkContentsSigners[0].toByteArray()
                             } else {
                                 @Suppress("DEPRECATION")
-                                pkgInfo.signatures[0].toByteArray()
+                                pkgInfo.signatures!![0].toByteArray()
                             }
                             val md = java.security.MessageDigest.getInstance("SHA-256")
                             val hash = md.digest(certBytes)
