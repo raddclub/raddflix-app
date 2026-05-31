@@ -1,8 +1,8 @@
 # RaddFlix — Prompt for Next Agent
 
 **Date**: 2026-05-31  
-**Phase**: 28 (next to start)  
-**Server**: ubuntu@92.4.95.252 — SSH key in `/tmp/oracle_key` (write from env or prior session)
+**Phase**: 29 (next to start)  
+**Server**: ubuntu@92.4.95.252 — SSH key in `/tmp/oracle_key`
 
 ---
 
@@ -10,98 +10,107 @@
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Oracle server | ✅ RUNNING | `raddflix_radd` supervisor, port 5000 |
+| Oracle Flask server | ✅ RUNNING | `raddflix_radd` supervisor, port 5000 |
 | wa-bot | ✅ RUNNING | `raddflix_wa_bot` supervisor, port 3000 — needs WhatsApp pairing |
-| CI (GitHub Actions) | ✅ PASSING | Build APK + RaddFlix CI green on commit 70defac2 |
+| CI (GitHub Actions) | ✅ PASSING | Both checks green |
 | APK keystore | ✅ Active | SHA-256: BA:4E:41:2D:...:CD:07 |
-| All API endpoints | ✅ 18 endpoints | Health checks passing |
-| XOR encoding | ⏸️ Disabled | `RequestEncoder.enabled=false` — activate both sides simultaneously |
-| WhatsApp OTP | ⏳ Needs pairing | Bot running, no WA account linked yet |
+| XOR encoding | ✅ ACTIVE | Both Flutter + server live — DO NOT disable without both-sides deploy |
+| WhatsApp OTP bot | ⏳ Pairing pending | Bot running, pairing code: `4KADV5JQ` for 923257719165 |
 | SSL/HTTPS | ⏳ Needs domain | Let's Encrypt when domain configured |
 
 ---
 
-## Remaining Tasks (Priority Order)
+## WhatsApp Pairing — PENDING (user action)
 
-### P1 — WhatsApp Bot Pairing (human action needed)
-The wa-bot is running on port 3000 and generating QR codes. To link a WhatsApp account:
+**Pairing code**: `4KADV5JQ` (may have rotated — check logs)  
+**Phone**: 923257719165 (user's number: 03257719165)
 
 ```bash
-# On Oracle server:
-echo "923001234567" > /opt/jazzmax/radd-hub/hub/bots/whatsapp/pairing-number.txt
-sudo supervisorctl restart raddflix_wa_bot
-# Check logs for 8-digit pairing code:
+# Check current pairing code:
+curl http://127.0.0.1:3000/api/status
+# Or check logs:
 sudo supervisorctl tail raddflix_wa_bot
-# Then: WhatsApp app → Settings → Linked Devices → Link a device → Enter pairing code
+
+# To get a fresh pairing code (if current expired):
+sudo supervisorctl restart raddflix_wa_bot
+sleep 5
+tail -5 /opt/jazzmax/radd-hub/hub/bots/whatsapp/bot-debug.log
 ```
 
-After pairing, test OTP delivery:
-```bash
-curl -s -X POST http://127.0.0.1:3000/api/send-message \
-  -H "Content-Type: application/json" \
-  -d '{"jid":"923001234567@s.whatsapp.net","text":"Test from RaddFlix"}'
-```
-
-### P2 — XOR Encoding Activation
-Both sides implemented but `RequestEncoder.enabled=false`:
-- Server: `radd-hub/hub/request_encoding.py` + `@encoding_supported` decorator ✅
-- Flutter: `lib/core/security/request_encoder.dart` with `enabled=false`
-- To activate: change `enabled=false` to `enabled=true` in Flutter AND deploy server simultaneously
-- **WARNING**: Must be done atomically — one side active breaks all API calls
-
-### P3 — TMDB Miss (Avatar/Dark Knight)
-Some titles don't match TMDB metadata. Add manual mappings in admin panel.
-
-### P4 — Let's Encrypt SSL
-Needs domain name. Once DNS configured: `certbot --nginx -d yourdomain.com`
+Steps for user:
+1. Open WhatsApp on phone 03257719165
+2. Settings → Linked Devices → Link a Device → Link with phone number
+3. Enter the 8-digit pairing code from the bot logs
 
 ---
 
-## Critical Facts (Do NOT forget)
+## XOR Encoding — ACTIVE
 
-### Keystore / APK Signing
-- Keystore: `/tmp/raddflix_new.keystore` (PKCS12, alias: `raddflix`)
-- Password (store AND key): `RaddFlix_2026_Secure`
-- SHA-256 fingerprint in `app_guard.dart _officialFingerprint`
-- **DO NOT regenerate** — changing invalidates all installed APKs
+Both sides active as of commit `f726a0f`. Architecture:
 
-### GitHub
-- Repo: `raddclub/raddflix-app`
-- GitHub Token: `$GITHUB_TOKEN` in Replit env
-- Oracle does NOT have GitHub token — commits from Replit via Tree API
-- Oracle Git pulls: `cd /opt/jazzmax/radd-hub && git pull` (uses deploy key)
+```
+Flutter:  _XorInterceptor → X-Encoded:1 + X-Device-Id header
+          POST bodies XOR-encoded; responses decoded from octet-stream
 
-### Oracle Server
-- SSH: `ssh -i /tmp/oracle_key ubuntu@92.4.95.252`
-- radd-hub path: `/opt/jazzmax/radd-hub/`
-- Data dir: `/opt/jazzmax/radd-hub/data/`
-- Supervisor conf: `/etc/supervisor/conf.d/raddflix.conf`
-- Flask runs on port 5000, wa-bot on port 3000
+Server:   XorWsgiMiddleware — decodes request body before Flask sees it
+          _xor_encode_response — encodes /api/* JSON responses
+          Key: SHA-256("raddflix_xor_v1:deviceId:day:hour")[:32]
+```
+
+**DO NOT change XOR without both sides simultaneously.**
+
+---
+
+## Remaining Tasks
+
+### P1 — WhatsApp account pairing (human action)
+See above. Once paired, test OTP with:
+```bash
+# Trigger device-switch OTP:
+curl -X POST http://127.0.0.1:5000/api/auth/device-switch/request \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"03001234567"}'
+# Check bot sends WA message to registered user
+```
+
+### P2 — SSL/HTTPS (human: configure domain)
+Once domain DNS → 92.4.95.252:
+```bash
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d yourdomain.com
+```
+
+### P3 — TMDB misses (Avatar / Dark Knight)
+Manual mapping in admin panel: `/admin/library` → edit title → set TMDB ID.
+
+---
+
+## Critical Facts
+
+### XOR Layer
+- `request_encoding.py` has `XorWsgiMiddleware`; `app.py` has `_xor_encode_response`
+- `after_request` MUST use `from flask import request as _req` (module-level import causes NameError)
+- Only `/api/*` routes are XOR-encoded (admin panel gets plain JSON)
+
+### Keystore
+- Password (store + key): `RaddFlix_2026_Secure` (PKCS12 quirk — both must match)
+- Alias: `raddflix`
+- **DO NOT regenerate** — invalidates all installed APKs
 
 ### wa-bot
-- Code: `/opt/jazzmax/radd-hub/hub/bots/whatsapp/index.js`
-- Auth session: `/opt/jazzmax/radd-hub/hub/bots/whatsapp/auth_info/` (created after pairing)
-- QR code: `/opt/jazzmax/radd-hub/hub/bots/whatsapp/whatsapp-qr.png`
-- Logs: `/var/log/raddflix_wa_bot.out.log` or `bot-debug.log` in bot dir
-- Pairing: write phone to `pairing-number.txt`, restart, check logs for 8-digit code
-- Status API: `http://127.0.0.1:3000/api/status`
+- Auth session: saved to `auth_info/` after pairing (persists across restarts)
+- Change `autostart=false` → `autostart=true` in supervisor AFTER successful pairing
+- File IPC: bot polls `/tmp/radd_bot_cmd/*.in.json` for Python wrapper compatibility
+
+### GitHub
+- Commits from Replit via Tree API only (Oracle has no GitHub token)
+- Oracle deploy key pulls: `cd /opt/jazzmax/radd-hub && git pull`
 
 ---
 
-## Files Changed in Last 2 Sessions
-
-| File | Change |
-|------|--------|
-| `raddflix_flutter/lib/core/security/app_guard.dart` | New APK fingerprint |
-| `radd-hub/hub/bots/whatsapp/index.js` | NEW: wa-bot Node.js |
-| `radd-hub/hub/bots/whatsapp/package.json` | NEW: Baileys dependencies |
-| `agent-hub/MASTER_TASKLIST.md` | Phase 26 + 27 added |
-| `agent-hub/history/TASK_LOG.md` | Full session history |
-
----
-
-## Context Files
-- `agent-hub/REINCARNATION.md` — full project context
-- `agent-hub/MASTER_TASKLIST.md` — all phase history
-- `agent-hub/SECURITY_ARCHITECTURE.md` — security design
-- `agent-hub/PRODUCT_CONTEXT.md` — product overview
+## Phase History (last 5)
+- **Phase 24**: Full system verification
+- **Phase 25**: Security architecture (AppGuard, XOR, tamper telemetry)
+- **Phase 26**: CI fix, new keystore, APK fingerprint
+- **Phase 27**: wa-bot Node.js deployed (Baileys, port 3000)
+- **Phase 28**: XOR encoding ACTIVATED both sides, WA pairing code generated
