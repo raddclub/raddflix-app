@@ -8,6 +8,7 @@ import 'core/services/app_update_service.dart';
 import 'core/services/jazzdrive_service.dart';
 import 'core/services/poster_service.dart';
 import 'core/db/local_db.dart';
+import 'core/security/app_guard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +22,12 @@ void main() async {
   // Initialize media_kit video engine
   MediaKit.ensureInitialized();
 
-  // Fetch server URL from GitHub config — no APK rebuild needed when server changes.
+  // Security shield — must run before any network or DB calls.
+  // If tampered (cracked APK / Frida detected), sets AppGuard.isTampered = true.
+  // ApiClient silently returns fake empty data when tampered.
+  await AppGuard.initialize();
+
+  // Fetch server URL from Oracle server config — no APK rebuild needed when server changes.
   // Falls back to hardcoded AppConstants.apiBaseUrl if network/parse fails.
   await RemoteConfig.fetch();
   // Check for forced app updates / blocked APK on every cold start
