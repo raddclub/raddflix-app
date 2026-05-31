@@ -119,8 +119,9 @@
               <span class="muted" id="sel-count" style="font-size:12px"></span>
             </div>
             <div class="row" style="gap:6px;flex-wrap:wrap">
-              <button class="ok sm"     id="btn-enrich-sel" style="display:none" onclick="openEnrich('selected')">⚡ Enrich Selected</button>
-              <button class="ok sm"     id="btn-enrich-all" style="display:none" onclick="openEnrich('missing')">⚡ Enrich All Missing</button>
+              <button class="ok sm"     id="btn-enrich-sel"   style="display:none" onclick="openEnrich('selected')">⚡ Enrich Selected</button>
+              <button class="ok sm"     id="btn-enrich-all"   style="display:none" onclick="openEnrich('missing')">⚡ Enrich All Missing</button>
+              <button class="ghost sm"  id="btn-enrich-force" style="display:none" onclick="openEnrich('force')"  title="Refetch & overwrite all fields even if already filled">🔄 Force Re-Enrich</button>
               <button class="danger sm" onclick="bulkDelete()">🗑 Delete Selected</button>
             </div>
           </div>
@@ -542,6 +543,7 @@ function selectTable(t){
   const isTitles=(t==='titles');
   document.getElementById('btn-enrich-sel').style.display=isTitles?'':'none';
   document.getElementById('btn-enrich-all').style.display=isTitles?'':'none';
+  document.getElementById('btn-enrich-force').style.display=isTitles?'':'none';
   switchTab('browse');
 }
 
@@ -885,13 +887,14 @@ function openEnrich(mode){
   const sel  = [...document.querySelectorAll('.row-sel:checked')];
   if(mode==='selected'&&!sel.length){ toast('Select rows first'); return; }
 
+  const modeLabel = {
+    selected: `${sel.length} title${sel.length!==1?'s':''} selected`,
+    missing:  'all titles with missing fields',
+    force:    '🔄 FORCE — overwrite even existing data'
+  }[mode] || mode;
   document.getElementById('enrich-subtitle').innerHTML =
-    `TMDB → OMDB → IMDbAPI.dev → AI → YouTube → Google KG &nbsp;
-     <span style="color:var(--accent);font-weight:600">${
-       mode==='selected'
-         ? `${sel.length} title${sel.length!==1?'s':''} selected`
-         : 'all titles with missing fields'
-     }</span>`;
+    `IMDbAPI → TMDB → OMDB → AI → YouTube → Google KG &nbsp;
+     <span style="color:${mode==='force'?'var(--err)':'var(--accent)'};font-weight:600">${modeLabel}</span>`;
 
   // Reset UI
   document.getElementById('enrich-rows').innerHTML =
@@ -924,6 +927,7 @@ async function startEnrichment(){
   document.getElementById('btn-close-enrich').style.display='none';
   document.getElementById('enrich-rows').innerHTML='';
 
+  const isForce=(enrichMode==='force');
   let ids='all';
   if(enrichMode==='selected'){
     ids=[...document.querySelectorAll('.row-sel:checked')].map(el=>{
@@ -939,7 +943,7 @@ async function startEnrichment(){
     const resp=await fetch('/api/db_mgmt/api/enrich',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ids})
+      body:JSON.stringify({ids, force: isForce})
     });
     if(!resp.ok){ throw new Error(`HTTP ${resp.status}`); }
 
