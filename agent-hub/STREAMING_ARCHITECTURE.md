@@ -4,124 +4,146 @@
 
 ---
 
-## How Streaming & Downloads Work (CRITICAL)
+## The Two-Tier System — Critical Mental Model
 
-### There is NO stream server. Everything is JazzDrive.
+RaddFlix is built around two completely separate infrastructure tiers. Always know which tier you are in:
 
-```
-User's Phone (RaddFlix App)
-        ↓
-  Local SQLite DB  ←──── contains JazzDrive share folder URLs
-        ↓
-  App generates stream/download link LOCALLY (no server call)
-        ↓
-  JazzDrive CDN  ←──── video plays directly from here
-```
+| Tier | URL | Zero-rated on Jazz SIM? | Requires internet bundle? |
+|------|-----|------------------------|--------------------------|
+| **Oracle server** | 92.4.95.252 | ❌ NO | ✅ YES — regular data bundle needed |
+| **JazzDrive CDN** | cloud.jazzdrive.com.pk | ✅ YES | ❌ NO — always works on Jazz SIM |
 
-- The RaddFlix server (92.4.95.252) does **NOT** serve video files
-- The RaddFlix server does **NOT** store or proxy stream URLs
-- The RaddFlix server does **NOT** get involved at playback time
-- Stream and download links are generated **inside the app** from the local SQLite database
-- The database contains JazzDrive share folder URLs — this is the source of all playback
-
-### Why this matters
-- Zero-rating works because JazzDrive is zero-rated by Jazz — not because of anything the server does
-- Adding a "get stream URL from server" step would BREAK zero-rated playback
-- Never add a server-side stream URL resolver — it is architecturally wrong for this product
+**What zero-rated means in Pakistan:** Jazz Telecom network-level whitelists `cloud.jazzdrive.com.pk`. Traffic to that domain does not require a data bundle — it works even when the user has Rs.0 balance and no active package. This is a Jazz network feature, the same mechanism used for JazzCash, JazzWorld app, etc. It is NOT the same as "free with a bundle" — it means the bundle is not required at all.
 
 ---
 
-## What the JazzDrive Share Folder URL is
+## How a Video Plays — Step by Step
+
+When a user taps Play on a RaddFlix catalog title:
 
 ```
-Each title in SQLite has a JazzDrive share folder URL, e.g.:
-  https://www.jazzdrive.com.pk/s/xxxxxxxx
+Step 1: share_url lookup (no network)
+  App reads the file's share_url from local SQLite DB.
+  share_url was stored during the last Oracle catalog sync.
+  Example: https://cloud.jazzdrive.com.pk/share/f/XXXXXX
 
-App uses this URL to:
-  1. List files in the folder (episodes, qualities)
-  2. Generate direct stream links locally
-  3. Generate download links locally
+Step 2: JazzDrive API login (zero-rated — no bundle needed)
+  POST https://cloud.jazzdrive.com.pk/sapi/link/login?action=login
+  Body: { "data": { "accesstoken": "XXXXXX" } }
+  Response: validationKey + JSESSIONID cookie
 
-NO server involved. NO API call to 92.4.95.252 at this step.
+Step 3: JazzDrive API media fetch (zero-rated — no bundle needed)
+  GET https://cloud.jazzdrive.com.pk/sapi/media/video?action=get&shared=true&key=...&validationkey=...
+  Response: direct CDN stream URL (e.g. https://cloud.jazzdrive.com.pk/cdn/...)
+
+Step 4: Cache CDN URL (3 hours — memory + SQLite stream_cache table)
+
+Step 5: media_kit player opens the CDN URL → video plays (zero-rated)
 ```
+
+**The Oracle server (92.4.95.252) is NOT involved at playback time.**
+**Steps 2 and 3 are zero-rated — work without any data bundle on Jazz SIM.**
+
+Code: `lib/core/services/jazzdrive_service.dart` → `JazzDriveService.getStreamLink()`
 
 ---
 
-## Security Priority
+## NEVER Do This
 
-The **most important secret** in the whole system is the **JazzDrive share folder URL**.
+**NEVER route JazzDrive API calls through the Oracle server.**
 
-If someone gets the share folder URL → they can stream and download without the app.
+If the app ever calls Oracle to get a CDN URL, and Oracle calls JazzDrive on behalf of the app, then traffic goes: Phone → Oracle → JazzDrive. The Phone→Oracle leg is NOT zero-rated. Zero-rating breaks for all users.
 
-Protection strategy:
-- Share folder URLs stored encrypted in SQLite (SQLCipher + Android Keystore)
-- Delta JSON on JazzDrive contains metadata ONLY — no share folder URLs, no file IDs
-- Full catalog never goes to JazzDrive
-- Goal: make DB hard to decrypt — even root + any tool = only encrypted blob
+The two JazzDrive API calls (`/sapi/link/login` and `/sapi/media/video`) **must always be made directly from the phone to `cloud.jazzdrive.com.pk`**.
 
 ---
 
-## What IS on the RaddFlix Server
+## The share_url — Most Important Secret
 
-| Thing | On server? |
-|-------|-----------|
-| Video files | ❌ Never |
-| Stream URLs | ❌ Never |
-| Download links | ❌ Never |
-| User accounts | ✅ Yes |
-| Subscription plans | ✅ Yes |
-| Data usage counters | ✅ Yes (synced from app) |
-| Catalog metadata | ✅ Yes (source of truth) |
-| Admin panel (Radd Hub) | ✅ Yes |
-
----
-
-## Data Usage Tracking (no server at stream time)
-
+Every title/episode in local SQLite has a `share_url` — a JazzDrive file share link:
 ```
-Streaming (zero-rated, no internet bundle):
-  → App counts bytes locally in encrypted SQLite
-  → Queued usage report stored locally
-  → When internet returns → app auto-syncs usage to server
-  → Server updates authoritative counter
-
-If user never gets internet:
-  → App enforces LOCAL quota (last known balance from server)
-  → When local quota hits 0 → streaming blocked
-  → To unlock: must connect once (buy any bundle, even Rs.10)
-  → Expired subscription auto-downgrades to free tier locally
+https://cloud.jazzdrive.com.pk/share/f/XXXXXX
 ```
+This is stored in the `files` table (episodes) and `titles` table (movies) in the app's encrypted SQLite DB.
+
+**If someone extracts share_urls → they can stream content without the app and without a subscription.**
+
+Protection:
+- SQLCipher AES-256 on local DB (key from Android Keystore — hardware-backed)
+- Delta JSON (zero-rated catalog sync) contains metadata ONLY — NO share_url, NO file_id
+- Full catalog sync (with share_urls) only comes from Oracle → requires bundle/WiFi
 
 ---
 
-## Subscription Plans (data-based, no quality tiers)
+## Download Flow
 
-No 480p/720p/1080p limits. Plans are purely data volume:
+Downloads use the exact same JazzDrive link generation as streaming:
+1. `JazzDriveService.getStreamLink()` → same 2 zero-rated JazzDrive API calls → CDN URL
+2. App downloads from CDN URL to `<app-documents>/downloads/<fileId>.mp4`
 
-| Plan | Data/month |
-|------|-----------|
-| Basic | 30 GB |
-| Standard | 50 GB |
-| Premium | 100 GB |
-| Free tier | Limited catalog, limited data |
+Both streaming and downloading are zero-rated. Both share the same `stream_cache` SQLite table (3h TTL).
 
 ---
 
-## Device Binding
+## What Oracle Does vs What JazzDrive Does
 
-- 1 account = 1 device
-- Device fingerprint registered at first login
-- Second device login → rejected
-- Device switch → requires OTP + admin or self-service flow
+| Operation | Goes to Oracle? | Goes to JazzDrive? | Requires bundle? |
+|-----------|----------------|-------------------|-----------------|
+| Login / registration | ✅ Yes | ❌ No | ✅ Yes |
+| Catalog sync (gets share_urls) | ✅ Yes | ❌ No | ✅ Yes |
+| Subscription / quota check | ✅ Yes | ❌ No | ✅ Yes |
+| Watch history sync | ✅ Yes | ❌ No | ✅ Yes |
+| Get stream/download CDN URL | ❌ No | ✅ Yes | ❌ No (zero-rated) |
+| Actual video streaming | ❌ No | ✅ Yes (CDN) | ❌ No (zero-rated) |
+| Downloading a video file | ❌ No | ✅ Yes (CDN) | ❌ No (zero-rated) |
+| Playing a downloaded file | ❌ No | ❌ No | ❌ No (local file) |
+| Browsing catalog (already synced) | ❌ No | ❌ No | ❌ No (local SQLite) |
 
 ---
 
-## Zero-Rating Flow Summary
+## Catalog Sync — Two Paths
 
-```
-Has internet bundle → normal server sync + JazzDrive streaming
-Rs.0 balance       → JazzDrive streaming (zero-rated) + local quota enforcement
-Quota = 0          → all streaming blocked until server sync
-Re-subscribe       → requires internet (any amount)
-```
+### Path 1: Oracle Sync (requires internet bundle or WiFi)
+- Fetches full catalog including `share_url` and `file_id` for every title/episode
+- Endpoints: `GET /api/catalog/sync` (full) and `GET /api/catalog/delta?since=<ts>` (incremental)
+- Code: `SyncService._syncFromOracle()` in `sync_service.dart`
+- Upserts complete rows into local SQLite including share_url
 
+### Path 2: JazzDrive Delta (zero-rated — PARTIALLY IMPLEMENTED)
+- Fetches `delta.json` from `AppConstants.jazzDriveDeltaUrl`
+- Contains metadata ONLY: id, title, year, description, poster_url, genres, is_free, media_type, language, status, is_ongoing, rating, season_count, episode_count, db_version
+- **NEVER includes file_id or share_url** — security requirement (see Rule 5 in REINCARNATION.md)
+- Uses `LocalDb.mergeDeltaTitle()` which preserves existing share_url from prior Oracle syncs
+- Code: `SyncService._syncFromJazzDriveDelta()` in `sync_service.dart`
+
+**Current gap:** `AppConstants.jazzDriveDeltaUrl` returns `$apiBaseUrl/api/catalog/delta` (Oracle).
+True zero-rated catalog updates require: upload a `delta.json` file to a JazzDrive share folder
+and update this constant to point at that JazzDrive URL.
+Until then, catalog sync always requires a bundle.
+
+---
+
+## Stream Link Cache
+
+CDN URLs expire in ~1-2 hours. The app caches them for 3 hours:
+- Layer 1: In-memory `Map<String, _CacheEntry>` — instant, lost on app restart
+- Layer 2: `stream_cache` table in local SQLite — survives restarts, loaded on app start
+- On expiry: auto-retry once — fetches fresh share_url from Oracle, invalidates cache, re-calls JazzDrive
+
+Player `_jazzAutoRetry()` detects expired links and refreshes transparently during playback.
+
+---
+
+## Offline Behavior Summary
+
+| User situation | Can stream? | Can download? | Can browse catalog? |
+|---------------|------------|--------------|-------------------|
+| Jazz SIM, no bundle, share_url in DB | ✅ Zero-rated | ✅ Zero-rated | ✅ Local cache |
+| Jazz SIM, no bundle, share_url missing | ❌ (needs Oracle) | ❌ (needs Oracle) | ✅ Local cache |
+| Jazz SIM, has bundle | ✅ | ✅ | ✅ |
+| Non-Jazz SIM, has bundle | ✅ (uses data) | ✅ (uses data) | ✅ |
+| Any SIM, airplane mode | ❌ | ❌ | ✅ Local cache |
+| Downloaded content (any SIM) | ✅ Local file | — | ✅ |
+
+**Key insight:** First-time setup (login + catalog sync) requires a bundle or WiFi once.
+After that, Jazz SIM users stream freely without any bundle.
