@@ -4901,3 +4901,26 @@ Oracle HEAD at time of this session: 1b1ac4f. raddflix_radd RUNNING. 24 titles, 
 CI fix outcome not confirmed yet — check GitHub Actions to see if build is green.
 
 ---
+
+## [2026-05-31 UTC] — Agent: Replit Agent (Playback system deep-dive — read-only)
+
+### Task
+User asked for a full report on how RaddFlix plays videos — online streaming, downloaded movies, and local device files — for users with and without internet.
+
+### Done
+- Read player_screen.dart, download_service.dart, downloads_provider.dart, local_media_service.dart, downloads_screen.dart, vault_screen.dart, catalog_api.py, stream.py, mobile_api.py, jazzdrive_service.dart, CODE_MAP.md — full playback system audit
+- Delivered complete plain-English report covering all 3 video sources and both connectivity scenarios
+
+### Files Changed
+None — read-only session.
+
+### Notes for Next Agent
+- `_openMedia()` in player_screen.dart is the single function that routes all playback: local path → direct open; online → share_url from local DB → JazzDrive CDN URL → play
+- Download quota check hits `/api/usage/quota` before every download; fails open (allows) if server unreachable
+- Downloads saved to `<app-documents>/downloads/<fileId>.mp4` — private app storage
+- Local device videos use `LocalMediaService` to scan folders; vault videos are PIN-protected copies
+- Watch position saved to local SQLite every 10 seconds; synced to server via `/api/history/<file_id>`
+- JazzDrive links expire after ~8h; server caches them in `stream_cache` table; player auto-retries once on expiry
+- BUG-A19 (HistoryApi missing) is actually FIXED — `history_api.dart` exists in `core/api/`
+
+---
