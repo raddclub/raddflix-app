@@ -233,3 +233,46 @@ Ran comprehensive cross-file audit of all Phase 19 + Phase 20 changes:
 | Gradient CTA | ✅ | ✅ | — | — | ✅ | — |
 | Dark AppBar | ✅ | ✅ | — | — | — | ✅ |
 | RichText title | ✅ | — | ✅ | — | ✅ | ✅ |
+
+
+---
+
+## [2026-05-31 UTC] — Agent: Replit Agent (Zero-Rating delta_v2 full implementation)
+
+### Task
+Implement the true zero-rated catalog sync system. User clarified: delta.json = 24h rolling
+window with FULL playback data (file_id, share_url, folder_share_url, full episode list).
+Security model: links expire 24h, Oracle DB never exposed, local SQLite AES-256 (SQLCipher).
+
+### Done
+- zero_rating.py: generate_delta_payload() — 24h window (updated_at >= now-86400), joins files
+  for file_id/share_url, fetches full episode list for shows. Format delta_v2. Added expires_at.
+- jazzdrive.py: upload_json_to_jazzdrive() — bypasses media-only extension block, uploads .json
+  via SAPI multipart, creates share link. Scheduler now calls this instead of broken file upload.
+- api.py: /api/config now returns jd_delta_url from settings table.
+- constants.dart: jazzDriveDeltaUrl changed from computed getter to mutable static String = ''.
+- remote_config.dart: reads + caches jd_delta_url. Loaded from SharedPreferences offline.
+- sync_service.dart: full data merge + _resolveJazzDriveDocumentUrl() 2-step zero-rated SAPI flow.
+- local_db.dart: mergeDeltaTitle() writes share_url (preserves Oracle value if delta empty).
+- agent-hub/ZERO_RATING_DELTA.md: CREATED — permanent spec, security model, poster fallback chain.
+
+### Files Changed
+- radd-hub/hub/routes/zero_rating.py
+- radd-hub/hub/jazzdrive.py
+- radd-hub/hub/routes/api.py
+- raddflix_flutter/lib/core/constants.dart
+- raddflix_flutter/lib/core/remote_config.dart
+- raddflix_flutter/lib/core/db/sync_service.dart
+- raddflix_flutter/lib/core/db/local_db.dart
+- agent-hub/ZERO_RATING_DELTA.md (CREATED)
+
+### Commits
+- 978d661 — feat(zero-rating): full delta_v2 sync
+
+### Notes for Next Agent
+- Read agent-hub/ZERO_RATING_DELTA.md FIRST before touching anything zero-rating related.
+- Admin action needed: Zero-Rating Manager → Generate + Upload to JazzDrive to populate jd_delta_url.
+- Scheduler handles subsequent 24h cycles automatically after first delta is uploaded.
+- WA bot still not running (BUG-P17-08).
+
+---
