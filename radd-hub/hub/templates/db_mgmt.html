@@ -112,13 +112,17 @@
 
           <!-- Bulk actions -->
           <div class="card row" id="bulk-bar"
-            style="display:none;padding:8px 14px;margin-top:8px;justify-content:space-between;border-radius:8px">
+            style="display:none;padding:8px 14px;margin-top:8px;justify-content:space-between;border-radius:8px;flex-wrap:wrap;gap:6px">
             <div class="row" style="gap:6px">
               <button class="ghost sm" onclick="toggleAll(true)">All</button>
               <button class="ghost sm" onclick="toggleAll(false)">None</button>
               <span class="muted" id="sel-count" style="font-size:12px"></span>
             </div>
-            <button class="danger sm" onclick="bulkDelete()">🗑 Delete Selected</button>
+            <div class="row" style="gap:6px;flex-wrap:wrap">
+              <button class="ok sm"     id="btn-enrich-sel" style="display:none" onclick="openEnrich('selected')">⚡ Enrich Selected</button>
+              <button class="ok sm"     id="btn-enrich-all" style="display:none" onclick="openEnrich('missing')">⚡ Enrich All Missing</button>
+              <button class="danger sm" onclick="bulkDelete()">🗑 Delete Selected</button>
+            </div>
           </div>
         </div>
 
@@ -195,6 +199,62 @@
   </div>
 </div>
 
+<!-- ── Enrichment Progress Modal ──────────────────────────────────────── -->
+<div id="enrich-overlay" onclick="if(event.target===this&&!enrichRunning)closeEnrich()"
+  style="display:none;position:fixed;inset:0;background:#000a;z-index:3000;align-items:center;justify-content:center;padding:16px">
+  <div class="card" style="width:100%;max-width:840px;max-height:92vh;display:flex;flex-direction:column;margin:0;padding:0;overflow:hidden">
+
+    <!-- Header -->
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div>
+        <h3 style="margin:0;font-size:15px">⚡ Smart Enrichment</h3>
+        <div class="muted" id="enrich-subtitle" style="font-size:12px;margin-top:2px">
+          TMDB → OMDB → IMDbAPI.dev → AI → YouTube → Google KG
+        </div>
+      </div>
+      <button class="ghost" id="btn-close-enrich" onclick="closeEnrich()" style="padding:4px 10px;font-size:18px;line-height:1">×</button>
+    </div>
+
+    <!-- Stats bar -->
+    <div style="display:flex;border-bottom:1px solid var(--border)">
+      <div class="enrich-stat" style="color:var(--accent)"><span id="es-enriched">0</span><br><small>Enriched</small></div>
+      <div class="enrich-stat" style="color:#6ee7b7">        <span id="es-skipped">0</span><br><small>Skipped</small></div>
+      <div class="enrich-stat" style="color:var(--err)">     <span id="es-failed">0</span><br><small>Failed</small></div>
+      <div class="enrich-stat">                              <span id="es-total">—</span><br><small>Total</small></div>
+    </div>
+
+    <!-- Progress bar -->
+    <div style="height:3px;background:var(--border);flex-shrink:0">
+      <div id="enrich-pbar" style="height:3px;background:var(--accent);width:0%;transition:width .3s ease"></div>
+    </div>
+
+    <!-- Row list -->
+    <div id="enrich-rows"
+      style="flex:1;overflow-y:auto;min-height:180px;max-height:360px;padding:10px 14px;display:flex;flex-direction:column;gap:5px">
+      <div class="muted" style="text-align:center;padding:30px;font-size:13px" id="enrich-placeholder">
+        Click <strong>▶ Start</strong> to begin enrichment
+      </div>
+    </div>
+
+    <!-- Source log (click "log" button on a row to expand) -->
+    <div id="enrich-log-wrap" style="display:none;border-top:1px solid var(--border);max-height:150px;overflow-y:auto;padding:8px 16px">
+      <div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px">
+        Source Log
+      </div>
+      <div id="enrich-log" style="font-family:monospace;font-size:11px;line-height:1.6;color:var(--text)"></div>
+    </div>
+
+    <!-- Footer -->
+    <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-shrink:0">
+      <div class="muted" id="enrich-footer" style="font-size:12px"></div>
+      <div class="row" style="gap:8px">
+        <button class="ghost sm" id="btn-enrich-cancel" onclick="closeEnrich()">Cancel</button>
+        <button class="btn"      id="btn-enrich-start"  onclick="startEnrichment()">▶ Start Enrichment</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>
 /* ── Layout ──────────────────────────────────────────────────────────── */
 .dbs-wrap  { display:flex; flex-direction:column; gap:12px; }
@@ -205,6 +265,41 @@
   background:var(--panel2); border:1px solid var(--border);
   padding:3px 10px; border-radius:20px; font-size:11px; white-space:nowrap;
 }
+
+/* ── Enrichment modal ──────────────────────────────────────────────── */
+.enrich-stat {
+  flex:1; text-align:center; padding:10px 8px;
+  font-size:20px; font-weight:700; line-height:1.1;
+  border-right:1px solid var(--border);
+}
+.enrich-stat:last-child { border-right:none; }
+.enrich-stat small {
+  display:block; font-size:9px; font-weight:500;
+  opacity:.65; text-transform:uppercase; letter-spacing:.5px;
+}
+.enr-row {
+  display:flex; align-items:flex-start; gap:10px; padding:7px 10px;
+  border-radius:7px; border:1px solid var(--border);
+  background:var(--panel2); font-size:12px;
+}
+.enr-row.enriching { border-color:var(--accent); animation:enr-pulse 1.6s ease-in-out infinite; }
+.enr-row.done      { border-color:#22c55e; }
+.enr-row.failed    { border-color:var(--err); }
+.enr-row.skipped   { opacity:.45; }
+.enr-badge {
+  flex-shrink:0; font-size:10px; font-weight:700;
+  padding:2px 8px; border-radius:4px; white-space:nowrap; margin-top:1px;
+}
+.enr-badge.enriching { background:var(--accent); color:#fff; }
+.enr-badge.done      { background:#22c55e; color:#fff; }
+.enr-badge.failed    { background:var(--err); color:#fff; }
+.enr-badge.skipped   { background:var(--muted); color:#fff; }
+.enr-tags { display:flex; flex-wrap:wrap; gap:3px; margin-top:4px; }
+.enr-tag  {
+  font-size:9px; padding:1px 6px; border-radius:3px;
+  background:var(--panel); border:1px solid var(--border); color:var(--text);
+}
+@keyframes enr-pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
 
 /* ── Table list sidebar ──────────────────────────────────────────────── */
 .dbs-sidebar {
@@ -444,6 +539,9 @@ function selectTable(t){
   document.getElementById('btn-new-rec').style.display='';
   document.getElementById('exp-tbl').textContent=t;
   document.getElementById('search-input').value='';
+  const isTitles=(t==='titles');
+  document.getElementById('btn-enrich-sel').style.display=isTitles?'':'none';
+  document.getElementById('btn-enrich-all').style.display=isTitles?'':'none';
   switchTab('browse');
 }
 
@@ -773,7 +871,193 @@ function closeEditor(){ document.getElementById('ed-overlay').classList.remove('
 function handleOverlayClick(e){ if(e.target===document.getElementById('ed-overlay')) closeEditor(); }
 function debounceSearch(){ clearTimeout(searchTmr); searchTmr=setTimeout(()=>{ currentPage=0; loadData(); },280); }
 function showErr(msg){ document.getElementById('data-tbody').innerHTML=`<tr><td colspan="99" class="empty" style="color:var(--err)">Error: ${msg}</td></tr>`; }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeEditor(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeEditor(); if(!enrichRunning) closeEnrich(); } });
 window.onload=init;
+
+/* ═══════════════════════════════════════════════════════════════════
+   Smart Enrichment — multi-source SSE progress modal
+   ═══════════════════════════════════════════════════════════════════ */
+let enrichRunning = false;
+let enrichMode    = 'missing';
+
+function openEnrich(mode){
+  enrichMode = mode;
+  const sel  = [...document.querySelectorAll('.row-sel:checked')];
+  if(mode==='selected'&&!sel.length){ toast('Select rows first'); return; }
+
+  document.getElementById('enrich-subtitle').innerHTML =
+    `TMDB → OMDB → IMDbAPI.dev → AI → YouTube → Google KG &nbsp;
+     <span style="color:var(--accent);font-weight:600">${
+       mode==='selected'
+         ? `${sel.length} title${sel.length!==1?'s':''} selected`
+         : 'all titles with missing fields'
+     }</span>`;
+
+  // Reset UI
+  document.getElementById('enrich-rows').innerHTML =
+    '<div class="muted" style="text-align:center;padding:30px;font-size:13px">Click <strong>▶ Start</strong> to begin enrichment</div>';
+  document.getElementById('enrich-log').innerHTML='';
+  document.getElementById('enrich-log-wrap').style.display='none';
+  document.getElementById('enrich-footer').textContent='';
+  ['es-enriched','es-skipped','es-failed'].forEach(id=>document.getElementById(id).textContent='0');
+  document.getElementById('es-total').textContent='—';
+  document.getElementById('enrich-pbar').style.width='0%';
+  document.getElementById('btn-enrich-start').disabled=false;
+  document.getElementById('btn-enrich-start').textContent='▶ Start Enrichment';
+  document.getElementById('btn-close-enrich').style.display='';
+  document.getElementById('btn-enrich-cancel').textContent='Cancel';
+
+  document.getElementById('enrich-overlay').style.display='flex';
+}
+
+function closeEnrich(){
+  if(enrichRunning) return;
+  document.getElementById('enrich-overlay').style.display='none';
+  loadData();
+}
+
+async function startEnrichment(){
+  if(enrichRunning) return;
+  enrichRunning=true;
+  document.getElementById('btn-enrich-start').disabled=true;
+  document.getElementById('btn-enrich-start').textContent='⏳ Running…';
+  document.getElementById('btn-close-enrich').style.display='none';
+  document.getElementById('enrich-rows').innerHTML='';
+
+  let ids='all';
+  if(enrichMode==='selected'){
+    ids=[...document.querySelectorAll('.row-sel:checked')].map(el=>{
+      const pk=JSON.parse(atob(el.value));
+      return pk.id;
+    });
+  }
+
+  let enriched=0, skipped=0, failed=0, total=0;
+  let finished=false;
+
+  try{
+    const resp=await fetch('/api/db_mgmt/api/enrich',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ids})
+    });
+    if(!resp.ok){ throw new Error(`HTTP ${resp.status}`); }
+
+    const reader=resp.body.getReader();
+    const dec=new TextDecoder();
+    let buf='';
+
+    while(true){
+      const {done,value}=await reader.read();
+      if(done) break;
+      buf+=dec.decode(value,{stream:true});
+
+      // Parse complete SSE events (separated by \n\n)
+      const events=buf.split('\n\n');
+      buf=events.pop(); // keep incomplete tail in buffer
+
+      for(const raw of events){
+        if(!raw.trim()) continue;
+        let evtType='message', evtData='';
+        for(const line of raw.split('\n')){
+          if(line.startsWith('event: ')) evtType=line.slice(7).trim();
+          if(line.startsWith('data: '))  evtData=line.slice(6).trim();
+        }
+        if(!evtData) continue;
+
+        let d;
+        try{ d=JSON.parse(evtData); }catch{ continue; }
+
+        if(evtType==='start'){
+          total=d.total;
+          document.getElementById('es-total').textContent=total;
+
+        }else if(evtType==='row'){
+          const s=d.status;
+          if(s==='done')    { enriched++; document.getElementById('es-enriched').textContent=enriched; }
+          if(s==='skipped') { skipped++;  document.getElementById('es-skipped').textContent=skipped; }
+          if(s==='failed')  { failed++;   document.getElementById('es-failed').textContent=failed; }
+
+          const prog=total?Math.round((enriched+skipped+failed)/total*100):0;
+          document.getElementById('enrich-pbar').style.width=prog+'%';
+
+          _renderEnrichRow(d);
+          const rw=document.getElementById('enrich-rows');
+          rw.scrollTop=rw.scrollHeight;
+
+        }else if(evtType==='done'){
+          finished=true;
+          document.getElementById('enrich-pbar').style.width='100%';
+          document.getElementById('enrich-footer').textContent=
+            `Completed in ${d.elapsed}s — ${d.enriched} enriched, ${d.skipped} already complete, ${d.failed} failed`;
+          document.getElementById('btn-enrich-start').textContent='✓ Complete';
+          document.getElementById('btn-close-enrich').style.display='';
+          document.getElementById('btn-enrich-cancel').textContent='Close';
+          enrichRunning=false;
+
+        }else if(evtType==='error'){
+          toast('Enrichment error: '+d.error);
+          enrichRunning=false;
+          document.getElementById('btn-close-enrich').style.display='';
+          document.getElementById('btn-enrich-cancel').textContent='Close';
+        }
+      }
+    }
+  }catch(e){
+    toast('Stream error: '+e.message);
+  }finally{
+    enrichRunning=false;
+    if(!finished){
+      document.getElementById('btn-enrich-start').disabled=false;
+      document.getElementById('btn-enrich-start').textContent='▶ Retry';
+      document.getElementById('btn-close-enrich').style.display='';
+      document.getElementById('btn-enrich-cancel').textContent='Close';
+    }
+  }
+}
+
+function _renderEnrichRow(d){
+  const container=document.getElementById('enrich-rows');
+  const s=d.status;
+  let el=document.getElementById('enr-'+d.id);
+  if(!el){
+    el=document.createElement('div');
+    el.id='enr-'+d.id;
+    container.appendChild(el);
+  }
+  el.className='enr-row '+s;
+
+  let detail='';
+  if(s==='done'&&d.updated?.length){
+    detail=`<div class="enr-tags">${d.updated.map(f=>`<span class="enr-tag">${f}</span>`).join('')}</div>`;
+  }else if(s==='failed'){
+    detail=`<div style="color:var(--err);font-size:11px;margin-top:2px">${d.reason||'No data from any source'}</div>`;
+  }else if(s==='skipped'){
+    detail=`<div style="color:var(--muted);font-size:11px;margin-top:2px">Already complete — no update needed</div>`;
+  }else if(s==='enriching'){
+    detail=`<div style="color:var(--muted);font-size:11px;margin-top:2px">Missing: ${(d.missing||[]).join(', ')}</div>`;
+  }
+
+  const icons={enriching:'⏳',done:'✓',failed:'✗',skipped:'—'};
+  const logBtn=d.log?.length
+    ?`<button class="ghost sm" style="font-size:10px;padding:2px 7px;white-space:nowrap" onclick='showEnrichLog(${JSON.stringify(d.log)})'>log</button>`
+    :'';
+
+  el.innerHTML=`
+    <span class="enr-badge ${s}">${icons[s]||''} ${s}</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.title}</div>
+      ${detail}
+    </div>
+    ${logBtn}`;
+}
+
+function showEnrichLog(lines){
+  document.getElementById('enrich-log').innerHTML=
+    lines.map(l=>`<div>${l.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>`).join('');
+  const w=document.getElementById('enrich-log-wrap');
+  w.style.display='block';
+  w.scrollTop=w.scrollHeight;
+}
 </script>
 {% endblock %}
