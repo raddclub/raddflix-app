@@ -111,6 +111,22 @@ def get_table_data(name):
                         where  = " WHERE " + " OR ".join(f"{c2} LIKE ?" for c2 in text_cols)
                         params = [f"%{q}%"] * len(text_cols)
 
+            # Extra filters — only apply to known columns
+            mt = request.args.get("mt", "").strip()
+            if mt and "media_type" in col_names:
+                connector = " AND" if where else " WHERE"
+                where += f"{connector} media_type = ?"
+                params.append(mt)
+
+            if request.args.get("nullsonly") == "1" and name == "titles":
+                _nf = ["poster", "overview", "genres_csv", "cast_names",
+                       "director", "rating", "imdb_rating"]
+                _nc = " OR ".join(
+                    f"({f} IS NULL OR CAST({f} AS TEXT) = '')" for f in _nf
+                )
+                connector = " AND" if where else " WHERE"
+                where += f"{connector} ({_nc})"
+
             safe_sort = sort if sort in col_names else "id"
             total = c.execute(f"SELECT COUNT(*) FROM {name}{where}", params).fetchone()[0]
             rows  = c.execute(
@@ -810,3 +826,87 @@ def enrich_titles():
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Titles null-field stats — used by the DB Studio null stats bar
+# ─────────────────────────────────────────────────────────────────────────────
+@bp.route("/api/titles/nullstats")
+@auth.login_required
+def titles_null_stats():
+    """Return per-field null/filled counts for the titles table."""
+    FIELDS = [
+        "poster", "overview", "genres_csv", "cast_names", "director",
+        "rating", "imdb_rating", "imdb_id", "tmdb_id", "backdrop",
+        "trailer_url", "year", "release_date", "original_title",
+    ]
+    try:
+        with db.conn() as c:
+            if not _table_exists(c, "titles"):
+                return jsonify({"ok": False, "error": "titles table not found"})
+            total = c.execute("SELECT COUNT(*) FROM titles").fetchone()[0]
+            fields: dict = {}
+            for f in FIELDS:
+                try:
+                    null_n = c.execute(
+                        f"SELECT COUNT(*) FROM titles "
+                        f"WHERE {f} IS NULL OR CAST({f} AS TEXT) = ''",
+                    ).fetchone()[0]
+                    fields[f] = {
+                        "null":   null_n,
+                        "filled": total - null_n,
+                        "pct":    round((total - null_n) / total * 100) if total else 0,
+                    }
+                except Exception:
+                    pass
+            return jsonify({"ok": True, "total": total, "fields": fields})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CSV Export — download any table as a .csv file
+# ─────────────────────────────────────────────────────────────────────────────
+@bp.route("/api/export/<table>")
+@auth.login_required
+def export_table(table: str):
+    """Stream a table as a CSV download. Respects ?q= search filter."""
+    if table not in ALL_TABLES:
+        abort(404)
+    q = request.args.get("q", "").strip()
+    try:
+        with db.conn() as c:
+            if not _table_exists(c, table):
+                abort(404)
+            cur = c.cursor()
+            if q:
+                col_names = [r[1] for r in c.execute(f"PRAGMA table_info({table})").fetchall()]
+                text_cols = [n for n in col_names
+                             if n not in ("id", "created_at", "updated_at")][:15]
+                if text_cols:
+                    conds = " OR ".join(f"CAST({n} AS TEXT) LIKE ?" for n in text_cols)
+                    cur.execute(f"SELECT * FROM {table} WHERE {conds}", [f"%{q}%"] * len(text_cols))
+                else:
+                    cur.execute(f"SELECT * FROM {table}")
+            else:
+                cur.execute(f"SELECT * FROM {table}")
+
+            rows      = cur.fetchall()
+            col_names = [d[0] for d in cur.description]
+
+            out = io.StringIO()
+            w   = csv.writer(out)
+            w.writerow(col_names)
+            for row in rows:
+                w.writerow([
+                    v.decode("utf-8", errors="replace") if isinstance(v, bytes) else v
+                    for v in row
+                ])
+
+            return Response(
+                out.getvalue(),
+                mimetype="text/csv",
+                headers={"Content-Disposition": f'attachment; filename="{table}.csv"'},
+            )
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)})
