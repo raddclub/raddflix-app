@@ -4427,3 +4427,36 @@ nginx            ACTIVE    HTTP:80 + HTTPS:443
 - Payment account numbers for JazzCash/EasyPaisa still blank — need to be set in admin settings
 
 ---
+
+## [2026-05-31 UTC] — Agent: Replit Agent (Payment Methods Fix)
+
+### Task
+Add JazzCash and EasyPaisa account number (03289688227, Muhammad Rehan) to payment_methods table.
+User rule: check before creating — table was confirmed EMPTY before any INSERT.
+
+### What Was Found
+- `payment_methods` table existed but had 0 rows and was missing 5 columns:
+  `account_name`, `icon`, `min_amount_pkr`, `amount_tolerance_pkr`, `updated_at`
+- Flutter API `/api/payment-methods` was falling back to hardcoded placeholder rows with blank `account_number`
+- Admin panel Settings page template referenced all 5 missing columns (would error on save)
+
+### What Was Done
+1. Added 5 missing columns to `payment_methods` table via `ALTER TABLE`
+2. Inserted JazzCash row: code=jazzcash, account_number=03289688227, account_name=Muhammad Rehan
+3. Inserted EasyPaisa row: code=easypaisa, account_number=03289688227, account_name=Muhammad Rehan
+4. Verified `/api/payment-methods` now returns correct account_number for both methods
+
+### Verification
+```
+GET /api/payment-methods →
+  jazzcash:  account_number=03289688227, enabled=true ✅
+  easypaisa: account_number=03289688227, enabled=true ✅
+```
+
+### Notes for Next Agent
+- Both methods share the same account number (03289688227) and name (Muhammad Rehan) — intentional per user
+- Admin panel Settings → Payment Gateways page now fully functional (all columns present)
+- `min_amount_pkr` defaults to 0, `amount_tolerance_pkr` defaults to 10 — can be tuned via admin panel
+- No code files changed — DB-only fix
+
+---
