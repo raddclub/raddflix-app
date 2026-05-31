@@ -950,3 +950,268 @@
 ---
 
 *End of CODE_MAP — Last Updated: 2026-05-30*
+
+---
+
+## ADDENDUM — Full Audit 2026-05-31 (Replit Agent)
+
+> This section documents all files/bugs missed by the 2026-05-30 audit. Read this FIRST.
+
+---
+
+### ⚠️ CRITICAL: DUAL FILE STRUCTURE (Root `lib/` vs `raddflix_flutter/lib/`)
+
+The repo has **TWO separate sets of Flutter files**:
+
+| Location | Status | Used by CI? |
+|----------|--------|-------------|
+| Root `lib/*.dart` + root `pubspec.yaml` | **OLD STUBS — OUT OF DATE** | NO |
+| `raddflix_flutter/lib/` + `raddflix_flutter/pubspec.yaml` | **REAL APP — canonical source** | YES |
+
+Root `pubspec.yaml` (line 1): uses `sqflite: ^2.3.2` (plain SQLite, NOT encrypted).
+`raddflix_flutter/pubspec.yaml` (canonical): uses `sqflite_sqlcipher: 3.1.0+1` (pinned, encrypted).
+
+**Root `lib/` stubs also contain dead branding:**
+- `lib/core/security/download_cipher.dart` has comment "Only ZENO code knows how to decrypt" and uses `jmx_vault/` directory — dead name from pre-RaddFlix era.
+- `lib/screens/home_screen.dart` shows "JazzMAX" top-bar branding — old name.
+
+**Rule: NEVER edit files in root `lib/` or root `pubspec.yaml`.** All Flutter work goes in `raddflix_flutter/`.
+
+---
+
+### NEW SCREENS (raddflix_flutter/lib/screens/) — Not Previously Documented
+
+#### `show_detail_screen.dart`
+**Purpose:** Full series/drama detail page. Replaces the simpler `detail_screen.dart` (root stub) for shows.
+**Key Features:**
+- `_seasonTab` — TabController for season switching
+- `_resumeEpisodeIndex` — auto-detects most-recently-watched unfinished episode (progress 3%–95%) for "Resume" button
+- `_watchProgress` — per-episode progress bar (percentage watched)
+- Calls `LocalDb.markEpisodesSeen(item.id)` when opened — clears "new episode" badge on home card
+- `DownloadService` integration — per-episode download buttons
+**Known Issues:** None critical.
+
+#### `admin_queue_screen.dart`
+**Purpose:** In-app download queue viewer for admin users. Mirrors the `/stream/` web panel.
+**Access:** Admin-only (checked via user role in JWT payload).
+**Known Issues:** Not documented anywhere in agent-hub docs.
+
+#### `local_media_screen.dart`
+**Purpose:** MX Player-style local media browser — scans device storage for video files.
+**Key Features:** Uses `MediaStorePlugin` Kotlin plugin via `MethodChannel('com.raddflix.app/media')` for fast Android MediaStore scanning.
+**Known Issues:** `READ_MEDIA_VIDEO` / `READ_EXTERNAL_STORAGE` permissions required — not requested at runtime (only declared in AndroidManifest). May silently fail on Android 13+ devices that haven't granted these permissions.
+
+#### `local_folder_screen.dart`
+**Purpose:** Folder-level navigator for local media files.
+**Known Issues:** Not documented.
+
+#### `plan_expired_screen.dart`
+**Purpose:** Full-screen gate shown when subscription has expired.
+**Flow:** Redirects to SubscriptionScreen or shows WhatsApp contact.
+**Known Issues:** Not documented.
+
+#### `quota_full_screen.dart`
+**Purpose:** Full-screen gate shown when daily data quota is exhausted.
+**Known Issues:** Not documented.
+
+#### `tid_status_screen.dart`
+**Purpose:** TID (Transaction ID) payment status screen. Shown after user submits payment TID.
+**Known Issues:** Not documented.
+
+#### `vault_settings_screen.dart`
+**Purpose:** Vault settings — change PIN, toggle biometric, clear vault.
+**Known Issues:** Not documented.
+
+#### `player_settings_screen.dart`
+**Purpose:** Full-screen player preferences UI (persistent settings across sessions).
+**Persists:** `PlayerPrefs` via `player_prefs_provider.dart` (shared_preferences backed).
+**Settings Include:** Default subtitle language, aspect ratio, ambilight toggle, binge-guard timer, playback speed, A-B loop preferences.
+**Known Issues:** Not documented.
+
+---
+
+### NEW PLAYER CONTROLLERS (raddflix_flutter/lib/core/player/)
+
+#### `ab_loop_controller.dart`
+**Purpose:** A-B loop — mark two points in a video and loop that segment. Language learning feature.
+
+#### `ambilight_controller.dart`
+**Purpose:** Extracts edge pixel color from video frame and applies as a glow border behind the player. "Ambilight" effect.
+**Performance Note:** Edge sampling runs every ~100ms on UI thread — potential jank on low-end phones.
+
+#### `binge_guard_controller.dart`
+**Purpose:** After N episodes (configurable), shows a "Take a break" full-screen overlay. Netflix-style.
+
+#### `player_prefs.dart`
+**Purpose:** Data model for persistent player preferences (aspect ratio, subtitle language, speed, etc.).
+
+#### `player_prefs_provider.dart`
+**Purpose:** Riverpod `StateNotifierProvider` for `PlayerPrefs`. Reads/writes from `SharedPreferences`.
+
+#### `scene_bookmark_store.dart`
+**Purpose:** Saves and loads scene bookmarks (named timestamps) per video file_id. Stored in SQLite.
+
+#### `smart_intro_store.dart`
+**Purpose:** Learns intro/credits timestamps per series from user skip actions. After 2+ skips at similar positions, auto-shows "Skip Intro" button.
+
+---
+
+### NEW PLAYER WIDGETS (raddflix_flutter/lib/widgets/player/)
+
+| File | Purpose |
+|------|---------|
+| `ab_loop_panel.dart` | A-B loop UI controls (set A, set B, clear) |
+| `ambilight_glow_border.dart` | Renders ambient color glow around player |
+| `cinematic_overlay.dart` | Dimmed black bars for cinematic letterbox mode |
+| `eq_panel.dart` | Audio equalizer panel (bass boost, etc.) |
+| `playback_info_overlay.dart` | Debug overlay: bitrate, codec, resolution, buffers |
+| `quick_settings_panel.dart` | Slide-up panel: speed, aspect, subtitle, audio track |
+| `scene_bookmarks_panel.dart` | View/jump to named scene bookmarks |
+| `subtitle_overlay.dart` | Custom subtitle renderer (styled text over video) |
+| `sync_panel.dart` | Subtitle/audio sync offset controls (±ms adjustments) |
+| `track_badges.dart` | Small overlay showing current audio/subtitle track |
+| `transparent_player_layer.dart` | Transparent hit-test layer for gesture detection |
+| `video_enhance_panel.dart` | Sharpness/contrast/brightness filters (via media_kit) |
+
+---
+
+### NEW SERVICES (raddflix_flutter/lib/services/)
+
+#### `cast_service.dart`
+**Purpose:** Google Cast (Chromecast) integration. Sends stream URLs to Cast devices.
+**Dependencies:** `google_cast` SDK + `CastOptionsProvider.kt` + `CastSession` management in `MainActivity.kt`.
+**Known Issues:** Cast channel in `MainActivity.kt` imports `com.google.android.gms.cast.*` — requires `play-services-cast-framework` in `build.gradle`. If not added, build fails.
+
+#### `local_media_service.dart`
+**Purpose:** Scans device storage for video files. Wrapper around `MediaStorePlugin` Kotlin plugin.
+**Known Issues:** Uses `MethodChannel('com.raddflix.app/media')` — must match `MEDIA_CHANNEL` in `MainActivity.kt`.
+
+#### `thumb_service.dart`
+**Purpose:** Generates video thumbnails for local/downloaded files using `video_thumbnail` package.
+**Caches:** Thumbnails stored in `getApplicationDocumentsDirectory()/thumbs/`.
+**Known Issues:** `video_thumbnail: ^0.5.3` in pubspec — this package is deprecated/unmaintained. May cause issues on Android 14+.
+
+#### `vault_service.dart` (in lib/services/, NOT lib/core/security/)
+**Purpose:** High-level vault file operations — import, export, delete vault items.
+**NOTE:** This is DIFFERENT from `lib/core/security/vault_service.dart` (which handles PIN/biometric auth).
+**Known Issues:** TWO files named `vault_service.dart` in different directories — confusing. `lib/core/security/vault_service.dart` = PIN/bio auth. `lib/services/vault_service.dart` = file CRUD.
+
+---
+
+### NEW ANDROID NATIVE FILES
+
+#### `MainActivity.kt`
+**Purpose:** Full native Android bridge. Handles 5 MethodChannels:
+- `com.raddflix.app/pip` — Picture-in-Picture (`enterPiP`)
+- `com.raddflix.app/media` — triggers `MediaStorePlugin` local scan
+- `com.raddflix.app/cast` — Google Cast session management
+- `com.raddflix.app/intent` — "Open with" video intent handling (`getPendingVideoUri`, `openVideoWith`)
+- `com.raddflix.app/security` — **DEFINED but NOT HANDLED** (no `setMethodCallHandler` for security channel)
+**Known Issues:**
+- **CRITICAL BUG**: `SECURITY_CHANNEL` is declared as `private val SECURITY_CHANNEL = "com.raddflix.app/security"` but has NO `setMethodCallHandler`. `AppGuard._checkSignature()` will throw `PlatformException` which is silently caught — **APK SIGNATURE CHECK IS SILENTLY DISABLED IN PRODUCTION.**
+- Cast imports (`com.google.android.gms.cast.*`) require `play-services-cast-framework` gradle dependency.
+
+#### `MediaStorePlugin.kt`
+**Purpose:** Flutter plugin that queries Android `MediaStore.Video.Media` for local video files. Returns JSON list of `{uri, display_name, size, duration_ms, date_modified}`.
+**Known Issues:** Not documented.
+
+#### `CastOptionsProvider.kt`
+**Purpose:** Required Google Cast metadata provider. Registered in AndroidManifest for Cast SDK initialization.
+**Known Issues:** Not documented.
+
+---
+
+### NEW BACKEND FILES
+
+#### `radd-hub/hub/bulk_link_engine.py`
+**Purpose:** Background thread that proactively refreshes JazzDrive stream links for all library files every 2 hours.
+**Key Bug:** **BUG-NEW-01**: `refresh_links()` queries `stream_links` table which is **NOT in `db.py` DDL**. Will throw `OperationalError: no such table: stream_links` every 2 hours. The engine silently catches this error in the outer `run_forever()` try/except, so it never crashes the app — but link pre-generation never works.
+**Loop:** Runs every 2h via daemon thread in `app.py`.
+
+#### `radd-hub/hub/tunnel.py`
+**Purpose:** ngrok/cloudflare tunnel manager for exposing Oracle server when dynamic IP changes.
+**Known Issues:** Not documented. May conflict with static IP setup.
+
+#### `radd-hub/hub/turbo_cache.py`
+**Purpose:** In-memory LRU cache layer for hot catalog queries.
+**Known Issues:** Not documented.
+
+#### `radd-hub/hub/search_cache.py`
+**Purpose:** Caches recent WhatsApp bot search results to avoid re-querying DB.
+**Known Issues:** Not documented.
+
+#### `radd-hub/hub/scrapers/` (6 scraper modules)
+All inherit from `scrapers/base.py`. Current scrapers: `katmoviehd`, `rareanimes`, `rogmovies`, `ssrmovies`, `vegamovies`, `multi` (tries all).
+**Known Issues:** Not documented individually.
+
+#### `radd-hub/hub/sites/` (7 site modules)
+CDN resolver layer: `katmoviehd`, `rareanimes`, `rogmovies`, `ssrmovies`, `vegamovies`, plus helpers `_cdn_helper`, `_cdn_resolvers`, `_filter_helper`, `_pw_fallback` (Playwright fallback), `_search_helper`.
+**Known Issues:** `_pw_fallback.py` uses Playwright for JavaScript-heavy sites. Playwright/Chromium must be installed on Oracle — see `browser_installer.py`. Not documented.
+
+#### `radd-hub/hub/ai_router.py`
+**Purpose:** Routes AI metadata enrichment requests to available providers (Groq → Gemini → OpenAI fallback chain).
+**Known Issues:** Not documented.
+
+#### `radd-hub/hub/media_naming.py`
+**Purpose:** Smart filename normalizer — extracts title, year, quality, language from raw filenames like `movie.name.2023.1080p.BluRay.mkv`.
+**Known Issues:** Not documented.
+
+#### `radd-hub/hub/metadata.py` + `metadata_lookup.py`
+**Purpose:** `metadata.py` — TMDB/OMDB metadata enrichment pipeline. `metadata_lookup.py` — single-title lookup with key rotation.
+**Known Issues:** Not documented individually.
+
+#### `radd-hub/hub/assets.py`
+**Purpose:** Static asset management (posters, backdrops stored on Oracle).
+**Known Issues:** Not documented.
+
+#### `radd-hub/hub/organizer.py`
+**Purpose:** File organizer — move/rename/sort media files on Oracle by title/year/quality.
+**Known Issues:** Not documented.
+
+#### `radd-hub/hub/retro_sync.py`
+**Purpose:** Back-fills metadata for older titles that pre-date the enrichment pipeline.
+**Known Issues:** Not documented.
+
+#### `radd-hub/hub/radd_quality_upgrade.py`
+**Purpose:** Detects when a higher quality version of an existing title is available and queues an upgrade download.
+**Known Issues:** Not documented.
+
+#### `radd-hub/hub/scraper.py`
+**Purpose:** Master scraper coordinator — calls `sites/` modules, handles search and link resolution.
+**Known Issues:** Not documented.
+
+#### `radd-hub/hub/browser_installer.py` + `aria2_installer.py` + `installer.py`
+**Purpose:** Auto-installers for Playwright/Chromium, aria2, and general system dependencies on fresh Oracle setup.
+**Known Issues:** Not documented.
+
+#### `radd-hub/hub/domain_doctor.py`
+**Purpose:** Background thread probing pirate streaming domains for active mirrors. Results stored in DB but NOT shown in admin panel UI.
+**Known Issues:** Findings invisible to admin. No UI surface.
+
+---
+
+### NEW BUGS FOUND — Full Audit 2026-05-31
+
+| ID | File | Bug |
+|----|------|-----|
+| NEW-01 | `bulk_link_engine.py` | Queries `stream_links` table that doesn't exist in DDL — SQL error every 2h, silently swallowed |
+| NEW-02 | `mobile_api.py` | `_hash_password()` uses unsalted SHA-256 — rainbow table attack possible on DB breach |
+| NEW-03 | `catalog_api.py` | `_watch_base()` hardcodes `http://92.4.95.252` as fallback — hardcoded IP + HTTP not HTTPS |
+| NEW-04 | `MainActivity.kt` | `SECURITY_CHANNEL` declared but NOT handled — APK signature check silently fails (PlatformException caught by AppGuard) |
+| NEW-05 | `search_api.py` | Uses LIKE queries (no FTS5) — will be slow at 1000+ titles |
+| NEW-06 | `security_telemetry.py` | `_ip_window` dict never prunes old IPs (only old timestamps) — memory grows unbounded under DoS from many IPs |
+| NEW-07 | `keys.py` | Falls back to plaintext key storage if `cryptography` package not installed |
+| NEW-08 | root `lib/` | Contains OLD stub Flutter files with dead branding (JazzMAX, ZENO, JMX) — confusing to developers |
+| NEW-09 | `constants.dart` | `otpDeviceSwitchEnabled = true` but CODE_MAP says `false` — docs were wrong (code is right) |
+| NEW-10 | `constants.dart` | `supportWhatsApp = '923001234567'` — placeholder number not a real Jazz business support line |
+| NEW-11 | `bots/whatsapp/bot-state.json` + `users.json` | Bot runtime state files committed to repo — `users.json` may contain WhatsApp JIDs |
+| NEW-12 | `bots/whatsapp/pairing-number.txt` | Bot's WhatsApp phone number committed to repo |
+| NEW-13 | Two WA bot instances | `radd-hub/bots/whatsapp/` (full, standalone) vs `radd-hub/hub/bots/whatsapp/` (simpler, supervisor) — unclear which is canonical |
+| NEW-14 | `services/vault_service.dart` vs `core/security/vault_service.dart` | Two files named `vault_service.dart` in different paths — confusing |
+| NEW-15 | `ambilight_controller.dart` | Edge sampling every ~100ms on UI thread — potential jank on low-end phones |
+| NEW-16 | `local_media_screen.dart` | `READ_MEDIA_VIDEO` declared in manifest but not requested at runtime — may silently fail on Android 13+ |
+| NEW-17 | `mirror.py` | BUG-A18 confirmed: GSheets sync imports from `_legacy` that may not be available |
+
+---
+
+*End of Addendum — 2026-05-31 Full Audit*

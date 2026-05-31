@@ -53,3 +53,62 @@ Continue non-stop: deploy wa-bot, fix all remaining open items, verify all previ
 6. **Do NOT re-generate keystore** unless absolutely necessary — changing it invalidates installed APKs
 
 ---
+
+---
+
+## [2026-05-31] — Agent: Replit Agent (Full Deep Audit Session)
+
+### Task
+Full deep audit of RaddFlix codebase. Read ALL 359+ source files, understand every function and interaction, update all .MD documentation, report all features/bugs/issues/duplicates.
+
+### Files Read (complete list)
+- All agent-hub MD files (README, SKILLS, REINCARNATION, PRODUCT_CONTEXT, MASTER_TASKLIST, CODE_MAP, TASK_LOG, SECURITY_ARCHITECTURE, PLAYER_SPEC, STREAMING_ARCHITECTURE, ZERO_RATING_DELTA, AGENT_NOTES, AGENT_CONNECTIONS_GUIDE, SETUP, PROMPT, PROMPT_NEXT_AGENT, memory/*)
+- Flutter: raddflix_flutter/pubspec.yaml, main.dart, app.dart, constants.dart, all providers, all models, all screens (14 main + 9 new), all player widgets (12), all player controllers (7), all services, all security files, local_db.dart, sync_service.dart, all API clients, app_guard.dart, request_encoder.dart, MainActivity.kt, AndroidManifest.xml
+- Flask: app.py, db.py, auth.py, config.py, all routes (20 files), jazzdrive.py, scheduler.py, downloader.py, request_encoding.py, keys.py, radd_recommend.py, mirror.py, bulk_link_engine.py, + 15 more backend files
+- WhatsApp bot: index.js, lib/intent.js, lib/db.js, lib/format.js, plugins/movies.js, plugins/admin.js
+- CI: .github/workflows/build-apk.yml, ci-tests.yml
+
+### Critical Discoveries
+
+1. **DUAL STRUCTURE**: Root `lib/` contains OLD stub Flutter files with dead branding (JazzMAX, ZENO, JMX). Real app is ONLY in `raddflix_flutter/lib/`. Root `pubspec.yaml` is outdated (missing sqflite_sqlcipher). Never touch root lib/.
+
+2. **APK Signature Check BROKEN**: `MainActivity.kt` declares `SECURITY_CHANNEL` but has NO handler. `AppGuard._checkSignature()` silently fails with PlatformException. Fingerprint is set but never actually checked.
+
+3. **`bulk_link_engine.py` SQL crash**: Queries `stream_links` table that doesn't exist in `db.py` DDL. Error every 2h, silently swallowed. Link pre-generation never works.
+
+4. **Unsalted password hashing**: `mobile_api.py::_hash_password()` uses unsalted SHA-256. Vulnerable to rainbow tables on DB breach.
+
+5. **Hardcoded HTTP IP**: `catalog_api.py::_watch_base()` returns `http://92.4.95.252` as fallback. Hardcoded + not HTTPS.
+
+6. **Security telemetry memory leak**: `_ip_window` dict grows unbounded under sustained DoS.
+
+### New Features Discovered (not in prior docs)
+- `show_detail_screen.dart` — full series detail with season tabs, resume detection, episode download
+- `admin_queue_screen.dart` — in-app download queue for admin users
+- `local_media_screen.dart` + `local_folder_screen.dart` — MX Player-style local video browser via MediaStorePlugin
+- `plan_expired_screen.dart`, `quota_full_screen.dart`, `tid_status_screen.dart` — subscription/quota gate screens
+- `vault_settings_screen.dart`, `player_settings_screen.dart` — settings screens
+- 7 player controllers (A-B loop, ambilight, binge guard, scene bookmarks, smart intro, player prefs)
+- 12 player widgets (EQ, subtitle overlay, sync panel, video enhance, scene bookmarks, etc.)
+- `cast_service.dart` + `CastOptionsProvider.kt` — Google Chromecast integration
+- `MediaStorePlugin.kt` — native Android MediaStore video scanner
+- `thumb_service.dart` — video thumbnail generation
+- Two vault_service files (services/ = file CRUD, core/security/ = PIN/biometric)
+- `debug_logger.dart` — debug log exporter via share_plus
+- Theme system: `radd_colors.dart` + `theme_provider.dart` (dark/light themes)
+- `radd_text_field.dart`, `simosa_card.dart` new widgets
+- Player: A-B loop panel, ambilight glow border, cinematic overlay, EQ panel, playback info overlay, quick settings panel, scene bookmarks panel, subtitle overlay, sync panel, track badges, transparent player layer, video enhance panel
+- Backend: ai_router.py, media_naming.py, tunnel.py, turbo_cache.py, search_cache.py, radd_quality_upgrade.py, retro_sync.py, assets.py, organizer.py, browser_installer.py, aria2_installer.py, installer.py, 6 scrapers, 7 site modules, domain_doctor.py
+
+### Files Updated
+- `agent-hub/CODE_MAP.md` — added 265-line audit addendum: dual structure warning, 20+ new file docs, 17 new bugs
+- `agent-hub/REINCARNATION.md` — added critical new findings addendum
+- `agent-hub/history/TASK_LOG.md` — this entry
+
+### Notes for Next Agent
+1. **FIX FIRST**: Add `com.raddflix.app/security` MethodChannel handler in `MainActivity.kt` — APK sig check is broken
+2. **FIX SECOND**: Add `stream_links` table to `db.py` DDL or remove `bulk_link_engine.py` SQL query
+3. **FIX THIRD**: Salt passwords in `mobile_api.py::_hash_password()` (bcrypt recommended)
+4. **NEVER TOUCH**: Root `lib/` and root `pubspec.yaml` — they are old stubs
+5. CI: Was GREEN at last commit per TASK_LOG. Do not break CI.
+6. See CODE_MAP.md addendum for full 17-bug table with file locations

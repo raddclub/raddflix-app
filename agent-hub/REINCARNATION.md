@@ -467,3 +467,44 @@ Also added `--obfuscate --split-debug-info` to release build.
 5. Server XOR encoding in radd-hub (when ready)
 
 Read `agent-hub/PROMPT_NEXT_AGENT.md` for full handoff with all priorities.
+
+---
+
+## Addendum — Full Deep Audit 2026-05-31 (Replit Agent)
+
+### CRITICAL NEW FINDING: DUAL FILE STRUCTURE
+
+The repo contains TWO sets of Flutter files:
+- **Root `lib/` + root `pubspec.yaml`** — OLD STUBS. Out of date. Never build from here.
+- **`raddflix_flutter/lib/` + `raddflix_flutter/pubspec.yaml`** — CANONICAL real app.
+
+Root stubs contain dead branding (JazzMAX, ZENO, JMX). Never edit them.
+
+### CRITICAL BUG: APK Signature Check NOT Working
+
+`MainActivity.kt` declares `SECURITY_CHANNEL = "com.raddflix.app/security"` but has **NO `setMethodCallHandler`** for it. `AppGuard._checkSignature()` in Flutter invokes `getSignatureFingerprint` — this throws `PlatformException` which is silently caught. Result: **APK signature enforcement is disabled in production despite the fingerprint being set.**
+
+Fix: Add `setMethodCallHandler` in `MainActivity.kt` for `SECURITY_CHANNEL` that reads the APK cert and returns its SHA-256. See `agent-hub/SECURITY_ARCHITECTURE.md`.
+
+### NEW BUGS SUMMARY (see CODE_MAP.md for full table)
+
+- **NEW-01** `bulk_link_engine.py` — queries `stream_links` table that doesn't exist → SQL error every 2h (silent)
+- **NEW-02** `mobile_api.py::_hash_password()` — unsalted SHA-256, rainbow table vulnerable
+- **NEW-03** `catalog_api.py::_watch_base()` — hardcoded `http://92.4.95.252` fallback (HTTP, not HTTPS)
+- **NEW-04** `MainActivity.kt` — SECURITY_CHANNEL unhandled → APK signature check silently disabled
+- **NEW-05** `search_api.py` — LIKE queries (no FTS5), slow at scale
+- **NEW-06** `security_telemetry.py` — unbounded `_ip_window` dict under DoS
+
+### NEW FILES CONFIRMED (not in prior docs)
+
+`show_detail_screen.dart` (series detail with resume logic), `admin_queue_screen.dart`, `local_media_screen.dart`, `local_folder_screen.dart`, `plan_expired_screen.dart`, `quota_full_screen.dart`, `tid_status_screen.dart`, `vault_settings_screen.dart`, `player_settings_screen.dart`, 7 player controllers (`ab_loop`, `ambilight`, `binge_guard`, `player_prefs`, `player_prefs_provider`, `scene_bookmark_store`, `smart_intro_store`), 12 player widgets, `cast_service.dart`, `local_media_service.dart`, `thumb_service.dart`, `vault_service.dart` (services/ — different from core/security/), `MediaStorePlugin.kt`, `CastOptionsProvider.kt`.
+
+### CONSTANTS CORRECTION
+
+`constants.dart` — `otpDeviceSwitchEnabled = true` (NOT false as CODE_MAP previously stated).
+`supportWhatsApp = '923001234567'` is a placeholder, not a verified real Jazz business number.
+
+### REAL PUBSPEC PACKAGES (raddflix_flutter/)
+
+Beyond what was documented: `flutter_animate`, `shimmer`, `smooth_page_indicator`, `intl`, `package_info_plus`, `url_launcher`, `share_plus`, `android_intent_plus`, `disk_space_plus`, `saver_gallery`, `flutter_colorpicker`, `audio_session`, `video_thumbnail`, `crypto`.
+
