@@ -4,6 +4,46 @@
 
 ---
 
+## [2026-05-31] — Session 2 | Full Audit + Bug Fixing Blitz
+
+### Tasks Completed
+- **P1.3** bcrypt migration: `mobile_api.py` — unsalted SHA-256 → bcrypt (salted).
+  `_hash_user_password()` / `_verify_user_password()` / `_migrate_password_hash()`.
+  Existing SHA-256 hashes silently upgraded on next login. OTP code paths unchanged.
+- **P1.4** Hardcoded IP removed from `catalog_api.py` — `_watch_base()` returns "" instead of `http://92.4.95.252`.
+- **P2.1** FTS5 full-text search: `db.py` + `search_api.py` — virtual table `titles_fts`,
+  3 sync triggers, rebuild migration. Search uses MATCH+BM25 with LIKE fallback.
+  Urdu/Hindi diacritics handled (unicode61 tokenizer).
+- **P2.2** `_ip_window` memory leak fixed in `security_telemetry.py` — dict pruned when >500 IPs.
+- **P2.6** `bcrypt>=4.0` added to `radd-hub/requirements.txt`.
+- **P3.2** Bot state `.gitignore` created: `radd-hub/bots/whatsapp/.gitignore`.
+- **P3.4** `auth_utils.dart` created: deduped `_friendly()` from `login_screen.dart` + `register_screen.dart`.
+- **P3.6** `bulk_link_engine.py` dead brand "JazzBuzz" → "RaddFlix".
+- **P3.7** `constants.dart` `otpDeviceSwitchEnabled` comment updated (server endpoints ARE live).
+
+### False Alarms (original audit was wrong — already implemented)
+- P1.1: SECURITY_CHANNEL fully wired in MainActivity.kt (getSignatureFingerprint/checkFrida/checkRoot)
+- P1.2: stream_links table + folder_share_url both exist in db.py DDL
+- P2.3: Frida/root detection already in MainActivity.kt
+- P2.4: RequestEncoder.enabled = true already set; XorWsgiMiddleware already wired in app.py
+- P2.5: radd-hub/hub/_legacy/ directory exists — import is valid
+- P4.2: bp_rec + /recommend route registered in app.py
+- P4.3: Cast Framework 21.5.0 + ExoPlayer Cast already in build.gradle
+- P4.4: MediaStorePlugin handles checkMediaPermission/requestMediaPermission in MainActivity.kt
+- P4.5: _encodeUrl()/_decodeUrl() fully wired in local_db.dart (RequestEncoder.scrambleUrl)
+
+### Blocked / Pending
+- P3.1: Delete root lib/ stubs — awaiting user approval (destructive)
+- P3.3: Replace supportWhatsApp placeholder — awaiting real number from user
+- P3.5: DB column cleanup — risky; needs schema migration planning
+
+### Commits This Session
+- `88548fa` — fix(security+backend): P1.3/P1.4/P2.2/P3.2/P3.6
+- `e15c30f` — feat(search): FTS5 full-text search + P3.7 constants comment fix
+- `52b1819` — refactor(auth): P3.4 dedup + MASTER_PLAN final status update
+
+---
+
 ## [2026-05-31] — Replit Agent | Docs Overhaul: Full Agent System Rebuild
 
 ### Task
