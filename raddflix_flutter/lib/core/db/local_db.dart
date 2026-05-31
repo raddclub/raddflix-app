@@ -373,44 +373,58 @@ class LocalDb {
   /// Merge a delta title into local DB.
   /// Uses SELECT then UPDATE or INSERT instead of UPSERT syntax,
   /// which requires SQLite 3.24+ and crashes Android 8 (BUG-A04).
+  /// Merge a delta title into local DB.
+  ///
+  /// delta_v2 carries full playback data: file_id, share_url, folder_share_url.
+  /// On UPDATE: only overwrites share_url if the incoming value is non-empty,
+  /// preserving any share_url written by a prior Oracle sync.
+  /// Uses SELECT then UPDATE/INSERT — avoids ON CONFLICT DO UPDATE which requires
+  /// SQLite 3.24+ and crashes Android 8 (BUG-A04).
   static Future<void> mergeDeltaTitle(Map<String, dynamic> row) async {
     final db = await instance;
     final id = row['id'] as int?;
     if (id == null) return;
-    final title     = row['title']       as String? ?? '';
-    final year      = row['year'];
-    final mediaType = row['media_type']  as String? ?? 'movie';
-    final desc      = row['description'] as String? ?? '';
-    final rating    = (row['rating'] as num?)?.toDouble() ?? 0.0;
-    final genres    = row['genres']      as String? ?? '[]';
-    final posterUrl = row['poster_url']  as String? ?? '';
-    final isFree    = (row['is_free'] == true || row['is_free'] == 1) ? 1 : 0;
-    final dbVer     = row['db_version']  as int?    ?? 0;
-    final language  = row['language']    as String? ?? '';
-    final status    = row['status']      as String? ?? 'released';
-    final isOngoing = (row['is_ongoing'] == true || row['is_ongoing'] == 1) ? 1 : 0;
+    final title          = row['title']            as String? ?? '';
+    final year           = row['year'];
+    final mediaType      = row['media_type']        as String? ?? 'movie';
+    final desc           = row['description']       as String? ?? '';
+    final rating         = (row['rating'] as num?)?.toDouble() ?? 0.0;
+    final genres         = row['genres']            as String? ?? '[]';
+    final posterUrl      = row['poster_url']        as String? ?? '';
+    final posterShareUrl = row['poster_share_url']  as String? ?? '';
+    final isFree         = (row['is_free'] == true || row['is_free'] == 1) ? 1 : 0;
+    final dbVer          = row['db_version']        as int?    ?? 0;
+    final language       = row['language']          as String? ?? '';
+    final status         = row['status']            as String? ?? 'released';
+    final isOngoing      = (row['is_ongoing'] == true || row['is_ongoing'] == 1) ? 1 : 0;
+    final shareUrl       = row['share_url']         as String? ?? '';
+    final folderShareUrl = row['folder_share_url']  as String? ?? '';
+    final fileId         = row['file_id']           as String? ?? '';
 
     final existing = await db.query('titles',
-        columns: ['id', 'poster_url', 'db_version'],
+        columns: ['id', 'poster_url', 'db_version', 'share_url'],
         where: 'id = ?',
         whereArgs: [id]);
 
     if (existing.isNotEmpty) {
-      final oldPoster = existing.first['poster_url'] as String? ?? '';
-      final oldDbVer  = existing.first['db_version'] as int?    ?? 0;
+      final oldPoster   = existing.first['poster_url'] as String? ?? '';
+      final oldDbVer    = existing.first['db_version'] as int?    ?? 0;
+      final oldShareUrl = existing.first['share_url']  as String? ?? '';
       await db.update('titles', {
-        'title':       title,
-        'year':        year,
-        'media_type':  mediaType,
-        'description': desc,
-        'rating':      rating,
-        'genres':      genres,
-        'poster_url':  posterUrl.isNotEmpty ? posterUrl : oldPoster,
-        'is_free':     isFree,
-        'db_version':  dbVer > oldDbVer ? dbVer : oldDbVer,
-        'language':    language,
-        'status':      status,
-        'is_ongoing':  isOngoing,
+        'title':            title,
+        'year':             year,
+        'media_type':       mediaType,
+        'description':      desc,
+        'rating':           rating,
+        'genres':           genres,
+        'poster_url':       posterUrl.isNotEmpty ? posterUrl : oldPoster,
+        'is_free':          isFree,
+        'db_version':       dbVer > oldDbVer ? dbVer : oldDbVer,
+        'language':         language,
+        'status':           status,
+        'is_ongoing':       isOngoing,
+        // Only overwrite share_url if delta has a value; preserve Oracle-synced URL otherwise
+        'share_url':        shareUrl.isNotEmpty ? shareUrl : oldShareUrl,
       }, where: 'id = ?', whereArgs: [id]);
     } else {
       await db.insert('titles', {
@@ -427,12 +441,17 @@ class LocalDb {
         'language':    language,
         'status':      status,
         'is_ongoing':  isOngoing,
+        'share_url':   shareUrl,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
+
+    // poster_share_url is stored in stream_cache table (no column in titles yet).
+    // folder_share_url and fileId are used by the player at runtime via getShareUrl().
+    // Future migration: add folder_share_url column to titles when needed.
+    _ = posterShareUrl; _ = folderShareUrl; _ = fileId; // suppress unused warnings
   }
 
-
-  /// Get the JazzDrive share_url for a file_id.
+    /// Get the JazzDrive share_url for a file_id.
   /// Checks both episodes (for TV) and titles (for movies) tables.
   static Future<String?> getShareUrl(String fileId) async {
     final db = await instance;

@@ -20,16 +20,14 @@ class AppConstants {
   // ── JazzDrive (zero-rated CDN) ─────────────────────────────────────────────
   static const String jazzDriveCloudBase = 'https://cloud.jazzdrive.com.pk';
 
-  /// Zero-rated delta.json URL — metadata only (no file_id / share_url).
-  /// Updated in the Zero-Rating Manager once delta.json is uploaded to JazzDrive.
-  /// Falls back to the Oracle delta endpoint when no JazzDrive URL is configured.
-  /// Empty = JazzDrive delta fallback disabled (Oracle-only sync).
-  /// BUG-A30: derived from apiBaseUrl (mutable) so RemoteConfig.fetch() always wins.
-  static String get jazzDriveDeltaUrl => '\$apiBaseUrl/api/catalog/delta';
+  /// Zero-rated delta.json URL — 24h rolling window, full playback data.
+  /// Updated by RemoteConfig.fetch() from /api/config on every startup.
+  /// Cached in SharedPreferences so it survives offline restarts.
+  /// Empty = JazzDrive delta disabled (Oracle-only sync).
+  /// Must be a mutable static field (not a getter) — RemoteConfig writes to it.
+  static String jazzDriveDeltaUrl = '';
 
-  /// Legacy: full db_update.json URL (includes file_id — do NOT set this to a
-  /// public JazzDrive URL; it is a security risk). Kept for backward compat only.
-  /// BUG-A30: derived from apiBaseUrl so it follows RemoteConfig overrides.
+  /// Legacy: full db_update.json URL — Oracle-only, never public JazzDrive.
   static String get jazzDriveDbUpdateUrl => '\$apiBaseUrl/api/catalog/db_update';
 
   /// Stream link cache TTL. Same link reused for both watch + download within TTL.

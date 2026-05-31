@@ -52,10 +52,19 @@ def app_config():
     """Return the Flutter app remote config (api_base_url, min_version_code).
     No auth required — Flutter fetches this before the user logs in."""
     from .. import config as _cfg
+    from .. import db as _db
+    jd_delta_row = None
+    try:
+        with _db.conn() as _c:
+            jd_delta_row = _c.execute("SELECT v FROM settings WHERE k='jd_delta_url'").fetchone()
+    except Exception:
+        pass
+    jd_delta_url = (jd_delta_row["v"] if jd_delta_row else None) or ""
     return jsonify({
         'api_base_url': 'http://92.4.95.252',
         'min_version_code': 1,
         'update_url': 'https://github.com/raddclub/raddflix-app/releases/latest',
+        'jd_delta_url': jd_delta_url,
         'note': 'Served from Oracle server — edit this route to change server URL',
     })
 

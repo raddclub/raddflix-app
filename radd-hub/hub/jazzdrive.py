@@ -1695,6 +1695,121 @@ def upload_file_to_jazzdrive(file_path: str | Path) -> dict:
         log.error("upload_file_to_jazzdrive error: %s", e)
         return {"ok": False, "error": str(e)}
 
+
+def upload_json_to_jazzdrive(file_path) -> dict:
+    """Upload a JSON file (e.g. delta.json) to JazzDrive, bypassing the
+    media-only extension check in uploader.py.
+
+    Used exclusively for delta.json zero-rating uploads. The file is small
+    (<1 MB) so no chunking needed. Uses the active JazzDrive session tokens
+    from the accounts DB or session file.
+
+    Returns {"ok": True, "share_url": "...", "url": "..."} on success.
+    """
+    import requests as _req
+    file_path = Path(file_path)
+    if not file_path.exists():
+        return {"ok": False, "error": f"File not found: {file_path}"}
+
+    tokens = _load_session()
+    vk  = tokens.get("validationkey") or tokens.get("validation_key", "")
+    jid = tokens.get("jsessionid", "")
+
+    if not vk or not jid:
+        # Try loading from DB accounts table
+        try:
+            with db.conn() as _c:
+                row = _c.execute(
+                    "SELECT validation_key, jsessionid FROM accounts "
+                    "WHERE role='flix' AND is_active=1 ORDER BY id LIMIT 1"
+                ).fetchone()
+                if row:
+                    vk  = row["validation_key"] or ""
+                    jid = row["jsessionid"] or ""
+        except Exception:
+            pass
+
+    if not vk or not jid:
+        return {"ok": False, "error": "No active JazzDrive session — log in via Settings first"}
+
+    proxies = resolve_proxies()
+    headers = get_auth_headers(vk, jid)
+    headers["Content-Type"] = None  # let requests set multipart boundary
+
+    try:
+        # Step 1: Upload the file
+        with open(file_path, "rb") as fh:
+            r = _req.post(
+                f"{CLOUD_BASE}/sapi/media/document?action=upload",
+                files={"file": (file_path.name, fh, "application/json")},
+                headers={k: v for k, v in headers.items() if v is not None},
+                params={"validationkey": vk},
+                timeout=60,
+                proxies=proxies,
+            )
+
+        if r.status_code not in (200, 201):
+            # Fallback: try the video upload endpoint (some JD versions use it for all files)
+            with open(file_path, "rb") as fh:
+                r = _req.post(
+                    f"{CLOUD_BASE}/sapi/media/video?action=upload",
+                    files={"file": (file_path.name, fh, "application/json")},
+                    headers={k: v for k, v in headers.items() if v is not None},
+                    params={"validationkey": vk},
+                    timeout=60,
+                    proxies=proxies,
+                )
+
+        if r.status_code not in (200, 201):
+            return {"ok": False, "error": f"JazzDrive upload HTTP {r.status_code}: {r.text[:200]}"}
+
+        try:
+            data = r.json()
+        except Exception:
+            return {"ok": False, "error": f"JazzDrive upload non-JSON response: {r.text[:200]}"}
+
+        d = data.get("data", data)
+        remote_id = (
+            d.get("id") or d.get("fileId") or d.get("file_id") or
+            (d.get("list") or [{}])[0].get("id") if isinstance(d.get("list"), list) else None
+        )
+
+        if not remote_id:
+            log.warning("upload_json_to_jazzdrive: no remote_id in response — %s", data)
+            return {"ok": False, "error": f"Upload response missing file ID: {data}"}
+
+        # Step 2: Create share link for the uploaded file
+        share_r = _req.post(
+            f"{CLOUD_BASE}/sapi/link/share?action=create",
+            json={"data": {"ids": [str(remote_id)], "type": "file"}},
+            headers=get_auth_headers(vk, jid),
+            params={"validationkey": vk},
+            timeout=30,
+            proxies=proxies,
+        )
+
+        share_url = ""
+        if share_r.status_code == 200:
+            try:
+                sd = share_r.json()
+                sd = sd.get("data", sd)
+                key = sd.get("key") or sd.get("shareKey") or sd.get("share_key") or ""
+                if key:
+                    share_url = f"{CLOUD_BASE}/share/f/{key}"
+                else:
+                    share_url = sd.get("url") or sd.get("shareUrl") or ""
+            except Exception:
+                pass
+
+        log.info("upload_json_to_jazzdrive: uploaded %s → remote_id=%s share_url=%s",
+                 file_path.name, remote_id, share_url or "(none)")
+        return {"ok": True, "remote_id": str(remote_id), "share_url": share_url, "url": share_url}
+
+    except Exception as e:
+        log.error("upload_json_to_jazzdrive error: %s", e)
+        return {"ok": False, "error": str(e)}
+
+
 def generate_folder_image_link(folder_share_url: str, filename_hint: str = "poster") -> dict:
     """Fetch a direct download URL for a poster/image file inside a shared JazzDrive folder.
 

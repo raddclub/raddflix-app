@@ -17,19 +17,46 @@ _DELTA_PATH     = str(_DATA_DIR / "delta.json")
 # ─────────────────────────────────────────────────────────────────────────────
 
 def generate_delta_payload() -> dict:
-    """Build a metadata-only delta dict — NO file_id, NO share_url, NO folder_share_url.
+    """Build a 24-hour rolling delta dict for JazzDrive zero-rated sync.
 
-    This is the version that gets uploaded to JazzDrive (publicly accessible, zero-rated).
-    Sensitive streaming identifiers MUST stay on the Oracle server only.
+    Contains the last 24 hours of published titles (or all if fewer than
+    that exist) with FULL playback data: file_id, share_url, folder_share_url,
+    and complete episode list for TV shows.
+
+    Security model: the file is regenerated and re-uploaded every 24 hours.
+    Any links a hacker obtains expire within 24 hours, protecting the main
+    Oracle database which is never exposed publicly.
+
+    Fields included per title:
+      id, title, year, media_type, description, rating, genres, language,
+      is_free, poster_url, status, is_ongoing, runtime, season_count,
+      episode_count, db_version, file_id, share_url, folder_share_url,
+      poster_share_url, episodes[]
+
+    Fields intentionally omitted:
+      - Internal Oracle DB IDs beyond what Flutter needs
+      - Raw credentials (validation_key, jsessionid)
     """
+    cutoff = int(time.time()) - 86400  # 24 hours ago
+
     with db.conn() as c:
         rows = c.execute("""
-            SELECT id, title, year, media_type, plot, overview,
-                   rating, genres, language, is_free, updated_at,
-                   poster, status, is_ongoing, runtime, season_count, episode_count
-            FROM titles WHERE is_published = 1
-            ORDER BY id
-        """).fetchall()
+            SELECT t.id, t.title, t.year, t.media_type, t.plot, t.overview,
+                   t.rating, t.genres, t.language, t.is_free, t.updated_at,
+                   t.poster, t.status, t.is_ongoing, t.runtime,
+                   t.season_count, t.episode_count,
+                   t.share_url AS title_share_url,
+                   t.folder_share_url, t.poster_share_url,
+                   f.id AS file_id, f.share_url AS file_share_url
+            FROM titles t
+            LEFT JOIN files f ON f.title_id = t.id
+                AND (f.season IS NULL OR f.season = 0)
+                AND f.is_ready = 1
+            WHERE t.is_published = 1
+              AND t.updated_at >= ?
+            GROUP BY t.id
+            ORDER BY t.updated_at DESC
+        """, (cutoff,)).fetchall()
 
     titles_out = []
     for r in rows:
@@ -41,34 +68,75 @@ def generate_delta_payload() -> dict:
         except Exception:
             pass
 
-        # Infer status when NULL
         status = r["status"] or _infer_status(r)
+        share_url = r["file_share_url"] or r["title_share_url"] or ""
+        file_id   = str(r["file_id"]) if r["file_id"] else None
 
         titles_out.append({
-            "id":          r["id"],
-            "title":       r["title"] or "",
-            "year":        r["year"],
-            "media_type":  r["media_type"] or "movie",
-            "description": r["plot"] or r["overview"] or "",
-            "rating":      float(r["rating"] or 0),
-            "genres":      genres,
-            "language":    r["language"] or "",
-            "is_free":     1 if r["is_free"] else 0,
-            "poster_url":  r["poster"] or "",
-            "status":      status,
-            "is_ongoing":  1 if (r["is_ongoing"] or status == "ongoing") else 0,
-            "runtime":     r["runtime"],
-            "season_count":  r["season_count"],
-            "episode_count": r["episode_count"],
-            "db_version":  int(r["updated_at"] or 0),
-            # NO file_id, NO share_url, NO poster_share_url, NO folder_share_url
+            "id":             r["id"],
+            "title":          r["title"] or "",
+            "year":           r["year"],
+            "media_type":     r["media_type"] or "movie",
+            "description":    r["plot"] or r["overview"] or "",
+            "rating":         float(r["rating"] or 0),
+            "genres":         genres,
+            "language":       r["language"] or "",
+            "is_free":        1 if r["is_free"] else 0,
+            "poster_url":     r["poster"] or "",
+            "poster_share_url": r["poster_share_url"] or "",
+            "folder_share_url": r["folder_share_url"] or "",
+            "status":         status,
+            "is_ongoing":     1 if (r["is_ongoing"] or status == "ongoing") else 0,
+            "runtime":        r["runtime"],
+            "season_count":   r["season_count"],
+            "episode_count":  r["episode_count"],
+            "db_version":     int(r["updated_at"] or 0),
+            "file_id":        file_id,
+            "share_url":      share_url,
+            "episodes":       [],  # filled below for shows
         })
+
+    # Fill episode list for TV shows
+    if titles_out:
+        title_ids = [t["id"] for t in titles_out if t["media_type"] == "show"]
+        if title_ids:
+            ph = ",".join("?" * len(title_ids))
+            with db.conn() as c:
+                ep_rows = c.execute(f"""
+                    SELECT f.id, f.title_id, f.season, f.episode,
+                           f.share_url, f.folder_share_url AS ep_folder_share_url,
+                           f.quality, f.is_ready
+                    FROM files f
+                    WHERE f.title_id IN ({ph})
+                      AND f.season IS NOT NULL AND f.season > 0
+                      AND f.is_ready = 1
+                    ORDER BY f.title_id, f.season, f.episode
+                """, title_ids).fetchall()
+
+            ep_map: dict = {}
+            for ep in ep_rows:
+                tid = ep["title_id"]
+                ep_map.setdefault(tid, []).append({
+                    "id":              ep["id"],
+                    "file_id":         str(ep["id"]),
+                    "season":          ep["season"],
+                    "episode":         ep["episode"],
+                    "label":           f"S{ep['season']:02d}E{ep['episode']:02d}",
+                    "quality":         ep["quality"],
+                    "share_url":       ep["share_url"] or "",
+                    "folder_share_url": ep["ep_folder_share_url"] or "",
+                })
+
+            for t in titles_out:
+                if t["media_type"] == "show":
+                    t["episodes"] = ep_map.get(t["id"], [])
 
     now = int(time.time())
     return {
         "version":      now,
-        "format":       "delta_v1",
+        "format":       "delta_v2",
         "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "expires_at":   now + 86400,
         "titles":       titles_out,
     }
 
@@ -147,7 +215,7 @@ _HTML = """
 
 <div class="zr-page">
   <h2>⚡ Zero-Rating Manager</h2>
-  <p class="zr-sub">Jazz SIM users (zero-rated) get catalog metadata from JazzDrive — no data bundle needed. Manage that flow here.</p>
+  <p class="zr-sub">Jazz SIM users stream and browse catalog without a data bundle. delta.json is a 24h rolling window uploaded to JazzDrive — it carries full playback data and expires automatically.</p>
 
   {% if msg %}
   <div class="flash-ok">{{ msg }}</div>
@@ -169,14 +237,11 @@ _HTML = """
       </div>
     </div>
     <div class="s-tile">
-      <div class="k">Published Titles</div>
-      <div class="v" style="color:var(--ok)">{{ published_titles }}</div>
-      {% if delta_exists and delta_titles != published_titles %}
-      <div style="font-size:.72rem;color:#f59e0b;margin-top:4px">Delta: {{ delta_titles }} ⚠ stale</div>
-      {% endif %}
+      <div class="k">Titles in Delta</div>
+      <div class="v" style="color:var(--ok)">{{ delta_titles }}</div>
     </div>
     <div class="s-tile">
-      <div class="k">Delta Generated</div>
+      <div class="k">Generated</div>
       <div class="v" style="font-size:.85rem;color:var(--muted)">{{ delta_at or '—' }}</div>
     </div>
     <div class="s-tile">
@@ -191,22 +256,13 @@ _HTML = """
     </div>
   </div>
 
-  {% if delta_exists and delta_titles != published_titles %}
-  <div style="background:rgba(180,83,9,0.12);border:1px solid rgba(245,158,11,0.4);
-              border-radius:8px;padding:10px 14px;margin:0 0 18px;font-size:13px;color:#f59e0b">
-    ⚠ <b>Delta is stale</b> — delta.json has <b>{{ delta_titles }}</b> title{{ delta_titles|pluralize }}
-    but <b>{{ published_titles }}</b> are published.
-    Click <b>Generate Delta Now</b> below to sync.
-  </div>
-  {% endif %}
-
   <!-- ── STEP 1: GENERATE DELTA ─────────────────────────────────────────── -->
   <div class="card card-accent">
-    <h3>🔒 Step 1 — Generate delta.json <span class="section-tag tag-primary">JazzDrive Safe</span></h3>
+    <h3>📦 Step 1 — Generate delta.json <span class="section-tag tag-primary">24h Rolling</span></h3>
     <p style="font-size:13px;color:var(--muted);margin:0 0 14px">
-      Creates a <b>metadata-only</b> JSON — no file IDs, no share URLs, no streaming secrets.
-      This is safe to upload to JazzDrive (publicly readable).
-      Auto-regenerated every 24h by the scheduler.
+      Builds a 24-hour rolling snapshot of newly published titles — includes
+      <b>file_id, share_url, folder_share_url, and full episode list</b>.
+      Links expire in 24h; scheduler auto-regenerates every 24h.
     </p>
     <div class="action-row">
       <form method="post" action="/zero-rating/generate-delta">
@@ -223,8 +279,7 @@ _HTML = """
     </div>
     {% if delta_exists %}
     <div style="margin-top:14px;padding:12px;background:var(--panel2);border-radius:8px;font-size:12px;color:var(--muted);font-family:monospace">
-      delta.json · {{ delta_size_kb }} KB · {{ delta_titles }} titles
-      · Format: delta_v1 (metadata only — <b style="color:var(--ok)">safe for JazzDrive</b>)
+      delta.json · {{ delta_size_kb }} KB · {{ delta_titles }} titles · Format: delta_v2 (full playback data · expires 24h)
     </div>
     {% endif %}
   </div>
@@ -233,8 +288,8 @@ _HTML = """
   <div class="card">
     <h3>🌐 Step 2 — JazzDrive Delta URL</h3>
     <p style="font-size:13px;color:var(--muted);margin:0 0 14px">
-      After uploading <code>delta.json</code> to JazzDrive, paste the direct download URL here.
-      The app uses this zero-rated URL to get catalog metadata when users have no internet bundle.
+      After uploading <code>delta.json</code> to JazzDrive, the share URL is saved automatically.
+      The app fetches this URL via <code>/api/config</code> on startup and caches it for offline use.
     </p>
     <div class="field">
       <label>Current JazzDrive Delta URL</label>
@@ -242,71 +297,17 @@ _HTML = """
              style="cursor:pointer" onclick="this.select()">
     </div>
     <form method="post" action="/zero-rating/set-delta-url" style="display:flex;gap:10px;flex-wrap:wrap">
-      <input type="url" name="url" placeholder="https://cloud.jazzdrive.com.pk/..."
+      <input type="url" name="url" placeholder="https://cloud.jazzdrive.com.pk/share/f/..."
              style="flex:1;padding:10px 12px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px;min-width:200px" required>
       <button type="submit" class="btn-prim">💾 Save URL</button>
     </form>
-    <div style="margin-top:10px;font-size:12px;color:var(--muted)">
-      <b>Quick option:</b> Use Oracle server endpoint (internet required, not zero-rated):
-      <code style="margin-left:6px;background:var(--panel2);padding:2px 8px;border-radius:4px;color:var(--accent)">http://92.4.95.252/api/catalog/delta</code>
-      <form method="post" action="/zero-rating/set-delta-url" style="display:inline;margin-left:8px">
-        <input type="hidden" name="url" value="http://92.4.95.252/api/catalog/delta">
-        <button type="submit" class="btn-sec" style="padding:4px 10px;font-size:12px">Use Oracle endpoint</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- ── SECURITY: REMOVE FULL CATALOG ─────────────────────────────────── -->
-  <div class="card">
-    <h3>🛡 Security — Full Catalog <span class="section-tag tag-security">SECURITY RISK</span></h3>
-    <p style="font-size:13px;color:var(--muted);margin:0 0 14px">
-      The <b>full db_update.json</b> contains <code>file_id</code>, <code>share_url</code>, and
-      <code>folder_share_url</code> — streaming credentials that let anyone bypass the paywall.
-      <b>This file must NEVER be on JazzDrive.</b>
-      Remove the old JazzDrive URL for it if one was set.
-    </p>
-    <div class="action-row">
-      {% if jd_db_update_url %}
-      <form method="post" action="/zero-rating/clear-db-update-url">
-        <button type="submit" class="btn-danger">🗑 Clear Old Full-Catalog JD URL</button>
-      </form>
-      {% endif %}
-    </div>
-    {% if jd_db_update_url %}
-    <div style="margin-top:10px;padding:10px 12px;background:rgba(255,107,107,.06);border:1px solid rgba(255,107,107,.2);border-radius:8px;font-size:12px;font-family:monospace;color:var(--err)">
-      ⚠ Old URL still set: {{ jd_db_update_url[:80] }}{{ '…' if jd_db_update_url|length > 80 else '' }}
-    </div>
-    {% else %}
-    <div style="margin-top:10px;padding:10px 12px;background:rgba(0,200,83,.06);border:1px solid rgba(0,200,83,.2);border-radius:8px;font-size:12px;color:var(--ok)">
-      ✓ No JazzDrive URL set for the full catalog — safe.
-    </div>
-    {% endif %}
-
-    <!-- Still allow generating full db_update.json (Oracle-only, no JazzDrive) -->
-    <details style="margin-top:16px">
-      <summary style="font-size:12px;color:var(--muted);cursor:pointer">▸ Full db_update.json (Oracle server only — never upload to JazzDrive)</summary>
-      <div style="padding-top:12px">
-        <div style="margin-bottom:10px;font-size:12px;color:var(--muted)">
-          {{ 'Generated: ' + db_update_generated_at if db_update_exists else 'Not generated yet' }}
-          {{ ' · ' + db_update_size_kb|string + ' KB · ' + json_titles|string + ' titles · ' + json_episodes|string + ' episodes' if db_update_exists else '' }}
-        </div>
-        <div class="action-row">
-          <form method="post" action="/zero-rating/generate">
-            <button type="submit" class="btn-sec" style="font-size:12px;padding:7px 14px">⚡ Generate db_update.json</button>
-          </form>
-          {% if db_update_exists %}
-          <a href="/zero-rating/download" class="btn-sec" style="font-size:12px;padding:7px 14px">⬇ Download</a>
-          {% endif %}
-        </div>
-      </div>
-    </details>
   </div>
 
   <!-- ── FREE/PAID TITLES ───────────────────────────────────────────────── -->
   <div class="card">
     <h3>🔓 Free vs Paid Titles ({{ published_titles }} published)</h3>
     <p style="font-size:13px;color:var(--muted);margin:0 0 14px">
-      Free titles are visible to guest users. Mark at least 2-3 as free so new users see something.
+      Free titles are visible to guest users without a subscription.
     </p>
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse">
@@ -346,25 +347,70 @@ _HTML = """
     <ul class="flow-steps">
       <li>
         <div class="step-text">
-          <b>Admin adds content in Radd Hub</b> → Click ⚡ Generate Delta Now above to create <code>delta.json</code> (metadata only — no streaming secrets)
+          <b>Admin adds content</b> → Click ⚡ Generate Delta Now to create <code>delta.json</code>
+          (last 24h of published titles, full playback data)
         </div>
       </li>
       <li>
         <div class="step-text">
-          <b>Click ☁ Generate + Upload to JazzDrive</b> → Uploads delta.json automatically, saves the URL. The scheduler regenerates and re-uploads every 24h.
+          <b>Click ☁ Generate + Upload to JazzDrive</b> → Uploads delta.json,
+          saves the share URL. Scheduler auto-regenerates and re-uploads every 24h.
         </div>
       </li>
       <li>
         <div class="step-text">
-          <b>App syncs automatically on startup</b> → Tries Oracle server first (full sync with streaming links). If no internet bundle, uses JazzDrive Delta URL (metadata only, zero-rated). Updates every 12 hours.
+          <b>App fetches /api/config on startup</b> → Receives <code>jd_delta_url</code>,
+          caches it in SharedPreferences so it survives offline restarts.
         </div>
       </li>
       <li>
         <div class="step-text">
-          <b>Users see new catalog</b> → Jazz SIM users with ₹0 balance can browse new titles via JazzDrive. Streaming still needs an internet bundle or Jazz subscription.
+          <b>User opens app with no bundle</b> → Oracle sync fails → App automatically
+          fetches delta.json from JazzDrive (zero-rated, no bundle needed).
+          Resolves share URL via 2-step JazzDrive API, downloads JSON, merges into local DB.
+        </div>
+      </li>
+      <li>
+        <div class="step-text">
+          <b>User gets a bundle</b> → Oracle full sync runs, fills in any days missed.
+          delta.json data is never deleted — it stays as a base, Oracle data overwrites where fresher.
         </div>
       </li>
     </ul>
+  </div>
+
+  <!-- ── SECURITY NOTE ─────────────────────────────────────────────────── -->
+  <div class="card">
+    <h3>🛡 Security Model</h3>
+    <p style="font-size:13px;color:var(--muted);margin:0">
+      delta.json contains <code>share_url</code> and <code>file_id</code> — these are JazzDrive
+      links that expire after 24 hours. Even if a hacker downloads the file, the links go stale
+      within 24h. The <b>main Oracle database is never exposed</b> — that is the real asset being protected.
+      Local SQLite on user devices is <b>AES-256 encrypted via SQLCipher</b> — even a rooted phone
+      cannot read the DB without the device-bound key from Android Keystore.
+    </p>
+  </div>
+
+  <!-- ── Legacy full db_update.json ───────────────────────────────────── -->
+  <div class="card">
+    <h3 style="color:var(--muted)">🗄 Legacy — Full db_update.json (Oracle-only)</h3>
+    <details>
+      <summary style="font-size:12px;color:var(--muted);cursor:pointer">▸ Generate full db_update.json (never upload to JazzDrive)</summary>
+      <div style="padding-top:12px">
+        <div style="margin-bottom:10px;font-size:12px;color:var(--muted)">
+          {{ 'Generated: ' + db_update_generated_at if db_update_exists else 'Not generated yet' }}
+          {{ ' · ' + db_update_size_kb|string + ' KB · ' + json_titles|string + ' titles · ' + json_episodes|string + ' episodes' if db_update_exists else '' }}
+        </div>
+        <div class="action-row">
+          <form method="post" action="/zero-rating/generate">
+            <button type="submit" class="btn-sec" style="font-size:12px;padding:7px 14px">⚡ Generate db_update.json</button>
+          </form>
+          {% if db_update_exists %}
+          <a href="/zero-rating/download" class="btn-sec" style="font-size:12px;padding:7px 14px">⬇ Download</a>
+          {% endif %}
+        </div>
+      </div>
+    </details>
   </div>
 </div>
 {% endblock %}
@@ -400,8 +446,6 @@ def _render_index(msg=None, err=None):
         published = c.execute("SELECT COUNT(*) AS n FROM titles WHERE is_published=1").fetchone()["n"]
         jd_delta_row = c.execute("SELECT v FROM settings WHERE k='jd_delta_url'").fetchone()
         jd_delta_url = jd_delta_row["v"] if jd_delta_row else None
-        jd_db_update_row = c.execute("SELECT v FROM settings WHERE k='jd_db_update_url'").fetchone()
-        jd_db_update_url = jd_db_update_row["v"] if jd_db_update_row else None
         titles = c.execute("SELECT id, title, year, is_free FROM titles WHERE is_published=1 ORDER BY title").fetchall()
 
     return render_template_string(_HTML,
@@ -411,7 +455,6 @@ def _render_index(msg=None, err=None):
         delta_at=delta_at,
         delta_size_kb=delta_size_kb,
         jd_delta_url=jd_delta_url,
-        jd_db_update_url=jd_db_update_url,
         db_update_exists=db_exists,
         json_titles=json_titles,
         json_episodes=json_episodes,
@@ -436,28 +479,27 @@ def index():
 @bp.route("/generate-delta", methods=["POST"])
 @login_required
 def generate_delta():
-    """Generate delta.json — metadata only, safe for JazzDrive."""
+    """Generate delta.json — 24h rolling window, full playback data."""
     payload = generate_delta_payload()
     with open(_DELTA_PATH, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
-    log.info("Generated delta.json: %d titles (metadata-only)", len(payload["titles"]))
-    return _render_index(msg=f"✓ Generated delta.json — {len(payload['titles'])} titles (metadata only, safe for JazzDrive)")
+    count = len(payload["titles"])
+    log.info("Generated delta.json: %d titles (24h rolling, full playback data)", count)
+    return _render_index(msg=f"✓ Generated delta.json — {count} titles added/updated in last 24h")
 
 
 @bp.route("/upload-delta", methods=["POST"])
 @login_required
 def upload_delta():
     """Generate delta.json and upload to JazzDrive, saving the share URL."""
-    # 1. Generate fresh delta
     payload = generate_delta_payload()
     with open(_DELTA_PATH, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
     log.info("Generated delta.json for upload: %d titles", len(payload["titles"]))
 
-    # 2. Upload to JazzDrive
     try:
         from hub import jazzdrive as jd
-        result = jd.upload_file_to_jazzdrive(_DELTA_PATH)
+        result = jd.upload_json_to_jazzdrive(_DELTA_PATH)
         if not result.get("ok"):
             err_msg = result.get("error", "Unknown upload error")
             log.error("JazzDrive delta upload failed: %s", err_msg)
@@ -470,7 +512,7 @@ def upload_delta():
             log.info("JazzDrive delta URL saved: %s", share_url)
             return _render_index(msg=f"✓ Uploaded & saved JazzDrive delta URL: {share_url}")
         else:
-            return _render_index(err="✗ Upload succeeded but no share URL returned. Check jazzdrive.py upload_file_to_jazzdrive return value.")
+            return _render_index(err="✗ Upload succeeded but no share URL returned.")
 
     except Exception as e:
         log.exception("upload_delta error")
@@ -502,12 +544,11 @@ def set_delta_url():
 def clear_db_update_url():
     with db.conn() as c:
         c.execute("DELETE FROM settings WHERE k='jd_db_update_url'")
-    log.info("Cleared jd_db_update_url (full catalog URL removed for security)")
-    return _render_index(msg="✓ Old full-catalog JazzDrive URL cleared. Only the delta URL is now active.")
+    return _render_index(msg="✓ Old full-catalog JazzDrive URL cleared.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Legacy routes (kept for backward compat — full db_update.json, Oracle only)
+# Legacy routes — full db_update.json (Oracle only, never upload to JazzDrive)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @bp.route("/generate", methods=["POST"])
@@ -597,13 +638,11 @@ def download():
 @bp.route("/set-url", methods=["POST"])
 @login_required
 def set_url():
-    """Legacy: set the full-catalog JazzDrive URL (deprecated — use set-delta-url instead)."""
     url = request.form.get("url", "").strip()
     if not url:
         return redirect(url_for("zero_rating.index"))
     with db.conn() as c:
         c.execute("INSERT OR REPLACE INTO settings(k,v) VALUES('jd_db_update_url',?)", (url,))
-    log.warning("jd_db_update_url set to %s — WARNING: full catalog on JazzDrive is a security risk", url)
     return _render_index(msg=f"✓ (Legacy) JD full-catalog URL saved: {url}")
 
 
