@@ -348,3 +348,59 @@ Architecture decisions made this session (permanent):
 - AppGuard works but is NOT enforcing signature check yet (fingerprint placeholder)
 - RequestEncoder.scrambleUrl() exists — wire it in local_db.dart (see SECURITY_ARCHITECTURE.md)
 - WA bot still not running on Oracle (BUG-P17-08) — OTP stored not delivered
+
+---
+
+## Session 2026-05-31b — Phase 25 Security Wiring (Continuation)
+
+### Done
+
+**MainActivity.kt security MethodChannel wired:**
+- Added `SECURITY_CHANNEL = "com.raddflix.app/security"`
+- `getSignatureFingerprint` → PackageManager SHA-256 cert fingerprint (API 28+ and legacy)
+- `checkFrida` → /proc/self/maps scan for frida/gadget/gum-js-loop/linjector
+- `checkRoot` → checks 6 common su binary paths
+- Added `import android.content.pm.PackageManager`
+
+**ApiClient._TamperInterceptor wired:**
+- Added as FIRST interceptor (before logging + auth)
+- When `AppGuard.isTampered=true`: returns fake 200 responses with empty data
+- Per-path fake responses: catalog→{items:[]}, auth→{ok:false}, plans→{plans:[]},
+  notifications→{notifications:[]}, default→{ok:false}
+- Import `app_guard.dart` added to api_client.dart
+
+**local_db.dart share_url scrambling wired:**
+- `upsertTitle()` → `await _encodeUrl(item.shareUrl ?? '')` before INSERT
+- `mergeDeltaTitle()` → `await _encodeUrl(shareUrl)` in both UPDATE and INSERT branches
+- `upsertEpisode()` → scrambles `ep['share_url']` before INSERT
+- `getShareUrl()` → `await _decodeUrl(url)` on return from both episodes and titles tables
+- Added static helpers: `_encodeUrl()` / `_decodeUrl()` using `DeviceIdentifier.getDeviceId()`
+- Backward compatible: plain URLs (no RF1: prefix) pass through unmodified
+- Added imports: `device_id.dart`, `request_encoder.dart`
+
+**PROMPT_NEXT_AGENT.md updated:**
+- Reflects all completed Phase 25 tasks (25.1, 25.2, 25.4)
+- Updated priority queue (Priority 1: verify CI, Priority 2: set fingerprint, etc.)
+- Added security architecture summary diagram
+
+### Files Changed
+- `raddflix_flutter/android/app/src/main/kotlin/com/raddflix/app/MainActivity.kt`
+- `raddflix_flutter/lib/core/api/api_client.dart`
+- `raddflix_flutter/lib/core/db/local_db.dart`
+- `agent-hub/PROMPT_NEXT_AGENT.md` (updated)
+
+### Commits
+- 072a0fe — feat(security): wire tamper gate in ApiClient + native security channel
+- [this batch] — feat(security/db): wire share_url scrambling in local_db + update docs
+
+### What Was NOT Done (next agent picks up)
+- Official APK fingerprint not set (placeholder — enforcement not live)
+- Server-side XOR encoding not deployed (request_encoding.py spec in SECURITY_ARCHITECTURE.md)
+- Telemetry on tamper detection not wired
+- CI result still pending at time of writing — verify it passes
+
+### Notes for Next Agent
+- **Read PROMPT_NEXT_AGENT.md** — complete updated handoff
+- AppGuard.isTampered detection works end-to-end: Kotlin channel → Dart → ApiClient interceptor
+- share_url scrambling is live but ONLY for new writes — old plain URLs in DB are backward-compatible
+- WA bot still not running on Oracle (BUG-P17-08)

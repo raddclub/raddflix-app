@@ -561,14 +561,14 @@ All reported "failures" were false-positive grep patterns; actual code verified 
 - [x] `agent-hub/SECURITY_ARCHITECTURE.md` — NEW full security spec, threat model, 6 layers
 - [x] `agent-hub/ZERO_RATING_DELTA.md` — Fixed wrong "24h link expiry" security claim
 - [x] `agent-hub/PROMPT_NEXT_AGENT.md` — Handoff prompt for next agent
+- [x] **25.1** `MainActivity.kt` security MethodChannel — `getSignatureFingerprint` / `checkFrida` / `checkRoot` handlers wired
+- [x] **25.2** share_url scrambling in `local_db.dart` — `_encodeUrl()` / `_decodeUrl()` wired in upsertTitle, mergeDeltaTitle, upsertEpisode, getShareUrl
+- [x] **25.4** `ApiClient` tamper gate — `_TamperInterceptor` as first interceptor, silent empty-response degradation
 
 ### Pending ⬜ (for next agent)
 | # | Task | Notes |
 |---|------|-------|
-| 25.1 | Wire `MainActivity.kt` security MethodChannel | Add getSignatureFingerprint / checkFrida / checkRoot handlers — exact Kotlin code in SECURITY_ARCHITECTURE.md |
-| 25.2 | Wire share_url scrambling in `local_db.dart` | Call `RequestEncoder.scrambleUrl()` on write, `.unscrambleUrl()` on read for all share_url columns in titles + episodes |
 | 25.3 | Get official APK cert fingerprint + set `_officialFingerprint` | Build signed APK → keytool -printcert -jarfile → copy SHA-256 → update app_guard.dart |
-| 25.4 | Wire `ApiClient` tamper check | `if (AppGuard.isTampered) return fake response` in all protected endpoints |
 | 25.5 | Server XOR encoding (radd-hub) | Implement `request_encoding.py` per spec in SECURITY_ARCHITECTURE.md — only when ready to enable encoding layer |
 | 25.6 | Telemetry on tamper detection | Ping Oracle with tamper event (device hash, timestamp) — silent, best-effort |
 

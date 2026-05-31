@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import '../../models/catalog_item.dart';
 import '../constants.dart';
 import '../security/keystore.dart';
+import '../security/device_id.dart';
+import '../security/request_encoder.dart';
 
 /// Shared local SQLite database — encrypted with SQLCipher (AES-256).
 ///
@@ -351,7 +353,7 @@ class LocalDb {
         'rating':     item.rating,
         'genres':     item.genres,
         'poster_url': item.posterUrl,
-        'share_url':  item.shareUrl,
+        'share_url':  await _encodeUrl(item.shareUrl ?? ''),
         'is_free':    item.isFree ? 1 : 0,
         'db_version': item.dbVersion,
         'language':   item.language,
@@ -424,7 +426,7 @@ class LocalDb {
         'status':           status,
         'is_ongoing':       isOngoing,
         // Only overwrite share_url if delta has a value; preserve Oracle-synced URL otherwise
-        'share_url':        shareUrl.isNotEmpty ? shareUrl : oldShareUrl,
+        'share_url':        shareUrl.isNotEmpty ? await _encodeUrl(shareUrl) : oldShareUrl,
       }, where: 'id = ?', whereArgs: [id]);
     } else {
       await db.insert('titles', {
@@ -441,7 +443,7 @@ class LocalDb {
         'language':    language,
         'status':      status,
         'is_ongoing':  isOngoing,
-        'share_url':   shareUrl,
+        'share_url':   await _encodeUrl(shareUrl),
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
 
@@ -460,7 +462,7 @@ class LocalDb {
         where: 'file_id = ?', whereArgs: [fileId], limit: 1);
     if (epRows.isNotEmpty) {
       final url = epRows.first['share_url'] as String?;
-      if (url != null && url.isNotEmpty) return url;
+      if (url != null && url.isNotEmpty) return await _decodeUrl(url);
     }
     // Check titles (for movie-level file_ids stored in titles table)
     final titleRows = await db.rawQuery(
@@ -468,7 +470,8 @@ class LocalDb {
       [int.tryParse(fileId) ?? -1],
     );
     if (titleRows.isNotEmpty) {
-      return titleRows.first['share_url'] as String?;
+      final rawUrl = titleRows.first['share_url'] as String?;
+      return rawUrl != null ? await _decodeUrl(rawUrl) : null;
     }
     return null;
   }
@@ -496,8 +499,33 @@ class LocalDb {
 
   static Future<void> upsertEpisode(Map<String, dynamic> ep) async {
     final db = await instance;
-    await db.insert('episodes', ep,
+    final shareUrl = ep['share_url'] as String? ?? '';
+    final epToInsert = Map<String, dynamic>.from(ep);
+    if (shareUrl.isNotEmpty) {
+      epToInsert['share_url'] = await _encodeUrl(shareUrl);
+    }
+    await db.insert('episodes', epToInsert,
         conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+
+  // ── URL Scrambling Helpers ────────────────────────────────────────────────
+
+  /// Scramble a JazzDrive share_url before storing in SQLite.
+  /// Uses RequestEncoder.scrambleUrl() with device ID as key.
+  /// Returns original unchanged if empty or already has RF1: prefix.
+  static Future<String> _encodeUrl(String url) async {
+    if (url.isEmpty || url.startsWith('RF1:')) return url;
+    final deviceId = await DeviceIdentifier.getDeviceId();
+    return RequestEncoder.scrambleUrl(url, deviceId);
+  }
+
+  /// Unscramble a share_url read from SQLite for playback.
+  /// Passes through plain URLs (backward compat — no RF1: prefix = not scrambled).
+  static Future<String> _decodeUrl(String url) async {
+    if (!url.startsWith('RF1:')) return url;
+    final deviceId = await DeviceIdentifier.getDeviceId();
+    return RequestEncoder.unscrambleUrl(url, deviceId);
   }
 
   // ── Stream Cache ──────────────────────────────────────────────────────────
