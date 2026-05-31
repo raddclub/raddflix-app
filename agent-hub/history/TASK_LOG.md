@@ -4460,3 +4460,72 @@ GET /api/payment-methods →
 - No code files changed — DB-only fix
 
 ---
+
+## [2026-05-31 UTC] — Agent: Replit Agent (Sidebar Audit & Fix)
+
+### Task
+User requested: check all admin sidebar items — find what is working, what is broken, what is duplicate, fix all.
+
+### Audit Results
+
+| Route | URL | Status Before |
+|-------|-----|--------------|
+| Dashboard | / | ✅ 200 |
+| Downloader | /stream/ | ✅ 200 |
+| Flix | /upload/ | ✅ 200 |
+| JD Indexer | /scan/ | ✅ 200 |
+| Organizer | /organizer/ | ✅ 200 |
+| Bot Manager | /bots/ | ✅ 200 |
+| TID Payments | /tid/ | ✅ 200 |
+| App Users | /app-users/ | ✅ 200 |
+| Subscriptions | /subscriptions/ | ✅ 200 |
+| Plans & Pricing | /plans/ | ✅ 200 |
+| Payment Gateway | /billing/ | ✅ 200 |
+| Analytics | /analytics/ | ✅ 200 |
+| Zero-Rating | /zero-rating/ | ✅ 200 |
+| Broadcast | /broadcast/ | ✅ 200 |
+| Media Library | /library/ | ✅ 200 |
+| Settings | /settings/ | ✅ 200 |
+| Admin | /admin/ | ✅ 200 |
+| DB Manager | /api/db_mgmt/ | ✅ 200 (401 without auth) |
+| /db/ (user typed) | — | ❌ 404 (wrong URL in head, correct in sidebar HTML) |
+
+### Bugs Fixed (base.html)
+
+**Bug 1 — APP section placed AFTER Sign out**
+The `APP` nav-section and its 10 items were rendered below the Sign out link, making them
+invisible/unreachable on most UIs. Moved the entire APP section above Sign out.
+
+**Bug 2 — 4 duplicate nav items inside APP section**
+APP section duplicated items already present in TOOLS/SYSTEM:
+- Library (dupe of Media Library in DATA)
+- TID Payments (dupe in TOOLS)
+- App Users (dupe in TOOLS)
+- Settings (dupe in SYSTEM)
+All 4 removed.
+
+**Bug 3 — tb-system status badge linked to /settings/**
+The "System" health indicator badge at the top of the sidebar was incorrectly
+linking to /settings/ instead of /admin/. Fixed.
+
+### Final Sidebar Structure (19 links, no duplicates)
+```
+TOOLS: Dashboard, Downloader, Flix, JD Indexer, Organizer, Bot Manager, TID Payments, App Users
+APP:   Subscriptions, Plans & Pricing, Payment Gateway, Analytics, Zero-Rating, Broadcast
+DATA:  Media Library
+SYSTEM: Settings, Admin, DB Manager
+       Sign out
+```
+
+### Files Changed
+- `radd-hub/hub/templates/base.html` — nav block rebuilt, tb-system link fixed
+
+### Commits
+- `f09e04a5` — fix(sidebar): remove duplicate nav items, move APP section, fix tb-system link
+
+### Verification
+All 19 routes → 302 (redirect to login, correct for auth-required pages)
+DB Manager /api/db_mgmt/ → 401 (correct, needs auth header)
+Service restarted: raddflix_radd RUNNING pid 476357
+
+---
