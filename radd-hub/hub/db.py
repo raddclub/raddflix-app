@@ -489,6 +489,29 @@ _DDL = [
        ON tamper_reports(device_hash)""",
     """CREATE INDEX IF NOT EXISTS idx_tamper_reports_ts
        ON tamper_reports(reported_at DESC)""",
+
+    # ── FTS5 full-text search — titles_fts content table (P2.1) ─────────────────
+    # Content-based FTS5: reads data from 'titles' on demand (no duplication).
+    # Kept in sync by the three triggers below.
+    """CREATE VIRTUAL TABLE IF NOT EXISTS titles_fts USING fts5(
+        title, plot, genres, cast_names, language,
+        content='titles', content_rowid='id',
+        tokenize='unicode61 remove_diacritics 1'
+    )""",
+    """CREATE TRIGGER IF NOT EXISTS titles_ai AFTER INSERT ON titles BEGIN
+       INSERT INTO titles_fts(rowid, title, plot, genres, cast_names, language)
+       VALUES (new.id, new.title, new.plot, new.genres, new.cast_names, new.language);
+    END""",
+    """CREATE TRIGGER IF NOT EXISTS titles_ad AFTER DELETE ON titles BEGIN
+       INSERT INTO titles_fts(titles_fts, rowid, title, plot, genres, cast_names, language)
+       VALUES ('delete', old.id, old.title, old.plot, old.genres, old.cast_names, old.language);
+    END""",
+    """CREATE TRIGGER IF NOT EXISTS titles_au AFTER UPDATE ON titles BEGIN
+       INSERT INTO titles_fts(titles_fts, rowid, title, plot, genres, cast_names, language)
+       VALUES ('delete', old.id, old.title, old.plot, old.genres, old.cast_names, old.language);
+       INSERT INTO titles_fts(rowid, title, plot, genres, cast_names, language)
+       VALUES (new.id, new.title, new.plot, new.genres, new.cast_names, new.language);
+    END""",
 ]
 
 
@@ -535,11 +558,14 @@ def init_db() -> None:
             "CREATE INDEX IF NOT EXISTS idx_titles_slug ON titles(slug)",
             "CREATE INDEX IF NOT EXISTS idx_titles_pub  ON titles(is_published, media_type)",
             "CREATE INDEX IF NOT EXISTS idx_titles_imdb ON titles(imdb_id)",
+            # FTS5 index rebuild — populates titles_fts for all existing rows
+            # (no-op if already populated; safe to re-run)
+            "INSERT INTO titles_fts(titles_fts) VALUES('rebuild')",
         ]:
             try:
                 c.execute(migration_sql)
             except Exception:
-                pass  # column/index already exists
+                pass  # column/index already exists, or FTS5 not compiled in SQLite
 
 
 # --------------------------------------------------------------------------- #

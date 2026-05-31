@@ -38,15 +38,17 @@ class AppConstants {
   static const String supportWhatsApp = '923001234567';
 
   // ── Device Switch / OTP Hook ─────────────────────────────────────────────
-  /// Set to true when an OTP API is available to enable self-serve device
-  /// switching. When false, the UI shows WhatsApp-only contact support.
+  /// Controls self-serve device switching via OTP (6-digit code via WhatsApp).
   ///
-  /// To enable OTP device switch in future:
-  ///   1. Set this to true
-  ///   2. Implement AuthApi.requestDeviceSwitchOtp() with your OTP provider
-  ///   3. Implement AuthApi.verifyDeviceSwitchOtp() with your OTP provider
-  ///   4. Add server endpoints: POST /api/auth/device-switch/request
-  ///                            POST /api/auth/device-switch/verify
+  /// When true (current): user can request a device-switch code from the app.
+  /// When false: UI shows WhatsApp-only contact support for device switches.
+  ///
+  /// Server endpoints are live:
+  ///   POST /api/auth/device-switch/request  — sends OTP to registered phone
+  ///   POST /api/auth/device-switch/verify   — verifies OTP, rebinds device
+  ///
+  /// To disable OTP switch (admin-only enforcement):
+  ///   Set this to false and rebuild.
   static const bool otpDeviceSwitchEnabled = true;
 
   // ── SIMOSA (Phase 9) ─────────────────────────────────────────────────────
