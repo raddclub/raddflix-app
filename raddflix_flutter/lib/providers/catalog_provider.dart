@@ -3,6 +3,7 @@ import '../core/db/local_db.dart';
 import '../core/db/sync_service.dart';
 import '../core/services/poster_service.dart';
 import '../models/catalog_item.dart';
+import '../core/api/catalog_api.dart';
 
 enum CatalogStatus { idle, syncing, ready, error }
 
@@ -12,6 +13,7 @@ class CatalogState {
   final List<CatalogItem> shows;
   final List<CatalogItem> recentlyWatched;
   final List<CatalogItem> trending;
+  final List<Map<String, dynamic>> recommendations;
   final String? error;
   final int totalCount;
 
@@ -21,6 +23,7 @@ class CatalogState {
     this.shows = const [],
     this.recentlyWatched = const [],
     this.trending = const [],
+    this.recommendations = const [],
     this.error,
     this.totalCount = 0,
   });
@@ -31,6 +34,7 @@ class CatalogState {
     List<CatalogItem>? shows,
     List<CatalogItem>? recentlyWatched,
     List<CatalogItem>? trending,
+    List<Map<String, dynamic>>? recommendations,
     String? error,
     int? totalCount,
   }) {
@@ -40,6 +44,7 @@ class CatalogState {
       shows: shows ?? this.shows,
       recentlyWatched: recentlyWatched ?? this.recentlyWatched,
       trending: trending ?? this.trending,
+      recommendations: recommendations ?? this.recommendations,
       error: error,
       totalCount: totalCount ?? this.totalCount,
     );
@@ -55,6 +60,8 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
   Future<void> initialize() async {
     await _loadFromDb();
     await syncFromServer();
+    // Load recommendations in background — non-blocking
+    Future.microtask(loadRecommendations);
   }
 
   Future<void> _loadFromDb() async {
@@ -184,6 +191,40 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
     });
     // Take top items that have a poster (so they look good in the row)
     return all.where((i) => (i.posterUrl ?? '').isNotEmpty).take(20).toList();
+  }
+
+
+  /// Remove a title from the Continue Watching row.
+  /// Clears the watch position(s) from SQLite so the item no longer appears.
+  /// For movies: clears by fileId. For shows: clears all episode positions.
+  Future<void> removeFromContinueWatching(CatalogItem item) async {
+    try {
+      if (item.isMovie && item.fileId != null) {
+        await LocalDb.clearPosition(item.fileId!);
+      } else if (item.isShow) {
+        for (final ep in item.episodes) {
+          final fid = ep['file_id']?.toString();
+          if (fid != null && fid.isNotEmpty) {
+            await LocalDb.clearPosition(fid);
+          }
+        }
+      }
+      // Optimistically remove from state without full reload
+      final updated = List<CatalogItem>.from(state.recentlyWatched)
+        ..removeWhere((i) => i.id == item.id);
+      state = state.copyWith(recentlyWatched: updated);
+    } catch (_) {}
+  }
+
+  /// Load TMDB-seeded recommendations in the background.
+  /// Results stored in CatalogState.recommendations.
+  Future<void> loadRecommendations() async {
+    try {
+      final recs = await CatalogApi.fetchRecommendations(limit: 20);
+      if (recs.isNotEmpty) {
+        state = state.copyWith(recommendations: recs);
+      }
+    } catch (_) {}
   }
 
   Future<void> syncFromServer() async {

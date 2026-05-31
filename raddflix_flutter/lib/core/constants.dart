@@ -310,6 +310,9 @@ class ApiPaths {
   static const String notificationsRead  = '/api/notifications/read';
   static String notificationImage(int id) => '/api/notifications/image/$id';
 
+  // ── Recommendations (radd_recommend engine) ─────────────────────────────
+  static const String recommend = '/api/recommend';
+
   // ── Phase 6: Data Usage ───────────────────────────────────────────────
   static const String usage  = '/api/usage';
   static const String quota  = '/api/usage/quota';

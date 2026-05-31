@@ -70,7 +70,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     switch (_selectedCategory) {
       case 'Movies':  return s.movies;
       case 'Shows':   return s.shows;
-      case 'Dramas':  return all.where((i) => i.title.toLowerCase().contains('drama') || i.isShow).toList();
+      case 'Dramas':  return all.where((i) { final g = (i.genres ?? '').toLowerCase(); return g.contains('drama') || (g.isEmpty && i.isShow); }).toList();
       case 'Urdu':    return all.where((i) => (i.language ?? '').toLowerCase().contains('urdu')).toList();
       case 'Punjabi': return all.where((i) => (i.language ?? '').toLowerCase().contains('punjabi')).toList();
       case 'English': return all.where((i) => (i.language ?? '').toLowerCase().contains('english')).toList();
@@ -225,6 +225,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             title: 'Continue Watching',
             items: catalog.recentlyWatched,
             showProgress: true,
+            onRemove: (item) => ref.read(catalogProvider.notifier).removeFromContinueWatching(item),
           )),
 
         // Trending Now
@@ -232,6 +233,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           SliverToBoxAdapter(child: _ContentSection(
             title: 'Trending Now',
             items: catalog.trending,
+          ).animate().fadeIn(duration: 400.ms)),
+
+        // Recommended for You — TMDB engine (BUG-A26 resolved)
+        if (catalog.recommendations.isNotEmpty)
+          SliverToBoxAdapter(child: _RecommendationsSection(
+            recommendations: catalog.recommendations,
           ).animate().fadeIn(duration: 400.ms)),
 
         // Main content grid or rows
@@ -513,7 +520,9 @@ class _ContentSection extends StatelessWidget {
   final int? count;
   final List<CatalogItem> items;
   final bool showProgress;
-  const _ContentSection({required this.title, this.count, required this.items, this.showProgress = false});
+  final void Function(CatalogItem)? onRemove;
+  const _ContentSection({required this.title, this.count, required this.items,
+    this.showProgress = false, this.onRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -577,14 +586,85 @@ class _ContentSection extends StatelessWidget {
           itemBuilder: (_, i) => Padding(
             padding: EdgeInsets.only(right: i < items.length - 1 ? 10 : 0),
             child: SizedBox(width: 126,
-                child: ContentCard(item: items[i], showProgress: showProgress,
-                    progress: showProgress ? (items[i].watchProgress ?? 0.5) : null))
+                child: ContentCard(
+                    item: items[i],
+                    showProgress: showProgress,
+                    progress: showProgress ? (items[i].watchProgress ?? 0.5) : null,
+                    onLongPress: onRemove != null
+                        ? () => _showRemoveDialog(context, items[i])
+                        : null))
                 .animate(delay: (i * 30).ms).fadeIn(duration: 300.ms)
                 .slideX(begin: 0.1, end: 0, duration: 300.ms, curve: AppCurves.standard),
           ),
         ),
+
+  void _showRemoveDialog(BuildContext context, CatalogItem item) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(color: AppColors.glassBorder),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 36, height: 4, margin: const EdgeInsets.only(top: 12, bottom: 16),
+              decoration: BoxDecoration(color: AppColors.textMuted.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(2))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: Column(children: [
+              Row(children: [
+                const Icon(Icons.remove_circle_outline_rounded,
+                    color: AppColors.error, size: 20),
+                const SizedBox(width: 10),
+                Expanded(child: Text(
+                  'Remove "${item.title}" from Continue Watching?',
+                  style: const TextStyle(color: AppColors.textPrimary,
+                      fontSize: 14, fontWeight: FontWeight.w600),
+                )),
+              ]),
+              const SizedBox(height: 16),
+              Row(children: [
+                Expanded(child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceHigh,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: AppColors.glassBorder),
+                    ),
+                    child: const Center(child: Text('Cancel',
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 14))),
+                  ),
+                )),
+                const SizedBox(width: 12),
+                Expanded(child: GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context);
+                    onRemove?.call(item);
+                  },
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: AppColors.error.withOpacity(0.3)),
+                    ),
+                    child: const Center(child: Text('Remove',
+                        style: TextStyle(color: AppColors.error,
+                            fontSize: 14, fontWeight: FontWeight.w700))),
+                  ),
+                )),
+              ]),
+            ]),
+          ),
+        ]),
       ),
-    ]);
+    );
   }
 }
 
@@ -622,3 +702,153 @@ class _CategoryChip extends StatelessWidget {
     );
   }
 }
+
+// ── Recommendations Section ───────────────────────────────────────────────────
+class _RecommendationsSection extends StatelessWidget {
+  final List<Map<String, dynamic>> recommendations;
+  const _RecommendationsSection({required this.recommendations});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+        child: Row(children: [
+          Container(width: 3, height: 20, margin: const EdgeInsets.only(right: 10),
+              decoration: BoxDecoration(gradient: AppColors.primaryGradient,
+                  borderRadius: BorderRadius.circular(2))),
+          const Text('You Might Like',
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 17,
+                  fontWeight: FontWeight.w800, letterSpacing: -0.4)),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.round),
+              border: Border.all(color: AppColors.glassBorder),
+            ),
+            child: const Text('TMDB',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 9,
+                    fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+          ),
+        ]),
+      ),
+      SizedBox(
+        height: 190,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          physics: const BouncingScrollPhysics(),
+          itemCount: recommendations.length,
+          itemBuilder: (_, i) {
+            final rec    = recommendations[i];
+            final title  = rec['title']      as String? ?? '';
+            final poster = rec['poster_url'] as String? ?? '';
+            final rating = (rec['rating'] as num?)?.toDouble() ?? 0.0;
+            return Padding(
+              padding: EdgeInsets.only(right: i < recommendations.length - 1 ? 10 : 0),
+              child: SizedBox(
+                width: 126,
+                child: _RecommendCard(title: title, poster: poster, rating: rating),
+              ).animate(delay: (i * 30).ms).fadeIn(duration: 300.ms)
+                  .slideX(begin: 0.1, end: 0, duration: 300.ms,
+                      curve: AppCurves.standard),
+            );
+          },
+        ),
+      ),
+    ]);
+  }
+}
+
+class _RecommendCard extends StatelessWidget {
+  final String title;
+  final String poster;
+  final double rating;
+  const _RecommendCard({required this.title, required this.poster, required this.rating});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('"$title" is not in the RaddFlix library yet'),
+          backgroundColor: AppColors.surface,
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'Search',
+            textColor: AppColors.primary,
+            onPressed: () => Navigator.of(context).pushNamed(AppRoutes.search),
+          ),
+        ));
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          boxShadow: AppShadows.soft,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          child: Stack(fit: StackFit.expand, children: [
+            poster.isNotEmpty
+                ? CachedNetworkImage(imageUrl: poster, fit: BoxFit.cover,
+                    placeholder: (_, __) => Shimmer.fromColors(
+                      baseColor: AppColors.card,
+                      highlightColor: AppColors.surfaceHigh,
+                      child: Container(color: AppColors.card)),
+                    errorWidget: (_, __, ___) => Container(color: AppColors.card,
+                        child: const Icon(Icons.movie_outlined,
+                            color: AppColors.textMuted, size: 28)))
+                : Container(color: AppColors.card,
+                    child: const Icon(Icons.movie_outlined,
+                        color: AppColors.textMuted, size: 28)),
+            // Gradient overlay
+            Positioned(bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(8, 32, 8, 8),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Color(0xDD000000)],
+                  ),
+                ),
+                child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        shadows: [Shadow(color: Colors.black, blurRadius: 8)])),
+              )),
+            // Rating
+            if (rating > 0)
+              Positioned(top: 6, right: 6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.black54,
+                      borderRadius: BorderRadius.circular(4)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.star_rounded, color: Colors.amber, size: 10),
+                    const SizedBox(width: 2),
+                    Text(rating.toStringAsFixed(1), style: const TextStyle(
+                        color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600)),
+                  ]),
+                )),
+            // "Request" badge
+            Positioned(top: 6, left: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.5)),
+                ),
+                child: const Text('COMING',
+                    style: TextStyle(color: AppColors.primary, fontSize: 7,
+                        fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+              )),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+

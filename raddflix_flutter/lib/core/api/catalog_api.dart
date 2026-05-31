@@ -69,6 +69,23 @@ class CatalogApi {
   }
 }
 
+  /// Fetch TMDB-seeded recommendations — titles similar to the current library
+  /// that are NOT yet available on RaddFlix.  Requires active JWT session.
+  /// Returns raw JSON maps: {tmdb_id, title, media_type, year, rating, poster_url}.
+  static Future<List<Map<String, dynamic>>> fetchRecommendations({int limit = 20}) async {
+    try {
+      final response = await _client.get(
+        ApiPaths.recommend,
+        params: {'limit': limit.toString()},
+      );
+      final data = response.data as Map<String, dynamic>;
+      final results = data['results'] as List<dynamic>? ?? [];
+      return results.cast<Map<String, dynamic>>();
+    } catch (_) {
+      return [];
+    }
+  }
+
 class CatalogVersion {
   final int version;
   final int count;

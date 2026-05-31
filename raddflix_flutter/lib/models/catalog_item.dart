@@ -1,3 +1,16 @@
+/// Normalise raw media_type strings from server/TMDB to the two canonical
+/// values the app understands: 'movie' or 'show'.
+String _normalizeMediaType(String? raw) {
+  switch ((raw ?? '').toLowerCase().trim()) {
+    case 'tv':
+    case 'series':
+    case 'show':
+      return 'show';
+    default:
+      return 'movie';
+  }
+}
+
 class CatalogItem {
   final int id;
   final String title;
@@ -70,7 +83,7 @@ class CatalogItem {
       id:          json['id'] as int,
       title:       json['title'] as String? ?? '',
       year:        json['year'] == null ? null : int.tryParse(json['year'].toString()),
-      mediaType:   json['media_type'] as String? ?? 'movie',
+      mediaType:   _normalizeMediaType(json['media_type']?.toString()),
       description: json['description'] as String? ?? json['plot'] as String?,
       rating:      (json['rating'] as num?)?.toDouble(),
       genres:      json['genres'] is String

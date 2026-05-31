@@ -52,7 +52,7 @@ class AppUser {
       phone: userData['phone'] as String? ?? '',
       deviceId: userData['device_id'] as String?,
       deviceName: userData['device_name'] as String?,
-      isActive: (userData['is_active'] as int? ?? 1) == 1,
+      isActive: _parseBool(userData['is_active'] ?? 1),
       isGuest: userData['is_guest'] as bool? ?? false,  // FIX BUG-011
       createdAt: userData['created_at']?.toString(),
       lastLoginAt: userData['last_login_at']?.toString(),

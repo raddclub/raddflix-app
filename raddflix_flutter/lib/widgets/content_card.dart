@@ -10,15 +10,16 @@ class ContentCard extends StatelessWidget {
   final VoidCallback? onTap;
   final bool showProgress;
   final double? progress;
+  final VoidCallback? onLongPress;
 
-  const ContentCard({super.key, required this.item, this.onTap,
+  const ContentCard({super.key, required this.item, this.onTap, this.onLongPress,
     this.showProgress = false, this.progress});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap ?? () => _onTap(context),
-      onLongPress: () => _showQuickView(context),
+      onLongPress: onLongPress ?? () => _showQuickView(context),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppRadius.sm),
