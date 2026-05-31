@@ -403,7 +403,7 @@ code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:12px;
         <span class="tb-name">Bot Manager</span>
         <span class="tb-lbl" id="tl-bot">…</span>
       </a>
-      <a class="tb" href="/settings/" id="tb-system">
+      <a class="tb" href="/admin/" id="tb-system">
         <span class="tb-dot tb-dot-unknown"></span>
         <span class="tb-name">System</span>
         <span class="tb-lbl" id="tl-system">…</span>
@@ -419,154 +419,83 @@ code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:12px;
 
       <a href="/stream/" class="{{ 'active' if active=='stream' }}" onclick="closeSidebar()">
         <span class="icon">▶</span>
-        <span class="nav-label">
-          <span class="nav-title">Downloader</span>
-          <span class="nav-sub">Download movies &amp; series</span>
-        </span>
+        <span class="nav-label"><span class="nav-title">Downloader</span><span class="nav-sub">Download movies &amp; series</span></span>
       </a>
       <a href="/upload/" class="{{ 'active' if active=='upload' }}" onclick="closeSidebar()">
         <span class="icon">☁</span>
-        <span class="nav-label">
-          <span class="nav-title">Flix</span>
-          <span class="nav-sub">Upload to JazzDrive &amp; sync DBs</span>
-        </span>
+        <span class="nav-label"><span class="nav-title">Flix</span><span class="nav-sub">Upload to JazzDrive &amp; sync DBs</span></span>
       </a>
       <a href="/scan/" class="{{ 'active' if active=='scan' }}" onclick="closeSidebar()">
         <span class="icon">⌕</span>
-        <span class="nav-label">
-          <span class="nav-title">JD Indexer</span>
-          <span class="nav-sub">Index existing cloud files</span>
-        </span>
+        <span class="nav-label"><span class="nav-title">JD Indexer</span><span class="nav-sub">Index existing cloud files</span></span>
       </a>
       <a href="/organizer/" class="{{ 'active' if active=='organizer' }}" onclick="closeSidebar()">
         <span class="icon">✦</span>
-        <span class="nav-label">
-          <span class="nav-title">Organizer</span>
-          <span class="nav-sub">Clean up &amp; fix JazzDrive files</span>
-        </span>
+        <span class="nav-label"><span class="nav-title">Organizer</span><span class="nav-sub">Clean up &amp; fix JazzDrive files</span></span>
       </a>
       <a href="/bots/" class="{{ 'active' if active=='bots' }}" onclick="closeSidebar()">
         <span class="icon">◉</span>
-        <span class="nav-label">
-          <span class="nav-title">Bot Manager</span>
-          <span class="nav-sub">WhatsApp bot &amp; users</span>
-        </span>
+        <span class="nav-label"><span class="nav-title">Bot Manager</span><span class="nav-sub">WhatsApp bot &amp; users</span></span>
       </a>
       <a href="/tid/" class="{{ 'active' if active=='tid' }}" onclick="closeSidebar()" style="position:relative">
         <span class="icon">💳</span>
-        <span class="nav-label">
-          <span class="nav-title">TID Payments</span>
-          <span class="nav-sub">Verify subscriptions</span>
-        </span>
+        <span class="nav-label"><span class="nav-title">TID Payments</span><span class="nav-sub">Verify subscriptions</span></span>
       </a>
       <a href="/app-users/" class="{{ 'active' if active=='app_users' }}" onclick="closeSidebar()">
         <span class="icon">👤</span>
-        <span class="nav-label">
-          <span class="nav-title">App Users</span>
-          <span class="nav-sub">Users & subscriptions</span>
-        </span>
+        <span class="nav-label"><span class="nav-title">App Users</span><span class="nav-sub">Users &amp; subscriptions</span></span>
+      </a>
+
+      <div class="nav-section">APP</div>
+
+      <a href="/subscriptions/" class="{{ 'active' if active=='subscriptions' }}" onclick="closeSidebar()">
+        <span class="icon">📋</span>
+        <span class="nav-label"><span class="nav-title">Subscriptions</span><span class="nav-sub">Manage plans &amp; expiry</span></span>
+      </a>
+      <a href="/plans/" class="{{ 'active' if active=='plans' }}" onclick="closeSidebar()">
+        <span class="icon">💎</span>
+        <span class="nav-label"><span class="nav-title">Plans &amp; Pricing</span><span class="nav-sub">Packages &amp; prices</span></span>
+      </a>
+      <a href="/billing/" class="{{ 'active' if active=='billing' }}" onclick="closeSidebar()">
+        <span class="icon">💳</span>
+        <span class="nav-label"><span class="nav-title">Payment Gateway</span><span class="nav-sub">EasyPaisa · JazzCash</span></span>
+      </a>
+      <a href="/analytics/" class="{{ 'active' if active=='analytics' }}" onclick="closeSidebar()">
+        <span class="icon">📊</span>
+        <span class="nav-label"><span class="nav-title">Analytics</span><span class="nav-sub">Revenue &amp; growth</span></span>
+      </a>
+      <a href="/zero-rating/" class="{{ 'active' if active=='zero_rating' }}" onclick="closeSidebar()">
+        <span class="icon">⚡</span>
+        <span class="nav-label"><span class="nav-title">Zero-Rating</span><span class="nav-sub">JazzDrive DB updates</span></span>
+      </a>
+      <a href="/broadcast/" class="{{ 'active' if active=='broadcast' }}" onclick="closeSidebar()">
+        <span class="icon">📢</span>
+        <span class="nav-label"><span class="nav-title">Broadcast</span><span class="nav-sub">Notify users in-app</span></span>
       </a>
 
       <div class="nav-section">DATA</div>
 
       <a href="/library/" class="{{ 'active' if active=='library' }}" onclick="closeSidebar()">
         <span class="icon">🎬</span>
-        <span class="nav-label">
-          <span class="nav-title">Media Library</span>
-          <span class="nav-sub">Browse &amp; manage catalog</span>
-        </span>
+        <span class="nav-label"><span class="nav-title">Media Library</span><span class="nav-sub">Browse &amp; manage catalog</span></span>
       </a>
+
       <div class="nav-section">SYSTEM</div>
 
       <a href="/settings/" class="{{ 'active' if active=='settings' }}" onclick="closeSidebar()">
-        <span class="icon">⚙</span> Settings
+        <span class="icon">⚙</span>
+        <span class="nav-label"><span class="nav-title">Settings</span><span class="nav-sub">API keys &amp; config</span></span>
       </a>
       <a href="/admin/" class="{{ 'active' if active=='admin' }}" onclick="closeSidebar()">
-        <span class="icon">♛</span> Admin
+        <span class="icon">♛</span>
+        <span class="nav-label"><span class="nav-title">Admin</span><span class="nav-sub">Panel users &amp; password</span></span>
       </a>
       <a href="/api/db_mgmt/" class="{{ 'active' if active=='db_mgmt' }}" onclick="closeSidebar()">
         <span class="icon">🗄</span>
-        <span class="nav-label">
-          <span class="nav-title">DB Manager</span>
-          <span class="nav-sub">Browse &amp; edit database</span>
-        </span>
+        <span class="nav-label"><span class="nav-title">DB Manager</span><span class="nav-sub">Browse &amp; edit database</span></span>
       </a>
       <hr>
       <a href="/auth/logout"><span class="icon">⏻</span> Sign out</a>
-
-      <hr>
-      <div class="nav-section">APP</div>
-      <a href="/library/" class="{{ 'active' if active=='library' }}" onclick="closeSidebar()">
-        <span class="icon">📚</span>
-        <span class="nav-label">
-          <span class="nav-title">Library</span>
-          <span class="nav-sub">Manage titles &amp; files</span>
-        </span>
-      </a>
-      <a href="/tid/" class="{{ 'active' if active=='tid' }}" onclick="closeSidebar()">
-        <span class="icon">💳</span>
-        <span class="nav-label">
-          <span class="nav-title">TID Payments</span>
-          <span class="nav-sub">Approve subscriptions</span>
-        </span>
-      </a>
-      <a href="/app-users/" class="{{ 'active' if active=='app_users' }}" onclick="closeSidebar()">
-        <span class="icon">👥</span>
-        <span class="nav-label">
-          <span class="nav-title">App Users</span>
-          <span class="nav-sub">User management</span>
-        </span>
-      </a>
-      <a href="/subscriptions/" class="{{ 'active' if active=='subscriptions' }}" onclick="closeSidebar()">
-        <span class="icon">📋</span>
-        <span class="nav-label">
-          <span class="nav-title">Subscriptions</span>
-          <span class="nav-sub">Manage plans &amp; expiry</span>
-        </span>
-      </a>
-      <a href="/plans/" class="{{ 'active' if active=='plans' }}" onclick="closeSidebar()">
-        <span class="icon">💎</span>
-        <span class="nav-label">
-          <span class="nav-title">Plans &amp; Pricing</span>
-          <span class="nav-sub">Packages &amp; prices</span>
-        </span>
-      </a>
-      <a href="/billing/" class="{{ 'active' if active=='billing' }}" onclick="closeSidebar()">
-        <span class="icon">💳</span>
-        <span class="nav-label">
-          <span class="nav-title">Payment Gateway</span>
-          <span class="nav-sub">EasyPaisa · JazzCash</span>
-        </span>
-      </a>
-      <a href="/analytics/" class="{{ 'active' if active=='analytics' }}" onclick="closeSidebar()">
-        <span class="icon">📊</span>
-        <span class="nav-label">
-          <span class="nav-title">Analytics</span>
-          <span class="nav-sub">Revenue &amp; growth</span>
-        </span>
-      </a>
-
-      <a href="/zero-rating/" class="{{ 'active' if active=='zero_rating' }}" onclick="closeSidebar()">
-        <span class="icon">⚡</span>
-        <span class="nav-label">
-          <span class="nav-title">Zero-Rating</span>
-          <span class="nav-sub">JazzDrive DB updates</span>
-        </span>
-      </a>
-      <a href="/broadcast/" class="{{ 'active' if active=='broadcast' }}" onclick="closeSidebar()">
-        <span class="icon">📢</span>
-        <span class="nav-label">
-          <span class="nav-title">Broadcast</span>
-          <span class="nav-sub">Notify users in-app</span>
-        </span>
-      </a>
-      <a href="/settings/" class="{{ 'active' if active=='settings' }}" onclick="closeSidebar()">
-        <span class="icon">⚙</span>
-        <span class="nav-label">
-          <span class="nav-title">Settings</span>
-          <span class="nav-sub">API keys &amp; config</span>
-        </span>
-      </a>
     </nav>
   </aside>
 
