@@ -1,166 +1,107 @@
-# RaddFlix — Handoff Prompt for Next Replit Agent
+# RaddFlix — Prompt for Next Agent
 
-> Copy this entire file and paste it as your first message when starting
-> a new Replit Agent session on this project.
+**Date**: 2026-05-31  
+**Phase**: 28 (next to start)  
+**Server**: ubuntu@92.4.95.252 — SSH key in `/tmp/oracle_key` (write from env or prior session)
 
 ---
 
-## Context
+## Quick Status
 
-You are continuing development of **RaddFlix** — a Pakistani streaming platform
-where Jazz SIM users watch movies and dramas for FREE via JazzDrive zero-rating.
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Oracle server | ✅ RUNNING | `raddflix_radd` supervisor, port 5000 |
+| wa-bot | ✅ RUNNING | `raddflix_wa_bot` supervisor, port 3000 — needs WhatsApp pairing |
+| CI (GitHub Actions) | ✅ PASSING | Build APK + RaddFlix CI green on commit 70defac2 |
+| APK keystore | ✅ Active | SHA-256: BA:4E:41:2D:...:CD:07 |
+| All API endpoints | ✅ 18 endpoints | Health checks passing |
+| XOR encoding | ⏸️ Disabled | `RequestEncoder.enabled=false` — activate both sides simultaneously |
+| WhatsApp OTP | ⏳ Needs pairing | Bot running, no WA account linked yet |
+| SSL/HTTPS | ⏳ Needs domain | Let's Encrypt when domain configured |
 
-- GitHub repo: `raddclub/raddflix-app`
-- Oracle server: `ubuntu@92.4.95.252` (port 5000)
-- Flutter app: `com.raddflix.app` (Android)
-- Admin panel: Flask at `http://92.4.95.252`
+---
 
-## FIRST: Read These Files (mandatory, in order)
+## Remaining Tasks (Priority Order)
+
+### P1 — WhatsApp Bot Pairing (human action needed)
+The wa-bot is running on port 3000 and generating QR codes. To link a WhatsApp account:
 
 ```bash
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/REINCARNATION.md"
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/SKILLS.md"
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/MASTER_TASKLIST.md"
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/SECURITY_ARCHITECTURE.md"
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/ZERO_RATING_DELTA.md"
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/TASK_LOG.md"
+# On Oracle server:
+echo "923001234567" > /opt/jazzmax/radd-hub/hub/bots/whatsapp/pairing-number.txt
+sudo supervisorctl restart raddflix_wa_bot
+# Check logs for 8-digit pairing code:
+sudo supervisorctl tail raddflix_wa_bot
+# Then: WhatsApp app → Settings → Linked Devices → Link a device → Enter pairing code
 ```
 
----
-
-## What Was Done Last Session (Phase 26 — Full Verification + Security Activation)
-
-### Phase 26.1 ✅ — Oracle Deployment
-- Pulled all Phase 25 security code (1b26238 → 3a99653) to Oracle
-- Restarted `raddflix_radd` — RUNNING ✅
-- `tamper_reports` table created and working
-- All 19 API endpoints verified ✅
-
-### Phase 26.2 ✅ — Stable Keystore + Fingerprint Activated
-- Generated PKCS12 keystore on Oracle (CN=RaddFlix, SHA-256 = `34:D8:99:BE:46:D6:16:DB:43:B1:90:9F:AA:B5:A8:1A:93:76:B3:5C:D2:C0:C9:28:47:04:C8:92:EB:2C:89:5A`)
-- Set `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_PASSWORD`, `KEY_ALIAS` GitHub Secrets
-- Updated `app_guard.dart` — placeholder replaced with real fingerprint
-- **AppGuard signature enforcement is now LIVE**
-
-### Phase 26.3 ✅ — Bug Fixes
-- **Plans features** — `mobile_api.py` was reading `p.get("features")` but DB column is `description`. Fixed to `p.get("description")`. Plans API now returns correct feature lists.
-- **XOR admin redirect** — `/security/xor-encoding` was using `login_required(lambda)()` pattern causing 500. Fixed to use `is_logged_in()` check directly.
-
-### ⚠️ XOR Admin Still 500
-- The `/security/xor-encoding` route still returns 500 after fix — root cause unknown (Flask error handler hides traceback). The `render_template_string` might be failing due to Jinja2 syntax in the HTML string (use of `{` braces). **Not critical** — admin-only diagnostic page.
-
----
-
-## Current Server State (as of Phase 26)
-
-| Item | Value |
-|------|-------|
-| Git HEAD (Oracle) | `3a99653` |
-| Git HEAD (GitHub) | `3a99653` |
-| Supervisor | `raddflix_radd` RUNNING |
-| Titles | 24 published, all TMDB-enriched |
-| Plans | Basic Rs.149 / Standard Rs.249 / Premium Rs.399 — all with features |
-| CI | ✅ Build APK + RaddFlix CI both running for 3a99653 |
-
----
-
-## Security Layer Status (FINAL — all 6 layers active or deployed)
-
-```
-Layer 1: AppGuard (Dart + Kotlin MethodChannel)         ✅ ENFORCING
-  - APK fingerprint: 34:D8:99:BE:... (stable — KEYSTORE_BASE64 set in GitHub Secrets)
-  - Frida detection + Root detection wired
-
-Layer 2: Silent Degradation (ApiClient._TamperInterceptor) ✅ DONE
-  - When isTampered: returns fake empty responses silently
-
-Layer 3: Share URL at-rest encryption                   ✅ DONE
-  - JazzDrive share_urls stored XOR-scrambled with device ID key (RF1: prefix)
-
-Layer 4: Build obfuscation                              ✅ DONE
-  - flutter build apk --obfuscate --split-debug-info in CI
-
-Layer 5: API XOR encoding                               ✅ Server deployed
-  - request_encoding.py live; Flutter RequestEncoder.enabled=false
-  - Activate via RemoteConfig or APK update + Oracle deploy (BOTH sides simultaneously)
-
-Layer 6: Security telemetry                             ✅ LIVE
-  - Tamper reports stored in tamper_reports table
-  - 2 test entries confirmed stored in DB
-  - Admin panel at /security/tamper-reports (requires login)
+After pairing, test OTP delivery:
+```bash
+curl -s -X POST http://127.0.0.1:3000/api/send-message \
+  -H "Content-Type: application/json" \
+  -d '{"jid":"923001234567@s.whatsapp.net","text":"Test from RaddFlix"}'
 ```
 
----
+### P2 — XOR Encoding Activation
+Both sides implemented but `RequestEncoder.enabled=false`:
+- Server: `radd-hub/hub/request_encoding.py` + `@encoding_supported` decorator ✅
+- Flutter: `lib/core/security/request_encoder.dart` with `enabled=false`
+- To activate: change `enabled=false` to `enabled=true` in Flutter AND deploy server simultaneously
+- **WARNING**: Must be done atomically — one side active breaks all API calls
 
-## Priority Queue for Next Agent
+### P3 — TMDB Miss (Avatar/Dark Knight)
+Some titles don't match TMDB metadata. Add manual mappings in admin panel.
 
-### Priority 1 — XOR Admin Page Fix (minor)
-The `/security/xor-encoding` admin page returns 500. Suspected cause: Jinja2 template
-syntax conflict with `{` and `}` characters in the HTML string in `render_template_string`.
-Fix: escape braces as `{{` / `}}` or use `jinja2.Environment().from_string()` like
-`security_telemetry.py` does.
-
-### Priority 2 — wa-bot Deployment
-wa-bot directory is empty on Oracle and NOT in GitHub repo. The WhatsApp bot code
-needs to be created/deployed. Currently OTP is stored in DB but not delivered.
-This blocks device-switch OTP flow.
-
-### Priority 3 — AppConstants.supportWhatsApp
-`lib/core/constants.dart` has `supportWhatsApp = '923XXXXXXXXX'` placeholder.
-Update to real support phone number before production release.
-
-### Priority 4 — XOR API Encoding Activation (optional)
-When ready to activate end-to-end XOR:
-1. Server is ready (`request_encoding.py` deployed)
-2. Set `RequestEncoder.enabled = true` in `request_encoder.dart`
-3. Wire `@encoding_supported` decorator to Flask routes
-4. Deploy BOTH sides simultaneously — mixed state breaks all API calls
-
-### Priority 5 — Phase 27: New Features
-Check MASTER_TASKLIST for any new phase tasks.
+### P4 — Let's Encrypt SSL
+Needs domain name. Once DNS configured: `certbot --nginx -d yourdomain.com`
 
 ---
 
-## Non-Negotiable Rules (ALL Agents)
+## Critical Facts (Do NOT forget)
 
-1. **NEVER commit via git commands** — always GitHub Tree API (SKILLS.md Rule 3)
-2. **NEVER force-push** — `"force": false` always
-3. **NEVER upgrade `sqflite_sqlcipher` above 3.1.0+1**
-4. **NEVER rename `oldV` in `_migrate(Database db, int oldV, int newV)`**
-5. **NEVER route JazzDrive SAPI calls through Oracle** — zero-rating = phone→JazzDrive directly
-6. **NEVER write "JazzMAX" or "Zeno"** — the app is RaddFlix
-7. **ALWAYS update MASTER_TASKLIST.md and TASK_LOG.md** at end of every session
-8. **ALWAYS update REINCARNATION.md** with major architectural decisions
-9. **Share_urls NEVER expire** — any claim they do is wrong
-10. **ALWAYS read SKILLS.md** before doing anything
+### Keystore / APK Signing
+- Keystore: `/tmp/raddflix_new.keystore` (PKCS12, alias: `raddflix`)
+- Password (store AND key): `RaddFlix_2026_Secure`
+- SHA-256 fingerprint in `app_guard.dart _officialFingerprint`
+- **DO NOT regenerate** — changing invalidates all installed APKs
 
-## Critical Code Facts
-- `DeviceIdentifier.getDeviceId()` is the XOR key class — NOT `DeviceId`
-- `RequestEncoder.enabled = false` (default) — NEVER enable without deploying server decode
-- `AppGuard._officialFingerprint = '34:D8:99:BE:...'` — enforcement LIVE, uses stable keystore
-- `RF1:` prefix marks scrambled share_urls — plain URLs pass through unscrambled (backward compat)
-- Plans `description` column in DB = JSON features array for Flutter app display
-- Oracle DB path: `/opt/jazzmax/radd-hub/data/radd_hub.db`
+### GitHub
+- Repo: `raddclub/raddflix-app`
+- GitHub Token: `$GITHUB_TOKEN` in Replit env
+- Oracle does NOT have GitHub token — commits from Replit via Tree API
+- Oracle Git pulls: `cd /opt/jazzmax/radd-hub && git pull` (uses deploy key)
 
-## GitHub Token
-`$GITHUB_TOKEN` is set in Replit env — use it directly in curl commands.
+### Oracle Server
+- SSH: `ssh -i /tmp/oracle_key ubuntu@92.4.95.252`
+- radd-hub path: `/opt/jazzmax/radd-hub/`
+- Data dir: `/opt/jazzmax/radd-hub/data/`
+- Supervisor conf: `/etc/supervisor/conf.d/raddflix.conf`
+- Flask runs on port 5000, wa-bot on port 3000
 
-## SSH to Oracle
-Key is OPENSSH format. Use this reformat recipe (confirmed working):
-```python
-import os, re
-raw = os.environ['ORACLE_SSH_KEY']
-m = re.match(r'(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)', raw, re.DOTALL)
-if m:
-    header = m.group(1).strip()
-    body   = m.group(2).strip().replace(' ', '\n')
-    footer = m.group(3).strip()
-    pem = header + '\n' + body + '\n' + footer + '\n'
-    with open('/tmp/oracle_key', 'w') as f:
-        f.write(pem)
-    os.chmod('/tmp/oracle_key', 0o600)
-```
+### wa-bot
+- Code: `/opt/jazzmax/radd-hub/hub/bots/whatsapp/index.js`
+- Auth session: `/opt/jazzmax/radd-hub/hub/bots/whatsapp/auth_info/` (created after pairing)
+- QR code: `/opt/jazzmax/radd-hub/hub/bots/whatsapp/whatsapp-qr.png`
+- Logs: `/var/log/raddflix_wa_bot.out.log` or `bot-debug.log` in bot dir
+- Pairing: write phone to `pairing-number.txt`, restart, check logs for 8-digit code
+- Status API: `http://127.0.0.1:3000/api/status`
 
 ---
 
-*Handoff written by: Replit Agent, Phase 26 complete, 2026-05-31*
+## Files Changed in Last 2 Sessions
+
+| File | Change |
+|------|--------|
+| `raddflix_flutter/lib/core/security/app_guard.dart` | New APK fingerprint |
+| `radd-hub/hub/bots/whatsapp/index.js` | NEW: wa-bot Node.js |
+| `radd-hub/hub/bots/whatsapp/package.json` | NEW: Baileys dependencies |
+| `agent-hub/MASTER_TASKLIST.md` | Phase 26 + 27 added |
+| `agent-hub/history/TASK_LOG.md` | Full session history |
+
+---
+
+## Context Files
+- `agent-hub/REINCARNATION.md` — full project context
+- `agent-hub/MASTER_TASKLIST.md` — all phase history
+- `agent-hub/SECURITY_ARCHITECTURE.md` — security design
+- `agent-hub/PRODUCT_CONTEXT.md` — product overview
