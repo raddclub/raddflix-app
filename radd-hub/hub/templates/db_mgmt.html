@@ -59,8 +59,9 @@
                   style="flex:1;min-width:100px" oninput="debounceSearch()">
                 <button class="ghost sm" onclick="loadData()">↻</button>
               </div>
-              <div class="row" style="gap:6px">
+              <div class="row" style="gap:6px;flex-wrap:wrap">
                 <button class="ghost sm" onclick="toggleColPanel()">Columns ▾</button>
+                <button class="ghost sm" id="btn-export" onclick="exportTable()" title="Download current table as CSV">⬇ CSV</button>
                 <select id="page-size-sel" onchange="changePageSize()"
                   style="width:auto;padding:6px 8px;font-size:12px">
                   <option value="25">25/page</option>
@@ -68,6 +69,23 @@
                   <option value="100">100/page</option>
                   <option value="250">250/page</option>
                 </select>
+              </div>
+            </div>
+
+            <!-- Titles quick-filter bar (titles table only) -->
+            <div id="titles-filter-bar" style="display:none;margin-top:8px;padding:8px 12px;background:var(--panel2);border-radius:8px;border:1px solid var(--border)">
+              <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+                <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted)">Filter</span>
+                <select id="filter-mt" onchange="applyTitleFilter()" style="width:auto;padding:4px 8px;font-size:12px">
+                  <option value="">All types</option>
+                  <option value="movie">🎬 Movies</option>
+                  <option value="tv">📺 TV Series</option>
+                </select>
+                <label class="row" style="gap:5px;font-size:12px;cursor:pointer;user-select:none">
+                  <input type="checkbox" id="filter-nulls" onchange="applyTitleFilter()" style="width:auto;accent-color:var(--err)">
+                  <span>Incomplete only</span>
+                </label>
+                <button class="ghost sm" onclick="clearTitleFilters()" style="font-size:11px">✕ Clear</button>
               </div>
             </div>
 
@@ -82,6 +100,17 @@
                 </div>
               </div>
               <div id="col-checks" style="display:flex;flex-wrap:wrap;gap:4px 14px"></div>
+            </div>
+          </div>
+
+          <!-- Null stats bar (titles only) -->
+          <div id="null-stats-bar" style="display:none;margin-top:8px">
+            <div style="padding:8px 14px;background:var(--panel2);border:1px solid var(--border);border-radius:8px">
+              <div class="row" style="justify-content:space-between;margin-bottom:6px">
+                <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted)">Field coverage</span>
+                <span id="null-stats-total" class="muted" style="font-size:11px"></span>
+              </div>
+              <div id="null-stats-fields" style="display:flex;flex-wrap:wrap;gap:5px"></div>
             </div>
           </div>
 
@@ -103,7 +132,12 @@
               <button class="ghost sm" id="btn-first" onclick="goPage(0)" title="First">«</button>
               <button class="ghost sm" id="btn-prev"  onclick="goPage(currentPage-1)">‹ Prev</button>
             </div>
-            <span class="muted" id="page-lbl" style="font-size:12px">Page 1</span>
+            <div class="row" style="gap:8px;align-items:center">
+              <span class="muted" id="page-lbl" style="font-size:12px">Page 1</span>
+              <span class="muted" style="font-size:11px">Go:</span>
+              <input id="jump-page" type="number" min="1" style="width:52px;padding:3px 6px;font-size:12px;text-align:center"
+                onkeydown="if(event.key==='Enter'){const tp=Math.ceil(lastPage+1);const v=parseInt(this.value)-1;goPage(isNaN(v)?0:v);this.value='';}">
+            </div>
             <div class="row" style="gap:4px">
               <button class="ghost sm" id="btn-next" onclick="goPage(currentPage+1)">Next ›</button>
               <button class="ghost sm" id="btn-last" onclick="goPage(lastPage)" title="Last">»</button>
@@ -301,6 +335,33 @@
   background:var(--panel); border:1px solid var(--border); color:var(--text);
 }
 @keyframes enr-pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+
+/* ── media_type pill ─────────────────────────────────────────────── */
+.mt-pill {
+  font-size:10px; font-weight:700; padding:2px 8px; border-radius:12px;
+  white-space:nowrap; display:inline-block;
+}
+.mt-pill.movie { background:#3b82f620; color:#60a5fa; border:1px solid #3b82f640; }
+.mt-pill.tv    { background:#8b5cf620; color:#a78bfa; border:1px solid #8b5cf640; }
+
+/* ── null-stats field pill ───────────────────────────────────────── */
+.ns-field {
+  display:flex; align-items:center; gap:5px; padding:3px 9px;
+  border-radius:20px; font-size:10px; font-weight:600;
+  border:1px solid var(--border); background:var(--panel); cursor:default;
+}
+.ns-field .ns-bar { width:40px; height:4px; border-radius:2px; background:var(--border); overflow:hidden; }
+.ns-field .ns-fill { height:4px; border-radius:2px; transition:width .4s; }
+
+/* ── missing-fields badge on row ────────────────────────────────── */
+.missing-dot {
+  position:absolute; top:6px; right:4px; width:7px; height:7px;
+  border-radius:50%; background:var(--err); opacity:.7;
+}
+
+/* ── copy flash ──────────────────────────────────────────────────── */
+@keyframes copy-flash { 0%{background:#22c55e30} 100%{background:transparent} }
+td.copied { animation:copy-flash .4s ease; }
 
 /* ── Table list sidebar ──────────────────────────────────────────────── */
 .dbs-sidebar {
@@ -544,6 +605,12 @@ function selectTable(t){
   document.getElementById('btn-enrich-sel').style.display=isTitles?'':'none';
   document.getElementById('btn-enrich-all').style.display=isTitles?'':'none';
   document.getElementById('btn-enrich-force').style.display=isTitles?'':'none';
+  document.getElementById('titles-filter-bar').style.display=isTitles?'block':'none';
+  // Reset filters when switching tables
+  filterMediaType=''; filterNullsOnly=false;
+  const fMt=document.getElementById('filter-mt'); if(fMt) fMt.value='';
+  const fNo=document.getElementById('filter-nulls'); if(fNo) fNo.checked=false;
+  if(isTitles){ loadNullStats(); } else { document.getElementById('null-stats-bar').style.display='none'; }
   switchTab('browse');
 }
 
@@ -565,7 +632,9 @@ async function loadData(){
   const q=document.getElementById('search-input').value.trim();
   const off=currentPage*pageSize;
   try{
-    const url=`/api/db_mgmt/api/table/${activeTable}?limit=${pageSize}&offset=${off}&q=${encodeURIComponent(q)}&sort=${sortCol}&order=${sortOrder}`;
+    let url=`/api/db_mgmt/api/table/${activeTable}?limit=${pageSize}&offset=${off}&q=${encodeURIComponent(q)}&sort=${sortCol}&order=${sortOrder}`;
+    if(filterMediaType) url+=`&mt=${encodeURIComponent(filterMediaType)}`;
+    if(filterNullsOnly) url+=`&nullsonly=1`;
     const d=await fetch(url).then(r=>r.json());
     if(!d.ok){ showErr(d.error); return; }
     tableCols=d.columns;
@@ -599,12 +668,22 @@ function renderTable(d){
   document.getElementById('data-tbody').innerHTML=d.rows.map(row=>{
     const pkObj=Object.fromEntries(tableCols.filter(c=>c.pk).map(c=>[c.name,row[c.name]]));
     const pkB64=btoa(JSON.stringify(pkObj));
+    const isTitlesRow=(activeTable==='titles');
     const cells=vis.map(col=>{
       const v=row[col.name];
       if(v===null||v===undefined) return '<td><span class="v-null">null</span></td>';
       // Poster thumbnail
       if((col.name==='poster'||col.name==='poster_url')&&typeof v==='string'&&v.startsWith('http'))
-        return `<td><img class="p-thumb" src="${v}" onerror="this.style.display='none'" loading="lazy"></td>`;
+        return `<td><img class="p-thumb" src="${v}" onerror="this.style.display='none'" loading="lazy" title="${v}"></td>`;
+      // IMDB ID → clickable link
+      if(col.name==='imdb_id'&&typeof v==='string'&&v.startsWith('tt'))
+        return `<td><a href="https://www.imdb.com/title/${v}" target="_blank" class="v-url" title="View on IMDB">🎬 ${v}</a></td>`;
+      // media_type pill
+      if(col.name==='media_type')
+        return `<td><span class="mt-pill ${v}">${v==='movie'?'🎬 movie':v==='tv'?'📺 tv':v}</span></td>`;
+      // Rating fields — show star
+      if((col.name==='rating'||col.name==='imdb_rating')&&typeof v==='number'&&v>0)
+        return `<td class="v-num" title="${v}">⭐ ${v}</td>`;
       // Bool
       if(BOOL.has(col.name)) return `<td>${v?'<span class="v-on">✓</span>':'<span class="v-off">—</span>'}</td>`;
       // URL
@@ -612,21 +691,34 @@ function renderTable(d){
         return `<td><a href="${v}" target="_blank" class="v-url" title="${v}">↗ link</a></td>`;
       // Timestamp
       if(TS.has(col.name)&&typeof v==='number'&&v>1e9)
-        return `<td class="v-ts" title="${v}">${new Date(v*1000).toLocaleDateString()}</td>`;
+        return `<td class="v-ts" title="${new Date(v*1000).toLocaleString()}">${new Date(v*1000).toLocaleDateString()}</td>`;
       // JSON blob
       if(typeof v==='string'&&(v.startsWith('{')||v.startsWith('[')))
         return `<td class="v-json" title="${v.replace(/"/g,'&quot;')}">{…}</td>`;
-      // Number
-      if(typeof v==='number') return `<td class="v-num">${v}</td>`;
+      // Number — format with commas if large
+      if(typeof v==='number') return `<td class="v-num">${Number.isInteger(v)&&v>9999?v.toLocaleString():v}</td>`;
       // Text
       const s=String(v);
-      return `<td title="${s.replace(/"/g,'&quot;')}">${s.length>55?s.slice(0,52)+'…':s}</td>`;
+      return `<td title="${s.replace(/"/g,'&quot;').replace(/\n/g,' ')}" onclick="copyCell('${s.replace(/'/g,"\\'").slice(0,200)}')">${s.length>55?s.slice(0,52)+'…':s}</td>`;
     }).join('');
+    // Missing fields badge (titles only)
+    const missingBadge=isTitlesRow?_rowMissingBadge(row):'';
+    // Per-row enrich buttons (titles only)
+    const enrichBtns=isTitlesRow
+      ?`<button class="act-btn" style="color:var(--accent)" title="Enrich this title"
+           onclick="quickEnrichRow(${row.id},${JSON.stringify(row.title||'ID '+row.id)},false)">⚡</button>
+         <button class="act-btn" style="color:#f59e0b" title="Force re-enrich (overwrite all fields)"
+           onclick="quickEnrichRow(${row.id},${JSON.stringify(row.title||'ID '+row.id)},true)">🔄</button>`
+      :'';
     return `<tr>
-      <td style="padding:6px 10px"><input type="checkbox" class="row-sel" value="${pkB64}" style="width:auto"></td>
+      <td style="padding:6px 10px;position:relative">
+        <input type="checkbox" class="row-sel" value="${pkB64}" style="width:auto">
+        ${missingBadge}
+      </td>
       <td class="td-act">
         <button class="act-btn" style="color:var(--blue)" onclick="editRecord('${pkB64}')" title="Edit">✎</button>
         <button class="act-btn" style="color:var(--err)"  onclick="delRecord('${pkB64}')"  title="Delete">🗑</button>
+        ${enrichBtns}
       </td>${cells}</tr>`;
   }).join('');
   document.getElementById('bulk-bar').style.display='flex';
@@ -876,6 +968,98 @@ function showErr(msg){ document.getElementById('data-tbody').innerHTML=`<tr><td 
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeEditor(); if(!enrichRunning) closeEnrich(); } });
 window.onload=init;
 
+/* ── Extra state & helper functions ──────────────────────────────────── */
+let filterMediaType = '';
+let filterNullsOnly = false;
+
+function applyTitleFilter(){
+  filterMediaType = document.getElementById('filter-mt').value;
+  filterNullsOnly = document.getElementById('filter-nulls').checked;
+  currentPage=0; loadData();
+}
+function clearTitleFilters(){
+  filterMediaType=''; filterNullsOnly=false;
+  document.getElementById('filter-mt').value='';
+  document.getElementById('filter-nulls').checked=false;
+  currentPage=0; loadData();
+}
+
+function exportTable(){
+  if(!activeTable) return;
+  const q=encodeURIComponent(document.getElementById('search-input').value.trim());
+  const a=document.createElement('a');
+  a.href=`/api/db_mgmt/api/export/${activeTable}?q=${q}`;
+  a.download=`${activeTable}.csv`; a.click();
+}
+
+function copyCell(text){
+  navigator.clipboard?.writeText(text).then(()=>{
+    toast('Copied: '+text.slice(0,40)+(text.length>40?'…':''));
+  }).catch(()=>{});
+}
+
+const _ENRICH_REQD_JS=['poster','overview','genres_csv','cast_names','director','rating','imdb_rating'];
+function _rowMissingBadge(row){
+  const miss=_ENRICH_REQD_JS.filter(f=>row[f]===null||row[f]===undefined||row[f]==='');
+  return miss.length
+    ?`<div class="missing-dot" title="Missing: ${miss.join(', ')}"></div>` : '';
+}
+
+async function loadNullStats(){
+  try{
+    const d=await fetch('/api/db_mgmt/api/titles/nullstats').then(r=>r.json());
+    if(!d.ok) return;
+    document.getElementById('null-stats-total').textContent=`${d.total} titles`;
+    const KEY=['poster','overview','genres_csv','cast_names','director','rating','imdb_rating','imdb_id'];
+    document.getElementById('null-stats-fields').innerHTML=KEY.map(f=>{
+      const s=d.fields[f]; if(!s) return '';
+      const color=s.pct>=80?'#22c55e':s.pct>=40?'#f59e0b':'#ef4444';
+      return `<div class="ns-field" title="${s.filled}/${d.total} filled">
+        <span style="color:${color};font-size:11px">${s.pct}%</span>
+        <div class="ns-bar"><div class="ns-fill" style="width:${s.pct}%;background:${color}"></div></div>
+        <span style="color:var(--muted)">${f.replace('_csv','').replace('_',' ')}</span>
+        ${s.null>0?`<span style="color:var(--err);font-size:9px">${s.null} null</span>`:''}
+      </div>`;
+    }).join('');
+    document.getElementById('null-stats-bar').style.display='block';
+  }catch(e){}
+}
+
+/* ── Quick single-row enrichment ──────────────────────────────────────── */
+let _enrichSingleId=null, _enrichSingleTitle='', _enrichSingleForce=false;
+function quickEnrichRow(id,title,force){
+  enrichMode='single';
+  _enrichSingleId=id; _enrichSingleTitle=title; _enrichSingleForce=force;
+  document.getElementById('enrich-subtitle').innerHTML=
+    `IMDbAPI → TMDB → OMDB → AI → YouTube → Google KG &nbsp;
+     <span style="color:${force?'var(--err)':'var(--accent)'};font-weight:600">
+       ${force?'🔄 Force':'⚡ Enrich'}: ${title}
+     </span>`;
+  document.getElementById('enrich-rows').innerHTML='';
+  document.getElementById('enrich-log').innerHTML='';
+  document.getElementById('enrich-log-wrap').style.display='none';
+  document.getElementById('enrich-footer').textContent='';
+  ['es-enriched','es-skipped','es-failed'].forEach(i=>document.getElementById(i).textContent='0');
+  document.getElementById('es-total').textContent='1';
+  document.getElementById('enrich-pbar').style.width='0%';
+  document.getElementById('btn-enrich-start').disabled=false;
+  document.getElementById('btn-enrich-start').textContent='▶ Start';
+  document.getElementById('btn-close-enrich').style.display='';
+  document.getElementById('btn-enrich-cancel').textContent='Cancel';
+  document.getElementById('enrich-overlay').style.display='flex';
+}
+
+/* ── Extra keyboard shortcuts ─────────────────────────────────────────── */
+document.addEventListener('keydown',e=>{
+  if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+  if(e.key==='ArrowRight'||e.key===']') goPage(currentPage+1);
+  if(e.key==='ArrowLeft' ||e.key==='[') goPage(currentPage-1);
+  if(e.key==='Home') goPage(0);
+  if(e.key==='End')  goPage(lastPage);
+  if(e.key==='r')    loadData();
+  if(e.key==='/'||e.key==='f'){ e.preventDefault(); document.getElementById('search-input')?.focus(); }
+});
+
 /* ═══════════════════════════════════════════════════════════════════
    Smart Enrichment — multi-source SSE progress modal
    ═══════════════════════════════════════════════════════════════════ */
@@ -927,9 +1111,11 @@ async function startEnrichment(){
   document.getElementById('btn-close-enrich').style.display='none';
   document.getElementById('enrich-rows').innerHTML='';
 
-  const isForce=(enrichMode==='force');
+  const isForce=(enrichMode==='force'||enrichMode==='single'&&_enrichSingleForce);
   let ids='all';
-  if(enrichMode==='selected'){
+  if(enrichMode==='single'){
+    ids=[_enrichSingleId];
+  }else if(enrichMode==='selected'){
     ids=[...document.querySelectorAll('.row-sel:checked')].map(el=>{
       const pk=JSON.parse(atob(el.value));
       return pk.id;
