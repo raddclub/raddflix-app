@@ -1,510 +1,523 @@
-# RaddFlix — Reincarnation Prompt (2026-05-30 — Full Audit Edition)
-
-> **Give this entire document to the next AI session. It is self-contained.**
-> Read top to bottom before touching any code.
-
----
-
-## Who You Are
-
-You are the AI agent continuing development of **RaddFlix** — a Pakistani streaming platform where Jazz SIM users watch movies and dramas for **free** (zero data cost) via JazzDrive zero-rating.
-
-- GitHub repo: `raddclub/raddflix-app`
-- Oracle server: `ubuntu@92.4.95.252` (SSH **works** from Replit — see AGENT_NOTES.md for key reformat. GitHub Tree API for commits due to Replit git restrictions.)
-- Flutter app package: `com.raddflix.app`
-- Admin panel: Flask on port 5000 at `http://92.4.95.252`
-
-Previous sessions built Phases 1–23. A full deep audit was completed on 2026-05-30 (Phase 13). CI is GREEN as of commit 200ff61. 24 titles in DB. Supervisor: raddflix_radd (port 5000) is the only active service.
+# REINCARNATION.md — RaddFlix Full Agent Context
+> **EVERY AGENT READS THIS FIRST. NO EXCEPTIONS.**
+> Last Updated: 2026-05-31 | By: Replit Agent (Full Deep Audit)
+> Version: 3.0 — Complete Rewrite
 
 ---
 
-## STEP 0 — Read These Files FIRST (in order)
+## ⚡ IMMEDIATE STATUS (READ THIS FIRST)
 
-```bash
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/REINCARNATION.md"
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/SKILLS.md"
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/MASTER_TASKLIST.md"
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/CODE_MAP.md"
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/history/TASK_LOG.md"
+**Last commit:** `dbde0fe` — docs: full audit 2026-05-31 (CODE_MAP + REINCARNATION + TASK_LOG)
+**CI Status:** GREEN (last verified at commit `be18ca4` after keystore fix, Phase 27)
+**Oracle Server:** `ubuntu@92.4.95.252` — SSH times out from Replit. **ALL changes via GitHub API only.**
+**Active APK fingerprint:** `BA:4E:41:2D:F4:68:EF:60:41:05:24:CC:A4:24:77:70:83:7F:E9:C1:29:46:D0:18:35:3D:64:88:1C:E5:CD:07`
+
+### 🔴 NEXT TASKS TO DO (ordered — do P1.1 first, nothing else)
+See `MASTER_PLAN.md` for the full ordered queue. Top 3:
+1. **P1.1** — Wire `SECURITY_CHANNEL` in `MainActivity.kt` (APK sig check broken)
+2. **P1.2** — Fix `bulk_link_engine.py` `stream_links` SQL crash
+3. **P1.3** — Salt passwords in `mobile_api.py` (unsalted SHA-256)
+
+### 🚨 GOLDEN RULE (enforced for all agents)
+**ONE TASK AT A TIME. VERIFY. THEN MOVE ON.**
+Full rules in `AGENT_RULES.md`. Read it now.
+
+---
+
+## 📁 REPOSITORY STRUCTURE
+
+```
+raddflix-app/                         ← GitHub: raddclub/raddflix-app
+│
+├── raddflix_flutter/                 ← ⭐ REAL FLUTTER APP (build from here)
+│   ├── lib/                          ← All Dart source (canonical)
+│   ├── android/                      ← Android native (MainActivity.kt, Manifest)
+│   └── pubspec.yaml                  ← REAL deps (sqflite_sqlcipher: 3.1.0+1)
+│
+├── radd-hub/                         ← Flask backend + WhatsApp bot
+│   ├── hub/                          ← Flask app (app.py is entrypoint)
+│   │   ├── app.py                    ← Flask factory + blueprint registration
+│   │   ├── db.py                     ← ALL SQLite DDL (schema v13)
+│   │   ├── auth.py                   ← JWT helpers
+│   │   ├── config.py                 ← Flask config loader
+│   │   ├── routes/                   ← 20 Blueprint files
+│   │   ├── scrapers/                 ← 6 scraper modules
+│   │   ├── sites/                    ← 7 CDN resolver modules
+│   │   └── bots/whatsapp/            ← Simple bot (supervisor: raddflix_wa_bot)
+│   └── bots/whatsapp/                ← Full-featured standalone bot (22 files)
+│
+├── agent-hub/                        ← 📚 AI AGENT DOCUMENTATION (this folder)
+│   ├── REINCARNATION.md              ← THIS FILE — full context for every agent
+│   ├── AGENT_RULES.md                ← Golden rules all agents must follow
+│   ├── MASTER_PLAN.md                ← Ordered task queue with status
+│   ├── CODE_MAP.md                   ← File-by-file reference
+│   ├── PRODUCT_CONTEXT.md            ← Business/product context
+│   ├── SECURITY_ARCHITECTURE.md      ← Security deep dive
+│   ├── PLAYER_SPEC.md                ← Player feature specification
+│   ├── STREAMING_ARCHITECTURE.md     ← JazzDrive / streaming architecture
+│   ├── ZERO_RATING_DELTA.md          ← Delta sync specification
+│   ├── AGENT_CONNECTIONS_GUIDE.md    ← How agents access GitHub/Oracle
+│   ├── SETUP.md                      ← Oracle server setup
+│   └── history/TASK_LOG.md           ← Per-session audit log
+│
+├── lib/                              ← ⛔ OLD STUBS — NEVER TOUCH (see warning)
+├── pubspec.yaml                      ← ⛔ OLD — NEVER TOUCH (see warning)
+└── .github/workflows/                ← CI: build-apk.yml + ci-tests.yml
 ```
 
-**CODE_MAP.md is new as of 2026-05-30** — it maps every file in the repo to its purpose, key functions, and known issues. Use it to find anything instantly without reading source files.
+### ⛔ CRITICAL: DUAL FILE STRUCTURE WARNING
+```
+Root lib/ = OLD STUBS (JazzMAX branding, ZENO comments, jmx_vault, plain sqflite)
+raddflix_flutter/lib/ = REAL APP (RaddFlix branding, sqflite_sqlcipher encrypted)
+```
+**Never edit root `lib/` or root `pubspec.yaml`. They are dead code.** CI ignores them.
 
 ---
 
-## CRITICAL RULES — Violate any of these and you break production
+## 🏗️ ARCHITECTURE OVERVIEW
 
-1. **NEVER route JazzDrive API calls through the Oracle server.** Stream URLs are generated by the app calling `cloud.jazzdrive.com.pk` directly (2 zero-rated HTTP calls: POST /sapi/link/login then GET /sapi/media/video). If these calls ever go Oracle→JazzDrive instead of Phone→JazzDrive, zero-rating breaks for all users. Oracle never serves, proxies, or resolves streams. See STREAMING_ARCHITECTURE.md.
-2. **NEVER touch `/opt/jazzmax/radd-hub/hub/_legacy/`** — scanner.py imports from there. Deleting it breaks the entire content pipeline.
-3. **NEVER force-push** — always `"force": false` in GitHub API PATCH calls.
-4. **NEVER write "JazzMAX" or "Zeno"** — the app is **RaddFlix** (capital R, capital F). Dead names.
-5. **NEVER put JazzDrive share folder URLs in the delta JSON** — delta is metadata only (id, title, year, description, poster_url, genres, is_free, media_type, language, status, is_ongoing, rating, season_count, episode_count, db_version). NO file_id, NO share_url, NO folder_share_url.
-6. **NEVER upgrade `sqflite_sqlcipher` above `3.1.0+1`** — stays pinned until CI upgrades to Flutter 3.27+. See Phase 4 in MASTER_TASKLIST.
-7. **NEVER rename `oldV` in `_migrate(Database db, int oldV, int newV)`** — using `oldVersion` = compile error. Broke CI twice.
-8. **ALWAYS update MASTER_TASKLIST.md** when completing or discovering tasks.
-9. **ALWAYS append to TASK_LOG.md** at end of every session.
-10. **ALWAYS read CODE_MAP.md before touching a file** — it tells you what's broken/stub/unwired in each file.
+### How the App Works End-to-End
+
+```
+[User's Android Phone]
+       │
+       ▼
+[Flutter App — raddflix_flutter/]
+  • Riverpod state management
+  • Dio HTTP client (auto JWT attach + 401 refresh)
+  • SQLCipher local DB (AES-256, schema v13)
+  • media_kit video player
+  • AppGuard security shield (startup)
+       │
+       │  HTTPS (apiBaseUrl, updated by RemoteConfig on startup)
+       ▼
+[Flask Backend — radd-hub/hub/]  on Oracle 92.4.95.252:5000
+  • 20 Blueprints (auth, catalog, stream, subscription, payment, etc.)
+  • SQLite WAL (server-side, schema v13)
+  • JazzDrive integration (zero-rated CDN)
+  • Scheduler (rescan, delta gen, downloads)
+  • Analytics + admin web panel
+       │
+       ▼
+[JazzDrive CDN — cloud.jazzdrive.com.pk]
+  • All video files stored here
+  • Zero-rated for Jazz SIM users (data-free streaming)
+  • Share URLs never expire (per owner confirmation)
+  • Protected by: AppGuard + silent degradation on tamper
+```
+
+### Zero-Rating Flow (JazzDrive)
+```
+Server generates delta.json every 6h
+  → Contains {file_id → share_url} for all library items
+  → Uploaded to JazzDrive and hosted zero-rated
+  → Flutter fetches delta.json on startup
+  → Stores share_urls in local SQLCipher DB
+  → Player reads share_url from DB → streams zero-rated
+```
+
+### Authentication Flow
+```
+Register/Login → POST /api/auth/register|login
+  → Server: SHA-256 hash (⚠️ UNSALTED — BUG P1.3)
+  → Returns: {access_token (15min JWT), refresh_token (90-day JWT)}
+  → Flutter stores in flutter_secure_storage (Android Keystore backed)
+  → Expired access token → auto-refresh via /api/auth/refresh
+  → Device binding: device_id in JWT payload → one device per account
+```
+
+### Offline-First Sync
+```
+Startup: JazzDriveService.loadCacheFromDb() + LocalDb.cleanExpiredStreamCache()
+Every 6h: SyncService fetches /api/catalog/sync?version=N
+  → Delta JSON → inserts/updates titles + episodes in SQLCipher DB
+  → Background poster download → cached to disk
+  → FTS5 index updated for local search
+```
 
 ---
 
-## GitHub API Commit Pattern (the ONLY way to push — no git commands)
+## 📱 FLUTTER APP — KEY FILES REFERENCE
 
+### Entry Points
+| File | Role |
+|------|------|
+| `lib/main.dart` | Entry point: MediaKit init, AppGuard, RemoteConfig, runApp |
+| `lib/app.dart` | MaterialApp, route table (18 routes + onGenerateRoute), ForceUpdateGuard |
+| `lib/core/constants.dart` | ALL constants: API paths, routes, feature flags, DB version |
+
+### Screens (14 main + 9 new)
+| Screen | Purpose |
+|--------|---------|
+| `home_screen.dart` | Main feed: movies + shows grid, categories, search bar, notif banner |
+| `detail_screen.dart` | Movie detail: info, cast, play/download/watchlist buttons |
+| `show_detail_screen.dart` | Series detail: season tabs, episode list, resume detection, per-episode download |
+| `player_screen.dart` | Full video player: 50+ features (see PLAYER_SPEC.md) |
+| `player_settings_screen.dart` | Persistent player prefs (aspect, subtitles, ambilight, binge guard) |
+| `login_screen.dart` | Login with device binding |
+| `register_screen.dart` | Register + auto-login |
+| `search_screen.dart` | Full-text search (local FTS5 + server fallback) |
+| `vault_screen.dart` | Private media vault (PIN/biometric protected) |
+| `vault_lock_screen.dart` | Vault authentication gate |
+| `vault_settings_screen.dart` | Change vault PIN, toggle biometric, clear vault |
+| `profile_screen.dart` | User info, subscription status, device switch, logout |
+| `history_screen.dart` | Watch history with position indicators |
+| `watchlist_screen.dart` | Saved titles |
+| `subscription_screen.dart` | Plans + TID payment submission |
+| `local_media_screen.dart` | Device video browser (MX Player style) |
+| `local_folder_screen.dart` | Folder navigator for local videos |
+| `admin_queue_screen.dart` | Download queue viewer (admin-only) |
+| `plan_expired_screen.dart` | Subscription expired gate |
+| `quota_full_screen.dart` | Daily quota exceeded gate |
+| `tid_status_screen.dart` | Payment TID verification status |
+
+### Core Services
+| File | Role |
+|------|------|
+| `core/db/local_db.dart` | SQLCipher DB: titles, episodes, watch_positions, downloads, stream_cache, sync_meta |
+| `core/api/api_client.dart` | Dio singleton: JWT attach, 401 refresh, AppGuard tamper check |
+| `core/api/catalog_api.dart` | Catalog sync, episode fetch, stream URL resolution |
+| `core/api/history_api.dart` | Watch history push/pull |
+| `core/services/jazzdrive_service.dart` | JazzDrive link cache + CDN URL resolver |
+| `core/services/sync_service.dart` | 6h delta sync orchestrator |
+| `core/services/usage_service.dart` | Daily data quota tracking |
+| `core/services/notification_service.dart` | Notification fetch + display |
+| `core/services/poster_service.dart` | Background poster download + disk cache |
+| `core/services/app_update_service.dart` | Force update / version block checker |
+| `core/remote_config.dart` | Fetches apiBaseUrl + jazzDriveDeltaUrl from server on startup |
+| `core/security/app_guard.dart` | APK sig + Frida + root detection (⚠️ Kotlin side broken) |
+| `core/security/keystore.dart` | Android Keystore: DB key + JWT storage |
+| `core/security/device_id.dart` | Stable device fingerprint (hardware IDs) |
+| `core/security/request_encoder.dart` | XOR API encoding (disabled: .enabled = false) |
+| `core/security/vault_service.dart` | Vault PIN/biometric auth |
+| `services/vault_service.dart` | Vault file CRUD (⚠️ same name, different path) |
+| `services/cast_service.dart` | Google Cast (Chromecast) |
+| `services/local_media_service.dart` | MediaStorePlugin wrapper |
+| `services/thumb_service.dart` | Video thumbnail generator |
+| `core/debug/debug_logger.dart` | Debug log exporter via share_plus |
+
+### Player Controllers (raddflix_flutter/lib/core/player/)
+| Controller | Feature |
+|-----------|---------|
+| `ab_loop_controller.dart` | A-B loop (mark segment, loop it) |
+| `ambilight_controller.dart` | Edge pixel color → glow border |
+| `binge_guard_controller.dart` | Take-a-break overlay after N episodes |
+| `player_prefs.dart` | Persistent player settings model |
+| `player_prefs_provider.dart` | Riverpod provider for player prefs |
+| `scene_bookmark_store.dart` | Named timestamps per file, stored in SQLite |
+| `smart_intro_store.dart` | Learns intro timestamps from skip behavior |
+
+### State Management (Riverpod)
+| Provider | State |
+|---------|-------|
+| `auth_provider.dart` | Auth state, user info, JWT |
+| `catalog_provider.dart` | Full catalog, movies, shows, CatalogStatus |
+| `downloads_provider.dart` | Download queue, status per file |
+| `watchlist_provider.dart` | Watchlist items |
+
+### Android Native (raddflix_flutter/android/)
+| File | Role |
+|------|------|
+| `MainActivity.kt` | 5 MethodChannels: PiP, Media, Cast, Intent, Security |
+| `MediaStorePlugin.kt` | Local video scanner via Android MediaStore |
+| `CastOptionsProvider.kt` | Google Cast SDK options provider |
+| `AndroidManifest.xml` | Permissions, intent filters, services |
+
+---
+
+## 🐍 FLASK BACKEND — KEY FILES REFERENCE
+
+### Core
+| File | Role |
+|------|------|
+| `app.py` | Flask factory, blueprint registration, startup tasks |
+| `db.py` | ALL SQLite DDL (schema v13), all table creation, migration |
+| `auth.py` | JWT encode/decode, token validation helpers |
+| `config.py` | Flask config class, env var loading |
+| `keys.py` | Fernet-encrypted API key vault, key rotation |
+| `scheduler.py` | 3 background loops: rescan, downloads, delta regen |
+| `jazzdrive.py` | JazzDrive login, OTP, share URL generation, keepalive |
+| `mirror.py` | GitHub sync, GSheets sync (BUG-A18: _legacy import) |
+| `bulk_link_engine.py` | Link pre-gen every 2h (⚠️ BROKEN: stream_links table missing) |
+| `radd_recommend.py` | Recommendation engine (no API endpoint wired yet) |
+| `request_encoding.py` | Server-side XOR encoding layer |
+| `security_telemetry.py` | Tamper reports, rate limiting (⚠️ memory leak) |
+| `analytics.py` | Revenue, signup, engagement analytics |
+| `downloader.py` | aria2 download orchestrator |
+| `zero_rating.py` | Delta JSON generation + JazzDrive upload |
+
+### Routes (Blueprints in radd-hub/hub/routes/)
+| Blueprint | Prefix | Key Endpoints |
+|-----------|--------|--------------|
+| `auth.py` (bp_auth) | `/api/auth` | register, login, refresh, logout, device-switch |
+| `mobile_api.py` (bp_mobile + bp_rec) | `/api` | catalog, config, notifications, watchlist, history, recommend |
+| `catalog_api.py` (bp_catalog) | `/api/catalog` | sync, db_update, titles, episodes |
+| `stream.py` (bp_stream) | `/stream` | admin stream panel, link resolve |
+| `search_api.py` (bp_search) | `/api/search` | title search (LIKE queries — no FTS5) |
+| `subscriptions.py` (bp_sub) | `/api/subscription` | plans, TID submit, status |
+| `payment_gateway.py` (bp_pay) | `/api/payment-methods` | TID verification, SMS auto-approve |
+| `analytics.py` (bp_analytics) | `/analytics` | dashboard, charts |
+| `zero_rating.py` (bp_zr) | `/api/zero-rating` | delta status, force regen |
+
+### Database Schema (SQLite WAL, v13)
+```sql
+titles (id, title, year, media_type, description, rating, genres,
+        poster_url, poster_path, share_url, is_free, db_version,
+        language, status, is_ongoing,
+        ⚠️ + legacy: cast, cast_names, cast_json, overview, omdb_id, imdb_id)
+
+episodes (id, title_id FK, file_id, season, episode, label,
+          quality, is_free, share_url)
+
+files (id, title_id FK, file_id, quality, language, size_mb, duration_s,
+       share_url, is_active, created_at)
+
+users (id, phone, password_hash, device_id, plan, quota_used_mb,
+       quota_reset_at, created_at, is_admin)
+
+subscriptions (id, user_id FK, plan, start_date, end_date, tid)
+
+-- ⚠️ stream_links table MISSING from DDL — bulk_link_engine.py crashes without it
+```
+
+---
+
+## 🤖 WHATSAPP BOT
+
+### Two Instances (only one runs in production)
+| Instance | Path | Status |
+|----------|------|--------|
+| Full bot (22 files, plugins, rewards) | `radd-hub/bots/whatsapp/` | NOT in supervisor |
+| Simple bot | `radd-hub/hub/bots/whatsapp/` | ✅ Running as `raddflix_wa_bot` |
+
+**Task P4.1:** Deploy full bot to replace simple one.
+
+### Full Bot Features (bots/whatsapp/)
+Movie/show search, actor/genre/director/similar search, trailer links, account mgmt, referral codes, quota check, admin commands, rate limiting, plugin hot-reload.
+
+---
+
+## 🔐 SECURITY ARCHITECTURE
+
+### Layers (what works vs broken)
+| Layer | Status | Notes |
+|-------|--------|-------|
+| SQLCipher AES-256 (local DB) | ✅ ACTIVE | Key in Android Keystore |
+| JWT HS256 (15min access + 90d refresh) | ✅ ACTIVE | Secret in server DB |
+| APK signature check | ❌ BROKEN | Kotlin handler missing (P1.1) |
+| Frida detection | ❌ NOT IMPL | Kotlin handler missing (P2.3) |
+| Root detection | ❌ NOT IMPL | Kotlin handler missing (P2.3) |
+| Password hashing | ⚠️ WEAK | Unsalted SHA-256 (P1.3) |
+| XOR API encoding | ⏸️ DISABLED | Both sides ready, Flutter disabled |
+| share_url scrambling at rest | ⏸️ NOT WIRED | Function exists, not called |
+| CSRF protection | ✅ ACTIVE | On all admin routes |
+| Silent degradation (tamper) | ✅ ACTIVE | AppGuard.isTampered → fake empty API |
+| Rate limiting (security telemetry) | ⚠️ LEAK | _ip_window dict grows unbounded (P2.2) |
+
+### Security Design Principle
+JazzDrive share_urls NEVER expire (owner confirmed). Security must come from APK integrity, not link rotation. A cracked APK distributing those URLs freely would drain the service. This is why APK sig check (P1.1) is the highest priority fix.
+
+---
+
+## 🔧 KNOWN BUGS — FULL TABLE
+
+### Priority 1 — Critical (production-impacting)
+| ID | File | Description | Fix Ref |
+|----|------|-------------|---------|
+| P1.1 | `MainActivity.kt` | SECURITY_CHANNEL unhandled → APK sig check silent (PlatformException caught by AppGuard) | Add setMethodCallHandler for security channel |
+| P1.2 | `bulk_link_engine.py` | queries `stream_links` table not in DDL → SQL error every 2h, silently swallowed | Add table to db.py DDL |
+| P1.3 | `mobile_api.py` | `_hash_password()` unsalted SHA-256 → rainbow table attack on DB breach | Switch to bcrypt/PBKDF2 with per-user salt |
+| P1.4 | `catalog_api.py` | `_watch_base()` hardcodes `http://92.4.95.252` fallback → wrong if IP changes, HTTP not HTTPS | Move to env var only, no hardcoded fallback |
+
+### Priority 2 — Important
+| ID | File | Description |
+|----|------|-------------|
+| P2.1 | `search_api.py` | LIKE queries, no FTS5 → slow at 500+ titles |
+| P2.2 | `security_telemetry.py` | `_ip_window` dict never prunes old IPs → memory leak under DoS |
+| P2.3 | `MainActivity.kt` | Frida + root detection handlers missing (complement to P1.1) |
+| P2.4 | Flutter + server | XOR request encoding disabled (both sides ready, just need enable) |
+| P2.5 | `mirror.py` | BUG-A18: `_legacy` import may fail at runtime |
+| P2.6 | `keys.py` | Plaintext fallback if `cryptography` not installed |
+
+### Priority 3 — Cleanup
+| ID | File | Description |
+|----|------|-------------|
+| P3.1 | Root `lib/` | Dead stub files with JazzMAX/ZENO branding — delete |
+| P3.2 | `bots/whatsapp/` | `bot-state.json`, `users.json`, `pairing-number.txt` committed → add to .gitignore |
+| P3.3 | `constants.dart` | `supportWhatsApp = '923001234567'` is placeholder — set real number |
+| P3.4 | Login/Register screens | `_extract_error()` + `_friendly_error()` duplicated in both files |
+| P3.5 | `db.py` | Legacy columns: `cast`/`cast_names`/`cast_json`, `plot`/`overview`, `omdb_id`/`imdb_id` |
+| P3.6 | `bots/whatsapp/bulk_link_engine.py` | Dead product name "JazzBuzz" in docstring |
+| P3.7 | Code docs | `constants.dart` `otpDeviceSwitchEnabled` is `true` but old docs say `false` |
+
+### Priority 4 — Features / Incomplete
+| ID | Description |
+|----|-------------|
+| P4.1 | Deploy full WhatsApp bot (`bots/whatsapp/`) to supervisor replacing simple bot |
+| P4.2 | Wire `radd_recommend.py` to a real API endpoint (`GET /api/recommend`) |
+| P4.3 | Fix Chromecast: add `play-services-cast-framework` to Gradle deps |
+| P4.4 | Runtime permission request for `READ_MEDIA_VIDEO` in local_media_screen.dart |
+| P4.5 | Complete Telegram bot skeleton |
+| P4.6 | domain_doctor.py findings — add admin panel UI surface |
+| P4.7 | Enable share_url scrambling at rest (function exists, not called) |
+| P4.8 | Enable XOR request encoding (both sides ready) |
+
+### Pre-existing Bugs (from prior phases, may still be open)
+| ID | Description |
+|----|-------------|
+| BUG-A02 | detail_screen.dart doesn't pass title_id to player (series playback) |
+| BUG-A07 | OTP device switch server endpoints missing |
+| BUG-A18 | mirror.py _legacy import failure |
+| BUG-A20 | Poster sync fires multiple times per session |
+| BUG-A26 | bp_rec blueprint registration conflict |
+| BUG-A32 | mobile_api.py hardcoded dev secret fallback |
+| BUG-A33 | Material Design 2 only (useMaterial3 not set) |
+
+---
+
+## 🚀 HOW TO DEPLOY CHANGES
+
+### ⚠️ ORACLE SSH DOES NOT WORK FROM REPLIT
+All changes must go through GitHub. Oracle auto-pulls via webhook or `git pull` on server.
+
+### Flutter App Changes (via GitHub API)
+```
+1. Make change in raddflix_flutter/
+2. Commit via GitHub API (see AGENT_CONNECTIONS_GUIDE.md)
+3. GitHub Actions CI auto-builds APK
+4. CI must stay GREEN — check workflow status before calling task done
+```
+
+### Backend Changes (via GitHub API)
+```
+1. Make change in radd-hub/
+2. Commit via GitHub API
+3. Oracle server has a post-receive hook → auto git pull + supervisorctl restart raddflix_hub
+4. If supervisor doesn't auto-restart: run `supervisorctl restart raddflix_hub` on Oracle
+```
+
+### How to Commit (GitHub API Pattern — always use this)
 ```bash
-# 1. Get HEAD SHA
+# Step 1: Get current HEAD + TREE SHA
 HEAD_SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
   "https://api.github.com/repos/raddclub/raddflix-app/git/refs/heads/main" \
-  | jq -r '.object.sha')
-
-# 2. Get tree SHA
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['object']['sha'])")
 TREE_SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
   "https://api.github.com/repos/raddclub/raddflix-app/git/commits/$HEAD_SHA" \
-  | jq -r '.tree.sha')
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['tree']['sha'])")
 
-# 3. Create blob for each file (base64 for binary/large files)
+# Step 2: Create blobs for each file
 BLOB=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
   -H "Content-Type: application/json" \
   "https://api.github.com/repos/raddclub/raddflix-app/git/blobs" \
-  -d "{\"encoding\":\"base64\",\"content\":\"$(base64 -w0 /tmp/yourfile)\"}" \
-  | jq -r '.sha')
+  -d "{\"encoding\":\"base64\",\"content\":\"$(base64 -w0 /path/to/file)\"}" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
 
-# 4. Create tree (multi-file: add more objects to array)
+# Step 3: Create new tree
 NEW_TREE=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
   -H "Content-Type: application/json" \
   "https://api.github.com/repos/raddclub/raddflix-app/git/trees" \
   -d "{\"base_tree\":\"$TREE_SHA\",\"tree\":[{\"path\":\"path/to/file\",\"mode\":\"100644\",\"type\":\"blob\",\"sha\":\"$BLOB\"}]}" \
-  | jq -r '.sha')
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
 
-# 5. Commit
+# Step 4: Create commit
 NEW_COMMIT=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
   -H "Content-Type: application/json" \
   "https://api.github.com/repos/raddclub/raddflix-app/git/commits" \
   -d "{\"message\":\"your message\",\"tree\":\"$NEW_TREE\",\"parents\":[\"$HEAD_SHA\"]}" \
-  | jq -r '.sha')
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
 
-# 6. Update ref (NEVER force)
+# Step 5: Update branch ref
 curl -s -X PATCH -H "Authorization: token $GITHUB_TOKEN" \
   -H "Content-Type: application/json" \
   "https://api.github.com/repos/raddclub/raddflix-app/git/refs/heads/main" \
-  -d "{\"sha\":\"$NEW_COMMIT\",\"force\":false}"
+  -d "{\"sha\":\"$NEW_COMMIT\"}"
 ```
 
 ---
 
-## What's Built (Phase Summary)
+## 🔑 SECRETS & ACCESS
 
-| Phase | What | Status |
-|-------|------|--------|
-| 1 | MX Player UI (ambilight, track badges, A-B loop, bookmarks, memory) | ✅ |
-| 2 | Metadata 6-tier enrichment (TMDB→OMDB→AI→IMDbAPI→YouTube→Google KG) | ✅ |
-| 3 | Poster image system (local cache, background sync, JazzDrive zero-rated saving) | ✅ |
-| 4 | Security (SQLCipher AES-256, Android Keystore, flutter_secure_storage) | ✅ |
-| 5 | Device binding (1 account = 1 device, 409 conflict, WhatsApp switch) | ✅ |
-| 6 | Data usage tracking (byte estimate, quota cache, QuotaFullScreen) | ✅ |
-| 7 | Delta JSON system (zero-rating catalog updates, 24h auto-generation) | ✅ |
-| 8 | Subscription plans & TID payment flow | ✅ |
-| 9 | SIMOSA integration (daily card, streak tracker, Jazz partner badge) | ✅ |
-| 10 | WhatsApp Bot (managed via admin panel) | ✅ |
-| 11 | Full integration audit (app check, PackageInfo version, notification bell) | ✅ |
-| 12 | FTS5 full-text search (catalog_fts virtual table, prefix search, DB v13) | ✅ |
+| Secret | Where Stored | Used For |
+|--------|-------------|----------|
+| `GITHUB_TOKEN` | Replit Secrets | All GitHub API calls |
+| `SESSION_SECRET` | Oracle `.env` | JWT signing key |
+| `VAULT_MASTER_KEY` | Oracle `.env` | Fernet API key encryption |
+| `TMDB_KEY` | Oracle DB via keys.py | TMDB metadata |
+| `OMDB_KEY` | Oracle DB via keys.py | OMDB metadata |
+| `GROQ_API_KEY` | Oracle DB via keys.py | AI metadata enrichment |
+| `GEMINI_API_KEY` | Oracle DB via keys.py | AI metadata enrichment |
+| `RADD_ADMIN_USER` | Oracle `.env` | Admin panel login |
+| `RADD_ADMIN_PASS` | Oracle `.env` | Admin panel login |
 
----
-
-## KNOWN BROKEN THINGS (Full Audit — 2026-05-30)
-
-These are confirmed bugs found by reading actual code logic. Fix these in Phase 13.
-
-### 🔴 Critical (breaks functionality for users)
-
-| ID | Where | Bug | Impact |
-|----|-------|-----|--------|
-| BUG-A01 | `radd-hub/hub/db.py` (titles table DDL) | `year` column stored as TEXT. Flutter `int?` cast returns null | Year never shown on any content card |
-| BUG-A02 | `radd-hub/hub/library.py` (delta generation) | `media_type` returns `"tv"` or `"series"` depending on source. Flutter filter expects `"show"` | TV shows invisible or miscategorized in the app |
-| BUG-A03 | `radd-hub/hub/routes/mobile_api.py` (auth endpoints) | `is_active` returned as Python `bool` (true/false). Flutter `UserSubscription` expects `int` (1/0) | Subscription status unreliable |
-| BUG-A04 | `raddflix_flutter/lib/core/db/local_db.dart` (`mergeDeltaTitle`) | `ON CONFLICT(id) DO UPDATE SET...` is SQLite 3.24+ syntax. Android 8 ships SQLite 3.19–3.22 | Crashes on Android 8 and below during catalog sync |
-| BUG-A05 | `raddflix_flutter/lib/screens/vault_lock_screen.dart` | `_expectedPinLength` = 6 but `_submit` allows length 4 in setup mode | User creates 4-digit PIN, 6-digit lock screen never accepts it |
-| BUG-A06 | `radd-hub/hub/app.py` line ~166 | `session_err` variable used in `download_proxy()` but never defined | Runtime `NameError` crash on any download proxy call |
-| BUG-A07 | `radd-hub/hub/routes/mobile_api.py` (`/api/app/check`) | Returns `package_id: "pk.jazzmax.app"` (old brand). Correct is `"com.raddflix.app"` | Force-update check compares wrong package ID — never triggers correctly |
-| BUG-A08 | `raddflix_flutter/lib/core/api/watch_history` | Server has full `/api/history` and `/api/history/<file_id>` API. **No `HistoryApi` class exists in Flutter.** History is local-only, never synced to server | Watch history lost if user reinstalls app |
-
-### 🟠 Data / Logic Errors
-
-| ID | Where | Bug | Impact |
-|----|-------|-----|--------|
-| BUG-A09 | `radd-hub/hub/routes/mobile_api.py` (`/api/notifications/read`) | Accepts `{"ids": [...]}` but ignores array — marks ALL notifications read for user | Can't selectively read one notification |
-| BUG-A10 | `radd-hub/hub/routes/mobile_api.py` (`POST /api/auth/device`) | Crashes HTTP 500 when called with a guest token | Guest users crash device binding |
-| BUG-A11 | Server + Flutter | Server history API stores positions in **seconds**. Flutter `local_db.dart` stores in **milliseconds**. No conversion | History sync would be 1000x wrong when HistoryApi is added |
-| BUG-A12 | `raddflix_flutter/lib/screens/subscription_screen.dart` | Fallback payment methods contain placeholder `03xxxxxxxxx` account numbers | Users see fake account numbers if `payment_methods` DB table is empty |
-| BUG-A13 | `raddflix_flutter/lib/screens/register_screen.dart` | Phone validation only checks `length < 11`, no Pakistani prefix check | Accepts invalid numbers |
-| BUG-A14 | `raddflix_flutter/lib/screens/profile_screen.dart` (`_loadExtras`) | Catches ALL exceptions silently — API failures, parse errors all swallowed | User sees stale data with no error indication |
-| BUG-A15 | `raddflix_flutter/lib/providers/catalog_provider.dart` | `_staticTrending` is a hardcoded list in `search_screen.dart` — not from server | Trending suggestions are fake/static |
-| BUG-A16 | `raddflix_flutter/lib/screens/search_screen.dart` (`_extractGenres`) | Genre splitting by comma doesn't trim whitespace in initial map key — "Action" and " Action" = two chips | Duplicate genre filter chips |
-| BUG-A17 | `radd-hub/hub/jazzdrive.py` lines 27–45 | `jazzdrive_login`, `list_folders`, `create_folder`, `delete_file` accept `*args/**kwargs` and do nothing | Any JazzDrive operation hitting these silently fails |
-| BUG-A18 | `radd-hub/hub/sync.py` | GSheets sync uses a `_legacy` import that may be missing | Sync to Google Sheets throws `ImportError` |
-
-### 🟡 Missing Wiring / Unwired Features
-
-| ID | Where | What's Missing |
-|----|-------|---------------|
-| BUG-A19 | `raddflix_flutter/lib/core/api/` | No `HistoryApi` class exists. Server has full history sync API. Client never calls it. |
-| BUG-A20 | `raddflix_flutter/lib/core/services/poster_service.dart` | `syncPosters()` / `runBackgroundSync()` exist — not confirmed started in `main.dart` or `splash_screen.dart` |
-| BUG-A21 | `raddflix_flutter/lib/core/player/player_prefs.dart` | `PlayerPrefs.reset()` defined — no UI button anywhere to call it |
-| BUG-A22 | `raddflix_flutter/lib/core/db/local_db.dart` | `clearPosition(fileId)` defined — never called from history or settings UI |
-| BUG-A23 | `raddflix_flutter/lib/core/player/scene_bookmark_store.dart` | `deleteAll()` defined — never called anywhere |
-| BUG-A24 | `raddflix_flutter/lib/core/player/binge_guard_controller.dart` | `BingeGuardController` exists — no confirmed point where it interrupts playback |
-| BUG-A25 | `raddflix_flutter/lib/core/player/smart_intro_store.dart` | `SmartIntroStore` exists — needs confirmation it's triggered in `player_screen.dart` |
-| BUG-A26 | `radd-hub/hub/radd_recommend.py` | Full recommendation engine exists — no API endpoint exposes it to Flutter app |
-| BUG-A27 | `raddflix_flutter/lib/core/api/auth_api.dart` | `AuthApi.bindDevice()` is a standalone function — device binding is already inside `login()`. This is dead code |
-| BUG-A28 | Server | Download quota: server never returns `downloads_used_today`. Download quota tracked but never enforced |
-| BUG-A29 | Server | Mid-stream usage cutoff doesn't exist. Quota only checked at stream start |
-
-### 🔵 Infrastructure / Config Issues
-
-| ID | Where | Issue |
-|----|-------|-------|
-| BUG-A30 | `raddflix_flutter/lib/core/remote_config.dart` | Points to hardcoded IP `92.4.95.252`. If IP changes, every installed app breaks permanently |
-| BUG-A31 | Oracle server | No SSL — all API traffic unencrypted. `http://92.4.95.252` |
-| BUG-A32 | `radd-hub/hub/config.py` | `FLASK_SECRET_KEY` auto-generated on first run. Server restart = new key = all JWTs invalidated = all users logged out |
-| BUG-A33 | App + Server | UI uses Material Design 2. No Material 3 (`useMaterial3: true` not set). No dynamic color. No light theme. |
-| BUG-A34 | `_watch_prototype/` directory | ✅ RESOLVED 2026-05-30 — catalog/search/poster migrated to radd-hub routes. `raddflix_watch` supervisor service decommissioned. |
+**NEVER hardcode secrets in source code. Always read from env or via keys.py.**
 
 ---
 
-## Full Review Checklist (Run Before Every Session)
+## 📐 CODE CONVENTIONS
 
-### Step 0 — Orientation
-- [ ] Read REINCARNATION.md (this file)
-- [ ] Read MASTER_TASKLIST.md for current status
-- [ ] Read TASK_LOG.md bottom entry for last session
-- [ ] Read CODE_MAP.md for any file you're about to touch
+### Flutter (Dart)
+- State management: **Riverpod only** (no setState except in Stateful scaffolding)
+- HTTP: **Dio via ApiClient.instance** (never raw http package)
+- Local storage: **local_db.dart** for persistent data, **SharedPreferences** for flags/prefs only
+- Error handling: **never silent catch-all** — log to DebugLogger or rethrow
+- Constants: **AppConstants.*** and **ApiPaths.*** — no magic strings
+- Routes: **AppRoutes.*** named routes via Navigator.pushNamed — no direct MaterialPageRoute unless player
+- Imports: use relative imports (../core/...) not package: imports for internal code
+- Theme: use **AppColors.*** and **RaddColors.*** — no hardcoded Color(0x...)
 
-### Step 1 — Verify CI Status
-```bash
-curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/raddclub/raddflix-app/actions/runs?per_page=3" \
-  | jq -r '.workflow_runs[] | "\(.name): \(.conclusion) (\(.head_sha[0:7]))"'
+### Flask (Python)
+- Blueprint pattern for all routes — never add routes directly to `app`
+- DB access: **db.get_db()** connection (never direct sqlite3 connection)
+- Error responses: always return JSON `{"error": "message"}` with appropriate HTTP status
+- Auth required: use `@require_auth` decorator — never manually decode JWT in routes
+- Config: always from `config.py` or env vars via `os.environ.get()` — no hardcoded values
+- Logging: `app.logger.info/error` — never print()
+
+### Git Commit Messages
 ```
+type(scope): short description
 
-### Step 2 — Check Current DB Version
-- File: `raddflix_flutter/lib/core/constants.dart`
-- Look for: `catalogDbVersion`
-- Current: **13** (FTS5)
-- When adding new tables: increment to 14, add `if (oldV < 14)` block in `_migrate`
-- **NEVER rename `oldV` parameter**
-
-### Step 3 — Verify sqflite version
-- File: `raddflix_flutter/pubspec.yaml`
-- Must be: `sqflite_sqlcipher: 3.1.0+1` (no caret, no upgrade)
-
-### Step 4 — Check Known Bugs Before Coding
-Read the BUG-A01 through BUG-A34 list above. If your task touches a buggy file, fix the bug as part of your work.
-
-### Step 5 — After Every Commit
-- [ ] Verify CI green (both `Build RaddFlix APK` and `RaddFlix CI`)
-- [ ] Update MASTER_TASKLIST.md
-- [ ] Append to TASK_LOG.md
-
----
-
-## Key Technical Facts
-
-### DB Versions
-| Version | Tables Added |
-|---------|-------------|
-| 1–11 | Core (titles, episodes, watch_positions, downloads, usage_log, quota_cache, simosa_streak) |
-| 12 | show_ep_seen (new-episode badge), stream_cache (6h JazzDrive link TTL) |
-| 13 | catalog_fts (FTS5 virtual table for search) |
-| **Next: 14** | Add tables for: HistorySync, anything new |
-
-### sqflite version lock
-`sqflite_sqlcipher: 3.1.0+1` — pinned. Do not upgrade.
-
-### `_migrate` parameter names
-`_migrate(Database db, int oldV, int newV)` — always `oldV`, never `oldVersion`.
-
-### media_type normalization (BUG-A02)
-Server must return `"show"` for TV series. Flutter filters on `item.mediaType == "show"`. Currently returns `"tv"` or `"series"` which makes all TV content invisible.
-
-### Continue Watching TV shows
-`CatalogItem.fileId` is null for shows. Watch positions use episode file_ids. Must iterate `show.episodes` list to match. Fixed in catalog_provider.dart.
-
-### FTS5 search
-- Virtual table `catalog_fts` linked to `titles` via `content='titles'`
-- Rebuild after every bulk insert: `LocalDb.rebuildFtsIndex()`
-- Query: each word → `"word*"` prefix term, AND'd
-- Falls back to LIKE if FTS fails
-
-### JazzDrive / Streaming
-- Stream links generated by app calling JazzDrive API DIRECTLY: POST /sapi/link/login then GET /sapi/media/video (both zero-rated, cloud.jazzdrive.com.pk)
-- share_url (in local SQLite from Oracle sync) is input; time-limited CDN URL is output
-- Oracle NEVER proxies or resolves streams — JazzDrive calls go phone→JazzDrive only
-- `JazzDriveService.getStreamLink()` in `jazzdrive_service.dart` handles both API calls
-- Links cached in `stream_cache` table (3h TTL = 10800s, DB v12)
-- See STREAMING_ARCHITECTURE.md for full breakdown
-
-### OTP Device Switch
-- `AppConstants.otpDeviceSwitchEnabled = false` — hidden
-- UI exists in `_DeviceConflictPanel` (StatefulWidget with OTP step)
-- Server endpoints **EXIST**: `POST /api/auth/device-switch/request` and `POST /api/auth/device-switch/verify` ✅ (implemented Phase 17)
-- `AppConstants.otpDeviceSwitchEnabled = true` — enabled (Phase 17)
-- WhatsApp delivery: wa-bot must be running on port 3000 (currently down)
-
-### History Sync Gap
-- Server: full `/api/history` (GET list) and `/api/history/<file_id>` (POST position) API implemented
-- Flutter: **no HistoryApi class**. Local watch positions never sent to server.
-- Server uses seconds, Flutter uses milliseconds — need unit conversion when implementing
-
----
-
-## Architecture Quick Reference
-
-```
-raddflix_flutter/           ← Flutter Android app
-  lib/
-    app.dart                ← Routes, ForceUpdateGuard, MaterialApp
-    main.dart               ← Entry point, ProviderScope
-    core/
-      api/                  ← Dio API clients (auth, catalog, subscription)
-      db/local_db.dart      ← SQLite (encrypted), all queries
-      db/sync_service.dart  ← Catalog sync orchestration
-      constants.dart        ← ALL constants, routes, API paths
-      remote_config.dart    ← Fetches base URL from server
-      theme/                ← Dark theme, RaddColors
-    models/                 ← CatalogItem, User, Subscription, LocalVideo
-    providers/              ← Riverpod state (auth, catalog, downloads, subscription)
-    screens/                ← All UI screens
-    widgets/                ← Reusable UI + 12 player overlay widgets
-    services/               ← Cast, local media, thumb, vault
-
-radd-hub/hub/               ← Flask backend (admin panel + mobile API) — ALL on port 5000
-  app.py                    ← Flask factory, blueprint registration, background threads
-  db.py                     ← SQLite schema (25+ tables), all server-side queries
-  routes/
-    mobile_api.py           ← ALL mobile API endpoints (auth/sub/usage/notif/history/app/recommend)
-    catalog_api.py          ← Flutter catalog sync (version/sync/posters/db_update) — SQLite live
-    search_api.py           ← Flutter app search (no auth required)
-    poster_proxy.py         ← TMDB/OMDB/IMDbAPI poster key rotation + 30d cache
-    library.py              ← Admin catalog mgmt + delta JSON generation
-    api.py                  ← JazzDrive OTP, scraper search (/api/scraper/search), metadata fix
-    [admin routes]          ← analytics, app_users_panel, bots, broadcast, settings, etc.
-  templates/                ← Jinja2 HTML admin panel (base.html + page templates)
-  jazzdrive.py              ← JazzDrive API wrapper (partially stubbed)
-  scheduler.py              ← APScheduler jobs (rescan, delta gen, scheduled downloads)
-
-agent-hub/                  ← Agent documentation (NOT deployed to server)
-  REINCARNATION.md          ← THIS FILE — full context for next agent
-  SKILLS.md                 ← Rules every agent must follow
-  MASTER_TASKLIST.md        ← All tasks with status
-  CODE_MAP.md               ← Every file mapped to purpose/functions/bugs
-  history/TASK_LOG.md       ← Session-by-session history
-  history/UI_AUDIT_2026_05_28.md       ← Previous UI audit
+Types: feat, fix, docs, refactor, security, test, ci
+Examples:
+  fix(android): wire SECURITY_CHANNEL handler in MainActivity.kt
+  fix(backend): add stream_links table to DDL
+  security(auth): migrate password hashing to bcrypt
+  docs(agent-hub): update MASTER_PLAN task status
 ```
 
 ---
 
-## Recommended Next Tasks (Phase 13 — Audit Fixes)
+## 📜 PROJECT HISTORY SUMMARY
 
-Priority order based on user impact:
-
-1. **BUG-A02** — Normalize `media_type` to `"show"` in `library.py` delta output → TV shows become visible
-2. **BUG-A01** — Change `year` column to INTEGER in DB DDL → years appear on all cards
-3. **BUG-A03** — Fix `is_active` serialization in `/api/auth/me` → subscription status reliable
-4. **BUG-A19** — Create `HistoryApi` class in Flutter + wire to server → watch history survives reinstalls
-5. **BUG-A05** — Fix vault PIN length mismatch (4 vs 6) in `vault_lock_screen.dart`
-6. **BUG-A06** — Fix `session_err` NameError in `app.py` download_proxy
-7. **BUG-A07** — Fix package ID in `/api/app/check` from `pk.jazzmax.app` → `com.raddflix.app`
-8. **BUG-A11** — Add seconds↔ms conversion when HistoryApi is implemented
-9. **BUG-A12** — Fix placeholder payment numbers in `subscription_screen.dart`
-10. **BUG-A16** — Fix genre chip deduplication in `search_screen.dart`
+| Phase | What Was Done |
+|-------|--------------|
+| 1–5 | Flutter skeleton: auth, catalog, player, local DB (SQLCipher), JazzDrive integration |
+| 6–10 | Download system, vault, security (AppGuard, device binding), SIMOSA integration |
+| 11–15 | Admin panel, subscription system, TID payments, notification system |
+| 16–20 | WhatsApp bot, analytics, zero-rating delta, metadata enrichment pipeline |
+| 21–25 | XOR encoding, security telemetry, recommendation engine, advanced player features |
+| 26–27 | Keystore migration (debug→release signing), CI green, APK fingerprint update |
+| 28 (this) | Full deep audit: 359+ files read, 17 new bugs found, all docs overhauled |
 
 ---
 
-## Addendum — Oracle Server State (2026-05-30)
+## 🔄 HOW TO USE THIS FILE
 
-### Catalog Migration Done
-All API routes now served from **single radd-hub process on port 5000**.
-`_watch_prototype` catalog service (`raddflix_watch`) decommissioned.
+**When you start a new session:**
+1. Read this file top-to-bottom
+2. Read `AGENT_RULES.md` (mandatory)
+3. Check `MASTER_PLAN.md` for the next task
+4. Read the specific `CODE_MAP.md` entry for files you'll touch
+5. Make your change
+6. Verify: CI green + no regressions
+7. Update `MASTER_PLAN.md` task status
+8. Append to `history/TASK_LOG.md`
+9. Ask user for approval before starting next task
 
-| Before | After |
-|--------|-------|
-| /api/catalog/ → port 6000 (_watch_prototype) | /api/catalog/ → port 5000 (radd-hub catalog_api.py) |
-| /api/search → port 6000 | /api/search → port 5000 (radd-hub search_api.py) |
-| /api/poster/ → port 6000 | /api/poster/ → port 5000 (radd-hub poster_proxy.py) |
-| /api/auth/ → port 5000 | /api/auth/ → port 5000 (unchanged) |
-
-### JazzMAX → RaddFlix Rename (Oracle server)
-- nginx: `sites-available/jazzmax` → `raddflix`, `raddflix-ssl.conf`, `raddflix_security.conf`
-- supervisor: `jazzmax_radd` → `raddflix_radd`; `jazzmax_watch` → removed
-- systemd: `jazzmax_watch.service` → `raddflix_watch.service` (then removed)
-- `/health` endpoint → returns `"RaddFlix Oracle OK"`
-
-### Supervisor Status
-```bash
-sudo supervisorctl status
-# raddflix_radd   RUNNING   # only service — all API on port 5000
-```
-
-### Git State
-- Server at commit `2a73e90` (latest main)
-- radd-hub Python changes at commit `46983977`
-- All conflicts resolved
-
-### SSH Key Pattern
-See AGENT_NOTES.md — key is OPENSSH format with spaces instead of newlines.
-Use `re.match(r'(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)', raw)` to reformat.
-
+**If something is unclear:** Check `PRODUCT_CONTEXT.md`, `SECURITY_ARCHITECTURE.md`, or `PLAYER_SPEC.md`.
 
 ---
 
-## Addendum — Verified Live State (2026-05-31 Full Audit)
-
-### Server (Oracle 92.4.95.252) — Verified
-| Item | Value |
-|------|-------|
-| Git HEAD | `2a73e90` (feat(settings): Getting Started card + setup-status API) |
-| Supervisor | `raddflix_radd` RUNNING pid 488081 |
-| Disk | 30 GB used / 193 GB total |
-| Staging | EMPTY |
-| Media folder | Off_Campus_S01 only |
-| wa-bot | NOT running (port 3000 dead — OTP stored but not delivered) |
-
-### Database — Verified
-| Table | Count | Notes |
-|-------|-------|-------|
-| titles | **24** (16 movies, 8 shows) | All is_published=1 |
-| files | 44 | |
-| plans | 3 | Basic Rs.149/30GB, Standard Rs.249/50GB, Premium Rs.399/100GB |
-| keys | 8 | 2 TMDB ✅, 2 OMDB ✅, 2 Gemini ✅, 2 Groq ✅ (all active, last_status=ok) |
-| accounts | 1 | 03029688227, role=flix, is_active=1 |
-
-Note: `plans` table columns are `monthly_limit_gb` / `daily_limit_gb` — NOT `data_gb`.
-
-### CI Status — WARNING
-Both `Build RaddFlix APK` and `RaddFlix CI` are **FAILING** at HEAD `2a73e90`.
-Failure step: "Build release APK". Server-side changes still work fine.
-**Fix CI before any new Flutter changes.**
-
-### All 18 API Endpoints — Verified ✅
-| Endpoint | Status |
-|----------|--------|
-| GET /health | 200 "RaddFlix Oracle OK" |
-| GET /healthz | 200 {"ok":true,"version":"3.0.0"} |
-| GET /api/ping | 200 |
-| GET /api/catalog/version | 200 {"count":24} |
-| GET /api/catalog/sync | 200 (24 titles, media_type normalized, poster_jd_url correct) |
-| GET /api/catalog/delta | 200 |
-| GET /api/search?q=test | 200 |
-| POST /api/app/check | 200 {"ok":true,"blocked":false} |
-| GET /api/payment-methods | 200 |
-| GET /api/auth/me | 401 (auth required — correct) |
-| GET /api/subscription/status | 401 |
-| GET /api/usage/quota | 401 |
-| GET /api/notifications/ | 401 |
-| GET /api/history | 401 |
-| GET /api/recommend | 401 |
-| GET /api/subscription/plans | 200 (3 plans) |
-| POST /api/ping | 405 (method guard working) |
-| POST /api/auth/device-switch/request | 200 |
-| POST /api/auth/device-switch/verify | 400 (bad OTP — correct) |
-
-### Confirmed Bug Fixes (verified against live server)
-| Bug | Fix Verified |
-|-----|-------------|
-| BUG-A01 year TEXT→INTEGER | ✅ years are integers in DB and API response |
-| BUG-A02 media_type normalization | ✅ DB and sync show "movie"/"show" only |
-| BUG-A32 Flask secret persisted | ✅ SESSION_SECRET in supervisor env + FLASK_SECRET_KEY in .env |
-| BUG-B01 poster_proxy path | ✅ RADD_HUB_DATA_DIR in supervisor env |
-| BUG-B02 405 handler | ✅ POST /api/ping → 405 |
-| BUG-016 plan prices | ✅ Basic Rs.149, Standard Rs.249, Premium Rs.399 |
-| BUG-017 /api/catalog/delta | ✅ returns 200 |
-| BUG-018 poster_jd_url route | ✅ points to /api/catalog/poster/<id> |
-
-### Phases Not in REINCARNATION.md (completed after last update)
-- **Phase 15** — Server bug sweep (poster_proxy path, 405 handler, search media_type filter)
-- **Phase 16** — Deep Flutter-backend route audit + 3 bug fixes
-- **Phase 17** — WhatsApp OTP device switch + API contract audit + download pipeline
-- **Phase 18** — Full system verification (delta bug, plans seeded, 15 titles discovered via scan)
-- **Phase 19** — Flutter video player fixes, external player, system "Open With", vault thumbnails
-- **Phase 20** — 2026 UI Polish (Home, Downloads, Profile screens)
-- **Phase 21** — 2026 UI Polish (Search, Local Media, Vault) + full audit
-- **Phase 22** — DB Studio smart bulk enrichment (IMDbAPI-first 6-source pipeline, SSE progress)
-- **Phase 23** — Settings: Getting Started card + setup-status API
-
----
-
-## Phase 25 — Security Architecture (2026-05-31)
-
-### Key Architecture Decisions (PERMANENT — do not change without reading SECURITY_ARCHITECTURE.md)
-
-**JazzDrive share_urls NEVER expire** — this was confirmed by the user. The previous
-"24h expiry" claim in ZERO_RATING_DELTA.md was WRONG and has been corrected.
-
-**Security = APK Integrity, not link rotation.** We protect permanent links by:
-1. APK signature check — cracked APK → fake empty data (silent degradation)
-2. Frida detection — runtime hooking attempt → fake data
-3. Build obfuscation — compiled APK class names randomised
-4. SQLCipher AES-256 — local DB encrypted with device-bound key (Phase 4, active)
-5. share_url scrambling — XOR-scrambled at rest in SQLite (implemented, not yet wired)
-6. XOR API encoding — session-key layer on top of HTTPS (implemented, disabled)
-
-### New Files (Phase 25)
-| File | Purpose |
-|------|---------|
-| `lib/core/security/app_guard.dart` | APK sig check + Frida detect + root detect |
-| `lib/core/security/request_encoder.dart` | XOR encoding + share_url scrambling |
-| `agent-hub/SECURITY_ARCHITECTURE.md` | Full 6-layer security spec + server impl |
-| `agent-hub/PROMPT_NEXT_AGENT.md` | Handoff prompt for next agent |
-
-### CI Fix
-Build was failing since commit `978d661` due to keystore password mismatch.
-Fixed in `build-apk.yml`: added `|| 'RaddFlix_2024_Store'` defaults.
-Also added `--obfuscate --split-debug-info` to release build.
-
-### What Next Agent Must Do
-1. Wire `MainActivity.kt` security MethodChannel (see SECURITY_ARCHITECTURE.md)
-2. Wire `RequestEncoder.scrambleUrl()` in `local_db.dart` for share_url at-rest scrambling
-3. Get official APK fingerprint and activate `_officialFingerprint` in `app_guard.dart`
-4. Wire `ApiClient` tamper-check gate
-5. Server XOR encoding in radd-hub (when ready)
-
-Read `agent-hub/PROMPT_NEXT_AGENT.md` for full handoff with all priorities.
-
----
-
-## Addendum — Full Deep Audit 2026-05-31 (Replit Agent)
-
-### CRITICAL NEW FINDING: DUAL FILE STRUCTURE
-
-The repo contains TWO sets of Flutter files:
-- **Root `lib/` + root `pubspec.yaml`** — OLD STUBS. Out of date. Never build from here.
-- **`raddflix_flutter/lib/` + `raddflix_flutter/pubspec.yaml`** — CANONICAL real app.
-
-Root stubs contain dead branding (JazzMAX, ZENO, JMX). Never edit them.
-
-### CRITICAL BUG: APK Signature Check NOT Working
-
-`MainActivity.kt` declares `SECURITY_CHANNEL = "com.raddflix.app/security"` but has **NO `setMethodCallHandler`** for it. `AppGuard._checkSignature()` in Flutter invokes `getSignatureFingerprint` — this throws `PlatformException` which is silently caught. Result: **APK signature enforcement is disabled in production despite the fingerprint being set.**
-
-Fix: Add `setMethodCallHandler` in `MainActivity.kt` for `SECURITY_CHANNEL` that reads the APK cert and returns its SHA-256. See `agent-hub/SECURITY_ARCHITECTURE.md`.
-
-### NEW BUGS SUMMARY (see CODE_MAP.md for full table)
-
-- **NEW-01** `bulk_link_engine.py` — queries `stream_links` table that doesn't exist → SQL error every 2h (silent)
-- **NEW-02** `mobile_api.py::_hash_password()` — unsalted SHA-256, rainbow table vulnerable
-- **NEW-03** `catalog_api.py::_watch_base()` — hardcoded `http://92.4.95.252` fallback (HTTP, not HTTPS)
-- **NEW-04** `MainActivity.kt` — SECURITY_CHANNEL unhandled → APK signature check silently disabled
-- **NEW-05** `search_api.py` — LIKE queries (no FTS5), slow at scale
-- **NEW-06** `security_telemetry.py` — unbounded `_ip_window` dict under DoS
-
-### NEW FILES CONFIRMED (not in prior docs)
-
-`show_detail_screen.dart` (series detail with resume logic), `admin_queue_screen.dart`, `local_media_screen.dart`, `local_folder_screen.dart`, `plan_expired_screen.dart`, `quota_full_screen.dart`, `tid_status_screen.dart`, `vault_settings_screen.dart`, `player_settings_screen.dart`, 7 player controllers (`ab_loop`, `ambilight`, `binge_guard`, `player_prefs`, `player_prefs_provider`, `scene_bookmark_store`, `smart_intro_store`), 12 player widgets, `cast_service.dart`, `local_media_service.dart`, `thumb_service.dart`, `vault_service.dart` (services/ — different from core/security/), `MediaStorePlugin.kt`, `CastOptionsProvider.kt`.
-
-### CONSTANTS CORRECTION
-
-`constants.dart` — `otpDeviceSwitchEnabled = true` (NOT false as CODE_MAP previously stated).
-`supportWhatsApp = '923001234567'` is a placeholder, not a verified real Jazz business number.
-
-### REAL PUBSPEC PACKAGES (raddflix_flutter/)
-
-Beyond what was documented: `flutter_animate`, `shimmer`, `smooth_page_indicator`, `intl`, `package_info_plus`, `url_launcher`, `share_plus`, `android_intent_plus`, `disk_space_plus`, `saver_gallery`, `flutter_colorpicker`, `audio_session`, `video_thumbnail`, `crypto`.
-
+*End of REINCARNATION.md — v3.0 — 2026-05-31*
+*Next update: after P1.1 (MainActivity.kt security channel) is complete*
