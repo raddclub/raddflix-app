@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/player/player_prefs.dart';
 import '../../../core/player/player_theme.dart';
+import '../../../core/player/icon_packs.dart';
 import 'color_picker_sheet.dart';
 import 'seek_bar_painter.dart';
 import 'theme_picker_sheet.dart';
@@ -81,6 +82,9 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
   String _progressPos    = 'above';
   bool   _materialStyle  = true;
   String _controlsDensity = 'medium';
+
+  // ── Phase A3/A4 local state ───────────────────────────────────────────────
+  // (driven by _p.buttonShape, _p.iconPack, _p.controlsBgStyle)
 
   // ── Text tab local state ───────────────────────────────────────────────────
   double _subtitleScale    = 1.0;
@@ -284,6 +288,114 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                   accentColor: playerAccent,
                   selected: currentSeekStyle == style,
                   onTap: () => _update(_p.copyWith(seekBarStyle: style.name)),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // ── BUTTON SHAPE ─────────────────────────────────────────────────
+        _QsLabel('Button Shape'),
+        SizedBox(
+          height: 64,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+            children: const [
+              {'id': 'circle',   'label': 'Circle',   'radius': 34.0},
+              {'id': 'squircle', 'label': 'Squircle', 'radius': 14.0},
+              {'id': 'rounded',  'label': 'Rounded',  'radius': 8.0},
+              {'id': 'sharp',    'label': 'Sharp',    'radius': 2.0},
+              {'id': 'pill',     'label': 'Pill',     'radius': 24.0},
+            ].map<Widget>((shape) {
+              final id    = shape['id']    as String;
+              final label = shape['label'] as String;
+              final r     = shape['radius'] as double;
+              return _buildShapeChip(id, label, r, playerAccent);
+            }).toList(),
+          ),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // ── ICON PACK ────────────────────────────────────────────────────
+        _QsLabel('Icon Pack'),
+        SizedBox(
+          height: 64,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+            children: [
+              {'id': 'mx',        'label': 'MX',       'icon': Icons.play_arrow_rounded},
+              {'id': 'ios',       'label': 'iOS',      'icon': Icons.play_circle_outline},
+              {'id': 'fluent',    'label': 'Fluent',   'icon': Icons.play_arrow},
+              {'id': 'material3', 'label': 'M3',       'icon': Icons.play_arrow_rounded},
+              {'id': 'cute',      'label': 'Cute',     'icon': Icons.play_circle_filled_rounded},
+              {'id': 'minimal',   'label': 'Minimal',  'icon': Icons.play_arrow},
+            ].map<Widget>((pack) {
+              final id     = pack['id']    as String;
+              final label  = pack['label'] as String;
+              final icon   = pack['icon']  as IconData;
+              final sel    = _p.iconPack == id;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () => _update(_p.copyWith(iconPack: id)),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 72,
+                    decoration: BoxDecoration(
+                      color: sel ? playerAccent.withOpacity(0.18) : Colors.white.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: sel ? playerAccent : Colors.white12,
+                        width: sel ? 1.5 : 1),
+                    ),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(icon, color: sel ? playerAccent : Colors.white54, size: 22),
+                      const SizedBox(height: 4),
+                      Text(label, style: TextStyle(
+                        color: sel ? Colors.white : Colors.white54,
+                        fontSize: 10, fontWeight: sel ? FontWeight.w600 : FontWeight.normal)),
+                    ]),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // ── CONTROLS BACKGROUND ──────────────────────────────────────────
+        _QsLabel('Controls Background'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Wrap(spacing: 8, runSpacing: 8,
+            children: [
+              {'id': 'none',     'label': 'None'},
+              {'id': 'glass',    'label': 'Glass'},
+              {'id': 'gradient', 'label': 'Gradient'},
+              {'id': 'solid',    'label': 'Solid'},
+              {'id': 'mesh',     'label': 'Mesh'},
+            ].map<Widget>((s) {
+              final id    = s['id']!;
+              final label = s['label']!;
+              final sel   = _p.controlsBgStyle == id;
+              return GestureDetector(
+                onTap: () => _update(_p.copyWith(controlsBgStyle: id)),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: sel ? playerAccent.withOpacity(0.2) : Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: sel ? playerAccent : Colors.white12,
+                      width: sel ? 1.5 : 1),
+                  ),
+                  child: Text(label, style: TextStyle(
+                    color: sel ? Colors.white : Colors.white60,
+                    fontSize: 12, fontWeight: sel ? FontWeight.w600 : FontWeight.normal)),
                 ),
               );
             }).toList(),
@@ -778,7 +890,63 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
   }
 }
 
-// ── Shared UI helpers ──────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// SHAPE CHIP helper (used in Style tab Button Shape row)
+// ─────────────────────────────────────────────────────────────────────────────
+
+Widget _buildShapeChip(String id, String label, double radius, Color accent) {
+  final sel = _p.buttonShape == id;
+  // Show the shape visually as a mini play-button silhouette
+  Widget shape;
+  if (id == 'circle') {
+    shape = Container(
+      width: 28, height: 28,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: sel ? accent : Colors.white24,
+      ),
+      child: Icon(Icons.play_arrow_rounded,
+          color: sel ? Colors.white : Colors.white54, size: 18),
+    );
+  } else {
+    shape = Container(
+      width: 28, height: 28,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        color: sel ? accent : Colors.white24,
+      ),
+      child: Icon(Icons.play_arrow_rounded,
+          color: sel ? Colors.white : Colors.white54, size: 18),
+    );
+  }
+
+  return Padding(
+    padding: const EdgeInsets.only(right: 8),
+    child: GestureDetector(
+      onTap: () => _update(_p.copyWith(buttonShape: id)),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 72,
+        decoration: BoxDecoration(
+          color: sel ? accent.withOpacity(0.18) : Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: sel ? accent : Colors.white12,
+            width: sel ? 1.5 : 1.0),
+        ),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          shape,
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(
+            color: sel ? Colors.white : Colors.white54,
+            fontSize: 10, fontWeight: sel ? FontWeight.w600 : FontWeight.normal)),
+        ]),
+      ),
+    ),
+  );
+}
+
+// ── Shared UI helpers ───────────────────────────────────────────────────────────
 
 class _QsLabel extends StatelessWidget {
   final String text;
