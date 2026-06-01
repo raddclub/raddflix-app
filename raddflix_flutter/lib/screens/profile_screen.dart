@@ -9,6 +9,7 @@ import '../services/vault_service.dart';
 import '../core/security/device_id.dart';
 import '../core/theme/theme_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/watchlist_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../core/api/subscription_api.dart';
 import '../widgets/loading_overlay.dart';
@@ -319,6 +320,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               const SnackBar(content: Text('Watch progress cleared')));
                         }
                       },
+                    ),
+                  ]),
+                  const SizedBox(height: 12),
+                  // Watchlist & History
+                  _Section(title: 'My Content', children: [
+                    _SectionTile(
+                      icon: Icons.bookmark_rounded,
+                      iconColor: AppColors.primary,
+                      label: 'My Watchlist',
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.watchlist),
+                    ),
+                    _divider(),
+                    _SectionTile(
+                      icon: Icons.history_rounded,
+                      iconColor: const Color(0xFF22C55E),
+                      label: 'Watch History',
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.history),
                     ),
                   ]),
                   const SizedBox(height: 12),
