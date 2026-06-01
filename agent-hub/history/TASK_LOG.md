@@ -971,3 +971,116 @@ Implement Phase A (Tasks 1+2+3) of FEATURES_ROADMAP.md:
 ### Pending
 - Close paren for ControlsBackground (if-block wrapping, only matching Opacity wrap, 1 child-close missing)
 - Phase O+: Chromecast panel, PiP improvements, custom intro skip timestamps
+
+
+---
+
+## Session 11 — 2026-06-01
+
+### Objective
+Continue and complete remaining work after Session 10. Implement FEATURES_ROADMAP Phases C–F + Phase P wiring.
+
+### Completed
+
+#### Verification pass
+- Confirmed all critical bugs P1.1–P1.4 already fixed (MainActivity SECURITY_CHANNEL ✓, stream_links table ✓, bcrypt hashing with SHA-256 migration ✓, _watch_base() no hardcoded IP ✓)
+- Confirmed Phases A–N + Phase O (Cast/PiP) fully wired in player_screen.dart
+
+#### Phase C — Gesture Action Remapping
+- **NEW**: `raddflix_flutter/lib/widgets/player/gesture_map_sheet.dart`
+  - 8 gesture zones (left/right swipe up-down, centre swipe horizontal, left/right/centre double-tap, long press, triple tap)
+  - 22 assignable actions (seek ±5/10/30s, volume, brightness, speed, lock, rotate, PiP, screenshot, bookmark, rage skip, nothing)
+  - Persisted via SharedPreferences key `player_gesture_action_map_v2`
+  - Full action picker sub-sheet with check indicator
+
+#### Phase D1 — Picture Profiles
+- **NEW**: `raddflix_flutter/lib/widgets/player/picture_profiles_sheet.dart`
+  - 6 built-in presets: Natural 🌿, Cinema 🎬, Vivid ✨, Night 🌙, Anime 🎌, AMOLED Saver ⚫
+  - Grid layout with animated selection rings + glow shadows
+  - Applies brightness/contrast/saturation/hue/sharpness/nightMode via `_applyVideoFilters`
+  - Shows current values summary panel below grid
+
+#### Phase E — Audio Lab
+- **NEW**: `raddflix_flutter/lib/widgets/player/audio_lab_sheet.dart`
+  - Vocal Remover toggle + 3 intensities (Reduce / Strong / Remove)
+  - Virtual Surround toggle + 3 room modes (Theater / Stadium / Room)
+  - Dialogue Boost toggle
+  - Audio Normalization toggle
+  - Bass Boost toggle + level slider
+  - All backed by new PlayerPrefs fields
+
+#### Phase F1 — Dual Subtitle Overlay
+- **NEW**: `raddflix_flutter/lib/widgets/player/dual_subtitle_overlay.dart`
+  - Primary + secondary subtitle tracks stacked vertically
+  - Secondary track 82% font size, 75% opacity
+  - Inherits all prefs (color, outline, background, bold, italic)
+  - Enabled via new `dualSubtitleEnabled` pref
+
+#### Phase P — Intro Skip Editor
+- **NEW**: `raddflix_flutter/lib/widgets/player/intro_skip_editor.dart`
+  - Visual timeline bar showing all segments by colour
+  - Set Start / Set End & Save button pair
+  - 5 segment types: Intro / Recap / Credits / Sponsor / Custom
+  - Uses `IntroSkipStore.addSegment`, `removeSegment`, `clearAll`
+  - Segment list with individual delete buttons
+
+#### PlayerPrefs — 10 new fields
+Updated `raddflix_flutter/lib/core/player/player_prefs.dart`:
+| Field | Type | Default | Key |
+|---|---|---|---|
+| `gestureActionMapJson` | String | '' | `player_gesture_map_json` |
+| `pictureProfile` | String | 'natural' | `player_picture_profile` |
+| `vocalRemoverEnabled` | bool | false | `player_vocal_remover` |
+| `vocalRemoverIntensity` | double | 0.75 | `player_vocal_intensity` |
+| `surroundEnabled` | bool | false | `player_surround` |
+| `surroundMode` | String | 'theater' | `player_surround_mode` |
+| `bassBoostEnabled` | bool | false | `player_bass_boost` |
+| `bassBoostLevel` | double | 0.5 | `player_bass_level` |
+| `dualSubtitleEnabled` | bool | false | `player_dual_subtitle` |
+| `audioDelay` getter | double | computed | reads `audioTimingOffsetMs/1000` |
+
+All fields added to `constructor`, `copyWith`, `load()`, `save()`.
+
+#### QuickSettingsPanel — Screen + Controls tab additions
+Updated `raddflix_flutter/lib/widgets/player/quick_settings_panel.dart`:
+- **Screen tab**: Picture Profile card at top (shows current profile name, opens PictureProfilesSheet)
+- **Controls tab**: "Customize Gestures" → opens GestureMapSheet; "Intro/Skip Editor" → opens IntroSkipEditor
+- 4 new constructor callbacks: `onOpenGestureMap`, `onOpenPictureProfiles`, `onOpenAudioLab`, `onOpenSkipEditor`
+
+#### player_screen.dart — Full wiring
+Updated `raddflix_flutter/lib/screens/player_screen.dart`:
+- 6 new imports (intro_skip_store, gesture_map_sheet, picture_profiles_sheet, audio_lab_sheet, intro_skip_editor, dual_subtitle_overlay)
+- State vars: `_skipSegments`, `_activeSkipSegment`, `_secondSubtitleText`
+- `_loadSkipSegments()` called on `_initPlayer`
+- Position listener: `IntroSkipStore.activeAt` check → `_activeSkipSegment` updated
+- New methods: `_openGestureMap()`, `_openPictureProfiles()`, `_openAudioLab()`, `_openIntroSkipEditor()`, `_loadSkipSegments()`
+- `SkipSegmentButton` overlay (Phase P) shown when inside a custom skip segment
+- `DualSubtitleOverlay` (Phase F1) shown when `dualSubtitleEnabled`
+- 4 new QSP callbacks wired
+
+### Commits
+1. `5ef6aef3aa` — feat: 5 new widget files (gesture_map_sheet, picture_profiles_sheet, audio_lab_sheet, intro_skip_editor, dual_subtitle_overlay)
+2. `5ada1ac9ed` — feat: PlayerPrefs +10 fields, QSP tabs updated, player_screen 4 methods + overlays + QSP callbacks
+3. [this commit] — fix: SkipSegmentButton unwrapped from Positioned, activeSegment check in position listener, _loadSkipSegments in _initPlayer
+
+### Phases Status After Session 11
+| Phase | Feature | Status |
+|---|---|---|
+| A–N | Themes, layout, video enhance, subtitles, sleep, gestures, speed, bookmarks, EQ, screenshot, network, settings, AB-loop, rage skip | ✅ Complete |
+| O | Cast Panel + PiP | ✅ Complete |
+| P | Custom intro skip timestamps + editor | ✅ Complete |
+| C | Full gesture action remapping | ✅ Complete |
+| D1 | Picture profiles (6 presets) | ✅ Complete |
+| E | Audio Lab (vocal remover, surround, dialogue, normalization, bass boost) | ✅ Complete |
+| F1 | Dual subtitle overlay | ✅ Complete |
+
+### Remaining / Future Sessions
+- E2: Wire actual MPV/media_kit audio filters for vocal remover + surround (DSP AF commands)
+- F2: Word Dictionary on subtitle tap
+- G: Smart features (recap detect, auto-brightness, locale-aware quality)
+- H: One-handed mode, enhanced floating player
+- I: Watch Party (social sync)
+- J: Accessibility improvements
+- K: Privacy mode
+- L: Video frame capture
+- `_secondSubtitleText` loading (requires second subtitle track selection in audio mixer)

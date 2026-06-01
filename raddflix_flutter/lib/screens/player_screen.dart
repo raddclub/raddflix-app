@@ -1300,11 +1300,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _player = Player();
     _videoCtrl = VideoController(_player);
     await _openMedia(widget.fileId, localPath: widget.localPath);
+    _loadSkipSegments(); // Phase P: load custom skip segments
 
     _player.stream.position.listen((p) {
       if (!mounted) return;
       _position = p;
       _positionNotifier.value = p;
+      // Phase P: active skip segment check
+      final _activeSeg = IntroSkipStore.activeAt(_skipSegments, p);
+      if (_activeSeg != _activeSkipSegment) {
+        setState(() => _activeSkipSegment = _activeSeg);
+      }
       // A-B Loop
       final seekBack = _abLoop.maybeSeekBack(p);
       if (seekBack != null) _player.seek(seekBack);
@@ -2368,16 +2374,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
           // ── Phase P: Custom skip segment button ──
           if (_activeSkipSegment != null && !_locked && !_showNextEpisode)
-            Positioned(
-              bottom: 125, right: 20,
-              child: SkipSegmentButton(
-                segment: _activeSkipSegment!,
-                accentColor: _prefs.accentColor,
-                onSkip: () {
-                  _player.seek(_activeSkipSegment!.end);
-                  setState(() => _activeSkipSegment = null);
-                },
-              ),
+            SkipSegmentButton(
+              segment: _activeSkipSegment!,
+              accentColor: _prefs.accentColor,
+              onSkip: () {
+                _player.seek(_activeSkipSegment!.end);
+                setState(() => _activeSkipSegment = null);
+              },
             ),
 
           // ── Skip intro ──
