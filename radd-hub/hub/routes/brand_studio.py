@@ -1,5 +1,6 @@
-"""Brand Studio blueprint — P6 + CI Pipeline
-Admin panel section at /brand/ for full app branding control and APK builds.
+"""Brand Studio blueprint — P6 + CI Pipeline + Full Theme Control
+Admin panel section at /brand/ for full app branding, theme control and APK builds.
+
 Routes:
   GET  /brand/                        — admin UI
   GET  /brand/assets/<filename>       — serve uploaded brand assets
@@ -9,12 +10,12 @@ Routes:
   POST /api/brand/upload-image        — upload logo/icon/splash AND commit to GitHub repo
   GET  /api/brand/build-status        — poll GitHub Actions run status
   POST /api/brand/trigger-build       — dispatch build-apk.yml
+  GET  /api/brand/export-json         — export all brand settings as JSON
+  POST /api/brand/import-json         — import brand settings from JSON body
 
 CI Pipeline (auto-commit on upload):
   When an icon or splash is uploaded, the file is saved locally AND committed to
   brand_assets/<field><ext> in the GitHub repo via the GitHub Contents API.
-  This means the build-apk.yml workflow immediately has the asset available
-  when triggered with brand_build=true — no manual git push needed.
 """
 from __future__ import annotations
 import json
@@ -29,12 +30,12 @@ from .. import db, auth, config
 bp = Blueprint("brand_studio", __name__)
 log = logging.getLogger("hub.brand_studio")
 
-# ── Storage ──────────────────────────────────────────────────────────────────
 _BRAND_ASSETS_DIR = config.DATA_DIR / "brand_assets"
 _GITHUB_REPO = "raddclub/raddflix-app"
 _GITHUB_API  = "https://api.github.com"
 
 BRAND_KEYS = [
+    # Original 7
     "brand_primary_color",
     "brand_tagline",
     "brand_logo_url",
@@ -42,7 +43,33 @@ BRAND_KEYS = [
     "brand_onboarding_pages",
     "brand_icon_filename",
     "brand_splash_filename",
+    # New 9 — full theme control
+    "brand_accent_color",
+    "brand_background_color",
+    "brand_surface_color",
+    "brand_card_color",
+    "brand_text_primary_color",
+    "brand_app_name",
+    "brand_font",
+    "brand_button_radius",
+    "brand_status_bar_dark",
 ]
+
+_DEFAULTS = {
+    "brand_primary_color":    "#E8002D",
+    "brand_accent_color":     "#FF5C5C",
+    "brand_splash_color":     "#08080E",
+    "brand_background_color": "#08080E",
+    "brand_surface_color":    "#0E0E1C",
+    "brand_card_color":       "#1A1A2E",
+    "brand_text_primary_color": "#F2F2FF",
+    "brand_tagline":          "Zero-rated Pakistani streaming",
+    "brand_app_name":         "RaddFlix",
+    "brand_font":             "inter",
+    "brand_button_radius":    "14",
+    "brand_status_bar_dark":  "true",
+    "brand_onboarding_pages": "[]",
+}
 
 
 def _ensure_dir():
@@ -55,21 +82,18 @@ def _get_brand_config() -> dict:
         for k in BRAND_KEYS:
             row = c.execute("SELECT v FROM settings WHERE k=?", (k,)).fetchone()
             cfg[k] = row["v"] if row else ""
-    cfg.setdefault("brand_primary_color", "#E8002D")
-    cfg.setdefault("brand_splash_color",  "#0a0c11")
-    cfg.setdefault("brand_tagline",       "Zero-rated Pakistani streaming")
-    cfg.setdefault("brand_onboarding_pages", "[]")
+    for k, v in _DEFAULTS.items():
+        if not cfg.get(k):
+            cfg[k] = v
     return cfg
 
 
 def _save_setting(k: str, v: str):
     with db.conn() as c:
-        c.execute(
-            "INSERT OR REPLACE INTO settings(k,v) VALUES(?,?)", (k, v)
-        )
+        c.execute("INSERT OR REPLACE INTO settings(k,v) VALUES(?,?)", (k, v))
 
 
-# ── GitHub helpers ────────────────────────────────────────────────────────────
+# ── GitHub helpers ─────────────────────────────────────────────────────────────
 
 def _gh_token() -> str:
     token = os.environ.get("GITHUB_TOKEN", "")
@@ -87,7 +111,6 @@ def _gh_headers() -> dict:
 
 
 def _get_repo_file_sha(repo_path: str) -> str | None:
-    """Get the SHA of an existing file in the repo, or None if it does not exist."""
     import urllib.request, urllib.error
     url = f"{_GITHUB_API}/repos/{_GITHUB_REPO}/contents/{repo_path}"
     req = urllib.request.Request(url, headers=_gh_headers())
@@ -96,49 +119,34 @@ def _get_repo_file_sha(repo_path: str) -> str | None:
             return json.loads(r.read()).get("sha")
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            return None  # file does not exist yet — will be created
+            return None
         raise
 
 
 def _commit_asset_to_github(local_path: Path, repo_path: str, commit_msg: str) -> dict:
-    """Read a local file and commit/update it in the GitHub repo.
-
-    Returns {"ok": True, "created": bool} on success,
-    or {"ok": False, "error": str} on failure.
-    """
     import urllib.request, urllib.error
     try:
         file_bytes = local_path.read_bytes()
         b64_content = _b64.b64encode(file_bytes).decode()
-
-        # Check if file already exists (need its SHA to update)
         existing_sha = _get_repo_file_sha(repo_path)
-
-        payload: dict = {
-            "message": commit_msg,
-            "content": b64_content,
-            "branch":  "main",
-        }
+        payload: dict = {"message": commit_msg, "content": b64_content, "branch": "main"}
         if existing_sha:
             payload["sha"] = existing_sha
-
         url = f"{_GITHUB_API}/repos/{_GITHUB_REPO}/contents/{repo_path}"
         data = json.dumps(payload).encode()
         req = urllib.request.Request(url, data=data, headers={
-            **_gh_headers(),
-            "Content-Type": "application/json",
+            **_gh_headers(), "Content-Type": "application/json",
         }, method="PUT")
-
         with urllib.request.urlopen(req, timeout=30) as r:
             resp = json.loads(r.read())
-            created = r.getcode() == 201
-            return {"ok": True, "created": created, "sha": resp.get("content", {}).get("sha", "")}
+            return {"ok": True, "created": r.getcode() == 201,
+                    "sha": resp.get("content", {}).get("sha", "")}
     except Exception as e:
         log.warning("brand_studio: failed to commit asset to GitHub: %s", e)
         return {"ok": False, "error": str(e)}
 
 
-# ── Admin UI ─────────────────────────────────────────────────────────────────
+# ── Admin UI ──────────────────────────────────────────────────────────────────
 
 @bp.route("/brand/")
 @auth.login_required
@@ -157,7 +165,7 @@ def brand_asset(filename: str):
     return send_file(str(p), mimetype=mime or "application/octet-stream")
 
 
-# ── Brand Config API ─────────────────────────────────────────────────────────
+# ── Brand Config API ──────────────────────────────────────────────────────────
 
 @bp.route("/api/brand/config", methods=["GET"])
 @auth.login_required
@@ -187,20 +195,33 @@ def brand_save():
     return jsonify({"ok": True, "saved": saved})
 
 
+@bp.route("/api/brand/export-json")
+@auth.login_required
+def brand_export_json():
+    """Return all brand settings as a JSON object (for export/download)."""
+    cfg = _get_brand_config()
+    # Exclude internal-only keys
+    export = {k: v for k, v in cfg.items()
+              if not k.endswith("_filename")}
+    return jsonify({"ok": True, "config": export})
+
+
+@bp.route("/api/brand/import-json", methods=["POST"])
+@auth.login_required
+def brand_import_json():
+    """Import brand settings from a JSON body and save them."""
+    data = request.get_json(force=True, silent=True) or {}
+    saved = []
+    for k in BRAND_KEYS:
+        if k in data and not k.endswith("_filename"):
+            _save_setting(k, str(data[k]))
+            saved.append(k)
+    return jsonify({"ok": True, "saved": saved})
+
+
 @bp.route("/api/brand/upload-image", methods=["POST"])
 @auth.login_required
 def brand_upload_image():
-    """Upload a brand asset (icon or splash image).
-
-    Saves the file locally to DATA_DIR/brand_assets/ AND commits it to
-    brand_assets/<field><ext> in the GitHub repo (main branch) via the
-    GitHub Contents API.  This makes the asset immediately available for
-    the build-apk.yml workflow when triggered with brand_build=true.
-
-    Form fields:
-      file   — the image file (PNG/JPG/WEBP/SVG)
-      field  — one of: brand_icon, brand_splash, brand_logo  (default: brand_logo)
-    """
     _ensure_dir()
     f = request.files.get("file")
     field = (request.form.get("field") or "brand_logo").strip()
@@ -209,16 +230,11 @@ def brand_upload_image():
     ext = Path(f.filename).suffix.lower()
     if ext not in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
         return jsonify({"ok": False, "error": "Only PNG/JPG/WEBP/SVG allowed"}), 400
-
-    # ── 1. Save locally ───────────────────────────────────────────────────────
     filename = f"{field}{ext}"
     dest = _BRAND_ASSETS_DIR / filename
     f.save(str(dest))
     _save_setting(f"{field}_filename", filename)
-    log.info("brand_studio: saved asset locally → %s", dest)
-
-    # ── 2. Commit to GitHub repo (CI Pipeline) ────────────────────────────────
-    # Normalise to PNG for the repo so build-apk.yml glob always picks it up
+    log.info("brand_studio: saved asset locally -> %s", dest)
     repo_path = f"brand_assets/{filename}"
     commit_msg = (f"[Brand Studio] Upload {field} asset ({filename})\n\n"
                   "Auto-committed by Brand Studio admin panel.\n"
@@ -229,17 +245,14 @@ def brand_upload_image():
         log.info("brand_studio: %s %s in repo (sha=%s)", action, repo_path, gh_result.get("sha","?"))
     else:
         log.warning("brand_studio: GitHub commit failed for %s: %s", repo_path, gh_result.get("error"))
-
     return jsonify({
-        "ok":          True,
-        "filename":    filename,
-        "url":         f"/brand/assets/{filename}",
-        "repo_path":   repo_path,
-        "github_sync": gh_result,
+        "ok": True, "filename": filename,
+        "url": f"/brand/assets/{filename}",
+        "repo_path": repo_path, "github_sync": gh_result,
     })
 
 
-# ── GitHub Actions ────────────────────────────────────────────────────────────
+# ── GitHub Actions ─────────────────────────────────────────────────────────────
 
 @bp.route("/api/brand/build-status")
 @auth.login_required
@@ -252,19 +265,18 @@ def brand_build_status():
         with urllib.request.urlopen(req, timeout=10) as r:
             data = json.loads(r.read())
         runs = data.get("workflow_runs", [])
-        apk_runs = [r for r in runs
-                    if "build-apk" in (r.get("path") or "").lower()
+        apk_runs = [r for r in runs if "build-apk" in (r.get("path") or "").lower()
                     or "Build" in r.get("name", "")]
         if not apk_runs:
             apk_runs = runs
         if not apk_runs:
             return jsonify({"ok": True, "status": "no_runs", "run": None})
         latest = apk_runs[0]
-        run_id     = latest["id"]
-        status     = latest["status"]
+        run_id = latest["id"]
+        status = latest["status"]
         conclusion = latest.get("conclusion") or ""
-        html_url   = latest.get("html_url", "")
-        apk_url    = None
+        html_url = latest.get("html_url", "")
+        apk_url = None
         if status == "completed" and conclusion == "success":
             art_url = (f"{_GITHUB_API}/repos/{_GITHUB_REPO}"
                        f"/actions/runs/{run_id}/artifacts")
@@ -274,14 +286,9 @@ def brand_build_status():
             artifacts = arts.get("artifacts", [])
             if artifacts:
                 apk_url = artifacts[0].get("archive_download_url")
-        return jsonify({
-            "ok":               True,
-            "status":           status,
-            "conclusion":       conclusion,
-            "run_id":           run_id,
-            "html_url":         html_url,
-            "apk_artifact_url": apk_url,
-        })
+        return jsonify({"ok": True, "status": status, "conclusion": conclusion,
+                        "run_id": run_id, "html_url": html_url,
+                        "apk_artifact_url": apk_url})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -292,7 +299,7 @@ def brand_trigger_build():
     import urllib.request
     data = request.get_json(force=True, silent=True) or {}
     release_tag = data.get("release_tag", "")
-    brand_build  = data.get("brand_build", True)
+    brand_build = data.get("brand_build", True)
     try:
         payload = json.dumps({
             "ref": "main",
@@ -303,12 +310,9 @@ def brand_trigger_build():
         }).encode()
         url = (f"{_GITHUB_API}/repos/{_GITHUB_REPO}"
                "/actions/workflows/build-apk.yml/dispatches")
-        req = urllib.request.Request(
-            url, data=payload, headers={
-                **_gh_headers(),
-                "Content-Type": "application/json",
-            }, method="POST"
-        )
+        req = urllib.request.Request(url, data=payload, headers={
+            **_gh_headers(), "Content-Type": "application/json",
+        }, method="POST")
         with urllib.request.urlopen(req, timeout=15) as r:
             code = r.getcode()
         if code == 204:
