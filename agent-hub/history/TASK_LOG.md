@@ -394,3 +394,46 @@ Fix CI failure after keystore credential changes. Update APK signing fingerprint
 
   ### Commit: `d6633ac`
   
+  ## Session 9 — 2026-06-01
+  **Task**: Video Display Shortcuts panel + playback/thumbnail audit
+
+  ### Feature Added — Video Display Shortcuts (screenshot 7)
+  - New `_VideoDisplaySheet` bottom sheet (3-column grid of animated toggle tiles)
+  - Tiles: Screen Rotation, Background Play, Mute, EQ, Sleep Timer, Night Mode
+  - Each tile has icon + label + small animated toggle pill (`_SmallToggle`)
+  - EQ and Sleep tiles deep-link to their own panels (close shortcuts → open target)
+  - Mute tile calls `VolumeController().setVolume(0.0)` inline — no restart needed
+  - Accessible from More grid → "Video Display Shortcuts" (was previously wired to Settings)
+  - New state vars: `_showVideoDisplay`, `_bgPlayEnabled`, `_isMuted`
+
+  ### Playback Architecture Audit (read-only — no changes needed)
+  **Online streaming (JazzDrive CDN — Jazz SIM zero-rated):**
+  - `_openMedia` → checks local DB for shareUrl → else fetches from Oracle `CatalogApi.getShareUrl()`
+  - `JazzDriveService.getStreamLink()`: login → /sapi/media/video → builds CDN URL → `Player.open(Media(cdnUrl))`
+  - CDN links cached in SQLite for 180 min; `_jazzAutoRetry` invalidates cache on XML error response
+
+  **Offline/Downloaded videos:**
+  - `DownloadService` saves to `app_documents/downloads/` via Dio
+  - `show_detail_screen.dart` checks `downloadsProvider.getLocalPath(fileId)` — passes to PlayerScreen
+  - Player: `_isLocalPath()` detects `/`, `file://`, `content://` → `Player.open(Media(localPath))` directly
+
+  **Local files (file manager / "Open with"):**
+  - `MainActivity.kt` listens for `android.intent.action.VIEW` + `video/*` mime → MethodChannel
+  - `LocalMediaScreen` queries Android MediaStore via `MediaStorePlugin.kt`
+  - Formats: MKV, MP4, AVI, WEBM, MOV, FLV, TS (H.264/HEVC/VP9/AV1) via libmpv
+
+  ### Thumbnail Architecture Audit (read-only — no changes needed)
+  **ThumbService** (`lib/services/thumb_service.dart`): downloads + disk cache (`.thumbs/` dir, `VideoThumbnail.thumbnailData(timeMs:3000)`)
+  **LocalMediaService** (`lib/services/local_media_service.dart`): local scan, per-session thumb gen
+  **Screens with thumbnail UI:**
+  | Screen | Mode | Features |
+  | LocalMediaScreen | List + Grid | Folder thumbnails (first video in folder) |
+  | LocalFolderScreen | List + Grid | Lazy-loaded, duration + HD/4K/SRT badges |
+  | DownloadsScreen | List + Grid | Disk-cached via ThumbService (completed only) |
+  | PlayerScreen | N/A | Seek preview thumbnail via VideoThumbnail |
+
+  ### Files Changed
+  - `raddflix_flutter/lib/screens/player_screen.dart` (4355 lines)
+
+  ### Commit: `5e68dbe`
+  
