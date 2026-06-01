@@ -7,8 +7,45 @@
 
 ## ⚡ IMMEDIATE STATUS (READ THIS FIRST)
 
-> **Last agent session: 2026-06-01 (Session 6)**
-> **ALL tasks complete except P4.1 (needs Oracle restart). Nothing in backlog.**
+> **Last agent session: 2026-06-01 (Session 7 — Player Customization)**
+> **Player mode logic fixed. Cinematic opacity slider added. 12-phase FEATURES_ROADMAP written.**
+> **Next: Sprint 1 — Accent Color System + Seek Bar Styles + Bundled Themes (see FEATURES_ROADMAP.md)**
+
+### WHAT WAS DONE IN SESSION 7
+- ✅ Cinematic mode: removed `CinematicOverlay` widget entirely — controls are now wrapped in `Opacity(_cinematicOpacity)` directly in player_screen.dart
+- ✅ Immersive mode: complete rewrite — one-tap pause only, `_ImmersiveDragNumber` HUD (number only), corner exit button, time HUD (bottom corners)
+- ✅ Cinematic opacity slider: `CinematicSettingsSheet` now has a live-preview slider (15%–100%) with `onOpacityChanged` callback wired to `_cinematicOpacity` in real-time
+- ✅ All mode logic fixed: Normal / Cinematic / Immersive all clean and non-conflicting
+- ✅ `FEATURES_ROADMAP.md` — complete 12-phase roadmap (542 lines), 40+ features, all implementation-ready
+- ✅ `PLAYER_SPEC.md` — full architecture doc (mode system, gesture map, state vars, known diffs)
+- ✅ `HANDOFF_PROMPT.md` — complete copy-paste prompt for new agent
+- ✅ `cinematic_overlay.dart` — valid stub (no class, just comments, import removed)
+
+### OPEN ITEMS (handoff to next agent)
+1. **P-CUS-1** Accent Color System — see FEATURES_ROADMAP.md Phase A1
+2. **P-CUS-2** Seek Bar Styles (10 styles) — see FEATURES_ROADMAP.md Phase A2
+3. **P-CUS-3** Bundled Themes (Sakura pink, Gold, Matrix, etc.) — see FEATURES_ROADMAP.md Phase A5
+4. **P-CUS-4** Button/Icon Style System — see FEATURES_ROADMAP.md Phase A3
+5. **P-LAY-1** Drag & Drop Layout Designer — see FEATURES_ROADMAP.md Phase B
+6. **P4.1** Supervisor config ready — user must deploy to Oracle (unchanged from Session 6)
+
+### KEY FILES FOR NEXT AGENT
+| File | Lines | Purpose |
+|------|-------|---------|
+| `raddflix_flutter/lib/screens/player_screen.dart` | 4521 | Main player |
+| `raddflix_flutter/lib/core/player/player_prefs.dart` | ~200 | Add accentColor, seekBarStyle here |
+| `raddflix_flutter/lib/widgets/player/quick_settings_panel.dart` | ~600 | Style tab needs color+seekbar rows |
+| `agent-hub/FEATURES_ROADMAP.md` | 542 | Full feature plan — read this! |
+| `agent-hub/HANDOFF_PROMPT.md` | 121 | Copy-paste prompt for new agent |
+| `agent-hub/PLAYER_SPEC.md` | 181 | Player architecture reference |
+
+### SESSION 7 COMMITS
+- `ee086b7d` — feat: wire cinematic opacity live callback from settings sheet
+- `3181229a` — feat: cinematic settings – live opacity slider with preview bar (15%–100%)
+- `b6234d03` — chore: remove unused cinematic_overlay import
+- `86af2b38` — chore: valid dart stub for cinematic_overlay
+- `95097d0f` — mode logic rewrite (player_screen.dart)
+- `ce807019` — immersive_overlay.dart rewrite
 
 ### WHAT WAS DONE IN SESSION 6
 - ✅ BUG-A32: `_secret()` hardcoded fallback → per-process random secret
