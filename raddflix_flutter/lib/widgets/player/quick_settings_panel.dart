@@ -6,11 +6,11 @@ import '../../../core/player/end_of_video_actions.dart'; // M3
 import '../../../core/player/smart_skip_service.dart'; // M4
 import '../../../core/player/audio_lab_service.dart'; // E1-E4
 import '../../../core/services/wake_lock_service.dart'; // H4
-import 'voice_commands_service.dart'; // J1
+import '../../../core/services/voice_commands_service.dart'; // J1
 import '../../../core/player/color_blind_filter.dart'; // J2
 import '../../../core/player/dyslexia_subtitle_style.dart'; // J3
 import 'audio_lab_panel.dart'; // E1-E4
-import '../../../core/player/speed_presets_sheet.dart'; // M1
+import 'speed_presets_sheet.dart'; // M1
 import 'film_grain_overlay.dart'; // D3
 import '../../../core/player/player_theme.dart';
 import '../../../core/player/icon_packs.dart';
