@@ -7,8 +7,18 @@
 
 ## ⚡ IMMEDIATE STATUS (READ THIS FIRST)
 
-> **Last agent session: 2026-06-01 (Session 5)**
-> **All P1/P2/P3 bugs fully DONE. P4.1 supervisor config committed (needs Oracle restart by user).**
+> **Last agent session: 2026-06-01 (Session 6)**
+> **ALL tasks complete except P4.1 (needs Oracle restart). Nothing in backlog.**
+
+### WHAT WAS DONE IN SESSION 6
+- ✅ BUG-A32: `_secret()` hardcoded fallback → per-process random secret
+- ✅ BUG-A20: `catalog_provider.dart` poster sync fires multiple times → static guard added
+- ✅ BUG-A02: Verified N/A — `detail_screen.dart` was dead stub; `show_detail_screen.dart` works correctly
+- ✅ BUG-A07: Verified DONE — device-switch endpoints fully implemented
+- ✅ BUG-A26: Verified DONE — bp_rec registration fix confirmed
+- ✅ BUG-A33: Verified DONE — `useMaterial3: true` already set
+- ✅ P4.7: Domain Doctor admin panel — `/api/domain-doctor/health` + `/probe` + Settings card with live status
+- ✅ P4.6: Telegram bot — `telegram-bot/bot.py` created (/search, /movie, /show, /trending, /help)
 
 ### WHAT WAS DONE IN SESSION 5
 - ✅ P3.3: `supportWhatsApp` set to `923257719165`; made mutable; admin can change via Settings → WhatsApp panel; `/api/config` serves it; `RemoteConfig` reads it on startup (no APK rebuild needed)
@@ -27,6 +37,9 @@
    sudo supervisorctl reread && sudo supervisorctl update
    sudo supervisorctl restart raddflix_wa_bot
    ```
+
+### SESSION 6 COMMITS
+- `120eb8f` — fix(bugs)+feat(p4.6,p4.7): BUG-A32 secure secret; BUG-A20 poster guard; domain doctor panel; Telegram bot
 
 ### SESSION 3 COMMITS
 - `53c95e9` — chore(cleanup): P3.1 delete root lib/ dead stubs + pubspec.yaml

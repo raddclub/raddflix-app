@@ -288,3 +288,36 @@ Fix CI failure after keystore credential changes. Update APK signing fingerprint
 
 ### Remaining open items
 - **P4.1** Supervisor config committed — user must copy to Oracle and restart supervisor
+
+---
+
+## Session 6 — 2026-06-01
+
+**Agent:** Replit Agent (new session)
+**Tasks completed:** BUG-A32, BUG-A20, BUG-A02(N/A), BUG-A07(verified), BUG-A26(verified), BUG-A33(verified), P4.6, P4.7
+
+### BUG-A32 — Secure JWT secret fallback
+- `radd-hub/hub/routes/mobile_api.py`: `_secret()` last-resort except block replaced hardcoded `"raddflix-dev-secret-change-in-prod"` with per-process `secrets.token_hex(32)` stored in `_EMERGENCY_SECRET` module var. Only fires if DB completely unavailable.
+
+### BUG-A20 — Poster sync fires multiple times
+- `raddflix_flutter/lib/providers/catalog_provider.dart`: Added `static bool _posterSyncDone = false` to notifier. `_schedulePosterSync()` now returns early if already fired this session.
+
+### BUG-A02/A07/A26/A33 — Verified already done
+- BUG-A02: `detail_screen.dart` was a root lib/ stub (deleted P3.1); real app uses `show_detail_screen.dart` — N/A
+- BUG-A07: Both device-switch endpoints exist and fully implemented in mobile_api.py — DONE
+- BUG-A26: bp_rec registration comment in app.py confirms fix — DONE
+- BUG-A33: `useMaterial3: true` confirmed in `app_theme.dart` — DONE
+
+### P4.7 — Domain Doctor admin panel
+- `radd-hub/hub/routes/api.py`: Added `/api/domain-doctor/health` (GET) and `/api/domain-doctor/probe` (POST) endpoints. Health reads working_domains from DB + live health dict from domain_doctor.py. Probe triggers background re-scan.
+- `radd-hub/hub/templates/settings.html`: Added Domain Doctor card with colored status dots per site, working domain display, per-site Probe button, Re-probe All button.
+
+### P4.6 — Telegram bot
+- `telegram-bot/bot.py` (NEW, 375 lines): Full polling-based Telegram bot. Commands: /start, /help, /search, /movie, /show, /anime, /trending, /status. Reads token from TELEGRAM_BOT_TOKEN env (injected by bots/telegram.py wrapper). Searches catalog via FTS5 with LIKE fallback. Admin manages via Bots panel.
+- `telegram-bot/requirements.txt` (NEW): `requests>=2.28.0` only.
+
+**Commit:** `120eb8f9c0539f2f886f16e2745e5e8650974eb1`
+**CI:** ✅ Triggered (build-apk.yml on 120eb8f)
+
+### Remaining open
+- **P4.1** only — supervisor config on Oracle. User must: `sudo cp radd-hub/supervisor.d/raddflix_wa_bot.conf /etc/supervisor/conf.d/raddflix_wa_bot.conf && sudo supervisorctl reread && sudo supervisorctl update && sudo supervisorctl restart raddflix_wa_bot`

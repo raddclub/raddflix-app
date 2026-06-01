@@ -1,7 +1,7 @@
 # MASTER_PLAN.md — RaddFlix Task Queue
 > **This is the single source of truth for what to work on next.**
 > Always check this before starting any work. Update status when done.
-> Last Updated: 2026-06-01 (Session 5: P3.3 done — real WhatsApp number set + admin UI to change without APK rebuild)
+> Last Updated: 2026-06-01 (Session 6: BUG-A32, BUG-A20 fixed; P4.7 domain doctor panel; P4.6 Telegram bot; BUG-A02/A07/A26/A33 verified done)
 
 ---
 
@@ -219,15 +219,32 @@ auth_info/
 **Effort:** 2h
 
 ### P4.6 — Complete Telegram bot
-**Status:** ⏸️ DEFERRED
-**Files:** `radd-hub/hub/bots/telegram.py`, `radd-hub/hub/routes/bots.py`
-**Effort:** 8h
+**Status:** ✅ DONE
+**Files:** `telegram-bot/bot.py` (new), `telegram-bot/requirements.txt` (new)
+**Done:** Full polling-based Telegram bot created. Supports /search, /movie, /show, /trending, /help, /start, /status. Reads token from env (injected by bots/telegram.py wrapper). Uses FTS5 for fast catalog search. Admin starts/stops via Bots panel.
+**Commit:** `120eb8f`
 
 ### P4.7 — Surface domain_doctor.py findings in admin panel
-**Status:** ⏸️ DEFERRED
-**Effort:** 3h
+**Status:** ✅ DONE
+**Done:** Added `/api/domain-doctor/health` + `/api/domain-doctor/probe` routes to api.py. Added Domain Doctor card to Settings page with live site status indicators, working domain display, per-site + all-sites probe buttons.
+**Commit:** `120eb8f`
 
 ---
+
+
+---
+
+## ✅ PRE-EXISTING BUGS — STATUS UPDATE (Session 6)
+
+| ID | Status | Notes |
+|----|--------|-------|
+| BUG-A02 | ✅ N/A | `detail_screen.dart` was a root lib/ stub (deleted P3.1). Real app uses `show_detail_screen.dart` which correctly passes file_id + episodes to player |
+| BUG-A07 | ✅ DONE | Both `/api/auth/device-switch/request` and `/api/auth/device-switch/verify` fully implemented in mobile_api.py |
+| BUG-A18 | ✅ DONE | Verified: `_legacy/` exists; all imports try/except protected |
+| BUG-A20 | ✅ DONE | `catalog_provider.dart`: added `static bool _posterSyncDone` guard — poster sync fires once per app lifecycle |
+| BUG-A26 | ✅ DONE | `bp_rec` registered at `/api` prefix — comment in app.py confirms fix |
+| BUG-A32 | ✅ DONE | `_secret()` last-resort fallback now generates per-process random secret instead of predictable hardcoded string |
+| BUG-A33 | ✅ DONE | `useMaterial3: true` already set in `app_theme.dart` |
 
 ## ✅ COMPLETED TASKS (historical)
 
