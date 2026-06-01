@@ -443,7 +443,7 @@ class _DraggableTileState extends State<_DraggableTile> {
             border: Border.all(
               color: widget.selected
                   ? widget.accentColor
-                  : (widget.item.visible ? Colors.white38 : Colors.white15),
+                  : (widget.item.visible ? Colors.white38 : Colors.white.withOpacity(0.15)),
               width: widget.selected ? 2.0 : 1.0),
             boxShadow: _dragging
                 ? [BoxShadow(
@@ -466,7 +466,7 @@ class _DraggableTileState extends State<_DraggableTile> {
                   (_controlLabels[widget.item.id] ?? widget.item.id)
                       .split(' ').take(1).join(),
                   style: TextStyle(
-                    color: widget.item.visible ? Colors.white60 : Colors.white20,
+                    color: widget.item.visible ? Colors.white60 : Colors.white.withOpacity(0.20),
                     fontSize: 7,
                     fontWeight: FontWeight.w500),
                 ),
@@ -524,7 +524,7 @@ class _PresetChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white10,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white20)),
+        border: Border.all(color: Colors.white.withOpacity(0.20))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         const Icon(Icons.dashboard_customize_rounded,
             color: Colors.white54, size: 13),

@@ -323,6 +323,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showVideoEnhance = false;
   bool _showTransparentSlider = false;
 
+  // ── Missing state vars (fixes for CI errors) ─────────────────────────────
+  bool _castScanning = false;
+  List<AudioTrack> _audioTracks = const [];
+  int _selectedAudioTrack = 0;
+  Duration? _abLoopStart;
+  Duration? _abLoopEnd;
+  bool _abLoopActive = false;
+  Duration? _sleepDuration;
+
   // ── Track Intelligence ────────────────────────────────────────────────────
   int _activeAudioIdx = 0;
   int _activeSubIdx   = 0;
@@ -889,19 +898,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       builder: (_) => AudioMixerSheet(
         tracks: _audioTracks,
         selectedTrackId: _selectedAudioTrack,
-        audioDelay: _prefs.audioDelay,
+        audioDelay: _prefs.audioTimingOffsetMs / 1000.0,
         accentColor: _prefs.accentColor,
         onTrackSelected: (id) {
           setState(() => _selectedAudioTrack = id);
           _applyAudioPrefs(_prefs);
         },
         onDelayChanged: (v) {
-          setState(() => _prefs = _prefs.copyWith(audioDelay: v));
+          setState(() => _prefs = _prefs.copyWith(audioTimingOffsetMs: (v * 1000).round()));
           _applyAudioPrefs(_prefs);
           _prefs.save();
         },
         onBalanceChanged: (v) {
-          setState(() => _prefs = _prefs.copyWith(channelBalance: v));
+          setState(() => _prefs = _prefs.copyWith(channelBalance: v)); // channelBalance now in PlayerPrefs
           _applyAudioPrefs(_prefs);
           _prefs.save();
         },
@@ -1112,14 +1121,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => SpeedPresetsSheet(
-        presetsJson:      _prefs.customSpeedPresetsJson,
+        presets:          speedPresetsFromString(_prefs.customSpeedPresetsJson),
         currentSpeed:     _speed,
         accentColor:      _prefs.accentColor,
         onSpeedSelected:  (s) {
           setState(() => _speed = s);
           _player.setRate(s);
         },
-        onPresetsChanged: (json) {
+        onPresetsChanged: (list) {
+          final json = speedPresetsToString(list);
           final next = _prefs.copyWith(customSpeedPresetsJson: json);
           setState(() => _prefs = next);
           next.save();
@@ -2445,7 +2455,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                            duration: 900.ms, curve: Curves.easeOut)
                     .fadeOut(duration: 900.ms),
                   // Inner spinner
-                  const SizedBox(
+                  SizedBox(
                     width: 36, height: 36,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
@@ -2964,8 +2974,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               iconPack: _prefs.iconPack,
               moodEnabled: _prefs.contentMoodEnabled,
             ),
-            )), // end Opacity + ControlsBackground
-          ), // end ControlsBackground
+          )), // end _ControlsOverlay → Opacity → ControlsBackground
             ), // end Transform.translate (Phase H1: oneHandedMode)
 
           // ── Lock Button ──

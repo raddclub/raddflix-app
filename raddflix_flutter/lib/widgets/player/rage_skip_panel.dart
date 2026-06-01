@@ -56,7 +56,7 @@ class _RageSkipPanelState extends State<RageSkipPanel> {
                 onTap: () {
                   HapticFeedback.mediumImpact();
                   final skipTo = widget.position + Duration(seconds: s);
-                  widget.onSeek(skipTo.clamp(Duration.zero, widget.totalDuration));
+                  final _clamped = skipTo < Duration.zero ? Duration.zero : (skipTo > widget.totalDuration ? widget.totalDuration : skipTo); widget.onSeek(_clamped);
                   setState(() { _tapCount++; _lastSkip = Duration(seconds: s); });
                 },
                 child: AnimatedContainer(

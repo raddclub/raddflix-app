@@ -297,6 +297,12 @@ class PlayerPrefs {
   // ── Phase O4: Mood Tags ───────────────────────────────────────────────────
   final String moodTagsData; // JSON list of MoodTag.name
 
+  // ── Phase S: Audio Mixer ─────────────────────────────────────────────────────
+  final double channelBalance; // -1.0 (left) … +1.0 (right)
+
+  // ── Phase A-B Loop setting ───────────────────────────────────────────────────
+  final bool abLoopEnabled;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -454,6 +460,8 @@ class PlayerPrefs {
     this.downloadQuality           = 'auto',
     this.networkSpeedHud           = false,
     this.moodTagsData              = '[]',
+    this.channelBalance            = 0.0,
+    this.abLoopEnabled             = false,
   });
 
   PlayerPrefs copyWith({

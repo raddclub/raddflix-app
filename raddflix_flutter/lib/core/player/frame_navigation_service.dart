@@ -72,10 +72,10 @@ class FrameCounterHud extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.65),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white15),
+          border: Border.all(color: Colors.white.withOpacity(0.15)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.film_outlined, color: accentColor, size: 14),
+          Icon(Icons.movie_outlined, color: accentColor, size: 14),
           const SizedBox(width: 6),
           Text(
             fc.format(position, total),

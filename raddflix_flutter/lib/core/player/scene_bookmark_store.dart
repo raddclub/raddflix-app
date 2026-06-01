@@ -8,6 +8,7 @@ class SceneBookmark {
   final String? episodeId;
   final int positionMs;
   final String emoji;
+  final String? note;
   final DateTime createdAt;
 
   const SceneBookmark({
@@ -16,6 +17,7 @@ class SceneBookmark {
     this.episodeId,
     required this.positionMs,
     required this.emoji,
+    this.note,
     required this.createdAt,
   });
 
@@ -25,6 +27,7 @@ class SceneBookmark {
     'episode_id':  episodeId,
     'position_ms': positionMs,
     'emoji':       emoji,
+    if (note != null) 'note': note,
     'created_at':  createdAt.millisecondsSinceEpoch,
   };
 
@@ -34,6 +37,7 @@ class SceneBookmark {
     episodeId:   m['episode_id'] as String?,
     positionMs:  m['position_ms'] as int,
     emoji:       m['emoji'] as String,
+    note:        m['note'] as String?,
     createdAt:   DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
   );
 }

@@ -904,7 +904,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                   decoration: BoxDecoration(
                     color: Colors.white10,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white20)),
+                    border: Border.all(color: Colors.white.withOpacity(0.20))),
                   child: Text('\${s}×',
                       style: const TextStyle(color: Colors.white60, fontSize: 12)),
                 ),
@@ -1485,9 +1485,10 @@ class _QsRow extends StatelessWidget {
 
 class _QsToggleRow extends StatelessWidget {
   final String label;
+  final String? sublabel;
   final bool value;
   final ValueChanged<bool> onChanged;
-  const _QsToggleRow({required this.label, required this.value,
+  const _QsToggleRow({required this.label, this.sublabel, required this.value,
       required this.onChanged});
   static const _accent = Color(0xFF1565C0);
   @override
@@ -1496,8 +1497,15 @@ class _QsToggleRow extends StatelessWidget {
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(children: [
-        Expanded(child: Text(label,
-            style: const TextStyle(color: Colors.white70, fontSize: 13))),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            if (sublabel != null)
+              Text(sublabel!, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+          ],
+        )),
         Switch(
           value: value,
           activeColor: _accent,
@@ -1505,6 +1513,32 @@ class _QsToggleRow extends StatelessWidget {
           onChanged: onChanged,
         ),
       ]),
+    ),
+  );
+}
+
+class _ModeChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color accentColor;
+  final VoidCallback onTap;
+  const _ModeChip(this.label, this.selected, this.accentColor, this.onTap);
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: selected ? accentColor.withOpacity(0.2) : Colors.white10,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: selected ? accentColor : Colors.white24),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              color: selected ? accentColor : Colors.white54,
+              fontSize: 12,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal)),
     ),
   );
 }

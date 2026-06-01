@@ -300,7 +300,7 @@ class SeekBarPainter extends CustomPainter {
   void _paintMinimal(Canvas canvas, Size size) {
     final cy = size.height / 2;
     canvas.drawLine(Offset(0, cy), Offset(size.width, cy),
-        Paint()..color = Colors.white20..strokeWidth = 1);
+        Paint()..color = Colors.white.withOpacity(0.20)..strokeWidth = 1);
     canvas.drawLine(Offset(0, cy), Offset(size.width * progress.clamp(0.0, 1.0), cy),
         Paint()..color = accentColor..strokeWidth = 1);
     final tx = size.width * progress.clamp(0.0, 1.0);

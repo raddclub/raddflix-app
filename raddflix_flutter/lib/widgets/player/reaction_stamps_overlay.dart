@@ -180,7 +180,7 @@ class _ReactionStampsOverlayState extends State<ReactionStampsOverlay>
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.58),
                 borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: Colors.white15),
+                border: Border.all(color: Colors.white.withOpacity(0.15)),
               ),
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Column(
