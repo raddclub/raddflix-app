@@ -29,6 +29,8 @@ import '../core/player/binge_guard_controller.dart';
 import '../core/player/scene_bookmark_store.dart';
 import '../core/player/ab_loop_controller.dart';
 import '../widgets/player/seek_bar_painter.dart';
+import '../widgets/player/controls_background.dart';
+import '../widgets/player/video_enhance_suite.dart';
 import '../widgets/player/sync_panel.dart';
 import '../widgets/player/eq_panel.dart';
 import '../widgets/player/quick_settings_panel.dart';
@@ -639,6 +641,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   // ── Screenshot → Gallery ──────────────────────────────────────────────────
+  void _openVideoEnhanceSuite() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => VideoEnhanceSuite(
+        brightness:          _prefs.brightness,
+        contrast:            _prefs.contrast,
+        saturation:          _prefs.saturation,
+        hue:                 _prefs.hue,
+        sharpness:           _prefs.sharpness,
+        sharpnessEnabled:    _prefs.sharpnessEnabled,
+        nightMode:           _prefs.nightMode,
+        nightModeIntensity:  _prefs.nightModeIntensity,
+        cinematicMode:       _cinematicMode,
+        cinematicOpacity:    _prefs.transparentModeOpacity,
+        ambilightEnabled:    _prefs.ambilightEnabled,
+        accentColor:         _prefs.accentColor,
+        onChanged:           (map) {
+          final next = _prefs.copyWith(
+            brightness:       map['brightness']       as double?,
+            contrast:         map['contrast']         as double?,
+            saturation:       map['saturation']       as double?,
+            hue:              map['hue']              as double?,
+            sharpness:        map['sharpness']        as double?,
+            sharpnessEnabled: map['sharpnessEnabled'] as bool?,
+            nightMode:        map['nightMode']        as bool?,
+            nightModeIntensity: map['nightModeIntensity'] as double?,
+            ambilightEnabled: map['ambilightEnabled'] as bool?,
+          );
+          setState(() => _prefs = next);
+          _applyVideoFilters(next);
+          if (map['cinematicMode'] as bool? ?? false) {
+            _toggleCinematic();
+          }
+          next.save();
+        },
+      ),
+    );
+  }
+
   Future<void> _takeScreenshot() async {
     try {
       final frame = await _player.screenshot();
@@ -2189,7 +2232,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               abLoop: _abLoop,
               onToggleAbPanel: () => setState(() => _showAbPanel = !_showAbPanel),
               onToggleBookmarks: () => setState(() => _showBookmarksPanel = !_showBookmarksPanel),
-              onToggleVideoEnhance: () => setState(() => _showVideoEnhance = !_showVideoEnhance),
+              onToggleVideoEnhance: _openVideoEnhanceSuite,
               onTakeScreenshot: _takeScreenshot,
               onAddBookmark: _addBookmarkAtPosition,
               onSeekBarLongPress: _onSeekBarLongPress,
@@ -2202,8 +2245,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ? () => setState(() => _showTransparentSlider = !_showTransparentSlider)
                   : null,
               accentColor: _prefs.accentColor,
+              buttonShape: _prefs.buttonShape,
             ),
             ), // end Opacity
+          ), // end ControlsBackground
 
           // ── Lock Button ──
           if (_locked && _showControls)
@@ -2739,6 +2784,7 @@ class _ControlsOverlay extends StatelessWidget {
   final bool isTransparentMode;
   final VoidCallback? onToggleTransparentSlider;
   final Color accentColor;
+  final String buttonShape;
 
   const _ControlsOverlay({
     required this.title, required this.playing, required this.buffering,
@@ -2788,7 +2834,26 @@ class _ControlsOverlay extends StatelessWidget {
     this.isTransparentMode = false,
     this.onToggleTransparentSlider,
     this.accentColor = const Color(0xFFE8002D),
+    this.buttonShape = 'circle',
   });
+
+  /// Returns the BoxDecoration for the play button based on [shape].
+  static BoxDecoration _playBtnDecoration(String shape, Color accent) {
+    final shadow = BoxShadow(color: accent.withOpacity(0.33), blurRadius: 24, spreadRadius: 4);
+    switch (shape) {
+      case 'squircle':
+        return BoxDecoration(color: accent, borderRadius: BorderRadius.circular(20), boxShadow: [shadow]);
+      case 'rounded':
+        return BoxDecoration(color: accent, borderRadius: BorderRadius.circular(12), boxShadow: [shadow]);
+      case 'sharp':
+        return BoxDecoration(color: accent, borderRadius: BorderRadius.circular(3), boxShadow: [shadow]);
+      case 'pill':
+        return BoxDecoration(color: accent, borderRadius: BorderRadius.circular(34), boxShadow: [shadow]);
+      case 'circle':
+      default:
+        return BoxDecoration(color: accent, shape: BoxShape.circle, boxShadow: [shadow]);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2882,11 +2947,8 @@ class _ControlsOverlay extends StatelessWidget {
                   onLongPress: onLongPressPlay,
                   child: Container(
                     width: 68, height: 68,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accentColor,
-                      boxShadow: [BoxShadow(color: accentColor.withOpacity(0.33), blurRadius: 24, spreadRadius: 4)],
-                    ),
+                    decoration: _playBtnDecoration(buttonShape, accentColor),
+                    clipBehavior: Clip.hardEdge,
                     child: Icon(
                       playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                       color: Colors.white, size: 40,
