@@ -135,7 +135,7 @@ const _material3 = PlayerIcons(
   sleep:      Icons.dark_mode_rounded,
   screenshot: Icons.screenshot_rounded,
   info:       Icons.info_rounded,
-  share:      Icons.adaptive_share_rounded,
+  share:      Icons.share_rounded,
 );
 
 const _cute = PlayerIcons(
@@ -166,7 +166,7 @@ const _minimal = PlayerIcons(
   play:       Icons.play_arrow,
   pause:      Icons.pause,
   forward:    Icons.arrow_right_alt,
-  back:       Icons.arrow_left_alt_rounded,
+  back:       Icons.arrow_back_rounded,
   lock:       Icons.lock_outline,
   unlock:     Icons.lock_open_outlined,
   settings:   Icons.tune,
