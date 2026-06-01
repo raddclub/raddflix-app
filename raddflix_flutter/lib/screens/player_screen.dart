@@ -2367,6 +2367,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   setState(() => _speed = s);
                   _player.setRate(s);
                 },
+                fitMode: _fitLabel,
+                onFitChanged: (mode) {
+                  setState(() {
+                    if (mode == 'Zoom') _ratioIdx = 1;
+                    else if (mode == 'Fill') _ratioIdx = 2;
+                    else _ratioIdx = 0;
+                  });
+                },
+                selectedQuality: _qualityFromRes,
+                onQualityChanged: (_) {},
               ),
             ),
 
@@ -2889,16 +2899,35 @@ class _ControlsOverlay extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Align(
-                  alignment: Alignment(progress * 2 - 1, 0),
+                  alignment: Alignment((progress * 2 - 1).clamp(-0.85, 0.85), 0),
                   child: Container(
-                    width: 120, height: 70,
+                    width: 160, height: 90,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: Colors.white38),
                       boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 8)],
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: Image.memory(seekThumb!, fit: BoxFit.cover),
+                    child: Stack(children: [
+                      Image.memory(seekThumb!, fit: BoxFit.cover, width: 160, height: 90),
+                      Positioned(
+                        bottom: 0, left: 0, right: 0,
+                        child: Container(
+                          color: Colors.black54,
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Text(
+                            fmtDur(Duration(milliseconds:
+                                (progress * duration.inMilliseconds).toInt())),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    ]),
                   ),
                 ),
               ),
