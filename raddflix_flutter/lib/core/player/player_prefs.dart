@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// All player settings — loaded from SharedPreferences, saved on every change.
@@ -37,11 +38,11 @@ class PlayerPrefs {
   final bool   subtitleItalic;
   final String subtitleFontFamily;
   final double subtitleOutlineThickness;
-  final int    subtitleTextColorValue;       // ARGB int
-  final int    subtitleOutlineColorValue;    // ARGB int
-  final int    subtitleBackgroundColorValue; // ARGB int
+  final int    subtitleTextColorValue;
+  final int    subtitleOutlineColorValue;
+  final int    subtitleBackgroundColorValue;
   final double subtitleBackgroundOpacity;
-  final String subtitlePosition;            // 'bottom'/'center'/'top'
+  final String subtitlePosition;
   final double subtitleVerticalOffset;
   final bool   subtitleAutoDetect;
 
@@ -73,8 +74,6 @@ class PlayerPrefs {
   final double sharpness;
 
   // ── ROTATION ─────────────────────────────────────────────────────────────
-  /// Values: 'sensor_landscape' | 'auto' | 'lock_left' |
-  ///         'lock_right' | 'lock_portrait' | 'lock_current'
   final String rotationMode;
 
   // ── PLAYBACK ─────────────────────────────────────────────────────────────
@@ -124,10 +123,21 @@ class PlayerPrefs {
   // ── CINEMATIC ─────────────────────────────────────────────────────────────
   final bool   cinematicModeOnLock;
   final bool   gesturesInCinematic;
-  final String cinematicTapBehavior; // 'pause_resume' | 'show_controls'
+  final String cinematicTapBehavior;
 
   // ── TRANSPARENT (extra) ───────────────────────────────────────────────────
   final bool transparentModeFrosted;
+
+  // ── APPEARANCE CUSTOMISATION ──────────────────────────────────────────────
+  /// ARGB int for the player accent colour. Default: RaddFlix red.
+  final int    accentColorValue;
+  /// SeekBarStyle enum name (see seek_bar_painter.dart). Default: 'classic'.
+  final String seekBarStyle;
+  /// PlayerTheme id (see player_theme.dart). Default: 'raddflix_red'.
+  final String playerTheme;
+
+  /// Convenience getter — converts [accentColorValue] to a [Color].
+  Color get accentColor => Color(accentColorValue);
 
   const PlayerPrefs({
     this.gestureEnabled = true,
@@ -217,6 +227,9 @@ class PlayerPrefs {
     this.gesturesInCinematic = true,
     this.cinematicTapBehavior = 'pause_resume',
     this.transparentModeFrosted = false,
+    this.accentColorValue = 0xFFE8002D,
+    this.seekBarStyle = 'classic',
+    this.playerTheme = 'raddflix_red',
   });
 
   PlayerPrefs copyWith({
@@ -255,6 +268,7 @@ class PlayerPrefs {
     bool? showEpisodeInfo, bool? vibrateOnGesture, double? uiFontSize,
     bool? bookmarkVibrate, bool? cinematicModeOnLock, bool? gesturesInCinematic,
     String? cinematicTapBehavior, bool? transparentModeFrosted,
+    int? accentColorValue, String? seekBarStyle, String? playerTheme,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -343,6 +357,9 @@ class PlayerPrefs {
     gesturesInCinematic: gesturesInCinematic ?? this.gesturesInCinematic,
     cinematicTapBehavior: cinematicTapBehavior ?? this.cinematicTapBehavior,
     transparentModeFrosted: transparentModeFrosted ?? this.transparentModeFrosted,
+    accentColorValue: accentColorValue ?? this.accentColorValue,
+    seekBarStyle: seekBarStyle ?? this.seekBarStyle,
+    playerTheme: playerTheme ?? this.playerTheme,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -449,13 +466,13 @@ class PlayerPrefs {
       gesturesInCinematic:    s.getBool('${_p}gestures_cinematic') ?? true,
       cinematicTapBehavior:   s.getString('${_p}cinematic_tap')   ?? 'pause_resume',
       transparentModeFrosted: s.getBool('${_p}transparent_frosted') ?? false,
+      accentColorValue:       s.getInt('${_p}accent_color')       ?? 0xFFE8002D,
+      seekBarStyle:           s.getString('${_p}seek_bar_style')  ?? 'classic',
+      playerTheme:            s.getString('${_p}player_theme')    ?? 'raddflix_red',
     );
   }
 
   // ── Reset all player preferences to defaults ────────────────────────────
-  // BUG-A21: no UI button existed to reset player settings. reset() clears
-  // all SharedPreferences keys with the 'player_' prefix so the next load()
-  // returns factory defaults without requiring an app reinstall.
   static Future<void> reset() async {
     final s = await SharedPreferences.getInstance();
     final keysToRemove = s.getKeys().where((k) => k.startsWith(_p)).toList();
@@ -554,6 +571,9 @@ class PlayerPrefs {
       s.setBool('${_p}gestures_cinematic', gesturesInCinematic),
       s.setString('${_p}cinematic_tap',    cinematicTapBehavior),
       s.setBool('${_p}transparent_frosted',transparentModeFrosted),
+      s.setInt('${_p}accent_color',        accentColorValue),
+      s.setString('${_p}seek_bar_style',   seekBarStyle),
+      s.setString('${_p}player_theme',     playerTheme),
     ]);
   }
 }
