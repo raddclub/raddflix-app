@@ -61,7 +61,7 @@ def _file_to_entry(file_id: int) -> Optional[dict]:
     with db.conn() as c:
         r = c.execute(
             "SELECT f.*, t.title AS tmdb_title, t.year AS tmdb_year, "
-            "       t.poster AS tmdb_poster, t.overview AS tmdb_overview, "
+            "       t.poster AS tmdb_poster, "
             "       t.rating AS tmdb_rating, t.tmdb_id AS tmdb_numeric_id "
             "FROM files f LEFT JOIN titles t ON t.id = f.title_id "
             "WHERE f.id=?", (file_id,)).fetchone()
