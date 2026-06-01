@@ -263,6 +263,40 @@ class PlayerPrefs {
   final bool frameCounterEnabled;
   final double videoFps; // default 24.0
 
+  // ── Phase D1: Picture Profiles ────────────────────────────────────────────
+  final String pictureProfileId;
+
+  // ── Phase F1: Dual Subtitles ──────────────────────────────────────────────
+  final bool dualSubtitlesEnabled;
+  final String secondarySubtitleLanguage;
+
+  // ── Phase F3: Subtitle Style ──────────────────────────────────────────────
+  final String subtitleStyleData; // SubtitleStyle.encode()
+
+  // ── Phase F4: Subtitle Timing Debug ───────────────────────────────────────
+  final bool subtitleTimingDebug;
+
+  // ── Phase G1: Advanced Subtitle Sync ─────────────────────────────────────
+  final int subtitleSyncOffsetMs;
+
+  // ── Phase G3: Smart Subtitle Position ────────────────────────────────────
+  final String subtitlePosition; // SubtitlePosition.name
+
+  // ── Phase C1: Custom Gesture Map ──────────────────────────────────────────
+  final String gestureMapData; // GestureMap.encode()
+
+  // ── Phase N1: Buffer Strategy ─────────────────────────────────────────────
+  final String bufferStrategy; // BufferStrategy.name
+
+  // ── Phase N2: Download Quality ────────────────────────────────────────────
+  final String downloadQuality; // DownloadQuality name
+
+  // ── Phase N3: Network Speed HUD ───────────────────────────────────────────
+  final bool networkSpeedHud;
+
+  // ── Phase O4: Mood Tags ───────────────────────────────────────────────────
+  final String moodTagsData; // JSON list of MoodTag.name
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -411,6 +445,18 @@ class PlayerPrefs {
     this.watchPartyEnabled         = true,
     this.frameCounterEnabled       = false,
     this.videoFps                  = 24.0,
+    this.pictureProfileId          = 'standard',
+    this.dualSubtitlesEnabled      = false,
+    this.secondarySubtitleLanguage = 'en',
+    this.subtitleStyleData         = '',
+    this.subtitleTimingDebug       = false,
+    this.subtitleSyncOffsetMs      = 0,
+    this.subtitlePosition          = 'auto',
+    this.gestureMapData            = '',
+    this.bufferStrategy            = 'auto',
+    this.downloadQuality           = 'auto',
+    this.networkSpeedHud           = false,
+    this.moodTagsData              = '[]',
   });
 
   PlayerPrefs copyWith({
@@ -474,6 +520,18 @@ class PlayerPrefs {
     bool?   watchPartyEnabled,
     bool?   frameCounterEnabled,
     double? videoFps,
+    String? pictureProfileId,
+    bool?   dualSubtitlesEnabled,
+    String? secondarySubtitleLanguage,
+    String? subtitleStyleData,
+    bool?   subtitleTimingDebug,
+    int?    subtitleSyncOffsetMs,
+    String? subtitlePosition,
+    String? gestureMapData,
+    String? bufferStrategy,
+    String? downloadQuality,
+    bool?   networkSpeedHud,
+    String? moodTagsData,
     double? savedZoomLevel,
     bool?   contentMoodEnabled,
     bool?   screenshotLockEnabled,
@@ -500,6 +558,18 @@ class PlayerPrefs {
     bool?   watchPartyEnabled,
     bool?   frameCounterEnabled,
     double? videoFps,
+    String? pictureProfileId,
+    bool?   dualSubtitlesEnabled,
+    String? secondarySubtitleLanguage,
+    String? subtitleStyleData,
+    bool?   subtitleTimingDebug,
+    int?    subtitleSyncOffsetMs,
+    String? subtitlePosition,
+    String? gestureMapData,
+    String? bufferStrategy,
+    String? downloadQuality,
+    bool?   networkSpeedHud,
+    String? moodTagsData,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -642,6 +712,18 @@ class PlayerPrefs {
       watchPartyEnabled:           watchPartyEnabled            ?? this.watchPartyEnabled,
       frameCounterEnabled:         frameCounterEnabled          ?? this.frameCounterEnabled,
       videoFps:                    videoFps                     ?? this.videoFps,
+      pictureProfileId:            pictureProfileId             ?? this.pictureProfileId,
+      dualSubtitlesEnabled:        dualSubtitlesEnabled         ?? this.dualSubtitlesEnabled,
+      secondarySubtitleLanguage:   secondarySubtitleLanguage    ?? this.secondarySubtitleLanguage,
+      subtitleStyleData:           subtitleStyleData            ?? this.subtitleStyleData,
+      subtitleTimingDebug:         subtitleTimingDebug          ?? this.subtitleTimingDebug,
+      subtitleSyncOffsetMs:        subtitleSyncOffsetMs         ?? this.subtitleSyncOffsetMs,
+      subtitlePosition:            subtitlePosition             ?? this.subtitlePosition,
+      gestureMapData:              gestureMapData               ?? this.gestureMapData,
+      bufferStrategy:              bufferStrategy               ?? this.bufferStrategy,
+      downloadQuality:             downloadQuality              ?? this.downloadQuality,
+      networkSpeedHud:             networkSpeedHud              ?? this.networkSpeedHud,
+      moodTagsData:                moodTagsData                 ?? this.moodTagsData,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -802,6 +884,18 @@ class PlayerPrefs {
       watchPartyEnabled:           s.getBool('\${_p}watch_party_enabled')        ?? true,
       frameCounterEnabled:         s.getBool('\${_p}frame_counter_enabled')      ?? false,
       videoFps:                    s.getDouble('\${_p}video_fps')                 ?? 24.0,
+      pictureProfileId:            s.getString('\${_p}picture_profile_id')        ?? 'standard',
+      dualSubtitlesEnabled:        s.getBool('\${_p}dual_subtitles_enabled')      ?? false,
+      secondarySubtitleLanguage:   s.getString('\${_p}secondary_sub_lang')        ?? 'en',
+      subtitleStyleData:           s.getString('\${_p}subtitle_style_data')       ?? '',
+      subtitleTimingDebug:         s.getBool('\${_p}subtitle_timing_debug')       ?? false,
+      subtitleSyncOffsetMs:        s.getInt('\${_p}subtitle_sync_offset_ms')      ?? 0,
+      subtitlePosition:            s.getString('\${_p}subtitle_position')         ?? 'auto',
+      gestureMapData:              s.getString('\${_p}gesture_map_data')          ?? '',
+      bufferStrategy:              s.getString('\${_p}buffer_strategy')           ?? 'auto',
+      downloadQuality:             s.getString('\${_p}download_quality')          ?? 'auto',
+      networkSpeedHud:             s.getBool('\${_p}network_speed_hud')           ?? false,
+      moodTagsData:                s.getString('\${_p}mood_tags_data')            ?? '[]',
     );
   }
 
@@ -958,6 +1052,18 @@ class PlayerPrefs {
       s.setBool('\${_p}watch_party_enabled',            watchPartyEnabled),
       s.setBool('\${_p}frame_counter_enabled',          frameCounterEnabled),
       s.setDouble('\${_p}video_fps',                    videoFps),
+      s.setString('\${_p}picture_profile_id',           pictureProfileId),
+      s.setBool('\${_p}dual_subtitles_enabled',         dualSubtitlesEnabled),
+      s.setString('\${_p}secondary_sub_lang',           secondarySubtitleLanguage),
+      s.setString('\${_p}subtitle_style_data',          subtitleStyleData),
+      s.setBool('\${_p}subtitle_timing_debug',          subtitleTimingDebug),
+      s.setInt('\${_p}subtitle_sync_offset_ms',         subtitleSyncOffsetMs),
+      s.setString('\${_p}subtitle_position',            subtitlePosition),
+      s.setString('\${_p}gesture_map_data',             gestureMapData),
+      s.setString('\${_p}buffer_strategy',              bufferStrategy),
+      s.setString('\${_p}download_quality',             downloadQuality),
+      s.setBool('\${_p}network_speed_hud',              networkSpeedHud),
+      s.setString('\${_p}mood_tags_data',               moodTagsData),
     ]);
   }
 }
