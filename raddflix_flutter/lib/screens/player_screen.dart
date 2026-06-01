@@ -194,11 +194,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   PlayerPrefs _prefs = const PlayerPrefs();
 
   // ── Phase 3B: Quick Settings / EQ panels ─────────────────────────────────
-  bool _showQuickSettings = false;
-  bool _showMorePanel = false;
-  bool _showEqPanel = false;
-  bool _showAudioSyncPanel = false;
-  bool _showSubSyncPanel = false;
+  bool _showQuickSettings    = false;
+  bool _showMorePanel        = false;
+  bool _showEqPanel          = false;
+  bool _showAudioSyncPanel   = false;
+  bool _showSubSyncPanel     = false;
+  bool _showVideoDisplay     = false;
+
+  // ── Video Display Shortcuts toggles ──────────────────────────────────────
+  bool _bgPlayEnabled  = false;  // background play
+  bool _isMuted        = false;  // mute toggle
 
   // ── Phase 3C: Smart Skip Intro ────────────────────────────────────────────
   int? _savedIntroEnd; // seconds — loaded from SmartIntroStore
@@ -2398,6 +2403,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     onRotation: () { setState(() => _showMorePanel = false); _cycleRotation(); },
                     onSettings: () { setState(() { _showMorePanel = false; _showQuickSettings = true; }); },
                     onOpenWith: () { setState(() => _showMorePanel = false); _openWithExternalPlayer(); },
+                    onVideoDisplay: () { setState(() { _showMorePanel = false; _showVideoDisplay = true; }); },
                   ),
               ),
   
@@ -2444,6 +2450,46 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   _applyAudioPrefs(newPrefs);
                 },
                 onDone: () => setState(() => _showEqPanel = false),
+              )),
+
+          // ── Video Display Shortcuts Panel ──
+          if (_showVideoDisplay)
+            Positioned.fill(child: GestureDetector(
+              onTap: () => setState(() => _showVideoDisplay = false),
+              child: Container(color: Colors.black45))),
+          if (_showVideoDisplay)
+            Positioned(bottom: 0, left: 0, right: 0,
+              child: _VideoDisplaySheet(
+                screenRotation: _rotationMode != 'auto',
+                bgPlay: _bgPlayEnabled,
+                isMuted: _isMuted,
+                eqEnabled: _prefs.equalizerEnabled,
+                sleepActive: _sleepRemainingSeconds != null || _sleepAtEpisodeEnd,
+                nightMode: _cinematicMode,
+                onScreenRotation: () {
+                  _cycleRotation();
+                  setState(() {});
+                },
+                onBgPlay: (v) {
+                  setState(() => _bgPlayEnabled = v);
+                  // Keep audio session active when backgrounded
+                  _initAudioSession();
+                },
+                onMute: (v) {
+                  setState(() => _isMuted = v);
+                  VolumeController().setVolume(v ? 0.0 : _volume, showSystemUI: false);
+                },
+                onEq: () {
+                  setState(() { _showVideoDisplay = false; _showEqPanel = true; });
+                },
+                onSleep: () {
+                  setState(() { _showVideoDisplay = false; _showSleepMenu = true; });
+                },
+                onNightMode: () {
+                  _toggleCinematic();
+                  setState(() {});
+                },
+                onDone: () => setState(() => _showVideoDisplay = false),
               )),
 
           // ── Sleep Timer Menu ──
@@ -3466,6 +3512,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
       final VoidCallback onRotation;
       final VoidCallback onSettings;
       final VoidCallback onOpenWith;
+      final VoidCallback onVideoDisplay;
 
       const _MxMoreSheet({
         required this.cinematicMode,
@@ -3488,6 +3535,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
         required this.onRotation,
         required this.onSettings,
         required this.onOpenWith,
+        required this.onVideoDisplay,
       });
 
       @override
@@ -3497,7 +3545,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
           {'icon': Icons.queue_play_next_rounded,    'label': 'Playing\nQueue',    'active': false,             'color': null,                      'tap': onSpeed},
           {'icon': Icons.content_cut_rounded,        'label': 'Cut',               'active': false,             'color': null,                      'tap': onScreenshot},
           {'icon': Icons.share_rounded,              'label': 'Share',             'active': false,             'color': null,                      'tap': onOpenWith},
-          {'icon': Icons.display_settings_rounded,   'label': 'Video Display\nShortcuts', 'active': false,     'color': null,                      'tap': onSettings},
+          {'icon': Icons.display_settings_rounded,   'label': 'Video Display\nShortcuts', 'active': false,     'color': null,                      'tap': onVideoDisplay},
           {'icon': Icons.fit_screen_rounded,         'label': 'Aspect\nRatio',     'active': fitLabel != 'Fit', 'color': const Color(0xFFE8002D),   'tap': onFit},
           {'icon': Icons.favorite_border_rounded,    'label': 'Favourite',         'active': false,             'color': Colors.red,                'tap': onBookmarks},
           {'icon': Icons.cast_rounded,               'label': 'Network\nStream',   'active': castConnected,     'color': const Color(0xFF4FC3F7),   'tap': onCast},
@@ -3594,6 +3642,229 @@ class _NextEpisodeOverlay extends StatelessWidget {
         );
       }
     }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MX PLAYER STYLE — VIDEO DISPLAY SHORTCUTS PANEL (screenshot 7)
+// ═══════════════════════════════════════════════════════════════════════════════
+class _VideoDisplaySheet extends StatelessWidget {
+  final bool screenRotation;
+  final bool bgPlay;
+  final bool isMuted;
+  final bool eqEnabled;
+  final bool sleepActive;
+  final bool nightMode;
+
+  final VoidCallback onScreenRotation;
+  final ValueChanged<bool> onBgPlay;
+  final ValueChanged<bool> onMute;
+  final VoidCallback onEq;
+  final VoidCallback onSleep;
+  final VoidCallback onNightMode;
+  final VoidCallback onDone;
+
+  const _VideoDisplaySheet({
+    required this.screenRotation,
+    required this.bgPlay,
+    required this.isMuted,
+    required this.eqEnabled,
+    required this.sleepActive,
+    required this.nightMode,
+    required this.onScreenRotation,
+    required this.onBgPlay,
+    required this.onMute,
+    required this.onEq,
+    required this.onSleep,
+    required this.onNightMode,
+    required this.onDone,
+  });
+
+  static const _accent  = Color(0xFFE8002D);
+  static const _surface = Color(0xFF12121E);
+
+  @override
+  Widget build(BuildContext context) {
+    final shortcuts = [
+      _VDShortcut(
+        icon: Icons.screen_rotation_rounded,
+        label: 'Screen\nRotation',
+        isToggle: false,
+        active: screenRotation,
+        onTap: (_) => onScreenRotation(),
+      ),
+      _VDShortcut(
+        icon: Icons.play_circle_outline_rounded,
+        label: 'Background\nPlay',
+        isToggle: true,
+        active: bgPlay,
+        onTap: onBgPlay,
+      ),
+      _VDShortcut(
+        icon: isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+        label: 'Mute',
+        isToggle: true,
+        active: isMuted,
+        onTap: onMute,
+      ),
+      _VDShortcut(
+        icon: Icons.equalizer_rounded,
+        label: 'EQ',
+        isToggle: false,
+        active: eqEnabled,
+        onTap: (_) => onEq(),
+      ),
+      _VDShortcut(
+        icon: sleepActive ? Icons.bedtime_rounded : Icons.bedtime_outlined,
+        label: 'Sleep\nTimer',
+        isToggle: false,
+        active: sleepActive,
+        onTap: (_) => onSleep(),
+      ),
+      _VDShortcut(
+        icon: Icons.dark_mode_rounded,
+        label: 'Night\nMode',
+        isToggle: true,
+        active: nightMode,
+        onTap: (_) => onNightMode(),
+      ),
+    ];
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        // Handle bar
+        Center(child: Container(
+          width: 36, height: 4,
+          margin: const EdgeInsets.fromLTRB(0, 10, 0, 14),
+          decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+        )),
+        // Header row
+        Row(children: [
+          const Icon(Icons.display_settings_rounded, color: Colors.white54, size: 18),
+          const SizedBox(width: 8),
+          const Text('Video Display Shortcuts',
+              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
+          const Spacer(),
+          TextButton(
+            onPressed: onDone,
+            child: const Text('Done', style: TextStyle(color: _accent, fontWeight: FontWeight.w600)),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        // 3-column grid of toggle tiles
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 1.55,
+          ),
+          itemCount: shortcuts.length,
+          itemBuilder: (_, i) => _VDTile(shortcut: shortcuts[i]),
+        ),
+        const SizedBox(height: 8),
+        // Hint
+        const Text(
+          'Tap an icon to toggle. Long-press to configure.',
+          style: TextStyle(color: Colors.white30, fontSize: 11),
+        ),
+      ]),
+    ).animate().slideY(begin: 1, end: 0, duration: 250.ms, curve: Curves.easeOutCubic);
+  }
+}
+
+class _VDShortcut {
+  final IconData icon;
+  final String label;
+  final bool isToggle;
+  final bool active;
+  final ValueChanged<bool> onTap;
+  const _VDShortcut({
+    required this.icon,
+    required this.label,
+    required this.isToggle,
+    required this.active,
+    required this.onTap,
+  });
+}
+
+class _VDTile extends StatelessWidget {
+  final _VDShortcut shortcut;
+  const _VDTile({required this.shortcut});
+
+  static const _accent  = Color(0xFFE8002D);
+  static const _onColor = Color(0xFF1E3A5F);
+
+  @override
+  Widget build(BuildContext context) {
+    final on = shortcut.active;
+    return GestureDetector(
+      onTap: () => shortcut.onTap(!on),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: on ? _onColor : Colors.white.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: on ? _accent.withOpacity(0.6) : Colors.white12,
+            width: on ? 1.5 : 1.0,
+          ),
+          boxShadow: on ? [BoxShadow(color: _accent.withOpacity(0.18), blurRadius: 8)] : null,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Icon(shortcut.icon, color: on ? Colors.white : Colors.white54, size: 20),
+              if (shortcut.isToggle)
+                _SmallToggle(on: on),
+            ]),
+            Text(
+              shortcut.label,
+              style: TextStyle(
+                color: on ? Colors.white : Colors.white60,
+                fontSize: 11,
+                height: 1.25,
+                fontWeight: on ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SmallToggle extends StatelessWidget {
+  final bool on;
+  const _SmallToggle({required this.on});
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: 28, height: 16,
+      decoration: BoxDecoration(
+        color: on ? const Color(0xFFE8002D) : Colors.white24,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Align(
+        alignment: on ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.all(2),
+          width: 12, height: 12,
+          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+        ),
+      ),
+    );
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MX PLAYER STYLE — CIRCULAR DOTS LOADING ANIMATION (screenshot 15)
