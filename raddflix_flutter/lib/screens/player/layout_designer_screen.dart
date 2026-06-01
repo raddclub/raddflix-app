@@ -5,8 +5,8 @@ library layout_designer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../core/player/layout_config.dart';
-import '../core/player/player_prefs.dart';
+import '../../core/player/layout_config.dart';
+import '../../core/player/player_prefs.dart';
 
 // ── Human-readable labels for each control ID ─────────────────────────────────
 const _controlLabels = <String, String>{
