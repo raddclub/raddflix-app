@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'core/constants.dart';
 import 'core/theme/theme_provider.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/brand_theme_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/login_screen.dart';
@@ -44,12 +45,13 @@ class RaddFlixApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeState = ref.watch(themeProvider);
+    final brandState = ref.watch(brandThemeProvider);
     Animate.restartOnHotReload = true;
     return MaterialApp(
       navigatorKey: appNavigatorKey,
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
-      theme: JazzThemeData.build(themeState.mode),
+      theme: JazzThemeData.build(themeState.mode, brandState),
       initialRoute: AppRoutes.splash,
       routes: {
         AppRoutes.splash:       (_) => const SplashScreen(),
