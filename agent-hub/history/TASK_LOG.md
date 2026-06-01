@@ -1,3 +1,64 @@
+## [2026-06-01] — Session 10 | Quick Settings 5-Tab Rebuild + Seek Thumbnail Polish
+
+### Tasks Completed
+
+**Seek Preview Thumbnail Polish** (`player_screen.dart`)
+- Size: 120×70 → **160×90**
+- Border radius: 6px → **8px**
+- Added **timestamp overlay** at bottom of thumbnail (white text, black54 bg)
+  showing scrub time computed from `progress * duration` via `fmtDur()`
+- Clamped `Alignment` to `[-0.85, 0.85]` so thumbnail never clips screen edges
+
+**Quick Settings Panel — Full 5-Tab MX Player Layout** (`quick_settings_panel.dart`)
+Full rewrite from scrolling toggle list → `TabBar` with 5 tabs:
+- **Tab 1 — Quality**: Auto/1080p/720p/480p/360p selection tiles with usage labels
+- **Tab 2 — Speed**: Preset chips (0.25×–2.0×) + Custom Speed text field (0.1–4.0 range)
+- **Tab 3 — Aspect Ratio**: Default/Fit/Fill/Zoom/4:3/16:9 selection tiles
+- **Tab 4 — Subtitles**: font size slider, Bold/Italic/Auto-Detect toggles, 7-color palette,
+  background opacity, position (Bottom/Center/Top), encoding dropdown, sub sync shortcut
+- **Tab 5 — Audio**: volume boost slider with warning levels, Dialogue Boost toggle,
+  Audio Normalization toggle, Deinterlace toggle, HW Decoder toggle, audio sync shortcut
+- New params added: `fitMode`, `onFitChanged`, `selectedQuality`, `onQualityChanged`
+- Call site in `player_screen.dart` updated: `fitMode: _fitLabel`, `onFitChanged` sets
+  `_ratioIdx` (Fit→0, Zoom→1, Fill→2), `selectedQuality: _qualityFromRes`, `onQualityChanged: (_) {}`
+
+### Status Audit — All Handoff Tasks Resolved
+| Task | Status | Note |
+|------|--------|------|
+| P1.1 — Wire SECURITY_CHANNEL | ✅ DONE | Done by Session 8 — verified in MainActivity.kt |
+| P2.3 — Frida + Root detection | ✅ DONE | Done by Session 8 — verified in MainActivity.kt |
+| Seek thumbnail polish | ✅ DONE THIS SESSION | See above |
+| Screenshots 8–12 quick settings tabs | ✅ DONE THIS SESSION | Full 5-tab layout |
+| P4.2 — /api/recommend endpoint | ✅ DONE | Already in mobile_api.py bp_rec blueprint |
+| P4.2 — Flutter Recommendations shelf | ✅ DONE | Already in home_screen.dart _RecommendationsSection |
+| OTP device switch (auth_api.dart stubs) | ✅ DONE | Real Dio calls already implemented |
+| OTP device switch (login_screen.dart) | ✅ DONE | Already wired to AuthApi methods |
+
+### Files Changed
+- `raddflix_flutter/lib/screens/player_screen.dart` — seek thumbnail + QSP call site
+- `raddflix_flutter/lib/widgets/player/quick_settings_panel.dart` — full 5-tab rewrite (717 lines)
+
+### CI Result
+- **Flutter Analyze: ✅ PASSED**
+- **Build Release APK: ❌ FAILED** — Pre-existing Gradle build failure (same failure on f13c5e9a
+  before this session). Dart code is clean. Build infrastructure issue, not code regression.
+
+### Commit
+`4682b40e` — feat(player): 5-tab quick settings + seek thumbnail polish
+
+### Notes for Next Agent
+- **NO REMAINING TASKS** from the MX Player UI redesign + security track
+- Pre-existing APK build failure (Gradle, not Dart) — investigate `Build release APK` step
+  in `.github/workflows/build-apk.yml` if build needs fixing
+- `player_screen.dart` is now 4384 lines — read in chunks (offset/limit)
+- P4.1 still needs user action on Oracle (supervisor conf already committed):
+  ```
+  sudo cp ~/raddflix-app/radd-hub/supervisor.d/raddflix_wa_bot.conf /etc/supervisor/conf.d/
+  sudo supervisorctl reread && sudo supervisorctl update && sudo supervisorctl restart raddflix_wa_bot
+  ```
+
+---
+
 ## [2026-06-01 14:00 UTC] — Agent: Replit Agent (Session 7)
 
 ### Task
