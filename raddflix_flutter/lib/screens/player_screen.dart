@@ -450,27 +450,74 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await _np.setProperty('hwdec', p.hwDecoderEnabled ? 'auto' : 'no');
     // Deinterlace
     await _np.setProperty('deinterlace', p.deinterlaceEnabled ? 'yes' : 'no');
-    // Audio normalization
+
+    // ── Build a single combined MPV audio filter chain (af=) ─────────────────
+    // All active filters are joined with commas into ONE setProperty call.
+    // Previously, multiple setProperty calls each overwrote the last — fixed.
+    final afParts = <String>[];
+
+    // 1. Dynamic audio normalization
     if (p.audioNormalization) {
-      await _np.setProperty('af', 'dynaudnorm');
+      afParts.add('dynaudnorm=p=0.9:m=30');
     }
-    // Equalizer bands
-    if (p.equalizerEnabled && !p.dialogueBoostEnabled) {
+
+    // 2. 10-band parametric equalizer
+    if (p.equalizerEnabled) {
+      const freqs = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
       final b = p.equalizerBands;
-      final eqStr = [60,170,310,600,1000,3000,6000,12000,14000,16000]
-          .asMap().entries
-          .map((e) => 'equalizer=f=${e.key < b.length ? [60,170,310,600,1000,3000,6000,12000,14000,16000][e.key] : 60}:width_type=o:width=2:g=${e.key < b.length ? b[e.key].toStringAsFixed(1) : "0"}')
-          .join(',');
-      await _np.setProperty('af', eqStr);
-    } else if (p.dialogueBoostEnabled) {
-      // Fixed voice-clarity EQ
-      await _np.setProperty('af',
-          'equalizer=f=310:width_type=o:width=2:g=2,'
-          'equalizer=f=600:width_type=o:width=2:g=4,'
-          'equalizer=f=1000:width_type=o:width=2:g=5,'
-          'equalizer=f=3000:width_type=o:width=2:g=4,'
-          'equalizer=f=6000:width_type=o:width=2:g=2');
+      for (int i = 0; i < freqs.length; i++) {
+        final gain = i < b.length ? b[i] : 0.0;
+        if (gain.abs() > 0.05) {
+          afParts.add('equalizer=f=${freqs[i]}:width_type=o:width=2:g=${gain.toStringAsFixed(1)}');
+        }
+      }
     }
+
+    // 3. Dialogue boost — fixed speech-clarity EQ (2–6 kHz presence lift)
+    if (p.dialogueBoostEnabled) {
+      afParts.add('equalizer=f=310:width_type=o:width=2:g=2');
+      afParts.add('equalizer=f=1000:width_type=o:width=2:g=5');
+      afParts.add('equalizer=f=3000:width_type=o:width=2:g=4');
+      afParts.add('equalizer=f=6000:width_type=o:width=2:g=2');
+    }
+
+    // 4. Bass Boost — low-shelf via two EQ bands (80 Hz + 120 Hz)
+    //    bassBoostLevel 0–1 maps to 0–15 dB at 80 Hz, 0–8 dB at 120 Hz
+    if (p.bassBoostEnabled && p.bassBoostLevel > 0.02) {
+      final g1 = (p.bassBoostLevel * 15).toStringAsFixed(1);
+      final g2 = (p.bassBoostLevel * 8).toStringAsFixed(1);
+      afParts.add('equalizer=f=60:width_type=o:width=2:g=$g1');
+      afParts.add('equalizer=f=120:width_type=o:width=2:g=$g2');
+    }
+
+    // 5. Vocal Remover — stereo phase-cancellation (karaoke effect)
+    //    Subtracts the centre channel (where vocals are mixed in stereo).
+    //    intensity 0.5 → subtle reduction; 0.75 → strong; 1.0 → full removal
+    if (p.vocalRemoverEnabled) {
+      final intensity = p.vocalRemoverIntensity.clamp(0.0, 1.0);
+      final keep = (1.0 - intensity * 0.5).toStringAsFixed(3); // 0.750→0.625→0.500
+      final sub  = (intensity * 0.5).toStringAsFixed(3);       // 0.250→0.375→0.500
+      afParts.add('pan=stereo|c0=$keep*c0-$sub*c1|c1=$keep*c1-$sub*c0');
+    }
+
+    // 6. Virtual Surround — stereo widening via extrastereo
+    //    m=1.5 (room) | 2.5 (theater) | 3.5 (stadium)
+    if (p.surroundEnabled) {
+      final m = p.surroundMode == 'theater'
+          ? '2.5'
+          : p.surroundMode == 'stadium'
+              ? '3.5'
+              : '1.5';
+      afParts.add('extrastereo=m=$m');
+    }
+
+    // Commit the complete filter chain — empty string clears all filters
+    await _np.setProperty('af', afParts.join(','));
+
+    // Audio timing offset (sync delay in seconds)
+    await _np.setProperty(
+        'audio-delay',
+        (p.audioTimingOffsetMs / 1000.0).toStringAsFixed(3));
   }
 
   Future<void> _applyVideoFilters(PlayerPrefs p) async {
