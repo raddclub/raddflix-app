@@ -1,3 +1,34 @@
+## [2026-06-01 14:00 UTC] — Agent: Replit Agent (Session 7)
+
+### Task
+Set up Replit development environment for RaddFlix Flutter project. User was previously unable to see errors and had to download/install APK for every code change.
+
+### Done
+- Ran install script (SSH key written to /tmp/oracle_key successfully)
+- Verified Oracle server: raddflix_radd RUNNING (port 5000), raddflix_wa_bot RUNNING
+- Downloaded Flutter SDK 3.22.2 to /home/runner/workspace/flutter/ (715MB)
+- Cloned raddflix-app repo to /home/runner/workspace/raddflix-app/
+- Installed Dart 3.10.4 (Replit native module) for dart analyze
+- Built RaddFlix Dev Hub (Flask web dashboard on port 5000) showing:
+  - GitHub Actions CI status (live from API)
+  - Dart Analyze button (instant error checking without APK build)
+  - Recent commits list
+  - Project/server info panel
+- Configured Replit workflow to serve Dev Hub
+
+### Files Changed
+- app.py, templates/index.html, replit.md (Replit workspace only — not committed to repo)
+
+### Notes for Next Agent
+- Repo cloned at /home/runner/workspace/raddflix-app/
+- Flutter SDK at /home/runner/workspace/flutter/ (3.22.2)
+- Flutter tool snapshot cannot run in Replit sandbox — use dart analyze instead
+- Oracle SSH works from Replit: ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252
+- XOR encoding ACTIVE on both sides — do not change one without the other
+- P4.1 still pending: WA bot supervisor config needs Oracle copy+restart
+
+---
+
 ## [2026-06-01] — Session 4 | Recommendation wiring + P3.5 regression sweep
 
 ### Tasks Completed
