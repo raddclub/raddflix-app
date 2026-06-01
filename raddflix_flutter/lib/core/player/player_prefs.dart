@@ -187,6 +187,10 @@ class PlayerPrefs {
   /// Active preset: 'centered'|'left_handed'|'right_handed'|'minimal'|'custom'
   final String layoutPreset;
 
+  // ── Phase F2: Word Dictionary ──────────────────────────────────────────────
+  /// Enable tap-a-word dictionary lookup in subtitle overlay.
+  final bool dictEnabled;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -314,6 +318,7 @@ class PlayerPrefs {
     this.screenshotLockEnabled    = false,
     this.layoutJson               = '',
     this.layoutPreset             = 'centered',
+    this.dictEnabled               = true,
   });
 
   PlayerPrefs copyWith({
@@ -377,6 +382,7 @@ class PlayerPrefs {
     bool?   screenshotLockEnabled,
     String? layoutJson,
     String? layoutPreset,
+    bool?   dictEnabled,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -498,6 +504,7 @@ class PlayerPrefs {
       screenshotLockEnabled:       screenshotLockEnabled       ?? this.screenshotLockEnabled,
       layoutJson:                  layoutJson                  ?? this.layoutJson,
       layoutPreset:                layoutPreset                ?? this.layoutPreset,
+      dictEnabled:                 dictEnabled                  ?? this.dictEnabled,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -637,6 +644,7 @@ class PlayerPrefs {
       screenshotLockEnabled:       s.getBool('\${_p}screenshot_lock')       ?? false,
       layoutJson:                  s.getString('\${_p}layout_json')           ?? '',
       layoutPreset:                s.getString('\${_p}layout_preset')         ?? 'centered',
+      dictEnabled:                 s.getBool('\${_p}dict_enabled')            ?? true,
     );
   }
 
@@ -772,6 +780,7 @@ class PlayerPrefs {
       s.setBool('\${_p}screenshot_lock',     screenshotLockEnabled),
       s.setString('\${_p}layout_json',        layoutJson),
       s.setString('\${_p}layout_preset',      layoutPreset),
+      s.setBool('\${_p}dict_enabled',          dictEnabled),
     ]);
   }
 }

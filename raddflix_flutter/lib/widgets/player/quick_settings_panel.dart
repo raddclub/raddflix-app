@@ -1004,6 +1004,27 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
+        // Phase F2: Dictionary enable toggle
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Row(children: [
+            const Icon(Icons.menu_book_rounded, color: Colors.white54, size: 18),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text('Word Dictionary', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                Text('Tap subtitle words for Urdu translation', style: TextStyle(color: Colors.white38, fontSize: 10)),
+              ]),
+            ),
+            Switch(
+              value: _p.dictEnabled,
+              onChanged: (v) => _update(_p.copyWith(dictEnabled: v)),
+              activeColor: _accent,
+            ),
+          ]),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
           child: Row(children: [
