@@ -724,3 +724,44 @@ User wanted a subtitle-watching mode where:
 - Flutter Analyze not run this session — Dart code is clean by construction; CI will verify
 
 ---
+---
+
+## Session — Mode Logic Rewrite (2026-06-01)
+
+### Goal
+Fix Normal / Cinematic / Immersive mode logic so all three modes are clean,
+consistent, and non-conflicting with long-press 2× speed gesture.
+
+### What Changed
+
+**Normal mode** — unchanged. Long-press = 2× speed. All gestures (swipe vol/brightness/seek, pinch zoom) work normally with full visual feedback.
+
+**Cinematic mode** — no separate overlay. Controls auto-hide/show exactly like Normal mode. The entire controls layer is wrapped in `Opacity(_cinematicOpacity)` (default 0.5, range 0.15–1.0, user-adjustable). Subtitles now show in cinematic (were incorrectly hidden before). Tap to show/hide controls works normally.
+
+**Immersive mode** — truly clean:
+- `_handleCenterTap` → play/pause only, never shows controls
+- `_scheduleHide` / `_toggleControls` both short-circuit when `_immersiveMode` is true
+- Long-press still fires 2× speed (parent GestureDetector unchanged)
+- Swipe gestures (vol/brightness) still change values silently; show a minimal number-only `_ImmersiveDragNumber` HUD (percentage only, no icon/bar, auto-fades)
+- Seek swipe still works (no indicator shown in immersive)
+- `ImmersiveOverlay` widget rewritten: corner tap zone (top-right 72×72) reveals exit button for 5 s then auto-hides; tiny time HUD (bottom-left = elapsed, bottom-right = remaining) always visible at 45% opacity; no bottom strip; no long-press-to-controls logic
+- Exiting immersive → returns to Normal mode
+
+**State added**: `double _cinematicOpacity = 0.5` (in `_PlayerScreenState`)
+
+### Files Changed
+- `raddflix_flutter/lib/screens/player_screen.dart` — 12 targeted edits
+- `raddflix_flutter/lib/widgets/player/immersive_overlay.dart` — fully rewritten
+- `raddflix_flutter/lib/widgets/player/cinematic_overlay.dart` — stubbed (no longer needed)
+
+### Commits
+- `95097d0f` — mode logic rewrite (player_screen.dart)
+- `ce807019` — immersive_overlay.dart rewrite
+- `5a6e9a7b` — cinematic_overlay.dart stub
+- follow-up: removed unused import + valid stub
+
+### Notes for Next Agent
+- `_cinematicOpacity` is a plain state variable; to persist it connect to PlayerPrefs (add `cinematicControlsOpacity` field)
+- ImmersiveOverlay no longer accepts `onSeekTo` — removed from constructor; parent GD handles all seek gestures
+- `CinematicOverlay` class no longer exists — file is a comment stub kept for compile safety
+- Long-press 2× speed works in ALL three modes (handled by root GestureDetector, not mode-specific)
