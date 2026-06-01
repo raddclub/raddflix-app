@@ -1289,3 +1289,33 @@ PlayerPrefs +8 fields (8x each — constructor/copyWith/load/save):
 - `_buildTappableText` regex `[\w']+|[^\w']+` captures contractions (it's, don't) as single tokens.
 - Words not in dictionary still show tap target but `showWordDefinition` displays "not found" state — no crash.
 - Session total: 1 roadmap phase closed.
+
+
+---
+
+## Session 17 — Phase D2 + D3 + H1
+
+### Phases Closed
+| Phase | Feature | Status |
+|-------|---------|--------|
+| D2 | Color Look Presets — 8 cinematic color grades via ColorFilter.matrix | ✅ Done |
+| D3 | Film Grain / Film Look — animated noise overlay at 3 intensities | ✅ Done |
+| H1 | One-Handed Mode — controls shift ±56px toward active hand | ✅ Done |
+
+### Commit
+`2da3e2ebdf6b` — Phase D2+D3+H1 — Color Look Presets, Film Grain overlay, One-Handed Mode
+
+### Files Changed (+2 new)
+| File | Change |
+|------|--------|
+| `raddflix_flutter/lib/core/player/video_look_filter.dart` | **NEW** — `videoLookFilter(look)` returns `ColorFilter?`; 8 presets: teal-orange, moody-blue, golden-hour, bw-classic, faded-film, cool-shadow, warm-sunset, crime-thriller; all via 5×4 `ColorFilter.matrix` |
+| `raddflix_flutter/lib/widgets/player/film_grain_overlay.dart` | **NEW** — `FilmGrainOverlay` widget; `Ticker`-driven 20 fps refresh; `_GrainPainter` draws random circles at low opacity using seeded `math.Random(frame * 0x9e3779b9)`; 3 levels (subtle 2.8% / medium 6% / heavy 12%) |
+| `raddflix_flutter/lib/core/player/player_prefs.dart` | `+colorLook` (String, 'none') + `+filmGrainLevel` (String, 'none') with full load/save/copyWith |
+| `raddflix_flutter/lib/screens/player_screen.dart` | D2: `ColorFiltered(videoLookFilter(_prefs.colorLook))` wraps entire player body (between ambilight and colorBlind filters); D3: `FilmGrainOverlay` as `Positioned.fill` in player Stack; H1: `Transform.translate(±56px)` wraps `ControlsBackground` when `_prefs.oneHandedModeEnabled` |
+| `raddflix_flutter/lib/widgets/player/quick_settings_panel.dart` | Color Look chip row + Film Grain chip row added to Style tab before Controls Background section |
+
+### Architecture Notes
+- D2 ColorFilter.matrix format: 5×4 row-major RGBA transform. Rows = output RGBA channels; columns = input R/G/B/A/offset. `Flutter ColorFilter.matrix` uses exactly this layout.
+- D3 grain performance: `~0.3%` of pixels painted per frame → ~600 circles on a 1080p screen. Consistent 20fps via Ticker; `shouldRepaint` guards against unnecessary redraws.
+- H1: `Transform.translate(Offset(±56, 40))` shifts the entire ControlsBackground. Controls remain touchable (Flutter hit testing follows transforms). `+40px` vertical nudge brings controls toward thumb reach zone.
+- Session total: 3 roadmap phases closed.
