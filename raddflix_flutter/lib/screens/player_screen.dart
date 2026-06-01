@@ -2247,7 +2247,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               accentColor: _prefs.accentColor,
               buttonShape: _prefs.buttonShape,
             ),
-            ), // end Opacity
+            )), // end Opacity + ControlsBackground
           ), // end ControlsBackground
 
           // ── Lock Button ──
