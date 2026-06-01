@@ -877,6 +877,8 @@ class PlayerPrefs {
       downloadQuality:             s.getString('${_p}download_quality')          ?? 'auto',
       networkSpeedHud:             s.getBool('${_p}network_speed_hud')           ?? false,
       moodTagsData:                s.getString('${_p}mood_tags_data')            ?? '[]',
+      channelBalance:              s.getDouble('${_p}channel_balance')           ?? 0.0,
+      abLoopEnabled:               s.getBool('${_p}ab_loop_enabled')             ?? false,
     );
   }
 
@@ -1042,6 +1044,8 @@ class PlayerPrefs {
       s.setString('${_p}download_quality',             downloadQuality),
       s.setBool('${_p}network_speed_hud',              networkSpeedHud),
       s.setString('${_p}mood_tags_data',               moodTagsData),
+      s.setDouble('${_p}channel_balance',            channelBalance),
+      s.setBool('${_p}ab_loop_enabled',              abLoopEnabled),
     ]);
   }
 }
