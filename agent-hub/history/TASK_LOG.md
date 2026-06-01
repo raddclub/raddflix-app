@@ -1259,3 +1259,33 @@ PlayerPrefs +8 fields (8x each — constructor/copyWith/load/save):
 - B: `layout_config.dart` — `ControlItem` (id, xFrac, yFrac, ControlSize, visible), `PlayerLayout` (name, controls list, JSON serialisation, 4 static preset maps). `layout_designer_screen.dart` — `_DraggableTile` uses `GestureDetector.onPanUpdate` with `RenderBox.localToGlobal` → xFrac/yFrac clamped [0.05, 0.95]; size cycling S→M→L→S; visibility toggle; `_GridOverlay` CustomPainter; save triggers `PlayerPrefs.copyWith(layoutJson:...).save()`.
 - All work is free — no paid APIs.
 - Session total: 3 roadmap phases closed.
+
+
+---
+
+## Session 16 — Phase F2
+
+### Phases Closed
+| Phase | Feature | Status |
+|-------|---------|--------|
+| F2 | Word Dictionary on subtitle tap — offline Urdu ↔ English | ✅ Done |
+
+### Commit
+`f6b36715eb03` — Phase F2 — tap-a-word offline Urdu dictionary in subtitles
+
+### Files Changed (+2 new)
+| File | Change |
+|------|--------|
+| `raddflix_flutter/lib/core/player/word_dict.dart` | **NEW** — `WordEntry` model (word, pos, urdu, roman, example); `WordDict.instance` singleton; `lookup(word)` with morphological suffix stripping (ing/ed/s/es/er/est/ly/ness/tion/ment); `saveWord()`/`unsaveWord()`/`isSaved()` via SharedPreferences; ~420 common English→Urdu words inline |
+| `raddflix_flutter/lib/widgets/player/word_definition_sheet.dart` | **NEW** — `showWordDefinition(ctx, word)` helper; bottom sheet with Urdu script (RTL, 30sp), Roman Urdu, POS chip (adj/n/v…), example sentence, animated Save/Unsave bookmark button |
+| `raddflix_flutter/lib/widgets/player/subtitle_overlay.dart` | `StatelessWidget→StatefulWidget`; `_buildTappableText()` splits line into word/punctuation tokens via regex, wraps each in `GestureDetector`; known words get dotted accent-color underline; tapped word highlights with accent background; long-press still copies full line; guarded by `prefs.dictEnabled` |
+| `raddflix_flutter/lib/core/player/player_prefs.dart` | `+dictEnabled` bool (default `true`, key `{p}dict_enabled`) with load/save/copyWith |
+| `raddflix_flutter/lib/widgets/player/quick_settings_panel.dart` | Word Dictionary Switch added to Text tab between Bold/Italic row and Border row |
+
+### Architecture Notes
+- Dictionary lookup is `O(1)` via Dart `const Map<String, WordEntry>`. No DB, no network.
+- Morphological fallback strips: `-ing` (running→run, having→have), `-ed`, `-s`, `-es`, `-er`, `-est`, `-ly`, `-ness`, `-tion`, `-ment`.
+- Saved words persisted to `shared_preferences` key `radd_saved_words` as JSON list.
+- `_buildTappableText` regex `[\w']+|[^\w']+` captures contractions (it's, don't) as single tokens.
+- Words not in dictionary still show tap target but `showWordDefinition` displays "not found" state — no crash.
+- Session total: 1 roadmap phase closed.
