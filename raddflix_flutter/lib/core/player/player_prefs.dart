@@ -235,6 +235,10 @@ class PlayerPrefs {
   /// Encoded SmartSkipConfig string
   final String smartSkipConfig;
 
+  // ── Phase E1–E4: Audio Lab ───────────────────────────────────────────────
+  /// Encoded AudioLabConfig: 'surround|karaoke|dialogueBoost|btDelayMs'
+  final String audioLabConfig;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -374,6 +378,7 @@ class PlayerPrefs {
     this.speedPresets              = '0.25,0.5,0.75,1.0,1.25,1.5,1.75,2.0,2.5,3.0',
     this.endAction                 = 'play_next',
     this.smartSkipConfig           = '0,0,90,0,120',
+    this.audioLabConfig            = 'off|off|0|0',
   });
 
   PlayerPrefs copyWith({
@@ -449,6 +454,7 @@ class PlayerPrefs {
     String? speedPresets,
     String? endAction,
     String? smartSkipConfig,
+    String? audioLabConfig,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -582,6 +588,7 @@ class PlayerPrefs {
       speedPresets:                speedPresets                 ?? this.speedPresets,
       endAction:                   endAction                    ?? this.endAction,
       smartSkipConfig:             smartSkipConfig              ?? this.smartSkipConfig,
+      audioLabConfig:              audioLabConfig               ?? this.audioLabConfig,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -733,6 +740,7 @@ class PlayerPrefs {
       speedPresets:                s.getString('\${_p}speed_presets')           ?? '0.25,0.5,0.75,1.0,1.25,1.5,1.75,2.0,2.5,3.0',
       endAction:                   s.getString('\${_p}end_action')              ?? 'play_next',
       smartSkipConfig:             s.getString('\${_p}smart_skip_config')       ?? '0,0,90,0,120',
+      audioLabConfig:              s.getString('\${_p}audio_lab_config')         ?? 'off|off|0|0',
     );
   }
 
@@ -880,6 +888,7 @@ class PlayerPrefs {
       s.setString('\${_p}speed_presets',            speedPresets),
       s.setString('\${_p}end_action',               endAction),
       s.setString('\${_p}smart_skip_config',        smartSkipConfig),
+      s.setString('\${_p}audio_lab_config',           audioLabConfig),
     ]);
   }
 }

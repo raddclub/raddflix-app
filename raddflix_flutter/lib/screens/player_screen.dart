@@ -39,6 +39,7 @@ import '../widgets/player/speed_presets_sheet.dart'; // Phase M1
 import '../widgets/player/jump_to_panel.dart'; // Phase M2
 import '../core/player/end_of_video_actions.dart'; // Phase M3
 import '../core/player/smart_skip_service.dart'; // Phase M4
+import '../core/player/audio_lab_service.dart'; // Phase E1-E4
 import '../widgets/player/film_grain_overlay.dart'; // Phase D3
 import '../widgets/player/controls_background.dart';
 import '../widgets/player/sleep_timer_sheet.dart';

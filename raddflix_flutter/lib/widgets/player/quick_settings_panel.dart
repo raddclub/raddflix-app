@@ -4,6 +4,8 @@ import '../../../core/player/player_prefs.dart';
 import '../../../core/player/video_look_filter.dart'; // D2
 import '../../../core/player/end_of_video_actions.dart'; // M3
 import '../../../core/player/smart_skip_service.dart'; // M4
+import '../../../core/player/audio_lab_service.dart'; // E1-E4
+import 'audio_lab_panel.dart'; // E1-E4
 import '../../../core/player/speed_presets_sheet.dart'; // M1
 import 'film_grain_overlay.dart'; // D3
 import '../../../core/player/player_theme.dart';
@@ -989,6 +991,14 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
       children: [
+        // ── Phase E1–E4: Audio Lab ─────────────────────────────────────────
+        _QsLabel('Audio Lab'),
+        AudioLabPanel(
+          config: AudioLabConfig.decode(_p.audioLabConfig),
+          onChanged: (cfg) => _update(_p.copyWith(audioLabConfig: cfg.encode())),
+          accentColor: _accent,
+        ),
+        const Divider(color: Colors.white10, height: 1),
         _QsLabel('Seek Speed (sec./inch)'),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
