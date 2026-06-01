@@ -11,6 +11,7 @@ import '../models/catalog_item.dart';
 import '../providers/catalog_provider.dart';
 import '../core/download/download_service.dart';
 import '../providers/downloads_provider.dart';
+import '../providers/watchlist_provider.dart';
 import 'subscription_screen.dart';
 
 class ShowDetailScreen extends ConsumerStatefulWidget {
@@ -424,6 +425,59 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                     ]).animate().fadeIn(delay: 200.ms).slideY(begin: 0.3),
                     const SizedBox(height: 32),
                   ],
+
+                  // ── Watchlist toggle button ───────────────────────────────────
+                  Consumer(builder: (context, ref2, _) {
+                    final inWatchlist = ref2.watch(watchlistProvider).isInWatchlist(widget.item.id);
+                    return GestureDetector(
+                      onTap: () async {
+                        await ref2.read(watchlistProvider.notifier).toggle(widget.item);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(inWatchlist
+                                ? 'Removed from Watchlist'
+                                : 'Added to Watchlist'),
+                            duration: const Duration(seconds: 2),
+                          ));
+                        }
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        decoration: BoxDecoration(
+                          color: inWatchlist
+                              ? AppColors.primary.withOpacity(0.12)
+                              : AppColors.surface,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: inWatchlist ? AppColors.primary : AppColors.border,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              inWatchlist
+                                  ? Icons.bookmark_rounded
+                                  : Icons.bookmark_add_outlined,
+                              color: inWatchlist ? AppColors.primary : AppColors.textSecondary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              inWatchlist ? 'In Watchlist' : 'Add to Watchlist',
+                              style: TextStyle(
+                                color: inWatchlist ? AppColors.primary : AppColors.textSecondary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).animate().fadeIn(delay: 250.ms),
+                  const SizedBox(height: 16),
 
                   // ── SHOW: Season Tabs + Episodes ───────────────────────────
                   if (!isMovie) ...[
