@@ -39,7 +39,6 @@ import 'package:audio_session/audio_session.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:saver_gallery/saver_gallery.dart';
-import '../widgets/player/cinematic_overlay.dart';
 import '../widgets/player/immersive_overlay.dart';
 import '../widgets/player/cinematic_settings_sheet.dart';
 import '../widgets/player/scene_bookmarks_panel.dart';
