@@ -642,3 +642,30 @@ Fix CI failure after keystore credential changes. Update APK signing fingerprint
 
   ### TASK_LOG updated by: Replit Agent (Session 10)
   
+## [2026-06-01 UTC] — Agent: Replit Agent (Read-Only Orientation Session)
+
+### Task
+User asked: "find out what last agent did." No code changes requested.
+
+### Done
+- Ran install script (SSH key written to /tmp/oracle_key; Oracle connection timed out — server unreachable at time of session)
+- Fetched and read: agent-hub/README.md, agent-hub/SKILLS.md, agent-hub/history/TASK_LOG.md
+- Reported full summary of last session (Session 10) to user
+
+### Files Changed
+- `agent-hub/history/TASK_LOG.md` — appended this entry only
+
+### What the Last Agent (Session 10) Did
+Session 10 completed two major player UI features:
+1. **Seek Preview Thumbnail Polish** (`player_screen.dart`): enlarged to 160×90, 8px border radius, added timestamp overlay at bottom, clamped alignment so thumbnail never clips edges
+2. **Quick Settings Panel — Full 5-Tab MX Player Layout** (`quick_settings_panel.dart`): full rewrite from scrolling toggle list to TabBar with 5 tabs (Quality, Speed, Aspect Ratio, Subtitles, Audio). Commit: `4682b40e`
+- Flutter Analyze: PASSED. APK Build: FAILED (pre-existing Gradle issue, not a code regression)
+
+### Notes for Next Agent
+- Pre-existing APK build failure in Gradle — investigate `.github/workflows/build-apk.yml` if APK builds are needed
+- `player_screen.dart` is ~4384 lines — always read in chunks (offset/limit)
+- P4.1 still needs user action on Oracle (WA bot supervisor config already committed)
+- No remaining tasks from MX Player UI redesign track per Session 10
+
+---
+
