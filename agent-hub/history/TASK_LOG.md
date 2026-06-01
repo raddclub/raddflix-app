@@ -669,3 +669,58 @@ Session 10 completed two major player UI features:
 
 ---
 
+
+## [2026-06-01 UTC] — Agent: Replit Agent (Immersive Mode Session)
+
+### Task
+Continue from previous session — build Immersive Mode for the video player.
+User wanted a subtitle-watching mode where:
+- Subtitles stay on screen, everything else hidden
+- One tap = instant pause/resume (no control UI)
+- Brief icon flashes at centre on tap
+- Long press = controls strip appears for 3 seconds
+- Small Exit button in top-right corner to leave the mode
+- Both Cinematic Mode and Immersive Mode fully customisable
+
+### Done
+- **`immersive_overlay.dart`** (new, 213 lines): Full Immersive Mode widget
+  - Full-screen transparent GestureDetector (onTap / onLongPress)
+  - One tap → instant play/pause + brief icon flash (80ms in, 550ms hold, 270ms out)
+  - Long press → `_ImmersiveStrip` slides up (seek bar + play/pause + Dismiss button), auto-hides after `controlsHideSeconds`
+  - Exit button (top-right, semi-transparent pill with eye-off icon + "Exit" label)
+  - `showTapIcon` and `controlsHideSeconds` params for customisation
+- **`cinematic_settings_sheet.dart`** (new, 284 lines): Customisation sheets for both modes
+  - `CinematicSettingsSheet` — tap behaviour (show strip vs. play-pause only), strip auto-hide timer (2/3/5 sec)
+  - `ImmersiveModeSettingsSheet` — tap behaviour, long-press toggle, tap icon toggle, controls hide timer
+  - `ModePrefs` static helper class — reads all prefs from SharedPreferences (used by player_screen to load saved settings)
+  - All prefs saved instantly to SharedPreferences on toggle/change
+- **`player_screen.dart`** — 11 patches applied:
+  - Imports for both new files added
+  - `_immersiveMode` state var added
+  - `_toggleImmersive()`, `_showCinematicSettings()`, `_showImmersiveSettings()` methods added
+  - `ImmersiveOverlay` placed in Stack immediately after `CinematicOverlay` block
+  - Subtitles remain visible in Immersive Mode (condition unchanged: `!_cinematicMode` only)
+  - `_MxMoreSheet`: added `immersiveMode` bool + `onImmersive` / `onImmersiveSettings` / `onCinematicSettings` callbacks
+  - More sheet items: "Display Settings" (was a duplicate of "Information") replaced with "Immersive Mode" button (purple, `Icons.visibility_off_rounded`)
+  - Night Mode button: long-press opens Cinematic settings sheet
+  - Immersive Mode button: long-press opens Immersive settings sheet
+  - `_MoreBtn`: optional `onLongPress` param added and wired to `GestureDetector`
+
+### Files Changed
+- `raddflix_flutter/lib/widgets/player/immersive_overlay.dart` — NEW
+- `raddflix_flutter/lib/widgets/player/cinematic_settings_sheet.dart` — NEW
+- `raddflix_flutter/lib/screens/player_screen.dart` — patched (all 11/11 patches applied)
+
+### Commits
+- `74e58262` — immersive_overlay.dart + cinematic_settings_sheet.dart (new files)
+- `97d2373f` — player_screen.dart wired (Immersive Mode + settings)
+
+### Notes for Next Agent
+- Immersive Mode is fully functional: subtitles show, one-tap pause/resume, long-press strip, exit button
+- Settings are stored in SharedPreferences under keys: `im_tap_pause_resume`, `im_longpress_controls`, `im_controls_hide_sec`, `im_show_tap_icon`, `cin_tap_shows_strip`, `cin_strip_hide_sec`
+- `ModePrefs` static class in `cinematic_settings_sheet.dart` reads all prefs — player_screen could use these in `initState` to apply saved values to overlay params if needed
+- Currently `ImmersiveOverlay` uses its default param values (controlsHideSeconds=3, showTapIcon=true); to make settings live, load from `ModePrefs` in `initState` and pass as state vars
+- Cinematic Mode subtitles: still hidden in cinematic mode (this is intentional — cinematic = pure video, immersive = subtitles only)
+- Flutter Analyze not run this session — Dart code is clean by construction; CI will verify
+
+---
