@@ -406,39 +406,20 @@ All changes must go through GitHub. Oracle auto-pulls via webhook or `git pull` 
 ### How to Commit (GitHub API Pattern — always use this)
 ```bash
 # Step 1: Get current HEAD + TREE SHA
-HEAD_SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/raddclub/raddflix-app/git/refs/heads/main" \
-  | python3 -c "import json,sys; print(json.load(sys.stdin)['object']['sha'])")
-TREE_SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/raddclub/raddflix-app/git/commits/$HEAD_SHA" \
-  | python3 -c "import json,sys; print(json.load(sys.stdin)['tree']['sha'])")
+HEAD_SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN"   "https://api.github.com/repos/raddclub/raddflix-app/git/refs/heads/main"   | python3 -c "import json,sys; print(json.load(sys.stdin)['object']['sha'])")
+TREE_SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN"   "https://api.github.com/repos/raddclub/raddflix-app/git/commits/$HEAD_SHA"   | python3 -c "import json,sys; print(json.load(sys.stdin)['tree']['sha'])")
 
 # Step 2: Create blobs for each file
-BLOB=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
-  -H "Content-Type: application/json" \
-  "https://api.github.com/repos/raddclub/raddflix-app/git/blobs" \
-  -d "{\"encoding\":\"base64\",\"content\":\"$(base64 -w0 /path/to/file)\"}" \
-  | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
+BLOB=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN"   -H "Content-Type: application/json"   "https://api.github.com/repos/raddclub/raddflix-app/git/blobs"   -d "{"encoding":"base64","content":"$(base64 -w0 /path/to/file)"}"   | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
 
 # Step 3: Create new tree
-NEW_TREE=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
-  -H "Content-Type: application/json" \
-  "https://api.github.com/repos/raddclub/raddflix-app/git/trees" \
-  -d "{\"base_tree\":\"$TREE_SHA\",\"tree\":[{\"path\":\"path/to/file\",\"mode\":\"100644\",\"type\":\"blob\",\"sha\":\"$BLOB\"}]}" \
-  | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
+NEW_TREE=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN"   -H "Content-Type: application/json"   "https://api.github.com/repos/raddclub/raddflix-app/git/trees"   -d "{"base_tree":"$TREE_SHA","tree":[{"path":"path/to/file","mode":"100644","type":"blob","sha":"$BLOB"}]}"   | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
 
 # Step 4: Create commit
-NEW_COMMIT=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
-  -H "Content-Type: application/json" \
-  "https://api.github.com/repos/raddclub/raddflix-app/git/commits" \
-  -d "{\"message\":\"your message\",\"tree\":\"$NEW_TREE\",\"parents\":[\"$HEAD_SHA\"]}" \
-  | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
+NEW_COMMIT=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN"   -H "Content-Type: application/json"   "https://api.github.com/repos/raddclub/raddflix-app/git/commits"   -d "{"message":"your message","tree":"$NEW_TREE","parents":["$HEAD_SHA"]}"   | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])")
 
 # Step 5: Update branch ref
-curl -s -X PATCH -H "Authorization: token $GITHUB_TOKEN" \
-  -H "Content-Type: application/json" \
-  "https://api.github.com/repos/raddclub/raddflix-app/git/refs/heads/main" \
-  -d "{\"sha\":\"$NEW_COMMIT\"}"
+curl -s -X PATCH -H "Authorization: token $GITHUB_TOKEN"   -H "Content-Type: application/json"   "https://api.github.com/repos/raddclub/raddflix-app/git/refs/heads/main"   -d "{"sha":"$NEW_COMMIT"}"
 ```
 
 ---
@@ -505,7 +486,8 @@ Examples:
 | 16–20 | WhatsApp bot, analytics, zero-rating delta, metadata enrichment pipeline |
 | 21–25 | XOR encoding, security telemetry, recommendation engine, advanced player features |
 | 26–27 | Keystore migration (debug→release signing), CI green, APK fingerprint update |
-| 28 (this) | Full deep audit: 359+ files read, 17 new bugs found, all docs overhauled |
+| 28 | Full deep audit: 359+ files read, 17 new bugs found, all docs overhauled |
+| 29 | P4.2 verified; FTS5 regression fixed; dropped-col sweep across library/api/db; all 3 sessions fully verified |
 
 ---
 
@@ -526,5 +508,5 @@ Examples:
 
 ---
 
-*End of REINCARNATION.md — v3.0 — 2026-05-31*
+*End of REINCARNATION.md — v3.1 — 2026-06-01*
 *Next update: after P3.3 (real WhatsApp number) and P4.1 (Oracle bot restart) are resolved*
