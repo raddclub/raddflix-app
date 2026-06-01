@@ -598,7 +598,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => const CinematicSettingsSheet(),
+      builder: (_) => CinematicSettingsSheet(
+        initialOpacity: _cinematicOpacity,
+        // Live callback: slider in sheet immediately dims controls
+        onOpacityChanged: (v) => setState(() => _cinematicOpacity = v),
+      ),
     );
   }
 
