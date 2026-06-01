@@ -765,3 +765,69 @@ consistent, and non-conflicting with long-press 2× speed gesture.
 - ImmersiveOverlay no longer accepts `onSeekTo` — removed from constructor; parent GD handles all seek gestures
 - `CinematicOverlay` class no longer exists — file is a comment stub kept for compile safety
 - Long-press 2× speed works in ALL three modes (handled by root GestureDetector, not mode-specific)
+---
+
+## Session 7 — Player Customization Foundation (2026-06-01)
+
+### Goal
+1. Fix all mode logic (Normal / Cinematic / Immersive) — make them clean and non-conflicting
+2. Add cinematic opacity slider (live, persistent)
+3. Write comprehensive documentation for next agent (world's most advanced player handoff)
+
+### What Changed
+
+**Cinematic Mode Fix**
+- Removed `CinematicOverlay` widget entirely — it conflicted with tap handling
+- Now: entire `_ControlsOverlay` is wrapped in `Opacity(_cinematicOpacity)` directly in player_screen.dart
+- `CinematicSettingsSheet` gains live opacity slider (15%–100%) with a preview bar
+- `onOpacityChanged` callback wires slider → `_cinematicOpacity` in real-time (no sheet close needed)
+- Slider persists via SharedPreferences key `cin_controls_opacity`
+- Subtitles now correctly show in Cinematic mode
+
+**Immersive Mode Rewrite**
+- `_handleCenterTap` → play/pause only, returns before any controls logic
+- `_scheduleHide` and `_toggleControls` both short-circuit when `_immersiveMode`
+- Gestures work silently: `_ImmersiveDragNumber` shows percentage only (no icon/bar), fades in 680ms
+- `ImmersiveOverlay` rewritten: corner exit (top-right 72×72 zone), time HUD (bottom-left/right, 45% opacity)
+- Long-press 2× speed works in ALL modes (root GestureDetector untouched)
+
+**Documentation (for new agent / new account)**
+- `agent-hub/FEATURES_ROADMAP.md` (542 lines) — 12-phase plan for world's most advanced player
+  - Phase A: Full UI Theme Engine (color, seek bar styles, icons, button shapes, bundled skins)
+  - Phase B: Drag & Drop Layout Designer
+  - Phase C: Full Gesture Remapping
+  - Phase D: Video Science (Picture Profiles, LUTs, Film Grain)
+  - Phase E: Audio Lab (Surround, Karaoke/Vocal Remover, Dialogue Boost)
+  - Phase F: Subtitle World (Dual-track, Word Dictionary, Karaoke, Export)
+  - Phase G: Smart/AI Features (Scene Detection, Skip Silence, Smart Sub Positioning)
+  - Phase H: Mobile-First Features
+  - Phase I: Social (Watch Party, Reactions)
+  - Phase J: Accessibility Champions
+  - Phase K: Privacy & Security
+  - Phase L: Video Frame Features
+- `agent-hub/PLAYER_SPEC.md` (181 lines) — full architecture, mode system, gesture map, state vars, known screenshot diffs
+- `agent-hub/HANDOFF_PROMPT.md` (121 lines) — complete copy-paste prompt for new Replit account agent
+
+### Files Changed
+- `raddflix_flutter/lib/screens/player_screen.dart` — opacity callback wired, unused import removed
+- `raddflix_flutter/lib/widgets/player/cinematic_settings_sheet.dart` — opacity slider + preview bar + accent color support
+- `raddflix_flutter/lib/widgets/player/cinematic_overlay.dart` — stub (import removed)
+- `raddflix_flutter/lib/widgets/player/immersive_overlay.dart` — full rewrite (corner exit + time HUD)
+- `agent-hub/FEATURES_ROADMAP.md` — NEW (542 lines)
+- `agent-hub/PLAYER_SPEC.md` — NEW/UPDATED (181 lines)
+- `agent-hub/HANDOFF_PROMPT.md` — NEW (121 lines)
+- `agent-hub/REINCARNATION.md` — IMMEDIATE STATUS updated
+
+### Commits This Session
+- `ee086b7d` — feat: wire cinematic opacity live callback from settings sheet
+- `3181229a` — feat: cinematic settings – live opacity slider with preview bar (15%–100%)
+- `b6234d03` — chore: remove unused cinematic_overlay import
+- `86af2b38` — chore: valid dart stub for cinematic_overlay
+- docs pushes: FEATURES_ROADMAP, HANDOFF_PROMPT, PLAYER_SPEC, REINCARNATION
+
+### Notes for Next Agent
+- Read `HANDOFF_PROMPT.md` — it's a complete start prompt with everything the new agent needs
+- First task: `FEATURES_ROADMAP.md` Phase A1 — Accent Color System (add `accentColor` to PlayerPrefs, create color_picker_sheet.dart, wire to Quick Settings → Style tab)
+- `_cinematicOpacity` is already persisted via `cin_controls_opacity` SharedPreferences key
+- `CinematicSettingsSheet` now requires `initialOpacity` param and accepts optional `onOpacityChanged` callback
+- `ModePrefs.cinOpacity()` static method added for reading saved opacity from anywhere
