@@ -347,7 +347,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
               final id    = shape['id']    as String;
               final label = shape['label'] as String;
               final r     = shape['radius'] as double;
-              return _buildShapeChip(id, label, r, playerAccent);
+              return _buildShapeChip(id, label, r, playerAccent, _p, _update);
             }).toList(),
           ),
         ),
@@ -1092,18 +1092,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
               const SizedBox(width: 14),
               const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Intro / Skip Editor', style: TextStyle(color: Colors.white, fontSize: 13)),
-          const SizedBox(height: 8),
-          _NavButton(icon: Icons.skip_next_rounded,    label: 'Jump To',        onTap: onOpenJumpTo),
-          const SizedBox(height: 8),
-          _NavButton(icon: Icons.speed_rounded,        label: 'Speed Presets',  onTap: onOpenSpeedPresets),
-          const SizedBox(height: 8),
-          _NavButton(icon: Icons.flag_rounded,         label: 'Video End Action', onTap: onOpenEndAction),
-          const SizedBox(height: 8),
-          _NavButton(icon: Icons.volume_off_rounded,   label: 'Smart Skip',     onTap: onOpenSilenceSkip),
-          const SizedBox(height: 8),
-          _NavButton(icon: Icons.zoom_in_rounded,        label: 'Zoom & Crop',    onTap: onOpenZoomCrop),
-          const SizedBox(height: 8),
-          _NavButton(icon: Icons.dashboard_customize_rounded, label: 'Layout Designer', onTap: onOpenLayoutDesigner ?? () {}),
                 Text('Set custom skip timestamps for this video',
                     style: TextStyle(color: Colors.white38, fontSize: 11)),
               ])),
@@ -1111,6 +1099,18 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
             ]),
           ),
         ),
+        const SizedBox(height: 8),
+        _NavButton(icon: Icons.skip_next_rounded,    label: 'Jump To',        onTap: widget.onOpenJumpTo),
+        const SizedBox(height: 8),
+        _NavButton(icon: Icons.speed_rounded,        label: 'Speed Presets',  onTap: widget.onOpenSpeedPresets),
+        const SizedBox(height: 8),
+        _NavButton(icon: Icons.flag_rounded,         label: 'Video End Action', onTap: widget.onOpenEndAction),
+        const SizedBox(height: 8),
+        _NavButton(icon: Icons.volume_off_rounded,   label: 'Smart Skip',     onTap: widget.onOpenSilenceSkip),
+        const SizedBox(height: 8),
+        _NavButton(icon: Icons.zoom_in_rounded,      label: 'Zoom & Crop',    onTap: widget.onOpenZoomCrop),
+        const SizedBox(height: 8),
+        _NavButton(icon: Icons.dashboard_customize_rounded, label: 'Layout Designer', onTap: widget.onOpenLayoutDesigner ?? () {}),
       ],
     );
   }
@@ -1402,8 +1402,8 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
 // SHAPE CHIP helper (used in Style tab Button Shape row)
 // ─────────────────────────────────────────────────────────────────────────────
 
-Widget _buildShapeChip(String id, String label, double radius, Color accent) {
-  final sel = _p.buttonShape == id;
+Widget _buildShapeChip(String id, String label, double radius, Color accent, PlayerPrefs prefs, void Function(PlayerPrefs) updater) {
+  final sel = prefs.buttonShape == id;
   // Show the shape visually as a mini play-button silhouette
   Widget shape;
   if (id == 'circle') {
@@ -1431,7 +1431,7 @@ Widget _buildShapeChip(String id, String label, double radius, Color accent) {
   return Padding(
     padding: const EdgeInsets.only(right: 8),
     child: GestureDetector(
-      onTap: () => _update(_p.copyWith(buttonShape: id)),
+      onTap: () => updater(prefs.copyWith(buttonShape: id)),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         width: 72,
@@ -1614,5 +1614,36 @@ class _GestureChip extends StatelessWidget {
       Text(label, style: const TextStyle(color: Colors.white54, fontSize: 9, height: 1.3),
           textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
     ]),
+  );
+}
+
+class _NavButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _NavButton({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Row(children: [
+          Icon(icon, color: Colors.white54, size: 20),
+          const SizedBox(width: 14),
+          Expanded(child: Text(label,
+            style: const TextStyle(color: Colors.white70, fontSize: 13))),
+          const Icon(Icons.chevron_right_rounded, color: Colors.white24, size: 18),
+        ]),
+      ),
+    ),
   );
 }
