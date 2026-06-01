@@ -1132,3 +1132,60 @@ Empty string clears all filters when none are active.
 - DSP chain: ✓ 6 filters, all chained correctly
 - No Dart syntax errors (all widget files: braces ✓, parens ✓, brackets ✓)
 - All widget-to-player_screen API contracts verified (constructor params match callers)
+
+---
+
+## Session 13 — Phases SVL / M1 / M2 / M3 / G2 / M4 / J2 / H1
+
+**Date:** 2026-06-01  
+**Commits:** cc62fc1db4 · b0d3cf2d1b · d3280624cb
+
+### Work Done
+
+#### 1. Smart Volume Leveling (Phase SVL) — commit cc62fc1db4
+- `_SmartVolumeController` Dart class appended to player_screen.dart
+  - `Timer.periodic(600 ms)` ramps player volume toward `_targetVol` at configurable step
+  - Rates: gentle=0.5%/tick | balanced=1.5%/tick | aggressive=4.0%/tick
+  - Clamps output 20–130 (MPV safe volume range)
+  - `start() / stop() / update() / dispose()` lifecycle — all wired in `_initPlayer` / `dispose`
+- MPV `acompressor` filter (filter #8 in af= chain) added to `_applyAudioPrefs`
+  - 3 presets: gentle/balanced/aggressive (different threshold/ratio/attack/release/makeup)
+- PlayerPrefs +3 fields (8x each): `smartVolumeLevelingEnabled`, `smartVolumeTarget`, `smartVolumeMode`
+- AudioLabSheet: Smart Volume section — target slider + 3-mode picker
+- player_prefs.dart + audio_lab_sheet.dart committed together with player_screen
+
+#### 2. New Widget Files — commit b0d3cf2d1b (4 files + PlayerPrefs +8 fields)
+
+| File | Phase | Purpose |
+|------|-------|---------|
+| `jump_to_sheet.dart` | M2 | Quick jump panel: ±30s/±1m/±5m + timecode entry + ¼/½/¾/end presets |
+| `speed_presets_sheet.dart` | M1 | Custom speed list — tap=apply, long-press=delete, slider+button=add |
+| `end_action_sheet.dart` | M3 | End-of-video: play_next / loop / return_home / do_nothing |
+| `silence_skip_sheet.dart` | G2/M4/J2 | Skip silence (toggle+threshold), skip black frames, color blind modes |
+
+PlayerPrefs +8 fields (8x each — constructor/copyWith/load/save):
+`skipSilenceEnabled`, `skipSilenceThresholdSecs`, `skipBlackFramesEnabled`,
+`customSpeedPresetsJson`, `endOfVideoAction`,
+`colorBlindMode`, `oneHandedModeEnabled`, `oneHandedModeSide`
+
+#### 3. player_screen + QSP Wiring — commit d3280624cb
+
+**player_screen.dart:**
+- +4 imports (new widget files)
+- `_colorBlindMatrix()` static helper — 5×4 daltonization matrices for deuter/protan/tritanopia
+- `build()`: `ColorFiltered` wrapper around full player when `colorBlindMode != 'none'` (Phase J2)
+- `_onPlaybackEnded()`: endOfVideoAction switch — loop/return_home/nothing/play_next (Phase M3)
+- `_applyAudioPrefs()`: `silencedetect=noise=-40dB:duration=Xs` filter in af= chain (Phase G2)
+- +4 `_open*()` methods: `_openJumpTo`, `_openSpeedPresets`, `_openEndAction`, `_openSilenceSkip`
+- `QuickSettingsPanel` call: +4 callbacks forwarding to new methods
+
+**quick_settings_panel.dart:**
+- +4 callback fields + constructor params
+- Controls tab: 4 new `_NavButton` entries (Jump To, Speed Presets, Video End Action, Smart Skip)
+
+### Verification
+- All 4 new widget files: braces ✓ parens ✓ (clean)
+- PlayerPrefs: all 8 new fields present 8×  ✓
+- ps_final: paren diff = -1 (pre-existing, same as committed baseline) ✓
+- QSP: all 4 new callback names present 3× each ✓
+
