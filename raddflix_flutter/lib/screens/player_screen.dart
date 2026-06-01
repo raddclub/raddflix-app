@@ -35,6 +35,11 @@ import '../widgets/player/speed_picker_sheet.dart';
 import '../widgets/player/bookmark_panel.dart';
 import '../widgets/player/eq_visualizer.dart';
 import '../screens/player_settings_screen.dart';
+import '../widgets/player/cast_panel.dart';
+import '../widgets/player/audio_mixer_sheet.dart';
+import '../widgets/player/clip_trimmer.dart';
+import '../widgets/player/binge_guard.dart';
+import '../widgets/player/pip_overlay.dart';
 import '../widgets/player/ab_loop_panel.dart';
 import '../widgets/player/rage_skip_panel.dart';
 import '../widgets/player/network_speed_overlay.dart';
@@ -46,6 +51,11 @@ import '../widgets/player/quick_settings_panel.dart';
 import '../widgets/player/ambilight_glow_border.dart';
 import '../widgets/player/playback_info_overlay.dart';
 import '../screens/player_settings_screen.dart';
+import '../widgets/player/cast_panel.dart';
+import '../widgets/player/audio_mixer_sheet.dart';
+import '../widgets/player/clip_trimmer.dart';
+import '../widgets/player/binge_guard.dart';
+import '../widgets/player/pip_overlay.dart';
 import '../widgets/player/ab_loop_panel.dart';
 import '../widgets/player/rage_skip_panel.dart';
 import '../widgets/player/network_speed_overlay.dart';
@@ -58,6 +68,11 @@ import 'package:saver_gallery/saver_gallery.dart';
 import '../widgets/player/immersive_overlay.dart';
 import '../widgets/player/cinematic_settings_sheet.dart';
 import '../widgets/player/scene_bookmarks_panel.dart';
+import '../widgets/player/cast_panel.dart';
+import '../widgets/player/audio_mixer_sheet.dart';
+import '../widgets/player/clip_trimmer.dart';
+import '../widgets/player/binge_guard.dart';
+import '../widgets/player/pip_overlay.dart';
 import '../widgets/player/ab_loop_panel.dart';
 import '../widgets/player/track_badges.dart';
 import '../widgets/player/video_enhance_panel.dart';
@@ -654,6 +669,80 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   // ── Screenshot → Gallery ──────────────────────────────────────────────────
+  void _openCastPanel() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => CastPanel(
+        devices: _castDevices,
+        connected: _connectedCastDevice,
+        scanning: _castScanning,
+        accentColor: _prefs.accentColor,
+        onConnect: (d) => setState(() => _connectedCastDevice = d),
+        onDisconnect: () => setState(() => _connectedCastDevice = null),
+        onScanRequested: () {
+          setState(() => _castScanning = true);
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) setState(() => _castScanning = false);
+          });
+        },
+      ),
+    );
+  }
+
+  void _openAudioMixer() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AudioMixerSheet(
+        tracks: _audioTracks,
+        selectedTrackId: _selectedAudioTrack,
+        audioDelay: _prefs.audioDelay,
+        accentColor: _prefs.accentColor,
+        onTrackSelected: (id) {
+          setState(() => _selectedAudioTrack = id);
+          _applyAudioPrefs(_prefs);
+        },
+        onDelayChanged: (v) {
+          setState(() => _prefs = _prefs.copyWith(audioDelay: v));
+          _applyAudioPrefs(_prefs);
+          _prefs.save();
+        },
+        onBalanceChanged: (v) {
+          setState(() => _prefs = _prefs.copyWith(channelBalance: v));
+          _applyAudioPrefs(_prefs);
+          _prefs.save();
+        },
+        onBoostDialogueToggled: (v) {
+          setState(() => _prefs = _prefs.copyWith(dialogueBoostEnabled: v));
+          _applyAudioPrefs(_prefs);
+          _prefs.save();
+        },
+      ),
+    );
+  }
+
+  void _openClipTrimmer() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ClipTrimmer(
+        totalDuration: _duration,
+        initialStart: _abLoopStart ?? _position,
+        initialEnd:   _abLoopEnd   ?? (_position + const Duration(seconds: 30)),
+        accentColor: _prefs.accentColor,
+        onTrimChanged: (trim) {
+          setState(() { _abLoopStart = trim.start; _abLoopEnd = trim.end; });
+        },
+        onExportClip: () => Navigator.pop(context),
+        onExportGif:  () => Navigator.pop(context),
+      ),
+    );
+  }
+
   void _openABLoop() {
     showModalBottomSheet(
       context: context,
