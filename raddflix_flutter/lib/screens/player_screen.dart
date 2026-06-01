@@ -35,6 +35,10 @@ import '../widgets/player/speed_picker_sheet.dart';
 import '../widgets/player/bookmark_panel.dart';
 import '../widgets/player/eq_visualizer.dart';
 import '../screens/player_settings_screen.dart';
+import '../widgets/player/ab_loop_panel.dart';
+import '../widgets/player/rage_skip_panel.dart';
+import '../widgets/player/network_speed_overlay.dart';
+import '../widgets/player/screenshot_share_sheet.dart';
 import '../widgets/player/video_enhance_suite.dart';
 import '../widgets/player/sync_panel.dart';
 import '../widgets/player/eq_panel.dart';
@@ -42,6 +46,10 @@ import '../widgets/player/quick_settings_panel.dart';
 import '../widgets/player/ambilight_glow_border.dart';
 import '../widgets/player/playback_info_overlay.dart';
 import '../screens/player_settings_screen.dart';
+import '../widgets/player/ab_loop_panel.dart';
+import '../widgets/player/rage_skip_panel.dart';
+import '../widgets/player/network_speed_overlay.dart';
+import '../widgets/player/screenshot_share_sheet.dart';
 import 'dart:math' as math;
 import 'package:audio_session/audio_session.dart';
 import 'package:shimmer/shimmer.dart';
@@ -646,6 +654,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   // ── Screenshot → Gallery ──────────────────────────────────────────────────
+  void _openABLoop() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ABLoopPanel(
+        pointA: _abLoopStart,
+        pointB: _abLoopEnd,
+        totalDuration: _duration,
+        loopActive: _abLoopActive,
+        accentColor: _prefs.accentColor,
+        onSetA: () { Navigator.pop(context); setState(() => _abLoopStart = _position); },
+        onSetB: () { Navigator.pop(context); setState(() => _abLoopEnd = _position); },
+        onClearA: () => setState(() => _abLoopStart = null),
+        onClearB: () => setState(() => _abLoopEnd = null),
+        onLoopToggled: (v) => setState(() => _abLoopActive = v),
+      ),
+    );
+  }
+
   void _openSpeedPicker() {
     showModalBottomSheet(
       context: context,
