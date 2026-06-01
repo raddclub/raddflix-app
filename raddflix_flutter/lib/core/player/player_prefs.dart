@@ -136,6 +136,16 @@ class PlayerPrefs {
   /// PlayerTheme id (see player_theme.dart). Default: 'raddflix_red'.
   final String playerTheme;
 
+  // ── Phase A3: Button & Icon Style ──────────────────────────────────────
+  /// Button shape: 'circle' | 'squircle' | 'rounded' | 'sharp' | 'pill'
+  final String buttonShape;
+  /// Icon pack: 'mx' | 'ios' | 'fluent' | 'material3' | 'cute' | 'minimal'
+  final String iconPack;
+
+  // ── Phase A4: Controls Background ────────────────────────────────────────
+  /// Controls bg style: 'none' | 'glass' | 'gradient' | 'solid' | 'mesh'
+  final String controlsBgStyle;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -230,6 +240,9 @@ class PlayerPrefs {
     this.accentColorValue = 0xFFE8002D,
     this.seekBarStyle = 'classic',
     this.playerTheme = 'raddflix_red',
+    this.buttonShape = 'circle',
+    this.iconPack = 'mx',
+    this.controlsBgStyle = 'none',
   });
 
   PlayerPrefs copyWith({
@@ -269,6 +282,7 @@ class PlayerPrefs {
     bool? bookmarkVibrate, bool? cinematicModeOnLock, bool? gesturesInCinematic,
     String? cinematicTapBehavior, bool? transparentModeFrosted,
     int? accentColorValue, String? seekBarStyle, String? playerTheme,
+    String? buttonShape, String? iconPack, String? controlsBgStyle,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -360,6 +374,9 @@ class PlayerPrefs {
     accentColorValue: accentColorValue ?? this.accentColorValue,
     seekBarStyle: seekBarStyle ?? this.seekBarStyle,
     playerTheme: playerTheme ?? this.playerTheme,
+    buttonShape: buttonShape ?? this.buttonShape,
+    iconPack: iconPack ?? this.iconPack,
+    controlsBgStyle: controlsBgStyle ?? this.controlsBgStyle,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -469,6 +486,9 @@ class PlayerPrefs {
       accentColorValue:       s.getInt('${_p}accent_color')       ?? 0xFFE8002D,
       seekBarStyle:           s.getString('${_p}seek_bar_style')  ?? 'classic',
       playerTheme:            s.getString('${_p}player_theme')    ?? 'raddflix_red',
+      buttonShape:            s.getString('${_p}button_shape')     ?? 'circle',
+      iconPack:               s.getString('${_p}icon_pack')        ?? 'mx',
+      controlsBgStyle:        s.getString('${_p}controls_bg')      ?? 'none',
     );
   }
 
@@ -574,6 +594,9 @@ class PlayerPrefs {
       s.setInt('${_p}accent_color',        accentColorValue),
       s.setString('${_p}seek_bar_style',   seekBarStyle),
       s.setString('${_p}player_theme',     playerTheme),
+      s.setString('${_p}button_shape',     buttonShape),
+      s.setString('${_p}icon_pack',        iconPack),
+      s.setString('${_p}controls_bg',      controlsBgStyle),
     ]);
   }
 }
