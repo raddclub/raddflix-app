@@ -6,7 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:media_kit/media_kit.dart';
+import 'package:media_kit/media_kit.dart' hide AudioTrack;
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 import 'package:volume_controller/volume_controller.dart';
@@ -325,7 +325,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── Missing state vars (fixes for CI errors) ─────────────────────────────
   bool _castScanning = false;
-  List<AudioTrack> _audioTracks = const [];
+  List<dynamic> _castDevices = const [];
+  dynamic _connectedCastDevice;
+  bool _showJumpPanel = false;
+  bool _showCountdown = false;
+  WatchPartyRoom? _watchPartyRoom;
+  List<dynamic> _audioTracks = const [];
   int _selectedAudioTrack = 0;
   Duration? _abLoopStart;
   Duration? _abLoopEnd;
@@ -943,24 +948,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openABLoop() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => ABLoopPanel(
-        pointA: _abLoopStart,
-        pointB: _abLoopEnd,
-        totalDuration: _duration,
-        loopActive: _abLoopActive,
-        accentColor: _prefs.accentColor,
-        onSetA: () { Navigator.pop(context); setState(() => _abLoopStart = _position); },
-        onSetB: () { Navigator.pop(context); setState(() => _abLoopEnd = _position); },
-        onClearA: () => setState(() => _abLoopStart = null),
-        onClearB: () => setState(() => _abLoopEnd = null),
-        onLoopToggled: (v) => setState(() => _abLoopActive = v),
-      ),
-    );
+    setState(() => _showAbPanel = !_showAbPanel);
   }
+
+  void _handleVoiceCommand(dynamic cmd) {}
 
   void _openSpeedPicker() {
     showModalBottomSheet(
@@ -2738,7 +2729,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // ── Phase F1: Dual Subtitle Overlay ──
           if (_prefs.subtitleEnabled && _prefs.dualSubtitleEnabled && _secondSubtitleText.isNotEmpty)
             DualSubtitleOverlay(
-              primaryLine: _currentSubtitleText,
+              primaryLine: _currentSubtitleText ?? '',
               secondaryLine: _secondSubtitleText,
               prefs: _prefs,
             ),
@@ -2769,7 +2760,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               total: _duration,
               accentColor: _prefs.accentColor,
               onJump: (pos) {
-                _controller?.seekTo(pos);
+                _player.seek(pos);
                 setState(() => _showJumpPanel = false);
               },
               onDismiss: () => setState(() => _showJumpPanel = false),
@@ -3178,7 +3169,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 onOpenFullSettings: () {
                   setState(() => _showQuickSettings = false);
                   Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const PlayerSettingsScreen()));
+                      builder: (_) => PlayerSettingsScreen(prefs: _prefs, onSave: (p) { if (mounted) setState(() => _prefs = p); })));
                 },
                 onOpenGestureMap: () {
                   setState(() => _showQuickSettings = false);
@@ -3341,7 +3332,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           if (_showVideoDisplay)
             Positioned(bottom: 0, left: 0, right: 0,
               child: _VideoDisplaySheet(
-                screenRotation: _rotationMode != 'auto',
+                screenRotation: _prefs.rotationMode != 'auto',
                 bgPlay: _bgPlayEnabled,
                 isMuted: _isMuted,
                 eqEnabled: _prefs.equalizerEnabled,
