@@ -223,6 +223,18 @@ class PlayerPrefs {
   /// Whether the Focus Mode zoom lens is active.
   final bool focusModeEnabled;
 
+  // ── Phase M1: Custom Speed Presets ───────────────────────────────────────
+  /// Comma-separated speed values e.g. '0.5,1.0,1.5,2.0'
+  final String speedPresets;
+
+  // ── Phase M3: End-of-Video Action ─────────────────────────────────────────
+  /// One of: play_next | loop | return_home | show_credits | countdown_next | do_nothing
+  final String endAction;
+
+  // ── Phase M4: Smart Skip ──────────────────────────────────────────────────
+  /// Encoded SmartSkipConfig string
+  final String smartSkipConfig;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -359,6 +371,9 @@ class PlayerPrefs {
     this.motorImpairmentMode       = false,
     this.screenshotWatermark       = true,
     this.focusModeEnabled          = false,
+    this.speedPresets              = '0.25,0.5,0.75,1.0,1.25,1.5,1.75,2.0,2.5,3.0',
+    this.endAction                 = 'play_next',
+    this.smartSkipConfig           = '0,0,90,0,120',
   });
 
   PlayerPrefs copyWith({
@@ -431,6 +446,9 @@ class PlayerPrefs {
     bool?   motorImpairmentMode,
     bool?   screenshotWatermark,
     bool?   focusModeEnabled,
+    String? speedPresets,
+    String? endAction,
+    String? smartSkipConfig,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -561,6 +579,9 @@ class PlayerPrefs {
       motorImpairmentMode:         motorImpairmentMode          ?? this.motorImpairmentMode,
       screenshotWatermark:         screenshotWatermark          ?? this.screenshotWatermark,
       focusModeEnabled:            focusModeEnabled             ?? this.focusModeEnabled,
+      speedPresets:                speedPresets                 ?? this.speedPresets,
+      endAction:                   endAction                    ?? this.endAction,
+      smartSkipConfig:             smartSkipConfig              ?? this.smartSkipConfig,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -709,6 +730,9 @@ class PlayerPrefs {
       motorImpairmentMode:         s.getBool('\${_p}motor_impairment')         ?? false,
       screenshotWatermark:         s.getBool('\${_p}screenshot_watermark')     ?? true,
       focusModeEnabled:            s.getBool('\${_p}focus_mode_enabled')       ?? false,
+      speedPresets:                s.getString('\${_p}speed_presets')           ?? '0.25,0.5,0.75,1.0,1.25,1.5,1.75,2.0,2.5,3.0',
+      endAction:                   s.getString('\${_p}end_action')              ?? 'play_next',
+      smartSkipConfig:             s.getString('\${_p}smart_skip_config')       ?? '0,0,90,0,120',
     );
   }
 
@@ -853,6 +877,9 @@ class PlayerPrefs {
       s.setBool('\${_p}motor_impairment',           motorImpairmentMode),
       s.setBool('\${_p}screenshot_watermark',       screenshotWatermark),
       s.setBool('\${_p}focus_mode_enabled',         focusModeEnabled),
+      s.setString('\${_p}speed_presets',            speedPresets),
+      s.setString('\${_p}end_action',               endAction),
+      s.setString('\${_p}smart_skip_config',        smartSkipConfig),
     ]);
   }
 }

@@ -1,40 +1,68 @@
-import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-
 /// Phase M1 — Custom Speed Presets
-/// User edits their own speed list. Tap a speed to apply immediately.
-/// Long-press a preset to delete it. Add button appends a new speed.
+/// Long-press the speed button → speed dial with user's custom speeds.
+/// Users can add/remove speeds; persisted in PlayerPrefs.
+library speed_presets;
 
-const List<double> kDefaultSpeedPresets = [
-  0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0,
-];
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-List<double> speedPresetsFromJson(String json) {
-  if (json.isEmpty) return List.from(kDefaultSpeedPresets);
+// Default speed list
+const List<double> _defaultSpeeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
+const List<double> _allowedSpeeds = [0.25, 0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0];
+
+/// Parse user preset string "0.5,1.0,1.5,2.0" → [0.5, 1.0, 1.5, 2.0]
+List<double> speedPresetsFromString(String s) {
+  if (s.isEmpty) return _defaultSpeeds;
   try {
-    final list = jsonDecode(json) as List;
-    return list.map((e) => (e as num).toDouble()).toList();
+    return s.split(',').map(double.parse).toList()..sort();
   } catch (_) {
-    return List.from(kDefaultSpeedPresets);
+    return _defaultSpeeds;
   }
 }
 
+/// Encode speeds → "0.5,1.0,1.5,2.0"
+String speedPresetsToString(List<double> speeds) =>
+    speeds.map((s) => s.toString()).join(',');
+
+// ─────────────────────────────────────────────────────────────────────────────
+/// Speed dial overlay shown on long-press of speed button.
+/// Returns the newly selected speed or null if dismissed.
 class SpeedPresetsSheet extends StatefulWidget {
-  final String presetsJson;
   final double currentSpeed;
+  final List<double> presets;
   final ValueChanged<double> onSpeedSelected;
-  final ValueChanged<String> onPresetsChanged;
+  final ValueChanged<List<double>> onPresetsChanged;
   final Color accentColor;
 
   const SpeedPresetsSheet({
     super.key,
-    required this.presetsJson,
     required this.currentSpeed,
+    required this.presets,
     required this.onSpeedSelected,
     required this.onPresetsChanged,
     required this.accentColor,
   });
+
+  static Future<void> show(
+    BuildContext context, {
+    required double currentSpeed,
+    required List<double> presets,
+    required ValueChanged<double> onSpeedSelected,
+    required ValueChanged<List<double>> onPresetsChanged,
+    required Color accentColor,
+  }) {
+    return showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SpeedPresetsSheet(
+        currentSpeed: currentSpeed,
+        presets: presets,
+        onSpeedSelected: onSpeedSelected,
+        onPresetsChanged: onPresetsChanged,
+        accentColor: accentColor,
+      ),
+    );
+  }
 
   @override
   State<SpeedPresetsSheet> createState() => _SpeedPresetsSheetState();
@@ -42,161 +70,171 @@ class SpeedPresetsSheet extends StatefulWidget {
 
 class _SpeedPresetsSheetState extends State<SpeedPresetsSheet> {
   late List<double> _presets;
-  double _adding = 1.5;
+  bool _editing = false;
 
   @override
   void initState() {
     super.initState();
-    _presets = speedPresetsFromJson(widget.presetsJson);
+    _presets = List<double>.from(widget.presets);
   }
 
-  void _save() {
-    _presets.sort();
-    widget.onPresetsChanged(jsonEncode(_presets));
-    setState(() {});
+  void _select(double speed) {
+    HapticFeedback.selectionClick();
+    widget.onSpeedSelected(speed);
+    Navigator.of(context).pop();
   }
 
-  void _add(double v) {
-    v = double.parse(v.toStringAsFixed(2));
-    if (!_presets.contains(v)) {
-      _presets.add(v);
-      _save();
-    }
-  }
-
-  void _remove(double v) {
-    if (_presets.length <= 1) return;
-    _presets.remove(v);
-    _save();
-  }
-
-  void _reset() {
-    setState(() => _presets = List.from(kDefaultSpeedPresets));
-    widget.onPresetsChanged(jsonEncode(_presets));
+  void _toggle(double speed) {
+    HapticFeedback.lightImpact();
+    setState(() {
+      if (_presets.contains(speed)) {
+        if (_presets.length <= 2) return; // keep at least 2
+        _presets.remove(speed);
+      } else {
+        _presets.add(speed);
+        _presets.sort();
+      }
+    });
+    widget.onPresetsChanged(_presets);
   }
 
   @override
   Widget build(BuildContext context) {
-    final acc = widget.accentColor;
     return Container(
-      constraints:
-          BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
-      decoration: const BoxDecoration(
-        color: Color(0xFF12121E),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161616),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        border: Border.all(color: Colors.white10),
       ),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Center(child: Container(
-            width: 36, height: 4,
-            margin: const EdgeInsets.fromLTRB(0, 12, 0, 0),
-            decoration: BoxDecoration(
-                color: Colors.white24, borderRadius: BorderRadius.circular(2)))),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 0),
-          child: Row(children: [
-            Icon(Icons.speed_rounded, color: acc, size: 20),
-            const SizedBox(width: 10),
-            const Text('Speed Presets',
-                style: TextStyle(color: Colors.white, fontSize: 16,
-                    fontWeight: FontWeight.w700)),
-            const Spacer(),
-            TextButton(
-              onPressed: _reset,
-              child: const Text('Reset',
-                  style: TextStyle(color: Colors.white38, fontSize: 12)),
-            ),
-          ]),
-        ),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 2, 16, 10),
-          child: Text('Tap to set speed · Long-press to remove preset.',
-              style: TextStyle(color: Colors.white38, fontSize: 11)),
-        ),
-        const Divider(color: Colors.white10, height: 1),
-
-        // ── Preset chips ─────────────────────────────────────────────
-        Flexible(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Wrap(spacing: 10, runSpacing: 10,
-              children: _presets.map((s) {
-                final active = (s - widget.currentSpeed).abs() < 0.01;
-                return GestureDetector(
-                  onTap: () {
-                    widget.onSpeedSelected(s);
-                    Navigator.pop(context);
-                  },
-                  onLongPress: () {
-                    _remove(s);
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text('Removed ${s}×'),
-                        duration: const Duration(seconds: 1)));
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: active
-                          ? acc.withOpacity(0.25)
-                          : Colors.white.withOpacity(0.07),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                          color: active ? acc : Colors.white12,
-                          width: active ? 1.5 : 1.0),
-                    ),
-                    child: Text(
-                      '${s}×',
-                      style: TextStyle(
-                          color: active ? Colors.white : Colors.white60,
-                          fontSize: 13,
-                          fontWeight: active
-                              ? FontWeight.w800
-                              : FontWeight.normal),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ),
-
-        const Divider(color: Colors.white10, height: 1),
-
-        // ── Add new preset ────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          child: Row(children: [
-            const Text('Add:', style: TextStyle(color: Colors.white54, fontSize: 12)),
-            Expanded(
-              child: Slider(
-                value: _adding,
-                min: 0.1, max: 4.0, divisions: 39,
-                activeColor: acc, inactiveColor: Colors.white12,
-                label: '${_adding.toStringAsFixed(2)}×',
-                onChanged: (v) => setState(() => _adding = v),
-              ),
-            ),
-            GestureDetector(
-              onTap: () => _add(_adding),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Center(
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                width: 36, height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
                 decoration: BoxDecoration(
-                    color: acc, borderRadius: BorderRadius.circular(9)),
-                child: Text('${_adding.toStringAsFixed(2)}×',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12)),
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2)),
               ),
             ),
-          ]),
+            // Title row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const Text('Playback Speed',
+                      style: TextStyle(color: Colors.white,
+                          fontSize: 16, fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => setState(() => _editing = !_editing),
+                    child: Text(_editing ? 'Done' : 'Customise',
+                        style: TextStyle(
+                            color: widget.accentColor, fontSize: 13)),
+                  ),
+                ],
+              ),
+            ),
+            // Current speed display
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                '${widget.currentSpeed}×',
+                style: TextStyle(
+                    color: widget.accentColor,
+                    fontSize: 28, fontWeight: FontWeight.w800),
+              ),
+            ),
+            // Speed chips (my presets)
+            if (!_editing) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Wrap(
+                  spacing: 8, runSpacing: 8,
+                  children: _presets.map((s) {
+                    final active = s == widget.currentSpeed;
+                    return GestureDetector(
+                      onTap: () => _select(s),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 140),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: active
+                              ? widget.accentColor.withOpacity(0.2)
+                              : Colors.white10,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                              color: active
+                                  ? widget.accentColor
+                                  : Colors.white24)),
+                        child: Text('${s}×',
+                            style: TextStyle(
+                                color: active
+                                    ? widget.accentColor
+                                    : Colors.white70,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ] else ...[
+              // Edit mode: all available speeds, toggle on/off
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: const Text('Tap to add/remove from your speed list',
+                    style: TextStyle(color: Colors.white38, fontSize: 11)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Wrap(
+                  spacing: 8, runSpacing: 8,
+                  children: _allowedSpeeds.map((s) {
+                    final inList = _presets.contains(s);
+                    return GestureDetector(
+                      onTap: () => _toggle(s),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 140),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: inList
+                              ? widget.accentColor.withOpacity(0.15)
+                              : Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: inList
+                                  ? widget.accentColor.withOpacity(0.6)
+                                  : Colors.white12)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          if (inList)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Icon(Icons.check_rounded,
+                                  color: widget.accentColor, size: 14),
+                            ),
+                          Text('${s}×',
+                              style: TextStyle(
+                                  color: inList
+                                      ? widget.accentColor
+                                      : Colors.white54,
+                                  fontSize: 13)),
+                        ]),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+          ],
         ),
-      ]),
-    )
-        .animate()
-        .slideY(begin: 0.08, end: 0, duration: 220.ms, curve: Curves.easeOutCubic)
-        .fadeIn(duration: 180.ms);
+      ),
+    );
   }
 }

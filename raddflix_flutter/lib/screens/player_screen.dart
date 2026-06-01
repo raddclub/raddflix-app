@@ -35,6 +35,10 @@ import '../core/player/haptic_service.dart'; // Phase J5
 import '../widgets/player/reaction_stamps_overlay.dart'; // Phase I2
 import '../widgets/player/zoom_focus_overlay.dart'; // Phase L3
 import '../core/player/enhanced_screenshot_service.dart'; // Phase L1
+import '../widgets/player/speed_presets_sheet.dart'; // Phase M1
+import '../widgets/player/jump_to_panel.dart'; // Phase M2
+import '../core/player/end_of_video_actions.dart'; // Phase M3
+import '../core/player/smart_skip_service.dart'; // Phase M4
 import '../widgets/player/film_grain_overlay.dart'; // Phase D3
 import '../widgets/player/controls_background.dart';
 import '../widgets/player/sleep_timer_sheet.dart';
@@ -2753,6 +2757,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             enabled: _prefs.focusModeEnabled,
             accentColor: _prefs.accentColor,
           ),
+
+          // ── Phase M2: Jump To Panel ──────────────────────────────────────
+          if (_showJumpPanel)
+            JumpToPanel(
+              current: _position,
+              total: _duration,
+              accentColor: _prefs.accentColor,
+              onJump: (pos) {
+                _controller?.seekTo(pos);
+                setState(() => _showJumpPanel = false);
+              },
+              onDismiss: () => setState(() => _showJumpPanel = false),
+            ),
+
+          // ── Phase M3: End-of-Video countdown overlay ──────────────────────
+          if (_showCountdown)
+            CountdownNextOverlay(
+              accentColor: _prefs.accentColor,
+              nextTitle: widget.title,
+              onDone: () {
+                setState(() => _showCountdown = false);
+                _handleVideoEnd();
+              },
+              onCancel: () => setState(() => _showCountdown = false),
+            ),
 
           // ── Controls (Opacity wrapper dims them in Cinematic mode) ──
           if (_showControls && !_longPressFast && !_showNextEpisode && !_inPiP && !_immersiveMode)

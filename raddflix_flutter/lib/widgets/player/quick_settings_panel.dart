@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/player/player_prefs.dart';
 import '../../../core/player/video_look_filter.dart'; // D2
+import '../../../core/player/end_of_video_actions.dart'; // M3
+import '../../../core/player/smart_skip_service.dart'; // M4
+import '../../../core/player/speed_presets_sheet.dart'; // M1
 import 'film_grain_overlay.dart'; // D3
 import '../../../core/player/player_theme.dart';
 import '../../../core/player/icon_packs.dart';
@@ -818,6 +821,73 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
+        // ── Phase M1: Speed Presets ────────────────────────────────────────
+        _QsLabel('Speed Presets'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          child: Wrap(
+            spacing: 6, runSpacing: 6,
+            children: speedPresetsFromString(_p.speedPresets).map((s) {
+              return GestureDetector(
+                onTap: () {
+                  // directly set speed (player wires this externally)
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white20)),
+                  child: Text('\${s}×',
+                      style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                ),
+              );
+            }).toList()
+              ..add(GestureDetector(
+                onTap: () => SpeedPresetsSheet.show(
+                  context,
+                  currentSpeed: 1.0,
+                  presets: speedPresetsFromString(_p.speedPresets),
+                  onSpeedSelected: (_) {},
+                  onPresetsChanged: (l) => _update(_p.copyWith(
+                      speedPresets: speedPresetsToString(l))),
+                  accentColor: _accent,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: _accent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _accent.withOpacity(0.4))),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.edit_rounded, color: _accent, size: 14),
+                    const SizedBox(width: 4),
+                    Text('Edit', style: TextStyle(color: _accent, fontSize: 12)),
+                  ]),
+                ),
+              )),
+          ),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // ── Phase M3: End-of-Video Action ────────────────────────────────────
+        _QsLabel('When video ends'),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: EndActionPicker(
+            current: endActionFromString(_p.endAction),
+            onChanged: (a) => _update(_p.copyWith(endAction: endActionToString(a))),
+            accentColor: _accent,
+          ),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // ── Phase M4: Smart Skip ───────────────────────────────────────────────
+        _QsLabel('Smart Skip'),
+        SmartSkipPanel(
+          config: SmartSkipConfig.decode(_p.smartSkipConfig),
+          onChanged: (c) => _update(_p.copyWith(smartSkipConfig: c.encode())),
+          accentColor: _accent,
+        ),
+        const Divider(color: Colors.white10, height: 1),
         // ── Phase J4: Motor Impairment Mode ────────────────────────────────
         _QsToggleRow(
           label: 'Motor Impairment Mode',
