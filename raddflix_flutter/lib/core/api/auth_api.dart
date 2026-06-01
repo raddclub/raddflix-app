@@ -90,10 +90,8 @@ class AuthApi {
 
   /// Request an OTP to switch this account to the current device.
   /// [phone] — the account's registered phone number.
-  ///
-  /// TODO(OTP): replace the throw with a real API call to
-  ///   ApiPaths.deviceSwitchOtpRequest using your OTP provider.
-  ///   Expected server response: { "ok": true }
+  /// Calls POST /api/auth/device-switch/otp-request.
+  /// Expected server response: { "ok": true }
   static Future<void> requestDeviceSwitchOtp({required String phone}) async {
     await _client.post(
       ApiPaths.deviceSwitchOtpRequest,
@@ -104,10 +102,8 @@ class AuthApi {
   /// Verify the OTP and bind the current device to the account.
   /// [phone] — the account's registered phone number.
   /// [otpCode] — the 6-digit code the user received via SMS.
-  ///
-  /// TODO(OTP): replace the throw with a real API call to
-  ///   ApiPaths.deviceSwitchOtpVerify using your OTP provider.
-  ///   Expected server response: { "ok": true, "access_token": "...", "refresh_token": "..." }
+  /// Calls POST /api/auth/device-switch/otp-verify.
+  /// Expected server response: { "ok": true, "access_token": "...", "refresh_token": "..." }
   static Future<LoginResult> verifyDeviceSwitchOtp({
     required String phone,
     required String otpCode,
