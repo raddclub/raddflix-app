@@ -33,6 +33,8 @@ import '../widgets/player/seek_bar_painter.dart';
 import '../core/player/video_look_filter.dart'; // Phase D2
 import '../core/player/haptic_service.dart'; // Phase J5
 import '../widgets/player/reaction_stamps_overlay.dart'; // Phase I2
+import '../widgets/player/zoom_focus_overlay.dart'; // Phase L3
+import '../core/player/enhanced_screenshot_service.dart'; // Phase L1
 import '../widgets/player/film_grain_overlay.dart'; // Phase D3
 import '../widgets/player/controls_background.dart';
 import '../widgets/player/sleep_timer_sheet.dart';
@@ -2745,6 +2747,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               accentColor: _prefs.accentColor,
               visible: _showControls && !_locked,
             ),
+
+          // ── Phase L3: Video Zoom / Focus Mode ───────────────────────────────
+          ZoomFocusOverlay(
+            enabled: _prefs.focusModeEnabled,
+            accentColor: _prefs.accentColor,
+          ),
 
           // ── Controls (Opacity wrapper dims them in Cinematic mode) ──
           if (_showControls && !_longPressFast && !_showNextEpisode && !_inPiP && !_immersiveMode)

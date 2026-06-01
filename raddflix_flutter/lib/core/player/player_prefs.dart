@@ -211,6 +211,18 @@ class PlayerPrefs {
   /// Whether a PIN is required to view watch history.
   final bool historyPinEnabled;
 
+  // ── Phase J4: Motor Impairment Mode ─────────────────────────────────────
+  /// Increases touch targets, slows double-tap recognition, enables hold-to-seek.
+  final bool motorImpairmentMode;
+
+  // ── Phase L1: Enhanced Screenshot ────────────────────────────────────────
+  /// Whether to overlay movie title + timestamp watermark on screenshots.
+  final bool screenshotWatermark;
+
+  // ── Phase L3: Video Zoom / Focus Mode ────────────────────────────────────
+  /// Whether the Focus Mode zoom lens is active.
+  final bool focusModeEnabled;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -344,6 +356,9 @@ class PlayerPrefs {
     this.hapticLevel               = 'heavy',
     this.reactionsEnabled          = true,
     this.historyPinEnabled         = false,
+    this.motorImpairmentMode       = false,
+    this.screenshotWatermark       = true,
+    this.focusModeEnabled          = false,
   });
 
   PlayerPrefs copyWith({
@@ -413,6 +428,9 @@ class PlayerPrefs {
     String? hapticLevel,
     bool?   reactionsEnabled,
     bool?   historyPinEnabled,
+    bool?   motorImpairmentMode,
+    bool?   screenshotWatermark,
+    bool?   focusModeEnabled,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -540,6 +558,9 @@ class PlayerPrefs {
       hapticLevel:                 hapticLevel                  ?? this.hapticLevel,
       reactionsEnabled:            reactionsEnabled             ?? this.reactionsEnabled,
       historyPinEnabled:           historyPinEnabled            ?? this.historyPinEnabled,
+      motorImpairmentMode:         motorImpairmentMode          ?? this.motorImpairmentMode,
+      screenshotWatermark:         screenshotWatermark          ?? this.screenshotWatermark,
+      focusModeEnabled:            focusModeEnabled             ?? this.focusModeEnabled,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -685,6 +706,9 @@ class PlayerPrefs {
       hapticLevel:                 s.getString('\${_p}haptic_level')           ?? 'heavy',
       reactionsEnabled:            s.getBool('\${_p}reactions_enabled')        ?? true,
       historyPinEnabled:           s.getBool('\${_p}history_pin_enabled')      ?? false,
+      motorImpairmentMode:         s.getBool('\${_p}motor_impairment')         ?? false,
+      screenshotWatermark:         s.getBool('\${_p}screenshot_watermark')     ?? true,
+      focusModeEnabled:            s.getBool('\${_p}focus_mode_enabled')       ?? false,
     );
   }
 
@@ -826,6 +850,9 @@ class PlayerPrefs {
       s.setString('\${_p}haptic_level',          hapticLevel),
       s.setBool('\${_p}reactions_enabled',        reactionsEnabled),
       s.setBool('\${_p}history_pin_enabled',       historyPinEnabled),
+      s.setBool('\${_p}motor_impairment',           motorImpairmentMode),
+      s.setBool('\${_p}screenshot_watermark',       screenshotWatermark),
+      s.setBool('\${_p}focus_mode_enabled',         focusModeEnabled),
     ]);
   }
 }

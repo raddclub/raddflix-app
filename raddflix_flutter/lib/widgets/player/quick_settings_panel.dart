@@ -595,6 +595,14 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
       children: [
+        // ── Phase L1: Enhanced Screenshot ─────────────────────────────────────
+        _QsToggleRow(
+          label: 'Screenshot Watermark',
+          sublabel: 'Title + timestamp overlay on captured frames',
+          value: _p.screenshotWatermark,
+          onChanged: (v) => _update(_p.copyWith(screenshotWatermark: v)),
+        ),
+        const Divider(color: Colors.white10, height: 1),
         // ── Picture Profiles ──────────────────────────────────────────────
         _QsLabel('Picture Profile'),
         InkWell(
@@ -810,6 +818,30 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
+        // ── Phase J4: Motor Impairment Mode ────────────────────────────────
+        _QsToggleRow(
+          label: 'Motor Impairment Mode',
+          sublabel: 'Larger touch targets · hold-to-seek · slow double-tap',
+          value: _p.motorImpairmentMode,
+          onChanged: (v) => _update(_p.copyWith(motorImpairmentMode: v)),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // ── Phase I2: Reaction Stamps ────────────────────────────────────────
+        _QsToggleRow(
+          label: 'Reaction Stamps',
+          sublabel: 'Show emoji reaction panel during playback',
+          value: _p.reactionsEnabled,
+          onChanged: (v) => _update(_p.copyWith(reactionsEnabled: v)),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // ── Phase L3: Focus / Zoom Mode ──────────────────────────────────────
+        _QsToggleRow(
+          label: 'Focus Mode (Zoom Lens)',
+          sublabel: 'Long-press to activate — drag to move magnifying lens',
+          value: _p.focusModeEnabled,
+          onChanged: (v) => _update(_p.copyWith(focusModeEnabled: v)),
+        ),
+        const Divider(color: Colors.white10, height: 1),
         _QsLabel('Gestures'),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
