@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import '../core/constants.dart';
+import '../core/remote_config.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -13,8 +15,10 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _ctrl = PageController();
   int _page = 0;
+  List<_PageData> _pages = _kDefaultPages;
 
-  static const List<_PageData> _pages = [
+  // ── Hardcoded fallback pages ───────────────────────────────────────────────
+  static const List<_PageData> _kDefaultPages = [
     _PageData(
       icon: '📶',
       gradient: [Color(0xFF22C55E), Color(0xFF16A34A)],
@@ -40,6 +44,41 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: 'Start free. Upgrade to Basic, Standard or Premium to unlock HD quality and all content.',
     ),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLivePages();
+  }
+
+  /// Load live-configured onboarding pages from SharedPreferences (set by
+  /// remote_config.dart from the Brand Studio admin panel). Falls back to
+  /// [_kDefaultPages] if not set or on any parse error.
+  Future<void> _loadLivePages() async {
+    try {
+      final raw = await RemoteConfig.getBrandOnboardingPages();
+      if (raw.isEmpty) return;
+      final list = jsonDecode(raw) as List<dynamic>;
+      if (list.isEmpty) return;
+      final parsed = list.map((e) {
+        final m = e as Map<String, dynamic>;
+        final gradRaw = (m['gradient'] as List<dynamic>?) ?? [];
+        final grad = gradRaw.map((c) {
+          final hex = (c as String).replaceFirst('#', '');
+          return Color(int.parse('FF$hex', radix: 16));
+        }).toList();
+        return _PageData(
+          icon:     (m['icon'] as String?) ?? '🎬',
+          gradient: grad.length >= 2 ? [grad[0], grad[1]] : [const Color(0xFFE8002D), const Color(0xFFB5001F)],
+          title:    (m['title'] as String?) ?? '',
+          body:     (m['body'] as String?) ?? '',
+        );
+      }).toList();
+      if (mounted) setState(() => _pages = parsed);
+    } catch (_) {
+      // Silent fallback — hardcoded pages remain
+    }
+  }
 
   Future<void> _finish() async {
     final prefs = await SharedPreferences.getInstance();
@@ -127,10 +166,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       duration: const Duration(milliseconds: 300),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            _pages[_page].gradient[0],
-            _pages[_page].gradient[1],
-          ],
+          colors: [_pages[_page].gradient[0], _pages[_page].gradient[1]],
         ),
         borderRadius: BorderRadius.circular(AppRadius.md),
         boxShadow: [
@@ -186,7 +222,6 @@ class _OnboardPage extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Icon circle
           Container(
             width: 130,
             height: 130,
