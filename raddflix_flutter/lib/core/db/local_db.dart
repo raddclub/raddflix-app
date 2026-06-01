@@ -166,7 +166,20 @@ class LocalDb {
         last_claim TEXT
       )
     ''');
-    // Phase 12 — Full-text search (FTS5) for title + description
+    // Watchlist — user-saved titles
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS watchlist (
+        id          INTEGER PRIMARY KEY,
+        title       TEXT NOT NULL,
+        year        INTEGER,
+        media_type  TEXT NOT NULL,
+        poster_url  TEXT,
+        poster_path TEXT,
+        share_url   TEXT,
+        added_at    INTEGER DEFAULT 0
+      )
+    ''');
+        // Phase 12 — Full-text search (FTS5) for title + description
     await db.execute('''
       CREATE VIRTUAL TABLE IF NOT EXISTS catalog_fts
       USING fts5(title, description, content='titles', content_rowid='id')
@@ -286,6 +299,23 @@ class LocalDb {
         ''');
         // Rebuild the FTS index from all existing titles rows
         await db.execute("INSERT INTO catalog_fts(catalog_fts) VALUES('rebuild')");
+      } catch (_) {}
+    }
+    if (oldV < 14) {
+      // Watchlist table
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS watchlist (
+            id          INTEGER PRIMARY KEY,
+            title       TEXT NOT NULL,
+            year        INTEGER,
+            media_type  TEXT NOT NULL,
+            poster_url  TEXT,
+            poster_path TEXT,
+            share_url   TEXT,
+            added_at    INTEGER DEFAULT 0
+          )
+        ''');
       } catch (_) {}
     }
   }
@@ -859,7 +889,40 @@ class LocalDb {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  static CatalogItem _rowToItem(Map<String, dynamic> row) {
+  // ── Watchlist ────────────────────────────────────────────────────────────
+
+  static Future<void> addToWatchlist(CatalogItem item) async {
+    final db = await instance;
+    await db.insert('watchlist', {
+      'id':          item.id,
+      'title':       item.title,
+      'year':        item.year,
+      'media_type':  item.mediaType,
+      'poster_url':  item.posterUrl,
+      'poster_path': item.posterPath,
+      'share_url':   item.shareUrl,
+      'added_at':    DateTime.now().millisecondsSinceEpoch,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  static Future<void> removeFromWatchlist(int id) async {
+    final db = await instance;
+    await db.delete('watchlist', where: 'id = ?', whereArgs: [id]);
+  }
+
+  static Future<bool> isInWatchlist(int id) async {
+    final db = await instance;
+    final rows = await db.query('watchlist', where: 'id = ?', whereArgs: [id], limit: 1);
+    return rows.isNotEmpty;
+  }
+
+  static Future<List<CatalogItem>> getWatchlist() async {
+    final db = await instance;
+    final rows = await db.query('watchlist', orderBy: 'added_at DESC');
+    return rows.map(_rowToItem).toList();
+  }
+
+    static CatalogItem _rowToItem(Map<String, dynamic> row) {
     return CatalogItem(
       id:          row['id'] as int,
       title:       row['title'] as String,
