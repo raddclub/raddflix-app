@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:dio/dio.dart';
+import 'package:dio/dio.dart' hide RequestEncoder;
 import '../constants.dart';
 import '../security/keystore.dart';
 import '../security/app_guard.dart';
