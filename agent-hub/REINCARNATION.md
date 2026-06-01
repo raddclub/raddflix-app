@@ -18,7 +18,8 @@
 - ✅ BUG-A26: Verified DONE — bp_rec registration fix confirmed
 - ✅ BUG-A33: Verified DONE — `useMaterial3: true` already set
 - ✅ P4.7: Domain Doctor admin panel — `/api/domain-doctor/health` + `/probe` + Settings card with live status
-- ✅ P4.6: Telegram bot — `telegram-bot/bot.py` created (/search, /movie, /show, /trending, /help)
+- ✅ P4.6: Telegram bot — `radd-hub/telegram-bot/bot.py` created (/search, /movie, /show, /trending, /help)
+         (path fix: config.PROJECT_ROOT → radd-hub/, not repo root)
 
 ### WHAT WAS DONE IN SESSION 5
 - ✅ P3.3: `supportWhatsApp` set to `923257719165`; made mutable; admin can change via Settings → WhatsApp panel; `/api/config` serves it; `RemoteConfig` reads it on startup (no APK rebuild needed)
@@ -39,6 +40,7 @@
    ```
 
 ### SESSION 6 COMMITS
+- `b27f8297` — fix(p4.6): move telegram bot to radd-hub/telegram-bot/ (correct PROJECT_ROOT path)
 - `120eb8f` — fix(bugs)+feat(p4.6,p4.7): BUG-A32 secure secret; BUG-A20 poster guard; domain doctor panel; Telegram bot
 
 ### SESSION 3 COMMITS

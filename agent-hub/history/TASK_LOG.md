@@ -321,3 +321,18 @@ Fix CI failure after keystore credential changes. Update APK signing fingerprint
 
 ### Remaining open
 - **P4.1** only — supervisor config on Oracle. User must: `sudo cp radd-hub/supervisor.d/raddflix_wa_bot.conf /etc/supervisor/conf.d/raddflix_wa_bot.conf && sudo supervisorctl reread && sudo supervisorctl update && sudo supervisorctl restart raddflix_wa_bot`
+
+---
+
+## Session 6 — Path-fix commit (same day, 2026-06-01)
+
+**Bug found during verification:** `telegram-bot/bot.py` was placed at repo root, but `config.PROJECT_ROOT` resolves to `radd-hub/` (two parents up from `radd-hub/hub/config.py`). The wrapper `radd-hub/hub/bots/telegram.py` computes `_BOT_SCRIPT = config.PROJECT_ROOT / "telegram-bot" / "bot.py"` = `radd-hub/telegram-bot/bot.py`.
+
+**Fix:** Moved files via Git Tree API:
+- `telegram-bot/bot.py` → DELETED (sha=null)
+- `telegram-bot/requirements.txt` → DELETED (sha=null)  
+- `radd-hub/telegram-bot/bot.py` → CREATED (same content)
+- `radd-hub/telegram-bot/requirements.txt` → CREATED (same content)
+
+**Commit:** `b27f8297cb4cfd57a2750f9390bc91727680184b`
+**CI:** ✅ Build APK + RaddFlix CI both green

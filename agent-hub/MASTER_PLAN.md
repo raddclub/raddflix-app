@@ -220,9 +220,9 @@ auth_info/
 
 ### P4.6 — Complete Telegram bot
 **Status:** ✅ DONE
-**Files:** `telegram-bot/bot.py` (new), `telegram-bot/requirements.txt` (new)
-**Done:** Full polling-based Telegram bot created. Supports /search, /movie, /show, /trending, /help, /start, /status. Reads token from env (injected by bots/telegram.py wrapper). Uses FTS5 for fast catalog search. Admin starts/stops via Bots panel.
-**Commit:** `120eb8f`
+**Files:** `radd-hub/telegram-bot/bot.py` (new), `radd-hub/telegram-bot/requirements.txt` (new)
+**Done:** Full polling-based Telegram bot created. Supports /search, /movie, /show, /trending, /help, /start, /status. Reads token from env (injected by bots/telegram.py wrapper — it reads `config.PROJECT_ROOT/telegram-bot/bot.py` which resolves to `radd-hub/telegram-bot/`). Uses FTS5 for fast catalog search. Admin starts/stops via Bots panel.
+**Commit:** `b27f8297` (path-fix from `120eb8f`)
 
 ### P4.7 — Surface domain_doctor.py findings in admin panel
 **Status:** ✅ DONE
