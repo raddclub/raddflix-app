@@ -1,7 +1,7 @@
 # MASTER_PLAN.md — RaddFlix Task Queue
 > **This is the single source of truth for what to work on next.**
 > Always check this before starting any work. Update status when done.
-> Last Updated: 2026-06-01 (Session 3: P2.5 verified, P3.1/P3.5/P3.7 done, P4.1 supervisor config added)
+> Last Updated: 2026-06-01 (Session 4: P4.2 verified, FTS5 regression fixed, dropped-col sweep in library.py/api.py/db.py, P2.1 corrected to DONE)
 
 ---
 
@@ -90,7 +90,7 @@ def _watch_base() -> str:
 ## 🔶 PRIORITY 2 — Important Fixes (do after P1 is complete)
 
 ### P2.1 — Add FTS5 full-text search to search_api.py
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE (already implemented — FTS5 virtual table, BM25 ranking, triggers; session 4 verified)
 **File:** `radd-hub/hub/routes/search_api.py` + `radd-hub/hub/db.py`
 **Problem:** Search uses `WHERE title LIKE '%q%'` — full table scan. Will be noticeably slow at 500+ titles.
 **Fix:** Add FTS5 virtual table in DDL, populate on insert/update, use FTS in search route.
@@ -265,4 +265,3 @@ auth_info/
 
 *End of MASTER_PLAN.md — 2026-05-31*
 *Update this file after EVERY task completion.*
-
