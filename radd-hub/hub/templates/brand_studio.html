@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+{% block title %}Brand Studio — Radd Hub{% endblock %}
+{% block content %}
+<div class="h-row">
+  <h2>🎨 Brand Studio</h2>
+  <div class="row">
+    <span class="muted" id="save-status" style="font-size:12px"></span>
+    <button onclick="saveAll()" id="btn-save">💾 Save Config</button>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div style="display:flex;gap:2px;margin-bottom:20px;border-bottom:1px solid var(--border)">
+  <button class="bs-tab active" onclick="switchTab('config',this)">⚙️ Live Config</button>
+  <button class="bs-tab" onclick="switchTab('assets',this)">🖼 Icon & Splash</button>
+  <button class="bs-tab" onclick="switchTab('build',this)">🔨 Build APK</button>
+</div>
+
+<!-- ── TAB A: Live Config ─────────────────────────────────────────────── -->
+<div id="tab-config" class="bs-panel">
+  <div class="grid grid-2" style="gap:20px;align-items:start">
+    <div>
+      <div class="card">
+        <h3>App Colors</h3>
+        <div class="form-row">
+          <label>Primary / Accent Color</label>
+          <div style="display:flex;gap:10px;align-items:center">
+            <input type="color" id="brand_primary_color" value="{{ cfg.brand_primary_color or '#E8002D' }}"
+                   style="width:54px;height:36px;padding:2px;cursor:pointer;border-radius:6px">
+            <input type="text" id="brand_primary_color_hex"
+                   value="{{ cfg.brand_primary_color or '#E8002D' }}"
+                   placeholder="#E8002D" style="flex:1"
+                   oninput="syncHex('brand_primary_color','brand_primary_color_hex')">
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Splash Background Color</label>
+          <div style="display:flex;gap:10px;align-items:center">
+            <input type="color" id="brand_splash_color" value="{{ cfg.brand_splash_color or '#0a0c11' }}"
+                   style="width:54px;height:36px;padding:2px;cursor:pointer;border-radius:6px">
+            <input type="text" id="brand_splash_color_hex"
+                   value="{{ cfg.brand_splash_color or '#0a0c11' }}"
+                   placeholder="#0a0c11" style="flex:1"
+                   oninput="syncHex('brand_splash_color','brand_splash_color_hex')">
+          </div>
+        </div>
+        <div class="form-row">
+          <label>App Tagline</label>
+          <input type="text" id="brand_tagline"
+                 value="{{ cfg.brand_tagline or 'Zero-rated Pakistani streaming' }}"
+                 placeholder="Zero-rated Pakistani streaming"
+                 oninput="updatePreview()">
+        </div>
+        <div class="form-row">
+          <label>Logo URL <span class="muted">(overrides built-in "R" icon)</span></label>
+          <input type="text" id="brand_logo_url"
+                 value="{{ cfg.brand_logo_url or '' }}"
+                 placeholder="https://example.com/logo.png">
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Onboarding Pages
+          <span class="muted" style="font-size:11px;font-weight:400"> — JSON array (empty = use app defaults)</span>
+        </h3>
+        <textarea id="brand_onboarding_pages" rows="9"
+                  style="font-family:monospace;font-size:12px;line-height:1.5"
+                  placeholder='[{"icon":"📶","gradient":["#22C55E","#16A34A"],"title":"Page Title","body":"Description text."}]'>{{ cfg.brand_onboarding_pages or '' }}</textarea>
+        <div class="row" style="margin-top:8px;flex-wrap:wrap">
+          <button class="ghost" onclick="validateJson()">✓ Validate</button>
+          <button class="ghost" onclick="formatJson()">↕ Format</button>
+          <button class="ghost" onclick="resetOnboarding()">↺ Defaults</button>
+          <span id="json-status" class="muted" style="font-size:11px"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="position:sticky;top:20px">
+      <h3>Live Preview</h3>
+      <div style="display:flex;justify-content:center;margin-top:8px">
+        <div id="preview-phone" style="
+          width:185px;height:330px;border-radius:30px;
+          border:3px solid #333;
+          display:flex;flex-direction:column;align-items:center;
+          justify-content:center;gap:10px;
+          position:relative;overflow:hidden;transition:background .3s">
+          <div id="preview-glow" style="position:absolute;inset:0;pointer-events:none;transition:background .3s"></div>
+          <div id="preview-logo" style="
+            width:68px;height:68px;border-radius:50%;
+            display:flex;align-items:center;justify-content:center;
+            font-size:34px;font-weight:900;color:white;
+            position:relative;z-index:1;transition:background .3s,box-shadow .3s">R</div>
+          <div style="position:relative;z-index:1;text-align:center">
+            <div style="font-size:22px;font-weight:900;color:white;letter-spacing:-1px">
+              Radd<span id="preview-flix">Flix</span>
+            </div>
+            <div id="preview-tagline" style="font-size:9px;color:#7e859b;margin-top:2px;padding:0 10px"></div>
+          </div>
+          <div style="position:relative;z-index:1;margin-top:10px">
+            <div id="preview-spinner" style="
+              width:22px;height:22px;border-radius:50%;
+              border:2px solid rgba(255,255,255,0.2);
+              animation:bsspin 1s linear infinite"></div>
+          </div>
+        </div>
+      </div>
+      <style>@keyframes bsspin{to{transform:rotate(360deg)}}</style>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB B: Icon & Splash ───────────────────────────────────────────── -->
+<div id="tab-assets" class="bs-panel" style="display:none">
+  <div class="grid grid-2" style="gap:20px;align-items:start">
+    <div>
+      <div class="card">
+        <h3>App Icon</h3>
+        <p class="muted">Upload a 1024×1024 PNG for best results on all devices.</p>
+        <div class="bs-upload-zone" id="icon-drop"
+             ondragover="event.preventDefault()" ondrop="handleDrop(event,'brand_icon','icon-preview')">
+          <input type="file" id="icon-file" accept=".png,.jpg,.jpeg,.webp"
+                 onchange="handleFileSelect(this,'brand_icon','icon-preview')" style="display:none">
+          <div onclick="document.getElementById('icon-file').click()" style="cursor:pointer">
+            {% if cfg.brand_icon_filename %}
+              <img id="icon-preview" src="/brand/assets/{{ cfg.brand_icon_filename }}"
+                   style="width:100px;height:100px;object-fit:cover;border-radius:14px">
+            {% else %}
+              <div id="icon-preview" style="font-size:48px">🖼</div>
+            {% endif %}
+            <div class="muted" style="font-size:12px;margin-top:8px">Click or drag to upload</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Splash Screen</h3>
+        <p class="muted">Optional background image (1080×1920). Overlaid with logo.</p>
+        <div class="bs-upload-zone" id="splash-drop"
+             ondragover="event.preventDefault()" ondrop="handleDrop(event,'brand_splash','splash-preview')">
+          <input type="file" id="splash-file" accept=".png,.jpg,.jpeg,.webp"
+                 onchange="handleFileSelect(this,'brand_splash','splash-preview')" style="display:none">
+          <div onclick="document.getElementById('splash-file').click()" style="cursor:pointer">
+            {% if cfg.brand_splash_filename %}
+              <img id="splash-preview" src="/brand/assets/{{ cfg.brand_splash_filename }}"
+                   style="width:80px;height:140px;object-fit:cover;border-radius:8px">
+            {% else %}
+              <div id="splash-preview" style="font-size:48px">🌅</div>
+            {% endif %}
+            <div class="muted" style="font-size:12px;margin-top:8px">Click or drag to upload</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Adaptive Icon Previews</h3>
+      <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap;padding:16px 0">
+        {% for shape, radius in [('circle','50%'),('squircle','28px'),('square','10px')] %}
+        <div style="text-align:center">
+          <div style="width:80px;height:80px;border-radius:{{ radius }};overflow:hidden;
+               background:#1a1a2e;display:flex;align-items:center;justify-content:center;
+               border:1px solid var(--border)">
+            <img id="icon-{{ shape }}-img" src=""
+                 style="width:100%;height:100%;object-fit:cover;display:none">
+            <span id="icon-{{ shape }}-fb" style="font-size:32px;font-weight:900;color:#E8002D">R</span>
+          </div>
+          <div class="muted" style="font-size:10px;margin-top:6px">{{ shape.title() }}</div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <h3 style="margin-top:16px">Phone Mockup</h3>
+      <div style="display:flex;justify-content:center;margin-top:12px">
+        <div style="width:155px;height:270px;border-radius:26px;border:4px solid #333;
+             overflow:hidden;position:relative">
+          <div id="splash-bg" style="position:absolute;inset:0;background:#0a0c11;
+               transition:background .3s;display:flex;flex-direction:column;
+               align-items:center;justify-content:center;gap:8px">
+            <img id="splash-bg-img" src="" style="position:absolute;inset:0;
+                 width:100%;height:100%;object-fit:cover;opacity:.4;display:none">
+            <div style="position:relative;z-index:1;text-align:center">
+              <div style="font-size:24px;font-weight:900;color:white">
+                Radd<span id="mockup-flix" style="color:#E8002D">Flix</span>
+              </div>
+              <div id="mockup-tagline" style="font-size:8px;color:#7e859b;margin-top:1px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB C: Build APK ───────────────────────────────────────────────── -->
+<div id="tab-build" class="bs-panel" style="display:none">
+  <div class="grid grid-2" style="gap:20px;align-items:start">
+    <div class="card">
+      <h3>🚀 Trigger Build</h3>
+      <p class="muted">Dispatches <code>build-apk.yml</code> on the <code>main</code> branch via GitHub Actions. Takes ~15–20 min.</p>
+      <div class="form-row">
+        <label>Release Tag <span class="muted">(optional — e.g. v1.2.0)</span></label>
+        <input type="text" id="release-tag" placeholder="Leave blank for no GitHub Release">
+      </div>
+      <div class="form-row" style="display:flex;align-items:center;gap:12px;margin-top:4px">
+        <label class="toggle-switch" style="margin:0">
+          <input type="checkbox" id="brand-build-toggle" checked>
+          <span class="toggle-slider"></span>
+        </label>
+        <span style="font-size:13px">Apply brand assets before building</span>
+      </div>
+      <button onclick="triggerBuild()" id="btn-build"
+              style="margin-top:14px;width:100%;background:#1f3a25;color:var(--ok);border:1px solid #2d5a37">
+        🔨 Trigger Build Now
+      </button>
+    </div>
+
+    <div class="card">
+      <h3>Latest Build Status</h3>
+      <div id="build-status-panel">
+        <div class="muted empty">Fetching build status…</div>
+      </div>
+      <div id="apk-download" style="display:none;margin-top:14px">
+        <a id="apk-dl-link" href="#" target="_blank"
+           style="display:block;text-align:center;padding:10px;background:#1f3a25;
+                  color:var(--ok);border:1px solid #2d5a37;border-radius:7px;font-weight:600">
+          ⬇ Download APK Artifact
+        </a>
+        <div class="muted" style="font-size:11px;margin-top:5px;text-align:center">
+          Requires GitHub login to download artifacts
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:0">
+    <h3>Recent Builds</h3>
+    <div id="build-history"><div class="muted empty">Loading…</div></div>
+  </div>
+</div>
+
+<style>
+.bs-tab{background:none;border:none;border-bottom:2px solid transparent;
+  color:var(--muted);padding:10px 16px;cursor:pointer;font-size:13px;
+  font-weight:500;border-radius:0;transition:color .15s}
+.bs-tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.bs-tab:hover{color:var(--text);filter:none}
+.bs-upload-zone{border:2px dashed var(--border);border-radius:10px;padding:24px;
+  text-align:center;cursor:default;transition:border-color .15s}
+.bs-upload-zone:hover{border-color:var(--accent)}
+</style>
+
+<script>
+/* ── Tab switch ──────────────────────────────────────────────────────────── */
+function switchTab(name, btn) {
+  document.querySelectorAll('.bs-panel').forEach(p=>p.style.display='none');
+  document.querySelectorAll('.bs-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).style.display='';
+  btn.classList.add('active');
+  if(name==='build'){ pollBuildStatus(); startBuildPoller(); }
+}
+
+/* ── Color helpers ───────────────────────────────────────────────────────── */
+function syncHex(pickerId, hexId) {
+  const v = document.getElementById(hexId).value.trim();
+  if(/^#[0-9a-fA-F]{6}$/.test(v)){
+    document.getElementById(pickerId).value = v;
+    updatePreview();
+  }
+}
+document.getElementById('brand_primary_color').addEventListener('input',function(){
+  document.getElementById('brand_primary_color_hex').value=this.value; updatePreview();
+});
+document.getElementById('brand_splash_color').addEventListener('input',function(){
+  document.getElementById('brand_splash_color_hex').value=this.value; updatePreview();
+});
+
+function updatePreview() {
+  const pc = document.getElementById('brand_primary_color').value;
+  const sc = document.getElementById('brand_splash_color').value;
+  const tg = document.getElementById('brand_tagline').value;
+  // Splash screen preview phone
+  const phone = document.getElementById('preview-phone');
+  if(phone) phone.style.background = sc;
+  const glow = document.getElementById('preview-glow');
+  if(glow) glow.style.background = `radial-gradient(circle at 50% 38%,${pc}28 0%,transparent 65%)`;
+  const logo = document.getElementById('preview-logo');
+  if(logo){ logo.style.background=`radial-gradient(${pc},${_darken(pc)})`; logo.style.boxShadow=`0 0 20px ${pc}66`; }
+  const pflix = document.getElementById('preview-flix');
+  if(pflix) pflix.style.color = pc;
+  const spinner = document.getElementById('preview-spinner');
+  if(spinner) spinner.style.borderTopColor = pc;
+  const ptag = document.getElementById('preview-tagline');
+  if(ptag) ptag.textContent = tg || 'Zero-rated Pakistani streaming';
+  // Assets tab mockup
+  const sb = document.getElementById('splash-bg');
+  if(sb) sb.style.background = sc;
+  const mf = document.getElementById('mockup-flix');
+  if(mf) mf.style.color = pc;
+  const mt = document.getElementById('mockup-tagline');
+  if(mt) mt.textContent = tg || '';
+}
+function _darken(hex){ return hex+'aa'; }
+updatePreview();
+
+/* ── Save ────────────────────────────────────────────────────────────────── */
+async function saveAll(){
+  const btn=document.getElementById('btn-save');
+  const st=document.getElementById('save-status');
+  btn.disabled=true; st.textContent='Saving…';
+  const payload={
+    brand_primary_color: document.getElementById('brand_primary_color').value,
+    brand_splash_color:  document.getElementById('brand_splash_color').value,
+    brand_tagline:       document.getElementById('brand_tagline').value,
+    brand_logo_url:      document.getElementById('brand_logo_url').value,
+    brand_onboarding_pages: document.getElementById('brand_onboarding_pages').value,
+  };
+  try{
+    const r=await api('/api/brand/save',{method:'POST',body:payload});
+    if(r.ok){ st.textContent='✓ Saved'; toast('Brand config saved!'); }
+    else{ st.textContent='✗ Error'; toast('Save failed: '+(r.error||'?'),4000); }
+  }catch(e){ st.textContent='✗ Error'; toast('Save error',4000); }
+  btn.disabled=false;
+  setTimeout(()=>st.textContent='',3000);
+}
+
+/* ── JSON editor ─────────────────────────────────────────────────────────── */
+function validateJson(){
+  const st=document.getElementById('json-status');
+  try{ JSON.parse(document.getElementById('brand_onboarding_pages').value||'[]');
+    st.textContent='✓ Valid'; st.style.color='var(--ok)';
+  }catch(e){ st.textContent='✗ '+e.message; st.style.color='var(--err)'; }
+}
+function formatJson(){
+  try{
+    const v=document.getElementById('brand_onboarding_pages').value||'[]';
+    document.getElementById('brand_onboarding_pages').value=JSON.stringify(JSON.parse(v),null,2);
+    document.getElementById('json-status').textContent='↕ Formatted';
+    document.getElementById('json-status').style.color='var(--muted)';
+  }catch(e){ toast('Invalid JSON',3000); }
+}
+function resetOnboarding(){
+  const d=[
+    {"icon":"📶","gradient":["#22C55E","#16A34A"],"title":"Zero-Rated Streaming","body":"Watch movies & shows on Jazz SIM without spending any data. Completely free."},
+    {"icon":"📱","gradient":["#3B82F6","#1D4ED8"],"title":"Offline Catalog","body":"The full movie catalog downloads to your phone. Browse 7000+ titles without internet."},
+    {"icon":"🎬","gradient":["#F59E0B","#D97706"],"title":"Pakistani Content","body":"Urdu, Punjabi, Pakistani dramas and international hits. New titles every week."},
+    {"icon":"⭐","gradient":["#E8002D","#B5001F"],"title":"Subscribe to Unlock","body":"Start free. Upgrade to Basic, Standard or Premium for HD quality and all content."}
+  ];
+  document.getElementById('brand_onboarding_pages').value=JSON.stringify(d,null,2);
+  document.getElementById('json-status').textContent='↺ Reset to defaults';
+  document.getElementById('json-status').style.color='var(--muted)';
+}
+
+/* ── File upload ─────────────────────────────────────────────────────────── */
+function handleDrop(evt,field,previewId){ evt.preventDefault(); const f=evt.dataTransfer.files[0]; if(f) uploadFile(f,field,previewId); }
+function handleFileSelect(input,field,previewId){ if(input.files[0]) uploadFile(input.files[0],field,previewId); }
+async function uploadFile(file,field,previewId){
+  toast('Uploading…');
+  const fd=new FormData(); fd.append('file',file); fd.append('field',field);
+  try{
+    const r=await fetch('/api/brand/upload-image',{method:'POST',credentials:'include',body:fd});
+    const d=await r.json();
+    if(d.ok){
+      toast('✓ Uploaded');
+      const p=document.getElementById(previewId);
+      if(p){ p.innerHTML=`<img src="${d.url}?t=${Date.now()}" style="width:100px;height:100px;object-fit:cover;border-radius:12px">`; }
+      if(field==='brand_icon') updateIconPreviews(d.url+'?t='+Date.now());
+      if(field==='brand_splash') updateSplashMockup(d.url+'?t='+Date.now());
+    } else { toast('Upload failed: '+(d.error||'?'),4000); }
+  }catch(e){ toast('Upload error: '+e.message,4000); }
+}
+function updateIconPreviews(url){
+  ['circle','squircle','square'].forEach(s=>{
+    const img=document.getElementById('icon-'+s+'-img');
+    const fb=document.getElementById('icon-'+s+'-fb');
+    if(img){ img.src=url; img.style.display='block'; }
+    if(fb) fb.style.display='none';
+  });
+}
+function updateSplashMockup(url){
+  const img=document.getElementById('splash-bg-img');
+  if(img){ img.src=url; img.style.display='block'; }
+}
+{% if cfg.brand_icon_filename %}updateIconPreviews('/brand/assets/{{ cfg.brand_icon_filename }}');{% endif %}
+{% if cfg.brand_splash_filename %}updateSplashMockup('/brand/assets/{{ cfg.brand_splash_filename }}');{% endif %}
+
+/* ── Build ───────────────────────────────────────────────────────────────── */
+let _buildPoller=null;
+async function triggerBuild(){
+  const btn=document.getElementById('btn-build');
+  btn.disabled=true; btn.textContent='⏳ Triggering…';
+  const payload={
+    release_tag: document.getElementById('release-tag').value.trim(),
+    brand_build:  document.getElementById('brand-build-toggle').checked,
+  };
+  try{
+    const r=await api('/api/brand/trigger-build',{method:'POST',body:payload});
+    if(r.ok){
+      toast('✓ Build triggered! Polling every 8 s…');
+      btn.textContent='✓ Triggered';
+      setTimeout(()=>{ btn.disabled=false; btn.textContent='🔨 Trigger Build Now'; },6000);
+      pollBuildStatus(); startBuildPoller();
+    } else {
+      toast('Trigger failed: '+(r.error||'?'),5000);
+      btn.disabled=false; btn.textContent='🔨 Trigger Build Now';
+    }
+  }catch(e){ toast('Error: '+e.message,5000); btn.disabled=false; btn.textContent='🔨 Trigger Build Now'; }
+}
+function startBuildPoller(){ if(_buildPoller) clearInterval(_buildPoller); _buildPoller=setInterval(pollBuildStatus,8000); }
+async function pollBuildStatus(){
+  try{ const d=await api('/api/brand/build-status'); renderBuildStatus(d); } catch(e){}
+}
+function renderBuildStatus(d){
+  const panel=document.getElementById('build-status-panel');
+  const hist=document.getElementById('build-history');
+  if(!d.ok){ panel.innerHTML=`<div class="muted">Error: ${d.error||'?'}</div>`; return; }
+  if(d.status==='no_runs'){
+    panel.innerHTML='<div class="muted empty">No builds yet. Trigger your first build!</div>';
+    if(hist) hist.innerHTML='<div class="muted empty">No history.</div>';
+    return;
+  }
+  const s=d.status, c=d.conclusion;
+  const icon=s==='completed'?(c==='success'?'✅':'❌'):(s==='in_progress'?'⚙️':'🕐');
+  const label=s==='completed'?(c||'done'):s.replace('_',' ');
+  const badgeCls=s==='completed'?(c==='success'?'b-ok':'b-err'):'b-warn';
+  panel.innerHTML=`
+    <div style="display:flex;align-items:center;gap:14px">
+      <span style="font-size:32px">${icon}</span>
+      <div>
+        <div style="font-weight:600">Run #${d.run_id}</div>
+        <span class="badge ${badgeCls}">${label}</span>
+      </div>
+    </div>
+    ${d.html_url?`<a href="${d.html_url}" target="_blank" class="btn ghost" style="margin-top:10px;font-size:12px">View on GitHub →</a>`:''}
+    ${s!=='completed'?'<div class="muted" style="font-size:11px;margin-top:8px">⏱ Polling every 8 seconds…</div>':''}`;
+  const dlDiv=document.getElementById('apk-download');
+  const dlLink=document.getElementById('apk-dl-link');
+  if(s==='completed'&&c==='success'&&d.apk_artifact_url){
+    dlLink.href=d.apk_artifact_url; dlDiv.style.display='';
+    if(_buildPoller){ clearInterval(_buildPoller); _buildPoller=null; }
+  } else if(s==='completed'){
+    dlDiv.style.display='none';
+    if(_buildPoller){ clearInterval(_buildPoller); _buildPoller=null; }
+  }
+}
+</script>
+{% endblock %}
