@@ -220,14 +220,9 @@ def brand_upload_image():
     # ── 2. Commit to GitHub repo (CI Pipeline) ────────────────────────────────
     # Normalise to PNG for the repo so build-apk.yml glob always picks it up
     repo_path = f"brand_assets/{filename}"
-    commit_msg = (
-        f"[Brand Studio] Upload {field} asset ({filename})
-
-"
-        f"Auto-committed by Brand Studio admin panel.
-"
-        f"Trigger a build with brand_build=true to apply this asset."
-    )
+    commit_msg = (f"[Brand Studio] Upload {field} asset ({filename})\n\n"
+                  "Auto-committed by Brand Studio admin panel.\n"
+                  "Trigger a build with brand_build=true to apply this asset.")
     gh_result = _commit_asset_to_github(dest, repo_path, commit_msg)
     if gh_result["ok"]:
         action = "created" if gh_result.get("created") else "updated"
