@@ -4830,30 +4830,22 @@ class _VideoDisplaySheet extends StatelessWidget {
     // Row 1 (screenshot 7, top row): Screen Rotation, Background Play, Mute, Equalizer, Sleep Timer, Night Mode
     // Row 2 (screenshot 7, bottom row): Playback Speed, Customise Items, A-B Repeat, Audio Effect, Loop, Shuffle
     final row1 = [
-      _VDSBtn(icon: Icons.screen_rotation_rounded,      label: 'Screen
-Rotation',    active: screenRotation,     onTap: (_) => onScreenRotation()),
-      _VDSBtn(icon: Icons.play_circle_outline_rounded,  label: 'Background
-Play',    active: bgPlay,             onTap: onBgPlay,  isToggle: true),
+      _VDSBtn(icon: Icons.screen_rotation_rounded,      label: 'Screen\nRotation',    active: screenRotation,     onTap: (_) => onScreenRotation()),
+      _VDSBtn(icon: Icons.play_circle_outline_rounded,  label: 'Background\nPlay',    active: bgPlay,             onTap: onBgPlay,  isToggle: true),
       _VDSBtn(icon: isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
                                                          label: 'Mute',               active: isMuted,            onTap: onMute,    isToggle: true),
       _VDSBtn(icon: Icons.equalizer_rounded,             label: 'Equalizer',          active: eqEnabled,          onTap: (_) => onEq()),
       _VDSBtn(icon: sleepActive ? Icons.bedtime_rounded : Icons.bedtime_outlined,
-                                                         label: 'Sleep
-Timer',       active: sleepActive,        onTap: (_) => onSleep()),
-      _VDSBtn(icon: Icons.dark_mode_rounded,             label: 'Night
-Mode',        active: nightMode,          onTap: (_) => onNightMode()),
+                                                         label: 'Sleep\nTimer',       active: sleepActive,        onTap: (_) => onSleep()),
+      _VDSBtn(icon: Icons.dark_mode_rounded,             label: 'Night\nMode',        active: nightMode,          onTap: (_) => onNightMode()),
     ];
     final row2 = [
-      _VDSBtn(icon: Icons.speed_rounded,                 label: 'Playback
-Speed',    active: speed != 1.0,       onTap: (_) => onSpeed()),
+      _VDSBtn(icon: Icons.speed_rounded,                 label: 'Playback\nSpeed',    active: speed != 1.0,       onTap: (_) => onSpeed()),
       _VDSBtn(icon: Icons.loop_rounded,                  label: 'Loop',               active: loopActive,         onTap: (_) {}, isToggle: true),
       _VDSBtn(icon: Icons.shuffle_rounded,               label: 'Shuffle',            active: false,              onTap: (_) {}),
-      _VDSBtn(icon: Icons.graphic_eq_rounded,            label: 'Audio
-Effect',      active: false,              onTap: (_) => onAudioEffect()),
-      _VDSBtn(icon: Icons.repeat_one_rounded,            label: 'A-B
-Repeat',        active: abRepeatActive,     onTap: (_) => onAbRepeat()),
-      _VDSBtn(icon: Icons.tune_rounded,                  label: 'Customise
-Items',   active: false,              onTap: (_) {}),
+      _VDSBtn(icon: Icons.graphic_eq_rounded,            label: 'Audio\nEffect',      active: false,              onTap: (_) => onAudioEffect()),
+      _VDSBtn(icon: Icons.repeat_one_rounded,            label: 'A-B\nRepeat',        active: abRepeatActive,     onTap: (_) => onAbRepeat()),
+      _VDSBtn(icon: Icons.tune_rounded,                  label: 'Customise\nItems',   active: false,              onTap: (_) {}),
     ];
     return Container(
       decoration: const BoxDecoration(
@@ -5468,8 +5460,8 @@ class _MxSubPanelState extends State<_MxSubPanel> {
 }
 
 
-  // Color Blind Mode — 5×4 ColorFilter.matrix for daltonization correction
-  static List<double> _colorBlindMatrix(String mode) {
+// Color Blind Mode — 5×4 ColorFilter.matrix for daltonization correction
+List<double> _colorBlindMatrix(String mode) {
     switch (mode) {
       case 'deuteranopia':
         return [0.625,0.375,0.0,0,0, 0.7,0.3,0.0,0,0, 0.0,0.3,0.7,0,0, 0,0,0,1,0];
