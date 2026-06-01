@@ -26,6 +26,7 @@ class QuickSettingsPanel extends StatefulWidget {
   final VoidCallback onOpenSilenceSkip;
   final VoidCallback onOpenZoomCrop;
   final VoidCallback onOpenWakeDnd;   // opens wake lock / DND sheet
+  final VoidCallback? onOpenLayoutDesigner; // Phase B: drag-drop layout editor
   final int subDelayMs;
   final int audioDelayMs;
   final ValueChanged<int> onSubDelay;
@@ -55,6 +56,7 @@ class QuickSettingsPanel extends StatefulWidget {
     required this.onOpenSilenceSkip,
     required this.onOpenZoomCrop,
     required this.onOpenWakeDnd,
+    this.onOpenLayoutDesigner,
     required this.subDelayMs,
     required this.audioDelayMs,
     required this.onSubDelay,
@@ -795,6 +797,8 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
           _NavButton(icon: Icons.volume_off_rounded,   label: 'Smart Skip',     onTap: onOpenSilenceSkip),
           const SizedBox(height: 8),
           _NavButton(icon: Icons.zoom_in_rounded,        label: 'Zoom & Crop',    onTap: onOpenZoomCrop),
+          const SizedBox(height: 8),
+          _NavButton(icon: Icons.dashboard_customize_rounded, label: 'Layout Designer', onTap: onOpenLayoutDesigner ?? () {}),
                 Text('Set custom skip timestamps for this video',
                     style: TextStyle(color: Colors.white38, fontSize: 11)),
               ])),

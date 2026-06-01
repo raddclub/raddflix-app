@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -2852,6 +2853,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   : null,
               accentColor: _prefs.accentColor,
               buttonShape: _prefs.buttonShape,
+              seekBarStyle: _prefs.seekBarStyle,
+              iconPack: _prefs.iconPack,
               moodEnabled: _prefs.contentMoodEnabled,
             ),
             )), // end Opacity + ControlsBackground
@@ -3432,6 +3435,10 @@ class _ControlsOverlay extends StatelessWidget {
   final Color accentColor;
   final String buttonShape;
   final bool moodEnabled; // Phase G4: narrative arc mood zone colors
+  // Phase A2: 10-style seek bar
+  final String seekBarStyle;
+  // Phase A3: icon pack (mx|ios|fluent|material3|cute|minimal)
+  final String iconPack;
 
   const _ControlsOverlay({
     required this.title, required this.playing, required this.buffering,
@@ -3483,6 +3490,8 @@ class _ControlsOverlay extends StatelessWidget {
     this.accentColor = const Color(0xFFE8002D),
     this.buttonShape = 'circle',
     this.moodEnabled = false,
+    this.seekBarStyle = 'classic',
+    this.iconPack = 'mx',
   });
 
   /// Returns the BoxDecoration for the play button based on [shape].
@@ -3500,6 +3509,63 @@ class _ControlsOverlay extends StatelessWidget {
       case 'circle':
       default:
         return BoxDecoration(color: accent, shape: BoxShape.circle, boxShadow: [shadow]);
+    }
+  }
+
+  /// Returns the icon for [iconName] based on the active [pack].
+  /// Falls back to Material icons for unknown packs or icons.
+  static IconData _iconForPack(String pack, String iconName) {
+    switch (pack) {
+      case 'ios':
+        switch (iconName) {
+          case 'play':     return CupertinoIcons.play_fill;
+          case 'pause':    return CupertinoIcons.pause_fill;
+          case 'subtitle': return CupertinoIcons.captions_bubble_fill;
+          case 'audio':    return CupertinoIcons.music_note;
+          case 'more':     return CupertinoIcons.ellipsis;
+          case 'settings': return CupertinoIcons.gear;
+        }
+        break;
+      case 'fluent':
+        switch (iconName) {
+          case 'play':     return Icons.play_circle_filled_rounded;
+          case 'pause':    return Icons.pause_circle_filled_rounded;
+          case 'subtitle': return Icons.closed_caption_rounded;
+          case 'audio':    return Icons.graphic_eq_rounded;
+          case 'more':     return Icons.more_horiz_rounded;
+          case 'settings': return Icons.tune_rounded;
+        }
+        break;
+      case 'cute':
+        switch (iconName) {
+          case 'play':     return Icons.play_circle_rounded;
+          case 'pause':    return Icons.pause_circle_rounded;
+          case 'subtitle': return Icons.subtitles_outlined;
+          case 'audio':    return Icons.headphones_rounded;
+          case 'more':     return Icons.widgets_rounded;
+          case 'settings': return Icons.manage_accounts_rounded;
+        }
+        break;
+      case 'minimal':
+        switch (iconName) {
+          case 'play':     return Icons.play_arrow_outlined;
+          case 'pause':    return Icons.pause_outlined;
+          case 'subtitle': return Icons.subtitles_outlined;
+          case 'audio':    return Icons.audiotrack_outlined;
+          case 'more':     return Icons.more_horiz;
+          case 'settings': return Icons.settings_outlined;
+        }
+        break;
+    }
+    // mx / material3 / default
+    switch (iconName) {
+      case 'play':     return Icons.play_arrow_rounded;
+      case 'pause':    return Icons.pause_rounded;
+      case 'subtitle': return Icons.subtitles_rounded;
+      case 'audio':    return Icons.audiotrack_rounded;
+      case 'more':     return Icons.more_horiz_rounded;
+      case 'settings': return Icons.settings_rounded;
+      default:         return Icons.circle;
     }
   }
 
@@ -3598,7 +3664,9 @@ class _ControlsOverlay extends StatelessWidget {
                     decoration: _playBtnDecoration(buttonShape, accentColor),
                     clipBehavior: Clip.hardEdge,
                     child: Icon(
-                      playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      playing
+                          ? _iconForPack(iconPack, 'pause')
+                          : _iconForPack(iconPack, 'play'),
                       color: Colors.white, size: 40,
                     ),
                   ),
@@ -3637,7 +3705,7 @@ class _ControlsOverlay extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _MxSideBtn(
-                  icon: Icons.subtitles_rounded,
+                  icon: _iconForPack(iconPack, 'subtitle'),
                   label: subLabels.isNotEmpty ? 'Sub' : 'Sub',
                   active: subLabels.isNotEmpty && activeSubIdx < subLabels.length,
                   activeColor: const Color(0xFF4DB6FF),
@@ -3645,7 +3713,7 @@ class _ControlsOverlay extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 _MxSideBtn(
-                  icon: Icons.audiotrack_rounded,
+                  icon: _iconForPack(iconPack, 'audio'),
                   label: audioLabels.length > 1 ? 'Audio' : 'Audio',
                   active: audioLabels.length > 1,
                   activeColor: const Color(0xFF4DB6FF),
@@ -3659,7 +3727,7 @@ class _ControlsOverlay extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 _MxSideBtn(
-                  icon: Icons.more_horiz_rounded,
+                  icon: _iconForPack(iconPack, 'more'),
                   label: 'More',
                   onTap: onMorePanel,
                 ),
@@ -3834,28 +3902,53 @@ class _ControlsOverlay extends StatelessWidget {
                                     child: const SizedBox.expand(),
                                   ),
                                 ),
-                              // The vertical slider (white thumb, red track) ──────
+                              // The vertical slider — SeekBarPainter for non-classic styles ──
                               RotatedBox(
                                 quarterTurns: 1,
                                 child: SizedBox(
                                   width: sliderLen,
-                                  child: SliderTheme(
-                                    data: SliderTheme.of(ctx).copyWith(
-                                      trackHeight: sliderDragging ? 5 : 3,
-                                      thumbShape: RoundSliderThumbShape(
-                                          enabledThumbRadius: sliderDragging ? 10 : 6),
-                                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
-                                      activeTrackColor: accentColor,
-                                      inactiveTrackColor: Colors.white12,
-                                      thumbColor: Colors.white,
-                                      overlayColor: accentColor.withOpacity(0.13),
-                                    ),
-                                    child: Slider(
-                                      value: progress.clamp(0.0, 1.0),
-                                      onChangeStart: onSliderStart,
-                                      onChanged: onSliderChange,
-                                      onChangeEnd: onSliderEnd,
-                                    ),
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      // Custom painter for all non-classic seek bar styles
+                                      if (seekBarStyle != 'classic')
+                                        Positioned.fill(
+                                          child: CustomPaint(
+                                            painter: SeekBarPainter(
+                                              style: seekBarStyleFromString(seekBarStyle),
+                                              progress: progress.clamp(0.0, 1.0),
+                                              buffered: bufferedFraction,
+                                              accentColor: accentColor,
+                                              chapterFractions: chapters
+                                                  .where((_) => duration.inMilliseconds > 0)
+                                                  .map((c) => (c.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0))
+                                                  .toList(),
+                                              moodEnabled: moodEnabled,
+                                            ),
+                                          ),
+                                        ),
+                                      SliderTheme(
+                                        data: SliderTheme.of(ctx).copyWith(
+                                          trackHeight: seekBarStyle != 'classic'
+                                              ? 0 : (sliderDragging ? 5 : 3),
+                                          thumbShape: RoundSliderThumbShape(
+                                              enabledThumbRadius: sliderDragging ? 10 : 6),
+                                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
+                                          activeTrackColor: seekBarStyle != 'classic'
+                                              ? Colors.transparent : accentColor,
+                                          inactiveTrackColor: seekBarStyle != 'classic'
+                                              ? Colors.transparent : Colors.white12,
+                                          thumbColor: Colors.white,
+                                          overlayColor: accentColor.withOpacity(0.13),
+                                        ),
+                                        child: Slider(
+                                          value: progress.clamp(0.0, 1.0),
+                                          onChangeStart: onSliderStart,
+                                          onChanged: onSliderChange,
+                                          onChangeEnd: onSliderEnd,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),

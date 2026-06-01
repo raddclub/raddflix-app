@@ -181,6 +181,12 @@ class PlayerPrefs {
   final bool   contentMoodEnabled; // Phase G4: narrative-arc seek bar zones
   final bool   screenshotLockEnabled; // Phase K2: prevent screenshots
 
+  // ── Phase B: Layout Designer ──────────────────────────────────────────────
+  /// JSON-encoded PlayerLayout. Empty = use layoutPreset.
+  final String layoutJson;
+  /// Active preset: 'centered'|'left_handed'|'right_handed'|'minimal'|'custom'
+  final String layoutPreset;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -306,6 +312,8 @@ class PlayerPrefs {
     this.savedZoomLevel           = 1.0,
     this.contentMoodEnabled       = false,
     this.screenshotLockEnabled    = false,
+    this.layoutJson               = '',
+    this.layoutPreset             = 'centered',
   });
 
   PlayerPrefs copyWith({
@@ -367,6 +375,8 @@ class PlayerPrefs {
     double? savedZoomLevel,
     bool?   contentMoodEnabled,
     bool?   screenshotLockEnabled,
+    String? layoutJson,
+    String? layoutPreset,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -486,6 +496,8 @@ class PlayerPrefs {
       savedZoomLevel:              savedZoomLevel              ?? this.savedZoomLevel,
       contentMoodEnabled:          contentMoodEnabled          ?? this.contentMoodEnabled,
       screenshotLockEnabled:       screenshotLockEnabled       ?? this.screenshotLockEnabled,
+      layoutJson:                  layoutJson                  ?? this.layoutJson,
+      layoutPreset:                layoutPreset                ?? this.layoutPreset,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -622,7 +634,9 @@ class PlayerPrefs {
       dndOnCinematic:              s.getBool('${_p}dnd_cinematic')        ?? false,
       savedZoomLevel:              s.getDouble('${_p}saved_zoom_level')   ?? 1.0,
       contentMoodEnabled:          s.getBool('${_p}content_mood')          ?? false,
-      screenshotLockEnabled:       s.getBool('${_p}screenshot_lock')       ?? false,
+      screenshotLockEnabled:       s.getBool('\${_p}screenshot_lock')       ?? false,
+      layoutJson:                  s.getString('\${_p}layout_json')           ?? '',
+      layoutPreset:                s.getString('\${_p}layout_preset')         ?? 'centered',
     );
   }
 
@@ -755,7 +769,9 @@ class PlayerPrefs {
       s.setBool('${_p}dnd_cinematic',      dndOnCinematic),
       s.setDouble('${_p}saved_zoom_level', savedZoomLevel),
       s.setBool('${_p}content_mood',        contentMoodEnabled),
-      s.setBool('${_p}screenshot_lock',     screenshotLockEnabled),
+      s.setBool('\${_p}screenshot_lock',     screenshotLockEnabled),
+      s.setString('\${_p}layout_json',        layoutJson),
+      s.setString('\${_p}layout_preset',      layoutPreset),
     ]);
   }
 }

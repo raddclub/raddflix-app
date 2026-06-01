@@ -21,6 +21,8 @@ import 'screens/show_detail_screen.dart';
 import 'screens/vault_lock_screen.dart';
 import 'screens/admin_queue_screen.dart';
 import 'screens/player_settings_screen.dart';
+import 'screens/player/layout_designer_screen.dart';
+import 'core/player/player_prefs.dart';
 import 'screens/vault_screen.dart';
 import 'screens/local_media_screen.dart';
 import 'screens/local_folder_screen.dart';
@@ -71,6 +73,7 @@ class RaddFlixApp extends ConsumerWidget {
         AppRoutes.history:       (_) => const HistoryScreen(),
         AppRoutes.localMedia:    (_) => const LocalMediaScreen(),
         '/player-settings':      (_) => const PlayerSettingsScreen(),
+        '/layout-designer':      (_) => const LayoutDesignerScreen(prefs: PlayerPrefs(), onSave: (_) {}),
       },
       onGenerateRoute: (settings) {
         if (settings.name == AppRoutes.player) {
