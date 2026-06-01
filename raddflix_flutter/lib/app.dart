@@ -73,8 +73,8 @@ class RaddFlixApp extends ConsumerWidget {
         AppRoutes.watchlist:     (_) => const WatchlistScreen(),
         AppRoutes.history:       (_) => const HistoryScreen(),
         AppRoutes.localMedia:    (_) => const LocalMediaScreen(),
-        '/player-settings':      (_) => PlayerSettingsScreen(prefs: PlayerPrefs(), onSave: (_) {}),
-        '/layout-designer':      (_) => LayoutDesignerScreen(prefs: PlayerPrefs(), onSave: (_) {}),
+        '/player-settings':      (_) => const _PlayerSettingsLoader(),
+        '/layout-designer':      (_) => const _LayoutDesignerLoader(),
         '/pin-lock':             (_) => PinLockScreen(),
         '/pin-setup':            (_) => const PinSetupScreen(),
       },
@@ -280,6 +280,53 @@ class _ForceUpdateScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+
+// ── Route loader: opens PlayerSettingsScreen with persisted prefs ─────────────
+class _PlayerSettingsLoader extends StatelessWidget {
+  const _PlayerSettingsLoader();
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PlayerPrefs>(
+      future: PlayerPrefs.load(),
+      builder: (context, snap) {
+        if (!snap.hasData) {
+          return const Scaffold(
+            backgroundColor: Color(0xFF08080E),
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return PlayerSettingsScreen(
+          prefs: snap.data!,
+          onSave: (p) => p.save(),
+        );
+      },
+    );
+  }
+}
+
+// ── Route loader: opens LayoutDesignerScreen with persisted prefs ─────────────
+class _LayoutDesignerLoader extends StatelessWidget {
+  const _LayoutDesignerLoader();
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PlayerPrefs>(
+      future: PlayerPrefs.load(),
+      builder: (context, snap) {
+        if (!snap.hasData) {
+          return const Scaffold(
+            backgroundColor: Color(0xFF08080E),
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return LayoutDesignerScreen(
+          prefs: snap.data!,
+          onSave: (p) => p.save(),
+        );
+      },
     );
   }
 }
