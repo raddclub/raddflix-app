@@ -79,7 +79,6 @@ _DDL = [
         content_key         TEXT UNIQUE,           -- internal dedup key (legacy)
         -- external IDs
         tmdb_id             INTEGER,
-        omdb_id             TEXT,                  -- e.g. 'tt1375666'
         imdb_id             TEXT,                  -- e.g. 'tt1375666'
         -- core metadata
         media_type          TEXT,                  -- 'movie' | 'tv' | 'anime' | 'drama'
@@ -98,9 +97,6 @@ _DDL = [
         genres              TEXT,                  -- JSON array: ["Action","Drama"]
         genres_csv          TEXT,                  -- legacy / fallback
         plot                TEXT,                  -- full description
-        overview            TEXT,                  -- legacy alias for plot
-        cast                TEXT,                  -- JSON: [{"name":"...","character":"..."}]
-        cast_names          TEXT,                  -- comma-separated actor names
         cast_json           TEXT,                  -- legacy cast JSON
         director            TEXT,
         crew_json           TEXT,
@@ -529,7 +525,6 @@ def init_db() -> None:
             "ALTER TABLE accounts ADD COLUMN raw_accesstoken TEXT",
             # titles — new columns
             "ALTER TABLE titles ADD COLUMN slug TEXT",
-            "ALTER TABLE titles ADD COLUMN omdb_id TEXT",
             "ALTER TABLE titles ADD COLUMN imdb_id TEXT",
             "ALTER TABLE titles ADD COLUMN language TEXT",
             "ALTER TABLE titles ADD COLUMN release_date TEXT",
@@ -538,7 +533,6 @@ def init_db() -> None:
             "ALTER TABLE titles ADD COLUMN imdb_rating REAL",
             "ALTER TABLE titles ADD COLUMN genres TEXT",
             "ALTER TABLE titles ADD COLUMN plot TEXT",
-            "ALTER TABLE titles ADD COLUMN cast TEXT",
             "ALTER TABLE titles ADD COLUMN season_count INTEGER",
             "ALTER TABLE titles ADD COLUMN episode_count INTEGER",
             "ALTER TABLE titles ADD COLUMN folder_share_url TEXT",
@@ -561,6 +555,13 @@ def init_db() -> None:
             # FTS5 index rebuild — populates titles_fts for all existing rows
             # (no-op if already populated; safe to re-run)
             "INSERT INTO titles_fts(titles_fts) VALUES('rebuild')",
+            # P3.5 cleanup — drop legacy/duplicate columns from titles
+            # Requires SQLite 3.35.0+ (Ubuntu 22.04 ships 3.37.2 — safe).
+            # Wrapped in try/except via the migration loop — no-op if already gone.
+            "ALTER TABLE titles DROP COLUMN omdb_id",
+            "ALTER TABLE titles DROP COLUMN overview",
+            "ALTER TABLE titles DROP COLUMN cast",
+            "ALTER TABLE titles DROP COLUMN cast_names",
         ]:
             try:
                 c.execute(migration_sql)

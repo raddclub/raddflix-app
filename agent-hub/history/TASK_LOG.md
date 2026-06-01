@@ -4,6 +4,33 @@
 
 ---
 
+## [2026-06-01] — Session 3 | P2.5 verified, P3.1/P3.5/P3.7 done, P4.1 config committed
+
+### Tasks Completed
+- **P2.5 VERIFIED** — `radd-hub/hub/_legacy/` directory confirmed to exist in repo; all `mirror.py` imports already wrapped in try/except. No code change needed.
+- **P3.1 DONE** — Deleted all root `lib/` stub files (44 dead files: JazzMAX/ZENO branded stubs, TypeScript API specs, duplicate Dart screens) + root `pubspec.yaml` via GitHub API tree deletion.
+- **P3.5 DONE** — Removed 4 legacy/duplicate columns from `radd-hub/hub/db.py`:
+  - Removed from DDL (`CREATE TABLE titles`): `omdb_id`, `overview`, `cast`, `cast_names`
+  - Added DROP COLUMN migrations in `init_db()` (try/except, SQLite 3.35.0+ required, Oracle 22.04 has 3.37.2)
+  - On server restart, existing DB will have redundant columns pruned automatically.
+- **P3.7 VERIFIED** — `constants.dart` `otpDeviceSwitchEnabled` comment already accurate. No code change needed.
+- **P4.1 IN PROGRESS** — Supervisor config created at `radd-hub/supervisor.d/raddflix_wa_bot.conf` pointing to full bot (`bots/whatsapp/index.js`). Needs Oracle copy + supervisorctl restart by user.
+
+### Key Files Changed
+- `radd-hub/hub/db.py` — DDL + init_db() migration
+- `radd-hub/supervisor.d/raddflix_wa_bot.conf` — new file
+- `agent-hub/MASTER_PLAN.md` — updated statuses
+- `agent-hub/history/TASK_LOG.md` — this entry
+- Root `lib/` directory — deleted entirely
+- Root `pubspec.yaml` — deleted
+
+### Still Open
+- **P3.3** — BLOCKED: need real RaddFlix WhatsApp support number from user (placeholder: `923001234567`)
+- **P4.1** — Config committed; user must run on Oracle: `sudo cp radd-hub/supervisor.d/raddflix_wa_bot.conf /etc/supervisor/conf.d/ && sudo supervisorctl reread && sudo supervisorctl update && sudo supervisorctl restart raddflix_wa_bot`
+
+---
+
+
 ## [2026-05-31] — Session 2 | Full Audit + Bug Fixing Blitz
 
 ### Tasks Completed

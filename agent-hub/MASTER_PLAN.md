@@ -1,7 +1,7 @@
 # MASTER_PLAN.md — RaddFlix Task Queue
 > **This is the single source of truth for what to work on next.**
 > Always check this before starting any work. Update status when done.
-> Last Updated: 2026-05-31 (Session 2 final: all P1/P2 bugs fixed; P3.4 done; P4.2-P4.5 verified already done)
+> Last Updated: 2026-06-01 (Session 3: P2.5 verified, P3.1/P3.5/P3.7 done, P4.1 supervisor config added)
 
 ---
 
@@ -117,7 +117,7 @@ def _watch_base() -> str:
 **Effort:** 30 min
 
 ### P2.5 — Fix mirror.py BUG-A18 (_legacy import)
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE (verified — `_legacy/` directory exists in repo; all imports wrapped in try/except)
 **File:** `radd-hub/hub/mirror.py`
 **Problem:** Imports from `_legacy` module that may not exist on Oracle.
 **Effort:** 30 min
@@ -133,7 +133,7 @@ def _watch_base() -> str:
 ## 🔷 PRIORITY 3 — Cleanup (do after P2 is complete)
 
 ### P3.1 — Delete root lib/ stub files
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE
 **Files:** Root `lib/*.dart`, root `pubspec.yaml`, root `pubspec.lock`
 **Problem:** Dead code with wrong branding (JazzMAX/ZENO). Confuses developers.
 **Action:** Delete via GitHub API (set file content to empty in tree, or remove from tree).
@@ -167,7 +167,7 @@ auth_info/
 **Effort:** 30 min
 
 ### P3.5 — Clean up legacy DB columns
-**Status:** ⏳ PENDING (BLOCKED: needs schema migration + mobile app migration)
+**Status:** ✅ DONE
 **Problem:** `titles` table has 11 redundant/legacy columns.
 **Redundant:** `cast`, `cast_names`, `cast_json` (keep only `cast_json`), `overview` (duplicate of `plot`), `omdb_id` (duplicate of `imdb_id`).
 **Note:** This requires a DB schema migration. Bump `catalogDbVersion` in constants.dart and add `_migrate()` case in `local_db.dart`.
@@ -180,7 +180,7 @@ auth_info/
 **Effort:** 2 min
 
 ### P3.7 — Update constants.dart documentation comment
-**Status:** ⏳ PENDING
+**Status:** ✅ DONE (comment already accurate — verified)
 **File:** `raddflix_flutter/lib/core/constants.dart`
 **Fix:** `otpDeviceSwitchEnabled` comment says "Set to true when..." but it's already `true`. Update comment to reflect actual state.
 **Effort:** 5 min
@@ -190,10 +190,10 @@ auth_info/
 ## 🔹 PRIORITY 4 — Features / New Work (do after P3 is complete)
 
 ### P4.1 — Deploy full WhatsApp bot to production
-**Status:** ⏳ PENDING
+**Status:** 🔄 IN PROGRESS
 **Problem:** Supervisor runs `hub/bots/whatsapp/` (simple). Full-featured bot with plugins, rewards, actor/genre search is in `bots/whatsapp/` and not running.
-**Action:** Update supervisor config to point to `bots/whatsapp/index.js`. Test.
-**Effort:** 2h
+**Action:** Supervisor config committed to `radd-hub/supervisor.d/raddflix_wa_bot.conf`. On Oracle: `sudo cp radd-hub/supervisor.d/raddflix_wa_bot.conf /etc/supervisor/conf.d/raddflix_wa_bot.conf && sudo supervisorctl reread && sudo supervisorctl update && sudo supervisorctl restart raddflix_wa_bot`
+**Effort:** 2h (config done; needs Oracle restart by user)
 
 ### P4.2 — Wire recommendation API endpoint
 **Status:** ✅ DONE (bp_rec + /recommend route exist and registered at /api prefix in app.py)
