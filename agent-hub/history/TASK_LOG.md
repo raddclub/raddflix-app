@@ -1380,3 +1380,37 @@ PlayerPrefs +8 fields (8x each — constructor/copyWith/load/save):
 - L1 watermark pipeline runs entirely on `dart:ui` — no external package required. `RenderRepaintBoundary.toImage()` captures widget tree; `PictureRecorder+Canvas` composites watermark on top; re-encodes as PNG.
 - J4 motor impairment mode: UI toggle present; full large-target rendering requires per-control `GestureDetector` wrap adjustments done at render time via `_prefs.motorImpairmentMode` guards.
 - Session total: 3 roadmap phases closed.
+
+
+---
+
+## Session 20 — Phase M1 + M2 + M3 + M4
+
+### Phases Closed
+| Phase | Feature | Status |
+|-------|---------|--------|
+| M1 | Custom Speed Presets — user-defined speed list with chip picker + edit mode | ✅ Done |
+| M2 | Jump To Panel — fixed-interval buttons + type-a-timestamp field | ✅ Done |
+| M3 | End-of-Video Actions — 6 configurable actions + animated countdown ring | ✅ Done |
+| M4 | Smart Skip — skip silence/opening/ending with configurable thresholds | ✅ Done |
+
+### Commit
+`860224cf8db9` — Phase M1+M2+M3+M4
+
+### Files Changed (+4 new)
+| File | Change |
+|------|--------|
+| `raddflix_flutter/lib/widgets/player/speed_presets_sheet.dart` | **NEW** — `SpeedPresetsSheet` bottom sheet; 13 allowed speeds (0.25–4.0); two modes: chip grid (play) + toggle grid (edit); `speedPresetsFromString`/`speedPresetsToString` helpers |
+| `raddflix_flutter/lib/widgets/player/jump_to_panel.dart` | **NEW** — floating centered panel; 6 fixed-interval buttons; `_parseTime` handles HH:MM:SS / MM:SS / raw seconds; scale entry via `CurvedAnimation(easeOutCubic)` |
+| `raddflix_flutter/lib/core/player/end_of_video_actions.dart` | **NEW** — `EndAction` enum (6 values); `CountdownNextOverlay` with `CircularProgressIndicator` ring + `Timer` tick + Cancel/Play-Now buttons; `EndActionPicker` list widget |
+| `raddflix_flutter/lib/core/player/smart_skip_service.dart` | **NEW** — `SmartSkipConfig` encode/decode; `SmartSkipController.tick(position)` handles opening/ending skips; `SmartSkipPanel` with `Switch` toggles + second sliders |
+| `raddflix_flutter/lib/core/player/player_prefs.dart` | `+speedPresets` + `+endAction` + `+smartSkipConfig` |
+| `raddflix_flutter/lib/screens/player_screen.dart` | JumpToPanel + CountdownNextOverlay wired into player Stack; M1-M4 imports |
+| `raddflix_flutter/lib/widgets/player/quick_settings_panel.dart` | M1/M3/M4 sections added to Controls tab (speed chips, end action picker, smart skip panel) |
+
+### Architecture Notes
+- M1 speed presets stored as comma-separated string in PlayerPrefs (e.g. `'0.5,1.0,1.5,2.0'`). `speedPresetsFromString` parses + sorts. 2-item minimum enforced in edit mode.
+- M2 JumpToPanel lives in the player Stack as a conditional overlay (controlled by `_showJumpPanel` bool). Accessible from controls or gesture.
+- M3 `CountdownNextOverlay` uses both `AnimationController` (for ring sweep) and `Timer.periodic` (for integer countdown display) — two separate clocks synced to `seconds`.
+- M4 `SmartSkipController` is a plain Dart class, not a widget. Player calls `tick(position)` every second; controller calls `onSkipTo()` when threshold crossed. Reset() on new file open.
+- Session total: 4 roadmap phases closed.
