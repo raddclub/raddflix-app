@@ -24,6 +24,8 @@ class QuickSettingsPanel extends StatefulWidget {
   final VoidCallback onOpenSpeedPresets;
   final VoidCallback onOpenEndAction;
   final VoidCallback onOpenSilenceSkip;
+  final VoidCallback onOpenZoomCrop;
+  final VoidCallback onOpenWakeDnd;   // opens wake lock / DND sheet
   final int subDelayMs;
   final int audioDelayMs;
   final ValueChanged<int> onSubDelay;
@@ -51,6 +53,8 @@ class QuickSettingsPanel extends StatefulWidget {
     required this.onOpenSpeedPresets,
     required this.onOpenEndAction,
     required this.onOpenSilenceSkip,
+    required this.onOpenZoomCrop,
+    required this.onOpenWakeDnd,
     required this.subDelayMs,
     required this.audioDelayMs,
     required this.onSubDelay,
@@ -630,6 +634,58 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
             );
           }).toList()),
         ),
+
+        const Divider(color: Colors.white10, height: 1),
+
+        // ── Phase H4/H5: Wake & DND ────────────────────────────────────────
+        _QsLabel('Sleep & Focus'),
+        _QsRow(
+          label: 'Screen Wake',
+          child: DropdownButton<int>(
+            value: _p.wakeTimeoutMins,
+            dropdownColor: const Color(0xFF1A1A2E),
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+            underline: const SizedBox(),
+            items: const [
+              DropdownMenuItem(value: 0,  child: Text('Always On')),
+              DropdownMenuItem(value: 10, child: Text('10 min')),
+              DropdownMenuItem(value: 20, child: Text('20 min')),
+              DropdownMenuItem(value: 30, child: Text('30 min')),
+            ],
+            onChanged: (v) {
+              if (v == null) return;
+              _update(_p.copyWith(wakeTimeoutMins: v));
+            },
+          ),
+        ),
+        _QsToggleRow(
+          label: 'DND in Cinematic Mode',
+          value: _p.dndOnCinematic,
+          onChanged: (v) => _update(_p.copyWith(dndOnCinematic: v)),
+        ),
+
+        const Divider(color: Colors.white10, height: 1),
+
+        // ── Phase H1: One-Handed Mode ─────────────────────────────────────
+        _QsLabel('One-Handed Mode'),
+        _QsToggleRow(
+          label: 'Enable',
+          value: _p.oneHandedModeEnabled,
+          onChanged: (v) => _update(_p.copyWith(oneHandedModeEnabled: v)),
+        ),
+        if (_p.oneHandedModeEnabled)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Row(mainAxisAlignment: MainAxisAlignment.start, children: [
+              const Text('Side: ', style: TextStyle(color: Colors.white54, fontSize: 12)),
+              const SizedBox(width: 8),
+              _ModeChip('Right', _p.oneHandedModeSide == 'right', _accent,
+                () => _update(_p.copyWith(oneHandedModeSide: 'right'))),
+              const SizedBox(width: 8),
+              _ModeChip('Left',  _p.oneHandedModeSide == 'left',  _accent,
+                () => _update(_p.copyWith(oneHandedModeSide: 'left'))),
+            ]),
+          ),
       ],
     );
   }
@@ -728,6 +784,8 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
           _NavButton(icon: Icons.flag_rounded,         label: 'Video End Action', onTap: onOpenEndAction),
           const SizedBox(height: 8),
           _NavButton(icon: Icons.volume_off_rounded,   label: 'Smart Skip',     onTap: onOpenSilenceSkip),
+          const SizedBox(height: 8),
+          _NavButton(icon: Icons.zoom_in_rounded,        label: 'Zoom & Crop',    onTap: onOpenZoomCrop),
                 Text('Set custom skip timestamps for this video',
                     style: TextStyle(color: Colors.white38, fontSize: 11)),
               ])),

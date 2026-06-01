@@ -708,6 +708,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // ── Cinematic Mode ────────────────────────────────────────────────────────
   void _toggleCinematic() {
     setState(() => _cinematicMode = !_cinematicMode);
+      // Phase H5: DND mode indicator on cinematic
+      if (_cinematicMode && _prefs.dndOnCinematic) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('DND active — go to phone Settings to enable Do Not Disturb'),
+          duration: Duration(seconds: 3)));
+      }
     // Cinematic: controls still show/hide normally, just dimmed by _cinematicOpacity.
     if (_cinematicMode) _scheduleHide();
   }
@@ -3084,6 +3090,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 onOpenSilenceSkip: () {
                   setState(() => _showQuickSettings = false);
                   _openSilenceSkip();
+                },
+                onOpenZoomCrop: () {
+                  setState(() => _showQuickSettings = false);
+                  _openZoomCrop();
+                },
+                onOpenWakeDnd: () {
+                  setState(() => _showQuickSettings = false);
                 },
                 subDelayMs: _subDelayMs,
                 audioDelayMs: _audioDelayMs,
