@@ -525,7 +525,18 @@ body.sb-col .nav a span.nav-label{display:none}
         <span class="icon">🗄</span>
         <span class="nav-label"><span class="nav-title">DB Manager</span><span class="nav-sub">Browse &amp; edit database</span></span>
       </a>
-      <hr>
+
+      <div class="nav-section">SECURITY</div>
+
+      <a href="/security/tamper-reports" class="{{ 'active' if active=='tamper_reports' }}" onclick="closeSidebar()">
+        <span class="icon">🔐</span>
+        <span class="nav-label"><span class="nav-title">Tamper Reports</span><span class="nav-sub">Security events &amp; alerts</span></span>
+      </a>
+      <a href="/security/xor-encoding" class="{{ 'active' if active=='xor_encoding' }}" onclick="closeSidebar()">
+        <span class="icon">🔒</span>
+        <span class="nav-label"><span class="nav-title">XOR Encoding</span><span class="nav-sub">Layer 5 status</span></span>
+      </a>
+            <hr>
       <a href="/auth/logout"><span class="icon">⏻</span> Sign out</a>
     </nav>
   </aside>
