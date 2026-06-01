@@ -35,7 +35,7 @@ class AppConstants {
 
   // ── Support ──────────────────────────────────────────────────────────────
   /// WhatsApp support number (international format, no +, no spaces).
-  static const String supportWhatsApp = '923001234567';
+  static String supportWhatsApp = '923257719165';
 
   // ── Device Switch / OTP Hook ─────────────────────────────────────────────
   /// Controls self-serve device switching via OTP (6-digit code via WhatsApp).

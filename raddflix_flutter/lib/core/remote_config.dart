@@ -49,6 +49,11 @@ class RemoteConfig {
         if (deltaUrl.isNotEmpty) {
           AppConstants.jazzDriveDeltaUrl = deltaUrl;
         }
+        // Read support_whatsapp — admin can change without APK rebuild
+        final supportWa = (data['support_whatsapp'] as String?)?.trim() ?? '';
+        if (supportWa.isNotEmpty) {
+          AppConstants.supportWhatsApp = supportWa;
+        }
         // Cache full config for offline restarts
         await prefs.setString(_prefsKey, jsonEncode(data));
         return;
@@ -68,6 +73,10 @@ class RemoteConfig {
         final deltaUrl = (data['jd_delta_url'] as String?)?.trim() ?? '';
         if (deltaUrl.isNotEmpty) {
           AppConstants.jazzDriveDeltaUrl = deltaUrl;
+        }
+        final supportWa = (data['support_whatsapp'] as String?)?.trim() ?? '';
+        if (supportWa.isNotEmpty) {
+          AppConstants.supportWhatsApp = supportWa;
         }
         return;
       } catch (_) {}

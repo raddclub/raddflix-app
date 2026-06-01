@@ -60,6 +60,7 @@ JD_BOT_SETTINGS = [
     ("JAZZDRIVE_MSISDN",              "jazzdrive", "JazzDrive MSISDN",                  "Primary phone number (923xxxxxxxxx)"),
     ("JAZZDRIVE_SHARE_EMAIL",         "jazzdrive", "JazzDrive share email",              "Email used when creating share links"),
     ("JAZZDRIVE_KEEPALIVE_INTERVAL",  "jazzdrive", "Keepalive interval (seconds)",       "Default: 2700 (45 min)"),
+    ("SUPPORT_WHATSAPP_NUMBER",        "whatsapp",  "Support WhatsApp number",            "International format, no + or spaces e.g. 923257719165"),
     ("BOT_ADMIN_JIDS",                "whatsapp",  "WhatsApp admin JIDs",               "Comma-separated JIDs: 923…@s.whatsapp.net"),
     ("BOT_RATE_LIMIT_PER_MIN",        "whatsapp",  "Rate limit per minute",             "Requests per minute per user (default 12)"),
     ("BOT_RATE_LIMIT_ADMIN_BYPASS",   "whatsapp",  "Admin rate-limit bypass",           "1 = admins skip rate limits"),

@@ -60,11 +60,13 @@ def app_config():
     except Exception:
         pass
     jd_delta_url = (jd_delta_row["v"] if jd_delta_row else None) or ""
+    support_whatsapp = _db.setting("SUPPORT_WHATSAPP_NUMBER", "923257719165") or "923257719165"
     return jsonify({
         'api_base_url': 'http://92.4.95.252',
         'min_version_code': 1,
         'update_url': 'https://github.com/raddclub/raddflix-app/releases/latest',
         'jd_delta_url': jd_delta_url,
+        'support_whatsapp': support_whatsapp,
         'note': 'Served from Oracle server — edit this route to change server URL',
     })
 
