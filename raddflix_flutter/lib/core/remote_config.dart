@@ -11,28 +11,27 @@ import 'api/api_client.dart';
 ///   1. Oracle server   → http://92.4.95.252/api/config   (primary)
 ///   2. Last cached config in SharedPreferences
 ///   3. Hardcoded AppConstants.apiBaseUrl (always works as final fallback)
-///
-/// Fields read from /api/config:
-///   - api_base_url          → AppConstants.apiBaseUrl
-///   - jd_delta_url          → AppConstants.jazzDriveDeltaUrl (zero-rating delta URL)
-///   - brand_primary_color   → cached to SharedPreferences key 'brand_primary_color'
-///   - brand_tagline         → cached to SharedPreferences key 'brand_tagline'
-///   - brand_logo_url        → cached to SharedPreferences key 'brand_logo_url'
-///   - brand_splash_color    → cached to SharedPreferences key 'brand_splash_color'
-///   - brand_onboarding_pages → cached to SharedPreferences key 'brand_onboarding_pages'
-///
-/// To change the server URL: update the /api/config route in radd-hub/hub/routes/api.py
-/// No APK rebuild needed — Flutter reads this on every startup.
 class RemoteConfig {
   static const String _configUrl = 'http://92.4.95.252/api/config';
   static const String _prefsKey  = 'jm_remote_config';
 
-  // Brand field keys (stored individually for easy access)
+  // ── Brand field keys ───────────────────────────────────────────────────────
+  // Original 5
   static const String kBrandPrimaryColor    = 'brand_primary_color';
   static const String kBrandTagline         = 'brand_tagline';
   static const String kBrandLogoUrl         = 'brand_logo_url';
   static const String kBrandSplashColor     = 'brand_splash_color';
   static const String kBrandOnboardingPages = 'brand_onboarding_pages';
+  // New 9 — full theme control
+  static const String kBrandAccentColor     = 'brand_accent_color';
+  static const String kBrandBackgroundColor = 'brand_background_color';
+  static const String kBrandSurfaceColor    = 'brand_surface_color';
+  static const String kBrandCardColor       = 'brand_card_color';
+  static const String kBrandTextPrimaryColor = 'brand_text_primary_color';
+  static const String kBrandAppName         = 'brand_app_name';
+  static const String kBrandFont            = 'brand_font';
+  static const String kBrandButtonRadius    = 'brand_button_radius';
+  static const String kBrandStatusBarDark   = 'brand_status_bar_dark';
 
   static const List<String> _brandKeys = [
     kBrandPrimaryColor,
@@ -40,7 +39,19 @@ class RemoteConfig {
     kBrandLogoUrl,
     kBrandSplashColor,
     kBrandOnboardingPages,
+    kBrandAccentColor,
+    kBrandBackgroundColor,
+    kBrandSurfaceColor,
+    kBrandCardColor,
+    kBrandTextPrimaryColor,
+    kBrandAppName,
+    kBrandFont,
+    kBrandButtonRadius,
+    kBrandStatusBarDark,
   ];
+
+  /// Optional callback — set by BrandThemeNotifier to reload theme after fetch.
+  static Future<void> Function()? onBrandConfigLoaded;
 
   static Future<void> fetch() async {
     final prefs = await SharedPreferences.getInstance();
@@ -64,17 +75,15 @@ class RemoteConfig {
           AppConstants.apiBaseUrl = url;
           ApiClient.updateBaseUrl(url);
         }
-        // Read jd_delta_url — enables zero-rated catalog sync on Jazz SIM
         final deltaUrl = (data['jd_delta_url'] as String?)?.trim() ?? '';
         if (deltaUrl.isNotEmpty) {
           AppConstants.jazzDriveDeltaUrl = deltaUrl;
         }
-        // Read support_whatsapp — admin can change without APK rebuild
         final supportWa = (data['support_whatsapp'] as String?)?.trim() ?? '';
         if (supportWa.isNotEmpty) {
           AppConstants.supportWhatsApp = supportWa;
         }
-        // Read and cache all brand_ fields from Brand Studio admin panel
+        // Cache all brand_ fields from Brand Studio admin panel
         for (final k in _brandKeys) {
           final v = (data[k] as String?)?.trim() ?? '';
           if (v.isNotEmpty) {
@@ -83,11 +92,13 @@ class RemoteConfig {
         }
         // Cache full config for offline restarts
         await prefs.setString(_prefsKey, jsonEncode(data));
+        // Notify brand theme provider to reload
+        await onBrandConfigLoaded?.call();
         return;
       }
     } catch (_) {}
 
-    // 2. Fall back to last-cached config (survives offline restarts)
+    // 2. Fall back to last-cached config
     final cached = prefs.getString(_prefsKey);
     if (cached != null) {
       try {
@@ -98,38 +109,57 @@ class RemoteConfig {
           ApiClient.updateBaseUrl(url);
         }
         final deltaUrl = (data['jd_delta_url'] as String?)?.trim() ?? '';
-        if (deltaUrl.isNotEmpty) {
-          AppConstants.jazzDriveDeltaUrl = deltaUrl;
-        }
+        if (deltaUrl.isNotEmpty) AppConstants.jazzDriveDeltaUrl = deltaUrl;
         final supportWa = (data['support_whatsapp'] as String?)?.trim() ?? '';
-        if (supportWa.isNotEmpty) {
-          AppConstants.supportWhatsApp = supportWa;
-        }
-        // Restore brand fields from cached config
+        if (supportWa.isNotEmpty) AppConstants.supportWhatsApp = supportWa;
         for (final k in _brandKeys) {
           final v = (data[k] as String?)?.trim() ?? '';
-          if (v.isNotEmpty) {
-            await prefs.setString(k, v);
-          }
+          if (v.isNotEmpty) await prefs.setString(k, v);
         }
+        await onBrandConfigLoaded?.call();
         return;
       } catch (_) {}
     }
 
-    // 3. Use hardcoded fallback (app always works even if server is unreachable)
+    // 3. Hardcoded fallback
     ApiClient.updateBaseUrl(AppConstants.apiBaseUrl);
   }
 
-  // ── Convenience getters ────────────────────────────────────────────────────
+  // ── Convenience getters ─────────────────────────────────────────────────────
 
   static Future<String> getBrandPrimaryColor({String fallback = '#E8002D'}) async {
     final p = await SharedPreferences.getInstance();
     return p.getString(kBrandPrimaryColor) ?? fallback;
   }
 
-  static Future<String> getBrandSplashColor({String fallback = '#0a0c11'}) async {
+  static Future<String> getBrandAccentColor({String fallback = '#FF5C5C'}) async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(kBrandAccentColor) ?? fallback;
+  }
+
+  static Future<String> getBrandSplashColor({String fallback = '#08080E'}) async {
     final p = await SharedPreferences.getInstance();
     return p.getString(kBrandSplashColor) ?? fallback;
+  }
+
+  static Future<String> getBrandBackgroundColor({String fallback = '#08080E'}) async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(kBrandBackgroundColor) ?? fallback;
+  }
+
+  static Future<String> getBrandSurfaceColor({String fallback = '#0E0E1C'}) async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(kBrandSurfaceColor) ?? fallback;
+  }
+
+  static Future<String> getBrandCardColor({String fallback = '#1A1A2E'}) async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(kBrandCardColor) ?? fallback;
+  }
+
+  static Future<String> getBrandTextPrimaryColor({String fallback = '#F2F2FF'}) async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(kBrandTextPrimaryColor) ?? fallback;
   }
 
   static Future<String> getBrandTagline({String fallback = 'Zero-rated Pakistani streaming'}) async {
@@ -137,13 +167,26 @@ class RemoteConfig {
     return p.getString(kBrandTagline) ?? fallback;
   }
 
+  static Future<String> getBrandAppName({String fallback = 'RaddFlix'}) async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(kBrandAppName) ?? fallback;
+  }
+
+  static Future<String> getBrandFont({String fallback = 'inter'}) async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(kBrandFont) ?? fallback;
+  }
+
+  static Future<double> getBrandButtonRadius({double fallback = 14}) async {
+    final p = await SharedPreferences.getInstance();
+    return double.tryParse(p.getString(kBrandButtonRadius) ?? '') ?? fallback;
+  }
+
   static Future<String> getBrandLogoUrl() async {
     final p = await SharedPreferences.getInstance();
     return p.getString(kBrandLogoUrl) ?? '';
   }
 
-  /// Returns the onboarding pages JSON string, or empty string if not set.
-  /// Parse with jsonDecode to get a List of page maps.
   static Future<String> getBrandOnboardingPages() async {
     final p = await SharedPreferences.getInstance();
     return p.getString(kBrandOnboardingPages) ?? '';
