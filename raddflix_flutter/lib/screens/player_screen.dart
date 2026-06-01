@@ -219,6 +219,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Seek thumbnail (local/downloaded only)
   Uint8List? _seekThumb;
   Timer? _seekThumbDebounce;
+  _SmartVolumeController? _svc; // Phase SVL
   bool _sliderDragging = false;
   double _sliderDragValue = 0.0;
 
@@ -510,6 +511,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               : '1.5';
       afParts.add('extrastereo=m=$m');
     }
+
+    // 7. Smart Volume Leveling — MPV-side dynamic range compression
+    if (p.smartVolumeLevelingEnabled) {
+      final acomp = p.smartVolumeMode == 'aggressive'
+          ? 'acompressor=threshold=0.5:ratio=8:attack=20:release=200:makeup=2'
+          : p.smartVolumeMode == 'balanced'
+              ? 'acompressor=threshold=0.7:ratio=4:attack=80:release=800:makeup=1.5'
+              : 'acompressor=threshold=0.89:ratio=2:attack=300:release=2000:makeup=1';
+      afParts.add(acomp);
+    }
+    // Dart-side volume ramp controller — update target/mode, start/stop
+    _svc?.update(targetLevel: p.smartVolumeTarget, mode: p.smartVolumeMode);
+    if (p.smartVolumeLevelingEnabled) { _svc?.start(); } else { _svc?.stop(); }
 
     // Commit the complete filter chain — empty string clears all filters
     await _np.setProperty('af', afParts.join(','));
@@ -1348,6 +1362,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _videoCtrl = VideoController(_player);
     await _openMedia(widget.fileId, localPath: widget.localPath);
     _loadSkipSegments(); // Phase P: load custom skip segments
+    // Phase SVL: Smart Volume Leveling controller
+    _svc = _SmartVolumeController(
+      player: _player, np: _np,
+      targetLevel: _prefs.smartVolumeTarget,
+      mode:        _prefs.smartVolumeMode,
+    );
+    if (_prefs.smartVolumeLevelingEnabled) _svc!.start();
 
     _player.stream.position.listen((p) {
       if (!mounted) return;
@@ -1854,6 +1875,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ? widget.localPath!
         : widget.fileId;
     _seekThumbDebounce?.cancel();
+    _svc?.dispose();
     _jazzRetryTimer?.cancel();
     _seekThumbDebounce = Timer(const Duration(milliseconds: 120), () async {
       final ms = (fraction * _duration.inMilliseconds).toInt();
@@ -2007,6 +2029,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _sleepFadeTimer?.cancel();
     _slowConnTimer?.cancel();
     _seekThumbDebounce?.cancel();
+    _svc?.dispose();
     _jazzRetryTimer?.cancel();
     _tapTimer?.cancel();
     _ambilightCtrl?.dispose();
@@ -4997,3 +5020,67 @@ class _MxSubPanelState extends State<_MxSubPanel> {
   }
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Smart Volume Leveling — Dart-side volume ramp controller (Phase SVL)
+// Smoothly adjusts MPV 'volume' property toward a user-set target level.
+// Works alongside the MPV-side acompressor filter for full DRC coverage.
+// ─────────────────────────────────────────────────────────────────────────────
+class _SmartVolumeController {
+  final Player      player;
+  final NativePlayer np;
+
+  double _targetVol; // 0–100 (MPV volume scale)
+  String _mode;      // 'gentle' | 'balanced' | 'aggressive'
+
+  Timer? _timer;
+  bool   _running = false;
+
+  _SmartVolumeController({
+    required this.player,
+    required this.np,
+    required double targetLevel, // 0.0–1.0 → maps to 0–100
+    required String mode,
+  })  : _targetVol = targetLevel * 100.0,
+        _mode      = mode;
+
+  void start() {
+    if (_running) return;
+    _running = true;
+    _timer?.cancel();
+    // Tick every 600 ms — smooth but not spammy
+    _timer = Timer.periodic(const Duration(milliseconds: 600), (_) => _tick());
+  }
+
+  void stop() {
+    _running = false;
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  void update({required double targetLevel, required String mode}) {
+    _targetVol = targetLevel * 100.0;
+    _mode      = mode;
+  }
+
+  Future<void> _tick() async {
+    try {
+      final current = player.state.volume; // 0–100 from media_kit state
+      final diff    = _targetVol - current;
+      if (diff.abs() < 0.8) return; // within tolerance — skip
+
+      // Step per tick: gentle=0.5  balanced=1.5  aggressive=4.0
+      final step = _mode == 'aggressive' ? 4.0
+                 : _mode == 'balanced'   ? 1.5
+                 :                         0.5;
+      final move   = diff.sign * step.clamp(0, diff.abs());
+      final newVol = (current + move).clamp(20.0, 130.0);
+      await np.setProperty('volume', newVol.toStringAsFixed(1));
+    } catch (_) {} // ignore if player torn down mid-tick
+  }
+
+  void dispose() {
+    _timer?.cancel();
+    _running = false;
+  }
+}

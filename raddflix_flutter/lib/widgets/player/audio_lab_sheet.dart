@@ -190,6 +190,73 @@ class _AudioLabSheetState extends State<AudioLabSheet> {
               ) : const SizedBox.shrink(),
             ),
 
+
+            const Divider(color: Colors.white10, height: 1),
+
+            // ── Smart Volume Leveling ─────────────────────────────────────
+            _LabSection(
+              icon: Icons.auto_fix_high_rounded,
+              title: 'Smart Volume Leveling',
+              subtitle: 'Auto-ramps volume toward target — smooths loud/quiet transitions.',
+              accent: acc,
+              enabled: _p.smartVolumeLevelingEnabled,
+              onToggle: (v) => _update(_p.copyWith(smartVolumeLevelingEnabled: v)),
+              child: _p.smartVolumeLevelingEnabled
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Row(children: [
+                          const Text('Target',
+                              style: TextStyle(color: Colors.white54, fontSize: 11)),
+                          Expanded(
+                            child: Slider(
+                              value: _p.smartVolumeTarget,
+                              min: 0.5, max: 1.0, divisions: 10,
+                              activeColor: acc, inactiveColor: Colors.white12,
+                              onChanged: (v) =>
+                                  _update(_p.copyWith(smartVolumeTarget: v)),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 40,
+                            child: Text(
+                              '${(_p.smartVolumeTarget * 100).toInt()}%',
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                  color: Colors.white60, fontSize: 11)),
+                          ),
+                        ]),
+                        const SizedBox(height: 6),
+                        const Text('Speed',
+                            style: TextStyle(color: Colors.white54, fontSize: 11)),
+                        const SizedBox(height: 6),
+                        Row(children: [
+                          Expanded(child: _IntensityBtn(
+                            label: 'Gentle',
+                            selected: _p.smartVolumeMode == 'gentle',
+                            accent: acc,
+                            onTap: () =>
+                                _update(_p.copyWith(smartVolumeMode: 'gentle')))),
+                          const SizedBox(width: 8),
+                          Expanded(child: _IntensityBtn(
+                            label: 'Balanced',
+                            selected: _p.smartVolumeMode == 'balanced',
+                            accent: acc,
+                            onTap: () =>
+                                _update(_p.copyWith(smartVolumeMode: 'balanced')))),
+                          const SizedBox(width: 8),
+                          Expanded(child: _IntensityBtn(
+                            label: 'Aggressive',
+                            selected: _p.smartVolumeMode == 'aggressive',
+                            accent: acc,
+                            onTap: () =>
+                                _update(_p.copyWith(smartVolumeMode: 'aggressive')))),
+                        ]),
+                      ]))
+                  : const SizedBox.shrink(),
+            ),
           ],
         )),
       ]),

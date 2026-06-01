@@ -163,7 +163,10 @@ class PlayerPrefs {
   final double bassBoostLevel;
 
   // ── Phase F1: Dual Subtitle ───────────────────────────────────────────────
-  final bool dualSubtitleEnabled;
+  final bool   dualSubtitleEnabled;
+  final bool   smartVolumeLevelingEnabled;
+  final double smartVolumeTarget;  // 0.0–1.0 (maps to 0–100 MPV vol)
+  final String smartVolumeMode;    // gentle | balanced | aggressive
 
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
@@ -273,7 +276,10 @@ class PlayerPrefs {
     this.surroundMode = 'theater',
     this.bassBoostEnabled = false,
     this.bassBoostLevel = 0.5,
-    this.dualSubtitleEnabled = false,
+    this.dualSubtitleEnabled       = false,
+    this.smartVolumeLevelingEnabled = false,
+    this.smartVolumeTarget          = 0.80,
+    this.smartVolumeMode            = 'balanced',
   });
 
   PlayerPrefs copyWith({
@@ -319,6 +325,9 @@ class PlayerPrefs {
     bool? surroundEnabled, String? surroundMode,
     bool? bassBoostEnabled, double? bassBoostLevel,
     bool? dualSubtitleEnabled,
+    bool?   smartVolumeLevelingEnabled,
+    double? smartVolumeTarget,
+    String? smartVolumeMode,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -422,6 +431,9 @@ class PlayerPrefs {
     bassBoostEnabled: bassBoostEnabled ?? this.bassBoostEnabled,
     bassBoostLevel: bassBoostLevel ?? this.bassBoostLevel,
     dualSubtitleEnabled: dualSubtitleEnabled ?? this.dualSubtitleEnabled,
+      smartVolumeLevelingEnabled: smartVolumeLevelingEnabled ?? this.smartVolumeLevelingEnabled,
+      smartVolumeTarget:          smartVolumeTarget          ?? this.smartVolumeTarget,
+      smartVolumeMode:            smartVolumeMode            ?? this.smartVolumeMode,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -542,7 +554,10 @@ class PlayerPrefs {
       surroundMode:           s.getString('${_p}surround_mode')     ?? 'theater',
       bassBoostEnabled:       s.getBool('${_p}bass_boost')          ?? false,
       bassBoostLevel:         s.getDouble('${_p}bass_level')        ?? 0.5,
-      dualSubtitleEnabled:    s.getBool('${_p}dual_subtitle')       ?? false,
+      dualSubtitleEnabled:         s.getBool('${_p}dual_subtitle')              ?? false,
+      smartVolumeLevelingEnabled: s.getBool('${_p}smart_vol_enabled')    ?? false,
+      smartVolumeTarget:          s.getDouble('${_p}smart_vol_target')   ?? 0.80,
+      smartVolumeMode:            s.getString('${_p}smart_vol_mode')     ?? 'balanced',
     );
   }
 
@@ -660,6 +675,9 @@ class PlayerPrefs {
       s.setBool('${_p}bass_boost',         bassBoostEnabled),
       s.setDouble('${_p}bass_level',       bassBoostLevel),
       s.setBool('${_p}dual_subtitle',      dualSubtitleEnabled),
+      s.setBool('${_p}smart_vol_enabled', smartVolumeLevelingEnabled),
+      s.setDouble('${_p}smart_vol_target', smartVolumeTarget),
+      s.setString('${_p}smart_vol_mode',   smartVolumeMode),
     ]);
   }
 }
