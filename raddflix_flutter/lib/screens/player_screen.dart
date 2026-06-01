@@ -253,6 +253,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // ── Phase 3F: Cinematic Mode ─────────────────────────────────────────────
   bool _cinematicMode = false;
   bool _immersiveMode = false;
+  // User-adjustable cinematic controls opacity (0.25–1.0, default 0.5)
+  double _cinematicOpacity = 0.5;
 
   // ── Video Enhance / Transparent Slider ───────────────────────────────────
   bool _showVideoEnhance = false;
@@ -474,6 +476,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   /// Triple-tap center = Rage Skip
   void _handleCenterTap() {
+    // Immersive mode: tap = play/pause only, never show controls.
+    if (_immersiveMode) {
+      _player.playOrPause();
+      _userPaused = !_playing;
+      return;
+    }
     if (!_prefs.rageSkipEnabled) { _toggleControls(); return; }
     _tapCount++;
     _tapTimer?.cancel();
@@ -574,13 +582,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // ── Cinematic Mode ────────────────────────────────────────────────────────
   void _toggleCinematic() {
     setState(() => _cinematicMode = !_cinematicMode);
-    if (_cinematicMode) setState(() => _showControls = false);
+    // Cinematic: controls still show/hide normally, just dimmed by _cinematicOpacity.
+    if (_cinematicMode) _scheduleHide();
   }
 
   // ── Immersive Mode ────────────────────────────────────────────────────────
   void _toggleImmersive() {
-    setState(() => _immersiveMode = !_immersiveMode);
-    if (_immersiveMode) setState(() => _showControls = false);
+    setState(() {
+      _immersiveMode = !_immersiveMode;
+      if (_immersiveMode) _showControls = false;
+    });
   }
 
   void _showCinematicSettings() {
@@ -1611,6 +1622,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _scheduleHide() {
+    // Never schedule hide/show for standard controls in Immersive mode.
+    if (_immersiveMode) return;
     _hideTimer?.cancel();
     final secs = _prefs.autoHideSeconds;
     if (secs <= 0) return; // never auto-hide
@@ -1635,6 +1648,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _toggleControls() {
     if (_showNextEpisode) return;
+    if (_immersiveMode) return; // controls never show in immersive
     setState(() => _showControls = !_showControls);
     if (_showControls) _scheduleHide();
   }
@@ -1868,15 +1882,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               const Center(child: _CircularDotsLoader()),
             ]),
 
-          // ── Drag Indicator (brightness / volume) ──
+          // ── Drag Indicator: full in normal/cinematic, number-only in immersive ──
           if (_draggingBrightness || _draggingVolume)
-            _DragIndicator(
-              icon: _draggingBrightness
-                  ? Icons.brightness_medium_rounded
-                  : (_inBoostGesture ? Icons.speaker_rounded : Icons.volume_up_rounded),
-              value: _draggingBrightness ? _brightness : _volume,
-              boostValue: (!_draggingBrightness && _inBoostGesture) ? _volumeBoost : null,
-            ),
+            _immersiveMode
+                ? _ImmersiveDragNumber(
+                    value: _draggingBrightness ? _brightness : _volume,
+                    isBrightness: _draggingBrightness,
+                    isBoost: _inBoostGesture,
+                    boostValue: _inBoostGesture ? _volumeBoost : null,
+                  )
+                : _DragIndicator(
+                    icon: _draggingBrightness
+                        ? Icons.brightness_medium_rounded
+                        : (_inBoostGesture ? Icons.speaker_rounded : Icons.volume_up_rounded),
+                    value: _draggingBrightness ? _brightness : _volume,
+                    boostValue: (!_draggingBrightness && _inBoostGesture) ? _volumeBoost : null,
+                  ),
 
           // ── Seek scrub label ──
           if (_draggingSeek && _dragSeekDelta != null)
@@ -2045,15 +2066,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
 
           // ── Custom Subtitle Overlay ──
-          if (_prefs.subtitleEnabled && !_cinematicMode)
+          if (_prefs.subtitleEnabled)
             SubtitleOverlay(
               currentLine: _currentSubtitleText,
               prefs: _prefs,
             ),
 
-          // ── Controls ──
-          if (_showControls && !_longPressFast && !_showNextEpisode && !_inPiP)
-            _ControlsOverlay(
+          // ── Controls (Opacity wrapper dims them in Cinematic mode) ──
+          if (_showControls && !_longPressFast && !_showNextEpisode && !_inPiP && !_immersiveMode)
+            Opacity(
+              opacity: _cinematicMode ? _cinematicOpacity.clamp(0.15, 1.0) : 1.0,
+              child: _ControlsOverlay(
               title: _currentTitle,
               playing: _playing,
               buffering: _buffering,
@@ -2175,6 +2198,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ? () => setState(() => _showTransparentSlider = !_showTransparentSlider)
                   : null,
             ),
+            ), // end Opacity
 
           // ── Lock Button ──
           if (_locked && _showControls)
@@ -2564,27 +2588,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             ),
 
-          // ── Cinematic Mode Overlay ──
-          if (_cinematicMode)
-            Positioned.fill(
-              child: CinematicOverlay(
-                isPlaying: _playing,
-                position: _position,
-                duration: _duration,
-                fmtDur: _fmtDur,
-                onPlayPause: () {
-                  _player.playOrPause();
-                  _userPaused = !_playing;
-                },
-                onExit: _toggleCinematic,
-                onSeekTo: (frac) {
-                  final ms = (frac * _duration.inMilliseconds).toInt();
-                  _player.seek(Duration(milliseconds: ms));
-                },
-              ),
-            ),
+          // ── Cinematic mode: no separate overlay — controls are wrapped in
+          //    Opacity(_cinematicOpacity) above. Nothing extra needed here.
 
-          // ── Immersive Mode Overlay ──
+          // ── Immersive Mode: corner exit icon + time HUD ──
           if (_immersiveMode)
             ImmersiveOverlay(
               isPlaying: _playing,
@@ -2596,10 +2603,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 _userPaused = !_playing;
               },
               onExit: _toggleImmersive,
-              onSeekTo: (frac) {
-                final ms = (frac * _duration.inMilliseconds).toInt();
-                _player.seek(Duration(milliseconds: ms));
-              },
             ),
 
           // ── Scene Bookmarks Panel ──
@@ -3502,6 +3505,54 @@ class _SeekFlash extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+// IMMERSIVE DRAG NUMBER — minimal number-only HUD for Immersive mode
+// ═══════════════════════════════════════════════════════════════════════════════
+class _ImmersiveDragNumber extends StatelessWidget {
+  final double value;
+  final bool isBrightness;
+  final bool isBoost;
+  final double? boostValue;
+  const _ImmersiveDragNumber({
+    required this.value,
+    required this.isBrightness,
+    required this.isBoost,
+    this.boostValue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = isBoost && boostValue != null
+        ? '${(boostValue! * 100).toInt()}%'
+        : '${(value * 100).toInt()}%';
+    final color = isBoost
+        ? (boostValue != null && boostValue! > 2.5
+            ? Colors.red
+            : boostValue != null && boostValue! > 1.5
+                ? Colors.orange
+                : Colors.white70)
+        : Colors.white70;
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.45),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          pct,
+          style: TextStyle(
+            color: color,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+          ),
+        ),
+      ),
+    ).animate().fadeIn(duration: 80.ms).then(delay: 600.ms).fadeOut(duration: 300.ms);
+  }
+}
+
 // DRAG INDICATOR
 // ═══════════════════════════════════════════════════════════════════════════════
 class _DragIndicator extends StatelessWidget {
