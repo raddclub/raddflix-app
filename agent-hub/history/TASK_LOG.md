@@ -1414,3 +1414,45 @@ PlayerPrefs +8 fields (8x each — constructor/copyWith/load/save):
 - M3 `CountdownNextOverlay` uses both `AnimationController` (for ring sweep) and `Timer.periodic` (for integer countdown display) — two separate clocks synced to `seconds`.
 - M4 `SmartSkipController` is a plain Dart class, not a widget. Player calls `tick(position)` every second; controller calls `onSkipTo()` when threshold crossed. Reset() on new file open.
 - Session total: 4 roadmap phases closed.
+
+
+---
+
+## Session 21 — Phase E1+E2+E3+E4 + J1+H4+H5 + E2 indicator + J2+J3
+
+### Phases Closed
+| Phase | Feature | Status |
+|-------|---------|--------|
+| E1 | Virtual Surround Sound — Stadium/Theater/Small Room via AudioLabService | ✅ Done |
+| E2 | Karaoke Mode — vocal reduction levels + animated waveform indicator | ✅ Done |
+| E3 | Dialogue Boost — 2kHz–5kHz boost toggle via AudioLabService | ✅ Done |
+| E4 | Bluetooth Audio Delay Fix — 0–500ms Slider via AudioLabService | ✅ Done |
+| J1 | Voice Commands — SpeechRecognizer bridge + regex parser + mic button | ✅ Done |
+| H4 | Wake Lock Options — inactivity timer (0/5/10/15/20/30 min) | ✅ Done |
+| H5 | Do Not Disturb Mode — DND enable/disable on Cinematic mode entry | ✅ Done |
+| J2 | Color Blind Modes — Deuteranopia/Protanopia/Tritanopia ColorFilter.matrix | ✅ Done |
+| J3 | Dyslexia Subtitle Font — 5 font options incl OpenDyslexic + Atkinson | ✅ Done |
+
+### Commits
+- `800cb6b371e3` — E1+E2+E3+E4 Audio Lab
+- `9052ff3a1e16` — J1+H4+H5 Voice Commands, Wake Lock, DND
+- `(current)` — E2 indicator + J2 Color Blind + J3 Dyslexia Subtitles
+
+### New Files (+5)
+| File | Purpose |
+|------|---------|
+| `audio_lab_service.dart` | E1-E4: AudioLabConfig + singleton service + platform channel |
+| `audio_lab_panel.dart` | E1-E4: 4-section QSP panel widget |
+| `voice_commands_service.dart` | J1: SpeechRecognizer bridge + regex parser + mic button |
+| `wake_lock_service.dart` | H4: WakeLockService with inactivity timer |
+| `dnd_service.dart` | H5: DoNotDisturbService platform channel bridge |
+| `karaoke_overlay.dart` | E2: KaraokeActiveIndicator animated waveform |
+| `color_blind_filter.dart` | J2: 3 ColorFilter.matrix presets + withColorBlindFilter() |
+| `dyslexia_subtitle_style.dart` | J3: subtitleTextStyle() factory + 5 SubtitleFont values |
+
+### Architecture Notes
+- E1–E4: All audio lab processing communicates via `MethodChannel('com.raddflix/audio_lab')`. Flutter side is complete; Android impl maps to VLC audio filter APIs (`spatializer`, `karaoke`, `equalizer`, `audio_set_delay`).
+- J1 voice command parser uses named-capture regex — handles seconds/minutes unit conversion inline.
+- H4 WakeLockService holds two responsibilities: platform channel call + Dart-side inactivity timer. Player must call `onUserActivity()` on every tap/gesture.
+- J3 font files (OpenDyslexic, Lexie Readable, Atkinson Hyperlegible) need to be added to `assets/fonts/` and declared in `pubspec.yaml` — registered under the family names used in `fontFamilyFor()`.
+- Session total: 9 roadmap phases closed (largest single session).
