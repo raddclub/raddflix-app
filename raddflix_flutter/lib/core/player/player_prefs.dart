@@ -175,6 +175,9 @@ class PlayerPrefs {
   final String colorBlindMode;           // none|deuteranopia|protanopia|tritanopia
   final bool   oneHandedModeEnabled;
   final String oneHandedModeSide;        // right|left
+  final int    wakeTimeoutMins;    // 0=always-on, 10/20/30 mins
+  final bool   dndOnCinematic;     // Phase H5: DND when cinematic
+  final double savedZoomLevel;     // Phase L3: last used zoom level
 
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
@@ -296,6 +299,9 @@ class PlayerPrefs {
     this.colorBlindMode             = 'none',
     this.oneHandedModeEnabled       = false,
     this.oneHandedModeSide          = 'right',
+    this.wakeTimeoutMins         = 0,
+    this.dndOnCinematic           = false,
+    this.savedZoomLevel           = 1.0,
   });
 
   PlayerPrefs copyWith({
@@ -352,6 +358,9 @@ class PlayerPrefs {
     String? colorBlindMode,
     bool?   oneHandedModeEnabled,
     String? oneHandedModeSide,
+    int?    wakeTimeoutMins,
+    bool?   dndOnCinematic,
+    double? savedZoomLevel,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -466,6 +475,9 @@ class PlayerPrefs {
       colorBlindMode:             colorBlindMode             ?? this.colorBlindMode,
       oneHandedModeEnabled:       oneHandedModeEnabled       ?? this.oneHandedModeEnabled,
       oneHandedModeSide:          oneHandedModeSide          ?? this.oneHandedModeSide,
+      wakeTimeoutMins:             wakeTimeoutMins             ?? this.wakeTimeoutMins,
+      dndOnCinematic:              dndOnCinematic              ?? this.dndOnCinematic,
+      savedZoomLevel:              savedZoomLevel              ?? this.savedZoomLevel,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -598,6 +610,9 @@ class PlayerPrefs {
       colorBlindMode:             s.getString('${_p}colorblind_mode')      ?? 'none',
       oneHandedModeEnabled:       s.getBool('${_p}one_handed')             ?? false,
       oneHandedModeSide:          s.getString('${_p}one_handed_side')      ?? 'right',
+      wakeTimeoutMins:             s.getInt('${_p}wake_timeout_mins')    ?? 0,
+      dndOnCinematic:              s.getBool('${_p}dnd_cinematic')        ?? false,
+      savedZoomLevel:              s.getDouble('${_p}saved_zoom_level')   ?? 1.0,
     );
   }
 
@@ -726,6 +741,9 @@ class PlayerPrefs {
       s.setString('${_p}colorblind_mode',    colorBlindMode),
       s.setBool('${_p}one_handed',           oneHandedModeEnabled),
       s.setString('${_p}one_handed_side',    oneHandedModeSide),
+      s.setInt('${_p}wake_timeout_mins',  wakeTimeoutMins),
+      s.setBool('${_p}dnd_cinematic',      dndOnCinematic),
+      s.setDouble('${_p}saved_zoom_level', savedZoomLevel),
     ]);
   }
 }

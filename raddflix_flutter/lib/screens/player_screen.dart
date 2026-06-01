@@ -89,6 +89,7 @@ import '../widgets/player/jump_to_sheet.dart';
 import '../widgets/player/end_action_sheet.dart';
 import '../widgets/player/speed_presets_sheet.dart';
 import '../widgets/player/silence_skip_sheet.dart';
+import '../widgets/player/zoom_crop_overlay.dart';
 
 // ── PiP Method Channel ────────────────────────────────────────────────────────
 const _pipChannel = MethodChannel('com.raddflix.app/pip');
@@ -224,6 +225,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Uint8List? _seekThumb;
   Timer? _seekThumbDebounce;
   _SmartVolumeController? _svc; // Phase SVL
+
+  // Phase L3: Zoom & Crop
+  double     _zoomLevel  = 1.0;
+  AspectMode _aspectMode = AspectMode.original;
+  bool       _showZoomOverlay = false;
+
+  // Phase H4: Wake Lock timeout
+  Timer?     _wakeTimer;
+
   bool _sliderDragging = false;
   double _sliderDragValue = 0.0;
 
@@ -325,7 +335,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
     WakelockPlus.enable();
     _initPlayer();
+    _startWakeTimer(); // Phase H4: optional wake timeout
     _scheduleHide();
+    _onUserActivity(); // reset wake timer on tap
     _initBrightnessVolume();
     _loadPrefs();
     _initAudioSession();
@@ -1119,6 +1131,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         },
       ),
     );
+  }
+
+  void _openZoomCrop() {
+    setState(() => _showZoomOverlay = !_showZoomOverlay);
+    // Restore saved zoom level on first open
+    if (_showZoomOverlay && _zoomLevel == 1.0 && _prefs.savedZoomLevel > 1.0) {
+      setState(() => _zoomLevel = _prefs.savedZoomLevel);
+    }
+  }
+
+  void _startWakeTimer() {
+    _wakeTimer?.cancel();
+    if (_prefs.wakeTimeoutMins <= 0) return; // 0 = always on
+    _wakeTimer = Timer(Duration(minutes: _prefs.wakeTimeoutMins), () {
+      WakelockPlus.disable();
+    });
+  }
+
+  void _onUserActivity() {
+    // Re-enable wakelock + restart timeout on any user interaction
+    WakelockPlus.enable();
+    _startWakeTimer();
   }
 
   void _openSilenceSkip() {
@@ -1969,6 +2003,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         : widget.fileId;
     _seekThumbDebounce?.cancel();
     _svc?.dispose();
+    _wakeTimer?.cancel();
     _jazzRetryTimer?.cancel();
     _seekThumbDebounce = Timer(const Duration(milliseconds: 120), () async {
       final ms = (fraction * _duration.inMilliseconds).toInt();
@@ -2123,6 +2158,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _slowConnTimer?.cancel();
     _seekThumbDebounce?.cancel();
     _svc?.dispose();
+    _wakeTimer?.cancel();
     _jazzRetryTimer?.cancel();
     _tapTimer?.cancel();
     _ambilightCtrl?.dispose();
@@ -2311,16 +2347,63 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 opacity: _prefs.transparentModeEnabled
                     ? _prefs.transparentModeOpacity.clamp(0.2, 1.0)
                     : 1.0,
-                child: Video(
-                  controller: _videoCtrl,
-                  fit: _ratios[_ratioIdx],
-                  filterQuality: FilterQuality.medium,
-                  controls: NoVideoControls,
-                  subtitleViewConfiguration: const SubtitleViewConfiguration(visible: false),
+                child: GestureDetector(
+                  onScaleStart: (_) {},
+                  onScaleUpdate: (d) {
+                    final newZoom = (_zoomLevel * d.scale).clamp(1.0, 5.0);
+                    if ((newZoom - _zoomLevel).abs() > 0.01) {
+                      setState(() => _zoomLevel = newZoom);
+                    }
+                  },
+                  child: Transform.scale(
+                    scale: _zoomLevel,
+                    child: Video(
+                      controller: _videoCtrl,
+                      fit: _aspectMode == AspectMode.fill    ? BoxFit.cover
+                          : _aspectMode == AspectMode.stretch ? BoxFit.fill
+                          : _ratios[_ratioIdx],
+                      filterQuality: FilterQuality.medium,
+                      controls: NoVideoControls,
+                      subtitleViewConfiguration: const SubtitleViewConfiguration(visible: false),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
+
+          // ── Zoom & Crop Overlay (Phase L3) ──
+          if (_showZoomOverlay)
+            Positioned(
+              left: 0, right: 0, bottom: 0,
+              child: ZoomCropOverlay(
+                currentZoom: _zoomLevel,
+                currentMode: _aspectMode,
+                accentColor: _prefs.accentColor,
+                onZoomChanged: (z) {
+                  setState(() => _zoomLevel = z);
+                  // Persist last zoom level
+                  final next = _prefs.copyWith(savedZoomLevel: z);
+                  setState(() => _prefs = next);
+                  next.save();
+                },
+                onModeChanged: (m) {
+                  setState(() {
+                    _aspectMode = m;
+                    if (m == AspectMode.fit)      _ratioIdx = 0;
+                    else if (m == AspectMode.fill) _ratioIdx = 1;
+                    else if (m == AspectMode.crop169) _ratioIdx = 0;
+                  });
+                },
+                onReset: () {
+                  setState(() {
+                    _zoomLevel = 1.0;
+                    _aspectMode = AspectMode.original;
+                    _ratioIdx = 0;
+                  });
+                },
+              ),
+            ),
 
           // ── Seek flash ──
           if (_showSeekLeft) _SeekFlash(isRight: false, label: _seekLabel),
