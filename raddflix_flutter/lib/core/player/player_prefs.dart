@@ -167,6 +167,14 @@ class PlayerPrefs {
   final bool   smartVolumeLevelingEnabled;
   final double smartVolumeTarget;  // 0.0–1.0 (maps to 0–100 MPV vol)
   final String smartVolumeMode;    // gentle | balanced | aggressive
+  final bool   skipSilenceEnabled;
+  final double skipSilenceThresholdSecs; // 0.5–5.0 seconds
+  final bool   skipBlackFramesEnabled;
+  final String customSpeedPresetsJson;   // JSON-encoded List<double>
+  final String endOfVideoAction;         // play_next|loop|return_home|nothing
+  final String colorBlindMode;           // none|deuteranopia|protanopia|tritanopia
+  final bool   oneHandedModeEnabled;
+  final String oneHandedModeSide;        // right|left
 
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
@@ -280,6 +288,14 @@ class PlayerPrefs {
     this.smartVolumeLevelingEnabled = false,
     this.smartVolumeTarget          = 0.80,
     this.smartVolumeMode            = 'balanced',
+    this.skipSilenceEnabled         = false,
+    this.skipSilenceThresholdSecs   = 1.5,
+    this.skipBlackFramesEnabled     = false,
+    this.customSpeedPresetsJson     = '',
+    this.endOfVideoAction           = 'play_next',
+    this.colorBlindMode             = 'none',
+    this.oneHandedModeEnabled       = false,
+    this.oneHandedModeSide          = 'right',
   });
 
   PlayerPrefs copyWith({
@@ -328,6 +344,14 @@ class PlayerPrefs {
     bool?   smartVolumeLevelingEnabled,
     double? smartVolumeTarget,
     String? smartVolumeMode,
+    bool?   skipSilenceEnabled,
+    double? skipSilenceThresholdSecs,
+    bool?   skipBlackFramesEnabled,
+    String? customSpeedPresetsJson,
+    String? endOfVideoAction,
+    String? colorBlindMode,
+    bool?   oneHandedModeEnabled,
+    String? oneHandedModeSide,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -434,6 +458,14 @@ class PlayerPrefs {
       smartVolumeLevelingEnabled: smartVolumeLevelingEnabled ?? this.smartVolumeLevelingEnabled,
       smartVolumeTarget:          smartVolumeTarget          ?? this.smartVolumeTarget,
       smartVolumeMode:            smartVolumeMode            ?? this.smartVolumeMode,
+      skipSilenceEnabled:         skipSilenceEnabled         ?? this.skipSilenceEnabled,
+      skipSilenceThresholdSecs:   skipSilenceThresholdSecs   ?? this.skipSilenceThresholdSecs,
+      skipBlackFramesEnabled:     skipBlackFramesEnabled     ?? this.skipBlackFramesEnabled,
+      customSpeedPresetsJson:     customSpeedPresetsJson     ?? this.customSpeedPresetsJson,
+      endOfVideoAction:           endOfVideoAction           ?? this.endOfVideoAction,
+      colorBlindMode:             colorBlindMode             ?? this.colorBlindMode,
+      oneHandedModeEnabled:       oneHandedModeEnabled       ?? this.oneHandedModeEnabled,
+      oneHandedModeSide:          oneHandedModeSide          ?? this.oneHandedModeSide,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -558,6 +590,14 @@ class PlayerPrefs {
       smartVolumeLevelingEnabled: s.getBool('${_p}smart_vol_enabled')    ?? false,
       smartVolumeTarget:          s.getDouble('${_p}smart_vol_target')   ?? 0.80,
       smartVolumeMode:            s.getString('${_p}smart_vol_mode')     ?? 'balanced',
+      skipSilenceEnabled:         s.getBool('${_p}skip_silence')          ?? false,
+      skipSilenceThresholdSecs:   s.getDouble('${_p}skip_silence_secs')   ?? 1.5,
+      skipBlackFramesEnabled:     s.getBool('${_p}skip_black_frames')      ?? false,
+      customSpeedPresetsJson:     s.getString('${_p}speed_presets_json')   ?? '',
+      endOfVideoAction:           s.getString('${_p}end_action')           ?? 'play_next',
+      colorBlindMode:             s.getString('${_p}colorblind_mode')      ?? 'none',
+      oneHandedModeEnabled:       s.getBool('${_p}one_handed')             ?? false,
+      oneHandedModeSide:          s.getString('${_p}one_handed_side')      ?? 'right',
     );
   }
 
@@ -678,6 +718,14 @@ class PlayerPrefs {
       s.setBool('${_p}smart_vol_enabled', smartVolumeLevelingEnabled),
       s.setDouble('${_p}smart_vol_target', smartVolumeTarget),
       s.setString('${_p}smart_vol_mode',   smartVolumeMode),
+      s.setBool('${_p}skip_silence',         skipSilenceEnabled),
+      s.setDouble('${_p}skip_silence_secs',  skipSilenceThresholdSecs),
+      s.setBool('${_p}skip_black_frames',    skipBlackFramesEnabled),
+      s.setString('${_p}speed_presets_json', customSpeedPresetsJson),
+      s.setString('${_p}end_action',         endOfVideoAction),
+      s.setString('${_p}colorblind_mode',    colorBlindMode),
+      s.setBool('${_p}one_handed',           oneHandedModeEnabled),
+      s.setString('${_p}one_handed_side',    oneHandedModeSide),
     ]);
   }
 }
