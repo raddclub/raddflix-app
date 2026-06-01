@@ -128,7 +128,7 @@ def sync():
     with db.conn() as c:
         title_rows = c.execute(
             """
-            SELECT t.id, t.title, t.year, t.media_type, t.plot, t.overview,
+            SELECT t.id, t.title, t.year, t.media_type, t.plot,
                    t.rating, t.genres, t.language, t.is_free, t.updated_at,
                    t.poster, t.poster_share_url, t.runtime, t.season_count, t.episode_count,
                    f.id AS file_id, f.share_url AS file_share_url
@@ -159,7 +159,7 @@ def sync():
             "title":           r["title"] or "",
             "year":            (int(r["year"]) if r["year"] and str(r["year"]).isdigit() else None),
             "media_type":      ("show" if (r["media_type"] or "movie") in ("tv", "series") else (r["media_type"] or "movie")),
-            "description":     r["plot"] or r["overview"] or "",
+            "description":     r["plot"] or "",
             "rating":          r["rating"],
             "genres":          genres,
             "language":        r["language"] or "",
@@ -364,7 +364,7 @@ def db_update():
     now = int(time.time())
     with db.conn() as c:
         title_rows = c.execute(
-            "SELECT t.id, t.title, t.year, t.media_type, t.plot, t.overview, "
+            "SELECT t.id, t.title, t.year, t.media_type, t.plot, "
             "       t.rating, t.genres, t.language, t.is_free, t.updated_at, "
             "       t.poster, t.poster_share_url, t.runtime, t.season_count, t.episode_count, "
             "       f.id AS file_id, f.share_url AS file_share_url "
@@ -391,7 +391,7 @@ def db_update():
             "title":           r["title"] or "",
             "year":            (int(r["year"]) if r["year"] and str(r["year"]).isdigit() else None),
             "media_type":      ("show" if (r["media_type"] or "movie") in ("tv", "series") else (r["media_type"] or "movie")),
-            "description":     r["plot"] or r["overview"] or "",
+            "description":     r["plot"] or "",
             "rating":          r["rating"],
             "genres":          genres,
             "language":        r["language"] or "",
@@ -447,7 +447,7 @@ def delta():
     now = int(time.time())
     with db.conn() as c:
         title_rows = c.execute(
-            "SELECT t.id, t.title, t.year, t.media_type, t.plot, t.overview, "
+            "SELECT t.id, t.title, t.year, t.media_type, t.plot, "
             "       t.rating, t.genres, t.language, t.is_free, t.updated_at, "
             "       t.poster, t.poster_share_url, t.runtime, t.season_count, t.episode_count, "
             "       f.id AS file_id, f.share_url AS file_share_url "
@@ -474,7 +474,7 @@ def delta():
             "title":           r["title"] or "",
             "year":            (int(r["year"]) if r["year"] and str(r["year"]).isdigit() else None),
             "media_type":      ("show" if (r["media_type"] or "movie") in ("tv", "series") else (r["media_type"] or "movie")),
-            "description":     r["plot"] or r["overview"] or "",
+            "description":     r["plot"] or "",
             "rating":          r["rating"],
             "genres":          genres,
             "language":        r["language"] or "",

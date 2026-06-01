@@ -22,7 +22,7 @@ bp = Blueprint("search_api", __name__, url_prefix="/api/search")
 
 _SELECT = """
     t.id AS title_id, t.title, t.year, t.media_type, t.poster,
-    t.rating, t.plot, t.overview, t.genres, t.language, t.is_free,
+    t.rating, t.plot, t.genres, t.language, t.is_free,
     f.id AS file_id
 """
 
@@ -80,7 +80,6 @@ def _like_search(c, q: str, type_sql: str, limit: int):
           AND (
               t.title    LIKE ? COLLATE NOCASE
            OR t.plot     LIKE ? COLLATE NOCASE
-           OR t.overview LIKE ? COLLATE NOCASE
            OR t.genres   LIKE ? COLLATE NOCASE
            OR t.language LIKE ? COLLATE NOCASE
           )
@@ -89,7 +88,7 @@ def _like_search(c, q: str, type_sql: str, limit: int):
             CASE WHEN t.title LIKE ? COLLATE NOCASE THEN 0 ELSE 1 END,
             t.title COLLATE NOCASE
         LIMIT ?
-    """, (pattern, pattern, pattern, pattern, pattern, pattern, limit)).fetchall()
+    """, (pattern, pattern, pattern, pattern, pattern, limit)).fetchall()
 
 
 @bp.route("", methods=["GET"], strict_slashes=False)
@@ -125,7 +124,7 @@ def search():
             "media_type": ("show" if r["media_type"] in ("tv", "series") else (r["media_type"] or "movie")),
             "poster":     r["poster"],
             "rating":     r["rating"],
-            "plot":       r["plot"] or r["overview"],
+            "plot":       r["plot"] or "",
             "genres":     genres,
             "language":   r["language"],
             "is_free":    1 if r["is_free"] else 0,

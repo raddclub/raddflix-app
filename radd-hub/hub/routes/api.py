@@ -1427,7 +1427,7 @@ def export_catalog():
     filter_type = (request.args.get("type") or "").strip().lower()
 
     sql  = ("SELECT t.id, t.title, t.year, t.media_type, t.genres_csv, t.director, t.rating, "
-            "       t.tmdb_id, t.overview, t.poster, t.created_at, "
+            "       t.tmdb_id, t.poster, t.created_at, "
             "       f.filename, f.share_url, f.size_bytes, f.quality, f.source "
             "FROM titles t LEFT JOIN files f ON f.title_id = t.id ")
     params: list = []
@@ -1444,7 +1444,7 @@ def export_catalog():
         fieldnames = [
             "id", "title", "year", "media_type", "genres_csv", "director", "rating",
             "tmdb_id", "filename", "share_url", "size_bytes", "quality",
-            "source", "overview", "created_at",
+            "source", "created_at",
         ]
         w = csv.DictWriter(out, fieldnames=fieldnames, extrasaction="ignore")
         w.writeheader()

@@ -28,7 +28,7 @@ def _regen_db_update_bg():
     try:
         with _db.conn() as c:
             title_rows = c.execute(
-                "SELECT t.id, t.title, t.year, t.media_type, t.plot, t.overview, "
+                "SELECT t.id, t.title, t.year, t.media_type, t.plot, "
                 "t.rating, t.genres, t.language, t.is_free, t.updated_at, "
                 "t.poster, t.poster_share_url, t.runtime, t.season_count, t.episode_count, "
                 "f.id AS file_id, f.share_url AS file_share_url "
@@ -51,7 +51,7 @@ def _regen_db_update_bg():
             titles_out.append({
                 "id": r["id"], "title": r["title"] or "",
                 "year": r["year"], "media_type": _normalize_media_type(r["media_type"]),
-                "description": r["plot"] or r["overview"] or "",
+                "description": r["plot"] or "",
                 "rating": float(r["rating"] or 0), "genres": genres,
                 "language": r["language"] or "",
                 "is_free": 1 if r["is_free"] else 0,
@@ -322,7 +322,7 @@ def api_trending():
 
     # Primary: rank by watch_history view count (last 60 days) × rating
     sql = f"""
-        SELECT t.id, t.title, t.year, t.media_type, t.plot, t.overview,
+        SELECT t.id, t.title, t.year, t.media_type, t.plot,
                t.rating, t.genres, t.language, t.is_free, t.updated_at,
                t.poster, t.poster_share_url, t.poster_url, t.runtime,
                t.season_count, t.episode_count,
@@ -358,7 +358,7 @@ def api_trending():
                 "title": r["title"] or "",
                 "year": r["year"],
                 "media_type": _normalize_media_type(r["media_type"]),
-                "description": r["plot"] or r["overview"] or "",
+                "description": r["plot"] or "",
                 "rating": float(r["rating"] or 0),
                 "genres": genres,
                 "language": r["language"] or "",
