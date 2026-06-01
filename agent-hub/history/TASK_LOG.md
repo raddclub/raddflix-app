@@ -626,4 +626,19 @@ Fix CI failure after keystore credential changes. Update APK signing fingerprint
   - `5e68dbe` — Video Display Shortcuts panel
 
   ### TASK_LOG updated by: Replit Agent (Session 9 handoff)
+
+  ### Commits in Session 10 (2026-06-01) — MX Player Pixel-Perfect Audit
+  - `ac3c162` — All 7 player UI changes + new quick_settings_panel
+
+  #### Changes committed:
+  1. **Center controls**: `Row` → `Column` (landscape vertical layout matching screenshots)
+  2. **Seek bar**: Bottom horizontal bar → LEFT SIDE vertical `RotatedBox(quarterTurns:1)` seek slider; white thumb, red active track; LayoutBuilder for proper sizing; time labels above/below bar
+  3. **`_MxSeekBtn`**: Circular dark container → `keyboard_double_arrow_up/down` chevron + label (no container)
+  4. **`_CircularDotsLoader`**: 12 dots → 40 dots, short bright tail opacity, `auto_awesome` center icon (radius 80px)
+  5. **`_VideoDisplaySheet`**: Replaced 2-row shortcut grid with proper 2×6 grid, 12 named items (_VDSBtn/_VDSTile), blue selected state, new params: `speed`, `loopActive`, `abRepeatActive`, `onSpeed`, `onAudioEffect`, `onAbRepeat`; removed old `_VDShortcut`/`_VDTile`/`_SmallToggle`
+  6. **`_MxAudioPanel`**: `ListView` (vertical) → `ListView(scrollDirection: Axis.horizontal)` with `_AudioTrackChip`
+  7. **`_AudioTrackTile`** → `_AudioTrackChip` (horizontal pill chip with blue selected state)
+  8. **`quick_settings_panel.dart`**: Full rewrite — `TabController(length: 5)` with tabs: Style | Screen | Controls | Navigation | Text; all original constructor params preserved for API compat; missing PlayerPrefs fields handled via local state (`_controlsDensity`, `_subtitleScale`, `_improveStroke`, `_fadeOut`)
+
+  ### TASK_LOG updated by: Replit Agent (Session 10)
   
