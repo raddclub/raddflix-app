@@ -381,9 +381,9 @@ def meta_autofix():
                 enriched   = _meta.enrich_title(meta_input, tmdb_key=tmdb_key, omdb_key=omdb_key)
 
                 updates, vals = [], []
-                for col in ("title", "year", "plot", "overview", "genres", "genres_csv",
-                             "cast", "cast_names", "director", "runtime", "country",
-                             "poster", "backdrop", "tmdb_id", "imdb_id", "omdb_id",
+                for col in ("title", "year", "plot", "genres", "genres_csv",
+                             "director", "runtime", "country",
+                             "poster", "backdrop", "tmdb_id", "imdb_id",
                              "rating", "imdb_rating", "vote_count", "status",
                              "season_count", "episode_count", "trailer_url",
                              "industry", "slug", "confidence", "original_title",
@@ -794,7 +794,7 @@ def lib_by_actor():
     try:
         with db.conn() as c:
             rows = c.execute(
-                "SELECT * FROM titles WHERE cast_names LIKE ? ORDER BY rating DESC LIMIT ?",
+                "SELECT * FROM titles WHERE cast_json LIKE ? ORDER BY rating DESC LIMIT ?",
                 (f"%{name}%", limit)
             ).fetchall()
         return jsonify({"ok": True, "actor": name, "count": len(rows),

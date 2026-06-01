@@ -657,7 +657,7 @@ def upsert_title(meta: dict) -> Optional[int]:
     vals = []
     for c_ in cols:
         v = meta.get(c_)
-        if c_ in ("genres", "cast") and isinstance(v, list):
+        if c_ == "genres" and isinstance(v, list):
             v = json.dumps(v)
         vals.append(v)
 

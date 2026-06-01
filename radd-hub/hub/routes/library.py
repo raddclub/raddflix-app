@@ -112,7 +112,7 @@ def _list_titles_filtered(q="", media_type="", genre="", director="", actor="",
 
     if q:
         conditions.append(
-            "(t.title LIKE ? OR t.original_title LIKE ? OR t.cast_names LIKE ?)"
+            "(t.title LIKE ? OR t.original_title LIKE ? OR t.cast_json LIKE ?)"
         )
         pat = f"%{q}%"
         params += [pat, pat, pat]
@@ -126,7 +126,7 @@ def _list_titles_filtered(q="", media_type="", genre="", director="", actor="",
         conditions.append("t.director LIKE ?")
         params.append(f"%{director}%")
     if actor:
-        conditions.append("t.cast_names LIKE ?")
+        conditions.append("t.cast_json LIKE ?")
         params.append(f"%{actor}%")
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
@@ -391,7 +391,7 @@ def api_by_actor():
         return jsonify({"ok": False, "error": "Missing ?name= parameter"}), 400
     with db.conn() as c:
         rows = c.execute(
-            "SELECT * FROM titles WHERE cast_names LIKE ? ORDER BY rating DESC LIMIT ?",
+            "SELECT * FROM titles WHERE cast_json LIKE ? ORDER BY rating DESC LIMIT ?",
             (f"%{name}%", limit)
         ).fetchall()
     return jsonify({"ok": True, "actor": name, "count": len(rows),
@@ -466,7 +466,7 @@ def api_search():
     with db.conn() as c:
         rows = c.execute(
             "SELECT * FROM titles WHERE "
-            "title LIKE ? OR original_title LIKE ? OR cast_names LIKE ? "
+            "title LIKE ? OR original_title LIKE ? OR cast_json LIKE ? "
             "OR director LIKE ? OR genres_csv LIKE ? "
             "ORDER BY rating DESC LIMIT ?",
             (pat, pat, pat, pat, pat, limit)
@@ -503,8 +503,8 @@ def api_edit_title(title_id):
     """Update title metadata fields."""
     data = request.get_json(force=True, silent=True) or {}
     allowed = [
-        "title", "year", "media_type", "rating", "plot", "overview",
-        "director", "cast_names", "genres_csv", "languages_csv",
+        "title", "year", "media_type", "rating", "plot",
+        "director", "genres_csv", "languages_csv",
         "runtime", "language", "country", "poster",
     ]
     sets, params = [], []
@@ -597,7 +597,7 @@ def api_enrich_omdb(title_id):
     if _f(omdb.get("Year")):     updates["year"]          = omdb["Year"][:4]
     if _f(omdb.get("Plot")):     updates["plot"]          = omdb["Plot"]
     if _f(omdb.get("Director")): updates["director"]      = omdb["Director"]
-    if _f(omdb.get("Actors")):   updates["cast_names"]    = omdb["Actors"]
+    # cast_names dropped (P3.5) — actor data lives in cast_json from TMDB
     if _f(omdb.get("Genre")):    updates["genres_csv"]    = omdb["Genre"]
     if _f(omdb.get("Language")): updates["languages_csv"] = omdb["Language"]
     if _f(omdb.get("Poster")):   updates["poster"]        = omdb["Poster"]
@@ -783,7 +783,7 @@ def api_bulk_enrich_omdb():
                 updates = {}
                 if _f(omdb.get("Plot")):     updates["plot"]       = omdb["Plot"]
                 if _f(omdb.get("Director")): updates["director"]   = omdb["Director"]
-                if _f(omdb.get("Actors")):   updates["cast_names"] = omdb["Actors"]
+                # cast_names dropped (P3.5) — actor data lives in cast_json from TMDB
                 if _f(omdb.get("Genre")):    updates["genres_csv"] = omdb["Genre"]
                 if _f(omdb.get("Poster")):   updates["poster"]     = omdb["Poster"]
                 if _f(omdb.get("imdbID")):   updates["imdb_id"]    = omdb["imdbID"]
