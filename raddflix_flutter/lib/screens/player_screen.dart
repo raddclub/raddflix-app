@@ -30,6 +30,7 @@ import '../core/player/scene_bookmark_store.dart';
 import '../core/player/ab_loop_controller.dart';
 import '../widgets/player/seek_bar_painter.dart';
 import '../widgets/player/controls_background.dart';
+import '../widgets/player/sleep_timer_sheet.dart';
 import '../widgets/player/video_enhance_suite.dart';
 import '../widgets/player/sync_panel.dart';
 import '../widgets/player/eq_panel.dart';
@@ -641,6 +642,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   // ── Screenshot → Gallery ──────────────────────────────────────────────────
+  void _openSleepTimer() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SleepTimerSheet(
+        currentTimer: _sleepDuration,
+        fadeEnabled: _prefs.sleepFadeEnabled,
+        fadeDurationSeconds: _prefs.sleepFadeDurationSeconds,
+        accentColor: _prefs.accentColor,
+        onTimerSet: (d) => setState(() => _sleepDuration = d),
+        onCancel: () => setState(() => _sleepDuration = null),
+        onFadeToggled: (v) {
+          setState(() => _prefs = _prefs.copyWith(sleepFadeEnabled: v));
+          _prefs.save();
+        },
+        onStopAtEpisodeEnd: (_) {},
+      ),
+    );
+  }
+
   void _openVideoEnhanceSuite() {
     showModalBottomSheet(
       context: context,
@@ -2121,7 +2143,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
           // ── Controls (Opacity wrapper dims them in Cinematic mode) ──
           if (_showControls && !_longPressFast && !_showNextEpisode && !_inPiP && !_immersiveMode)
-            Opacity(
+            ControlsBackground(
+              style: _prefs.controlsBgStyle,
+              accentColor: _prefs.accentColor,
+              child: Opacity(
               opacity: _cinematicMode ? _cinematicOpacity.clamp(0.15, 1.0) : 1.0,
               child: _ControlsOverlay(
               title: _currentTitle,
