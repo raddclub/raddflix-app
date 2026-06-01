@@ -4639,6 +4639,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
 
       const _MxMoreSheet({
         required this.cinematicMode,
+        required this.immersiveMode,
         required this.abLoopActive,
         required this.sleepActive,
         required this.bookmarkCount,
