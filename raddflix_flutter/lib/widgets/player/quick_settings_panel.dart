@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/player/player_prefs.dart';
+import '../../../core/player/player_theme.dart';
+import 'color_picker_sheet.dart';
+import 'seek_bar_painter.dart';
+import 'theme_picker_sheet.dart';
 
 /// In-player quick settings — 5-tab MX Player-style layout.
 /// Tabs: Style | Screen | Controls | Navigation | Text
@@ -63,7 +67,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
   String _background   = 'Black';
 
   // ── Controls tab local state ───────────────────────────────────────────────
-  String _touchAction  = 'pause_resume';  // 'pause_resume' | 'lock'
+  String _touchAction  = 'pause_resume';
   bool _showFwdBtn     = true;
   bool _showPrevNext   = false;
 
@@ -74,9 +78,9 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
 
   // ── Style tab local state ─────────────────────────────────────────────────
   String _preset         = 'Default';
-  String _progressPos    = 'above';   // 'above' | 'below'
+  String _progressPos    = 'above';
   bool   _materialStyle  = true;
-  String _controlsDensity = 'medium'; // 'small'/'medium'/'large'
+  String _controlsDensity = 'medium';
 
   // ── Text tab local state ───────────────────────────────────────────────────
   double _subtitleScale    = 1.0;
@@ -197,12 +201,100 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
   // ─────────────────────────────────────────────────────────────────────────
   Widget _buildStyleTab() {
     const presets = ['Default', 'Float', 'Lock'];
+    final playerAccent = _p.accentColor;
+    final currentTheme = themeById(_p.playerTheme);
+    final currentSeekStyle = seekBarStyleFromString(_p.seekBarStyle);
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
       children: [
-        // Preset
+
+        // ── THEME ────────────────────────────────────────────────────────
+        _QsLabel('Theme'),
+        InkWell(
+          onTap: () => showThemePicker(
+            context: context,
+            currentThemeId: _p.playerTheme,
+            onThemeSelected: (theme) {
+              _update(_p.copyWith(
+                playerTheme: theme.id,
+                accentColorValue: theme.accentColor.value,
+                seekBarStyle: theme.seekBarStyle,
+              ));
+            },
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(children: [
+              Text(currentTheme.emoji, style: const TextStyle(fontSize: 20)),
+              const SizedBox(width: 10),
+              Expanded(child: Text(currentTheme.name,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13))),
+              const Icon(Icons.chevron_right_rounded, color: Colors.white38, size: 20),
+            ]),
+          ),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // ── PLAYER COLOUR ─────────────────────────────────────────────────
+        _QsLabel('Player Colour'),
+        InkWell(
+          onTap: () => showColorPicker(
+            context: context,
+            initialColor: playerAccent,
+            onColorSelected: (c) {
+              _update(_p.copyWith(accentColorValue: c.value));
+            },
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 26, height: 26,
+                decoration: BoxDecoration(
+                  color: playerAccent,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white30, width: 2),
+                  boxShadow: [BoxShadow(color: playerAccent.withOpacity(0.4), blurRadius: 8)],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(
+                '#${playerAccent.value.toRadixString(16).toUpperCase().padLeft(8, '0').substring(2)}',
+                style: const TextStyle(color: Colors.white54, fontSize: 13, fontFamily: 'monospace'))),
+              const Icon(Icons.chevron_right_rounded, color: Colors.white38, size: 20),
+            ]),
+          ),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // ── SEEK BAR STYLE ────────────────────────────────────────────────
+        _QsLabel('Seek Bar Style'),
+        SizedBox(
+          height: 72,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+            children: SeekBarStyle.values.map((style) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: SeekBarStylePreview(
+                  style: style,
+                  accentColor: playerAccent,
+                  selected: currentSeekStyle == style,
+                  onTap: () => _update(_p.copyWith(seekBarStyle: style.name)),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // ── PRESET ───────────────────────────────────────────────────────
+        _QsLabel('Preset'),
         _QsRow(
-          label: 'Preset',
+          label: 'Layout',
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _preset,
@@ -222,7 +314,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
           child: const Icon(Icons.open_in_full_rounded, color: Colors.white54, size: 20),
         ),
         const Divider(color: Colors.white10, height: 1),
-        // Controls (size/density)
+        // Controls density
         _QsRow(
           label: 'Controls',
           child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -237,7 +329,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
           ]),
         ),
         const Divider(color: Colors.white10, height: 1),
-        // Progress bar style  
+        // Progress bar style
         _QsLabel('Progress bar'),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -252,7 +344,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                     alignment: Alignment.centerLeft, widthFactor: 0.4,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE8002D),
+                        color: playerAccent,
                         borderRadius: BorderRadius.circular(2))),
                   ),
                 )),
@@ -267,21 +359,19 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                     alignment: Alignment.centerLeft, widthFactor: 0.4,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE8002D),
+                        color: playerAccent,
                         borderRadius: BorderRadius.circular(4))),
                   ),
                 )),
           ]),
         ),
         const Divider(color: Colors.white10, height: 1),
-        // Place progress bar below buttons
         _QsToggleRow(
           label: 'Place progress bar below buttons',
           value: _progressPos == 'below',
           onChanged: (v) => setState(() => _progressPos = v ? 'below' : 'above'),
         ),
         const Divider(color: Colors.white10, height: 1),
-        // Material design style
         _QsToggleRow(
           label: 'Material',
           value: _materialStyle,
@@ -299,7 +389,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
       children: [
-        // Orientation section
         _QsLabel('Orientation'),
         _QsRow(label: 'Use video orientation',
           child: const Text('', style: TextStyle(color: Colors.white70, fontSize: 13))),
@@ -307,7 +396,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
             onChanged: (v) => setState(() => _autoSwitch = v)),
         const Divider(color: Colors.white10, height: 1),
 
-        // Full screen
         _QsLabel('Full Screen'),
         _QsToggleRow(label: 'Auto hide', value: _autoHide,
             onChanged: (v) => setState(() => _autoHide = v)),
@@ -315,7 +403,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
             onChanged: (v) => setState(() => _softButtons = v)),
         const Divider(color: Colors.white10, height: 1),
 
-        // Brightness
         _QsLabel('Brightness'),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
@@ -338,7 +425,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Status bar info toggles
         _QsLabel('Status bar'),
         _QsToggleRow(label: 'Battery', value: _showBattery,
             onChanged: (v) => setState(() => _showBattery = v)),
@@ -348,7 +434,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
             onChanged: (v) => setState(() => _showElapsed = v)),
         const Divider(color: Colors.white10, height: 1),
 
-        // Corner offset
         _QsLabel('Corner offset'),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
@@ -368,7 +453,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Background
         _QsLabel('Background'),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -404,7 +488,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
       children: [
-        // Touch action
         _QsLabel('Touch action'),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -426,7 +509,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Lock mode
         _QsLabel('Lock mode'),
         _QsRow(
           label: 'Touch controls when locked',
@@ -438,7 +520,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Gestures
         _QsLabel('Gestures'),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -465,7 +546,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
       children: [
-        // Seek speed
         _QsLabel('Seek Speed (sec./inch)'),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
@@ -486,7 +566,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Forward/backward moving button
         _QsRow(
           label: 'Forward/backward moving button',
           child: Container(
@@ -495,13 +574,11 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
               border: Border.all(color: Colors.white24),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: const Icon(Icons.fast_forward_rounded,
-                color: Colors.white54, size: 18),
+            child: const Icon(Icons.fast_forward_rounded, color: Colors.white54, size: 18),
           ),
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Move Interval
         _QsLabel('Move Interval (sec.)'),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
@@ -522,7 +599,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Previous/next button
         _QsRow(
           label: 'Previous/next button',
           child: Container(
@@ -531,13 +607,11 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
               border: Border.all(color: Colors.white24),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: const Icon(Icons.skip_next_rounded,
-                color: Colors.white54, size: 18),
+            child: const Icon(Icons.skip_next_rounded, color: Colors.white54, size: 18),
           ),
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Display current position while changing position
         _QsToggleRow(
           label: 'Display the current position while changing position',
           value: _showPosition,
@@ -553,10 +627,10 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
   Widget _buildTextTab() {
     const fonts = ['Sans Serif', 'Serif', 'Monospace', 'Cursive', 'Default'];
     final size = _p.subtitleFontSize;
+    final scale = _subtitleScale;
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
       children: [
-        // Font
         _QsRow(
           label: 'Font',
           child: DropdownButtonHideUnderline(
@@ -576,7 +650,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Size
         _QsLabel('Size'),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
@@ -596,7 +669,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Scale
         _QsLabel('Scale'),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
@@ -617,12 +689,10 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Color + Bold
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
           child: Row(children: [
-            const Text('Color',
-                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const Text('Color', style: TextStyle(color: Colors.white70, fontSize: 13)),
             const SizedBox(width: 12),
             Container(
               width: 28, height: 28,
@@ -633,8 +703,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
               ),
             ),
             const SizedBox(width: 24),
-            const Text('Background Color',
-                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const Text('Background Color', style: TextStyle(color: Colors.white70, fontSize: 13)),
             const SizedBox(width: 12),
             Container(
               width: 28, height: 28,
@@ -645,7 +714,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
               ),
             ),
             const Spacer(),
-            // Bold toggle button (MX Player: blue selected square)
             GestureDetector(
               onTap: () => _update(_p.copyWith(subtitleBold: !_p.subtitleBold)),
               child: AnimatedContainer(
@@ -665,12 +733,10 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Border + Shadow swatches
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
           child: Row(children: [
-            const Text('Border',
-                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const Text('Border', style: TextStyle(color: Colors.white70, fontSize: 13)),
             const SizedBox(width: 12),
             Container(
               width: 28, height: 28,
@@ -681,8 +747,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
               ),
             ),
             const SizedBox(width: 24),
-            const Text('Shadow',
-                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const Text('Shadow', style: TextStyle(color: Colors.white70, fontSize: 13)),
             const SizedBox(width: 12),
             Container(
               width: 28, height: 28,
@@ -696,7 +761,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Improve stroke rendering
         _QsToggleRow(
           label: 'Improve stroke rendering',
           value: _improveStroke,
@@ -704,7 +768,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
 
-        // Fade out
         _QsToggleRow(
           label: 'Fade out',
           value: _fadeOut,
