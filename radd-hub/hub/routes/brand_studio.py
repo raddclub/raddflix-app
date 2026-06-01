@@ -1,4 +1,4 @@
-"""Brand Studio blueprint — P6
+"""Brand Studio blueprint — P6 + CI Pipeline
 Admin panel section at /brand/ for full app branding control and APK builds.
 Routes:
   GET  /brand/                        — admin UI
@@ -6,19 +6,28 @@ Routes:
   GET  /api/brand/config              — read brand config
   POST /api/brand/config              — write brand config
   POST /api/brand/save                — persist all fields
-  POST /api/brand/upload-image        — upload logo / icon / splash
+  POST /api/brand/upload-image        — upload logo/icon/splash AND commit to GitHub repo
   GET  /api/brand/build-status        — poll GitHub Actions run status
   POST /api/brand/trigger-build       — dispatch build-apk.yml
+
+CI Pipeline (auto-commit on upload):
+  When an icon or splash is uploaded, the file is saved locally AND committed to
+  brand_assets/<field><ext> in the GitHub repo via the GitHub Contents API.
+  This means the build-apk.yml workflow immediately has the asset available
+  when triggered with brand_build=true — no manual git push needed.
 """
 from __future__ import annotations
 import json
 import os
+import base64 as _b64
 import mimetypes
+import logging
 from pathlib import Path
 from flask import Blueprint, jsonify, request, render_template, send_file, abort
 from .. import db, auth, config
 
 bp = Blueprint("brand_studio", __name__)
+log = logging.getLogger("hub.brand_studio")
 
 # ── Storage ──────────────────────────────────────────────────────────────────
 _BRAND_ASSETS_DIR = config.DATA_DIR / "brand_assets"
@@ -58,6 +67,75 @@ def _save_setting(k: str, v: str):
         c.execute(
             "INSERT OR REPLACE INTO settings(k,v) VALUES(?,?)", (k, v)
         )
+
+
+# ── GitHub helpers ────────────────────────────────────────────────────────────
+
+def _gh_token() -> str:
+    token = os.environ.get("GITHUB_TOKEN", "")
+    if not token:
+        token = db.setting("GITHUB_TOKEN", "")
+    return token
+
+
+def _gh_headers() -> dict:
+    return {
+        "Authorization": f"token {_gh_token()}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+def _get_repo_file_sha(repo_path: str) -> str | None:
+    """Get the SHA of an existing file in the repo, or None if it does not exist."""
+    import urllib.request, urllib.error
+    url = f"{_GITHUB_API}/repos/{_GITHUB_REPO}/contents/{repo_path}"
+    req = urllib.request.Request(url, headers=_gh_headers())
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read()).get("sha")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None  # file does not exist yet — will be created
+        raise
+
+
+def _commit_asset_to_github(local_path: Path, repo_path: str, commit_msg: str) -> dict:
+    """Read a local file and commit/update it in the GitHub repo.
+
+    Returns {"ok": True, "created": bool} on success,
+    or {"ok": False, "error": str} on failure.
+    """
+    import urllib.request, urllib.error
+    try:
+        file_bytes = local_path.read_bytes()
+        b64_content = _b64.b64encode(file_bytes).decode()
+
+        # Check if file already exists (need its SHA to update)
+        existing_sha = _get_repo_file_sha(repo_path)
+
+        payload: dict = {
+            "message": commit_msg,
+            "content": b64_content,
+            "branch":  "main",
+        }
+        if existing_sha:
+            payload["sha"] = existing_sha
+
+        url = f"{_GITHUB_API}/repos/{_GITHUB_REPO}/contents/{repo_path}"
+        data = json.dumps(payload).encode()
+        req = urllib.request.Request(url, data=data, headers={
+            **_gh_headers(),
+            "Content-Type": "application/json",
+        }, method="PUT")
+
+        with urllib.request.urlopen(req, timeout=30) as r:
+            resp = json.loads(r.read())
+            created = r.getcode() == 201
+            return {"ok": True, "created": created, "sha": resp.get("content", {}).get("sha", "")}
+    except Exception as e:
+        log.warning("brand_studio: failed to commit asset to GitHub: %s", e)
+        return {"ok": False, "error": str(e)}
 
 
 # ── Admin UI ─────────────────────────────────────────────────────────────────
@@ -112,37 +190,61 @@ def brand_save():
 @bp.route("/api/brand/upload-image", methods=["POST"])
 @auth.login_required
 def brand_upload_image():
+    """Upload a brand asset (icon or splash image).
+
+    Saves the file locally to DATA_DIR/brand_assets/ AND commits it to
+    brand_assets/<field><ext> in the GitHub repo (main branch) via the
+    GitHub Contents API.  This makes the asset immediately available for
+    the build-apk.yml workflow when triggered with brand_build=true.
+
+    Form fields:
+      file   — the image file (PNG/JPG/WEBP/SVG)
+      field  — one of: brand_icon, brand_splash, brand_logo  (default: brand_logo)
+    """
     _ensure_dir()
     f = request.files.get("file")
-    field = request.form.get("field", "brand_logo")
+    field = (request.form.get("field") or "brand_logo").strip()
     if not f or not f.filename:
-        return jsonify({"ok": False, "error": "No file"}), 400
+        return jsonify({"ok": False, "error": "No file provided"}), 400
     ext = Path(f.filename).suffix.lower()
     if ext not in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
         return jsonify({"ok": False, "error": "Only PNG/JPG/WEBP/SVG allowed"}), 400
+
+    # ── 1. Save locally ───────────────────────────────────────────────────────
     filename = f"{field}{ext}"
     dest = _BRAND_ASSETS_DIR / filename
     f.save(str(dest))
     _save_setting(f"{field}_filename", filename)
-    return jsonify({"ok": True, "filename": filename, "url": f"/brand/assets/{filename}"})
+    log.info("brand_studio: saved asset locally → %s", dest)
+
+    # ── 2. Commit to GitHub repo (CI Pipeline) ────────────────────────────────
+    # Normalise to PNG for the repo so build-apk.yml glob always picks it up
+    repo_path = f"brand_assets/{filename}"
+    commit_msg = (
+        f"[Brand Studio] Upload {field} asset ({filename})
+
+"
+        f"Auto-committed by Brand Studio admin panel.
+"
+        f"Trigger a build with brand_build=true to apply this asset."
+    )
+    gh_result = _commit_asset_to_github(dest, repo_path, commit_msg)
+    if gh_result["ok"]:
+        action = "created" if gh_result.get("created") else "updated"
+        log.info("brand_studio: %s %s in repo (sha=%s)", action, repo_path, gh_result.get("sha","?"))
+    else:
+        log.warning("brand_studio: GitHub commit failed for %s: %s", repo_path, gh_result.get("error"))
+
+    return jsonify({
+        "ok":          True,
+        "filename":    filename,
+        "url":         f"/brand/assets/{filename}",
+        "repo_path":   repo_path,
+        "github_sync": gh_result,
+    })
 
 
 # ── GitHub Actions ────────────────────────────────────────────────────────────
-
-def _gh_token() -> str:
-    token = os.environ.get("GITHUB_TOKEN", "")
-    if not token:
-        token = db.setting("GITHUB_TOKEN", "")
-    return token
-
-
-def _gh_headers() -> dict:
-    return {
-        "Authorization": f"token {_gh_token()}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-
 
 @bp.route("/api/brand/build-status")
 @auth.login_required
@@ -178,11 +280,11 @@ def brand_build_status():
             if artifacts:
                 apk_url = artifacts[0].get("archive_download_url")
         return jsonify({
-            "ok": True,
-            "status": status,
-            "conclusion": conclusion,
-            "run_id": run_id,
-            "html_url": html_url,
+            "ok":               True,
+            "status":           status,
+            "conclusion":       conclusion,
+            "run_id":           run_id,
+            "html_url":         html_url,
             "apk_artifact_url": apk_url,
         })
     except Exception as e:
@@ -207,7 +309,10 @@ def brand_trigger_build():
         url = (f"{_GITHUB_API}/repos/{_GITHUB_REPO}"
                "/actions/workflows/build-apk.yml/dispatches")
         req = urllib.request.Request(
-            url, data=payload, headers=_gh_headers(), method="POST"
+            url, data=payload, headers={
+                **_gh_headers(),
+                "Content-Type": "application/json",
+            }, method="POST"
         )
         with urllib.request.urlopen(req, timeout=15) as r:
             code = r.getcode()
