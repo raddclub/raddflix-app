@@ -256,6 +256,13 @@ class PlayerPrefs {
   // ── Phase J3: Dyslexia Subtitle Font ─────────────────────────────────────
   final String subtitleFont; // 'system'|'open_dyslexic'|'lexie_readable'|'roboto'|'atkinson'
 
+  // ── Phase I1: Watch Party ─────────────────────────────────────────────────
+  final bool watchPartyEnabled;
+
+  // ── Phase L2: Frame Navigation ────────────────────────────────────────────
+  final bool frameCounterEnabled;
+  final double videoFps; // default 24.0
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -401,6 +408,9 @@ class PlayerPrefs {
     this.dndOnCinematic            = false,
     this.colorBlindMode            = 'none',
     this.subtitleFont              = 'system',
+    this.watchPartyEnabled         = true,
+    this.frameCounterEnabled       = false,
+    this.videoFps                  = 24.0,
   });
 
   PlayerPrefs copyWith({
@@ -461,6 +471,9 @@ class PlayerPrefs {
     bool?   dndOnCinematic,
     String? colorBlindMode,
     String? subtitleFont,
+    bool?   watchPartyEnabled,
+    bool?   frameCounterEnabled,
+    double? videoFps,
     double? savedZoomLevel,
     bool?   contentMoodEnabled,
     bool?   screenshotLockEnabled,
@@ -484,6 +497,9 @@ class PlayerPrefs {
     bool?   dndOnCinematic,
     String? colorBlindMode,
     String? subtitleFont,
+    bool?   watchPartyEnabled,
+    bool?   frameCounterEnabled,
+    double? videoFps,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -623,6 +639,9 @@ class PlayerPrefs {
       dndOnCinematic:              dndOnCinematic               ?? this.dndOnCinematic,
       colorBlindMode:              colorBlindMode               ?? this.colorBlindMode,
       subtitleFont:                subtitleFont                 ?? this.subtitleFont,
+      watchPartyEnabled:           watchPartyEnabled            ?? this.watchPartyEnabled,
+      frameCounterEnabled:         frameCounterEnabled          ?? this.frameCounterEnabled,
+      videoFps:                    videoFps                     ?? this.videoFps,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -780,6 +799,9 @@ class PlayerPrefs {
       dndOnCinematic:              s.getBool('\${_p}dnd_on_cinematic')           ?? false,
       colorBlindMode:              s.getString('\${_p}color_blind_mode')         ?? 'none',
       subtitleFont:                s.getString('\${_p}subtitle_font')             ?? 'system',
+      watchPartyEnabled:           s.getBool('\${_p}watch_party_enabled')        ?? true,
+      frameCounterEnabled:         s.getBool('\${_p}frame_counter_enabled')      ?? false,
+      videoFps:                    s.getDouble('\${_p}video_fps')                 ?? 24.0,
     );
   }
 
@@ -933,6 +955,9 @@ class PlayerPrefs {
       s.setBool('\${_p}dnd_on_cinematic',              dndOnCinematic),
       s.setString('\${_p}color_blind_mode',            colorBlindMode),
       s.setString('\${_p}subtitle_font',               subtitleFont),
+      s.setBool('\${_p}watch_party_enabled',            watchPartyEnabled),
+      s.setBool('\${_p}frame_counter_enabled',          frameCounterEnabled),
+      s.setDouble('\${_p}video_fps',                    videoFps),
     ]);
   }
 }

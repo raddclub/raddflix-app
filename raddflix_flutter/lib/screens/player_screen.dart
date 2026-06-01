@@ -45,6 +45,9 @@ import '../core/services/wake_lock_service.dart'; // Phase H4
 import '../core/services/dnd_service.dart'; // Phase H5
 import '../core/player/color_blind_filter.dart'; // Phase J2
 import '../core/player/dyslexia_subtitle_style.dart'; // Phase J3
+import '../core/player/watch_party_service.dart'; // Phase I1
+import '../core/player/frame_navigation_service.dart'; // Phase L2
+import '../core/player/shared_bookmarks_service.dart'; // Phase I3
 import '../widgets/player/karaoke_overlay.dart'; // Phase E2
 import '../widgets/player/film_grain_overlay.dart'; // Phase D3
 import '../widgets/player/controls_background.dart';
@@ -2788,6 +2791,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 _handleVideoEnd();
               },
               onCancel: () => setState(() => _showCountdown = false),
+            ),
+
+          // ── Phase I1: Watch Party Overlay ─────────────────────────────────
+          if (_watchPartyRoom != null)
+            WatchPartyOverlay(
+              room: _watchPartyRoom!,
+              accentColor: _prefs.accentColor,
+              onLeave: () {
+                WatchPartyService.instance.leaveRoom();
+                setState(() => _watchPartyRoom = null);
+              },
+            ),
+
+          // ── Phase L2: Frame Counter HUD ───────────────────────────────────
+          if (_prefs.frameCounterEnabled && _showControls)
+            Positioned(
+              top: 16, left: 0, right: 0,
+              child: Center(
+                child: FrameCounterHud(
+                  position: _position,
+                  total: _duration,
+                  accentColor: _prefs.accentColor,
+                  fps: _prefs.videoFps,
+                ),
+              ),
             ),
 
           // ── Phase E2: Karaoke Active Indicator ────────────────────────────

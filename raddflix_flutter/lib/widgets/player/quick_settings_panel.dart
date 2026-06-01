@@ -1006,6 +1006,22 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         ),
         const Divider(color: Colors.white10, height: 1),
         // ── Phase J4: Motor Impairment Mode ────────────────────────────────────
+        // ── Phase I1: Watch Party ──────────────────────────────────────────────
+        _QsToggleRow(
+          label: 'Watch Party',
+          sublabel: 'Watch in sync with friends — create or join a room',
+          value: _p.watchPartyEnabled,
+          onChanged: (v) => _update(_p.copyWith(watchPartyEnabled: v)),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // ── Phase L2: Frame Counter HUD ───────────────────────────────────────
+        _QsToggleRow(
+          label: 'Frame Counter HUD',
+          sublabel: 'Shows frame number while paused',
+          value: _p.frameCounterEnabled,
+          onChanged: (v) => _update(_p.copyWith(frameCounterEnabled: v)),
+        ),
+        const Divider(color: Colors.white10, height: 1),
         _QsToggleRow(
           label: 'Motor Impairment Mode',
           sublabel: 'Larger touch targets · hold-to-seek · slow double-tap',
