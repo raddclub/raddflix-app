@@ -325,12 +325,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── Missing state vars (fixes for CI errors) ─────────────────────────────
   bool _castScanning = false;
-  List<dynamic> _castDevices = const [];
-  dynamic _connectedCastDevice;
+  List<CastDevice> _castDevices = const [];
+  CastDevice? _connectedCastDevice;
   bool _showJumpPanel = false;
   bool _showCountdown = false;
   WatchPartyRoom? _watchPartyRoom;
-  List<dynamic> _audioTracks = const [];
+  List<AudioTrack> _audioTracks = const [];
   int _selectedAudioTrack = 0;
   Duration? _abLoopStart;
   Duration? _abLoopEnd;
@@ -952,6 +952,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _handleVoiceCommand(dynamic cmd) {}
+
+  void _handleVideoEnd() {}
 
   void _openSpeedPicker() {
     showModalBottomSheet(
