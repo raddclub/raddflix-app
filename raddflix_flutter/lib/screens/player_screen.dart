@@ -31,6 +31,10 @@ import '../core/player/ab_loop_controller.dart';
 import '../widgets/player/seek_bar_painter.dart';
 import '../widgets/player/controls_background.dart';
 import '../widgets/player/sleep_timer_sheet.dart';
+import '../widgets/player/speed_picker_sheet.dart';
+import '../widgets/player/bookmark_panel.dart';
+import '../widgets/player/eq_visualizer.dart';
+import '../screens/player_settings_screen.dart';
 import '../widgets/player/video_enhance_suite.dart';
 import '../widgets/player/sync_panel.dart';
 import '../widgets/player/eq_panel.dart';
@@ -642,6 +646,84 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   // ── Screenshot → Gallery ──────────────────────────────────────────────────
+  void _openSpeedPicker() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SpeedPickerSheet(
+        currentSpeed: _speed,
+        rememberSpeed: _prefs.rememberSpeed,
+        accentColor: _prefs.accentColor,
+        onSpeedChanged: (v) { setState(() => _speed = v); _player.setRate(v); },
+        onRememberToggled: (v) {
+          setState(() => _prefs = _prefs.copyWith(rememberSpeed: v));
+          _prefs.save();
+        },
+        onPitchToggled: (_) {},
+      ),
+    );
+  }
+
+  void _openEqVisualizer() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => EqVisualizer(
+        currentPreset: _prefs.equalizerPreset,
+        bands: _prefs.equalizerBands,
+        enabled: _prefs.equalizerEnabled,
+        accentColor: _prefs.accentColor,
+        onPresetChanged: (p) {
+          setState(() => _prefs = _prefs.copyWith(equalizerPreset: p));
+          _prefs.save();
+        },
+        onBandsChanged: (b) {
+          setState(() => _prefs = _prefs.copyWith(equalizerBands: b));
+          _applyAudioPrefs(_prefs);
+          _prefs.save();
+        },
+        onToggle: (v) {
+          setState(() => _prefs = _prefs.copyWith(equalizerEnabled: v));
+          _applyAudioPrefs(_prefs);
+          _prefs.save();
+        },
+      ),
+    );
+  }
+
+  void _openBookmarkPanel() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => BookmarkPanel(
+        bookmarks: _bookmarks,
+        currentPosition: _position,
+        totalDuration: _duration,
+        accentColor: _prefs.accentColor,
+        onSeekTo: (pos) => _player.seek(pos),
+        onAddBookmark: _addBookmarkAtPosition,
+        onDeleteBookmark: (bm) => setState(() => _bookmarks.remove(bm)),
+        onUpdateBookmark: (bm) {},
+      ),
+    );
+  }
+
+  void _openPlayerSettings() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => PlayerSettingsScreen(
+        prefs: _prefs,
+        onSave: (p) {
+          setState(() => _prefs = p);
+          _applyVideoFilters(p);
+          _applyAudioPrefs(p);
+        },
+      ),
+    ));
+  }
+
   void _openSleepTimer() {
     showModalBottomSheet(
       context: context,
@@ -2256,7 +2338,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               bookmarks: _bookmarks,
               abLoop: _abLoop,
               onToggleAbPanel: () => setState(() => _showAbPanel = !_showAbPanel),
-              onToggleBookmarks: () => setState(() => _showBookmarksPanel = !_showBookmarksPanel),
+              onToggleBookmarks: _openBookmarkPanel,
               onToggleVideoEnhance: _openVideoEnhanceSuite,
               onTakeScreenshot: _takeScreenshot,
               onAddBookmark: _addBookmarkAtPosition,
