@@ -924,3 +924,50 @@ Implement Phase A (Tasks 1+2+3) of FEATURES_ROADMAP.md:
 3. Wire accentColor to player_screen.dart — seek bar, play button ring, active chips, mode indicators
 4. Wire seekBarStyle to actual seek bar widget in player_screen.dart
 5. **P-LAY-1** Drag & Drop Layout Designer — Phase B
+
+---
+## Session 10 — Phases A–N Complete (2026-06-01)
+
+### Files Created / Updated
+| File | Phase | Key Feature |
+|------|-------|-------------|
+| `player_screen.dart` | A/B/C/E | accentColor seek bar, buttonShape play btn, ControlsBackground wrap, VideoEnhanceSuite + SpeedPickerSheet + EqVisualizer + BookmarkPanel + SleepTimerSheet + PlayerSettingsScreen + ABLoopPanel wired |
+| `player_prefs.dart` | A3/A4 | buttonShape, iconPack, controlsBgStyle fields (load/save/copyWith) |
+| `icon_packs.dart` | A3 | 6 icon packs: MX/iOS/Fluent/Material3/Cute/Minimal |
+| `controls_background.dart` | A4 | 5 bg styles: none/glass/gradient/solid/mesh + preview card |
+| `layout_prefs.dart` | B | LayoutItem, kDefaultLayout (12 controls), LayoutPrefs persist |
+| `layout_designer_screen.dart` | B | Drag & drop editor — grid snap, visibility toggle, resize slider |
+| `video_enhance_suite.dart` | C | Colour/Effects/Modes tabs, 6 presets, sliders, night+cinematic |
+| `subtitle_style.dart` | D | 8 presets (Cinema/Karaoke/Neon/etc.) + SubtitlePresetPicker |
+| `sleep_timer_sheet.dart` | E | 9 presets + Custom, fade toggle, animated ring, episode stop |
+| `gesture_hint_overlay.dart` | F | 6 gesture tutorials with swipe animation |
+| `speed_picker_sheet.dart` | G | Slider + 10 presets + pitch correction + remember toggle |
+| `bookmark_panel.dart` | H | Emoji filter, notes, progress bar, undo delete |
+| `eq_visualizer.dart` | I | Animated bars, 13 presets, 10-band vertical sliders |
+| `screenshot_share_sheet.dart` | J | Timestamp/title/watermark overlays + share/save |
+| `network_speed_overlay.dart` | K | Buffer health bar + bitrate badge + circular ring |
+| `player_settings_screen.dart` | L | 7 sections, 35+ options, all prefs wired |
+| `ab_loop_panel.dart` | M | A/B markers, timeline visualizer, loop toggle |
+| `rage_skip_panel.dart` | N | +30s–+5m skip buttons, rage meter emoji |
+| `quick_settings_panel.dart` | A3/A4 | Button Shape (5), Icon Pack (6), Controls Bg (5) rows added |
+
+### Key Wirings in player_screen.dart
+- `accentColor` → seek bar SliderTheme `activeTrackColor` (38-space indent fixed)
+- `buttonShape` → `_playBtnDecoration()` static method → play button BoxDecoration
+- `controlsBgStyle` → `ControlsBackground` wraps the Opacity/controls block
+- `onToggleVideoEnhance` → `_openVideoEnhanceSuite()` → VideoEnhanceSuite bottom sheet
+- `onSleep` → `_openSleepTimer()` → SleepTimerSheet bottom sheet
+- `onSpeed` → `_openSpeedPicker()` → SpeedPickerSheet bottom sheet
+- `onEq` → `_openEqVisualizer()` → EqVisualizer bottom sheet
+- `onToggleBookmarks` → `_openBookmarkPanel()` → BookmarkPanel bottom sheet
+- `onSettings` → `_openPlayerSettings()` → PlayerSettingsScreen push
+- `onABLoop` → `_openABLoop()` → ABLoopPanel bottom sheet
+
+### Current SHAs
+- `player_screen.dart`: `bc76005e0dd7` (188K+ chars)
+- `player_prefs.dart`: updated (has buttonShape/iconPack/controlsBgStyle)
+- `quick_settings_panel.dart`: `c987fb8a603f`
+
+### Pending
+- Close paren for ControlsBackground (if-block wrapping, only matching Opacity wrap, 1 child-close missing)
+- Phase O+: Chromecast panel, PiP improvements, custom intro skip timestamps
