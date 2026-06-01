@@ -367,3 +367,30 @@ Fix CI failure after keystore credential changes. Update APK signing fingerprint
 
 **Commit:** `b27f8297cb4cfd57a2750f9390bc91727680184b`
 **CI:** ✅ Build APK + RaddFlix CI both green
+
+  ## Session 8 — 2026-06-01
+  **Task**: Fix all dead code errors + redesign video player overlay to match MX Player screenshots
+
+  ### Dead Code Fixed
+  - Removed `_bufferingStartedAt` field (was assigned but never read)
+  - Fixed unused `devices` var in `_enterCast` (changed to `await CastService.discoverDevices()` without assignment)
+  - `_inPiP` now used to suppress controls overlay when in PiP mode
+  - `_rotationIcon` / `_rotationLabel` now used in right-side strip
+  - `_MxSeekBtn` now used for center seek controls
+  - `_MxSideBtn` now used for right-side vertical icon strip
+
+  ### UI Redesign — MX Player Style (matching provided screenshots)
+  - **Center controls**: Replaced plain icon+text with `_MxSeekBtn` circular seek buttons (screenshot 2)
+  - **Right-side strip**: New vertical strip of 4 buttons — Subtitle, Audio, Rotate, More (screenshot 2)
+  - **Audio Track panel**: Replaced right-slide panel with bottom sheet — radio buttons, Disable option, SW decoder toggle, Open button, Synchronization ±100ms (screenshots 4, 14)
+  - **Subtitle panel**: Replaced right-slide panel with bottom sheet — horizontal scrollable chips, Open/Settings buttons, Add Translation, Sync control (screenshots 5, 13)
+  - **More panel**: Updated from Wrap to 4-column GridView — 16 items matching screenshot 6 layout
+  - **Loading animation**: Replaced CircularProgressIndicator with `_CircularDotsLoader` (animated ring of 12 dots, screenshot 15)
+  - **EqPanel**: Redesigned with TabBar — "Audio Effect" tab (6 preset cards: Original/Treble Boost/Clarity/Movie/Music/Bass Boost) + "Equalizer" tab with sliders (screenshot 16)
+
+  ### Files Changed
+  - `raddflix_flutter/lib/screens/player_screen.dart` (+520 lines net, 4084 total)
+  - `raddflix_flutter/lib/widgets/player/eq_panel.dart` (full rewrite, 300 lines)
+
+  ### Commit: `d6633ac`
+  
