@@ -223,7 +223,13 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
 
   /// Load TMDB-seeded recommendations in the background.
   /// Results stored in CatalogState.recommendations.
-  Future<void> loadRecommendations() async {
+
+  Future<void> clearAllContinueWatching() async {
+    await LocalDb.clearAllPositions();
+    state = state.copyWith(recentlyWatched: []);
+  }
+
+    Future<void> loadRecommendations() async {
     try {
       final recs = await CatalogApi.fetchRecommendations(limit: 20);
       if (recs.isNotEmpty) {
