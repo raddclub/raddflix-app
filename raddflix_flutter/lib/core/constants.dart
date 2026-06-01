@@ -14,7 +14,7 @@ class AppConstants {
 
   static const Duration catalogSyncInterval = Duration(hours: 6);
   static const String catalogDbName = 'raddflix_catalog.db';
-  static const int catalogDbVersion = 13;
+  static const int catalogDbVersion = 14;
   static const int streamCacheTtlSeconds = 10800; // 180 min
 
   // ── JazzDrive (zero-rated CDN) ─────────────────────────────────────────────
@@ -250,7 +250,8 @@ class AppRoutes {
   static const String profile      = '/profile';
   static const String downloads    = '/downloads';
   static const String localMedia   = '/local-media';
-  static const String settings     = '/settings';
+  static const String watchlist    = '/watchlist';
+  static const String history      = '/history';
   static const String vault        = '/vault';
   static const String vaultLock    = '/vault-lock';
   static const String showDetail   = '/show-detail';
