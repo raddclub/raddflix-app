@@ -3,7 +3,7 @@
 library audio_lab_panel;
 
 import 'package:flutter/material.dart';
-import 'audio_lab_service.dart';
+import '../../core/player/audio_lab_service.dart';
 
 class AudioLabPanel extends StatelessWidget {
   final AudioLabConfig config;
