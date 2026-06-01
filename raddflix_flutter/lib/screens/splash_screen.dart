@@ -19,6 +19,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     with TickerProviderStateMixin {
   late AnimationController _pulseCtrl;
   bool _started = false;
+  Color _splashBg = AppColors.background;
 
   @override
   void initState() {
@@ -26,11 +27,27 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     _pulseCtrl = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 1200))
       ..repeat(reverse: true);
+    // Load brand splash color from SharedPreferences (set by RemoteConfig.fetch)
+    _loadBrandSplashColor();
     Future.delayed(const Duration(milliseconds: 600), _start);
+  }
+
+  Future<void> _loadBrandSplashColor() async {
+    try {
+      final colorHex = await RemoteConfig.getBrandSplashColor(fallback: '');
+      if (colorHex.isEmpty) return;
+      final hex = colorHex.replaceFirst('#', '');
+      final color = Color(int.parse('FF$hex', radix: 16));
+      if (mounted) setState(() => _splashBg = color);
+    } catch (_) {
+      // Silent fallback — AppColors.background used
+    }
   }
 
   Future<void> _start() async {
     await RemoteConfig.fetch();
+    // Re-apply brand splash color after fresh config fetch
+    _loadBrandSplashColor();
     unawaited(AppUpdateService.check()); // populate _ForceUpdateGuard
     await Future.delayed(const Duration(milliseconds: 1000));
     if (!mounted) return;
@@ -81,18 +98,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     });
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: _splashBg,
       body: Stack(
         children: [
           Positioned.fill(
-            child: DecoratedBox(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
               decoration: BoxDecoration(
                 gradient: RadialGradient(
                   center: Alignment.center,
                   radius: 0.8,
                   colors: [
                     AppColors.primary.withOpacity(0.12),
-                    AppColors.background,
+                    _splashBg,
                   ],
                 ),
               ),
