@@ -1,6 +1,7 @@
 /// Phase D2 — Color Look Presets (6 cinematic looks via ColorFilter.matrix)
 /// No paid APIs. No shaders. Pure Flutter ColorFilter.matrix.
 library video_look_filter;
+import 'package:flutter/material.dart';
 
 /// Returns a [ColorFilter] for the given look name.
 /// Falls back to identity if the name is unknown or 'none'.
