@@ -30,6 +30,7 @@ class SeekBarPainter extends CustomPainter {
   final Color gradientColor2;
   final List<double> chapterFractions;
   final List<double> waveformAmplitudes;
+  final bool moodEnabled; // Phase G4: content mood timeline colors
 
   SeekBarPainter({
     required this.style,
@@ -41,6 +42,7 @@ class SeekBarPainter extends CustomPainter {
     Color? gradientColor2,
     this.chapterFractions = const [],
     this.waveformAmplitudes = const [],
+    this.moodEnabled = false,
   })  : gradientColor1 = gradientColor1 ?? accentColor,
         gradientColor2 = gradientColor2 ?? accentColor;
 
@@ -80,7 +82,30 @@ class SeekBarPainter extends CustomPainter {
     }
   }
 
+
+  // Phase G4: Content Mood Timeline — 4 narrative zones on the track
+  static const _moodColors = [
+    Color(0x331E90FF), // 0–25%: calm/intro — blue
+    Color(0x3332CD32), // 25–50%: rising action — green
+    Color(0x33FF8C00), // 50–75%: tension — orange
+    Color(0x33DC143C), // 75–100%: climax — crimson
+  ];
+  void _paintMoodZones(Canvas canvas, Size size) {
+    if (!moodEnabled) return;
+    final cy = size.height / 2;
+    const trackH = 4.0;
+    const zones = 4;
+    final zw = size.width / zones;
+    for (int z = 0; z < zones; z++) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(z * zw, cy - trackH / 2, zw, trackH),
+          const Radius.circular(2)),
+        Paint()..color = _moodColors[z]);
+    }
+  }
   void _paintClassic(Canvas canvas, Size size) {
+    _paintMoodZones(canvas, size); // G4
     final cy = size.height / 2;
     const trackH = 3.0;
     final rr = Radius.circular(trackH / 2);
@@ -100,6 +125,7 @@ class SeekBarPainter extends CustomPainter {
   }
 
   void _paintMaterialBold(Canvas canvas, Size size) {
+    _paintMoodZones(canvas, size); // G4
     final cy = size.height / 2;
     const trackH = 8.0;
     final rr = Radius.circular(trackH / 2);

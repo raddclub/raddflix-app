@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart'; // J3: Lexend dyslexia-friendly font
 import 'package:flutter/services.dart';
 import '../../core/player/player_prefs.dart';
 
@@ -72,7 +73,13 @@ class SubtitleOverlay extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: prefs.subtitleFontSize,
-                  fontFamily: prefs.subtitleFontFamily == 'Sans-Serif' ? null : prefs.subtitleFontFamily,
+                  fontFamily: (prefs.subtitleFontFamily == 'Sans-Serif' ||
+                      prefs.subtitleFontFamily == 'Sans Serif' ||
+                      prefs.subtitleFontFamily == 'Default')
+                    ? null
+                    : prefs.subtitleFontFamily == 'Lexend'
+                        ? GoogleFonts.lexend().fontFamily
+                        : prefs.subtitleFontFamily,
                   color: textColor,
                   fontWeight: prefs.subtitleBold ? FontWeight.bold : FontWeight.normal,
                   fontStyle: prefs.subtitleItalic ? FontStyle.italic : FontStyle.normal,

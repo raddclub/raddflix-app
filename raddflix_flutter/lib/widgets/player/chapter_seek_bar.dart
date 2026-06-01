@@ -18,6 +18,7 @@ class ChapterSeekBar extends StatelessWidget {
   final Color accentColor;
   final bool showLabel;
   final ValueChanged<Duration>? onSeek;
+  final bool moodEnabled; // Phase G4: narrative-arc colour zones
 
   const ChapterSeekBar({
     super.key,
@@ -27,6 +28,7 @@ class ChapterSeekBar extends StatelessWidget {
     required this.accentColor,
     this.showLabel = true,
     this.onSeek,
+    this.moodEnabled = false,
   });
 
   Chapter? get _current {
@@ -64,6 +66,7 @@ class ChapterSeekBar extends StatelessWidget {
               position: position,
               totalDuration: totalDuration,
               accentColor: accentColor,
+              moodEnabled: moodEnabled,
             ),
           ),
         ),
@@ -77,12 +80,14 @@ class _ChapterPainter extends CustomPainter {
   final Duration position;
   final Duration totalDuration;
   final Color accentColor;
+  final bool moodEnabled;
 
   const _ChapterPainter({
     required this.chapters,
     required this.position,
     required this.totalDuration,
     required this.accentColor,
+    this.moodEnabled = false,
   });
 
   @override
@@ -149,6 +154,9 @@ class _ChapterPainter extends CustomPainter {
       }
     }
 
+    // G4: Mood zones (painted below thumb so thumb stays readable)
+    _paintMoodZones(canvas, size, trackY, trackH);
+
     // Thumb
     canvas.drawCircle(Offset(posX.toDouble(), trackY), 7,
         Paint()..color = Colors.white..style = PaintingStyle.fill);
@@ -156,7 +164,28 @@ class _ChapterPainter extends CustomPainter {
         Paint()..color = accentColor.withOpacity(0.3)..style = PaintingStyle.stroke..strokeWidth = 2);
   }
 
+
+  static const _moodZoneColors = [
+    Color(0x281E90FF), // 0-25%  calm/intro — blue
+    Color(0x2832CD32), // 25-50% rising action — green
+    Color(0x28FF8C00), // 50-75% tension — orange
+    Color(0x28DC143C), // 75-100% climax — crimson
+  ];
+
+  void _paintMoodZones(Canvas canvas, Size size, double trackY, double trackH) {
+    if (!moodEnabled) return;
+    final zw = size.width / 4;
+    for (int z = 0; z < 4; z++) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(z * zw, trackY - trackH / 2, zw, trackH),
+          const Radius.circular(2)),
+        Paint()..color = _moodZoneColors[z]);
+    }
+  }
+
   void _drawTrack(Canvas canvas, Size size, double posX, double trackY, double trackH) {
+    _paintMoodZones(canvas, size, trackY, trackH); // G4
     canvas.drawRRect(RRect.fromRectAndRadius(
         Rect.fromLTWH(0, trackY - trackH/2, size.width, trackH), const Radius.circular(2)),
         Paint()..color = Colors.white24);
@@ -170,7 +199,7 @@ class _ChapterPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ChapterPainter o) =>
-      o.position != position || o.chapters.length != chapters.length;
+      o.position != position || o.chapters.length != chapters.length || o.moodEnabled != moodEnabled;
 }
 
 /// Horizontal chapter list shown above the seek bar.

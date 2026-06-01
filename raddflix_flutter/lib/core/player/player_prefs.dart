@@ -178,6 +178,8 @@ class PlayerPrefs {
   final int    wakeTimeoutMins;    // 0=always-on, 10/20/30 mins
   final bool   dndOnCinematic;     // Phase H5: DND when cinematic
   final double savedZoomLevel;     // Phase L3: last used zoom level
+  final bool   contentMoodEnabled; // Phase G4: narrative-arc seek bar zones
+  final bool   screenshotLockEnabled; // Phase K2: prevent screenshots
 
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
@@ -302,6 +304,8 @@ class PlayerPrefs {
     this.wakeTimeoutMins         = 0,
     this.dndOnCinematic           = false,
     this.savedZoomLevel           = 1.0,
+    this.contentMoodEnabled       = false,
+    this.screenshotLockEnabled    = false,
   });
 
   PlayerPrefs copyWith({
@@ -361,6 +365,8 @@ class PlayerPrefs {
     int?    wakeTimeoutMins,
     bool?   dndOnCinematic,
     double? savedZoomLevel,
+    bool?   contentMoodEnabled,
+    bool?   screenshotLockEnabled,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -478,6 +484,8 @@ class PlayerPrefs {
       wakeTimeoutMins:             wakeTimeoutMins             ?? this.wakeTimeoutMins,
       dndOnCinematic:              dndOnCinematic              ?? this.dndOnCinematic,
       savedZoomLevel:              savedZoomLevel              ?? this.savedZoomLevel,
+      contentMoodEnabled:          contentMoodEnabled          ?? this.contentMoodEnabled,
+      screenshotLockEnabled:       screenshotLockEnabled       ?? this.screenshotLockEnabled,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -613,6 +621,8 @@ class PlayerPrefs {
       wakeTimeoutMins:             s.getInt('${_p}wake_timeout_mins')    ?? 0,
       dndOnCinematic:              s.getBool('${_p}dnd_cinematic')        ?? false,
       savedZoomLevel:              s.getDouble('${_p}saved_zoom_level')   ?? 1.0,
+      contentMoodEnabled:          s.getBool('${_p}content_mood')          ?? false,
+      screenshotLockEnabled:       s.getBool('${_p}screenshot_lock')       ?? false,
     );
   }
 
@@ -744,6 +754,8 @@ class PlayerPrefs {
       s.setInt('${_p}wake_timeout_mins',  wakeTimeoutMins),
       s.setBool('${_p}dnd_cinematic',      dndOnCinematic),
       s.setDouble('${_p}saved_zoom_level', savedZoomLevel),
+      s.setBool('${_p}content_mood',        contentMoodEnabled),
+      s.setBool('${_p}screenshot_lock',     screenshotLockEnabled),
     ]);
   }
 }

@@ -686,6 +686,15 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                 () => _update(_p.copyWith(oneHandedModeSide: 'left'))),
             ]),
           ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // ── Phase K2: Screenshot Lock ─────────────────────────────────────
+        _QsLabel('Privacy'),
+        _QsToggleRow(
+          label: 'Screenshot Lock',
+          value: _p.screenshotLockEnabled,
+          onChanged: (v) => _update(_p.copyWith(screenshotLockEnabled: v)),
+        ),
       ],
     );
   }
@@ -883,7 +892,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
   // TAB 5 — TEXT (subtitle appearance)
   // ─────────────────────────────────────────────────────────────────────────
   Widget _buildTextTab() {
-    const fonts = ['Sans Serif', 'Serif', 'Monospace', 'Cursive', 'Default'];
+    const fonts = ['Sans Serif', 'Serif', 'Monospace', 'Cursive', 'Lexend', 'Default'];
     final size = _p.subtitleFontSize;
     final scale = _subtitleScale;
     return ListView(
@@ -1031,6 +1040,21 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
           value: _fadeOut,
           onChanged: (v) => setState(() => _fadeOut = v),
         ),
+        const Divider(color: Colors.white10, height: 1),
+        // ── Phase G4: Content Mood Timeline ───────────────────────────────
+        _QsToggleRow(
+          label: 'Content Mood Timeline',
+          value: _p.contentMoodEnabled,
+          onChanged: (v) => _update(_p.copyWith(contentMoodEnabled: v)),
+        ),
+        if (_p.contentMoodEnabled)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Text(
+              'Colors the seek bar by narrative arc: calm → rising → tension → climax',
+              style: TextStyle(color: Colors.white38, fontSize: 10),
+            ),
+          ),
       ],
     );
   }

@@ -2852,6 +2852,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   : null,
               accentColor: _prefs.accentColor,
               buttonShape: _prefs.buttonShape,
+              moodEnabled: _prefs.contentMoodEnabled,
             ),
             )), // end Opacity + ControlsBackground
           ), // end ControlsBackground
@@ -3430,6 +3431,7 @@ class _ControlsOverlay extends StatelessWidget {
   final VoidCallback? onToggleTransparentSlider;
   final Color accentColor;
   final String buttonShape;
+  final bool moodEnabled; // Phase G4: narrative arc mood zone colors
 
   const _ControlsOverlay({
     required this.title, required this.playing, required this.buffering,
@@ -3480,6 +3482,7 @@ class _ControlsOverlay extends StatelessWidget {
     this.onToggleTransparentSlider,
     this.accentColor = const Color(0xFFE8002D),
     this.buttonShape = 'circle',
+    this.moodEnabled = false,
   });
 
   /// Returns the BoxDecoration for the play button based on [shape].
@@ -3801,6 +3804,27 @@ class _ControlsOverlay extends StatelessWidget {
                                   ),
                                 );
                               }),
+                              // Phase G4: Narrative arc mood zone tints ─────
+                              if (moodEnabled)
+                                ...List.generate(4, (z) {
+                                  const zColors = [
+                                    Color(0x281E90FF), // 0-25%  intro/calm
+                                    Color(0x2832CD32), // 25-50% rising action
+                                    Color(0x28FF8C00), // 50-75% tension
+                                    Color(0x28DC143C), // 75-100% climax
+                                  ];
+                                  final zLen = sliderLen / 4;
+                                  return Positioned(
+                                    bottom: z * zLen,
+                                    left: 2, right: 2,
+                                    height: zLen,
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: zColors[z],
+                                        borderRadius: BorderRadius.circular(1)),
+                                    ),
+                                  );
+                                }),
                               // Seek-bar long-press gesture overlay
                               if (onSeekBarLongPress != null)
                                 Positioned.fill(
@@ -3862,8 +3886,15 @@ class _ControlsOverlay extends StatelessWidget {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: onFrameBackStep),
-                      const Text('Frame',
-                          style: TextStyle(color: Colors.white38, fontSize: 9)),
+                      Column(mainAxisSize: MainAxisSize.min, children: [
+                        const Text('Frame',
+                            style: TextStyle(color: Colors.white38, fontSize: 9)),
+                        Text(
+                          '#\${(position.inMilliseconds * 24.0 / 1000).round()}',
+                          style: const TextStyle(color: Colors.white70, fontSize: 9,
+                              fontFamily: 'monospace', fontWeight: FontWeight.w600),
+                        ),
+                      ]),
                       IconButton(
                         icon: const Icon(Icons.skip_next_rounded,
                             color: Colors.white70, size: 18),
