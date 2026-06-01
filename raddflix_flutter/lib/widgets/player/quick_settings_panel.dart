@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/player/player_prefs.dart';
 
-/// In-player quick settings bottom sheet — 5-tab MX Player-style layout.
-/// Tabs: Quality | Speed | Aspect Ratio | Subtitles | Audio
+/// In-player quick settings — 5-tab MX Player-style layout.
+/// Tabs: Style | Screen | Controls | Navigation | Text
 class QuickSettingsPanel extends StatefulWidget {
   final PlayerPrefs prefs;
   final ValueChanged<PlayerPrefs> onChanged;
@@ -50,12 +50,41 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
     with SingleTickerProviderStateMixin {
   late PlayerPrefs _p;
   late TabController _tab;
-  final _customSpeedCtrl = TextEditingController();
-  String? _customSpeedError;
 
-  static const _accent = Color(0xFFE8002D);
+  // ── Screen tab local state ─────────────────────────────────────────────────
+  bool _autoSwitch     = true;
+  bool _autoHide       = true;
+  bool _softButtons    = false;
+  double _brightness   = 1.0;
+  bool _showBattery    = false;
+  bool _showClock      = false;
+  bool _showElapsed    = false;
+  int _cornerOffset    = 20;
+  String _background   = 'Black';
+
+  // ── Controls tab local state ───────────────────────────────────────────────
+  String _touchAction  = 'pause_resume';  // 'pause_resume' | 'lock'
+  bool _showFwdBtn     = true;
+  bool _showPrevNext   = false;
+
+  // ── Navigation tab local state ────────────────────────────────────────────
+  double _seekSpeed    = 10.0;
+  double _moveInterval = 10.0;
+  bool _showPosition   = true;
+
+  // ── Style tab local state ─────────────────────────────────────────────────
+  String _preset         = 'Default';
+  String _progressPos    = 'above';   // 'above' | 'below'
+  bool   _materialStyle  = true;
+  String _controlsDensity = 'medium'; // 'small'/'medium'/'large'
+
+  // ── Text tab local state ───────────────────────────────────────────────────
+  double _subtitleScale    = 1.0;
+  bool   _improveStroke    = false;
+  bool   _fadeOut          = false;
+
+  static const _accent = Color(0xFF1565C0);
   static const _bg     = Color(0xFF12121E);
-  static const _card   = Color(0xFF1A1A2A);
 
   @override
   void initState() {
@@ -67,7 +96,6 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
   @override
   void dispose() {
     _tab.dispose();
-    _customSpeedCtrl.dispose();
     super.dispose();
   }
 
@@ -80,46 +108,51 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
   Widget build(BuildContext context) {
     return Container(
       constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.75),
+          maxHeight: MediaQuery.of(context).size.height * 0.78),
       decoration: const BoxDecoration(
         color: _bg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        // ── Handle ─────────────────────────────────────────────────────
+        // ── Handle ─────────────────────────────────────────────────────────
+        Center(child: Container(
+          width: 36, height: 4,
+          margin: const EdgeInsets.fromLTRB(0, 12, 0, 6),
+          decoration: BoxDecoration(
+            color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+        )),
+        // ── Header ─────────────────────────────────────────────────────────
         Padding(
-          padding: const EdgeInsets.only(top: 12, bottom: 4),
-          child: Center(
-            child: Container(
-              width: 36, height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2)),
-            ),
-          ),
-        ),
-        // ── Header ─────────────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+          padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
           child: Row(children: [
-            const Text('Player Settings',
-              style: TextStyle(color: Colors.white, fontSize: 15,
-                fontWeight: FontWeight.w600)),
-            const Spacer(),
+            GestureDetector(
+              onTap: widget.onDone,
+              child: Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(
+                  color: _accent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.chevron_left_rounded,
+                    color: Colors.white, size: 22),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Player Settings',
+                style: TextStyle(color: Colors.white, fontSize: 15,
+                    fontWeight: FontWeight.w600)),
+            ),
             TextButton.icon(
               onPressed: widget.onOpenFullSettings,
               icon: const Icon(Icons.tune_rounded, size: 14),
-              label: const Text('Full Settings',
-                style: TextStyle(fontSize: 12)),
-              style: TextButton.styleFrom(foregroundColor: _accent),
+              label: const Text('Full', style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(
+                foregroundColor: _accent.withOpacity(0.8)),
             ),
-            TextButton(
-              onPressed: widget.onDone,
-              child: const Text('Done',
-                style: TextStyle(color: Colors.white60, fontSize: 13))),
           ]),
         ),
-        // ── Tab Bar ────────────────────────────────────────────────────
+        // ── Tab Bar ────────────────────────────────────────────────────────
         TabBar(
           controller: _tab,
           isScrollable: true,
@@ -128,590 +161,719 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
           indicatorSize: TabBarIndicatorSize.label,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white38,
-          labelStyle: const TextStyle(
-            fontSize: 12, fontWeight: FontWeight.w600),
+          labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
           unselectedLabelStyle: const TextStyle(fontSize: 12),
           tabs: const [
-            Tab(text: 'Quality'),
-            Tab(text: 'Speed'),
-            Tab(text: 'Aspect Ratio'),
-            Tab(text: 'Subtitles'),
-            Tab(text: 'Audio'),
+            Tab(text: 'Style'),
+            Tab(text: 'Screen'),
+            Tab(text: 'Controls'),
+            Tab(text: 'Navigation'),
+            Tab(text: 'Text'),
           ],
         ),
         const Divider(height: 1, color: Colors.white12),
-        // ── Tab Content ────────────────────────────────────────────────
+        // ── Tab Content ─────────────────────────────────────────────────────
         Flexible(
           child: TabBarView(
             controller: _tab,
             children: [
-              _buildQualityTab(),
-              _buildSpeedTab(),
-              _buildAspectTab(),
-              _buildSubtitleTab(),
-              _buildAudioTab(),
+              _buildStyleTab(),
+              _buildScreenTab(),
+              _buildControlsTab(),
+              _buildNavigationTab(),
+              _buildTextTab(),
             ],
           ),
         ),
       ]),
-    ).animate()
-     .slideY(begin: 0.15, end: 0, duration: 260.ms, curve: Curves.easeOutCubic)
-     .fadeIn(duration: 200.ms);
+    )
+    .animate()
+    .slideY(begin: 0.12, end: 0, duration: 260.ms, curve: Curves.easeOutCubic)
+    .fadeIn(duration: 200.ms);
   }
 
-  // ── Tab 1: Video Quality ─────────────────────────────────────────────────
-
-  Widget _buildQualityTab() {
-    const qualities = [
-      _QualityEntry('Auto',   Icons.auto_awesome_rounded,  'Best available'),
-      _QualityEntry('1080p',  Icons.hd_rounded,            'Full HD · ~2.5 GB/hr'),
-      _QualityEntry('720p',   Icons.hd_outlined,           'HD · ~1.5 GB/hr'),
-      _QualityEntry('480p',   Icons.sd_rounded,            'SD · ~700 MB/hr'),
-      _QualityEntry('360p',   Icons.sd_outlined,           'Low · ~350 MB/hr'),
-    ];
+  // ─────────────────────────────────────────────────────────────────────────
+  // TAB 1 — STYLE
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _buildStyleTab() {
+    const presets = ['Default', 'Float', 'Lock'];
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
       children: [
-        _SectionLabel('Select Quality'),
-        const SizedBox(height: 10),
-        ...qualities.map((q) {
-          final isSel = q.label == widget.selectedQuality;
-          return _SelectionTile(
-            icon: q.icon,
-            label: q.label,
-            sublabel: q.sublabel,
-            selected: isSel,
-            onTap: () => widget.onQualityChanged(q.label),
-          );
-        }),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.04),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white10),
+        // Preset
+        _QsRow(
+          label: 'Preset',
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _preset,
+              dropdownColor: const Color(0xFF1E1E2E),
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              isDense: true,
+              items: presets.map((p) => DropdownMenuItem(
+                  value: p, child: Text(p))).toList(),
+              onChanged: (v) { if (v != null) setState(() => _preset = v); },
+            ),
           ),
-          child: const Row(children: [
-            Icon(Icons.info_outline_rounded,
-              size: 14, color: Colors.white38),
-            SizedBox(width: 8),
-            Expanded(child: Text(
-              'Quality auto-adjusts to your connection. '
-              'Manual selection applies from next seek.',
-              style: TextStyle(color: Colors.white38, fontSize: 11))),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // Frame style
+        _QsRow(
+          label: 'Frame',
+          child: const Icon(Icons.open_in_full_rounded, color: Colors.white54, size: 20),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // Controls (size/density)
+        _QsRow(
+          label: 'Controls',
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            _SizeChip('S', _controlsDensity == 'small',
+                () => setState(() => _controlsDensity = 'small')),
+            const SizedBox(width: 4),
+            _SizeChip('M', _controlsDensity == 'medium',
+                () => setState(() => _controlsDensity = 'medium')),
+            const SizedBox(width: 4),
+            _SizeChip('L', _controlsDensity == 'large',
+                () => setState(() => _controlsDensity = 'large')),
+          ]),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // Progress bar style  
+        _QsLabel('Progress bar'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+            _StyleOption(label: 'Line', selected: !_materialStyle,
+                onTap: () => setState(() => _materialStyle = false),
+                child: Container(
+                  width: 60, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft, widthFactor: 0.4,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8002D),
+                        borderRadius: BorderRadius.circular(2))),
+                  ),
+                )),
+            _StyleOption(label: 'Material', selected: _materialStyle,
+                onTap: () => setState(() => _materialStyle = true),
+                child: Container(
+                  width: 60, height: 8,
+                  decoration: BoxDecoration(
+                    color: Colors.white12,
+                    borderRadius: BorderRadius.circular(4)),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft, widthFactor: 0.4,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8002D),
+                        borderRadius: BorderRadius.circular(4))),
+                  ),
+                )),
+          ]),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // Place progress bar below buttons
+        _QsToggleRow(
+          label: 'Place progress bar below buttons',
+          value: _progressPos == 'below',
+          onChanged: (v) => setState(() => _progressPos = v ? 'below' : 'above'),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // Material design style
+        _QsToggleRow(
+          label: 'Material',
+          value: _materialStyle,
+          onChanged: (v) => setState(() => _materialStyle = v),
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // TAB 2 — SCREEN
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _buildScreenTab() {
+    final backgrounds = ['Black', 'Blur', 'Color', 'Off'];
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
+      children: [
+        // Orientation section
+        _QsLabel('Orientation'),
+        _QsRow(label: 'Use video orientation',
+          child: const Text('', style: TextStyle(color: Colors.white70, fontSize: 13))),
+        _QsToggleRow(label: 'Auto Switch', value: _autoSwitch,
+            onChanged: (v) => setState(() => _autoSwitch = v)),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Full screen
+        _QsLabel('Full Screen'),
+        _QsToggleRow(label: 'Auto hide', value: _autoHide,
+            onChanged: (v) => setState(() => _autoHide = v)),
+        _QsToggleRow(label: 'Soft buttons', value: _softButtons,
+            onChanged: (v) => setState(() => _softButtons = v)),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Brightness
+        _QsLabel('Brightness'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Row(children: [
+            const Icon(Icons.brightness_low_rounded, color: Colors.white38, size: 18),
+            Expanded(child: Slider(
+              value: _brightness,
+              min: 0, max: 1, divisions: 20,
+              activeColor: _accent,
+              inactiveColor: Colors.white12,
+              onChanged: (v) => setState(() => _brightness = v),
+            )),
+            const Icon(Icons.brightness_high_rounded, color: Colors.white70, size: 18),
+            const SizedBox(width: 4),
+            SizedBox(width: 40, child: Text(
+              '${(_brightness * 100).toInt()}%',
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              textAlign: TextAlign.right)),
+          ]),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Status bar info toggles
+        _QsLabel('Status bar'),
+        _QsToggleRow(label: 'Battery', value: _showBattery,
+            onChanged: (v) => setState(() => _showBattery = v)),
+        _QsToggleRow(label: 'Clock', value: _showClock,
+            onChanged: (v) => setState(() => _showClock = v)),
+        _QsToggleRow(label: 'Elapsed time', value: _showElapsed,
+            onChanged: (v) => setState(() => _showElapsed = v)),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Corner offset
+        _QsLabel('Corner offset'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Row(children: [
+            Expanded(child: Slider(
+              value: _cornerOffset.toDouble(),
+              min: 0, max: 60, divisions: 60,
+              activeColor: _accent,
+              inactiveColor: Colors.white12,
+              onChanged: (v) => setState(() => _cornerOffset = v.toInt()),
+            )),
+            SizedBox(width: 36, child: Text(
+              '$_cornerOffset',
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              textAlign: TextAlign.right)),
+          ]),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Background
+        _QsLabel('Background'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Wrap(spacing: 8, children: backgrounds.map((b) {
+            final isSel = b == _background;
+            return GestureDetector(
+              onTap: () => setState(() => _background = b),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSel ? _accent.withOpacity(0.2) : Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isSel ? _accent : Colors.white12,
+                    width: isSel ? 1.5 : 1),
+                ),
+                child: Text(b, style: TextStyle(
+                  color: isSel ? Colors.white : Colors.white60,
+                  fontSize: 12, fontWeight: isSel ? FontWeight.w600 : FontWeight.normal)),
+              ),
+            );
+          }).toList()),
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // TAB 3 — CONTROLS
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _buildControlsTab() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
+      children: [
+        // Touch action
+        _QsLabel('Touch action'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Row(children: [
+            _TouchActionBtn(
+              icon: Icons.pause_circle_outline_rounded,
+              label: 'Pause/resume',
+              selected: _touchAction == 'pause_resume',
+              onTap: () => setState(() => _touchAction = 'pause_resume'),
+            ),
+            const SizedBox(width: 12),
+            _TouchActionBtn(
+              icon: Icons.lock_outline_rounded,
+              label: 'Lock',
+              selected: _touchAction == 'lock',
+              onTap: () => setState(() => _touchAction = 'lock'),
+            ),
+          ]),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Lock mode
+        _QsLabel('Lock mode'),
+        _QsRow(
+          label: 'Touch controls when locked',
+          child: Switch(
+            value: false,
+            activeColor: _accent,
+            onChanged: (_) {},
+          ),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Gestures
+        _QsLabel('Gestures'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Wrap(spacing: 10, runSpacing: 10, children: [
+            _GestureChip(icon: Icons.play_arrow_rounded,  label: 'Play/Pause\n(Double tap)'),
+            _GestureChip(icon: Icons.volume_up_rounded,   label: 'Volume\n(Double tap)'),
+            _GestureChip(icon: Icons.zoom_in_rounded,     label: 'Video zoom'),
+            _GestureChip(icon: Icons.linear_scale_rounded,label: 'Seek position'),
+            _GestureChip(icon: Icons.zoom_out_map_rounded,label: 'Zoom and Pan'),
+            _GestureChip(icon: Icons.pan_tool_alt_rounded, label: 'Video pan'),
+            _GestureChip(icon: Icons.brightness_medium_rounded, label: 'Brightness\n(Double tap)'),
+            _GestureChip(icon: Icons.zoom_in_map_rounded, label: 'Video zoom\n(Double tap)'),
+            _GestureChip(icon: Icons.fast_forward_rounded, label: 'Speed FF\n(Long press)'),
           ]),
         ),
       ],
     );
   }
 
-  // ── Tab 2: Playback Speed ────────────────────────────────────────────────
-
-  Widget _buildSpeedTab() {
-    const presets = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+  // ─────────────────────────────────────────────────────────────────────────
+  // TAB 4 — NAVIGATION
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _buildNavigationTab() {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
       children: [
-        _SectionLabel('Preset Speed'),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8, runSpacing: 8,
-          children: presets.map((s) => _SpeedChip(
-            speed: s,
-            selected: (widget.speed - s).abs() < 0.01,
-            onTap: () => widget.onSpeedChanged(s),
-          )).toList(),
+        // Seek speed
+        _QsLabel('Seek Speed (sec./inch)'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Row(children: [
+            Expanded(child: Slider(
+              value: _seekSpeed,
+              min: 1, max: 60, divisions: 59,
+              activeColor: _accent,
+              inactiveColor: Colors.white12,
+              onChanged: (v) => setState(() => _seekSpeed = v),
+            )),
+            SizedBox(width: 36, child: Text(
+              _seekSpeed.toInt().toString(),
+              style: const TextStyle(color: Colors.white70, fontSize: 14,
+                  fontWeight: FontWeight.w600),
+              textAlign: TextAlign.right)),
+          ]),
         ),
-        const SizedBox(height: 20),
-        const Divider(color: Colors.white12),
-        const SizedBox(height: 16),
-        _SectionLabel('Custom Speed'),
-        const SizedBox(height: 10),
-        Row(children: [
-          Expanded(
-            child: TextField(
-              controller: _customSpeedCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'e.g. 1.3',
-                hintStyle: const TextStyle(color: Colors.white38),
-                errorText: _customSpeedError,
-                errorStyle: const TextStyle(fontSize: 11),
-                filled: true,
-                fillColor: Colors.white10,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 10),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-              ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Forward/backward moving button
+        _QsRow(
+          label: 'Forward/backward moving button',
+          child: Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white24),
+              borderRadius: BorderRadius.circular(6),
             ),
+            child: const Icon(Icons.fast_forward_rounded,
+                color: Colors.white54, size: 18),
           ),
-          const SizedBox(width: 10),
-          ElevatedButton(
-            onPressed: () {
-              final val = double.tryParse(_customSpeedCtrl.text.trim());
-              if (val == null || val < 0.1 || val > 4.0) {
-                setState(() => _customSpeedError = 'Enter 0.1 – 4.0');
-              } else {
-                setState(() { _customSpeedError = null; });
-                widget.onSpeedChanged(val);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _accent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 18, vertical: 13),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8)),
-              elevation: 0,
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Move Interval
+        _QsLabel('Move Interval (sec.)'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Row(children: [
+            Expanded(child: Slider(
+              value: _moveInterval,
+              min: 1, max: 60, divisions: 59,
+              activeColor: _accent,
+              inactiveColor: Colors.white12,
+              onChanged: (v) => setState(() => _moveInterval = v),
+            )),
+            SizedBox(width: 36, child: Text(
+              _moveInterval.toInt().toString(),
+              style: const TextStyle(color: Colors.white70, fontSize: 14,
+                  fontWeight: FontWeight.w600),
+              textAlign: TextAlign.right)),
+          ]),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Previous/next button
+        _QsRow(
+          label: 'Previous/next button',
+          child: Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white24),
+              borderRadius: BorderRadius.circular(6),
             ),
-            child: const Text('Set',
-              style: TextStyle(fontWeight: FontWeight.w600)),
+            child: const Icon(Icons.skip_next_rounded,
+                color: Colors.white54, size: 18),
           ),
-        ]),
-        const SizedBox(height: 6),
-        Text(
-          'Current: ×${widget.speed.toStringAsFixed(2)}',
-          style: const TextStyle(color: Colors.white38, fontSize: 11)),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Display current position while changing position
+        _QsToggleRow(
+          label: 'Display the current position while changing position',
+          value: _showPosition,
+          onChanged: (v) => setState(() => _showPosition = v),
+        ),
       ],
     );
   }
 
-  // ── Tab 3: Aspect Ratio ──────────────────────────────────────────────────
-
-  Widget _buildAspectTab() {
-    const options = [
-      _AspectEntry('Default',  Icons.fit_screen_rounded,
-        'Auto-detect best fit'),
-      _AspectEntry('Fit',      Icons.aspect_ratio_rounded,
-        'Letterbox / pillarbox — no cropping'),
-      _AspectEntry('Fill',     Icons.fullscreen_rounded,
-        'Stretch to fill — may distort'),
-      _AspectEntry('Zoom',     Icons.crop_rounded,
-        'Crop edges to fill screen'),
-      _AspectEntry('4:3',      Icons.crop_square_rounded,
-        'Classic TV / vintage ratio'),
-      _AspectEntry('16:9',     Icons.crop_16_9_rounded,
-        'Widescreen ratio'),
-    ];
+  // ─────────────────────────────────────────────────────────────────────────
+  // TAB 5 — TEXT (subtitle appearance)
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _buildTextTab() {
+    const fonts = ['Sans Serif', 'Serif', 'Monospace', 'Cursive', 'Default'];
+    final size = _p.subtitleFontSize;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
       children: [
-        _SectionLabel('Aspect Ratio'),
-        const SizedBox(height: 10),
-        ...options.map((opt) {
-          final isSel = opt.label == widget.fitMode ||
-              (opt.label == 'Default' && widget.fitMode == 'Default');
-          return _SelectionTile(
-            icon: opt.icon,
-            label: opt.label,
-            sublabel: opt.sublabel,
-            selected: isSel,
-            onTap: () => widget.onFitChanged(opt.label),
-          );
-        }),
-      ],
-    );
-  }
-
-  // ── Tab 4: Subtitles ─────────────────────────────────────────────────────
-
-  Widget _buildSubtitleTab() {
-    const encodings = [
-      'auto', 'UTF-8', 'UTF-16', 'ISO-8859-1', 'ISO-8859-2',
-      'Windows-1250', 'Windows-1252', 'Shift-JIS', 'GBK',
-    ];
-    const positions = ['bottom', 'center', 'top'];
-    const textColors = [
-      0xFFFFFFFF, 0xFFFFFF00, 0xFFFFA500, 0xFF00FF00,
-      0xFF00FFFF, 0xFFFF6B6B, 0xFFCCCCCC,
-    ];
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      children: [
-        // Enable
-        _QRow('Subtitles', Icons.subtitles_outlined,
-          Switch(value: _p.subtitleEnabled, activeColor: _accent,
-            onChanged: (v) => _update(_p.copyWith(subtitleEnabled: v)))),
-        const Divider(color: Colors.white10, height: 20),
-
-        // Font Size
-        _SectionLabel('Font Size'),
-        Row(children: [
-          Expanded(child: Slider(
-            value: _p.subtitleFontSize.clamp(10, 40),
-            min: 10, max: 40, divisions: 30,
-            activeColor: _accent, inactiveColor: Colors.white12,
-            onChanged: (v) => _update(_p.copyWith(subtitleFontSize: v)),
-          )),
-          SizedBox(width: 44, child: Text(
-            '${_p.subtitleFontSize.toInt()}px',
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
-            textAlign: TextAlign.right)),
-        ]),
-
-        // Style
-        _SectionLabel('Style'),
-        const SizedBox(height: 8),
-        Row(children: [
-          _ToggleChip('Bold', _p.subtitleBold,
-            () => _update(_p.copyWith(subtitleBold: !_p.subtitleBold))),
-          const SizedBox(width: 8),
-          _ToggleChip('Italic', _p.subtitleItalic,
-            () => _update(_p.copyWith(subtitleItalic: !_p.subtitleItalic))),
-          const SizedBox(width: 8),
-          _ToggleChip('Auto-Detect', _p.subtitleAutoDetect,
-            () => _update(_p.copyWith(subtitleAutoDetect: !_p.subtitleAutoDetect))),
-        ]),
-        const SizedBox(height: 16),
-
-        // Text Color
-        _SectionLabel('Text Color'),
-        const SizedBox(height: 8),
-        Row(children: textColors.map((c) {
-          final isSel = c == _p.subtitleTextColorValue;
-          return GestureDetector(
-            onTap: () => _update(_p.copyWith(subtitleTextColorValue: c)),
-            child: Container(
-              width: 30, height: 30,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: Color(c),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSel ? Colors.white : Colors.white24,
-                  width: isSel ? 2.5 : 1,
-                ),
-              ),
-              child: isSel
-                ? const Icon(Icons.check, size: 14, color: Colors.black)
-                : null,
-            ),
-          );
-        }).toList()),
-        const SizedBox(height: 16),
-
-        // Background Opacity
-        _SectionLabel('Background Opacity'),
-        Row(children: [
-          Expanded(child: Slider(
-            value: _p.subtitleBackgroundOpacity,
-            min: 0, max: 1, divisions: 10,
-            activeColor: _accent, inactiveColor: Colors.white12,
-            onChanged: (v) =>
-                _update(_p.copyWith(subtitleBackgroundOpacity: v)),
-          )),
-          SizedBox(width: 44, child: Text(
-            '${(_p.subtitleBackgroundOpacity * 100).toInt()}%',
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
-            textAlign: TextAlign.right)),
-        ]),
-
-        // Position
-        _SectionLabel('Position'),
-        const SizedBox(height: 8),
-        Row(children: positions.map((pos) => Expanded(child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 3),
-          child: _ToggleChip(
-            pos[0].toUpperCase() + pos.substring(1),
-            _p.subtitlePosition == pos,
-            () => _update(_p.copyWith(subtitlePosition: pos)),
-            expand: true),
-        ))).toList()),
-        const SizedBox(height: 16),
-
-        // Encoding
-        _SectionLabel('Encoding'),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white10,
-            borderRadius: BorderRadius.circular(8)),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+        // Font
+        _QsRow(
+          label: 'Font',
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: encodings.contains(_p.subtitleEncoding)
-                  ? _p.subtitleEncoding : 'auto',
+              value: fonts.contains(_p.subtitleFontFamily)
+                  ? _p.subtitleFontFamily : 'Sans Serif',
               dropdownColor: const Color(0xFF1E1E2E),
               style: const TextStyle(color: Colors.white, fontSize: 13),
-              isExpanded: true,
-              items: encodings.map((e) => DropdownMenuItem(
-                value: e, child: Text(e))).toList(),
+              isDense: true,
+              items: fonts.map((f) => DropdownMenuItem(
+                  value: f, child: Text(f))).toList(),
               onChanged: (v) {
-                if (v != null) _update(_p.copyWith(subtitleEncoding: v));
+                if (v != null) _update(_p.copyWith(subtitleFontFamily: v));
               },
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const Divider(color: Colors.white10, height: 1),
 
-        // Sync
-        _SectionLabel('Sync'),
-        const SizedBox(height: 8),
-        _SyncRow(
-          label: 'Sub Sync',
-          delayMs: widget.subDelayMs,
-          onReset: () => widget.onSubDelay(0),
-          onFull: widget.onOpenSubSync,
+        // Size
+        _QsLabel('Size'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Row(children: [
+            Expanded(child: Slider(
+              value: size.clamp(8, 60),
+              min: 8, max: 60, divisions: 52,
+              activeColor: _accent,
+              inactiveColor: Colors.white12,
+              onChanged: (v) => _update(_p.copyWith(subtitleFontSize: v)),
+            )),
+            SizedBox(width: 36, child: Text(size.toInt().toString(),
+              style: const TextStyle(color: Colors.white70, fontSize: 14,
+                  fontWeight: FontWeight.w600),
+              textAlign: TextAlign.right)),
+          ]),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Scale
+        _QsLabel('Scale'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Row(children: [
+            Expanded(child: Slider(
+              value: (scale * 100).clamp(50, 200),
+              min: 50, max: 200, divisions: 150,
+              activeColor: _accent,
+              inactiveColor: Colors.white12,
+              onChanged: (v) => setState(() => _subtitleScale = v / 100),
+            )),
+            SizedBox(width: 48, child: Text(
+              '${(scale * 100).toInt()}%',
+              style: const TextStyle(color: Colors.white70, fontSize: 14,
+                  fontWeight: FontWeight.w600),
+              textAlign: TextAlign.right)),
+          ]),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Color + Bold
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Row(children: [
+            const Text('Color',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(width: 12),
+            Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(
+                color: Color(_p.subtitleTextColorValue),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white38),
+              ),
+            ),
+            const SizedBox(width: 24),
+            const Text('Background Color',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(width: 12),
+            Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(
+                color: const Color(0xFF000000),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white38),
+              ),
+            ),
+            const Spacer(),
+            // Bold toggle button (MX Player: blue selected square)
+            GestureDetector(
+              onTap: () => _update(_p.copyWith(subtitleBold: !_p.subtitleBold)),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: _p.subtitleBold ? _accent : Colors.white10,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _p.subtitleBold ? _accent : Colors.white24),
+                ),
+                child: Icon(Icons.format_bold_rounded,
+                    color: _p.subtitleBold ? Colors.white : Colors.white54, size: 20),
+              ),
+            ),
+          ]),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Border + Shadow swatches
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Row(children: [
+            const Text('Border',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(width: 12),
+            Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white38),
+              ),
+            ),
+            const SizedBox(width: 24),
+            const Text('Shadow',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(width: 12),
+            Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(
+                color: const Color(0xFF333333),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white38),
+              ),
+            ),
+          ]),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Improve stroke rendering
+        _QsToggleRow(
+          label: 'Improve stroke rendering',
+          value: _improveStroke,
+          onChanged: (v) => setState(() => _improveStroke = v),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
+        // Fade out
+        _QsToggleRow(
+          label: 'Fade out',
+          value: _fadeOut,
+          onChanged: (v) => setState(() => _fadeOut = v),
         ),
       ],
     );
   }
-
-  // ── Tab 5: Audio ─────────────────────────────────────────────────────────
-
-  Widget _buildAudioTab() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      children: [
-        // Volume Boost
-        _SectionLabel('Volume Boost'),
-        Row(children: [
-          Expanded(child: Slider(
-            value: _p.volumeBoostMultiplier,
-            min: 1.0, max: 3.0, divisions: 20,
-            activeColor: _p.volumeBoostMultiplier > 2.0
-                ? Colors.red
-                : _p.volumeBoostMultiplier > 1.5
-                    ? Colors.orange : _accent,
-            inactiveColor: Colors.white12,
-            onChanged: (v) =>
-                _update(_p.copyWith(volumeBoostMultiplier: v)),
-          )),
-          SizedBox(width: 48, child: Text(
-            '${(_p.volumeBoostMultiplier * 100).toInt()}%',
-            style: TextStyle(
-              color: _p.volumeBoostMultiplier > 2.0 ? Colors.red
-                  : _p.volumeBoostMultiplier > 1.5 ? Colors.orange
-                  : Colors.white70,
-              fontSize: 12, fontWeight: FontWeight.w600),
-            textAlign: TextAlign.right)),
-        ]),
-        if (_p.volumeBoostMultiplier > 2.0)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 4),
-            child: Text('⚠ May distort audio at 300%',
-              style: TextStyle(color: Colors.red, fontSize: 11)))
-        else if (_p.volumeBoostMultiplier > 1.5)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 4),
-            child: Text('⚠ High volume — use with caution',
-              style: TextStyle(color: Colors.orange, fontSize: 11))),
-
-        const Divider(color: Colors.white10, height: 24),
-        _SectionLabel('Processing'),
-        const SizedBox(height: 8),
-        _QRow('Dialogue Boost', Icons.record_voice_over_rounded,
-          Switch(value: _p.dialogueBoostEnabled, activeColor: _accent,
-            onChanged: (v) =>
-                _update(_p.copyWith(dialogueBoostEnabled: v)))),
-        _QRow('Audio Normalization', Icons.equalizer_rounded,
-          Switch(value: _p.audioNormalization, activeColor: _accent,
-            onChanged: (v) =>
-                _update(_p.copyWith(audioNormalization: v)))),
-        _QRow('Deinterlace', Icons.blur_linear_rounded,
-          Switch(value: _p.deinterlaceEnabled, activeColor: _accent,
-            onChanged: (v) =>
-                _update(_p.copyWith(deinterlaceEnabled: v)))),
-
-        const Divider(color: Colors.white10, height: 24),
-        _SectionLabel('Decoder'),
-        const SizedBox(height: 8),
-        _QRow('Hardware Decoder', Icons.memory_rounded,
-          Switch(value: _p.hwDecoderEnabled, activeColor: _accent,
-            onChanged: (v) =>
-                _update(_p.copyWith(hwDecoderEnabled: v)))),
-        const Padding(
-          padding: EdgeInsets.only(left: 32, bottom: 4),
-          child: Text('Disable if video stutters or crashes',
-            style: TextStyle(color: Colors.white38, fontSize: 11))),
-
-        const Divider(color: Colors.white10, height: 24),
-        _SectionLabel('Sync'),
-        const SizedBox(height: 8),
-        _SyncRow(
-          label: 'Audio Sync',
-          delayMs: widget.audioDelayMs,
-          onReset: () => widget.onAudioDelay(0),
-          onFull: widget.onOpenAudioSync,
-        ),
-      ],
-    );
-  }
 }
 
-// ── Data Classes ──────────────────────────────────────────────────────────────
+// ── Shared UI helpers ──────────────────────────────────────────────────────────
 
-class _QualityEntry {
-  final String label, sublabel;
-  final IconData icon;
-  const _QualityEntry(this.label, this.icon, this.sublabel);
-}
-
-class _AspectEntry {
-  final String label, sublabel;
-  final IconData icon;
-  const _AspectEntry(this.label, this.icon, this.sublabel);
-}
-
-// ── Shared Tile Widgets ───────────────────────────────────────────────────────
-
-class _SelectionTile extends StatelessWidget {
-  final IconData icon;
-  final String label, sublabel;
-  final bool selected;
-  final VoidCallback onTap;
-  const _SelectionTile({
-    required this.icon, required this.label, required this.sublabel,
-    required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFFE8002D).withOpacity(0.12)
-              : Colors.white.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected ? const Color(0xFFE8002D) : Colors.white12,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(children: [
-          Icon(icon, size: 18,
-            color: selected ? const Color(0xFFE8002D) : Colors.white38),
-          const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: TextStyle(
-                color: selected ? Colors.white : Colors.white70,
-                fontSize: 14, fontWeight: FontWeight.w600)),
-              Text(sublabel, style: const TextStyle(
-                color: Colors.white38, fontSize: 11)),
-            ])),
-          if (selected)
-            const Icon(Icons.check_circle_rounded,
-              size: 18, color: Color(0xFFE8002D)),
-        ]),
-      ),
-    );
-  }
-}
-
-// ── Utility Row / Label Widgets ───────────────────────────────────────────────
-
-class _QRow extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Widget trailing;
-  const _QRow(this.label, this.icon, this.trailing);
-  @override
-  Widget build(BuildContext context) => Row(children: [
-    Icon(icon, size: 17, color: Colors.white54),
-    const SizedBox(width: 10),
-    Expanded(child: Text(label,
-      style: const TextStyle(color: Colors.white, fontSize: 13))),
-    trailing,
-  ]);
-}
-
-class _SectionLabel extends StatelessWidget {
+class _QsLabel extends StatelessWidget {
   final String text;
-  const _SectionLabel(this.text);
+  const _QsLabel(this.text);
   @override
-  Widget build(BuildContext context) => Text(text,
-    style: const TextStyle(
-      color: Colors.white54, fontSize: 11,
-      letterSpacing: 0.8, fontWeight: FontWeight.w600));
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+    child: Text(text, style: const TextStyle(
+        color: Colors.white38, fontSize: 11, fontWeight: FontWeight.w600,
+        letterSpacing: 0.4)),
+  );
 }
 
-class _ToggleChip extends StatelessWidget {
+class _QsRow extends StatelessWidget {
+  final String label;
+  final Widget child;
+  const _QsRow({required this.label, required this.child});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    child: Row(children: [
+      Expanded(child: Text(label,
+          style: const TextStyle(color: Colors.white70, fontSize: 13))),
+      child,
+    ]),
+  );
+}
+
+class _QsToggleRow extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const _QsToggleRow({required this.label, required this.value,
+      required this.onChanged});
+  static const _accent = Color(0xFF1565C0);
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: () => onChanged(!value),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(children: [
+        Expanded(child: Text(label,
+            style: const TextStyle(color: Colors.white70, fontSize: 13))),
+        Switch(
+          value: value,
+          activeColor: _accent,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          onChanged: onChanged,
+        ),
+      ]),
+    ),
+  );
+}
+
+class _SizeChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  final bool expand;
-  const _ToggleChip(this.label, this.selected, this.onTap,
-    {this.expand = false});
+  const _SizeChip(this.label, this.selected, this.onTap);
+  static const _accent = Color(0xFF1565C0);
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
     child: AnimatedContainer(
       duration: const Duration(milliseconds: 150),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      width: expand ? double.infinity : null,
+      width: 32, height: 28,
       decoration: BoxDecoration(
-        color: selected ? const Color(0xFFE8002D) : Colors.white12,
-        borderRadius: BorderRadius.circular(6)),
-      alignment: expand ? Alignment.center : null,
-      child: Text(label, style: TextStyle(
+        color: selected ? _accent : Colors.white10,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: selected ? _accent : Colors.white24),
+      ),
+      child: Center(child: Text(label, style: TextStyle(
         color: selected ? Colors.white : Colors.white60,
-        fontSize: 12,
-        fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
+        fontSize: 12, fontWeight: FontWeight.w600))),
     ),
   );
 }
 
-class _SpeedChip extends StatelessWidget {
-  final double speed;
+class _StyleOption extends StatelessWidget {
+  final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _SpeedChip({required this.speed, required this.selected,
-    required this.onTap});
+  final Widget child;
+  const _StyleOption({required this.label, required this.selected,
+      required this.onTap, required this.child});
+  static const _accent = Color(0xFF1565C0);
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
     child: AnimatedContainer(
       duration: const Duration(milliseconds: 150),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: selected ? const Color(0xFFE8002D) : Colors.white12,
-        borderRadius: BorderRadius.circular(8)),
-      child: Text(speed == 1.0 ? '×1.0' : '×$speed',
-        style: TextStyle(
-          color: selected ? Colors.white : Colors.white60,
-          fontSize: 13,
-          fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
+        color: selected ? _accent.withOpacity(0.15) : Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: selected ? _accent : Colors.white12,
+            width: selected ? 1.5 : 1.0),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        child,
+        const SizedBox(height: 6),
+        Text(label, style: TextStyle(
+          color: selected ? Colors.white : Colors.white54,
+          fontSize: 11, fontWeight: selected ? FontWeight.w600 : FontWeight.normal)),
+      ]),
     ),
   );
 }
 
-class _SyncRow extends StatelessWidget {
+class _TouchActionBtn extends StatelessWidget {
+  final IconData icon;
   final String label;
-  final int delayMs;
-  final VoidCallback onReset;
-  final VoidCallback onFull;
-  const _SyncRow({required this.label, required this.delayMs,
-    required this.onReset, required this.onFull});
+  final bool selected;
+  final VoidCallback onTap;
+  const _TouchActionBtn({required this.icon, required this.label,
+      required this.selected, required this.onTap});
+  static const _accent = Color(0xFF1565C0);
   @override
-  Widget build(BuildContext context) => Row(children: [
-    Expanded(child: Text(label,
-      style: const TextStyle(color: Colors.white70, fontSize: 13))),
-    Text(delayMs == 0 ? '+0ms' : '${delayMs > 0 ? '+' : ''}${delayMs}ms',
-      style: TextStyle(
-        color: delayMs == 0 ? Colors.white38 : const Color(0xFFE8002D),
-        fontWeight: FontWeight.w600, fontSize: 12)),
-    if (delayMs != 0) ...[
-      const SizedBox(width: 4),
-      GestureDetector(onTap: onReset,
-        child: const Icon(Icons.refresh_rounded,
-          size: 14, color: Color(0xFFE8002D))),
-    ],
-    const SizedBox(width: 8),
-    TextButton(onPressed: onFull,
-      child: const Text('Full Sync →',
-        style: TextStyle(color: Color(0xFFE8002D), fontSize: 11))),
-  ]);
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: selected ? _accent.withOpacity(0.18) : Colors.white.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: selected ? _accent : Colors.white12,
+            width: selected ? 1.5 : 1),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, color: selected ? Colors.white : Colors.white54, size: 24),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(
+          color: selected ? Colors.white : Colors.white60,
+          fontSize: 11, fontWeight: selected ? FontWeight.w600 : FontWeight.normal)),
+      ]),
+    ),
+  );
+}
+
+class _GestureChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _GestureChip({required this.icon, required this.label});
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 86,
+    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.06),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: Colors.white12),
+    ),
+    child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, color: Colors.white54, size: 20),
+      const SizedBox(height: 4),
+      Text(label, style: const TextStyle(color: Colors.white54, fontSize: 9, height: 1.3),
+          textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+    ]),
+  );
 }

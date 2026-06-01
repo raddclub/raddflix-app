@@ -2476,6 +2476,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 eqEnabled: _prefs.equalizerEnabled,
                 sleepActive: _sleepRemainingSeconds != null || _sleepAtEpisodeEnd,
                 nightMode: _cinematicMode,
+                speed: _speed,
+                loopActive: _abLoop.isActive,
+                abRepeatActive: _abLoop.isActive,
                 onScreenRotation: () {
                   _cycleRotation();
                   setState(() {});
@@ -2498,6 +2501,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 onNightMode: () {
                   _toggleCinematic();
                   setState(() {});
+                },
+                onSpeed: () {
+                  setState(() { _showVideoDisplay = false; _showSpeedPicker = true; });
+                },
+                onAudioEffect: () {
+                  setState(() { _showVideoDisplay = false; _showEqPanel = true; });
+                },
+                onAbRepeat: () {
+                  setState(() { _showVideoDisplay = false; _showAbPanel = !_showAbPanel; });
                 },
                 onDone: () => setState(() => _showVideoDisplay = false),
               )),
@@ -2797,15 +2809,15 @@ class _ControlsOverlay extends StatelessWidget {
         ),
   
 
-      // ── CENTER CONTROLS (MX Player: circular seek + red play circle) ──────────
+      // ── CENTER CONTROLS (MX Player landscape: vertical — up=seek-back, down=seek-fwd) ──
         if (!locked)
           Center(
-            child: Row(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 _MxSeekBtn(isForward: false, seconds: 15, onTap: onSeekBack),
-                const SizedBox(width: 24),
+                const SizedBox(height: 20),
                 GestureDetector(
                   onTap: onPlayPause,
                   onLongPress: onLongPressPlay,
@@ -2822,10 +2834,10 @@ class _ControlsOverlay extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 24),
+                const SizedBox(height: 20),
                 _MxSeekBtn(isForward: true, seconds: 15, onTap: onSeekForward),
                 if (hasNext) ...[
-                  const SizedBox(width: 20),
+                  const SizedBox(height: 16),
                   GestureDetector(
                     onTap: onNextEpisode,
                     child: Container(
@@ -2888,190 +2900,216 @@ class _ControlsOverlay extends StatelessWidget {
         ),
 
   
-      // ── BOTTOM BAR (MX Player: clean progress + time) ──────────────────────
-      Positioned(
-        bottom: 0, left: 0, right: 0,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            // Seek thumbnail (local files)
-            if (seekThumb != null && sliderDragging && isLocal)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Align(
-                  alignment: Alignment((progress * 2 - 1).clamp(-0.85, 0.85), 0),
-                  child: Container(
-                    width: 160, height: 90,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white38),
-                      boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 8)],
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Stack(children: [
-                      Image.memory(seekThumb!, fit: BoxFit.cover, width: 160, height: 90),
-                      Positioned(
-                        bottom: 0, left: 0, right: 0,
-                        child: Container(
-                          color: Colors.black54,
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          child: Text(
-                            fmtDur(Duration(milliseconds:
-                                (progress * duration.inMilliseconds).toInt())),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
+      // ── LEFT SIDE SEEK BAR (MX Player landscape: vertical seek on left edge) ──────
+      if (!locked)
+        Positioned(
+          left: 0, top: 0, bottom: 0,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 56),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // ── Seek thumbnail (shows beside bar when dragging local file) ──
+                  if (seekThumb != null && sliderDragging && isLocal)
+                    Container(
+                      width: 120, height: 70,
+                      margin: const EdgeInsets.only(left: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white38),
+                        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 8)],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(children: [
+                        Image.memory(seekThumb!, fit: BoxFit.cover, width: 120, height: 70),
+                        Positioned(
+                          bottom: 0, left: 0, right: 0,
+                          child: Container(
+                            color: Colors.black54,
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(
+                              fmtDur(Duration(milliseconds:
+                                  (progress * duration.inMilliseconds).toInt())),
+                              style: const TextStyle(color: Colors.white, fontSize: 9,
+                                  fontWeight: FontWeight.w600),
+                              textAlign: TextAlign.center,
                             ),
-                            textAlign: TextAlign.center,
                           ),
                         ),
+                      ]),
+                    ),
+                  // ── Current position time (top of bar) ──
+                  GestureDetector(
+                    onTap: onToggleRemaining,
+                    onLongPress: onJumpToTime,
+                    child: Text(
+                      showRemaining
+                          ? '-${fmtDur(duration - position)}'
+                          : fmtDur(position),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
                       ),
+                    ),
+                  ),
+                  // ── Vertical seek slider ──────────────────────────────────────
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: LayoutBuilder(
+                        builder: (ctx, constraints) {
+                          final sliderLen = constraints.maxHeight;
+                          return SizedBox(
+                            width: 44,
+                            child: Stack(alignment: Alignment.center, children: [
+                              // Buffered progress (vertical background track)
+                              Positioned(
+                                top: 0, bottom: 0,
+                                child: RotatedBox(
+                                  quarterTurns: 1,
+                                  child: SizedBox(
+                                    width: sliderLen, height: 3,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: LinearProgressIndicator(
+                                        value: bufferedFraction.clamp(0.0, 1.0),
+                                        backgroundColor: Colors.white12,
+                                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white30),
+                                        minHeight: 3,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // A-B loop point A marker
+                              if (abLoop.pointA != null && duration.inMilliseconds > 0)
+                                Positioned(
+                                  bottom: ((abLoop.pointA!.inMilliseconds /
+                                      duration.inMilliseconds).clamp(0.0,1.0) * sliderLen),
+                                  child: Container(
+                                    width: 10, height: 10,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle, color: Colors.orange),
+                                  ),
+                                ),
+                              // A-B loop point B marker
+                              if (abLoop.pointB != null && duration.inMilliseconds > 0)
+                                Positioned(
+                                  bottom: ((abLoop.pointB!.inMilliseconds /
+                                      duration.inMilliseconds).clamp(0.0,1.0) * sliderLen),
+                                  child: Container(
+                                    width: 10, height: 10,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle, color: Color(0xFFE8002D)),
+                                  ),
+                                ),
+                              // Bookmark emoji markers on the bar
+                              ...bookmarks.map((bm) {
+                                if (duration.inMilliseconds <= 0) return const SizedBox.shrink();
+                                final frac = (bm.positionMs / duration.inMilliseconds).clamp(0.0,1.0);
+                                return Positioned(
+                                  bottom: frac * sliderLen - 8,
+                                  child: GestureDetector(
+                                    onTap: () => onSeekTo(frac),
+                                    child: Text(bm.emoji,
+                                        style: const TextStyle(fontSize: 10)),
+                                  ),
+                                );
+                              }),
+                              // Chapter markers as thin horizontal lines
+                              ...chapters.map((ch) {
+                                if (duration.inMilliseconds <= 0) return const SizedBox.shrink();
+                                final frac = (ch.inMilliseconds / duration.inMilliseconds).clamp(0.0,1.0);
+                                return Positioned(
+                                  bottom: frac * sliderLen - 1,
+                                  left: 6, right: 6,
+                                  child: Container(
+                                    height: 2,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white54,
+                                      borderRadius: BorderRadius.circular(1)),
+                                  ),
+                                );
+                              }),
+                              // Seek-bar long-press gesture overlay
+                              if (onSeekBarLongPress != null)
+                                Positioned.fill(
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.translucent,
+                                    onLongPress: onSeekBarLongPress,
+                                    child: const SizedBox.expand(),
+                                  ),
+                                ),
+                              // The vertical slider (white thumb, red track) ──────
+                              RotatedBox(
+                                quarterTurns: 1,
+                                child: SizedBox(
+                                  width: sliderLen,
+                                  child: SliderTheme(
+                                    data: SliderTheme.of(ctx).copyWith(
+                                      trackHeight: sliderDragging ? 5 : 3,
+                                      thumbShape: RoundSliderThumbShape(
+                                          enabledThumbRadius: sliderDragging ? 10 : 6),
+                                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
+                                      activeTrackColor: const Color(0xFFE8002D),
+                                      inactiveTrackColor: Colors.transparent,
+                                      thumbColor: Colors.white,
+                                      overlayColor: const Color(0x22E8002D),
+                                    ),
+                                    child: Slider(
+                                      value: progress.clamp(0.0, 1.0),
+                                      onChangeStart: onSliderStart,
+                                      onChanged: onSliderChange,
+                                      onChangeEnd: onSliderEnd,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ]),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  // ── Duration at bottom of bar ─────────────────────────────────
+                  GestureDetector(
+                    onLongPress: onShareTimestamp,
+                    child: Text(
+                      fmtDur(duration),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                      ),
+                    ),
+                  ),
+                  // ── Frame-step controls when paused ──────────────────────────
+                  if (!playing && showFrameStep)
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(
+                        icon: const Icon(Icons.skip_previous_rounded,
+                            color: Colors.white70, size: 18),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: onFrameBackStep),
+                      const Text('Frame',
+                          style: TextStyle(color: Colors.white38, fontSize: 9)),
+                      IconButton(
+                        icon: const Icon(Icons.skip_next_rounded,
+                            color: Colors.white70, size: 18),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: onFrameStep),
                     ]),
-                  ),
-                ),
-              ),
-
-            // Progress row: time | slider | total
-            Row(children: [
-              GestureDetector(
-                onTap: onToggleRemaining,
-                onLongPress: onJumpToTime,
-                child: SizedBox(
-                  width: 44,
-                  child: Text(
-                    showRemaining ? '-${fmtDur(duration - position)}' : fmtDur(position),
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SizedBox(
-                  height: sliderDragging ? 44 : 36,
-                  child: Stack(alignment: Alignment.center, children: [
-                    // Buffer bar
-                    Positioned(
-                      left: 0, right: 0,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: bufferedFraction.clamp(0.0, 1.0),
-                          backgroundColor: Colors.white12,
-                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.white30),
-                          minHeight: sliderDragging ? 5 : 3,
-                        ),
-                      ),
-                    ),
-                    // Scene bookmarks
-                    ...bookmarks.map((bm) {
-                      if (duration.inMilliseconds <= 0) return const SizedBox.shrink();
-                      final frac = (bm.positionMs / duration.inMilliseconds).clamp(0.0, 1.0);
-                      final w = MediaQuery.of(context).size.width - 130;
-                      return Positioned(
-                        left: frac * w, top: 0, bottom: 0,
-                        child: Center(child: GestureDetector(
-                          onTap: () => onSeekTo(frac),
-                          child: Text(bm.emoji, style: const TextStyle(fontSize: 10)),
-                        )),
-                      );
-                    }),
-                    // A-B markers
-                    if (abLoop.pointA != null && duration.inMilliseconds > 0)
-                      Positioned(
-                        left: (abLoop.pointA!.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0) *
-                            (MediaQuery.of(context).size.width - 130),
-                        top: 0, bottom: 0,
-                        child: Center(child: Container(
-                            width: 10, height: 10,
-                            decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.orange))),
-                      ),
-                    if (abLoop.pointB != null && duration.inMilliseconds > 0)
-                      Positioned(
-                        left: (abLoop.pointB!.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0) *
-                            (MediaQuery.of(context).size.width - 130),
-                        top: 0, bottom: 0,
-                        child: Center(child: Container(
-                            width: 10, height: 10,
-                            decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFE8002D)))),
-                      ),
-                    // Chapter markers
-                    ...chapters.map((ch) {
-                      if (duration.inMilliseconds <= 0) return const SizedBox.shrink();
-                      final frac = (ch.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
-                      return Positioned(
-                        left: frac * (MediaQuery.of(context).size.width - 130) - 1,
-                        top: 0, bottom: 0,
-                        child: Center(child: Container(
-                          width: 2, height: sliderDragging ? 16 : 10,
-                          decoration: BoxDecoration(color: Colors.white54, borderRadius: BorderRadius.circular(1)),
-                        )),
-                      );
-                    }),
-                    // Seek bar long-press (set intro end)
-                    if (onSeekBarLongPress != null)
-                      Positioned(
-                        left: 0, right: 0, top: 0, bottom: 0,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onLongPress: onSeekBarLongPress,
-                          child: const SizedBox.expand(),
-                        ),
-                      ),
-                    // Red progress slider (MX Player red accent)
-                    SliderTheme(
-                      data: SliderTheme.of(context).copyWith(
-                        trackHeight: sliderDragging ? 5 : 3,
-                        thumbShape: RoundSliderThumbShape(enabledThumbRadius: sliderDragging ? 10 : 5),
-                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
-                        activeTrackColor: const Color(0xFFE8002D),
-                        inactiveTrackColor: Colors.transparent,
-                        thumbColor: const Color(0xFFE8002D),
-                        overlayColor: const Color(0x22E8002D),
-                      ),
-                      child: Slider(
-                        value: progress.clamp(0.0, 1.0),
-                        onChangeStart: onSliderStart,
-                        onChanged: onSliderChange,
-                        onChangeEnd: onSliderEnd,
-                      ),
-                    ),
-                  ]),
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onLongPress: onShareTimestamp,
-                child: SizedBox(
-                  width: 44,
-                  child: Text(fmtDur(duration),
-                      style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                ),
-              ),
-            ]),
-
-            // Frame-step controls (paused only) — minimal like MX Player.
-            // FIX-UI: "Subtitle File / EQ / Info / Enhance / Shot" bottom row
-            // removed — those are accessible via right-strip "More" button.
-            if (!playing && showFrameStep)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  IconButton(
-                    icon: const Icon(Icons.skip_previous_rounded, color: Colors.white70, size: 22),
-                    padding: EdgeInsets.zero, constraints: const BoxConstraints(),
-                    onPressed: onFrameBackStep),
-                  const Text('Frame', style: TextStyle(color: Colors.white38, fontSize: 10)),
-                  IconButton(
-                    icon: const Icon(Icons.skip_next_rounded, color: Colors.white70, size: 22),
-                    padding: EdgeInsets.zero, constraints: const BoxConstraints(),
-                    onPressed: onFrameStep),
-                ]),
-              ),
-          ]).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut),
+                ],
+              ).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut),
+            ),
+          ),
         ),
-      ),
     ]);
   }
 }
@@ -3139,7 +3177,7 @@ class _MxSideBtn extends StatelessWidget {
   }
 }
 
-/// Circular seek button (MX Player style: dark circle with icon + seconds label)
+/// Triangular seek button (MX Player landscape style: double-chevron arrow + seconds)
 class _MxSeekBtn extends StatelessWidget {
   final bool isForward;
   final int seconds;
@@ -3150,21 +3188,27 @@ class _MxSeekBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () { HapticFeedback.selectionClick(); onTap(); },
-      child: Container(
-        width: 54, height: 54,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.black45,
-          border: Border.all(color: Colors.white.withOpacity(0.18), width: 0.8),
+      child: SizedBox(
+        width: 54,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!isForward)
+              Icon(Icons.keyboard_double_arrow_up_rounded,
+                  color: Colors.white, size: 36),
+            Text(
+              '${seconds}s',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (isForward)
+              Icon(Icons.keyboard_double_arrow_down_rounded,
+                  color: Colors.white, size: 36),
+          ],
         ),
-        child: Stack(alignment: Alignment.center, children: [
-          Icon(isForward ? Icons.forward_rounded : Icons.replay_rounded, color: Colors.white, size: 26),
-          Positioned(
-            bottom: 10,
-            child: Text('$seconds',
-                style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
-          ),
-        ]),
       ),
     );
   }
@@ -3682,6 +3726,9 @@ class _VideoDisplaySheet extends StatelessWidget {
   final bool eqEnabled;
   final bool sleepActive;
   final bool nightMode;
+  final double speed;
+  final bool loopActive;
+  final bool abRepeatActive;
 
   final VoidCallback onScreenRotation;
   final ValueChanged<bool> onBgPlay;
@@ -3689,6 +3736,9 @@ class _VideoDisplaySheet extends StatelessWidget {
   final VoidCallback onEq;
   final VoidCallback onSleep;
   final VoidCallback onNightMode;
+  final VoidCallback onSpeed;
+  final VoidCallback onAudioEffect;
+  final VoidCallback onAbRepeat;
   final VoidCallback onDone;
 
   const _VideoDisplaySheet({
@@ -3698,65 +3748,55 @@ class _VideoDisplaySheet extends StatelessWidget {
     required this.eqEnabled,
     required this.sleepActive,
     required this.nightMode,
+    required this.speed,
+    required this.loopActive,
+    required this.abRepeatActive,
     required this.onScreenRotation,
     required this.onBgPlay,
     required this.onMute,
     required this.onEq,
     required this.onSleep,
     required this.onNightMode,
+    required this.onSpeed,
+    required this.onAudioEffect,
+    required this.onAbRepeat,
     required this.onDone,
   });
 
   static const _accent  = Color(0xFFE8002D);
+  static const _blue    = Color(0xFF1565C0);
   static const _surface = Color(0xFF12121E);
 
   @override
   Widget build(BuildContext context) {
-    final shortcuts = [
-      _VDShortcut(
-        icon: Icons.screen_rotation_rounded,
-        label: 'Screen\nRotation',
-        isToggle: false,
-        active: screenRotation,
-        onTap: (_) => onScreenRotation(),
-      ),
-      _VDShortcut(
-        icon: Icons.play_circle_outline_rounded,
-        label: 'Background\nPlay',
-        isToggle: true,
-        active: bgPlay,
-        onTap: onBgPlay,
-      ),
-      _VDShortcut(
-        icon: isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-        label: 'Mute',
-        isToggle: true,
-        active: isMuted,
-        onTap: onMute,
-      ),
-      _VDShortcut(
-        icon: Icons.equalizer_rounded,
-        label: 'EQ',
-        isToggle: false,
-        active: eqEnabled,
-        onTap: (_) => onEq(),
-      ),
-      _VDShortcut(
-        icon: sleepActive ? Icons.bedtime_rounded : Icons.bedtime_outlined,
-        label: 'Sleep\nTimer',
-        isToggle: false,
-        active: sleepActive,
-        onTap: (_) => onSleep(),
-      ),
-      _VDShortcut(
-        icon: Icons.dark_mode_rounded,
-        label: 'Night\nMode',
-        isToggle: true,
-        active: nightMode,
-        onTap: (_) => onNightMode(),
-      ),
+    // Row 1 (screenshot 7, top row): Screen Rotation, Background Play, Mute, Equalizer, Sleep Timer, Night Mode
+    // Row 2 (screenshot 7, bottom row): Playback Speed, Customise Items, A-B Repeat, Audio Effect, Loop, Shuffle
+    final row1 = [
+      _VDSBtn(icon: Icons.screen_rotation_rounded,      label: 'Screen
+Rotation',    active: screenRotation,     onTap: (_) => onScreenRotation()),
+      _VDSBtn(icon: Icons.play_circle_outline_rounded,  label: 'Background
+Play',    active: bgPlay,             onTap: onBgPlay,  isToggle: true),
+      _VDSBtn(icon: isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                                                         label: 'Mute',               active: isMuted,            onTap: onMute,    isToggle: true),
+      _VDSBtn(icon: Icons.equalizer_rounded,             label: 'Equalizer',          active: eqEnabled,          onTap: (_) => onEq()),
+      _VDSBtn(icon: sleepActive ? Icons.bedtime_rounded : Icons.bedtime_outlined,
+                                                         label: 'Sleep
+Timer',       active: sleepActive,        onTap: (_) => onSleep()),
+      _VDSBtn(icon: Icons.dark_mode_rounded,             label: 'Night
+Mode',        active: nightMode,          onTap: (_) => onNightMode()),
     ];
-
+    final row2 = [
+      _VDSBtn(icon: Icons.speed_rounded,                 label: 'Playback
+Speed',    active: speed != 1.0,       onTap: (_) => onSpeed()),
+      _VDSBtn(icon: Icons.loop_rounded,                  label: 'Loop',               active: loopActive,         onTap: (_) {}, isToggle: true),
+      _VDSBtn(icon: Icons.shuffle_rounded,               label: 'Shuffle',            active: false,              onTap: (_) {}),
+      _VDSBtn(icon: Icons.graphic_eq_rounded,            label: 'Audio
+Effect',      active: false,              onTap: (_) => onAudioEffect()),
+      _VDSBtn(icon: Icons.repeat_one_rounded,            label: 'A-B
+Repeat',        active: abRepeatActive,     onTap: (_) => onAbRepeat()),
+      _VDSBtn(icon: Icons.tune_rounded,                  label: 'Customise
+Items',   active: false,              onTap: (_) {}),
+    ];
     return Container(
       decoration: const BoxDecoration(
         color: _surface,
@@ -3770,7 +3810,7 @@ class _VideoDisplaySheet extends StatelessWidget {
           margin: const EdgeInsets.fromLTRB(0, 10, 0, 14),
           decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
         )),
-        // Header row
+        // Header
         Row(children: [
           const Icon(Icons.display_settings_rounded, color: Colors.white54, size: 18),
           const SizedBox(width: 8),
@@ -3783,86 +3823,75 @@ class _VideoDisplaySheet extends StatelessWidget {
           ),
         ]),
         const SizedBox(height: 12),
-        // 3-column grid of toggle tiles
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 1.55,
-          ),
-          itemCount: shortcuts.length,
-          itemBuilder: (_, i) => _VDTile(shortcut: shortcuts[i]),
-        ),
+        // Row 1
+        Row(children: row1.map((btn) => Expanded(child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: _VDSTile(btn: btn),
+        ))).toList()),
+        const SizedBox(height: 10),
+        // Row 2
+        Row(children: row2.map((btn) => Expanded(child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: _VDSTile(btn: btn),
+        ))).toList()),
         const SizedBox(height: 8),
-        // Hint
-        const Text(
-          'Tap an icon to toggle. Long-press to configure.',
-          style: TextStyle(color: Colors.white30, fontSize: 11),
-        ),
       ]),
     ).animate().slideY(begin: 1, end: 0, duration: 250.ms, curve: Curves.easeOutCubic);
   }
 }
 
-class _VDShortcut {
+class _VDSBtn {
   final IconData icon;
   final String label;
-  final bool isToggle;
   final bool active;
+  final bool isToggle;
   final ValueChanged<bool> onTap;
-  const _VDShortcut({
-    required this.icon,
-    required this.label,
-    required this.isToggle,
-    required this.active,
-    required this.onTap,
+  const _VDSBtn({
+    required this.icon, required this.label, required this.active,
+    required this.onTap, this.isToggle = false,
   });
 }
 
-class _VDTile extends StatelessWidget {
-  final _VDShortcut shortcut;
-  const _VDTile({required this.shortcut});
+class _VDSTile extends StatelessWidget {
+  final _VDSBtn btn;
+  const _VDSTile({required this.btn});
 
-  static const _accent  = Color(0xFFE8002D);
-  static const _onColor = Color(0xFF1E3A5F);
+  static const _blue   = Color(0xFF1565C0);
+  static const _accent = Color(0xFFE8002D);
 
   @override
   Widget build(BuildContext context) {
-    final on = shortcut.active;
+    final on = btn.active;
     return GestureDetector(
-      onTap: () => shortcut.onTap(!on),
+      onTap: () => btn.onTap(!on),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         decoration: BoxDecoration(
-          color: on ? _onColor : Colors.white.withOpacity(0.07),
+          color: on ? _blue : Colors.white.withOpacity(0.07),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: on ? _accent.withOpacity(0.6) : Colors.white12,
+            color: on ? _blue.withOpacity(0.8) : Colors.white12,
             width: on ? 1.5 : 1.0,
           ),
-          boxShadow: on ? [BoxShadow(color: _accent.withOpacity(0.18), blurRadius: 8)] : null,
+          boxShadow: on ? [BoxShadow(color: _blue.withOpacity(0.25), blurRadius: 8)] : null,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Icon(shortcut.icon, color: on ? Colors.white : Colors.white54, size: 20),
-              if (shortcut.isToggle)
-                _SmallToggle(on: on),
-            ]),
+            Icon(btn.icon, color: on ? Colors.white : Colors.white54, size: 22),
+            const SizedBox(height: 5),
             Text(
-              shortcut.label,
+              btn.label,
               style: TextStyle(
-                color: on ? Colors.white : Colors.white60,
-                fontSize: 11,
+                color: on ? Colors.white : Colors.white54,
+                fontSize: 9,
                 height: 1.25,
                 fontWeight: on ? FontWeight.w600 : FontWeight.normal,
               ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -3871,29 +3900,7 @@ class _VDTile extends StatelessWidget {
   }
 }
 
-class _SmallToggle extends StatelessWidget {
-  final bool on;
-  const _SmallToggle({required this.on});
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      width: 28, height: 16,
-      decoration: BoxDecoration(
-        color: on ? const Color(0xFFE8002D) : Colors.white24,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Align(
-        alignment: on ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          margin: const EdgeInsets.all(2),
-          width: 12, height: 12,
-          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-        ),
-      ),
-    );
-  }
-}
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MX PLAYER STYLE — CIRCULAR DOTS LOADING ANIMATION (screenshot 15)
@@ -3923,41 +3930,49 @@ class _CircularDotsLoaderState extends State<_CircularDotsLoader>
 
   @override
   Widget build(BuildContext context) {
-    const dotCount = 12;
-    const radius = 52.0;
-    const dotRadius = 6.0;
+    // MX Player screenshot 15: large ring of uniform white dots with center AI icon
+    const dotCount = 40;
+    const radius = 80.0;
+    const dotRadius = 5.5;
+    const totalSize = (radius + dotRadius) * 2 + 16;
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (_, __) {
         final phase = _ctrl.value;
         return SizedBox(
-          width: (radius + dotRadius) * 2 + 16,
-          height: (radius + dotRadius) * 2 + 16,
+          width: totalSize,
+          height: totalSize,
           child: Stack(
             alignment: Alignment.center,
-            children: List.generate(dotCount, (i) {
-              final angle = (i / dotCount) * 2 * math.pi - math.pi / 2;
-              final cx = radius * math.cos(angle);
-              final cy = radius * math.sin(angle);
-              // Each dot fades based on how far behind the current phase it is
-              final dotPhase = i / dotCount;
-              double diff = (phase - dotPhase) % 1.0;
-              if (diff < 0) diff += 1.0;
-              final opacity = (1.0 - diff).clamp(0.15, 1.0);
-              final scale = 0.5 + 0.5 * (1.0 - diff).clamp(0.0, 1.0);
-              return Positioned(
-                left: radius + dotRadius + cx - dotRadius * scale,
-                top:  radius + dotRadius + cy - dotRadius * scale,
-                child: Container(
-                  width: dotRadius * 2 * scale,
-                  height: dotRadius * 2 * scale,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(opacity),
+            children: [
+              // Ring of dots — MX Player style: bright leading dot, fading tail
+              ...List.generate(dotCount, (i) {
+                final angle = (i / dotCount) * 2 * math.pi - math.pi / 2;
+                final cx = radius * math.cos(angle);
+                final cy = radius * math.sin(angle);
+                final dotPhase = i / dotCount;
+                double diff = (phase - dotPhase) % 1.0;
+                if (diff < 0) diff += 1.0;
+                // Short bright tail: only dots within 0–25% behind the leading dot are visible
+                final opacity = diff < 0.25
+                    ? (1.0 - (diff / 0.25) * 0.75)
+                    : 0.12;
+                return Positioned(
+                  left: radius + dotRadius + cx - dotRadius,
+                  top:  radius + dotRadius + cy - dotRadius,
+                  child: Container(
+                    width: dotRadius * 2,
+                    height: dotRadius * 2,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(opacity.clamp(0.12, 1.0)),
+                    ),
                   ),
-                ),
-              );
-            }),
+                );
+              }),
+              // Center icon — MX Player: sparkle/AI magic icon
+              const Icon(Icons.auto_awesome_rounded, color: Colors.white70, size: 32),
+            ],
           ),
         );
       },
@@ -4038,24 +4053,28 @@ class _MxAudioPanelState extends State<_MxAudioPanel> {
         ]),
         const SizedBox(height: 12),
 
-        // Track list (scrollable)
+        // Horizontal chip track list (MX Player screenshots 4, 14 style)
         if (widget.tracks.isNotEmpty)
-          Flexible(
+          SizedBox(
+            height: 56,
             child: ListView(
-              shrinkWrap: true,
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.zero,
               children: [
-                // "Disable" option first
-                _AudioTrackTile(
+                // "Disable" option
+                _AudioTrackChip(
                   label: 'Disable',
-                  icon: Icons.volume_off_rounded,
                   selected: widget.activeIndex < 0,
                   onTap: () => widget.onSelect(-1),
                 ),
-                ...widget.tracks.asMap().entries.map((e) => _AudioTrackTile(
-                  label: '${e.value.isNotEmpty ? e.value : "Audio ${e.key + 1}"}',
-                  icon: Icons.radio_button_checked_rounded,
-                  selected: e.key == widget.activeIndex,
-                  onTap: () => widget.onSelect(e.key),
+                const SizedBox(width: 8),
+                ...widget.tracks.asMap().entries.map((e) => Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: _AudioTrackChip(
+                    label: e.value.isNotEmpty ? e.value : 'Audio ${e.key + 1}',
+                    selected: e.key == widget.activeIndex,
+                    onTap: () => widget.onSelect(e.key),
+                  ),
                 )),
               ],
             ),
@@ -4117,34 +4136,42 @@ class _MxAudioPanelState extends State<_MxAudioPanel> {
   }
 }
 
-class _AudioTrackTile extends StatelessWidget {
+class _AudioTrackChip extends StatelessWidget {
   final String label;
-  final IconData icon;
   final bool selected;
   final VoidCallback onTap;
-  const _AudioTrackTile({required this.label, required this.icon, required this.selected, required this.onTap});
+  const _AudioTrackChip({required this.label, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-        child: Row(children: [
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF1565C0) : Colors.white10,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? const Color(0xFF4DB6FF) : Colors.white12,
+            width: selected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(
             selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
             color: selected ? const Color(0xFF4DB6FF) : Colors.white38,
-            size: 20,
+            size: 16,
           ),
-          const SizedBox(width: 14),
-          Expanded(child: Text(label, style: TextStyle(
-            color: selected ? Colors.white : Colors.white70,
-            fontSize: 14,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-          ))),
-          if (selected)
-            const Icon(Icons.check_rounded, color: Color(0xFF4DB6FF), size: 16),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : Colors.white70,
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
         ]),
       ),
     );
