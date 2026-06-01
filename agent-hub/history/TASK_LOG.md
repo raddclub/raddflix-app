@@ -1189,3 +1189,35 @@ PlayerPrefs +8 fields (8x each — constructor/copyWith/load/save):
 - ps_final: paren diff = -1 (pre-existing, same as committed baseline) ✓
 - QSP: all 4 new callback names present 3× each ✓
 
+---
+
+## Session 14 — 2026-06-01
+
+### Features Implemented
+| Phase | Feature | Files Changed |
+|-------|---------|---------------|
+| J3    | Dyslexia-friendly Subtitle Font (Lexend via GoogleFonts) | quick_settings_panel.dart, subtitle_overlay.dart |
+| G4    | Content Mood Timeline (4-zone seek bar narrative-arc tints) | player_prefs.dart, quick_settings_panel.dart, player_screen.dart, chapter_seek_bar.dart, seek_bar_painter.dart |
+| L2    | Frame Counter Display (#NNNN during frame-step mode) | player_screen.dart (_ControlsOverlay frame label → Column) |
+| K2    | Screenshot Lock toggle (QSP Screen → Privacy section) | player_prefs.dart, quick_settings_panel.dart |
+| L1    | Enhanced Screenshot watermark (confirmed pre-existing) | screenshot_share_sheet.dart (title/timestamp/watermark toggles already present) |
+
+### Commit
+`c3972af208` — J3+G4+L2+K2 (6 files)
+
+### New PlayerPrefs Fields (+2)
+| Field | Type | Default | SharedPrefs Key |
+|-------|------|---------|-----------------|
+| contentMoodEnabled | bool | false | `{p}content_mood` |
+| screenshotLockEnabled | bool | false | `{p}screenshot_lock` |
+
+### Architecture Notes
+- G4: `_ControlsOverlay.moodEnabled` param added; seek bar Stack gets 4 translucent
+  Positioned zones (calm=blue / rising=green / tension=orange / climax=crimson).
+  Also wired in `ChapterSeekBar._ChapterPainter._paintMoodZones()` and
+  `SeekBarPainter._paintMoodZones()` for all styles.
+- L2: Frame formula `(position.inMilliseconds × 24.0 / 1000).round()` (24 fps default).
+- J3: `subtitleFontFamily == 'Lexend'` → `GoogleFonts.lexend().fontFamily` in
+  subtitle_overlay.dart; 'Lexend' added to QSP Text tab font dropdown.
+- K2: Pref stored; FLAG_SECURE native wiring deferred (requires MainActivity.kt changes).
+- Session total: 5 roadmap phases closed (4 new + 1 confirmed).
