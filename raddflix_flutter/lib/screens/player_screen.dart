@@ -28,6 +28,7 @@ import '../core/player/ambilight_controller.dart';
 import '../core/player/binge_guard_controller.dart';
 import '../core/player/scene_bookmark_store.dart';
 import '../core/player/ab_loop_controller.dart';
+import '../widgets/player/seek_bar_painter.dart';
 import '../widgets/player/sync_panel.dart';
 import '../widgets/player/eq_panel.dart';
 import '../widgets/player/quick_settings_panel.dart';
@@ -1799,7 +1800,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: const Color(0xFFE8002D).withOpacity(0.35),
+                        color: _prefs.accentColor.withOpacity(0.35),
                         width: 1.5)),
                   ).animate(onPlay: (c) => c.repeat())
                     .scale(begin: const Offset(1, 1), end: const Offset(1.45, 1.45),
@@ -1811,7 +1812,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
                       strokeCap: StrokeCap.round,
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE8002D))),
+                      valueColor: AlwaysStoppedAnimation<Color>(_prefs.accentColor)),
                   ),
                 ]),
               ),
@@ -1825,8 +1826,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 32),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.error_outline_rounded,
-                        color: Color(0xFFE8002D), size: 48),
+                    Icon(Icons.error_outline_rounded,
+                        color: _prefs.accentColor, size: 48),
                     const SizedBox(height: 16),
                     const Text('Could not load video',
                         style: TextStyle(color: Colors.white,
@@ -1841,7 +1842,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       // Retry button
                       TextButton.icon(
                         style: TextButton.styleFrom(
-                          backgroundColor: const Color(0xFFE8002D),
+                          backgroundColor: _prefs.accentColor,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                           shape: RoundedRectangleBorder(
@@ -2200,6 +2201,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               onToggleTransparentSlider: _prefs.transparentModeEnabled
                   ? () => setState(() => _showTransparentSlider = !_showTransparentSlider)
                   : null,
+              accentColor: _prefs.accentColor,
             ),
             ), // end Opacity
 
@@ -2736,6 +2738,7 @@ class _ControlsOverlay extends StatelessWidget {
   // PL-001: transparent slider trigger
   final bool isTransparentMode;
   final VoidCallback? onToggleTransparentSlider;
+  final Color accentColor;
 
   const _ControlsOverlay({
     required this.title, required this.playing, required this.buffering,
@@ -2784,6 +2787,7 @@ class _ControlsOverlay extends StatelessWidget {
     required this.onFrameBackStep,
     this.isTransparentMode = false,
     this.onToggleTransparentSlider,
+    this.accentColor = const Color(0xFFE8002D),
   });
 
   @override
@@ -2829,9 +2833,9 @@ class _ControlsOverlay extends StatelessWidget {
                   ),
                 ),
                 if (audioDelayMs != 0)
-                  _MxBadge(label: 'A${audioDelayMs > 0 ? '+' : ''}${audioDelayMs}ms', color: const Color(0xFFE8002D), onTap: onAudioSync),
+                  _MxBadge(label: 'A${audioDelayMs > 0 ? '+' : ''}${audioDelayMs}ms', color: accentColor, onTap: onAudioSync),
                 if (subDelayMs != 0)
-                  _MxBadge(label: 'S${subDelayMs > 0 ? '+' : ''}${subDelayMs}ms', color: const Color(0xFFE8002D), onTap: onSubSync),
+                  _MxBadge(label: 'S${subDelayMs > 0 ? '+' : ''}${subDelayMs}ms', color: accentColor, onTap: onSubSync),
                 if (onResetZoom != null)
                   _MxBadge(label: '${scale.toStringAsFixed(1)}×', color: Colors.white70, onTap: onResetZoom!),
                 if (audioLabels.length > 1)
@@ -2878,10 +2882,10 @@ class _ControlsOverlay extends StatelessWidget {
                   onLongPress: onLongPressPlay,
                   child: Container(
                     width: 68, height: 68,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Color(0xFFE8002D),
-                      boxShadow: [BoxShadow(color: Color(0x55E8002D), blurRadius: 24, spreadRadius: 4)],
+                      color: accentColor,
+                      boxShadow: [BoxShadow(color: accentColor.withOpacity(0.33), blurRadius: 24, spreadRadius: 4)],
                     ),
                     child: Icon(
                       playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
@@ -3058,8 +3062,8 @@ class _ControlsOverlay extends StatelessWidget {
                                       duration.inMilliseconds).clamp(0.0,1.0) * sliderLen),
                                   child: Container(
                                     width: 10, height: 10,
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle, color: Color(0xFFE8002D)),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle, color: accentColor),
                                   ),
                                 ),
                               // Bookmark emoji markers on the bar
