@@ -5,6 +5,8 @@ import '../../../core/player/video_look_filter.dart'; // D2
 import '../../../core/player/end_of_video_actions.dart'; // M3
 import '../../../core/player/smart_skip_service.dart'; // M4
 import '../../../core/player/audio_lab_service.dart'; // E1-E4
+import '../../../core/services/wake_lock_service.dart'; // H4
+import 'voice_commands_service.dart'; // J1
 import 'audio_lab_panel.dart'; // E1-E4
 import '../../../core/player/speed_presets_sheet.dart'; // M1
 import 'film_grain_overlay.dart'; // D3
@@ -890,7 +892,57 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
           accentColor: _accent,
         ),
         const Divider(color: Colors.white10, height: 1),
-        // ── Phase J4: Motor Impairment Mode ────────────────────────────────
+        // ── Phase H4: Wake Lock Options ─────────────────────────────────────
+        _QsLabel('Screen Wake Lock'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+          child: SizedBox(
+            height: 34,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: wakeLockTimeoutOptions.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, i) {
+                final mins = wakeLockTimeoutOptions[i];
+                final active = _p.wakeLockTimeoutMinutes == mins;
+                return GestureDetector(
+                  onTap: () => _update(_p.copyWith(wakeLockTimeoutMinutes: mins)),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 140),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: active ? _accent.withOpacity(0.2) : Colors.white10,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                          color: active ? _accent : Colors.white24, width: 1)),
+                    child: Text(wakeLockLabel(mins),
+                        style: TextStyle(
+                            color: active ? _accent : Colors.white60,
+                            fontSize: 12, fontWeight: FontWeight.w500)),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // ── Phase H5: Do Not Disturb ───────────────────────────────────────────
+        _QsToggleRow(
+          label: 'DND on Cinematic Mode',
+          sublabel: 'Silence notifications when in Cinematic / Immersive mode',
+          value: _p.dndOnCinematic,
+          onChanged: (v) => _update(_p.copyWith(dndOnCinematic: v)),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // ── Phase J1: Voice Commands ───────────────────────────────────────────
+        _QsToggleRow(
+          label: 'Voice Commands',
+          sublabel: '"skip 2 minutes" · "louder" · "speed 1.5" · "subtitles off"',
+          value: _p.voiceCommandsEnabled,
+          onChanged: (v) => _update(_p.copyWith(voiceCommandsEnabled: v)),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // ── Phase J4: Motor Impairment Mode ────────────────────────────────────
         _QsToggleRow(
           label: 'Motor Impairment Mode',
           sublabel: 'Larger touch targets · hold-to-seek · slow double-tap',

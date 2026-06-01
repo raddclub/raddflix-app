@@ -40,6 +40,9 @@ import '../widgets/player/jump_to_panel.dart'; // Phase M2
 import '../core/player/end_of_video_actions.dart'; // Phase M3
 import '../core/player/smart_skip_service.dart'; // Phase M4
 import '../core/player/audio_lab_service.dart'; // Phase E1-E4
+import '../core/services/voice_commands_service.dart'; // Phase J1
+import '../core/services/wake_lock_service.dart'; // Phase H4
+import '../core/services/dnd_service.dart'; // Phase H5
 import '../widgets/player/film_grain_overlay.dart'; // Phase D3
 import '../widgets/player/controls_background.dart';
 import '../widgets/player/sleep_timer_sheet.dart';
@@ -2782,6 +2785,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 _handleVideoEnd();
               },
               onCancel: () => setState(() => _showCountdown = false),
+            ),
+
+          // ── Phase J1: Voice Command button (shown over controls) ──────────
+          if (_prefs.voiceCommandsEnabled && _showControls && !_locked)
+            Positioned(
+              left: 16, bottom: 80,
+              child: VoiceCommandButton(
+                accentColor: _prefs.accentColor,
+                onCommand: _handleVoiceCommand,
+              ),
             ),
 
           // ── Controls (Opacity wrapper dims them in Cinematic mode) ──

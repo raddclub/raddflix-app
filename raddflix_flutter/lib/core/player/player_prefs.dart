@@ -239,6 +239,17 @@ class PlayerPrefs {
   /// Encoded AudioLabConfig: 'surround|karaoke|dialogueBoost|btDelayMs'
   final String audioLabConfig;
 
+  // ── Phase J1: Voice Commands ─────────────────────────────────────────────
+  final bool voiceCommandsEnabled;
+
+  // ── Phase H4: Wake Lock ───────────────────────────────────────────────────
+  /// Minutes of inactivity before sleep. 0 = always on.
+  final int wakeLockTimeoutMinutes;
+
+  // ── Phase H5: Do Not Disturb ─────────────────────────────────────────────
+  /// Enable Android DND when entering Cinematic/Immersive mode.
+  final bool dndOnCinematic;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -379,6 +390,9 @@ class PlayerPrefs {
     this.endAction                 = 'play_next',
     this.smartSkipConfig           = '0,0,90,0,120',
     this.audioLabConfig            = 'off|off|0|0',
+    this.voiceCommandsEnabled      = false,
+    this.wakeLockTimeoutMinutes    = 0,
+    this.dndOnCinematic            = false,
   });
 
   PlayerPrefs copyWith({
@@ -455,6 +469,9 @@ class PlayerPrefs {
     String? endAction,
     String? smartSkipConfig,
     String? audioLabConfig,
+    bool?   voiceCommandsEnabled,
+    int?    wakeLockTimeoutMinutes,
+    bool?   dndOnCinematic,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -589,6 +606,9 @@ class PlayerPrefs {
       endAction:                   endAction                    ?? this.endAction,
       smartSkipConfig:             smartSkipConfig              ?? this.smartSkipConfig,
       audioLabConfig:              audioLabConfig               ?? this.audioLabConfig,
+      voiceCommandsEnabled:        voiceCommandsEnabled         ?? this.voiceCommandsEnabled,
+      wakeLockTimeoutMinutes:      wakeLockTimeoutMinutes       ?? this.wakeLockTimeoutMinutes,
+      dndOnCinematic:              dndOnCinematic               ?? this.dndOnCinematic,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -741,6 +761,9 @@ class PlayerPrefs {
       endAction:                   s.getString('\${_p}end_action')              ?? 'play_next',
       smartSkipConfig:             s.getString('\${_p}smart_skip_config')       ?? '0,0,90,0,120',
       audioLabConfig:              s.getString('\${_p}audio_lab_config')         ?? 'off|off|0|0',
+      voiceCommandsEnabled:        s.getBool('\${_p}voice_commands_enabled')    ?? false,
+      wakeLockTimeoutMinutes:      s.getInt('\${_p}wake_lock_timeout')           ?? 0,
+      dndOnCinematic:              s.getBool('\${_p}dnd_on_cinematic')           ?? false,
     );
   }
 
@@ -889,6 +912,9 @@ class PlayerPrefs {
       s.setString('\${_p}end_action',               endAction),
       s.setString('\${_p}smart_skip_config',        smartSkipConfig),
       s.setString('\${_p}audio_lab_config',           audioLabConfig),
+      s.setBool('\${_p}voice_commands_enabled',        voiceCommandsEnabled),
+      s.setInt('\${_p}wake_lock_timeout',              wakeLockTimeoutMinutes),
+      s.setBool('\${_p}dnd_on_cinematic',              dndOnCinematic),
     ]);
   }
 }
