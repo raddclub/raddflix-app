@@ -1221,3 +1221,41 @@ PlayerPrefs +8 fields (8x each — constructor/copyWith/load/save):
   subtitle_overlay.dart; 'Lexend' added to QSP Text tab font dropdown.
 - K2: Pref stored; FLAG_SECURE native wiring deferred (requires MainActivity.kt changes).
 - Session total: 5 roadmap phases closed (4 new + 1 confirmed).
+
+
+---
+
+## Session 15
+
+### Phases Closed
+| Phase | Feature | Status |
+|-------|---------|--------|
+| A2 | Seek Bar Styles — wired SeekBarPainter for 9 non-classic styles | ✅ Done |
+| A3 | Icon Pack System — `_iconForPack()` wires 6 icon packs in player | ✅ Done |
+| B  | Layout Designer — drag-drop tile editor, 4 presets, 16 controls | ✅ Done |
+
+### Commit
+`ea6f479e89cc` — Phase A2+A3+B — wire seekBarStyle, iconPack; add Layout Designer
+
+### Files Changed (+2 new)
+| File | Change |
+|------|--------|
+| `raddflix_flutter/lib/screens/player_screen.dart` | seekBarStyle→SeekBarPainter; iconPack→_iconForPack() wired to play/pause/sub/audio/more |
+| `raddflix_flutter/lib/core/player/player_prefs.dart` | +layoutJson, +layoutPreset fields (load/save/copyWith) |
+| `raddflix_flutter/lib/core/player/layout_config.dart` | **NEW** — ControlItem model, PlayerLayout, 4 presets (centered/left_handed/right_handed/minimal), 16 ControlId constants |
+| `raddflix_flutter/lib/screens/player/layout_designer_screen.dart` | **NEW** — full drag-drop layout editor; tap→select, drag→move, long-press→cycle S/M/L, visibility toggle, preset chips |
+| `raddflix_flutter/lib/app.dart` | +/layout-designer route, +LayoutDesignerScreen import |
+| `raddflix_flutter/lib/widgets/player/quick_settings_panel.dart` | +onOpenLayoutDesigner callback + NavButton in Controls tab |
+
+### New PlayerPrefs Fields (+2)
+| Field | Type | Default | SharedPrefs Key |
+|-------|------|---------|-----------------|
+| layoutJson | String | '' | `{p}layout_json` |
+| layoutPreset | String | 'centered' | `{p}layout_preset` |
+
+### Architecture Notes
+- A2: `_ControlsOverlay.seekBarStyle` param; seek bar `RotatedBox→Stack`: if `seekBarStyle != 'classic'` renders `SeekBarPainter` in `Positioned.fill`, Slider track/active colors set to `Colors.transparent` so only thumb is visible over painter.
+- A3: `_ControlsOverlay.iconPack` param; static `_iconForPack(pack, iconName)` maps 6 packs × 6 icons. Supports: mx, ios, fluent, cute, minimal, material3.
+- B: `layout_config.dart` — `ControlItem` (id, xFrac, yFrac, ControlSize, visible), `PlayerLayout` (name, controls list, JSON serialisation, 4 static preset maps). `layout_designer_screen.dart` — `_DraggableTile` uses `GestureDetector.onPanUpdate` with `RenderBox.localToGlobal` → xFrac/yFrac clamped [0.05, 0.95]; size cycling S→M→L→S; visibility toggle; `_GridOverlay` CustomPainter; save triggers `PlayerPrefs.copyWith(layoutJson:...).save()`.
+- All work is free — no paid APIs.
+- Session total: 3 roadmap phases closed.
