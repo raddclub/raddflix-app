@@ -1,7 +1,7 @@
 # MASTER_PLAN.md — RaddFlix Task Queue
 > **This is the single source of truth for what to work on next.**
 > Always check this before starting any work. Update status when done.
-> Last Updated: 2026-06-01 (Session 4: P4.2 verified, FTS5 regression fixed, dropped-col sweep in library.py/api.py/db.py, P2.1 corrected to DONE)
+> Last Updated: 2026-06-01 (Session 5: P3.3 done — real WhatsApp number set + admin UI to change without APK rebuild)
 
 ---
 
@@ -154,11 +154,10 @@ auth_info/
 **Effort:** 5 min
 
 ### P3.3 — Replace placeholder supportWhatsApp number
-**Status:** ⏳ PENDING (BLOCKED: need real number from user)
+**Status:** ✅ DONE
 **File:** `raddflix_flutter/lib/core/constants.dart`
-**Current:** `supportWhatsApp = '923001234567'`
-**Action:** Ask user for real RaddFlix support WhatsApp number.
-**Effort:** 5 min
+**Done:** `supportWhatsApp` set to `'923257719165'`. Made mutable (`static String` not `const`) so server can override it. `/api/config` now serves `support_whatsapp` from DB. Admin can change it in Settings → WhatsApp panel without rebuilding APK. `RemoteConfig` reads it on every app startup.
+**Commit:** `97d81a1`
 
 ### P3.4 — Deduplicate _extract_error + _friendly_error
 **Status:** ✅ DONE (created core/utils/auth_utils.dart with AuthErrors; login/register screens updated)

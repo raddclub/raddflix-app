@@ -265,3 +265,26 @@ Fix CI failure after keystore credential changes. Update APK signing fingerprint
 
 *End of TASK_LOG.md — 2026-05-31*
 *Add new entry at TOP when starting a new session.*
+
+---
+
+## Session 5 — 2026-06-01
+
+**Agent:** Replit Agent (new session)
+**Tasks completed:** P3.3
+
+### P3.3 — Real WhatsApp support number + admin UI control
+
+**Files changed:**
+- `raddflix_flutter/lib/core/constants.dart` — `supportWhatsApp` placeholder `923001234567` → `923257719165`; changed from `const` to mutable `static String` so server can override at runtime
+- `radd-hub/hub/routes/api.py` — `/api/config` now reads `SUPPORT_WHATSAPP_NUMBER` from `db.setting()` and serves it as `support_whatsapp` field; fallback to `923257719165`
+- `radd-hub/hub/routes/settings.py` — `SUPPORT_WHATSAPP_NUMBER` added to `JD_BOT_SETTINGS` under `whatsapp` group → appears in Settings → WhatsApp Bot panel in admin UI
+- `raddflix_flutter/lib/core/remote_config.dart` — reads `support_whatsapp` from `/api/config` response and writes to `AppConstants.supportWhatsApp`; also handled in cached config fallback path
+
+**Outcome:** Admin can now change the WhatsApp support number from the admin panel (Settings → WhatsApp Bot → "Support WhatsApp number") without rebuilding the APK. Change takes effect on next app startup.
+
+**Commit:** `97d81a1e8fc85b99323d11aacd29f1aaa4ce8260`
+**CI:** ✅ Green (build-apk.yml passed on `21383383`, new CI triggered on `97d81a1`)
+
+### Remaining open items
+- **P4.1** Supervisor config committed — user must copy to Oracle and restart supervisor

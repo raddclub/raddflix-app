@@ -7,8 +7,11 @@
 
 ## ⚡ IMMEDIATE STATUS (READ THIS FIRST)
 
-> **Last agent session: 2026-06-01 (Session 3)**
-> **All P1/P2/P3 bugs fixed (except P3.3 blocked on real phone number). P4.1 supervisor config committed.**
+> **Last agent session: 2026-06-01 (Session 5)**
+> **All P1/P2/P3 bugs fully DONE. P4.1 supervisor config committed (needs Oracle restart by user).**
+
+### WHAT WAS DONE IN SESSION 5
+- ✅ P3.3: `supportWhatsApp` set to `923257719165`; made mutable; admin can change via Settings → WhatsApp panel; `/api/config` serves it; `RemoteConfig` reads it on startup (no APK rebuild needed)
 
 ### WHAT WAS DONE IN SESSION 3
 - ✅ P3.1: Root `lib/` dead stubs deleted (44 files — JazzMAX/ZENO branded, TS api-specs, duplicate screens)
@@ -18,8 +21,7 @@
 - 🔄 P4.1: Supervisor config committed to `radd-hub/supervisor.d/raddflix_wa_bot.conf` — user must copy to Oracle
 
 ### OPEN ITEMS
-1. **P3.3** `supportWhatsApp` placeholder — BLOCKED: need real support number from user (`923001234567` is placeholder)
-2. **P4.1** Supervisor config ready — user must run on Oracle:
+1. **P4.1** Supervisor config ready — user must run on Oracle:
    ```
    sudo cp radd-hub/supervisor.d/raddflix_wa_bot.conf /etc/supervisor/conf.d/raddflix_wa_bot.conf
    sudo supervisorctl reread && sudo supervisorctl update
