@@ -951,9 +951,71 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     setState(() => _showAbPanel = !_showAbPanel);
   }
 
-  void _handleVoiceCommand(dynamic cmd) {}
+  void _handleVoiceCommand(VoiceCommand cmd) {
+    const List<double> speedSteps = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
+    switch (cmd.intent) {
+      case VoiceIntent.skip:
+        final secs = cmd.value?.toInt() ?? 10;
+        _player.seek(_position + Duration(seconds: secs));
+        break;
+      case VoiceIntent.seekBack:
+        final secs = cmd.value?.toInt() ?? 10;
+        final target = _position - Duration(seconds: secs);
+        _player.seek(target < Duration.zero ? Duration.zero : target);
+        break;
+      case VoiceIntent.speedSet:
+        if (cmd.value == -1) {
+          final idx = speedSteps.indexWhere((s) => (_speed - s).abs() < 0.05);
+          if (idx >= 0 && idx < speedSteps.length - 1) {
+            final ns = speedSteps[idx + 1];
+            setState(() => _speed = ns);
+            _player.setRate(ns);
+          }
+        } else if (cmd.value == -2) {
+          final idx = speedSteps.indexWhere((s) => (_speed - s).abs() < 0.05);
+          if (idx > 0) {
+            final ns = speedSteps[idx - 1];
+            setState(() => _speed = ns);
+            _player.setRate(ns);
+          }
+        } else if (cmd.value != null && cmd.value! > 0) {
+          final ns = cmd.value!.clamp(0.25, 3.0);
+          setState(() => _speed = ns);
+          _player.setRate(ns);
+        }
+        break;
+      case VoiceIntent.volumeUp:
+        _applyVolumeBoost((_volumeBoost + 0.1).clamp(1.0, 2.0));
+        break;
+      case VoiceIntent.volumeDown:
+        _applyVolumeBoost((_volumeBoost - 0.1).clamp(1.0, 2.0));
+        break;
+      case VoiceIntent.subtitleOn:
+        setState(() => _prefs = _prefs.copyWith(subtitleEnabled: true));
+        _prefs.save();
+        break;
+      case VoiceIntent.subtitleOff:
+        setState(() => _prefs = _prefs.copyWith(subtitleEnabled: false));
+        _prefs.save();
+        break;
+      case VoiceIntent.playPause:
+        setState(() => _userPaused = _playing);
+        _player.playOrPause();
+        break;
+      case VoiceIntent.seekTo:
+        if (cmd.value != null) {
+          _player.seek(Duration(seconds: cmd.value!.toInt()));
+        }
+        break;
+      default:
+        break;
+    }
+  }
 
-  void _handleVideoEnd() {}
+  void _handleVideoEnd() {
+    // Countdown overlay "watch next" tapped — same logic as natural video end
+    _onPlaybackEnded();
+  }
 
   void _openSpeedPicker() {
     showModalBottomSheet(
