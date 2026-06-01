@@ -250,6 +250,12 @@ class PlayerPrefs {
   /// Enable Android DND when entering Cinematic/Immersive mode.
   final bool dndOnCinematic;
 
+  // ── Phase J2: Color Blind Mode ────────────────────────────────────────────
+  final String colorBlindMode; // 'none'|'deuteranopia'|'protanopia'|'tritanopia'
+
+  // ── Phase J3: Dyslexia Subtitle Font ─────────────────────────────────────
+  final String subtitleFont; // 'system'|'open_dyslexic'|'lexie_readable'|'roboto'|'atkinson'
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -393,6 +399,8 @@ class PlayerPrefs {
     this.voiceCommandsEnabled      = false,
     this.wakeLockTimeoutMinutes    = 0,
     this.dndOnCinematic            = false,
+    this.colorBlindMode            = 'none',
+    this.subtitleFont              = 'system',
   });
 
   PlayerPrefs copyWith({
@@ -451,6 +459,8 @@ class PlayerPrefs {
     String? oneHandedModeSide,
     int?    wakeTimeoutMins,
     bool?   dndOnCinematic,
+    String? colorBlindMode,
+    String? subtitleFont,
     double? savedZoomLevel,
     bool?   contentMoodEnabled,
     bool?   screenshotLockEnabled,
@@ -472,6 +482,8 @@ class PlayerPrefs {
     bool?   voiceCommandsEnabled,
     int?    wakeLockTimeoutMinutes,
     bool?   dndOnCinematic,
+    String? colorBlindMode,
+    String? subtitleFont,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -609,6 +621,8 @@ class PlayerPrefs {
       voiceCommandsEnabled:        voiceCommandsEnabled         ?? this.voiceCommandsEnabled,
       wakeLockTimeoutMinutes:      wakeLockTimeoutMinutes       ?? this.wakeLockTimeoutMinutes,
       dndOnCinematic:              dndOnCinematic               ?? this.dndOnCinematic,
+      colorBlindMode:              colorBlindMode               ?? this.colorBlindMode,
+      subtitleFont:                subtitleFont                 ?? this.subtitleFont,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -764,6 +778,8 @@ class PlayerPrefs {
       voiceCommandsEnabled:        s.getBool('\${_p}voice_commands_enabled')    ?? false,
       wakeLockTimeoutMinutes:      s.getInt('\${_p}wake_lock_timeout')           ?? 0,
       dndOnCinematic:              s.getBool('\${_p}dnd_on_cinematic')           ?? false,
+      colorBlindMode:              s.getString('\${_p}color_blind_mode')         ?? 'none',
+      subtitleFont:                s.getString('\${_p}subtitle_font')             ?? 'system',
     );
   }
 
@@ -915,6 +931,8 @@ class PlayerPrefs {
       s.setBool('\${_p}voice_commands_enabled',        voiceCommandsEnabled),
       s.setInt('\${_p}wake_lock_timeout',              wakeLockTimeoutMinutes),
       s.setBool('\${_p}dnd_on_cinematic',              dndOnCinematic),
+      s.setString('\${_p}color_blind_mode',            colorBlindMode),
+      s.setString('\${_p}subtitle_font',               subtitleFont),
     ]);
   }
 }

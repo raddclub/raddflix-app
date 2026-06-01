@@ -7,6 +7,8 @@ import '../../../core/player/smart_skip_service.dart'; // M4
 import '../../../core/player/audio_lab_service.dart'; // E1-E4
 import '../../../core/services/wake_lock_service.dart'; // H4
 import 'voice_commands_service.dart'; // J1
+import '../../../core/player/color_blind_filter.dart'; // J2
+import '../../../core/player/dyslexia_subtitle_style.dart'; // J3
 import 'audio_lab_panel.dart'; // E1-E4
 import '../../../core/player/speed_presets_sheet.dart'; // M1
 import 'film_grain_overlay.dart'; // D3
@@ -608,6 +610,67 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
           sublabel: 'Title + timestamp overlay on captured frames',
           value: _p.screenshotWatermark,
           onChanged: (v) => _update(_p.copyWith(screenshotWatermark: v)),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // ── Phase J2: Color Blind Mode ────────────────────────────────────────
+        _QsLabel('Color Blind Mode'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+          child: Wrap(
+            spacing: 6, runSpacing: 6,
+            children: ColorBlindMode.values.map((mode) {
+              final active = colorBlindModeFromString(_p.colorBlindMode) == mode;
+              return GestureDetector(
+                onTap: () => _update(_p.copyWith(
+                    colorBlindMode: colorBlindModeToString(mode))),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: active ? _accent.withOpacity(0.18) : Colors.white10,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                        color: active ? _accent : Colors.white24, width: 1.2)),
+                  child: Text(
+                    '${colorBlindModeIcons[mode]} ${colorBlindModeLabels[mode] ?? mode.name}',
+                    style: TextStyle(
+                        color: active ? _accent : Colors.white60,
+                        fontSize: 12, fontWeight: FontWeight.w500)),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // ── Phase J3: Dyslexia Subtitle Font ─────────────────────────────────────
+        _QsLabel('Subtitle Font'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+          child: Wrap(
+            spacing: 6, runSpacing: 6,
+            children: SubtitleFont.values.map((f) {
+              final active = subtitleFontFromString(_p.subtitleFont) == f;
+              return GestureDetector(
+                onTap: () => _update(_p.copyWith(
+                    subtitleFont: subtitleFontToString(f))),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: active ? _accent.withOpacity(0.18) : Colors.white10,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                        color: active ? _accent : Colors.white24, width: 1.2)),
+                  child: Text(
+                    subtitleFontLabels[f] ?? f.name,
+                    style: TextStyle(
+                        color: active ? _accent : Colors.white60,
+                        fontFamily: fontFamilyFor(f),
+                        fontSize: 12, fontWeight: FontWeight.w500)),
+                ),
+              );
+            }).toList(),
+          ),
         ),
         const Divider(color: Colors.white10, height: 1),
         // ── Picture Profiles ──────────────────────────────────────────────

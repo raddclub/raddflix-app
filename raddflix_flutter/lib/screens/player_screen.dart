@@ -43,6 +43,9 @@ import '../core/player/audio_lab_service.dart'; // Phase E1-E4
 import '../core/services/voice_commands_service.dart'; // Phase J1
 import '../core/services/wake_lock_service.dart'; // Phase H4
 import '../core/services/dnd_service.dart'; // Phase H5
+import '../core/player/color_blind_filter.dart'; // Phase J2
+import '../core/player/dyslexia_subtitle_style.dart'; // Phase J3
+import '../widgets/player/karaoke_overlay.dart'; // Phase E2
 import '../widgets/player/film_grain_overlay.dart'; // Phase D3
 import '../widgets/player/controls_background.dart';
 import '../widgets/player/sleep_timer_sheet.dart';
@@ -2786,6 +2789,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               },
               onCancel: () => setState(() => _showCountdown = false),
             ),
+
+          // ── Phase E2: Karaoke Active Indicator ────────────────────────────
+          Positioned(
+            top: 16, right: 80,
+            child: KaraokeActiveIndicator(
+              accentColor: _prefs.accentColor,
+              levelLabel: _prefs.audioLabConfig.split('|').length > 1
+                  ? _prefs.audioLabConfig.split('|')[1]
+                  : 'off',
+              visible: _prefs.audioLabConfig.contains('|') &&
+                  _prefs.audioLabConfig.split('|')[1] != 'off',
+            ),
+          ),
 
           // ── Phase J1: Voice Command button (shown over controls) ──────────
           if (_prefs.voiceCommandsEnabled && _showControls && !_locked)
