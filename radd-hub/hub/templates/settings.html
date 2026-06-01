@@ -336,7 +336,16 @@ window.gsCloseProgress=function(){
 </div>
 
 {% if jd_bot_grouped.whatsapp %}
-<div class="card">
+<div class="card" id="wa-settings-card" style="position:relative">
+  <div id="wa-settings-lock" style="display:none;position:absolute;inset:0;background:rgba(10,12,18,.82);
+       border-radius:inherit;z-index:6;flex-direction:column;align-items:center;justify-content:center;
+       gap:6px;text-align:center;padding:24px">
+    <span style="font-size:1.8rem">🔒</span>
+    <span style="color:#8b95a8;font-size:.9rem;font-weight:600">WhatsApp Bot is disabled</span>
+    <span style="color:#5a6478;font-size:.8rem">Enable it in the Bots panel to configure settings</span>
+    <a href="/bots" style="margin-top:4px;font-size:.8rem;color:var(--accent);text-decoration:none">
+      Go to Bots panel →</a>
+  </div>
   <h3>WhatsApp Bot</h3>
   <div class="muted" style="margin:-6px 0 12px">Bot behaviour and rate-limit configuration.</div>
   {% for field in jd_bot_grouped.whatsapp %}
@@ -350,7 +359,16 @@ window.gsCloseProgress=function(){
 {% endif %}
 
 {% if jd_bot_grouped.telegram %}
-<div class="card">
+<div class="card" id="tg-settings-card" style="position:relative">
+  <div id="tg-settings-lock" style="display:none;position:absolute;inset:0;background:rgba(10,12,18,.82);
+       border-radius:inherit;z-index:6;flex-direction:column;align-items:center;justify-content:center;
+       gap:6px;text-align:center;padding:24px">
+    <span style="font-size:1.8rem">🔒</span>
+    <span style="color:#8b95a8;font-size:.9rem;font-weight:600">Telegram Bot is disabled</span>
+    <span style="color:#5a6478;font-size:.8rem">Enable it in the Bots panel to configure settings</span>
+    <a href="/bots" style="margin-top:4px;font-size:.8rem;color:var(--accent);text-decoration:none">
+      Go to Bots panel →</a>
+  </div>
   <h3>Telegram Bot</h3>
   <div class="muted" style="margin:-6px 0 12px">Telegram bot configuration.</div>
   {% for field in jd_bot_grouped.telegram %}
@@ -812,5 +830,21 @@ window._delSig=function(id){
   api('/settings/api/app-signatures/'+id,{method:'DELETE'}).then(function(){toast('Removed');loadAV();}).catch(function(e){toast('Failed: '+e.message);});
 };
 loadAV();
+})();
+
+// ── Bot settings lock overlay ─────────────────────────────────────────────
+// Loads bot enable state from /bots/api/status and shows a lock overlay
+// over the WhatsApp/Telegram settings cards when the bot is disabled.
+(async function applyBotSettingsLock(){
+  try{
+    const d = await api('/bots/api/status');
+    function setLock(lockId, enabled){
+      const lock = document.getElementById(lockId);
+      if(!lock) return;
+      lock.style.display = enabled ? 'none' : 'flex';
+    }
+    setLock('wa-settings-lock', d.whatsapp?.enabled ?? true);
+    setLock('tg-settings-lock', d.telegram?.enabled  ?? true);
+  }catch(e){ /* silently skip if endpoint unavailable */ }
 })();
 </script>

@@ -12,6 +12,23 @@ bp = Blueprint("bots", __name__)
 
 
 # ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _bot_enabled(key: str) -> bool:
+    """Read ENABLE_* flag from DB first (admin-persisted), fall back to env var.
+    DB value wins so the admin toggle survives server restarts without editing .env.
+    """
+    try:
+        v = db.setting(key)
+        if v is not None:
+            return str(v).strip().lower() in ("1", "true", "yes", "on")
+    except Exception:
+        pass
+    return config.get_env_bool(key, False)
+
+
+# ---------------------------------------------------------------------------
 # Pages
 # ---------------------------------------------------------------------------
 
@@ -19,8 +36,8 @@ bp = Blueprint("bots", __name__)
 @auth.login_required
 def page():
     return render_template("bots.html",
-        whatsapp_enabled=config.get_env_bool("ENABLE_WHATSAPP_BOT", False),
-        telegram_enabled=config.get_env_bool("ENABLE_TELEGRAM_BOT", False),
+        whatsapp_enabled=_bot_enabled("ENABLE_WHATSAPP_BOT"),
+        telegram_enabled=_bot_enabled("ENABLE_TELEGRAM_BOT"),
     )
 
 
@@ -31,8 +48,8 @@ def page():
 @bp.route("/api/status")
 @auth.login_required
 def status():
-    wa = {"enabled": config.get_env_bool("ENABLE_WHATSAPP_BOT", False)}
-    tg = {"enabled": config.get_env_bool("ENABLE_TELEGRAM_BOT", False)}
+    wa = {"enabled": _bot_enabled("ENABLE_WHATSAPP_BOT")}
+    tg = {"enabled": _bot_enabled("ENABLE_TELEGRAM_BOT")}
     try:
         from ..bots.whatsapp import get_status as _wa_status
         wa.update(_wa_status())
@@ -44,6 +61,51 @@ def status():
     except Exception as e:
         tg["error"] = str(e)
     return jsonify({"whatsapp": wa, "telegram": tg})
+
+
+# ---------------------------------------------------------------------------
+# Enable / Disable toggle  (single endpoint for both bots)
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/toggle", methods=["POST"])
+@auth.login_required
+def toggle_bot():
+    """Enable or disable a bot. Body: {service: "whatsapp"|"telegram", enabled: bool}
+    When disabling, the running process is stopped automatically.
+    State is persisted to DB so it survives server restarts.
+    """
+    data    = request.get_json(silent=True) or {}
+    service = (data.get("service") or "").strip().lower()
+    enabled = bool(data.get("enabled", False))
+
+    key_map = {
+        "whatsapp": "ENABLE_WHATSAPP_BOT",
+        "telegram": "ENABLE_TELEGRAM_BOT",
+    }
+    if service not in key_map:
+        return jsonify({"ok": False, "error": "Unknown service — use 'whatsapp' or 'telegram'"}), 400
+
+    db.set_setting(key_map[service], "1" if enabled else "0")
+
+    # Auto-stop when disabling so no orphan process runs while marked disabled
+    stop_result = None
+    if not enabled:
+        try:
+            if service == "whatsapp":
+                from ..bots.whatsapp import stop as _wa_stop
+                stop_result = _wa_stop()
+            elif service == "telegram":
+                from ..bots import telegram as _tg
+                stop_result = _tg.stop()
+        except Exception as e:
+            stop_result = {"ok": False, "error": str(e)}
+
+    return jsonify({
+        "ok": True,
+        "service": service,
+        "enabled": enabled,
+        "stop_result": stop_result,
+    })
 
 
 # ===========================================================================
@@ -63,6 +125,8 @@ def wa_status():
 @bp.route("/api/whatsapp/start", methods=["POST"])
 @auth.login_required
 def wa_start():
+    if not _bot_enabled("ENABLE_WHATSAPP_BOT"):
+        return jsonify({"ok": False, "error": "WhatsApp bot is disabled. Enable it first."}), 403
     try:
         from ..bots.whatsapp import start
         return jsonify(start())
@@ -83,6 +147,8 @@ def wa_stop():
 @bp.route("/api/whatsapp/restart", methods=["POST"])
 @auth.login_required
 def wa_restart():
+    if not _bot_enabled("ENABLE_WHATSAPP_BOT"):
+        return jsonify({"ok": False, "error": "WhatsApp bot is disabled. Enable it first."}), 403
     try:
         from ..bots.whatsapp import restart
         return jsonify(restart())
@@ -251,6 +317,8 @@ def tg_status():
 @bp.route("/api/telegram/start", methods=["POST"])
 @auth.login_required
 def tg_start():
+    if not _bot_enabled("ENABLE_TELEGRAM_BOT"):
+        return jsonify({"ok": False, "error": "Telegram bot is disabled. Enable it first."}), 403
     try:
         from ..bots import telegram as _tg
         return jsonify(_tg.start())
@@ -271,6 +339,8 @@ def tg_stop():
 @bp.route("/api/telegram/restart", methods=["POST"])
 @auth.login_required
 def tg_restart():
+    if not _bot_enabled("ENABLE_TELEGRAM_BOT"):
+        return jsonify({"ok": False, "error": "Telegram bot is disabled. Enable it first."}), 403
     try:
         from ..bots import telegram as _tg
         return jsonify(_tg.restart())
