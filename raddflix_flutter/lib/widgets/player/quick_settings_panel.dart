@@ -6,6 +6,8 @@ import '../../../core/player/icon_packs.dart';
 import 'color_picker_sheet.dart';
 import 'seek_bar_painter.dart';
 import 'theme_picker_sheet.dart';
+import 'gesture_map_sheet.dart';
+import 'picture_profiles_sheet.dart';
 
 /// In-player quick settings — 5-tab MX Player-style layout.
 /// Tabs: Style | Screen | Controls | Navigation | Text
@@ -14,6 +16,10 @@ class QuickSettingsPanel extends StatefulWidget {
   final ValueChanged<PlayerPrefs> onChanged;
   final VoidCallback onDone;
   final VoidCallback onOpenFullSettings;
+  final VoidCallback onOpenGestureMap;
+  final VoidCallback onOpenPictureProfiles;
+  final VoidCallback onOpenAudioLab;
+  final VoidCallback onOpenSkipEditor;
   final int subDelayMs;
   final int audioDelayMs;
   final ValueChanged<int> onSubDelay;
@@ -33,6 +39,10 @@ class QuickSettingsPanel extends StatefulWidget {
     required this.onChanged,
     required this.onDone,
     required this.onOpenFullSettings,
+    required this.onOpenGestureMap,
+    required this.onOpenPictureProfiles,
+    required this.onOpenAudioLab,
+    required this.onOpenSkipEditor,
     required this.subDelayMs,
     required this.audioDelayMs,
     required this.onSubDelay,
@@ -501,6 +511,29 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
       children: [
+        // ── Picture Profiles ──────────────────────────────────────────────
+        _QsLabel('Picture Profile'),
+        InkWell(
+          onTap: widget.onOpenPictureProfiles,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            child: Row(children: [
+              Container(width: 36, height: 36,
+                decoration: BoxDecoration(color: Colors.white10,
+                    borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.photo_filter_rounded, color: Colors.white54, size: 18)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Picture Profile', style: TextStyle(color: Colors.white, fontSize: 13)),
+                Text(_p.pictureProfile[0].toUpperCase() + _p.pictureProfile.substring(1),
+                    style: TextStyle(color: _accent, fontSize: 11, fontWeight: FontWeight.w500)),
+              ])),
+              const Icon(Icons.chevron_right_rounded, color: Colors.white38, size: 18),
+            ]),
+          ),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+
         _QsLabel('Orientation'),
         _QsRow(label: 'Use video orientation',
           child: const Text('', style: TextStyle(color: Colors.white70, fontSize: 13))),
@@ -646,6 +679,45 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
             _GestureChip(icon: Icons.zoom_in_map_rounded, label: 'Video zoom\n(Double tap)'),
             _GestureChip(icon: Icons.fast_forward_rounded, label: 'Speed FF\n(Long press)'),
           ]),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        InkWell(
+          onTap: widget.onOpenGestureMap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Row(children: [
+              Container(width: 36, height: 36,
+                decoration: BoxDecoration(color: Colors.white10,
+                    borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.touch_app_rounded, color: Colors.white54, size: 18)),
+              const SizedBox(width: 14),
+              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Customize Gestures', style: TextStyle(color: Colors.white, fontSize: 13)),
+                Text('Remap any gesture zone to any player action',
+                    style: TextStyle(color: Colors.white38, fontSize: 11)),
+              ])),
+              const Icon(Icons.chevron_right_rounded, color: Colors.white38, size: 18),
+            ]),
+          ),
+        ),
+        InkWell(
+          onTap: widget.onOpenSkipEditor,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Row(children: [
+              Container(width: 36, height: 36,
+                decoration: BoxDecoration(color: Colors.white10,
+                    borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.content_cut_rounded, color: Colors.white54, size: 18)),
+              const SizedBox(width: 14),
+              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Intro / Skip Editor', style: TextStyle(color: Colors.white, fontSize: 13)),
+                Text('Set custom skip timestamps for this video',
+                    style: TextStyle(color: Colors.white38, fontSize: 11)),
+              ])),
+              const Icon(Icons.chevron_right_rounded, color: Colors.white38, size: 18),
+            ]),
+          ),
         ),
       ],
     );

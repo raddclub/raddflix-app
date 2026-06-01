@@ -146,8 +146,30 @@ class PlayerPrefs {
   /// Controls bg style: 'none' | 'glass' | 'gradient' | 'solid' | 'mesh'
   final String controlsBgStyle;
 
+  // ── Phase C: Gesture Action Map ──────────────────────────────────────────
+  /// JSON-encoded Map<String,String> of gesture zone → action key.
+  final String gestureActionMapJson;
+
+  // ── Phase D1: Picture Profile ─────────────────────────────────────────────
+  /// Active picture profile id: 'natural'|'cinema'|'vivid'|'night'|'anime'|'amoled'
+  final String pictureProfile;
+
+  // ── Phase E: Audio Lab ────────────────────────────────────────────────────
+  final bool   vocalRemoverEnabled;
+  final double vocalRemoverIntensity;
+  final bool   surroundEnabled;
+  final String surroundMode;
+  final bool   bassBoostEnabled;
+  final double bassBoostLevel;
+
+  // ── Phase F1: Dual Subtitle ───────────────────────────────────────────────
+  final bool dualSubtitleEnabled;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
+
+  /// Convenience getter — audio delay as seconds (double).
+  double get audioDelay => audioTimingOffsetMs / 1000.0;
 
   const PlayerPrefs({
     this.gestureEnabled = true,
@@ -243,6 +265,15 @@ class PlayerPrefs {
     this.buttonShape = 'circle',
     this.iconPack = 'mx',
     this.controlsBgStyle = 'none',
+    this.gestureActionMapJson = '',
+    this.pictureProfile = 'natural',
+    this.vocalRemoverEnabled = false,
+    this.vocalRemoverIntensity = 0.75,
+    this.surroundEnabled = false,
+    this.surroundMode = 'theater',
+    this.bassBoostEnabled = false,
+    this.bassBoostLevel = 0.5,
+    this.dualSubtitleEnabled = false,
   });
 
   PlayerPrefs copyWith({
@@ -283,6 +314,11 @@ class PlayerPrefs {
     String? cinematicTapBehavior, bool? transparentModeFrosted,
     int? accentColorValue, String? seekBarStyle, String? playerTheme,
     String? buttonShape, String? iconPack, String? controlsBgStyle,
+    String? gestureActionMapJson, String? pictureProfile,
+    bool? vocalRemoverEnabled, double? vocalRemoverIntensity,
+    bool? surroundEnabled, String? surroundMode,
+    bool? bassBoostEnabled, double? bassBoostLevel,
+    bool? dualSubtitleEnabled,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -377,6 +413,15 @@ class PlayerPrefs {
     buttonShape: buttonShape ?? this.buttonShape,
     iconPack: iconPack ?? this.iconPack,
     controlsBgStyle: controlsBgStyle ?? this.controlsBgStyle,
+    gestureActionMapJson: gestureActionMapJson ?? this.gestureActionMapJson,
+    pictureProfile: pictureProfile ?? this.pictureProfile,
+    vocalRemoverEnabled: vocalRemoverEnabled ?? this.vocalRemoverEnabled,
+    vocalRemoverIntensity: vocalRemoverIntensity ?? this.vocalRemoverIntensity,
+    surroundEnabled: surroundEnabled ?? this.surroundEnabled,
+    surroundMode: surroundMode ?? this.surroundMode,
+    bassBoostEnabled: bassBoostEnabled ?? this.bassBoostEnabled,
+    bassBoostLevel: bassBoostLevel ?? this.bassBoostLevel,
+    dualSubtitleEnabled: dualSubtitleEnabled ?? this.dualSubtitleEnabled,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -489,6 +534,15 @@ class PlayerPrefs {
       buttonShape:            s.getString('${_p}button_shape')     ?? 'circle',
       iconPack:               s.getString('${_p}icon_pack')        ?? 'mx',
       controlsBgStyle:        s.getString('${_p}controls_bg')      ?? 'none',
+      gestureActionMapJson:   s.getString('${_p}gesture_map_json')  ?? '',
+      pictureProfile:         s.getString('${_p}picture_profile')   ?? 'natural',
+      vocalRemoverEnabled:    s.getBool('${_p}vocal_remover')       ?? false,
+      vocalRemoverIntensity:  s.getDouble('${_p}vocal_intensity')   ?? 0.75,
+      surroundEnabled:        s.getBool('${_p}surround')            ?? false,
+      surroundMode:           s.getString('${_p}surround_mode')     ?? 'theater',
+      bassBoostEnabled:       s.getBool('${_p}bass_boost')          ?? false,
+      bassBoostLevel:         s.getDouble('${_p}bass_level')        ?? 0.5,
+      dualSubtitleEnabled:    s.getBool('${_p}dual_subtitle')       ?? false,
     );
   }
 
@@ -597,6 +651,15 @@ class PlayerPrefs {
       s.setString('${_p}button_shape',     buttonShape),
       s.setString('${_p}icon_pack',        iconPack),
       s.setString('${_p}controls_bg',      controlsBgStyle),
+      s.setString('${_p}gesture_map_json', gestureActionMapJson),
+      s.setString('${_p}picture_profile',  pictureProfile),
+      s.setBool('${_p}vocal_remover',      vocalRemoverEnabled),
+      s.setDouble('${_p}vocal_intensity',  vocalRemoverIntensity),
+      s.setBool('${_p}surround',           surroundEnabled),
+      s.setString('${_p}surround_mode',    surroundMode),
+      s.setBool('${_p}bass_boost',         bassBoostEnabled),
+      s.setDouble('${_p}bass_level',       bassBoostLevel),
+      s.setBool('${_p}dual_subtitle',      dualSubtitleEnabled),
     ]);
   }
 }

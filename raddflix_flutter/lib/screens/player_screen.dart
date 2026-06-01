@@ -79,6 +79,12 @@ import '../widgets/player/video_enhance_panel.dart';
 import '../widgets/player/transparent_player_layer.dart';
 import '../core/services/usage_service.dart';
 import '../widgets/player/subtitle_overlay.dart';
+import '../core/player/intro_skip_store.dart';
+import '../widgets/player/gesture_map_sheet.dart';
+import '../widgets/player/picture_profiles_sheet.dart';
+import '../widgets/player/audio_lab_sheet.dart';
+import '../widgets/player/intro_skip_editor.dart';
+import '../widgets/player/dual_subtitle_overlay.dart';
 
 // ── PiP Method Channel ────────────────────────────────────────────────────────
 const _pipChannel = MethodChannel('com.raddflix.app/pip');
@@ -199,6 +205,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // PiP
   bool _inPiP = false;
+
+  // Phase P: Custom skip segments (loaded per video)
+  List<SkipSegment> _skipSegments = [];
+  SkipSegment? _activeSkipSegment;
+
+  // Phase F1: Second subtitle track
+  String _secondSubtitleText = '';
 
   // Background audio — track if user explicitly paused
   bool _userPaused = false;
@@ -689,6 +702,89 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         },
       ),
     );
+  }
+
+  // ── Phase C: Gesture Map ─────────────────────────────────────────────────
+  void _openGestureMap() {
+    Map<String, String> map = Map.from(kDefaultGestureMap);
+    if (_prefs.gestureActionMapJson.isNotEmpty) {
+      try { map = Map<String, String>.from(jsonDecode(_prefs.gestureActionMapJson)); } catch (_) {}
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => GestureMapSheet(
+        current: map,
+        accentColor: _prefs.accentColor,
+        onChanged: (newMap) {
+          final encoded = jsonEncode(newMap);
+          setState(() => _prefs = _prefs.copyWith(gestureActionMapJson: encoded));
+          _prefs.save();
+        },
+      ),
+    );
+  }
+
+  // ── Phase D1: Picture Profiles ────────────────────────────────────────────
+  void _openPictureProfiles() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => PictureProfilesSheet(
+        prefs: _prefs,
+        accentColor: _prefs.accentColor,
+        onApply: (newPrefs) {
+          setState(() => _prefs = newPrefs);
+          newPrefs.save();
+          _applyVideoFilters(newPrefs);
+        },
+      ),
+    );
+  }
+
+  // ── Phase E: Audio Lab ────────────────────────────────────────────────────
+  void _openAudioLab() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AudioLabSheet(
+        prefs: _prefs,
+        accentColor: _prefs.accentColor,
+        onChanged: (newPrefs) {
+          setState(() => _prefs = newPrefs);
+          newPrefs.save();
+          _applyAudioPrefs(newPrefs);
+        },
+      ),
+    );
+  }
+
+  // ── Phase P: Intro Skip Editor ────────────────────────────────────────────
+  void _openIntroSkipEditor() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => IntroSkipEditor(
+        videoId: widget.fileId,
+        currentPosition: _previewPosition,
+        totalDuration: _duration,
+        accentColor: _prefs.accentColor,
+        onSaved: () async {
+          final segs = await IntroSkipStore.load(widget.fileId);
+          if (mounted) setState(() => _skipSegments = segs);
+        },
+      ),
+    );
+  }
+
+  // ── Load custom skip segments for this video ───────────────────────────────
+  Future<void> _loadSkipSegments() async {
+    final segs = await IntroSkipStore.load(widget.fileId);
+    if (mounted) setState(() => _skipSegments = segs);
   }
 
   void _openAudioMixer() {
@@ -2270,6 +2366,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             ),
 
+          // ── Phase P: Custom skip segment button ──
+          if (_activeSkipSegment != null && !_locked && !_showNextEpisode)
+            Positioned(
+              bottom: 125, right: 20,
+              child: SkipSegmentButton(
+                segment: _activeSkipSegment!,
+                accentColor: _prefs.accentColor,
+                onSkip: () {
+                  _player.seek(_activeSkipSegment!.end);
+                  setState(() => _activeSkipSegment = null);
+                },
+              ),
+            ),
+
           // ── Skip intro ──
           if (_skipIntroVisible && !_locked && !_showNextEpisode)
             Positioned(
@@ -2337,6 +2447,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           if (_prefs.subtitleEnabled)
             SubtitleOverlay(
               currentLine: _currentSubtitleText,
+              prefs: _prefs,
+            ),
+
+          // ── Phase F1: Dual Subtitle Overlay ──
+          if (_prefs.subtitleEnabled && _prefs.dualSubtitleEnabled && _secondSubtitleText.isNotEmpty)
+            DualSubtitleOverlay(
+              primaryLine: _currentSubtitleText,
+              secondaryLine: _secondSubtitleText,
               prefs: _prefs,
             ),
 
@@ -2676,6 +2794,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   setState(() => _showQuickSettings = false);
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const PlayerSettingsScreen()));
+                },
+                onOpenGestureMap: () {
+                  setState(() => _showQuickSettings = false);
+                  _openGestureMap();
+                },
+                onOpenPictureProfiles: () {
+                  setState(() => _showQuickSettings = false);
+                  _openPictureProfiles();
+                },
+                onOpenAudioLab: () {
+                  setState(() => _showQuickSettings = false);
+                  _openAudioLab();
+                },
+                onOpenSkipEditor: () {
+                  setState(() => _showQuickSettings = false);
+                  _openIntroSkipEditor();
                 },
                 subDelayMs: _subDelayMs,
                 audioDelayMs: _audioDelayMs,
