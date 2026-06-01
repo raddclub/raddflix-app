@@ -1601,3 +1601,65 @@ Per SKILLS.md "Dead Code To Remove When Convenient":
 9. **ONGOING — BUG-A19**: Create `HistoryApi` Dart class to sync watch positions to server. Remember: server uses seconds, Flutter uses milliseconds (divide by 1000 before sending).
 
 ---
+
+---
+
+## [2026-06-01 UTC] — Audit Correction: BUG-N04 Retracted
+
+### Correction to Session 22 Audit
+
+**BUG-N04 is NOT a bug. The label "CRITICAL — No auth on catalog endpoints" was wrong.**
+
+#### Why the public catalog endpoints are intentional and required
+
+The entire RaddFlix catalog — including all JazzDrive share_urls — is uploaded as
+`delta.json` to `cloud.jazzdrive.com.pk` (JazzDrive CDN), which is whitelisted on
+Jazz network as zero-rated. Jazz SIM users with no active data bundle fetch the
+full catalog directly from JazzDrive CDN — no auth, no Oracle, by design.
+
+The Oracle endpoints (`/api/catalog/delta`, `/api/catalog/db_update`,
+`/api/catalog/sync`, `/api/catalog/share_url`) are Oracle-fallback mirrors of
+the same data that is already publicly available on the zero-rated CDN.
+Adding JWT auth to these Oracle endpoints would:
+1. Do nothing to protect share_urls (same data already public on JazzDrive CDN)
+2. Break zero-rating — the zero-rated path cannot make Oracle auth calls
+
+#### Streaming is also direct — Oracle is never in the loop
+
+When a user plays a video, the device uses the `share_url` already stored in its
+local SQLite (downloaded from delta.json). Playback goes:
+
+    Device → cloud.jazzdrive.com.pk/share/f/...   (zero-rated direct)
+
+Oracle is NOT proxying stream traffic. If it were, the traffic would route through
+92.4.95.252, which is not on Jazz's zero-rated whitelist, and the zero-rating
+feature would stop working entirely.
+
+#### The actual security model
+
+Security is enforced at the APK level, not the server endpoint level:
+- **AppGuard** (APK signature + Frida + root check): tampered APK → fake empty
+  catalog responses. Attacker never gets real share_urls from Oracle.
+- **Build obfuscation** (`--obfuscate`): class names randomised, AppGuard hard to strip.
+- **SQLCipher AES-256 + RF1: scrambling**: share_urls stored device-bound encrypted.
+
+The accepted risk is that someone who finds the Oracle URL directly (e.g. via
+network inspection) can also fetch the catalog — but the same data is already
+on the public JazzDrive CDN. This is a deliberate architectural trade-off in
+favour of zero-rating for the Jazz subscriber base.
+
+#### Revised bug priority list (replacing Session 22 table)
+
+| Priority | ID | Severity | Bug |
+|----------|----|----------|-----|
+| 1 | AppGuard fingerprint | **CRITICAL** | Verify `BA:4E:41:2D:...` matches actual release signing cert. If wrong, ALL real users see fake empty catalog. |
+| 2 | BUG-N03 | HIGH | `download_proxy()` `row["title_id"]` KeyError — crash on download proxy fallback path |
+| 3 | BUG-N02 | HIGH | `RequestEncoder.enabled = true` — verify server-side XOR decode deployed in `request_encoding.py` |
+| 4 | BUG-N06 | HIGH | No login rate limiting — add IP throttle to `/api/auth/login` |
+| 5 | BUG-N05 | MEDIUM | `notif_image()` no `@_require_auth` |
+| 6 | BUG-A19 | MEDIUM | No `HistoryApi` in Flutter — server history API exists but unused |
+| 7 | BUG-A30 | LOW | Hardcoded `http://92.4.95.252` in `remote_config.dart` |
+| 8 | BUG-N01 | LOW | `_migrate()` v11/v12 block ordering inverted |
+| ~~N/A~~ | ~~BUG-N04~~ | ~~RETRACTED~~ | ~~No auth on catalog endpoints~~ — intentional, required for zero-rating |
+
+---
