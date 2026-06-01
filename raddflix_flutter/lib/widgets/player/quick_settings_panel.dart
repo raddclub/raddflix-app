@@ -20,6 +20,10 @@ class QuickSettingsPanel extends StatefulWidget {
   final VoidCallback onOpenPictureProfiles;
   final VoidCallback onOpenAudioLab;
   final VoidCallback onOpenSkipEditor;
+  final VoidCallback onOpenJumpTo;
+  final VoidCallback onOpenSpeedPresets;
+  final VoidCallback onOpenEndAction;
+  final VoidCallback onOpenSilenceSkip;
   final int subDelayMs;
   final int audioDelayMs;
   final ValueChanged<int> onSubDelay;
@@ -43,6 +47,10 @@ class QuickSettingsPanel extends StatefulWidget {
     required this.onOpenPictureProfiles,
     required this.onOpenAudioLab,
     required this.onOpenSkipEditor,
+    required this.onOpenJumpTo,
+    required this.onOpenSpeedPresets,
+    required this.onOpenEndAction,
+    required this.onOpenSilenceSkip,
     required this.subDelayMs,
     required this.audioDelayMs,
     required this.onSubDelay,
@@ -712,6 +720,14 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
               const SizedBox(width: 14),
               const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Intro / Skip Editor', style: TextStyle(color: Colors.white, fontSize: 13)),
+          const SizedBox(height: 8),
+          _NavButton(icon: Icons.skip_next_rounded,    label: 'Jump To',        onTap: onOpenJumpTo),
+          const SizedBox(height: 8),
+          _NavButton(icon: Icons.speed_rounded,        label: 'Speed Presets',  onTap: onOpenSpeedPresets),
+          const SizedBox(height: 8),
+          _NavButton(icon: Icons.flag_rounded,         label: 'Video End Action', onTap: onOpenEndAction),
+          const SizedBox(height: 8),
+          _NavButton(icon: Icons.volume_off_rounded,   label: 'Smart Skip',     onTap: onOpenSilenceSkip),
                 Text('Set custom skip timestamps for this video',
                     style: TextStyle(color: Colors.white38, fontSize: 11)),
               ])),

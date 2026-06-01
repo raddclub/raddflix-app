@@ -85,6 +85,10 @@ import '../widgets/player/picture_profiles_sheet.dart';
 import '../widgets/player/audio_lab_sheet.dart';
 import '../widgets/player/intro_skip_editor.dart';
 import '../widgets/player/dual_subtitle_overlay.dart';
+import '../widgets/player/jump_to_sheet.dart';
+import '../widgets/player/end_action_sheet.dart';
+import '../widgets/player/speed_presets_sheet.dart';
+import '../widgets/player/silence_skip_sheet.dart';
 
 // ── PiP Method Channel ────────────────────────────────────────────────────────
 const _pipChannel = MethodChannel('com.raddflix.app/pip');
@@ -512,7 +516,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       afParts.add('extrastereo=m=$m');
     }
 
-    // 7. Smart Volume Leveling — MPV-side dynamic range compression
+    // 7. Skip Silence detection (MPV silencedetect filter)
+    if (p.skipSilenceEnabled) {
+      final dur = p.skipSilenceThresholdSecs.toStringAsFixed(1);
+      afParts.add('silencedetect=noise=-40dB:duration=$dur');
+    }
+
+    // 8. Smart Volume Leveling — MPV-side dynamic range compression
     if (p.smartVolumeLevelingEnabled) {
       final acomp = p.smartVolumeMode == 'aggressive'
           ? 'acompressor=threshold=0.5:ratio=8:attack=20:release=200:makeup=2'
@@ -1059,6 +1069,76 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       ),
     );
   }
+
+  void _openJumpTo() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => JumpToSheet(
+        currentPosition: _position,
+        totalDuration:   _player.state.duration,
+        accentColor:     _prefs.accentColor,
+        onJumpTo:        (d) => _player.seek(d),
+      ),
+    );
+  }
+
+  void _openSpeedPresets() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SpeedPresetsSheet(
+        presetsJson:      _prefs.customSpeedPresetsJson,
+        currentSpeed:     _speed,
+        accentColor:      _prefs.accentColor,
+        onSpeedSelected:  (s) {
+          setState(() => _speed = s);
+          _player.setRate(s);
+        },
+        onPresetsChanged: (json) {
+          final next = _prefs.copyWith(customSpeedPresetsJson: json);
+          setState(() => _prefs = next);
+          next.save();
+        },
+      ),
+    );
+  }
+
+  void _openEndAction() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => EndActionSheet(
+        prefs:       _prefs,
+        accentColor: _prefs.accentColor,
+        onChanged:   (next) {
+          setState(() => _prefs = next);
+          next.save();
+        },
+      ),
+    );
+  }
+
+  void _openSilenceSkip() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SilenceSkipSheet(
+        prefs:       _prefs,
+        accentColor: _prefs.accentColor,
+        onChanged:   (next) {
+          setState(() => _prefs = next);
+          _applyAudioPrefs(next);
+          _applyVideoFilters(next); // color blind mode re-trigger
+          next.save();
+        },
+      ),
+    );
+  }
+
 
   Future<void> _takeScreenshot() async {
     try {
@@ -1624,10 +1704,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       setState(() => _showControls = true);
       return;
     }
-    if (_hasNextEp) {
+    if (_hasNextEp && (_prefs.endOfVideoAction == 'play_next' || _prefs.endOfVideoAction == '')) {
       _startNextEpCountdown();
     } else {
-      setState(() => _showControls = true);
+      switch (_prefs.endOfVideoAction) {
+        case 'loop':
+          _player.seek(Duration.zero);
+          _player.play();
+          break;
+        case 'return_home':
+          if (mounted) Navigator.pop(context);
+          break;
+        case 'nothing':
+          setState(() { _showControls = true; _ended = true; });
+          break;
+        default: // play_next or when no next ep
+          setState(() => _showControls = true);
+      }
     }
   }
 
@@ -2162,16 +2255,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   Widget build(BuildContext context) {
     final body = _buildPlayerBody();
+    final Widget amblit = _prefs.ambilightEnabled
+        ? AmbilightGlowBorder(
+            colors: _ambilightColors,
+            intensity: _prefs.ambilightIntensity,
+            blurRadius: _prefs.ambilightBlurRadius,
+            child: body,
+          )
+        : body;
+    // Phase J2: color blind correction filter
+    final Widget screened = _prefs.colorBlindMode != 'none'
+        ? ColorFiltered(
+            colorFilter: ColorFilter.matrix(
+                _colorBlindMatrix(_prefs.colorBlindMode)),
+            child: amblit,
+          )
+        : amblit;
     return Scaffold(
       backgroundColor: Colors.black,
-      body: _prefs.ambilightEnabled
-          ? AmbilightGlowBorder(
-              colors: _ambilightColors,
-              intensity: _prefs.ambilightIntensity,
-              blurRadius: _prefs.ambilightBlurRadius,
-              child: body,
-            )
-          : body,
+      body: screened,
     );
   }
 
@@ -2883,6 +2985,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 onOpenSkipEditor: () {
                   setState(() => _showQuickSettings = false);
                   _openIntroSkipEditor();
+                },
+                onOpenJumpTo: () {
+                  setState(() => _showQuickSettings = false);
+                  _openJumpTo();
+                },
+                onOpenSpeedPresets: () {
+                  setState(() => _showQuickSettings = false);
+                  _openSpeedPresets();
+                },
+                onOpenEndAction: () {
+                  setState(() => _showQuickSettings = false);
+                  _openEndAction();
+                },
+                onOpenSilenceSkip: () {
+                  setState(() => _showQuickSettings = false);
+                  _openSilenceSkip();
                 },
                 subDelayMs: _subDelayMs,
                 audioDelayMs: _audioDelayMs,
@@ -5020,6 +5138,20 @@ class _MxSubPanelState extends State<_MxSubPanel> {
   }
 }
 
+
+  // Color Blind Mode — 5×4 ColorFilter.matrix for daltonization correction
+  static List<double> _colorBlindMatrix(String mode) {
+    switch (mode) {
+      case 'deuteranopia':
+        return [0.625,0.375,0.0,0,0, 0.7,0.3,0.0,0,0, 0.0,0.3,0.7,0,0, 0,0,0,1,0];
+      case 'protanopia':
+        return [0.567,0.433,0.0,0,0, 0.558,0.442,0.0,0,0, 0.0,0.242,0.758,0,0, 0,0,0,1,0];
+      case 'tritanopia':
+        return [0.95,0.05,0.0,0,0, 0.0,0.433,0.567,0,0, 0.0,0.475,0.525,0,0, 0,0,0,1,0];
+      default:
+        return [1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,1,0];
+    }
+  }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Smart Volume Leveling — Dart-side volume ramp controller (Phase SVL)
