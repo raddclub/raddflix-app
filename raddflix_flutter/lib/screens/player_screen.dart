@@ -802,11 +802,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         accentColor: _prefs.accentColor,
         onConnect: (d) => setState(() => _connectedCastDevice = d),
         onDisconnect: () => setState(() => _connectedCastDevice = null),
-        onScanRequested: () {
-          setState(() => _castScanning = true);
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) setState(() => _castScanning = false);
-          });
+        onScanRequested: () async {
+          setState(() { _castScanning = true; _castDevices = []; });
+          final discovered = await CastService.discoverDevices();
+          if (mounted) setState(() { _castScanning = false; _castDevices = discovered; });
         },
       ),
     );
