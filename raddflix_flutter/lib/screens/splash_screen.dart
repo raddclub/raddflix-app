@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants.dart';
 import '../app.dart' show pendingVideoUri, appNavigatorKey;
 import '../core/remote_config.dart';
+import '../core/theme/brand_theme_provider.dart';
 import '../providers/auth_provider.dart';
 import '../core/services/app_update_service.dart';
 
@@ -46,6 +47,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   Future<void> _start() async {
     await RemoteConfig.fetch();
+    // Reload brand theme (colors/font/radius) from freshly cached prefs
+    ref.read(brandThemeProvider.notifier).reload();
     // Re-apply brand splash color after fresh config fetch
     _loadBrandSplashColor();
     unawaited(AppUpdateService.check()); // populate _ForceUpdateGuard
