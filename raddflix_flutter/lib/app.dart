@@ -22,6 +22,7 @@ import 'screens/vault_lock_screen.dart';
 import 'screens/admin_queue_screen.dart';
 import 'screens/player_settings_screen.dart';
 import 'screens/player/layout_designer_screen.dart';
+import 'screens/pin_lock_screen.dart'; // Phase K3
 import 'core/player/player_prefs.dart';
 import 'screens/vault_screen.dart';
 import 'screens/local_media_screen.dart';
@@ -74,6 +75,8 @@ class RaddFlixApp extends ConsumerWidget {
         AppRoutes.localMedia:    (_) => const LocalMediaScreen(),
         '/player-settings':      (_) => const PlayerSettingsScreen(),
         '/layout-designer':      (_) => const LayoutDesignerScreen(prefs: PlayerPrefs(), onSave: (_) {}),
+        '/pin-lock':             (_) => const PinLockScreen(),
+        '/pin-setup':            (_) => const PinSetupScreen(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == AppRoutes.player) {

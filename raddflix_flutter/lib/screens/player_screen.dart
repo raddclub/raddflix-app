@@ -31,6 +31,8 @@ import '../core/player/scene_bookmark_store.dart';
 import '../core/player/ab_loop_controller.dart';
 import '../widgets/player/seek_bar_painter.dart';
 import '../core/player/video_look_filter.dart'; // Phase D2
+import '../core/player/haptic_service.dart'; // Phase J5
+import '../widgets/player/reaction_stamps_overlay.dart'; // Phase I2
 import '../widgets/player/film_grain_overlay.dart'; // Phase D3
 import '../widgets/player/controls_background.dart';
 import '../widgets/player/sleep_timer_sheet.dart';
@@ -2734,6 +2736,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // ── Phase D3: Film Grain overlay ──────────────────────────────────
           if (_prefs.filmGrainLevel != 'none')
             FilmGrainOverlay(level: _prefs.filmGrainLevel),
+
+          // ── Phase I2: Reaction Stamps ─────────────────────────────────────
+          if (_prefs.reactionsEnabled)
+            ReactionStampsOverlay(
+              position: _position,
+              contentId: widget.fileId,
+              accentColor: _prefs.accentColor,
+              visible: _showControls && !_locked,
+            ),
 
           // ── Controls (Opacity wrapper dims them in Cinematic mode) ──
           if (_showControls && !_longPressFast && !_showNextEpisode && !_inPiP && !_immersiveMode)

@@ -199,6 +199,18 @@ class PlayerPrefs {
   /// Film grain intensity: 'none'|'subtle'|'medium'|'heavy'
   final String filmGrainLevel;
 
+  // ── Phase J5: Haptic Feedback Patterns ────────────────────────────────────
+  /// 'none'|'light'|'medium'|'heavy'
+  final String hapticLevel;
+
+  // ── Phase I2: Reaction Stamps ─────────────────────────────────────────────
+  /// Whether to show emoji reaction stamp panel in player.
+  final bool reactionsEnabled;
+
+  // ── Phase K3: Watch History PIN Lock ─────────────────────────────────────
+  /// Whether a PIN is required to view watch history.
+  final bool historyPinEnabled;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -329,6 +341,9 @@ class PlayerPrefs {
     this.dictEnabled               = true,
     this.colorLook                 = 'none',
     this.filmGrainLevel            = 'none',
+    this.hapticLevel               = 'heavy',
+    this.reactionsEnabled          = true,
+    this.historyPinEnabled         = false,
   });
 
   PlayerPrefs copyWith({
@@ -395,6 +410,9 @@ class PlayerPrefs {
     bool?   dictEnabled,
     String? colorLook,
     String? filmGrainLevel,
+    String? hapticLevel,
+    bool?   reactionsEnabled,
+    bool?   historyPinEnabled,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -519,6 +537,9 @@ class PlayerPrefs {
       dictEnabled:                 dictEnabled                  ?? this.dictEnabled,
       colorLook:                   colorLook                    ?? this.colorLook,
       filmGrainLevel:              filmGrainLevel               ?? this.filmGrainLevel,
+      hapticLevel:                 hapticLevel                  ?? this.hapticLevel,
+      reactionsEnabled:            reactionsEnabled             ?? this.reactionsEnabled,
+      historyPinEnabled:           historyPinEnabled            ?? this.historyPinEnabled,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -661,6 +682,9 @@ class PlayerPrefs {
       dictEnabled:                 s.getBool('\${_p}dict_enabled')            ?? true,
       colorLook:                   s.getString('\${_p}color_look')             ?? 'none',
       filmGrainLevel:              s.getString('\${_p}film_grain')              ?? 'none',
+      hapticLevel:                 s.getString('\${_p}haptic_level')           ?? 'heavy',
+      reactionsEnabled:            s.getBool('\${_p}reactions_enabled')        ?? true,
+      historyPinEnabled:           s.getBool('\${_p}history_pin_enabled')      ?? false,
     );
   }
 
@@ -799,6 +823,9 @@ class PlayerPrefs {
       s.setBool('\${_p}dict_enabled',          dictEnabled),
       s.setString('\${_p}color_look',           colorLook),
       s.setString('\${_p}film_grain',            filmGrainLevel),
+      s.setString('\${_p}haptic_level',          hapticLevel),
+      s.setBool('\${_p}reactions_enabled',        reactionsEnabled),
+      s.setBool('\${_p}history_pin_enabled',       historyPinEnabled),
     ]);
   }
 }
