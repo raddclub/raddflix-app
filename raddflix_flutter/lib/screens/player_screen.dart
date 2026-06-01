@@ -3114,10 +3114,10 @@ class _ControlsOverlay extends StatelessWidget {
                                       thumbShape: RoundSliderThumbShape(
                                           enabledThumbRadius: sliderDragging ? 10 : 6),
                                       overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
-                                      activeTrackColor: const Color(0xFFE8002D),
-                                      inactiveTrackColor: Colors.transparent,
+                                      activeTrackColor: accentColor,
+                                      inactiveTrackColor: Colors.white12,
                                       thumbColor: Colors.white,
-                                      overlayColor: const Color(0x22E8002D),
+                                      overlayColor: accentColor.withOpacity(0.13),
                                     ),
                                     child: Slider(
                                       value: progress.clamp(0.0, 1.0),
