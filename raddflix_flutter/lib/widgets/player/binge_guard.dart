@@ -77,7 +77,7 @@ class _BingeGuardState extends State<BingeGuard> with SingleTickerProviderStateM
             ),
           ),
           const SizedBox(height: 16),
-          Text('You've watched ${widget.episodesWatched} episode${widget.episodesWatched > 1 ? 's' : ''}',
+          Text("You've watched ${widget.episodesWatched} episode${widget.episodesWatched > 1 ? 's' : ''}",
               style: const TextStyle(color: Colors.white70, fontSize: 13)),
           Text('${hours > 0 ? "${hours}h " : ""}${mins}min total',
               style: TextStyle(color: acc, fontSize: 22, fontWeight: FontWeight.w800)),
