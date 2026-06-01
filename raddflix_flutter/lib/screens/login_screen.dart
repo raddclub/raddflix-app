@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/api/auth_api.dart';
+import '../core/security/keystore.dart';
 import '../core/constants.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/loading_overlay.dart';
@@ -243,7 +244,12 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
 
   // ── OTP HOOK — request OTP (wire when otpDeviceSwitchEnabled = true) ──────
   Future<void> _requestOtp() async {
-    // TODO(OTP): validate _phoneCtrl.text before calling
+    final rawPhone = _phoneCtrl.text.trim();
+    final digits   = rawPhone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    if (!RegExp(r'^03\d{9}$').hasMatch(digits)) {
+      setState(() => _otpError = 'Enter a valid Pakistani mobile number (03XX-XXXXXXX)');
+      return;
+    }
     setState(() { _otpLoading = true; _otpError = null; });
     try {
       await AuthApi.requestDeviceSwitchOtp(phone: _phoneCtrl.text.trim());
@@ -261,11 +267,15 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
   Future<void> _verifyOtp() async {
     setState(() { _otpLoading = true; _otpError = null; });
     try {
-      await AuthApi.verifyDeviceSwitchOtp(
+      final result = await AuthApi.verifyDeviceSwitchOtp(
         phone: _phoneCtrl.text.trim(),
         otpCode: _otpCtrl.text.trim(),
       );
-      // TODO(OTP): on success — save new tokens via Keystore, then navigate home
+      await Keystore.saveTokens(
+        accessToken:  result.accessToken,
+        refreshToken: result.refreshToken,
+        userId:       result.userId.toString(),
+      );
       if (mounted) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.home);
       }
