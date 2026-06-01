@@ -1,3 +1,22 @@
+## [2026-06-01] — Session 4 | Recommendation wiring + P3.5 regression sweep
+
+### Tasks Completed
+- **P4.2 verified**: GET /api/recommend fully wired end-to-end — bp_rec blueprint, recommendation_cache DDL, Flutter CatalogApi.fetchRecommendations(), _RecommendationsSection + loadRecommendations() in catalog_provider — all confirmed
+- **FTS5 regression fixed (db.py)**: P3.5 dropped cast_names but left FTS5 triggers (titles_ai/ad/au) referencing it — updated DDL + migration to DROP old triggers/FTS5 table, recreate without cast_names. CI green: c92ea48922
+- **Dropped-col sweep**: Fixed all live DB crashes from P3.5 across library.py (4 queries cast_names→cast_json, OMDB updates cleaned, admin PUT allowed list), api.py (autofix col list, /library/actor), db.py (upsert_title dead cast check). CI green: d2f8fadb06
+- **Session 2+3 work verified**: bcrypt ✅, FTS5 search_api.py ✅, _ip_window fix ✅, XOR encoding ✅, recommendation_cache table ✅
+- **MASTER_PLAN corrected**: P2.1 marked DONE
+
+### Commits
+- c92ea48922 — fix(db): FTS5 triggers + upsert cols after cast_names drop
+- d2f8fadb06 — fix(db+routes): all cast_names/omdb_id/overview refs after P3.5 drop
+
+### Still Pending / Needs User Action
+- P3.3: need real WhatsApp support number (placeholder 923001234567)
+- P4.1: Oracle exec needed: sudo cp + supervisorctl restart raddflix_wa_bot
+
+---
+
 # TASK_LOG.md — RaddFlix Session History
 > One entry per agent session. Most recent at top.
 > Format: Date | Agent | Task | Files Changed | Outcome | Next
