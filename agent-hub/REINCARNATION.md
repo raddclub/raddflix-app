@@ -7,9 +7,32 @@
 
 ## ⚡ IMMEDIATE STATUS (READ THIS FIRST)
 
-> **Last agent session: 2026-06-01 (Session 7 — Player Customization)**
-> **Player mode logic fixed. Cinematic opacity slider added. 12-phase FEATURES_ROADMAP written.**
-> **Next: Sprint 1 — Accent Color System + Seek Bar Styles + Bundled Themes (see FEATURES_ROADMAP.md)**
+> **Last agent session: 2026-06-01 (Session 8 — Sprint 1: UI Theme Engine)**
+> **Accent Color System + 10 Seek Bar Styles + 8 Bundled Themes ALL DONE.**
+> **Next: Wire accentColor/seekBarStyle to player_screen.dart seek bar + play button. Then Phase A3 (ButtonShape + IconPack).**
+
+### OPEN ITEMS FOR NEXT AGENT
+1. **Wire accent to player_screen.dart** — seek bar widget, play button ring, active chips, mode indicators all use hardcoded red/blue. Replace with `_prefs.accentColor`.
+2. **Wire seekBarStyle to player_screen.dart** — replace the current seek bar widget with `CustomPaint(painter: SeekBarPainter(style: seekBarStyleFromString(_prefs.seekBarStyle), ...))`.
+3. **P-CUS-4** Button/Icon Style System — Phase A3 (ButtonShape enum: circle/squircle/rounded/pill + IconPack)
+4. **P-CUS-5** Controls Background Style — Phase A4 (glass/gradient/solid/mesh behind controls)
+5. **P-LAY-1** Drag & Drop Layout Designer — Phase B
+
+### NEW FILES THIS SESSION
+| File | Purpose |
+|------|---------|
+| `raddflix_flutter/lib/core/player/player_theme.dart` | 8 built-in themes (Sakura 🌸, Gold 🏆, Matrix 💚, etc.) |
+| `raddflix_flutter/lib/widgets/player/seek_bar_painter.dart` | 10-style CustomPainter + SeekBarStylePreview widget |
+| `raddflix_flutter/lib/widgets/player/color_picker_sheet.dart` | 24-swatch accent picker + hex input |
+| `raddflix_flutter/lib/widgets/player/theme_picker_sheet.dart` | 8-theme grid picker with live seek bar previews |
+
+### WHAT WAS DONE IN SESSION 8
+- ✅ `PlayerPrefs`: added `accentColorValue` (int), `seekBarStyle` (String), `playerTheme` (String) + copyWith/load/save wiring
+- ✅ `player_theme.dart`: PlayerTheme class + 8 built-in themes
+- ✅ `seek_bar_painter.dart`: SeekBarPainter CustomPainter (10 styles) + SeekBarStylePreview widget
+- ✅ `color_picker_sheet.dart`: 24-swatch grid + hex input + live preview
+- ✅ `theme_picker_sheet.dart`: 8 theme cards with mini seek bar previews
+- ✅ `quick_settings_panel.dart`: Style tab now has Theme / Player Colour / Seek Bar Style at top
 
 ### WHAT WAS DONE IN SESSION 7
 - ✅ Cinematic mode: removed `CinematicOverlay` widget entirely — controls are now wrapped in `Opacity(_cinematicOpacity)` directly in player_screen.dart
