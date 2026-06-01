@@ -831,3 +831,96 @@ consistent, and non-conflicting with long-press 2× speed gesture.
 - `_cinematicOpacity` is already persisted via `cin_controls_opacity` SharedPreferences key
 - `CinematicSettingsSheet` now requires `initialOpacity` param and accepts optional `onOpacityChanged` callback
 - `ModePrefs.cinOpacity()` static method added for reading saved opacity from anywhere
+
+---
+
+## Session 8 — Sprint 1: UI Theme Engine (2026-06-01)
+
+### Goal
+Implement Phase A (Tasks 1+2+3) of FEATURES_ROADMAP.md:
+- A1: Accent Color System
+- A2: Seek Bar Styles (10 styles)
+- A3/A5: Bundled Themes (8 built-in themes)
+
+### What Changed
+
+**player_prefs.dart** — Added 3 new fields:
+- `accentColorValue` (int, default 0xFFE8002D = RaddFlix red) + `Color get accentColor` getter
+- `seekBarStyle` (String, default 'classic')
+- `playerTheme` (String, default 'raddflix_red')
+- Wired into `copyWith()`, `load()`, `save()`
+- SharedPreferences keys: `player_accent_color`, `player_seek_bar_style`, `player_player_theme`
+
+**NEW: player_theme.dart** (`core/player/player_theme.dart`)
+- `PlayerTheme` data class (id, name, emoji, accentColor, seekBarStyle, gradientColor1/2)
+- `kBuiltInThemes` list — 8 themes: RaddFlix Red, Midnight Purple, **Sakura Pink**, Gold Class, Matrix Green, Ocean Cyan, Sunset Orange, Snow White
+- `themeById(String id)` lookup helper
+
+**NEW: seek_bar_painter.dart** (`widgets/player/seek_bar_painter.dart`)
+- `SeekBarStyle` enum — 10 values: classic, materialBold, gradientGlow, waveform, neonRgb, filmstrip, chapters, dots, circular, minimal
+- `SeekBarPainter extends CustomPainter` — full implementation of all 10 styles:
+  - classic: thin line + circle thumb
+  - materialBold: fat 8px bar + large thumb with ring
+  - gradientGlow: gradient fill + BlurStyle.outer glow shadow
+  - waveform: amplitude bars (fake seed-42 random, replaceable with real audio data)
+  - neonRgb: animated rainbow via HSV cycling (neonPhase 0.0–1.0 from AnimationController)
+  - filmstrip: 14px frame segments + sprocket holes
+  - chapters: per-chapter colored segments (reads chapterFractions list)
+  - dots: circle dots instead of line
+  - circular: uses classic (placeholder for fullscreen arc variant)
+  - minimal: hairline 1px + 4px bare circle
+- `SeekBarStylePreview` widget — 110px card with live preview, used in Quick Settings strip
+- `seekBarStyleFromString(String)` — safe enum parse with fallback
+
+**NEW: color_picker_sheet.dart** (`widgets/player/color_picker_sheet.dart`)
+- 24 preset swatches in 6×4 grid with labels (via Tooltip)
+- Live preview circle in header updates instantly
+- Selected swatch glows (BoxShadow with accent.withOpacity(0.6))
+- "Custom hex colour" expandable section with TextField + Apply button
+- `showColorPicker()` helper to open as modal bottom sheet
+- Live callback (`onColorSelected`) fires immediately on every tap
+
+**NEW: theme_picker_sheet.dart** (`widgets/player/theme_picker_sheet.dart`)
+- 2-column grid of theme cards (2.3 aspect ratio)
+- Each card: emoji + name + mini seek bar preview (using SeekBarPainter)
+- Selected card glows with theme.accentColor
+- `showThemePicker()` helper to open as modal bottom sheet
+- Live callback (`onThemeSelected`) fires immediately — passes full PlayerTheme
+
+**quick_settings_panel.dart** — Style tab rewritten with 3 new rows at top:
+- **Theme row**: shows current theme emoji+name, tap → ThemePickerSheet
+  - Selecting theme updates accentColorValue + seekBarStyle + playerTheme at once
+- **Player Colour row**: live swatch + hex value, tap → ColorPickerSheet
+- **Seek Bar Style row**: horizontal ListView of 10 SeekBarStylePreview cards (110px each)
+  - All previews use the current accentColor for live color preview
+- Progress bar Line/Material previews now use `playerAccent` not hardcoded red
+
+### Files Changed
+- `raddflix_flutter/lib/core/player/player_prefs.dart` — UPDATED (3 new fields)
+- `raddflix_flutter/lib/core/player/player_theme.dart` — NEW
+- `raddflix_flutter/lib/widgets/player/seek_bar_painter.dart` — NEW
+- `raddflix_flutter/lib/widgets/player/color_picker_sheet.dart` — NEW
+- `raddflix_flutter/lib/widgets/player/theme_picker_sheet.dart` — NEW
+- `raddflix_flutter/lib/widgets/player/quick_settings_panel.dart` — UPDATED
+
+### Commits This Session
+- `5fab9da374d2` — feat(theme): player_theme.dart — 8 built-in themes
+- `c1edd04e5251` — feat(player): seek_bar_painter.dart — 10 seek bar styles
+- `e521770fcf90` — feat(player): color_picker_sheet.dart — 24-swatch picker + hex input
+- `a39b629fabf4` — feat(player): theme_picker_sheet.dart — 8-theme picker with seek bar previews
+- `f4ecd23a2586` — feat(prefs): accentColorValue + seekBarStyle + playerTheme to PlayerPrefs
+- `2319b739aee4` — feat(player): Style tab — Theme + Colour + 10 Seek Bar styles
+
+### What "Done" Looks Like (verified design-spec match)
+✅ Player Color: Quick Settings → Style → Player Colour → 24-swatch grid + hex → live update
+✅ Seek Bar: Quick Settings → Style → Seek Bar Style → horizontal strip of 10 previews → instant switch
+✅ Theme: Quick Settings → Style → Theme → 8 cards (Sakura shows 🌸 + waveform preview) → one-tap full restyle
+✅ Sakura Pink theme: accent=FF4081, seekBarStyle=waveform, gradientColor1/2=FF4081/FF80AB
+✅ All previews use current player accent for live color matching
+
+### Open Items for Next Session
+1. **P-CUS-4** Button/Icon Style System (A3: ButtonShape + IconPack enums) — FEATURES_ROADMAP Phase A3
+2. **P-CUS-5** Controls Background Style (A4: glass/gradient/solid/mesh) — FEATURES_ROADMAP Phase A4
+3. Wire accentColor to player_screen.dart — seek bar, play button ring, active chips, mode indicators
+4. Wire seekBarStyle to actual seek bar widget in player_screen.dart
+5. **P-LAY-1** Drag & Drop Layout Designer — Phase B
