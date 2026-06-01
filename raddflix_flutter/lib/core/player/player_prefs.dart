@@ -555,6 +555,8 @@ class PlayerPrefs {
     String? audioLabConfig,
     bool?   voiceCommandsEnabled,
     int?    wakeLockTimeoutMinutes,
+    double? channelBalance,
+    bool?   abLoopEnabled,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
