@@ -145,7 +145,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   bool _buffering = true;
-  DateTime? _bufferingStartedAt;
   bool _slowConnectionShown = false;
   Timer? _slowConnTimer;
   bool _playing = false;
@@ -921,7 +920,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return;
       setState(() => _buffering = b);
       if (b) {
-        _bufferingStartedAt = DateTime.now();
         if (!_isLocalFile) {
           _slowConnTimer?.cancel();
           _slowConnTimer = Timer(const Duration(seconds: 8), () {
@@ -940,7 +938,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }
       } else {
         _slowConnTimer?.cancel();
-        _bufferingStartedAt = null;
         _slowConnectionShown = false;
       }
     });
@@ -1350,7 +1347,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _enterCast() async {
-    final devices = await CastService.discoverDevices();
+    await CastService.discoverDevices();
     final connected = await CastService.isConnected();
     if (!mounted) return;
     if (connected) {
@@ -1830,30 +1827,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // ── Link loading (JazzDrive URL resolution) — shimmer + spinner ──
           if (_isLinkLoading)
             Stack(children: [
-              // Shimmer background over entire video area
               Shimmer.fromColors(
                 baseColor: Colors.grey[900]!,
                 highlightColor: Colors.grey[800]!,
                 child: Container(color: Colors.white),
               ),
-              // Centered spinner + animated loading text
-              Center(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const SizedBox(
-                    width: 38, height: 38,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      strokeCap: StrokeCap.round,
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE8002D)),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text('Loading video…',
-                      style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13))
-                  .animate(onPlay: (c) => c.repeat())
-                  .fadeIn(duration: 400.ms).then().fadeOut(duration: 400.ms),
-                ]),
-              ),
+              // MX Player-style circular dots loading animation
+              const Center(child: _CircularDotsLoader()),
             ]),
 
           // ── Drag Indicator (brightness / volume) ──
@@ -2040,7 +2020,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
 
           // ── Controls ──
-          if (_showControls && !_longPressFast && !_showNextEpisode)
+          if (_showControls && !_longPressFast && !_showNextEpisode && !_inPiP)
             _ControlsOverlay(
               title: _currentTitle,
               playing: _playing,
@@ -2205,35 +2185,51 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             ),
 
-          // ── Subtitle Tracks ──
+          // ── Subtitle Tracks (MX Player bottom sheet style) ──
           if (_showSubtitleMenu && !_locked)
-            Positioned(
-              right: 0, top: 0, bottom: 0,
-              child: _TracksPanel(
-                title: 'Subtitles',
+            Positioned.fill(child: GestureDetector(
+              onTap: () => setState(() => _showSubtitleMenu = false),
+              child: Container(color: Colors.black54))),
+          if (_showSubtitleMenu && !_locked)
+            Positioned(bottom: 0, left: 0, right: 0,
+              child: _MxSubPanel(
                 tracks: _buildSubLabels(_player.state.tracks.subtitle),
                 activeIndex: _activeSubIdx,
+                syncMs: _subDelayMs,
                 onSelect: (i) {
+                  if (i >= 0 && i < _player.state.tracks.subtitle.length) {
+                    _player.setSubtitleTrack(_player.state.tracks.subtitle[i]);
+                  }
                   setState(() { _activeSubIdx = i; _showSubtitleMenu = false; });
-                  _player.setSubtitleTrack(_player.state.tracks.subtitle[i]);
                 },
-              ),
-            ),
+                onSyncChanged: _applySubSync,
+                onOpen: () { setState(() => _showSubtitleMenu = false); _pickSubtitle(); },
+                onSettings: () { setState(() { _showSubtitleMenu = false; _showQuickSettings = true; }); },
+                onClose: () => setState(() => _showSubtitleMenu = false),
+              )),
 
-          // ── Audio Tracks ──
+          // ── Audio Tracks (MX Player bottom sheet style) ──
           if (_showAudioMenu && !_locked)
-            Positioned(
-              right: 0, top: 0, bottom: 0,
-              child: _TracksPanel(
-                title: 'Audio',
+            Positioned.fill(child: GestureDetector(
+              onTap: () => setState(() => _showAudioMenu = false),
+              child: Container(color: Colors.black54))),
+          if (_showAudioMenu && !_locked)
+            Positioned(bottom: 0, left: 0, right: 0,
+              child: _MxAudioPanel(
                 tracks: _buildAudioLabels(_player.state.tracks.audio),
                 activeIndex: _activeAudioIdx,
+                syncMs: _audioDelayMs,
                 onSelect: (i) {
-                  setState(() { _activeAudioIdx = i; _showAudioMenu = false; });
-                  _player.setAudioTrack(_player.state.tracks.audio[i]);
+                  if (i >= 0 && i < _player.state.tracks.audio.length) {
+                    _player.setAudioTrack(_player.state.tracks.audio[i]);
+                    setState(() { _activeAudioIdx = i; });
+                  }
+                  setState(() => _showAudioMenu = false);
                 },
-              ),
-            ),
+                onSyncChanged: _applyAudioSync,
+                onOpen: () => setState(() => _showAudioMenu = false),
+                onClose: () => setState(() => _showAudioMenu = false),
+              )),
 
           // ── Rage Skip Badge ──
           if (_rageSkipActive)
@@ -2745,29 +2741,20 @@ class _ControlsOverlay extends StatelessWidget {
         ),
   
 
-      // ── CENTER CONTROLS (exact MX Player: plain seek icons + red play circle) ─
+      // ── CENTER CONTROLS (MX Player: circular seek + red play circle) ──────────
         if (!locked)
           Center(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                GestureDetector(
-                  onTap: onSeekBack,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.replay_rounded, color: Colors.white, size: 34),
-                      const Text('15s', style: TextStyle(color: Colors.white60, fontSize: 9, fontWeight: FontWeight.w500)),
-                    ]),
-                  ),
-                ),
-                const SizedBox(width: 16),
+                _MxSeekBtn(isForward: false, seconds: 15, onTap: onSeekBack),
+                const SizedBox(width: 24),
                 GestureDetector(
                   onTap: onPlayPause,
-                  onLongPress: onLongPressPlay, // §3.16D
+                  onLongPress: onLongPressPlay,
                   child: Container(
-                    width: 72, height: 72,
+                    width: 68, height: 68,
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       color: Color(0xFFE8002D),
@@ -2775,23 +2762,14 @@ class _ControlsOverlay extends StatelessWidget {
                     ),
                     child: Icon(
                       playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                      color: Colors.white, size: 42,
+                      color: Colors.white, size: 40,
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                GestureDetector(
-                  onTap: onSeekForward,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.forward_10_rounded, color: Colors.white, size: 34),
-                      const Text('15s', style: TextStyle(color: Colors.white60, fontSize: 9, fontWeight: FontWeight.w500)),
-                    ]),
-                  ),
-                ),
+                const SizedBox(width: 24),
+                _MxSeekBtn(isForward: true, seconds: 15, onTap: onSeekForward),
                 if (hasNext) ...[
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 20),
                   GestureDetector(
                     onTap: onNextEpisode,
                     child: Container(
@@ -2812,6 +2790,46 @@ class _ControlsOverlay extends StatelessWidget {
               ],
             ).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut),
           ),
+
+      // ── RIGHT-SIDE STRIP (MX Player: vertical icon strip on right edge) ──────
+      if (!locked)
+        Positioned(
+          right: 8, top: 0, bottom: 0,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _MxSideBtn(
+                  icon: Icons.subtitles_rounded,
+                  label: subLabels.isNotEmpty ? 'Sub' : 'Sub',
+                  active: subLabels.isNotEmpty && activeSubIdx < subLabels.length,
+                  activeColor: const Color(0xFF4DB6FF),
+                  onTap: onSubtitleTracks,
+                ),
+                const SizedBox(height: 8),
+                _MxSideBtn(
+                  icon: Icons.audiotrack_rounded,
+                  label: audioLabels.length > 1 ? 'Audio' : 'Audio',
+                  active: audioLabels.length > 1,
+                  activeColor: const Color(0xFF4DB6FF),
+                  onTap: onAudioTracks,
+                ),
+                const SizedBox(height: 8),
+                _MxSideBtn(
+                  icon: _rotationIcon(rotationMode),
+                  label: _rotationLabel(rotationMode),
+                  onTap: onCycleRotation,
+                ),
+                const SizedBox(height: 8),
+                _MxSideBtn(
+                  icon: Icons.more_horiz_rounded,
+                  label: 'More',
+                  onTap: onMorePanel,
+                ),
+              ],
+            ).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut),
+          ),
+        ),
 
   
       // ── BOTTOM BAR (MX Player: clean progress + time) ──────────────────────
@@ -3474,45 +3492,61 @@ class _NextEpisodeOverlay extends StatelessWidget {
 
       @override
       Widget build(BuildContext context) {
+        // 4-column grid matching MX Player screenshot
+        final items = <Map<String, dynamic>>[
+          {'icon': Icons.queue_play_next_rounded,    'label': 'Playing\nQueue',    'active': false,             'color': null,                      'tap': onSpeed},
+          {'icon': Icons.content_cut_rounded,        'label': 'Cut',               'active': false,             'color': null,                      'tap': onScreenshot},
+          {'icon': Icons.share_rounded,              'label': 'Share',             'active': false,             'color': null,                      'tap': onOpenWith},
+          {'icon': Icons.display_settings_rounded,   'label': 'Video Display\nShortcuts', 'active': false,     'color': null,                      'tap': onSettings},
+          {'icon': Icons.fit_screen_rounded,         'label': 'Aspect\nRatio',     'active': fitLabel != 'Fit', 'color': const Color(0xFFE8002D),   'tap': onFit},
+          {'icon': Icons.favorite_border_rounded,    'label': 'Favourite',         'active': false,             'color': Colors.red,                'tap': onBookmarks},
+          {'icon': Icons.cast_rounded,               'label': 'Network\nStream',   'active': castConnected,     'color': const Color(0xFF4FC3F7),   'tap': onCast},
+          {'icon': Icons.picture_in_picture_alt_rounded, 'label': 'PiP',           'active': false,             'color': null,                      'tap': onPiP},
+          {'icon': Icons.playlist_add_rounded,       'label': 'Add To\nPlaylist',  'active': false,             'color': null,                      'tap': onBookmarks},
+          {'icon': Icons.tune_rounded,               'label': 'Display\nSettings', 'active': false,             'color': null,                      'tap': onSettings},
+          {'icon': Icons.equalizer_rounded,          'label': 'Equalizer',         'active': false,             'color': null,                      'tap': onEq},
+          {'icon': Icons.dark_mode_rounded,          'label': 'Night\nMode',       'active': cinematicMode,     'color': const Color(0xFF3B82F6),   'tap': onNight},
+          {'icon': Icons.info_outline_rounded,       'label': 'Information',       'active': false,             'color': null,                      'tap': onSettings},
+          {'icon': Icons.bookmarks_rounded,          'label': 'Bookmark',          'active': bookmarkCount > 0, 'color': Colors.amber,              'tap': onBookmarks},
+          {'icon': sleepActive ? Icons.bedtime_rounded : Icons.bedtime_outlined,
+                                                     'label': 'Sleep\nTimer',      'active': sleepActive,       'color': Colors.orange,             'tap': onSleep},
+          {'icon': Icons.loop_rounded,               'label': 'A-B\nRepeat',       'active': abLoopActive,      'color': const Color(0xFFE8002D),   'tap': onLoop},
+        ];
         return Container(
           decoration: const BoxDecoration(
-            color: Color(0xF2101018),
+            color: Color(0xF0101018),
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Container(
               width: 36, height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
+              margin: const EdgeInsets.only(bottom: 14),
               decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
             ),
-            Wrap(
-              spacing: 12, runSpacing: 14,
-              children: [
-                _MoreBtn(icon: Icons.fit_screen_rounded, label: fitLabel, active: fitLabel != 'Fit', onTap: onFit),
-                _MoreBtn(icon: Icons.speed_rounded,
-                  label: speed == 1.0 ? '1× Speed' : '${speed}× Speed',
-                  active: speed != 1.0, activeColor: const Color(0xFFE8002D), onTap: onSpeed),
-                _MoreBtn(icon: Icons.dark_mode_rounded, label: 'Night',
-                  active: cinematicMode, activeColor: const Color(0xFF3B82F6), onTap: onNight),
-                _MoreBtn(icon: Icons.loop_rounded, label: 'A-B Loop',
-                  active: abLoopActive, activeColor: const Color(0xFFE8002D), onTap: onLoop),
-                _MoreBtn(icon: sleepActive ? Icons.bedtime_rounded : Icons.bedtime_outlined,
-                  label: 'Sleep', active: sleepActive, activeColor: Colors.orange, onTap: onSleep),
-                _MoreBtn(icon: bookmarkCount > 0 ? Icons.bookmarks_rounded : Icons.bookmark_border_rounded,
-                  label: 'Bookmarks', active: bookmarkCount > 0, activeColor: Colors.amber, onTap: onBookmarks),
-                _MoreBtn(icon: Icons.equalizer_rounded, label: 'EQ', active: false, onTap: onEq),
-                _MoreBtn(icon: Icons.screenshot_monitor_rounded, label: 'Screenshot', active: false, onTap: onScreenshot),
-                _MoreBtn(icon: castConnected ? Icons.cast_connected_rounded : Icons.cast_rounded,
-                  label: 'Cast', active: castConnected, activeColor: const Color(0xFF4FC3F7), onTap: onCast),
-                _MoreBtn(icon: Icons.picture_in_picture_alt_rounded, label: 'PiP', active: false, onTap: onPiP),
-                _MoreBtn(icon: Icons.screen_rotation_outlined, label: 'Rotate', active: false, onTap: onRotation),
-                _MoreBtn(icon: Icons.tune_rounded, label: 'Settings', active: false, onTap: onSettings),
-                _MoreBtn(icon: Icons.open_in_new_rounded, label: 'Open With', active: false, activeColor: Colors.tealAccent, onTap: onOpenWith),
-              ],
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 8,
+                childAspectRatio: 0.85,
+              ),
+              itemCount: items.length,
+              itemBuilder: (_, i) {
+                final item = items[i];
+                return _MoreBtn(
+                  icon: item['icon'] as IconData,
+                  label: item['label'] as String,
+                  active: item['active'] as bool,
+                  activeColor: item['color'] as Color?,
+                  onTap: item['tap'] as VoidCallback,
+                );
+              },
             ),
           ]),
-        );
+        ).animate().slideY(begin: 1, end: 0, duration: 250.ms, curve: Curves.easeOutCubic);
       }
     }
 
@@ -3553,11 +3587,498 @@ class _NextEpisodeOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 5),
               Text(label,
-                  textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: col, fontSize: 10, fontWeight: FontWeight.w500)),
+                  textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: col, fontSize: 9, fontWeight: FontWeight.w500)),
             ]),
           ),
         );
       }
     }
-  
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MX PLAYER STYLE — CIRCULAR DOTS LOADING ANIMATION (screenshot 15)
+// ═══════════════════════════════════════════════════════════════════════════════
+class _CircularDotsLoader extends StatefulWidget {
+  const _CircularDotsLoader();
+  @override
+  State<_CircularDotsLoader> createState() => _CircularDotsLoaderState();
+}
+
+class _CircularDotsLoaderState extends State<_CircularDotsLoader>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))
+      ..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const dotCount = 12;
+    const radius = 52.0;
+    const dotRadius = 6.0;
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final phase = _ctrl.value;
+        return SizedBox(
+          width: (radius + dotRadius) * 2 + 16,
+          height: (radius + dotRadius) * 2 + 16,
+          child: Stack(
+            alignment: Alignment.center,
+            children: List.generate(dotCount, (i) {
+              final angle = (i / dotCount) * 2 * math.pi - math.pi / 2;
+              final cx = radius * math.cos(angle);
+              final cy = radius * math.sin(angle);
+              // Each dot fades based on how far behind the current phase it is
+              final dotPhase = i / dotCount;
+              double diff = (phase - dotPhase) % 1.0;
+              if (diff < 0) diff += 1.0;
+              final opacity = (1.0 - diff).clamp(0.15, 1.0);
+              final scale = 0.5 + 0.5 * (1.0 - diff).clamp(0.0, 1.0);
+              return Positioned(
+                left: radius + dotRadius + cx - dotRadius * scale,
+                top:  radius + dotRadius + cy - dotRadius * scale,
+                child: Container(
+                  width: dotRadius * 2 * scale,
+                  height: dotRadius * 2 * scale,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(opacity),
+                  ),
+                ),
+              );
+            }),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MX PLAYER STYLE — AUDIO TRACK PANEL (screenshots 4, 14)
+// ═══════════════════════════════════════════════════════════════════════════════
+class _MxAudioPanel extends StatefulWidget {
+  final List<String> tracks;
+  final int activeIndex;
+  final int syncMs;
+  final ValueChanged<int> onSelect;
+  final ValueChanged<int> onSyncChanged;
+  final VoidCallback onOpen;
+  final VoidCallback onClose;
+
+  const _MxAudioPanel({
+    required this.tracks,
+    required this.activeIndex,
+    required this.syncMs,
+    required this.onSelect,
+    required this.onSyncChanged,
+    required this.onOpen,
+    required this.onClose,
+  });
+
+  @override
+  State<_MxAudioPanel> createState() => _MxAudioPanelState();
+}
+
+class _MxAudioPanelState extends State<_MxAudioPanel> {
+  late int _syncMs;
+  bool _swDecoder = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncMs = widget.syncMs;
+  }
+
+  void _adjustSync(int delta) {
+    setState(() => _syncMs = (_syncMs + delta).clamp(-5000, 5000));
+    widget.onSyncChanged(_syncMs);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.65),
+      decoration: const BoxDecoration(
+        color: Color(0xF0101018),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        // Handle
+        Center(child: Container(
+          width: 36, height: 4,
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+        )),
+
+        // Header
+        Row(children: [
+          const Icon(Icons.audiotrack_rounded, color: Color(0xFF4DB6FF), size: 20),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Audio Track',
+              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600))),
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white38, size: 20),
+            onPressed: widget.onClose,
+            padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+          ),
+        ]),
+        const SizedBox(height: 12),
+
+        // Track list (scrollable)
+        if (widget.tracks.isNotEmpty)
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                // "Disable" option first
+                _AudioTrackTile(
+                  label: 'Disable',
+                  icon: Icons.volume_off_rounded,
+                  selected: widget.activeIndex < 0,
+                  onTap: () => widget.onSelect(-1),
+                ),
+                ...widget.tracks.asMap().entries.map((e) => _AudioTrackTile(
+                  label: '${e.value.isNotEmpty ? e.value : "Audio ${e.key + 1}"}',
+                  icon: Icons.radio_button_checked_rounded,
+                  selected: e.key == widget.activeIndex,
+                  onTap: () => widget.onSelect(e.key),
+                )),
+              ],
+            ),
+          ),
+
+        const Divider(color: Colors.white12, height: 20),
+
+        // Options row: Open | Stereo Mode | SW Decoder
+        Row(children: [
+          _MxPanelOption(icon: Icons.folder_open_rounded, label: 'Open', onTap: widget.onOpen),
+          const SizedBox(width: 16),
+          _MxPanelOption(icon: Icons.headphones_rounded, label: 'Stereo mode', onTap: () {}),
+          const SizedBox(width: 16),
+          const Spacer(),
+          const Text('SW Decoder', style: TextStyle(color: Colors.white54, fontSize: 11)),
+          const SizedBox(width: 6),
+          Transform.scale(
+            scale: 0.8,
+            child: Switch(
+              value: _swDecoder,
+              activeColor: const Color(0xFF4DB6FF),
+              onChanged: (v) => setState(() => _swDecoder = v),
+            ),
+          ),
+        ]),
+
+        const Divider(color: Colors.white12, height: 20),
+
+        // Synchronization section
+        Row(children: [
+          const Icon(Icons.sync_rounded, color: Colors.white38, size: 16),
+          const SizedBox(width: 8),
+          const Text('Synchronization', style: TextStyle(color: Colors.white54, fontSize: 12)),
+          const Spacer(),
+          _SyncButton(icon: Icons.remove, onTap: () => _adjustSync(-100)),
+          const SizedBox(width: 8),
+          Container(
+            constraints: const BoxConstraints(minWidth: 64),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white10,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Text(
+              '${(_syncMs / 1000).toStringAsFixed(2)}s',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _syncMs != 0 ? const Color(0xFF4DB6FF) : Colors.white,
+                fontSize: 14, fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _SyncButton(icon: Icons.add, onTap: () => _adjustSync(100)),
+        ]),
+      ]),
+    ).animate().slideY(begin: 1, end: 0, duration: 260.ms, curve: Curves.easeOutCubic);
+  }
+}
+
+class _AudioTrackTile extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  const _AudioTrackTile({required this.label, required this.icon, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        child: Row(children: [
+          Icon(
+            selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+            color: selected ? const Color(0xFF4DB6FF) : Colors.white38,
+            size: 20,
+          ),
+          const SizedBox(width: 14),
+          Expanded(child: Text(label, style: TextStyle(
+            color: selected ? Colors.white : Colors.white70,
+            fontSize: 14,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+          ))),
+          if (selected)
+            const Icon(Icons.check_rounded, color: Color(0xFF4DB6FF), size: 16),
+        ]),
+      ),
+    );
+  }
+}
+
+class _SyncButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _SyncButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36, height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white10,
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Icon(icon, color: Colors.white70, size: 18),
+      ),
+    );
+  }
+}
+
+class _MxPanelOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _MxPanelOption({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, color: Colors.white54, size: 17),
+      const SizedBox(width: 5),
+      Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+    ]),
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MX PLAYER STYLE — SUBTITLE PANEL (screenshots 5, 13)
+// ═══════════════════════════════════════════════════════════════════════════════
+class _MxSubPanel extends StatefulWidget {
+  final List<String> tracks;
+  final int activeIndex;
+  final int syncMs;
+  final ValueChanged<int> onSelect;
+  final ValueChanged<int> onSyncChanged;
+  final VoidCallback onOpen;
+  final VoidCallback onSettings;
+  final VoidCallback onClose;
+
+  const _MxSubPanel({
+    required this.tracks,
+    required this.activeIndex,
+    required this.syncMs,
+    required this.onSelect,
+    required this.onSyncChanged,
+    required this.onOpen,
+    required this.onSettings,
+    required this.onClose,
+  });
+
+  @override
+  State<_MxSubPanel> createState() => _MxSubPanelState();
+}
+
+class _MxSubPanelState extends State<_MxSubPanel> {
+  late int _syncMs;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncMs = widget.syncMs;
+  }
+
+  void _adjustSync(int delta) {
+    setState(() => _syncMs = (_syncMs + delta).clamp(-5000, 5000));
+    widget.onSyncChanged(_syncMs);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.60),
+      decoration: const BoxDecoration(
+        color: Color(0xF0101018),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(0, 10, 0, 28),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        // Handle
+        Center(child: Container(
+          width: 36, height: 4,
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+        )),
+
+        // Header row
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(children: [
+            const Icon(Icons.subtitles_rounded, color: Color(0xFF4DB6FF), size: 20),
+            const SizedBox(width: 10),
+            const Expanded(child: Text('Subtitle',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600))),
+            // "Online subtitles" label (decorative, MX Player style)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white24),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text('Online subs', style: TextStyle(color: Colors.white38, fontSize: 10)),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white38, size: 20),
+              onPressed: widget.onClose,
+              padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 14),
+
+        // Horizontal scrollable subtitle track chips (MX Player style)
+        if (widget.tracks.isNotEmpty)
+          SizedBox(
+            height: 50,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: widget.tracks.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final isActive = i == widget.activeIndex;
+                return GestureDetector(
+                  onTap: () => widget.onSelect(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isActive ? const Color(0xFF1565C0) : Colors.white10,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isActive ? const Color(0xFF4DB6FF) : Colors.white12,
+                        width: isActive ? 1.5 : 1.0,
+                      ),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (isActive) ...[
+                        const Icon(Icons.chevron_left, color: Color(0xFF4DB6FF), size: 16),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(
+                        widget.tracks[i],
+                        style: TextStyle(
+                          color: isActive ? Colors.white : Colors.white70,
+                          fontSize: 13,
+                          fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                    ]),
+                  ),
+                );
+              },
+            ),
+          )
+        else
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('No subtitle tracks', style: TextStyle(color: Colors.white38, fontSize: 13)),
+          ),
+
+        const SizedBox(height: 14),
+
+        // Action buttons row: Open | Settings | Add Translation
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(children: [
+            _MxPanelOption(icon: Icons.folder_open_rounded, label: 'Open', onTap: widget.onOpen),
+            const SizedBox(width: 20),
+            _MxPanelOption(icon: Icons.settings_rounded, label: 'Settings', onTap: widget.onSettings),
+            const Spacer(),
+            GestureDetector(
+              onTap: () {},
+              child: const Text('+ Add Translation',
+                  style: TextStyle(color: Color(0xFF4DB6FF), fontSize: 12, fontWeight: FontWeight.w500)),
+            ),
+          ]),
+        ),
+
+        const Divider(color: Colors.white12, height: 24),
+
+        // Synchronization
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(children: [
+            const Icon(Icons.sync_rounded, color: Colors.white38, size: 16),
+            const SizedBox(width: 8),
+            const Text('Synchronization', style: TextStyle(color: Colors.white54, fontSize: 12)),
+            const Spacer(),
+            _SyncButton(icon: Icons.remove, onTap: () => _adjustSync(-100)),
+            const SizedBox(width: 8),
+            Container(
+              constraints: const BoxConstraints(minWidth: 64),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white10,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Text(
+                '${(_syncMs / 1000).toStringAsFixed(2)}s',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _syncMs != 0 ? const Color(0xFF4DB6FF) : Colors.white,
+                  fontSize: 14, fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _SyncButton(icon: Icons.add, onTap: () => _adjustSync(100)),
+          ]),
+        ),
+      ]),
+    ).animate().slideY(begin: 1, end: 0, duration: 260.ms, curve: Curves.easeOutCubic);
+  }
+}
+
