@@ -490,23 +490,23 @@ _DDL = [
     # Content-based FTS5: reads data from 'titles' on demand (no duplication).
     # Kept in sync by the three triggers below.
     """CREATE VIRTUAL TABLE IF NOT EXISTS titles_fts USING fts5(
-        title, plot, genres, cast_names, language,
+        title, plot, genres, language,
         content='titles', content_rowid='id',
         tokenize='unicode61 remove_diacritics 1'
     )""",
     """CREATE TRIGGER IF NOT EXISTS titles_ai AFTER INSERT ON titles BEGIN
-       INSERT INTO titles_fts(rowid, title, plot, genres, cast_names, language)
-       VALUES (new.id, new.title, new.plot, new.genres, new.cast_names, new.language);
+       INSERT INTO titles_fts(rowid, title, plot, genres, language)
+       VALUES (new.id, new.title, new.plot, new.genres, new.language);
     END""",
     """CREATE TRIGGER IF NOT EXISTS titles_ad AFTER DELETE ON titles BEGIN
-       INSERT INTO titles_fts(titles_fts, rowid, title, plot, genres, cast_names, language)
-       VALUES ('delete', old.id, old.title, old.plot, old.genres, old.cast_names, old.language);
+       INSERT INTO titles_fts(titles_fts, rowid, title, plot, genres, language)
+       VALUES ('delete', old.id, old.title, old.plot, old.genres, old.language);
     END""",
     """CREATE TRIGGER IF NOT EXISTS titles_au AFTER UPDATE ON titles BEGIN
-       INSERT INTO titles_fts(titles_fts, rowid, title, plot, genres, cast_names, language)
-       VALUES ('delete', old.id, old.title, old.plot, old.genres, old.cast_names, old.language);
-       INSERT INTO titles_fts(rowid, title, plot, genres, cast_names, language)
-       VALUES (new.id, new.title, new.plot, new.genres, new.cast_names, new.language);
+       INSERT INTO titles_fts(titles_fts, rowid, title, plot, genres, language)
+       VALUES ('delete', old.id, old.title, old.plot, old.genres, old.language);
+       INSERT INTO titles_fts(rowid, title, plot, genres, language)
+       VALUES (new.id, new.title, new.plot, new.genres, new.language);
     END""",
 ]
 
@@ -555,13 +555,27 @@ def init_db() -> None:
             # FTS5 index rebuild — populates titles_fts for all existing rows
             # (no-op if already populated; safe to re-run)
             "INSERT INTO titles_fts(titles_fts) VALUES('rebuild')",
-            # P3.5 cleanup — drop legacy/duplicate columns from titles
+            # P3.5 cleanup — drop legacy/duplicate columns from titles.
+            # Order matters: drop triggers first so SQLite allows DROP COLUMN;
+            # then recreate FTS5 table + triggers without cast_names.
             # Requires SQLite 3.35.0+ (Ubuntu 22.04 ships 3.37.2 — safe).
-            # Wrapped in try/except via the migration loop — no-op if already gone.
+            # All wrapped in try/except via the migration loop — idempotent.
+            "DROP TRIGGER IF EXISTS titles_ai",
+            "DROP TRIGGER IF EXISTS titles_ad",
+            "DROP TRIGGER IF EXISTS titles_au",
+            "DROP TABLE IF EXISTS titles_fts",
             "ALTER TABLE titles DROP COLUMN omdb_id",
             "ALTER TABLE titles DROP COLUMN overview",
             "ALTER TABLE titles DROP COLUMN cast",
             "ALTER TABLE titles DROP COLUMN cast_names",
+            # Recreate FTS5 virtual table without cast_names
+            "CREATE VIRTUAL TABLE IF NOT EXISTS titles_fts USING fts5(title, plot, genres, language, content=\'titles\', content_rowid=\'id\', tokenize=\'unicode61 remove_diacritics 1\')",
+            # Recreate sync triggers without cast_names
+            "CREATE TRIGGER IF NOT EXISTS titles_ai AFTER INSERT ON titles BEGIN INSERT INTO titles_fts(rowid, title, plot, genres, language) VALUES (new.id, new.title, new.plot, new.genres, new.language); END",
+            "CREATE TRIGGER IF NOT EXISTS titles_ad AFTER DELETE ON titles BEGIN INSERT INTO titles_fts(titles_fts, rowid, title, plot, genres, language) VALUES (\'delete\', old.id, old.title, old.plot, old.genres, old.language); END",
+            "CREATE TRIGGER IF NOT EXISTS titles_au AFTER UPDATE ON titles BEGIN INSERT INTO titles_fts(titles_fts, rowid, title, plot, genres, language) VALUES (\'delete\', old.id, old.title, old.plot, old.genres, old.language); INSERT INTO titles_fts(rowid, title, plot, genres, language) VALUES (new.id, new.title, new.plot, new.genres, new.language); END",
+            # Rebuild FTS5 index after recreation
+            "INSERT INTO titles_fts(titles_fts) VALUES(\'rebuild\')",
         ]:
             try:
                 c.execute(migration_sql)
@@ -628,11 +642,11 @@ def upsert_title(meta: dict) -> Optional[int]:
             pass
 
     cols = [
-        "content_key","slug","tmdb_id","omdb_id","imdb_id",
+        "content_key","slug","tmdb_id","imdb_id",
         "media_type","title","original_title","year","release_date",
         "language","country","status",
         "rating","imdb_rating","vote_count",
-        "genres","genres_csv","plot","overview","cast","cast_names","cast_json",
+        "genres","genres_csv","plot","cast_json",
         "director","crew_json","languages_csv",
         "runtime","season_count","episode_count",
         "poster","backdrop",
@@ -1138,9 +1152,7 @@ def migrate_from_v2() -> dict:
                     "year":          (row.get("tmdb_year") or "")[:4],
                     "rating":        row.get("tmdb_rating"),
                     "poster":        row.get("tmdb_poster"),
-                    "overview":      row.get("tmdb_overview"),
                     "genres_csv":    row.get("genres_csv"),
-                    "cast_names":    row.get("cast_names"),
                     "cast_json":     row.get("cast_json"),
                     "director":      row.get("director"),
                     "crew_json":     row.get("director_json"),
@@ -1208,9 +1220,7 @@ def migrate_from_v2() -> dict:
                         "rating":       t.get("rating"),
                         "vote_count":   t.get("vote_count") or 0,
                         "poster":       t.get("poster"),
-                        "overview":     t.get("overview"),
                         "genres_csv":   t.get("genres_csv"),
-                        "cast_names":   t.get("cast_names"),
                         "cast_json":    t.get("cast_json"),
                         "director":     t.get("director"),
                         "crew_json":    t.get("crew_json"),
