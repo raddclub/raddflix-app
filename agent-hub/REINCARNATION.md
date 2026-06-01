@@ -7,31 +7,28 @@
 
 ## ⚡ IMMEDIATE STATUS (READ THIS FIRST)
 
-> **Last agent session: 2026-05-31 (Session 2)**
-> **All P1/P2 bugs fixed. P3.1/P3.3/P3.5 are the only open items (all need user input).**
+> **Last agent session: 2026-06-01 (Session 3)**
+> **All P1/P2/P3 bugs fixed (except P3.3 blocked on real phone number). P4.1 supervisor config committed.**
 
-### WHAT WAS DONE IN SESSION 2
-- ✅ P1.3: bcrypt migration (mobile_api.py) — salted passwords, SHA-256 migration path
-- ✅ P1.4: Hardcoded IP removed from catalog_api.py
-- ✅ P2.1: FTS5 full-text search — db.py + search_api.py
-- ✅ P2.2: _ip_window memory leak fixed in security_telemetry.py
-- ✅ P2.6: bcrypt>=4.0 added to requirements.txt
-- ✅ P3.2: Bot state .gitignore created
-- ✅ P3.4: auth_utils.dart created — deduped _friendly() from login/register screens
-- ✅ P3.6: bulk_link_engine.py "JazzBuzz" → "RaddFlix"
-- ✅ P3.7: constants.dart otpDeviceSwitchEnabled comment updated
-- ✅ VERIFIED: P1.1/P1.2/P2.3/P2.4/P2.5/P4.2/P4.3/P4.4/P4.5 all already implemented
+### WHAT WAS DONE IN SESSION 3
+- ✅ P3.1: Root `lib/` dead stubs deleted (44 files — JazzMAX/ZENO branded, TS api-specs, duplicate screens)
+- ✅ P3.5: Legacy DB columns removed from `radd-hub/hub/db.py` DDL + DROP COLUMN migrations added (`omdb_id`, `overview`, `cast`, `cast_names`)
+- ✅ P3.7: VERIFIED — `constants.dart` comment already accurate (no code change needed)
+- ✅ P2.5: VERIFIED — `_legacy/` directory confirmed in repo; `mirror.py` imports already try/except protected (no code change needed)
+- 🔄 P4.1: Supervisor config committed to `radd-hub/supervisor.d/raddflix_wa_bot.conf` — user must copy to Oracle
 
-### OPEN ITEMS (need user or can't safely proceed alone)
-1. **P3.1** Delete root `lib/*.dart` stubs — ⚠️ NEEDS USER APPROVAL before deleting
-2. **P3.3** `supportWhatsApp` placeholder — BLOCKED: need real support number from user
-3. **P3.5** DB column cleanup — BLOCKED: risky migration, plan needed
-4. **P4.1** WhatsApp bot deployment — needs coordination
+### OPEN ITEMS
+1. **P3.3** `supportWhatsApp` placeholder — BLOCKED: need real support number from user (`923001234567` is placeholder)
+2. **P4.1** Supervisor config ready — user must run on Oracle:
+   ```
+   sudo cp radd-hub/supervisor.d/raddflix_wa_bot.conf /etc/supervisor/conf.d/raddflix_wa_bot.conf
+   sudo supervisorctl reread && sudo supervisorctl update
+   sudo supervisorctl restart raddflix_wa_bot
+   ```
 
-### SESSION 2 COMMITS
-- `88548fa` — fix: P1.3 bcrypt, P1.4 IP, P2.2 prune, P3.2 gitignore, P3.6 brand
-- `e15c30f` — feat: P2.1 FTS5 search, P3.7 constants comment
-- `52b1819` — refactor: P3.4 auth_utils dedup + MASTER_PLAN final
+### SESSION 3 COMMITS
+- `53c95e9` — chore(cleanup): P3.1 delete root lib/ dead stubs + pubspec.yaml
+- `3c54ef3` — fix(db): P3.5 drop legacy titles cols; feat(bot): P4.1 supervisor config; docs: verified P2.5/P3.7
 
 
 ## 📁 REPOSITORY STRUCTURE
@@ -530,4 +527,4 @@ Examples:
 ---
 
 *End of REINCARNATION.md — v3.0 — 2026-05-31*
-*Next update: after P1.1 (MainActivity.kt security channel) is complete*
+*Next update: after P3.3 (real WhatsApp number) and P4.1 (Oracle bot restart) are resolved*
