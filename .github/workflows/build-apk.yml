@@ -9,6 +9,14 @@ on:
         description: "Release tag e.g. v1.0.0"
         required: false
         default: ""
+      brand_build:
+        description: "Apply brand assets from brand_assets/ before building"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -43,6 +51,25 @@ jobs:
         working-directory: raddflix_flutter
         run: flutter pub get
 
+      - name: Apply brand assets (Brand Studio)
+        if: github.event.inputs.brand_build == 'true'
+        working-directory: raddflix_flutter
+        run: |
+          echo "brand_build=true — checking for brand assets in brand_assets/ directory"
+          BRAND_DIR="${{ github.workspace }}/brand_assets"
+          if [ -d "$BRAND_DIR" ]; then
+            echo "Found brand_assets/ — applying brand files"
+            # Copy icon if present
+            for f in "$BRAND_DIR"/brand_icon.*; do
+              [ -f "$f" ] && cp "$f" android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png && echo "Applied icon: $f"
+            done
+            # Copy splash if present
+            for f in "$BRAND_DIR"/brand_splash.*; do
+              [ -f "$f" ] && cp "$f" assets/images/splash.png && echo "Applied splash: $f"
+            done
+          else
+            echo "No brand_assets/ directory found — skipping brand asset application"
+          fi
 
       - name: Patch Gradle namespace for AGP 8 (fix legacy pub packages)
         working-directory: raddflix_flutter
