@@ -30,6 +30,8 @@ import '../core/player/binge_guard_controller.dart';
 import '../core/player/scene_bookmark_store.dart';
 import '../core/player/ab_loop_controller.dart';
 import '../widgets/player/seek_bar_painter.dart';
+import '../core/player/video_look_filter.dart'; // Phase D2
+import '../widgets/player/film_grain_overlay.dart'; // Phase D3
 import '../widgets/player/controls_background.dart';
 import '../widgets/player/sleep_timer_sheet.dart';
 import '../widgets/player/speed_picker_sheet.dart';
@@ -2306,14 +2308,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             child: body,
           )
         : body;
+    // Phase D2: Color Look Preset (applies cinematic color grade to entire screen)
+    final _colorLookFilter = videoLookFilter(_prefs.colorLook);
+    final Widget looked = _colorLookFilter != null
+        ? ColorFiltered(colorFilter: _colorLookFilter, child: amblit)
+        : amblit;
+
     // Phase J2: color blind correction filter
     final Widget screened = _prefs.colorBlindMode != 'none'
         ? ColorFiltered(
             colorFilter: ColorFilter.matrix(
                 _colorBlindMatrix(_prefs.colorBlindMode)),
-            child: amblit,
+            child: looked,
           )
-        : amblit;
+        : looked;
     return Scaffold(
       backgroundColor: Colors.black,
       body: screened,
@@ -2723,9 +2731,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               prefs: _prefs,
             ),
 
+          // ── Phase D3: Film Grain overlay ──────────────────────────────────
+          if (_prefs.filmGrainLevel != 'none')
+            FilmGrainOverlay(level: _prefs.filmGrainLevel),
+
           // ── Controls (Opacity wrapper dims them in Cinematic mode) ──
           if (_showControls && !_longPressFast && !_showNextEpisode && !_inPiP && !_immersiveMode)
-            ControlsBackground(
+            // Phase H1: One-Handed Mode — translate controls toward the active hand
+            Transform.translate(
+              offset: _prefs.oneHandedModeEnabled
+                  ? Offset(_prefs.oneHandedModeSide == 'left' ? -56.0 : 56.0, 40.0)
+                  : Offset.zero,
+              child: ControlsBackground(
               style: _prefs.controlsBgStyle,
               accentColor: _prefs.accentColor,
               child: Opacity(
@@ -2859,6 +2876,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
             )), // end Opacity + ControlsBackground
           ), // end ControlsBackground
+            ), // end Transform.translate (Phase H1: oneHandedMode)
 
           // ── Lock Button ──
           if (_locked && _showControls)

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/player/player_prefs.dart';
+import '../../../core/player/video_look_filter.dart'; // D2
+import 'film_grain_overlay.dart'; // D3
 import '../../../core/player/player_theme.dart';
 import '../../../core/player/icon_packs.dart';
 import 'color_picker_sheet.dart';
@@ -391,6 +393,74 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         const Divider(color: Colors.white10, height: 1),
 
         // ── CONTROLS BACKGROUND ──────────────────────────────────────────
+        // ── Phase D2: Color Look Presets ────────────────────────────────────
+        _QsLabel('Color Look'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: videoLookIds.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, i) {
+                final id = videoLookIds[i];
+                final active = _p.colorLook == id;
+                return GestureDetector(
+                  onTap: () => _update(_p.copyWith(colorLook: id)),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: active ? _accent.withOpacity(0.2) : Colors.white10,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                          color: active ? _accent : Colors.white24, width: 1)),
+                    child: Text(
+                      videoLookLabel[id] ?? id,
+                      style: TextStyle(
+                          color: active ? _accent : Colors.white60,
+                          fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        const Divider(color: Colors.white10, height: 1),
+        // ── Phase D3: Film Grain / Film Look ─────────────────────────────────
+        _QsLabel('Film Grain'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Row(children: [
+            ...filmGrainLevels.map((lvl) {
+              final active = _p.filmGrainLevel == lvl;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () => _update(_p.copyWith(filmGrainLevel: lvl)),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: active ? _accent.withOpacity(0.2) : Colors.white10,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                          color: active ? _accent : Colors.white24)),
+                    child: Text(
+                      filmGrainLabels[lvl] ?? lvl,
+                      style: TextStyle(
+                          color: active ? _accent : Colors.white60,
+                          fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ]),
+        ),
+        const Divider(color: Colors.white10, height: 1),
         _QsLabel('Controls Background'),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),

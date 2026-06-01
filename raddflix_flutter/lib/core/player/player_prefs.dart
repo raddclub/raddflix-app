@@ -191,6 +191,14 @@ class PlayerPrefs {
   /// Enable tap-a-word dictionary lookup in subtitle overlay.
   final bool dictEnabled;
 
+  // ── Phase D2: Color Look Presets ───────────────────────────────────────────
+  /// Active color look preset name. 'none' = no filter.
+  final String colorLook;
+
+  // ── Phase D3: Film Grain / Film Look ───────────────────────────────────────
+  /// Film grain intensity: 'none'|'subtle'|'medium'|'heavy'
+  final String filmGrainLevel;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -319,6 +327,8 @@ class PlayerPrefs {
     this.layoutJson               = '',
     this.layoutPreset             = 'centered',
     this.dictEnabled               = true,
+    this.colorLook                 = 'none',
+    this.filmGrainLevel            = 'none',
   });
 
   PlayerPrefs copyWith({
@@ -383,6 +393,8 @@ class PlayerPrefs {
     String? layoutJson,
     String? layoutPreset,
     bool?   dictEnabled,
+    String? colorLook,
+    String? filmGrainLevel,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -505,6 +517,8 @@ class PlayerPrefs {
       layoutJson:                  layoutJson                  ?? this.layoutJson,
       layoutPreset:                layoutPreset                ?? this.layoutPreset,
       dictEnabled:                 dictEnabled                  ?? this.dictEnabled,
+      colorLook:                   colorLook                    ?? this.colorLook,
+      filmGrainLevel:              filmGrainLevel               ?? this.filmGrainLevel,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -645,6 +659,8 @@ class PlayerPrefs {
       layoutJson:                  s.getString('\${_p}layout_json')           ?? '',
       layoutPreset:                s.getString('\${_p}layout_preset')         ?? 'centered',
       dictEnabled:                 s.getBool('\${_p}dict_enabled')            ?? true,
+      colorLook:                   s.getString('\${_p}color_look')             ?? 'none',
+      filmGrainLevel:              s.getString('\${_p}film_grain')              ?? 'none',
     );
   }
 
@@ -781,6 +797,8 @@ class PlayerPrefs {
       s.setString('\${_p}layout_json',        layoutJson),
       s.setString('\${_p}layout_preset',      layoutPreset),
       s.setBool('\${_p}dict_enabled',          dictEnabled),
+      s.setString('\${_p}color_look',           colorLook),
+      s.setString('\${_p}film_grain',            filmGrainLevel),
     ]);
   }
 }
