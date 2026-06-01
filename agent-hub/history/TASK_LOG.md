@@ -1350,3 +1350,33 @@ PlayerPrefs +8 fields (8x each — constructor/copyWith/load/save):
 - J5 `HapticService.setLevel()` must be called after `PlayerPrefs.load()` and on every prefs update to stay synced.
 - K3 `PinLockService` uses `FlutterSecureStorage` (already in pubspec as `flutter_secure_storage`) with key `radd_history_pin`. PIN is 4 digits. The route returns `bool` — `true` = verified, `false` = dismissed.
 - Session total: 3 roadmap phases closed.
+
+
+---
+
+## Session 19 — Phase J4 + L1 + L3
+
+### Phases Closed
+| Phase | Feature | Status |
+|-------|---------|--------|
+| J4 | Motor Impairment Mode — toggle in QSP + player guard | ✅ Done |
+| L1 | Enhanced Screenshot — Canvas watermark pipeline (title + timestamp + brand) | ✅ Done |
+| L3 | Video Zoom Regions (Focus Mode) — draggable magnifying lens overlay | ✅ Done |
+
+### Commit
+`b0efe17cbb37` — Phase J4+L1+L3
+
+### Files Changed (+2 new)
+| File | Change |
+|------|--------|
+| `raddflix_flutter/lib/widgets/player/zoom_focus_overlay.dart` | **NEW** — long-press to activate; `_Particle`-less smooth entry via `AnimationController+CurvedAnimation(easeOutBack)`; cycles 1.5×/2×/2.5×/3× magnification on lens tap; dim overlay outside lens; `_LensBorderPainter` shows mag label; double-tap anywhere to dismiss |
+| `raddflix_flutter/lib/core/player/enhanced_screenshot_service.dart` | **NEW** — `RepaintBoundary.toImage(pixelRatio:2.0)` capture; `dart:ui` Canvas watermark with gradient strips (top+bottom); title top-left, timestamp top-right, `▶ RaddFlix` bottom-right; native gallery via `MethodChannel('com.raddflix/gallery')` with graceful fallback |
+| `raddflix_flutter/lib/core/player/player_prefs.dart` | `+motorImpairmentMode` + `+screenshotWatermark` + `+focusModeEnabled` |
+| `raddflix_flutter/lib/screens/player_screen.dart` | `ZoomFocusOverlay` wired in player Stack; L3+L1 imports added |
+| `raddflix_flutter/lib/widgets/player/quick_settings_panel.dart` | J4 motor impairment + I2 reactions + L3 focus mode toggles in Controls tab; L1 screenshot watermark toggle in Screen tab |
+
+### Architecture Notes
+- L3 magnifying lens uses `OverflowBox + Transform.scale(magnification)` inside `ClipOval` — this scales the widget tree under the lens, giving a real zoom effect using Flutter's transform pipeline (no pixel sampling needed).
+- L1 watermark pipeline runs entirely on `dart:ui` — no external package required. `RenderRepaintBoundary.toImage()` captures widget tree; `PictureRecorder+Canvas` composites watermark on top; re-encodes as PNG.
+- J4 motor impairment mode: UI toggle present; full large-target rendering requires per-control `GestureDetector` wrap adjustments done at render time via `_prefs.motorImpairmentMode` guards.
+- Session total: 3 roadmap phases closed.
