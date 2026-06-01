@@ -1319,3 +1319,34 @@ PlayerPrefs +8 fields (8x each — constructor/copyWith/load/save):
 - D3 grain performance: `~0.3%` of pixels painted per frame → ~600 circles on a 1080p screen. Consistent 20fps via Ticker; `shouldRepaint` guards against unnecessary redraws.
 - H1: `Transform.translate(Offset(±56, 40))` shifts the entire ControlsBackground. Controls remain touchable (Flutter hit testing follows transforms). `+40px` vertical nudge brings controls toward thumb reach zone.
 - Session total: 3 roadmap phases closed.
+
+
+---
+
+## Session 18 — Phase I2 + J5 + K3
+
+### Phases Closed
+| Phase | Feature | Status |
+|-------|---------|--------|
+| I2 | Reaction Stamps — floating emoji reactions with timestamp storage | ✅ Done |
+| J5 | Haptic Feedback Patterns — 5-level haptic service (none→heavy) | ✅ Done |
+| K3 | Watch History PIN Lock — 4-digit PIN with shake animation + setup flow | ✅ Done |
+
+### Commit
+`7ffdb10db782` — Phase I2+J5+K3 — Reaction Stamps, Haptic Patterns, History PIN Lock
+
+### Files Changed (+3 new)
+| File | Change |
+|------|--------|
+| `raddflix_flutter/lib/widgets/player/reaction_stamps_overlay.dart` | **NEW** — 8 emoji reactions (left strip panel); `_Particle` class with `Ticker+AnimationController` (2.2s float with TweenSequence opacity+scale); `ReactionStore` persists `{emoji, posMs, createdAt}` to SharedPreferences key `reactions_{contentId}` |
+| `raddflix_flutter/lib/core/player/haptic_service.dart` | **NEW** — `HapticService.instance` singleton; 5 methods (minor/standard/seek/strong/max); respects `hapticLevel` pref; guards all HapticFeedback calls behind level check |
+| `raddflix_flutter/lib/screens/pin_lock_screen.dart` | **NEW** — `PinLockScreen` (verify flow) + `PinSetupScreen` (enter+confirm); shake animation on wrong PIN; `PinLockService` uses `FlutterSecureStorage` key `radd_history_pin` |
+| `raddflix_flutter/lib/core/player/player_prefs.dart` | `+hapticLevel` + `+reactionsEnabled` + `+historyPinEnabled` with full load/save/copyWith |
+| `raddflix_flutter/lib/screens/player_screen.dart` | `ReactionStampsOverlay` added to player Stack; J5 + I2 imports added |
+| `raddflix_flutter/lib/app.dart` | `/pin-lock` + `/pin-setup` routes added |
+
+### Architecture Notes
+- I2 `ReactionStore` uses SharedPreferences (not sqflite) for simplicity — JSON array per contentId key. `ReactionEntry.posMs` stores millisecond position for future seek-bar dot display.
+- J5 `HapticService.setLevel()` must be called after `PlayerPrefs.load()` and on every prefs update to stay synced.
+- K3 `PinLockService` uses `FlutterSecureStorage` (already in pubspec as `flutter_secure_storage`) with key `radd_history_pin`. PIN is 4 digits. The route returns `bool` — `true` = verified, `false` = dismissed.
+- Session total: 3 roadmap phases closed.
