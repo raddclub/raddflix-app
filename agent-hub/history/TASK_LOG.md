@@ -437,3 +437,132 @@ Fix CI failure after keystore credential changes. Update APK signing fingerprint
 
   ### Commit: `5e68dbe`
   
+  ---
+
+  ## Session 9 (handoff) — 2026-06-01
+  **Agent:** Replit Agent
+  **Status:** Handing off to next agent. All code committed. Nothing broken. CI should be green.
+
+  ---
+
+  ## ═══════════════════════════════════════════════
+  ## COMPLETE HANDOFF — READ THIS BEFORE ANY WORK
+  ## ═══════════════════════════════════════════════
+
+  ### What was done in Sessions 7–9 (MX Player UI Redesign)
+
+  All committed at HEAD. Two files changed:
+
+  **`raddflix_flutter/lib/screens/player_screen.dart`** (4356 lines)
+  - Dead code fixed: removed `_bufferingStartedAt`, fixed unused `devices` var in `_enterCast`, `_inPiP` now reads to suppress controls overlay during PiP
+  - Centre seek buttons → `_MxSeekBtn` (circular dark + seconds label)
+  - Right-side vertical strip → 4× `_MxSideBtn` (Subtitle | Audio | Rotate | More), accessed via `Positioned(right:8)`
+  - Audio track panel → `_MxAudioPanel` bottom sheet (radio buttons, Disable option, SW decoder toggle, Open file button, ±100ms Sync)
+  - Subtitle panel → `_MxSubPanel` bottom sheet (horizontal chip scroll, Open + Settings + Add Translation, ±100ms Sync)
+  - More panel → `_MxMoreSheet` 4-column `GridView`, 16 items
+  - Loading animation → `_CircularDotsLoader` (12 rotating dots)
+  - Video Display Shortcuts → `_VideoDisplaySheet` bottom sheet, 3-column grid: Screen Rotation | Background Play | Mute | EQ | Sleep Timer | Night Mode, each with `_SmallToggle` animated pill
+  - New state vars: `_showVideoDisplay`, `_bgPlayEnabled`, `_isMuted`
+  - All helper classes live at bottom of player_screen.dart: `_MxSideBtn`, `_MxSeekBtn`, `_SyncButton`, `_MxPanelOption`, `_AudioTrackTile`, `_MxAudioPanel`, `_MxSubPanel`, `_VideoDisplaySheet`, `_VDShortcut`, `_VDTile`, `_SmallToggle`, `_CircularDotsLoader`
+
+  **`raddflix_flutter/lib/widgets/player/eq_panel.dart`** (300 lines)
+  - Full rewrite with TabBar: "Audio Effect" tab (6 preset cards: Original / Treble Boost / Clarity / Movie / Music / Bass Boost) + "Equalizer" tab (10-band sliders, preset chips, toggle)
+  - `_EqChip` toggle for Dialogue Boost + Normalize
+
+  ---
+
+  ### Current Seek Thumbnail State (partially working — needs polish)
+
+  `_seekThumb` (Uint8List?) is generated with 120ms debounce via VideoThumbnail in `_onSliderChanging()`.
+  Currently renders as 120×70 popup above seek bar — **only for local + downloaded files** (`isLocal` gate).
+  Online streams cannot generate seek thumbnails (no local file on device).
+
+  **What still needs doing:**
+  - Make popup appear for downloaded files too (they have a `localPath`) — currently only fires when `_isLocalFile` is true. Downloaded files ARE local files so this may already work — confirm.
+  - Add **timestamp label** above the thumbnail (current scrub time, e.g. "1:23:45")
+  - Slightly enlarge from 120×70 → 160×90 with rounded 8px corners
+  - Add a subtle label at bottom of thumbnail showing the time (white text, small)
+  - Render code is in `_ControlsOverlay.build()` around line 2888
+
+  ---
+
+  ### REMAINING OPEN TASKS (priority order)
+
+  #### 🔴 P1 — CRITICAL SECURITY
+
+  **P1.1 — Wire SECURITY_CHANNEL in MainActivity.kt** ← HIGHEST PRIORITY
+  - File: `raddflix_flutter/android/app/src/main/kotlin/com/raddflix/app/MainActivity.kt`
+  - Problem: `AppGuard.dart` calls the `com.raddflix.app/security` MethodChannel to get APK signature. The Kotlin handler is MISSING. AppGuard catches the resulting PlatformException and silently marks `isTampered = false`, meaning a cracked APK passes the check.
+  - Fix needed: Add `setMethodCallHandler` for channel `com.raddflix.app/security` in `MainActivity.kt`. Return the first APK signing certificate's SHA-256 hex fingerprint (no colons) on method call `getSignature`. Use `context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo.apkContentsSigners[0]` and hash it with SHA-256.
+  - Reference in `agent-hub/REINCARNATION.md`: look for "P1.1" section — has the exact Dart fingerprint to match (`BA:4E:41:2D:...` from app_guard.dart).
+
+  **P2.3 — Frida + Root detection in MainActivity.kt**
+  - File: same `MainActivity.kt`
+  - Problem: `AppGuard.dart` also calls channel methods `checkFrida` and `checkRoot`. Both handlers missing.
+  - Fix: Add handlers for `checkFrida` (scan `/proc/self/maps` for frida-agent) and `checkRoot` (check `su` binary in common paths, check `Build.TAGS`, check test-keys). Both return `bool`.
+
+  ---
+
+  #### 🟡 P2 — PLAYER (MX Player parity — next up after P1)
+
+  **Seek Preview Thumbnail polish** (described above under "Current Seek Thumbnail State")
+
+  **Screenshots 8–12 — Quick Settings tabs**
+  These are the 5 tabs in the Quick Settings panel accessed from More → Display Settings (and right-side strip long press).
+  Current file: `raddflix_flutter/lib/widgets/player/quick_settings_panel.dart`
+  Check each tab against screenshots 8–12:
+  - Screenshot 8: Video quality selector (360p / 720p / 1080p / Auto)
+  - Screenshot 9: Playback speed (0.25× to 2×, includes "Custom" field)
+  - Screenshot 10: Aspect Ratio options (Default / Fill / Fit / Stretch / Zoom / 4:3 / 16:9)
+  - Screenshot 11: Subtitle settings (font size, font colour, background, position, encoding)
+  - Screenshot 12: Audio settings (output device, volume boost, audio session)
+  Match the layout of each to the screenshots and update `quick_settings_panel.dart` accordingly.
+
+  **Screenshot 3 — Player top bar**
+  Check top bar in `_ControlsOverlay` (~line 2730): back button ← , title (centred), 3-dot menu. Verify it matches MX Player screenshot 3 layout.
+
+  ---
+
+  #### 🟢 P3 — BACKEND / FEATURES
+
+  **P4.2 — Wire recommendation engine to API**
+  - File: `radd-hub/hub/routes/api.py` + `radd-hub/radd_recommend.py`
+  - `radd_recommend.py` is built but has no HTTP endpoint. Add `GET /api/recommend?user_id=X&limit=20` that calls `RecommendEngine.get_for_user(user_id, limit)` and returns JSON.
+  - Flutter side: add `CatalogApi.getRecommendations(userId)` in `lib/core/api/catalog_api.dart` and surface on Home screen (new "Recommended for You" shelf between Continue Watching and Trending).
+
+  **OTP Device Switch**
+  - File: `raddflix_flutter/lib/core/api/auth_api.dart` lines 79–120
+  - Two stub methods with `// TODO(OTP)` comments: `requestDeviceSwitchOtp()` and `verifyDeviceSwitchOtp()`
+  - Backend endpoints already exist: `ApiPaths.deviceSwitchOtpRequest` + `ApiPaths.deviceSwitchOtpVerify`
+  - Flutter: implement the actual `Dio.post()` calls. On verify success, save new tokens via `Keystore`. Also wire login_screen.dart lines 246 + 268 (two `// TODO(OTP)` comments there too).
+
+  **P4.1 — Oracle bot restart (USER action, not code)**
+  The WhatsApp bot supervisor config is already committed to `radd-hub/supervisor.d/raddflix_wa_bot.conf`.
+  User must SSH to Oracle (92.4.95.252) and run:
+  ```bash
+  sudo cp ~/raddflix-app/radd-hub/supervisor.d/raddflix_wa_bot.conf /etc/supervisor/conf.d/
+  sudo supervisorctl reread && sudo supervisorctl update
+  sudo supervisorctl restart raddflix_wa_bot
+  ```
+
+  ---
+
+  ### Key Architecture Facts (read before touching anything)
+
+  | Topic | Fact |
+  |-------|------|
+  | Real app source | `raddflix_flutter/lib/` — NOT root `lib/` (dead stubs) |
+  | Database package | `sqflite_sqlcipher 3.1.0+1` — PINNED, never upgrade |
+  | DB migrations | Parameter MUST be `oldV` not `oldVersion` |
+  | XOR encoding | Active on both Flutter + server sides simultaneously |
+  | JazzDrive URLs | Never expire — security comes from APK integrity only |
+  | Commits | ALWAYS use GitHub Tree API — never `git push` or force push |
+  | Legacy dir | NEVER delete `radd-hub/hub/_legacy/` on Oracle server |
+  | Player file | `player_screen.dart` is 4356 lines — always read in chunks |
+
+  ### Commits in Sessions 7–9
+  - `d6633ac` — MX Player UI redesign: dead code fix, new panels, circular dots loader, EQ presets
+  - `5e68dbe` — Video Display Shortcuts panel
+
+  ### TASK_LOG updated by: Replit Agent (Session 9 handoff)
+  
