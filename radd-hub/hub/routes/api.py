@@ -61,12 +61,26 @@ def app_config():
         pass
     jd_delta_url = (jd_delta_row["v"] if jd_delta_row else None) or ""
     support_whatsapp = _db.setting("SUPPORT_WHATSAPP_NUMBER", "923257719165") or "923257719165"
+    # Brand config — read from DB settings set by Brand Studio admin panel
+    brand_cfg = {}
+    for _bk in ['brand_primary_color', 'brand_tagline', 'brand_logo_url',
+                 'brand_splash_color', 'brand_onboarding_pages']:
+        try:
+            _brow = _db.setting(_bk, '')
+            brand_cfg[_bk] = _brow
+        except Exception:
+            brand_cfg[_bk] = ''
     return jsonify({
         'api_base_url': 'http://92.4.95.252',
         'min_version_code': 1,
         'update_url': 'https://github.com/raddclub/raddflix-app/releases/latest',
         'jd_delta_url': jd_delta_url,
         'support_whatsapp': support_whatsapp,
+        'brand_primary_color':    brand_cfg.get('brand_primary_color', '#E8002D'),
+        'brand_tagline':          brand_cfg.get('brand_tagline', 'Zero-rated Pakistani streaming'),
+        'brand_logo_url':         brand_cfg.get('brand_logo_url', ''),
+        'brand_splash_color':     brand_cfg.get('brand_splash_color', '#0a0c11'),
+        'brand_onboarding_pages': brand_cfg.get('brand_onboarding_pages', '[]'),
         'note': 'Served from Oracle server — edit this route to change server URL',
     })
 
