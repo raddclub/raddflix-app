@@ -74,8 +74,8 @@ class RaddFlixApp extends ConsumerWidget {
         AppRoutes.history:       (_) => const HistoryScreen(),
         AppRoutes.localMedia:    (_) => const LocalMediaScreen(),
         '/player-settings':      (_) => const PlayerSettingsScreen(),
-        '/layout-designer':      (_) => const LayoutDesignerScreen(prefs: PlayerPrefs(), onSave: (_) {}),
-        '/pin-lock':             (_) => const PinLockScreen(),
+        '/layout-designer':      (_) => LayoutDesignerScreen(prefs: PlayerPrefs(), onSave: (_) {}),
+        '/pin-lock':             (_) => PinLockScreen(),
         '/pin-setup':            (_) => const PinSetupScreen(),
       },
       onGenerateRoute: (settings) {
