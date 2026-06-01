@@ -1084,3 +1084,51 @@ Updated `raddflix_flutter/lib/screens/player_screen.dart`:
 - K: Privacy mode
 - L: Video frame capture
 - `_secondSubtitleText` loading (requires second subtitle track selection in audio mixer)
+
+---
+
+## Session 12 — 2025-06-01
+
+### Task: Wire DSP audio filter chain + full verification of Phases C-F/P
+
+**Commits:**
+- `0345c51c38` — fix(player): wire DSP audio filter chain — Vocal Remover, Bass Boost, Virtual Surround
+
+### Work Done
+
+#### 1. Verification Pass — All Phase C-F/P code
+| Check | Result |
+|-------|--------|
+| All 5 new widget files on GitHub | ✓ (11–13 KB each) |
+| player_screen imports (6 new) | ✓ all present |
+| QSP callbacks (4 new) | ✓ all present |
+| PlayerPrefs new fields (10 fields, 8x each) | ✓ all confirmed |
+| DualSubtitleOverlay call signature | ✓ primaryLine/secondaryLine match constructor |
+| SkipSegmentButton call signature | ✓ segment/accentColor/onSkip match constructor |
+| IntroSkipStore API calls in editor | ✓ load/save/addSegment/removeSegment all match |
+| audioDelay getter (1x only) | ✓ correct — it's a computed getter, not a persisted field |
+
+#### 2. Bug Fix: af= filter chain bug
+- **Issue found**: Old `_applyAudioPrefs` called `_np.setProperty('af', ...)` 3 separate times.  
+  Each call overwrote the previous — only the last filter was ever active.
+- **Fix**: Replaced entire method with a single `afParts` list that builds one combined af= string.
+
+#### 3. DSP Filters Wired (MPV `af=` via `_np.setProperty`)
+
+| # | Filter | MPV Chain Syntax |
+|---|--------|-----------------|
+| 1 | Audio Normalization | `dynaudnorm=p=0.9:m=30` |
+| 2 | 10-band EQ | `equalizer=f=X:width_type=o:width=2:g=Y` (per active band) |
+| 3 | Dialogue Boost | Fixed 4-band presence lift (310/1k/3k/6kHz) |
+| 4 | Bass Boost | `equalizer=f=60:g={0–15dB}, equalizer=f=120:g={0–8dB}` |
+| 5 | Vocal Remover | `pan=stereo\|c0=K*c0-S*c1\|c1=K*c1-S*c0` (phase-cancel centre) |
+| 6 | Virtual Surround | `extrastereo=m=1.5/2.5/3.5` (room/theater/stadium) |
+
+All filters combine into ONE `_np.setProperty('af', afParts.join(','))` call.
+Empty string clears all filters when none are active.
+
+### Verification Summary
+- All Phase C (Gesture Remapping), D (Picture Profiles), E (Audio Lab), F (Dual Subtitle), P (Intro Skip Editor) widgets: ✓ correct
+- DSP chain: ✓ 6 filters, all chained correctly
+- No Dart syntax errors (all widget files: braces ✓, parens ✓, brackets ✓)
+- All widget-to-player_screen API contracts verified (constructor params match callers)
