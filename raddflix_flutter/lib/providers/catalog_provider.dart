@@ -99,10 +99,15 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
     }
   }
 
+  // BUG-A20: static guard — poster sync fires once per app lifecycle, not per catalog reload
+  static bool _posterSyncDone = false;
+
   void _schedulePosterSync(
     List<CatalogItem> movies,
     List<CatalogItem> shows,
   ) {
+    if (_posterSyncDone) return;
+    _posterSyncDone = true;
     // Delay so UI is interactive first
     Future.delayed(const Duration(seconds: 3), () async {
       final all = [

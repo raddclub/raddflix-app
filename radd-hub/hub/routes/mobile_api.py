@@ -37,6 +37,7 @@ from flask import Blueprint, jsonify, request
 from .. import db
 
 log = logging.getLogger("hub.mobile_api")
+_EMERGENCY_SECRET: Optional[str] = None  # BUG-A32: per-process random last-resort JWT secret
 
 # ── JWT helpers ────────────────────────────────────────────────────────────
 
@@ -66,7 +67,14 @@ def _secret() -> str:
             ).fetchone()
             return row2["v"] if row2 else generated
     except Exception:
-        return "raddflix-dev-secret-change-in-prod"
+        # Last resort: generate a per-process random secret (not persistent, but not
+        # a predictable static string). Tokens issued here are invalidated on restart.
+        global _EMERGENCY_SECRET
+        if _EMERGENCY_SECRET is None:
+            import secrets as _sec
+            _EMERGENCY_SECRET = _sec.token_hex(32)
+            log.warning("_secret(): DB unavailable — using per-process emergency secret")
+        return _EMERGENCY_SECRET
 
 def _b64url_encode(data: bytes) -> str:
     return _b64.urlsafe_b64encode(data).rstrip(b"=").decode()

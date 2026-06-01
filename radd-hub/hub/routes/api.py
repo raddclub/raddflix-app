@@ -77,6 +77,71 @@ def app_config():
 # Health badges — lightweight status for every tool (polled by the header UI)
 # ---------------------------------------------------------------------------
 
+
+# ---------------------------------------------------------------------------
+# Domain Doctor — live site domain health (P4.7)
+# ---------------------------------------------------------------------------
+
+@bp.route("/domain-doctor/health")
+@auth.login_required
+def domain_doctor_health():
+    """Return the current domain health for all scraped sites.
+    Results are populated by the background domain_doctor loop (every 24h).
+    Use /probe to force an immediate re-check."""
+    try:
+        from .. import domain_doctor as _dd
+        health = _dd.get_domain_health()
+        # Also read DB-saved working domains for each known site
+        sites = list(_dd.MIRROR_REGISTRY.keys()) + list(_dd.SOURCES_OF_TRUTH.keys())
+        working = {}
+        try:
+            with db.conn() as _c:
+                for site in set(sites):
+                    row = _c.execute(
+                        "SELECT v FROM settings WHERE k=?", (f"domain_{site}",)
+                    ).fetchone()
+                    if row and row["v"]:
+                        working[site] = row["v"]
+        except Exception:
+            pass
+        return jsonify({
+            "ok": True,
+            "health": health,
+            "working_domains": working,
+            "sites": sorted(set(sites)),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@bp.route("/domain-doctor/probe", methods=["POST"])
+@auth.login_required
+def domain_doctor_probe():
+    """Trigger an immediate domain probe for one or all sites.
+    Body: {"site": "rogmovies"}  — omit site to probe all."""
+    import threading as _th
+    try:
+        from .. import domain_doctor as _dd
+        data = request.get_json(silent=True) or {}
+        site = (data.get("site") or "").strip()
+        if site:
+            def _run():
+                result = _dd.probe_site(site)
+                if result:
+                    with db.conn() as _c:
+                        _c.execute(
+                            "INSERT OR REPLACE INTO settings(k,v) VALUES(?,?)",
+                            (f"domain_{site}", result)
+                        )
+            _th.Thread(target=_run, daemon=True).start()
+            return jsonify({"ok": True, "message": f"Probing {site} in background…"})
+        else:
+            _th.Thread(target=_dd.probe_all, daemon=True).start()
+            return jsonify({"ok": True, "message": "Probing all sites in background…"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @bp.route("/health/badges")
 @auth.login_required
 def health_badges():

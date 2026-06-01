@@ -363,6 +363,65 @@ window.gsCloseProgress=function(){
 </div>
 {% endif %}
 
+
+<div class="card" id="domain-doctor-card">
+  <h3>Domain Doctor</h3>
+  <div class="muted" style="margin:-6px 0 14px">Live working domains for each scraper site. Auto-probed every 24h. Click Re-probe to check now.</div>
+  <div id="dd-status" style="margin-bottom:14px">
+    <span class="muted">Loading…</span>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button onclick="ddProbeAll()" id="dd-probe-btn">Re-probe All</button>
+    <span id="dd-probe-status" class="muted" style="font-size:13px;align-self:center"></span>
+  </div>
+</div>
+<script>
+(function(){
+  function ddLoad(){
+    api('/api/domain-doctor/health').then(function(d){
+      var el=document.getElementById('dd-status');
+      if(!d.ok){el.innerHTML='<span style="color:#ef4444">Failed to load</span>';return;}
+      var sites=d.sites||[];
+      if(!sites.length){el.innerHTML='<span class="muted">No sites configured yet.</span>';return;}
+      var rows=sites.map(function(site){
+        var w=d.working_domains&&d.working_domains[site];
+        var h=d.health&&d.health[site];
+        var status=h?h.status:'unknown';
+        var dot=status==='ok'?'#22c55e':status==='down'?'#ef4444':'#f59e0b';
+        var domain=w||'<span style="color:#f59e0b">Not yet probed</span>';
+        var ping=h&&h.ping_ms?(' &mdash; '+Math.round(h.ping_ms)+'ms'):'';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#0a0c11;border-radius:8px;margin-bottom:6px;flex-wrap:wrap">'
+          +'<span style="width:10px;height:10px;border-radius:50%;background:'+dot+';flex-shrink:0"></span>'
+          +'<span style="min-width:120px;font-weight:600;color:#e7eaf2">'+site+'</span>'
+          +'<span style="font-family:monospace;font-size:.82rem;color:#93c5fd;word-break:break-all">'+domain+'</span>'
+          +'<span style="font-size:.78rem;color:#7e859b">'+ping+'</span>'
+          +'<button onclick="ddProbe(''+site+'')" style="margin-left:auto;padding:3px 12px;background:#1e3a5f;border:none;border-radius:5px;color:#7eb8f7;cursor:pointer;font-size:.78rem">Probe</button>'
+          +'</div>';
+      });
+      el.innerHTML=rows.join('');
+    }).catch(function(e){document.getElementById('dd-status').innerHTML='<span style="color:#ef4444">'+e.message+'</span>';});
+  }
+  window.ddProbe=function(site){
+    var st=document.getElementById('dd-probe-status');
+    st.textContent='Probing '+site+'…';
+    api('/api/domain-doctor/probe',{method:'POST',body:{site:site}}).then(function(d){
+      st.textContent=d.message||'Done';
+      setTimeout(function(){ddLoad();st.textContent='';},4000);
+    }).catch(function(e){st.textContent='Failed: '+e.message;});
+  };
+  window.ddProbeAll=function(){
+    var btn=document.getElementById('dd-probe-btn');
+    var st=document.getElementById('dd-probe-status');
+    btn.disabled=true; st.textContent='Probing all sites…';
+    api('/api/domain-doctor/probe',{method:'POST',body:{}}).then(function(d){
+      st.textContent=(d.message||'Probing…')+' Results update in ~30s.';
+      setTimeout(function(){ddLoad();btn.disabled=false;st.textContent='';},35000);
+    }).catch(function(e){btn.disabled=false;st.textContent='Failed: '+e.message;});
+  };
+  ddLoad();
+})();
+</script>
+
 <div class="card" id="site-domains-card">
   <h3>Site Domains</h3>
   <div class="muted" style="margin:-6px 0 12px">
