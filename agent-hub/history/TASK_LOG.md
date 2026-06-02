@@ -2601,3 +2601,24 @@ Result: 3 independent tasks run simultaneously instead of one-by-one; app reache
    Fixed: uses `pendingVideoTitle` (ContentResolver name) with `Uri.decodeFull()` fallback.
 10. Same stacked-player-screens risk on cold-start edge cases.
     Fixed: `popUntil` before `pushNamed` via cascade operator.
+
+---
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Read-Only)
+
+### Task
+User asked: "find out what last agent did." — Read agent-hub/SKILLS.md and agent-hub/history/TASK_LOG.md from GitHub to summarize.
+
+### Done
+- Ran install.sh (SSH key setup — timed out on port 5000 test as expected; SSH itself works fine on port 22)
+- Fetched and read SKILLS.md and TASK_LOG.md from GitHub
+- Identified and summarized the last agent session for the user
+
+### Files Changed
+- `agent-hub/history/TASK_LOG.md` — appended this entry only
+
+### Notes for Next Agent
+- Last agent fixed the "Open With" external video intent flow: 10 bugs across MainActivity.kt, app.dart, main.dart, splash_screen.dart (commit 6420d3dc02). APK rebuild required for those Flutter changes.
+- DB schema: v16. Next migration: `if (oldV < 17)`.
+- Oracle: raddflix_radd RUNNING, nginx RUNNING. Port 5000 still firewalled externally.
+
+---
