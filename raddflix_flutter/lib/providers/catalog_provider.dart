@@ -1,9 +1,12 @@
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/db/local_db.dart';
 import '../core/db/sync_service.dart';
 import '../core/services/poster_service.dart';
 import '../models/catalog_item.dart';
 import '../core/api/catalog_api.dart';
+import 'auth_provider.dart';
 
 enum CatalogStatus { idle, syncing, ready, error }
 
@@ -55,13 +58,31 @@ class CatalogState {
 }
 
 class CatalogNotifier extends StateNotifier<CatalogState> {
-  CatalogNotifier() : super(const CatalogState());
+  CatalogNotifier(this._ref) : super(const CatalogState());
+  final Ref _ref;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   Future<void> initialize() async {
     await _loadFromDb();
     await syncFromServer();
     // Load recommendations in background — non-blocking
     Future.microtask(loadRecommendations);
+    // Auto-sync when internet is restored (catches plan upgrades, new titles, is_free changes)
+    _connectivitySub?.cancel();
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
+      final hasNet = results.isNotEmpty && results.first != ConnectivityResult.none;
+      if (hasNet && state.status != CatalogStatus.syncing) {
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) syncFromServer();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _connectivitySub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadFromDb() async {
@@ -252,6 +273,9 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
     final result = await SyncService.sync();
     if (result.success) {
       await _loadFromDb();
+      // Refresh subscription / plan silently after every successful sync so
+      // plan upgrades and quota changes reach the user without manual re-login.
+      _ref.read(authProvider.notifier).silentRefresh().ignore();
     } else {
       state = state.copyWith(
         status: CatalogStatus.ready,
@@ -267,5 +291,5 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
 }
 
 final catalogProvider = StateNotifierProvider<CatalogNotifier, CatalogState>(
-  (ref) => CatalogNotifier(),
+  (ref) => CatalogNotifier(ref),
 );

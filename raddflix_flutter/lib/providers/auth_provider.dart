@@ -206,6 +206,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(user: user);
   }
 
+  /// Silently re-fetch user from server in the background.
+  /// Called after catalog sync so plan upgrades reach the user immediately.
+  /// Never disrupts authenticated state — any failure is silently swallowed.
+  Future<void> silentRefresh() async {
+    if (!state.isAuthenticated || (state.user?.isGuest ?? true)) return;
+    try {
+      final user = await AuthApi.getMe();
+      final prefs = await SharedPreferences.getInstance();
+      await _saveUserCache(user, prefs);
+      state = AuthState(status: AuthStatus.authenticated, user: user);
+    } catch (_) {
+      // Network/server error — keep current state, try again on next sync
+    }
+  }
+
   void clearError() {
     state = state.copyWith(error: null);
   }
