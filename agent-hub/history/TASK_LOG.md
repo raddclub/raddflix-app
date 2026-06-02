@@ -2622,3 +2622,66 @@ User asked: "find out what last agent did." — Read agent-hub/SKILLS.md and age
 - Oracle: raddflix_radd RUNNING, nginx RUNNING. Port 5000 still firewalled externally.
 
 ---
+
+---
+## [2026-06-02 UTC] — Agent: Replit Main Agent
+
+### Task
+1. Add subtitle/track file support to the "Open With" flow — so opening a .srt/.ass/.vtt
+   from a file manager auto-pairs with the matching video, and opening a video auto-discovers
+   its sidecar subtitle.
+2. Audit the Local tab video thumbnails for bugs vs modern 2026 practices; fix all issues found.
+
+### Done
+
+#### Subtitle/Track support — "Open With" (6 files)
+- **MainActivity.kt**: Rewrote `extractVideoUri()` to detect subtitle extensions (.srt .ass .ssa .vtt .sub).
+  - Subtitle opened → find matching video in same dir; store both `pendingVideoUri` + `pendingSubtitleUri`
+  - Video opened → auto-discover sidecar subtitle file in same dir
+  - content:// subtitle URIs resolved to real file path (copies to app cache as fallback)
+  - Added `getPendingSubtitleUri` channel method
+  - Added `findMatchingVideo()`, `findMatchingSubtitle()`, `getFilePath()`, `resolveSubtitlePath()` helpers
+  - `onNewIntent` warm-start: now includes `"subtitle"` key in args Map
+- **app.dart**: Added `pendingSubtitleUri` global alongside `pendingVideoUri`/`pendingVideoTitle`
+- **main.dart**: Reads `getPendingSubtitleUri` from native; passes `subtitle_path` in warm-start player args
+- **splash_screen.dart**: Cold-start push now clears and forwards `pendingSubtitleUri` as `subtitle_path`
+- **player_screen.dart**: Added `subtitlePath` constructor param; after `_openMedia()` calls
+  `_np.command(['sub-add', subtitlePath, 'select', 'External'])` via MPV to activate the subtitle
+- **app.dart** (route): `onGenerateRoute` for `/player` passes `subtitle_path` to `PlayerScreen`
+
+#### Local tab thumbnail audit + fixes (5 files)
+**Bugs fixed:**
+1. `timeMs: 3000` in `getThumbnail()` → returns null for clips <3s. Fixed: `timeMs: 0` (first frame)
+2. Subtitle detection only checked `.srt`/`.SRT`. Fixed: `_findSubtitlePath()` checks .srt .ass .ssa .vtt .sub
+3. Sequential thumbnail loading (one await per video) — slow for large libraries. Fixed: parallel batches of 4
+4. No fallback when folder's first video thumbnail fails. Fixed: tries up to 3 videos per folder
+5. `hasSrt` was a mutable `bool` field (set twice in service — redundant). Fixed: `subtitlePath: String?` field + `bool get hasSrt => subtitlePath != null` getter
+6. No fast MediaStore thumbnail API used. Fixed: `getThumbnailById()` → native `ContentResolver.loadThumbnail()` (API 29+, near-instant; ThumbnailUtils fallback for older)
+
+### Files Changed
+- `raddflix_flutter/android/app/src/main/kotlin/com/raddflix/app/MainActivity.kt` — subtitle routing
+- `raddflix_flutter/android/app/src/main/kotlin/com/raddflix/app/MediaStorePlugin.kt` — getThumbnail native
+- `raddflix_flutter/lib/models/local_video.dart` — subtitlePath field + hasSrt getter
+- `raddflix_flutter/lib/services/local_media_service.dart` — getThumbnailById, _findSubtitlePath, timeMs fix
+- `raddflix_flutter/lib/screens/local_media_screen.dart` — parallel batch thumbnail loading
+- `raddflix_flutter/lib/screens/local_folder_screen.dart` — parallel thumbnails + subtitle_path to player
+- `raddflix_flutter/lib/screens/player_screen.dart` — subtitlePath param + MPV sub-add
+- `raddflix_flutter/lib/app.dart` — pendingSubtitleUri global + route subtitle_path
+- `raddflix_flutter/lib/main.dart` — read getPendingSubtitleUri + warm-start subtitle_path
+- `raddflix_flutter/lib/screens/splash_screen.dart` — cold-start subtitle_path
+
+### Commit
+`cf8defde` — all 10 files in one tree commit
+
+### Notes for Next Agent
+- APK rebuild required (Flutter + Kotlin changes). CI should trigger on main push.
+- Subtitle auto-load uses MPV `sub-add` command via `NativePlayer.command()`. This works for
+  .srt, .ass, .ssa, .vtt, .sub — all formats MPV supports natively.
+- If user opens a subtitle file with no matching video found: `pendingVideoUri` stays null,
+  Flutter silently skips pushing the player (no crash, no message). Could add a toast in future.
+- MediaStore `getThumbnail` uses `loadThumbnail()` on API 29+ which reads from MediaStore's
+  pre-cached thumbnail DB — near-instant. Gracefully falls back for older devices.
+- DB schema: v16. Next migration: `if (oldV < 17)`.
+- Oracle: raddflix_radd RUNNING, nginx RUNNING.
+
+---
