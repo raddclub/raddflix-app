@@ -95,7 +95,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           if (v == null || v.trim().isEmpty) return 'Enter your phone number';
                           final digits = v.trim().replaceAll(RegExp(r'[\s\-\(\)]'), '');
                           if (digits.length != 11) return 'Enter 11-digit number (e.g. 03001234567)';
-                          if (!RegExp(r'^03\d{9}\$').hasMatch(digits)) return 'Must be a Pakistani mobile number (03XX-XXXXXXX)';
+                          if (!RegExp(r'^03\d{9}$').hasMatch(digits)) return 'Must be a Pakistani mobile number (03XX-XXXXXXX)';
                           return null;
                         })
                         .animate(delay: 120.ms).fadeIn(duration: 350.ms)

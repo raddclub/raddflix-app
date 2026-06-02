@@ -5,7 +5,7 @@ class AppConstants {
   static const String tagline = 'Pakistan ka entertainment, data-free';
 
   /// Runtime-mutable: updated by RemoteConfig.fetch() on every app start.
-  static String apiBaseUrl = 'http://92.4.95.252';
+  static String apiBaseUrl = 'http://92.4.95.252:5000';
 
   static const String onboardingSeenKey = 'jm_onboarding_seen';
 
