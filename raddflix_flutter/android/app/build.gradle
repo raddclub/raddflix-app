@@ -65,7 +65,7 @@ android {
     defaultConfig {
         applicationId "com.raddflix.app"
         minSdkVersion 21
-        targetSdkVersion 34
+        targetSdkVersion 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
@@ -93,8 +93,8 @@ flutter {
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    // Google Cast SDK for Chromecast support
+    // Google Cast SDK for Chromecast support (play-services-cast-framework is
+    // sufficient; ExoPlayer 2 extension-cast removed — AUDIT-07: conflicts with
+    // the media_kit / Media3 stack already bundled by Flutter).
     implementation 'com.google.android.gms:play-services-cast-framework:21.5.0'
-    // Cast companion library for expanded controls
-    implementation 'com.google.android.exoplayer:extension-cast:2.19.1' 
 }
