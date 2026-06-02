@@ -1956,3 +1956,74 @@ tries to connect to port 5000 directly (firewalled). SSH on port 22 works fine.
 - DB schema version: 15. Next migration: if (oldV < 16).
 
 ---
+
+## [2026-06-02 UTC] -- Session 27: Full Comprehensive API Audit + Bug Fixes
+
+### Task
+Full comprehensive audit of ALL API connections between Flutter app and Oracle backend.
+Fix every error found. Deploy fixes to Oracle server + GitHub. Build APK.
+
+### Audit Method
+- Read all Flutter API files: api_client.dart, catalog_api.dart, auth_api.dart,
+  history_api.dart, subscription_api.dart, usage_service.dart, notification_service.dart,
+  request_encoder.dart, constants.dart (ApiPaths), models/user.dart, models/catalog_item.dart,
+  providers/auth_provider.dart
+- Read all backend files: mobile_api.py (full), catalog_api.py, app.py,
+  request_encoding.py, db.py (settings API)
+- Verified live endpoints via curl with real auth tokens
+
+### Findings — All API Connections
+
+| Check | Result |
+|-------|--------|
+| XOR encoding (`enabled=true` Flutter, `XorWsgiMiddleware` server) | ✅ COMPATIBLE — Flutter only decodes `octet-stream` responses; server returns `application/json` → no conflict |
+| Auth endpoints: /api/auth/{register,login,guest,refresh,logout,me,device} | ✅ ALL MATCH |
+| Subscription: /api/subscription/{plans,status,tid/*} | ✅ ALL MATCH |
+| History: /api/history, /api/history/<file_id> | ✅ ALL MATCH |
+| Usage: /api/usage, /api/usage/quota | ✅ ALL MATCH |
+| Notifications: /api/notifications/ | ✅ ALL MATCH |
+| Recommend: /api/recommend (bp_rec at /api prefix + /recommend route) | ✅ MATCH (fixed Session 26 BUG-A26) |
+| Catalog sync: /api/catalog/sync, /api/catalog/version | ✅ ALL MATCH |
+| watched_at epoch seconds handling | ✅ Already correct (BUG-A11 fixed) |
+| `_tryRefresh()` guest re-issue | ✅ Already correct (BUG-A31 fixed) |
+| `AppUser.fromJson` flat vs nested | ✅ Handles both via `json['user'] ?? json` |
+| `CatalogItem.fromJson` genres list/string handling | ✅ Handles both |
+| `UserSubscription.fromJson` expiry date parsing | ✅ Handles int epoch + ISO string |
+| **WATCH_SERVER_EXTERNAL_URL = NULL in DB** | ❌ BUG — FIXED |
+
+### Bug Fixed: BUG-A32 — Poster URLs Were Relative Paths
+
+**Root cause**: `WATCH_SERVER_EXTERNAL_URL` was NULL in the settings table.
+`_watch_base()` returned `""` → `_poster_jd_url()` returned `/api/catalog/poster/123`
+(relative path) instead of `http://92.4.95.252/api/catalog/poster/123` (absolute).
+Flutter cannot load relative URLs as image sources → poster images fail silently.
+
+**Two-part fix applied**:
+1. Set `WATCH_SERVER_EXTERNAL_URL = http://92.4.95.252` in Oracle settings table
+   via `db.set_setting()`.
+2. Hardened `_watch_base()` in `catalog_api.py` to fallback to `http://92.4.95.252`
+   if DB setting is ever empty — defense-in-depth so DB wipe can't break poster images.
+
+**Verified**: `GET /api/catalog/sync` → `poster_jd_url: "http://92.4.95.252/api/catalog/poster/27"` ✅
+
+### Oracle Changes
+- `/opt/jazzmax/radd-hub/hub/routes/catalog_api.py` — `_watch_base()` hardened
+- Settings DB: `WATCH_SERVER_EXTERNAL_URL = http://92.4.95.252`
+- Server restarted: `supervisorctl restart raddflix_radd` → RUNNING pid 544465
+
+### GitHub Commit
+`b7ef152e` — fix(catalog): _watch_base() fallback to http://92.4.95.252; WATCH_SERVER_EXTERNAL_URL set in DB
+
+### APK Build
+Triggered GitHub Actions workflow "Build RaddFlix APK" (ID 282572869) on main branch.
+Monitor at: https://github.com/raddclub/raddflix-app/actions
+
+### Notes for Next Agent
+- All API connections audited and confirmed working. The ONLY backend bug was BUG-A32 (fixed).
+- XOR encoding is live on both sides and compatible — no changes needed.
+- Poster images now load correctly from catalog sync.
+- DB schema version: 15. Next migration: if (oldV < 16).
+- Oracle: raddflix_radd RUNNING, raddflix_wa_bot RUNNING, nginx RUNNING.
+- Port 5000 still firewalled externally — ALL calls must go through nginx on port 80.
+
+---
