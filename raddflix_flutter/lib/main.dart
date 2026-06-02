@@ -9,6 +9,8 @@ import 'core/services/jazzdrive_service.dart';
 import 'core/services/poster_service.dart';
 import 'core/api/history_api.dart';
 import 'core/db/local_db.dart';
+import 'core/db/sync_service.dart';
+import 'core/debug/debug_logger.dart';
 import 'core/security/app_guard.dart';
 import 'core/services/connectivity_sync_service.dart';
 import 'core/services/usage_service.dart';
@@ -41,6 +43,14 @@ void main() async {
   await JazzDriveService.loadCacheFromDb();
   unawaited(JazzDriveService.warmTopFreeItems(8));
   await LocalDb.cleanExpiredStreamCache();
+  // Auto-resync: if the v17 schema migration just ran (filename column added to episodes),
+  // reset sync timestamps so the next sync fetches full data and populates filenames.
+  if (await LocalDb.consumeForceResyncFlag()) {
+    await LocalDb.setLastSyncTimestamp(0);
+    await LocalDb.setLastSyncVersion(0);
+    unawaited(SyncService.sync());
+    DebugLogger.log('MAIN', 'Schema v17 migration detected — forced catalog re-sync triggered');
+  }
   // Offline-first: push any positions saved while offline + pending usage bytes
   HistoryApi.flushUnsynced().ignore();
   UsageService.flushPending().ignore();
