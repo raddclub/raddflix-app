@@ -2844,3 +2844,62 @@ Prior session added subtitle/track file support to "Open With" flow + fixed 6 lo
 ### APK Rebuild Required
 All Flutter fixes require a new APK build from the `main` branch (commit `0032479`).
 
+
+
+---
+
+### FEATURE 6 — Auto delta-sync: server changes propagate to users automatically (DONE)
+
+**Goal:** When admin adds a movie, toggles `is_free`, publishes a title, or upgrades a user plan — those changes reach the user's local SQLite database immediately if online, or within 6 hours via JazzDrive zero-rated delta if offline.
+
+#### Root causes fixed
+
+**Server — `is_free` changes silently dropped from delta sync:**
+`api_set_free` in `library.py` did `UPDATE titles SET is_free=?` but never updated `updated_at`. The delta endpoint queries `WHERE updated_at > since`, so any free/paid toggle was INVISIBLE to delta sync forever.
+Same bug existed in `api_set_published` — title going live/unlive never bumped `updated_at`.
+
+**Flutter — no connectivity trigger:**
+`CatalogNotifier.initialize()` called `syncFromServer()` once on cold start, then never again. If the user was offline at launch and came online later, no re-sync happened until the next cold start.
+
+**Flutter — plan upgrades never refreshed:**
+After a catalog sync there was no call to `getMe()`. A user whose plan was upgraded by admin would see the old plan badge until they manually logged out and back in.
+
+#### Fixes
+
+**Server (`library.py` — live immediately, no APK needed):**
+- `api_set_free`: `UPDATE titles SET is_free=?, updated_at=? WHERE id=?` — now bumps timestamp so delta sync picks it up instantly
+- `api_set_free`: calls `_regen_db_update_bg()` so JazzDrive zero-rated `db_update.json` is regenerated — offline Jazz SIM users get the change on next JazzDrive poll
+- `api_set_published`: same `updated_at` fix (already had `_regen_db_update_bg`)
+- Server restarted. Verified: toggling `is_free` on title id=1 changes `updated_at` correctly.
+
+**Flutter (commit 3654222):**
+- `catalog_provider.dart`: Adds `connectivity_plus` listener in `initialize()`. When device goes offline → online, `syncFromServer()` fires automatically after 2-second stabilisation delay. Listener torn down in `dispose()`.
+- `catalog_provider.dart`: After every successful Oracle sync, calls `ref.read(authProvider.notifier).silentRefresh()`. Re-fetches user plan, subscription expiry, quota — plan upgrades appear without re-login.
+- `auth_provider.dart`: New `silentRefresh()` method — calls `AuthApi.getMe()` in background, saves to SharedPreferences cache, updates state. Failure is swallowed silently — never disrupts authenticated session.
+
+#### End-to-end flow
+
+| Admin action | Internet user | No-internet Jazz SIM user |
+|---|---|---|
+| Add new movie | Sees it within 2s of going online (connectivity trigger + delta sync) | Sees it within 6h (JazzDrive db_update.json regen on publish) |
+| Toggle is_free | Same (updated_at now bumped, delta catches it) | Same (JazzDrive delta regenerated immediately) |
+| Upgrade user plan | Badge updates within 2s of going online (silentRefresh after sync) | Updates on next login once internet available |
+
+#### Files changed
+- **Server:** `/opt/jazzmax/radd-hub/hub/routes/library.py` (set_free + set_published)
+- **Flutter:** `raddflix_flutter/lib/providers/catalog_provider.dart`, `raddflix_flutter/lib/providers/auth_provider.dart`
+
+---
+
+### GitHub Commits (full history)
+- `f9a615c` — fix: 4 bugs — quota check, local video limit, registration error, profile plan badge
+- `0032479` — fix: stay logged in across app restarts (Bug 5)
+- `3654222` — feat: auto-sync catalog + subscription on connectivity restore (Feature 6)
+- `docs commit` — TASK_LOG updated
+
+### Server Changes (Oracle 92.4.95.252 — all live immediately)
+- `hub/routes/mobile_api.py`: `_compute_app_quota()` replaces broken `db.check_quota()`
+- `hub/routes/library.py`: `api_set_free` and `api_set_published` now update `updated_at` + trigger JazzDrive delta regen
+
+### APK Rebuild Required
+All Flutter fixes require a new APK build from the `main` branch (latest commit `3654222`).
