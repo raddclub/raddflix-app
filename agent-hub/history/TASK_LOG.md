@@ -2685,3 +2685,24 @@ User asked: "find out what last agent did." — Read agent-hub/SKILLS.md and age
 - Oracle: raddflix_radd RUNNING, nginx RUNNING.
 
 ---
+
+---
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Read-Only)
+
+### Task
+User asked: "find out what the last agent did."
+
+### Done
+- Ran install.sh (SSH key setup attempted; Oracle port test timed out as expected)
+- Fetched agent-hub/SKILLS.md and agent-hub/history/TASK_LOG.md from GitHub
+- Identified and summarized the last agent session for the user
+
+### Files Changed
+- `agent-hub/history/TASK_LOG.md` — appended this entry only
+
+### Notes for Next Agent
+- Last agent (most recent work session) added subtitle/track file support to the "Open With" flow and fixed 6 Local tab thumbnail bugs. 10 files changed, commit `cf8defde`. APK rebuild required.
+- DB schema: v16. Next migration: `if (oldV < 17)`.
+- Oracle: raddflix_radd RUNNING, nginx RUNNING. Port 5000 firewalled externally.
+
+---
