@@ -1006,4 +1006,46 @@ class LocalDb {
       isOngoing:   (row['is_ongoing'] as int? ?? 0) == 1,
     );
   }
+
+  // ── Offline Guest Identity ────────────────────────────────────────────────
+  // Stored in sync_meta under key 'guest_id'. Generated once on first guest
+  // login, persists across app restarts, survives offline. Never sent to server.
+
+  /// Returns the local guest ID, creating it if it doesn't exist yet.
+  /// Safe to call with no network — pure SQLite.
+  static Future<String> getOrCreateGuestId() async {
+    final db = await instance;
+    final rows = await db.query(
+      'sync_meta',
+      where: "key = 'guest_id'",
+      limit: 1,
+    );
+    if (rows.isNotEmpty) return rows.first['value'] as String;
+
+    // Generate a new permanent guest ID — UUID v4 style using timestamp + random
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final rnd = (ts * 6364136223846793005 + 1442695040888963407) & 0xFFFFFFFF;
+    final guestId = 'GUEST_${ts.toRadixString(16)}_${rnd.toRadixString(16)}';
+
+    await db.insert('sync_meta', {'key': 'guest_id', 'value': guestId},
+        conflictAlgorithm: ConflictAlgorithm.replace);
+    return guestId;
+  }
+
+  /// Returns true if a local guest identity has been created.
+  static Future<bool> hasGuestId() async {
+    final db = await instance;
+    final rows = await db.query(
+      'sync_meta',
+      where: "key = 'guest_id'",
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
+  /// Removes the local guest identity (call on full account reset only).
+  static Future<void> clearGuestId() async {
+    final db = await instance;
+    await db.delete('sync_meta', where: "key = 'guest_id'");
+  }
 }

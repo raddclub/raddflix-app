@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api/auth_api.dart';
+import '../core/api/api_client.dart';
+import '../core/db/local_db.dart';
 import '../core/security/keystore.dart';
 import '../core/constants.dart';
 import '../models/user.dart';
@@ -49,13 +51,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final isGuest = prefs.getBool(StorageKeys.isGuest) ?? false;
 
     if (isGuest) {
-      final hasToken = await Keystore.hasTokens();
-      if (hasToken) {
-        state = AuthState(status: AuthStatus.authenticated, user: AppUser.guest());
-        return;
-      }
-      await prefs.remove(StorageKeys.isGuest);
-      state = state.copyWith(status: AuthStatus.unauthenticated);
+      // Local-only guest check — works 100% offline, no token or network needed.
+      // Create guest identity if missing (handles app reinstall edge case).
+      await LocalDb.getOrCreateGuestId();
+      ApiClient.isGuestMode = true;
+      state = AuthState(status: AuthStatus.authenticated, user: AppUser.guest());
+      // Background: grab a server token for Oracle catalog fallback when online.
+      _tryAcquireGuestServerToken();
       return;
     }
 
@@ -84,6 +86,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(StorageKeys.isGuest);
+      ApiClient.isGuestMode = false;
       final user = await AuthApi.getMe();
       state = AuthState(status: AuthStatus.authenticated, user: user);
     } on DioException catch (e) {
@@ -130,15 +133,35 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> continueAsGuest() async {
-    final token = await AuthApi.guestLogin();
-    await Keystore.saveTokens(
-      accessToken:  token,
-      refreshToken: '',
-      userId:       '0',
-    );
+    // 1. Create or load local guest identity — works 100% offline, no server needed.
+    //    The guest ID is a permanent UUID stored in SQLite sync_meta.
+    await LocalDb.getOrCreateGuestId();
+
+    // 2. Mark as guest and set authenticated state immediately.
+    //    User enters the app NOW — no waiting for a network response.
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(StorageKeys.isGuest, true);
+    ApiClient.isGuestMode = true;
     state = AuthState(status: AuthStatus.authenticated, user: AppUser.guest());
+
+    // 3. Background: try to acquire a server guest token for Oracle catalog fallback.
+    //    Silent fail — offline Jazz SIM users get catalog from zero-rated delta instead.
+    _tryAcquireGuestServerToken();
+  }
+
+  /// Silently requests a short-lived guest token from the server.
+  /// Called in background after guest login — never blocks the guest UX.
+  /// If offline or server unavailable, does nothing (zero-rated catalog still works).
+  void _tryAcquireGuestServerToken() {
+    AuthApi.guestLogin().then((token) {
+      return Keystore.saveTokens(
+        accessToken:  token,
+        refreshToken: '',
+        userId:       '0',
+      );
+    }).catchError((_) {
+      // Offline or server unavailable — guest still works via JazzDrive zero-rated delta.
+    });
   }
 
   Future<void> logout() async {
@@ -146,6 +169,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await Keystore.clearAll();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(StorageKeys.isGuest);
+    ApiClient.isGuestMode = false;
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 

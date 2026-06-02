@@ -48,6 +48,11 @@ class ApiClient {
     return _instance!;
   }
 
+  /// Set to true when the current session is an offline-first guest.
+  /// When true, 401 responses do NOT trigger logout — guests rely on
+  /// zero-rated JazzDrive delta for catalog and have no refresh token.
+  static bool isGuestMode = false;
+
   /// Call this after RemoteConfig.fetch() to point Dio at the new server URL.
   static void updateBaseUrl(String url) {
     _instance ??= ApiClient._();
@@ -217,6 +222,12 @@ class _AuthInterceptor extends Interceptor {
         DebugLogger.logError('AUTH', 'Token refresh threw exception', e);
       }
       _isRefreshing = false;
+      if (ApiClient.isGuestMode) {
+        // Guest mode: never log out on 401 — guest identity is local-only.
+        // They will continue using zero-rated JazzDrive delta catalog offline.
+        DebugLogger.logWarn('AUTH', 'Guest 401 — staying authenticated (offline guest)');
+        return handler.next(err);
+      }
       DebugLogger.logError('AUTH', 'Refresh failed — clearing tokens, user must log in');
       // Refresh failed — clear tokens so app goes to login
       await Keystore.clearAll();
