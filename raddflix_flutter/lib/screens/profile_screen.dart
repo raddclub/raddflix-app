@@ -30,6 +30,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String _appVersion = 'v1.0.0';
   int? _daysLeft;
   bool _subExpiring = false;
+  String? _remotePlan;
   late final _connectivitySub = Connectivity().onConnectivityChanged.listen(_onConnectivityChange);
 
   @override
@@ -64,6 +65,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     try {
       final status = await SubscriptionApi.getStatus();
       if (!mounted) return;
+      setState(() { _remotePlan = status.plan; });
       final expiresAt = status.expiresAt;
       if (expiresAt != null && status.isActive) {
         final dt = DateTime.tryParse(expiresAt);
@@ -175,7 +177,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       .animate(delay: 100.ms).fadeIn(duration: 300.ms),
                   const SizedBox(height: 8),
                   Builder(builder: (ctx) {
-                    final plan = (user?.planName ?? 'FREE').toUpperCase();
+                    final plan = (_remotePlan ?? user?.planName ?? 'FREE').toUpperCase();
                     final isPremium = plan.contains('PREMIUM') || plan.contains('GOLD');
                     final isStandard = plan.contains('STANDARD') || plan.contains('SILVER');
                     final emoji = isPremium ? '👑' : isStandard ? '⭐' : '🎬';

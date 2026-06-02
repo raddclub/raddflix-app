@@ -1895,6 +1895,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }
       }
 
+      // Local files never count against data quota — skip allowed check
+      if (_isLocalFile) return;
+
       if (quota['allowed'] == false) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;

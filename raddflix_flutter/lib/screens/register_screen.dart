@@ -37,7 +37,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       final serverMsg = (_errData is Map
           ? ((_errData['error'] ?? _errData['message']) as String?)
           : (_errData is String && _errData.isNotEmpty ? _errData : null));
-      setState(() { _error = serverMsg ?? AuthErrors.register(e.toString()); _loading = false; });
+      final _isNetErr = e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.receiveTimeout;
+      setState(() {
+        _error = _isNetErr
+            ? 'Cannot connect. If you already registered, try logging in instead.'
+            : (serverMsg ?? AuthErrors.register(e.toString()));
+        _loading = false;
+      });
     } catch (e) {
       setState(() { _error = AuthErrors.register(e.toString()); _loading = false; });
     }
