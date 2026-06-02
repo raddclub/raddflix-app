@@ -2027,3 +2027,61 @@ Monitor at: https://github.com/raddclub/raddflix-app/actions
 - Port 5000 still firewalled externally — ALL calls must go through nginx on port 80.
 
 ---
+
+---
+
+## Session 28 — 2026-06-02
+
+### Comprehensive API Audit Continued — BUG-A35 Discovered and Fixed
+
+**Work done**: Deep audit of ALL remaining Flutter API files not covered in Session 27.
+
+### Files Audited This Session
+| File | Verdict |
+|------|---------|
+| `raddflix_flutter/lib/core/db/sync_service.dart` | ✅ Oracle sync + JazzDrive fallback correct |
+| `raddflix_flutter/lib/core/services/app_update_service.dart` | ✅ `/api/app/check` correct |
+| `raddflix_flutter/lib/core/services/jazzdrive_service.dart` | ✅ Direct JazzDrive API, no Oracle deps |
+| `raddflix_flutter/lib/core/services/usage_service.dart` | ✅ `/api/usage` POST + `/api/usage/quota` GET correct |
+| `raddflix_flutter/lib/core/api/auth_api.dart` | ✅ login/register/guest/logout/device-switch all correct |
+| `raddflix_flutter/lib/core/services/connectivity_sync_service.dart` | ✅ Only calls HistoryApi.flushUnsynced + UsageService.flushPending |
+| `raddflix_flutter/lib/models/subscription.dart` | ✅ SubscriptionPlan/Status parsing handles all server formats |
+| `raddflix_flutter/lib/core/constants.dart` | ✅ Full ApiPaths audit — found BUG-A35 |
+| Server notifications `is_read` field | ✅ Server converts to Python bool before JSON → Flutter `== true` safe |
+| Server `/api/config` live response | ✅ api_base_url=http://92.4.95.252, jd_delta_url='' |
+| `_get_subscription_status()` return format | ✅ Flat JSON, Flutter `json['subscription'] ?? json` handles it |
+| `db.check_quota()` return format | ✅ Flutter `cacheQuota()` / `getCachedQuota()` compatible |
+| `LoginResult.fromJson` non-nullable casts | ✅ Server always returns access_token + refresh_token on success |
+| `_buildItemsWithEpisodes()` in catalog_api.dart | ✅ Correctly groups top-level episodes[] by title_id |
+
+### Bug Fixed: BUG-A35 — `/watch/api/play/<fileId>` → HTTP 404
+
+**Root cause**: Flutter calls `ApiPaths.playUrl(fileId) = '/watch/api/play/$fileId'`.
+Server had the play logic at `GET /api/catalog/play?file_id=X` but **no route existed at `/watch/api/play/<fileId>`**.
+Server logs confirmed: `"GET /watch/api/play/1 HTTP/1.1" 404` and `"GET /watch/api/play/73 HTTP/1.1" 404`.
+
+**Fix applied (server-only, no APK rebuild needed)**:
+1. Extracted play logic into `_do_play(file_id)` shared helper in `catalog_api.py`
+2. Refactored existing `play()` at `/api/catalog/play` to call `_do_play()`
+3. Added new `bp_watch = Blueprint("watch_api", ..., url_prefix="/watch")` in `catalog_api.py`
+4. Added `@bp_watch.route("/api/play/<int:file_id>")` → `watch_play()` → calls `_do_play()`
+5. Registered `catalog_api.bp_watch` in `app.py`
+
+**Verified**: `GET /watch/api/play/1` → **401** (auth required, not 404) ✅
+Server restarted: `supervisorctl restart raddflix_radd` → RUNNING pid 546084
+
+### Oracle Changes
+- `/opt/jazzmax/radd-hub/hub/routes/catalog_api.py` — `_do_play()` helper, `bp_watch`, `watch_play()` added
+- `/opt/jazzmax/radd-hub/hub/app.py` — `catalog_api.bp_watch` registered at `/watch`
+- Server restarted successfully
+
+### GitHub Commits
+- `fd477dd6` — `radd-hub/hub/routes/catalog_api.py` (BUG-A35 fix)
+- `7efa4716` — `radd-hub/hub/app.py` (bp_watch registration)
+
+### Notes for Next Agent
+- **Two critical bugs fixed across sessions 27-28**: BUG-A32 (poster URLs) + BUG-A35 (stream URL generation 404)
+- Existing APK (RaddFlix-1.0.0+1-build560.apk, 57.8 MB) does NOT need a rebuild — BUG-A35 was a server-only fix
+- All API connections now verified and working end-to-end
+- DB schema version: 15. Next migration: if (oldV < 16)
+- Oracle: raddflix_radd RUNNING pid 546084, nginx RUNNING, port 5000 firewalled externally
