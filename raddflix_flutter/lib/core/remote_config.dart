@@ -12,7 +12,7 @@ import 'api/api_client.dart';
 ///   2. Last cached config in SharedPreferences
 ///   3. Hardcoded AppConstants.apiBaseUrl (always works as final fallback)
 class RemoteConfig {
-  static const String _configUrl = 'http://92.4.95.252:5000/api/config';
+  static const String _configUrl = 'http://92.4.95.252/api/config';
   static const String _prefsKey  = 'jm_remote_config';
 
   // ── Brand field keys ───────────────────────────────────────────────────────

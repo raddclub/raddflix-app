@@ -87,7 +87,7 @@ def app_config():
         except Exception:
             brand_cfg[_bk] = _brand_defaults.get(_bk, '')
     return jsonify({
-        'api_base_url': 'http://92.4.95.252:5000',
+        'api_base_url': 'http://92.4.95.252',
         'min_version_code': 1,
         'update_url': 'https://github.com/raddclub/raddflix-app/releases/latest',
         'jd_delta_url': jd_delta_url,
