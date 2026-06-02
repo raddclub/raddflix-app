@@ -66,12 +66,36 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(status: AuthStatus.unauthenticated);
       return;
     }
+
+    // Optimistic auth: restore cached user immediately so the app opens
+    // without a network round-trip on every restart.
+    final cachedUser = await _loadCachedUser(prefs);
+    if (cachedUser != null) {
+      state = AuthState(status: AuthStatus.authenticated, user: cachedUser);
+    }
+
     try {
       final user = await AuthApi.getMe();
+      await _saveUserCache(user, prefs);
       state = AuthState(status: AuthStatus.authenticated, user: user);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        // Server explicitly rejected the token — force re-login.
+        await Keystore.clearAll();
+        await _clearUserCache(prefs);
+        state = const AuthState(status: AuthStatus.unauthenticated);
+      } else {
+        // Network / server error: keep the user logged in with cached data.
+        // Tokens are preserved so the next startup or API call can retry.
+        if (cachedUser == null) {
+          state = const AuthState(status: AuthStatus.unauthenticated);
+        }
+      }
     } catch (_) {
-      await Keystore.clearAll();
-      state = state.copyWith(status: AuthStatus.unauthenticated);
+      // Unknown error: stay logged in if we have cached data.
+      if (cachedUser == null) {
+        state = const AuthState(status: AuthStatus.unauthenticated);
+      }
     }
   }
 
@@ -88,6 +112,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await prefs.remove(StorageKeys.isGuest);
       ApiClient.isGuestMode = false;
       final user = await AuthApi.getMe();
+      await _saveUserCache(user, prefs);
       state = AuthState(status: AuthStatus.authenticated, user: user);
     } on DioException catch (e) {
       if (e.response?.statusCode == 409) {
@@ -169,6 +194,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await Keystore.clearAll();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(StorageKeys.isGuest);
+    await _clearUserCache(prefs);
     ApiClient.isGuestMode = false;
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
@@ -182,6 +208,42 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   void clearError() {
     state = state.copyWith(error: null);
+  }
+
+  // ── User cache helpers ────────────────────────────────────────────────────
+  // Persists basic user info (id, phone, plan, sub expiry) to SharedPreferences
+  // so checkAuth() can restore the session instantly on restart, even offline.
+
+  Future<AppUser?> _loadCachedUser(SharedPreferences prefs) async {
+    final id    = int.tryParse(prefs.getString(StorageKeys.cachedUserId)   ?? '');
+    final phone = prefs.getString(StorageKeys.cachedUserPhone) ?? '';
+    if (id == null || id == 0 || phone.isEmpty) return null;
+    final plan      = prefs.getString(StorageKeys.cachedUserPlan)    ?? 'free';
+    final expiresAt = prefs.getString(StorageKeys.cachedSubExpiry);
+    final hasSub    = plan != 'free' && plan.isNotEmpty;
+    return AppUser(
+      id:    id,
+      phone: phone,
+      isActive: true,
+      subscription: hasSub
+          ? UserSubscription(plan: plan, isActive: true, expiresAt: expiresAt)
+          : null,
+    );
+  }
+
+  Future<void> _saveUserCache(AppUser user, SharedPreferences prefs) async {
+    await prefs.setString(StorageKeys.cachedUserId,  user.id.toString());
+    await prefs.setString(StorageKeys.cachedUserPhone, user.phone);
+    await prefs.setString(StorageKeys.cachedUserPlan,  user.planName);
+    final exp = user.subscription?.expiresAt;
+    if (exp != null) await prefs.setString(StorageKeys.cachedSubExpiry, exp);
+  }
+
+  Future<void> _clearUserCache(SharedPreferences prefs) async {
+    await prefs.remove(StorageKeys.cachedUserId);
+    await prefs.remove(StorageKeys.cachedUserPhone);
+    await prefs.remove(StorageKeys.cachedUserPlan);
+    await prefs.remove(StorageKeys.cachedSubExpiry);
   }
 }
 

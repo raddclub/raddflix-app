@@ -271,6 +271,7 @@ class StorageKeys {
   static const String cachedUserPhone  = 'jm_cached_phone';
   static const String cachedUserId     = 'jm_cached_user_id';
   static const String cachedUserPlan   = 'jm_cached_plan';
+  static const String cachedSubExpiry  = 'jm_cached_sub_expiry';
   static const String themeMode        = 'jm_theme_mode';
   static const String searchHistory    = 'jm_search_history';
 }
