@@ -196,7 +196,9 @@ class _AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    if (err.response?.statusCode == 401 && !_isRefreshing) {
+    // Never attempt token refresh for auth endpoints — a 401 there means bad credentials
+    final _noRefreshPaths = [ApiPaths.login, ApiPaths.register, ApiPaths.refresh, ApiPaths.guest];
+    if (err.response?.statusCode == 401 && !_isRefreshing && !_noRefreshPaths.contains(err.requestOptions.path)) {
       DebugLogger.logWarn('AUTH', '401 received on ${err.requestOptions.path} — attempting token refresh');
       _isRefreshing = true;
       try {
@@ -354,6 +356,29 @@ class _XorInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
+    if (!RequestEncoder.enabled) return handler.next(err);
+
+    // Decode XOR-encoded error response body so DioException handlers can read it
+    try {
+      final sessionKey = err.requestOptions.extra['_xor_session_key'] as String?;
+      if (sessionKey != null && err.response != null) {
+        final contentType = err.response!.headers.value('content-type') ?? '';
+        if (contentType.contains('octet-stream')) {
+          final rawData = err.response!.data?.toString() ?? '';
+          if (rawData.isNotEmpty) {
+            final decoded = RequestEncoder.decode(rawData, sessionKey);
+            try {
+              err.response!.data = jsonDecode(decoded);
+              DebugLogger.log('XOR', 'Decoded error body for ${err.requestOptions.path}');
+            } catch (_) {
+              err.response!.data = decoded;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      DebugLogger.logWarn('XOR', 'Error body decode failed: $e');
+    }
     handler.next(err);
   }
 }
