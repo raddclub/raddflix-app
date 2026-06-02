@@ -605,8 +605,11 @@ def api_edit_title(title_id):
 def api_set_free(title_id):
     data = request.get_json(force=True, silent=True) or {}
     val = 1 if data.get("is_free") else 0
+    import time as _tm
     with db.conn() as c:
-        c.execute("UPDATE titles SET is_free=? WHERE id=?", (val, title_id))
+        c.execute("UPDATE titles SET is_free=?, updated_at=? WHERE id=?",
+                  (val, int(_tm.time()), title_id))
+    threading.Thread(target=_regen_db_update_bg, daemon=True).start()
     return jsonify({"ok": True, "is_free": val})
 
 
@@ -615,8 +618,10 @@ def api_set_free(title_id):
 def api_set_published(title_id):
     data = request.get_json(force=True, silent=True) or {}
     val = 1 if data.get("is_published") else 0
+    import time as _tm
     with db.conn() as c:
-        c.execute("UPDATE titles SET is_published=? WHERE id=?", (val, title_id))
+        c.execute("UPDATE titles SET is_published=?, updated_at=? WHERE id=?",
+                  (val, int(_tm.time()), title_id))
     # Auto-regenerate db_update.json so zero-rated users get updated catalog
     threading.Thread(target=_regen_db_update_bg, daemon=True).start()
     # Auto-notify users when a title goes live (in-app + WhatsApp)

@@ -730,6 +730,72 @@ def tid_check_by_phone(_user_id, _phone):
 
 # ── Usage API (Phase 6) ─────────────────────────────────────────────────────
 
+def _compute_app_quota(user_id: int) -> dict:
+    """Build quota dict for an app user based on their app subscription.
+    Replaces db.check_quota() which only knows about JazzDrive accounts.
+    """
+    user_jid      = f"app_{user_id}"
+    sub           = _get_subscription_status(user_id)
+    today_bytes   = (db.get_usage_today(user_jid)  or {}).get('bytes_used', 0) or 0
+    month_bytes   = (db.get_usage_month(user_jid) or {}).get('bytes_used', 0) or 0
+    today_gb      = today_bytes  / (1024 ** 3)
+    month_gb      = month_bytes  / (1024 ** 3)
+
+    plan_name     = sub.get("plan_name")   or sub.get("plan", "free").title()
+    sub_plan      = sub.get("plan", "free")
+    sub_expires   = sub.get("expires_at")
+
+    if not sub.get("is_active"):
+        return {
+            "allowed":          True,
+            "plan_name":        "free",
+            "daily_limit_gb":   0,
+            "monthly_limit_gb": 0,
+            "daily_used_gb":    round(today_gb, 3),
+            "monthly_used_gb":  round(month_gb, 3),
+            "sub_plan":         "free",
+            "sub_expires_at":   None,
+        }
+
+    daily_limit   = float(sub.get("daily_limit_gb")   or 0)
+    monthly_limit = float(sub.get("monthly_limit_gb") or 0)
+
+    if daily_limit > 0 and today_gb >= daily_limit:
+        return {
+            "allowed":          False,
+            "reason":           "daily_limit_reached",
+            "plan_name":        plan_name,
+            "daily_limit_gb":   daily_limit,
+            "daily_used_gb":    round(today_gb, 3),
+            "sub_plan":         sub_plan,
+            "sub_expires_at":   sub_expires,
+        }
+
+    if monthly_limit > 0 and month_gb >= monthly_limit:
+        return {
+            "allowed":            False,
+            "reason":             "monthly_limit_reached",
+            "plan_name":          plan_name,
+            "monthly_limit_gb":   monthly_limit,
+            "monthly_used_gb":    round(month_gb, 3),
+            "sub_plan":           sub_plan,
+            "sub_expires_at":     sub_expires,
+        }
+
+    return {
+        "allowed":              True,
+        "plan_name":            plan_name,
+        "daily_limit_gb":       daily_limit,
+        "monthly_limit_gb":     monthly_limit,
+        "daily_used_gb":        round(today_gb, 3),
+        "monthly_used_gb":      round(month_gb, 3),
+        "daily_remaining_gb":   round(max(0.0, daily_limit  - today_gb),  3) if daily_limit   else None,
+        "monthly_remaining_gb": round(max(0.0, monthly_limit - month_gb), 3) if monthly_limit else None,
+        "sub_plan":             sub_plan,
+        "sub_expires_at":       sub_expires,
+    }
+
+
 @bp_usage.route("", methods=["POST"], strict_slashes=False)
 @_require_auth
 def log_usage_endpoint(_user_id, _phone):
@@ -742,7 +808,7 @@ def log_usage_endpoint(_user_id, _phone):
         return jsonify({"error": "bytes_used must be non-negative"}), 400
     user_jid = f"app_{_user_id}"
     db.log_usage(user_jid, bytes_used=bytes_used, requests=1)
-    quota = db.check_quota(user_jid)
+    quota = _compute_app_quota(_user_id)
     return jsonify({"ok": True, "quota": quota})
 
 
@@ -751,23 +817,13 @@ def log_usage_endpoint(_user_id, _phone):
 def get_quota(_user_id, _phone):
     if _user_id == 0:
         return jsonify({"ok": True, "quota": {"allowed": True, "plan_name": "guest"}})
+    quota    = _compute_app_quota(_user_id)
     user_jid = f"app_{_user_id}"
-    quota    = db.check_quota(user_jid)
-    today    = db.get_usage_today(user_jid)
-    month    = db.get_usage_month(user_jid)
-    # 6.9 — add subscription expiry to quota for offline enforcement in Flutter
-    with db.conn() as _c:
-        _sub = _c.execute(
-            "SELECT plan, expires_at FROM app_subscriptions "            "WHERE user_id=? AND is_active=1 ORDER BY expires_at DESC LIMIT 1",
-            (_user_id,)
-        ).fetchone()
-    quota["sub_expires_at"] = _sub["expires_at"] if _sub else None
-    quota["sub_plan"]       = _sub["plan"]       if _sub else "free"
     return jsonify({
         "ok":    True,
         "quota": quota,
-        "today": today,
-        "month": month,
+        "today": db.get_usage_today(user_jid)  or 0,
+        "month": db.get_usage_month(user_jid) or 0,
     })
 
 
@@ -947,6 +1003,20 @@ def get_recommendations(_user_id, _phone):
 
 
 bp_app = Blueprint("mobile_app_check", __name__)
+
+@bp_app.route("/version", methods=["GET"])
+def app_version():
+    """GET /api/app/version — lightweight version probe (no auth).
+    Returns current app version string from settings. Used by CI test suite.
+    """
+    try:
+        with db.conn() as c:
+            row = c.execute("SELECT v FROM settings WHERE k='app_current_version'").fetchone()
+            ver = row["v"] if row and row["v"] else "1.0.0"
+    except Exception:
+        ver = "1.0.0"
+    return jsonify({"ok": True, "version": ver})
+
 
 @bp_app.route("/check", methods=["POST"])
 def app_check():
