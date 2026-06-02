@@ -2085,3 +2085,42 @@ Server restarted: `supervisorctl restart raddflix_radd` → RUNNING pid 546084
 - All API connections now verified and working end-to-end
 - DB schema version: 15. Next migration: if (oldV < 16)
 - Oracle: raddflix_radd RUNNING pid 546084, nginx RUNNING, port 5000 firewalled externally
+
+---
+## Session 29 — BUG-A36: Movie share_url Local DB Lookup
+
+**Date:** 2026-06-02
+
+### Audit Findings
+
+#### Player stream URL resolution (player_screen.dart)
+- Player does NOT call `ApiPaths.playUrl` at all — uses JazzDrive exclusively
+- `ApiPaths.playUrl` is **dead code** (defined in constants.dart, never called anywhere in Flutter)
+- BUG-A35 fix (server `watch_play` route) was still valid: makes the route available for future use
+- Player flow: `LocalDb.getShareUrl(fileId)` → `CatalogApi.getShareUrl(fileId)` → `JazzDriveService.getStreamLink()`
+
+#### BUG-A36: Movie `share_url` Lookup Fails Silently
+
+**Root cause:**
+- `LocalDb.getShareUrl(fileId)` queries `titles WHERE id = fileId`
+- But `fileId` is the **file's** ID (e.g., 73 from `files.id`) while `titles.id` is the **title's** primary key (e.g., 27)
+- `upsertTitle()` stores `share_url` keyed by `title.id` (27) — never by `file_id` (73)
+- The titles table had **no `file_id` column** at all
+
+**Effect:**
+- Every movie play fails local DB lookup → falls back to Oracle API call
+- Offline movie playback broken (can't get share_url without network)
+- Shows unaffected: episodes table has correct `file_id` column
+
+**Fix applied (Flutter-side, requires new APK):**
+1. `local_db.dart`: Added `file_id TEXT` column to titles CREATE TABLE schema
+2. `local_db.dart`: Added `if (oldV < 16)` migration: `ALTER TABLE titles ADD COLUMN file_id TEXT`
+3. `local_db.dart`: Added `'file_id': item.fileId` to `upsertTitle()` insert map
+4. `local_db.dart`: Fixed `getShareUrl()` to query `titles WHERE file_id = ?` (not `WHERE id = ?`)
+5. `constants.dart`: Bumped `catalogDbVersion` 15 → 16
+
+**Commits:**
+- `36bc7f63` — fix BUG-A36: add file_id to titles table; fix getShareUrl() to query by file_id for movies
+- `e442eb2e` — bump catalogDbVersion 15→16 for BUG-A36 migration
+
+**APK rebuild required:** Yes (Flutter-side fix)
