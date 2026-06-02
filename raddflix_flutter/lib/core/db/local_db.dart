@@ -75,6 +75,7 @@ class LocalDb {
         poster_url  TEXT,
         poster_path TEXT,
         share_url   TEXT,
+        file_id     TEXT,
         is_free     INTEGER DEFAULT 0,
         db_version  INTEGER DEFAULT 0,
         language    TEXT,
@@ -323,6 +324,10 @@ class LocalDb {
       // Offline-first history sync queue: track which positions have been pushed to server
       try { await db.execute('ALTER TABLE watch_positions ADD COLUMN synced INTEGER DEFAULT 0'); } catch (_) {}
     }
+    if (oldV < 16) {
+      // BUG-A36: Add file_id column to titles so getShareUrl() can find movies by file_id
+      try { await db.execute('ALTER TABLE titles ADD COLUMN file_id TEXT'); } catch (_) {}
+    }
   }
 
   // ── Titles ────────────────────────────────────────────────────────────────
@@ -389,6 +394,7 @@ class LocalDb {
         'genres':     item.genres,
         'poster_url': item.posterUrl,
         'share_url':  await _encodeUrl(item.shareUrl ?? ''),
+        'file_id':    item.fileId,
         'is_free':    item.isFree ? 1 : 0,
         'db_version': item.dbVersion,
         'language':   item.language,
@@ -500,8 +506,8 @@ class LocalDb {
     }
     // Check titles (for movie-level file_ids stored in titles table)
     final titleRows = await db.rawQuery(
-      'SELECT share_url FROM titles WHERE id = ? LIMIT 1',
-      [int.tryParse(fileId) ?? -1],
+      'SELECT share_url FROM titles WHERE file_id = ? LIMIT 1',
+      [fileId],
     );
     if (titleRows.isNotEmpty) {
       final rawUrl = titleRows.first['share_url'] as String?;
