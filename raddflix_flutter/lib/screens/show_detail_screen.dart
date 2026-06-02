@@ -108,7 +108,9 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     if (episodeIndex >= allEps.length) return;
     final ep = allEps[episodeIndex];
     final fileId = ep['file_id']?.toString();
-    final epShareUrl = ep['share_url'] as String?;
+    // getEpisodes() returns raw SQLite rows — share_url is XOR-encoded; decode it.
+    final rawEpShareUrl = ep['share_url'] as String?;
+    final epShareUrl = await LocalDb.decodeShareUrl(rawEpShareUrl);
 
     // Prefer locally-downloaded file: plays offline, no JazzDrive needed.
     final dlState = ref.read(downloadsProvider);
