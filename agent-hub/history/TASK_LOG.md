@@ -2903,3 +2903,35 @@ After a catalog sync there was no call to `getMe()`. A user whose plan was upgra
 
 ### APK Rebuild Required
 All Flutter fixes require a new APK build from the `main` branch (latest commit `3654222`).
+
+
+---
+
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Read-Only, Find Last Agent)
+
+### Task
+User asked: "find out what last agent did."
+
+### Done
+- Ran install.sh (SSH key setup; Oracle port test timed out)
+- Fetched SKILLS.md, REINCARNATION.md, MASTER_TASKLIST.md, and TASK_LOG.md from GitHub
+- Identified and reported the last actual work session to user
+
+### Summary of Last Agent Work
+Most recent code-changing session was the **5-Bug Fix Session** (2026-06-02, commits `f9a615c` + `0032479` + later `3654222`):
+1. **BUG 1 — Registration shows generic error**: DioExceptionType detection added in register_screen.dart — timeouts now show helpful message.
+2. **BUG 2 — Premium account shows FREE badge**: Replaced db.check_quota(user_jid) with _compute_app_quota(user_id) on Oracle reading app_subscriptions directly.
+3. **BUG 3 — Free movies not playable**: Same _compute_app_quota fix — allowed:true for users with no sub.
+4. **BUG 4 — Daily Limit Reached on local videos**: Added if (_isLocalFile) return; guard in player_screen.dart::_checkQuota().
+5. **BUG 5 — App asks login every restart**: Optimistic auth — user cached in SharedPreferences; only HTTP 401 clears tokens.
+Files: register_screen.dart, profile_screen.dart, player_screen.dart, auth_provider.dart, constants.dart, hub/routes/mobile_api.py
+
+### Files Changed
+- agent-hub/history/TASK_LOG.md — appended this entry only
+
+### Notes for Next Agent
+- DB schema: v16. Next migration: if (oldV < 17)
+- APK rebuild needed from main branch (latest commit 3654222)
+- Oracle: raddflix_radd RUNNING, nginx RUNNING. Port 5000 firewalled externally
+- All 24 catalog titles have is_free=0 — no free content for guests currently
+- JazzDrive SAPI 401 = server cannot upload new files; streaming existing content unaffected
