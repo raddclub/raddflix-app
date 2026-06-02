@@ -79,7 +79,14 @@ class CatalogApi {
       );
       final data = response.data as Map<String, dynamic>;
       final results = data['results'] as List<dynamic>? ?? [];
-      return results.cast<Map<String, dynamic>>();
+      // Server sends 'poster' but UI reads 'poster_url' — normalise here (BUG-A33)
+      return results.map((e) {
+        final m = Map<String, dynamic>.from(e as Map<String, dynamic>);
+        if (!m.containsKey('poster_url') && m.containsKey('poster')) {
+          m['poster_url'] = m['poster'];
+        }
+        return m;
+      }).toList();
     } catch (_) {
       return [];
     }
