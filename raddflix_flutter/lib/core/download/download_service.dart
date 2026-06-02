@@ -4,18 +4,12 @@ import 'package:path_provider/path_provider.dart';
 import '../db/local_db.dart';
 import '../services/jazzdrive_service.dart';
 import '../debug/debug_logger.dart';
-import '../constants.dart';   // BUG-A28: ApiPaths.quota
-import '../api/api_client.dart'; // BUG-A28: authenticated quota check
+import '../constants.dart';
+import '../api/api_client.dart';
 
-/// Manages video file downloads using Dio.
-/// Files saved to app private storage — not accessible outside the app.
-/// Tracks progress in local_db.dart downloads table.
 class DownloadService {
   static final Dio _dio = Dio();
 
-  /// BUG-A28: Check server-side quota before starting any download.
-  /// Throws [DownloadQuotaException] when the user has hit their daily
-  /// or monthly data limit so the UI can surface a meaningful message.
   static Future<void> _checkDownloadQuota() async {
     try {
       final res = await ApiClient.instance.get(ApiPaths.quota);
@@ -28,43 +22,49 @@ class DownloadService {
     } on DownloadQuotaException {
       rethrow;
     } catch (e) {
-      // Network / parse error — allow download (fail open to avoid blocking
-      // downloads when the server is temporarily unreachable).
-      DebugLogger.logWarn('DOWNLOAD', 'Quota check failed (allowing): \$e');
+      DebugLogger.logWarn('DOWNLOAD', 'Quota check failed (allowing): $e');
     }
   }
 
   /// Download a video file and save to private app storage.
-  /// Resolves the stream URL on-device via JazzDrive (zero-rated) if possible,
-  /// otherwise uses the [streamUrl] parameter as-is.
-  /// [onProgress] fires with value 0.0 → 1.0 as download progresses.
+  ///
+  /// [targetFilename] — optional episode filename (e.g. "S01E04.mkv").
+  ///   For folder-share episodes, this is passed to [JazzDriveService.getStreamLink]
+  ///   so the 3-pass filename matcher picks the correct episode instead of
+  ///   blindly returning records.first.
   static Future<void> downloadFile({
     required String fileId,
     required String titleText,
     required String streamUrl,
     String? posterUrl,
     String? shareUrl,
+    String? targetFilename,
     required void Function(double progress) onProgress,
   }) async {
-    // BUG-A28: enforce server-side data quota before starting the download
     await _checkDownloadQuota();
 
-    // Try to get a fresh zero-rated JazzDrive URL if share_url is known
     String resolvedUrl = streamUrl;
     if (shareUrl != null && shareUrl.isNotEmpty) {
       try {
-        final link = await JazzDriveService.getStreamLink(fileId, shareUrl);
+        final link = await JazzDriveService.getStreamLink(
+          fileId,
+          shareUrl,
+          targetFilename: targetFilename,
+        );
         resolvedUrl = link.streamUrl;
         DebugLogger.log('DOWNLOAD', 'Using JazzDrive URL for $fileId');
       } catch (e) {
         DebugLogger.logWarn('DOWNLOAD', 'JazzDrive link failed, using provided URL: $e');
       }
     } else {
-      // Try fetching share_url from local DB (set during catalog sync)
       final dbShareUrl = await LocalDb.getShareUrl(fileId);
       if (dbShareUrl != null && dbShareUrl.isNotEmpty) {
         try {
-          final link = await JazzDriveService.getStreamLink(fileId, dbShareUrl);
+          final link = await JazzDriveService.getStreamLink(
+            fileId,
+            dbShareUrl,
+            targetFilename: targetFilename,
+          );
           resolvedUrl = link.streamUrl;
           DebugLogger.log('DOWNLOAD', 'Using DB JazzDrive URL for $fileId');
         } catch (e) {
@@ -75,7 +75,6 @@ class DownloadService {
     final dir = await _getDownloadDir();
     final localPath = '${dir.path}/$fileId.mp4';
 
-    // Insert record as 'downloading'
     await LocalDb.insertDownload(
       fileId: fileId,
       titleText: titleText,
@@ -101,8 +100,7 @@ class DownloadService {
 
       final file = File(localPath);
       final fileSize = await file.exists() ? await file.length() : 0;
-      await LocalDb.updateDownloadStatus(
-          fileId, 'completed', 1.0, fileSize);
+      await LocalDb.updateDownloadStatus(fileId, 'completed', 1.0, fileSize);
       onProgress(1.0);
     } catch (e) {
       await LocalDb.updateDownloadStatus(fileId, 'failed', 0.0, 0);
@@ -110,12 +108,10 @@ class DownloadService {
     }
   }
 
-  /// Cancel and delete a download.
   static Future<void> deleteDownload(String fileId) async {
     await LocalDb.deleteDownload(fileId);
   }
 
-  /// Check if a file is already downloaded.
   static Future<bool> isDownloaded(String fileId) async {
     final downloads = await LocalDb.getDownloads();
     final match = downloads.where((d) =>
@@ -126,7 +122,6 @@ class DownloadService {
     return File(path).exists();
   }
 
-  /// Get local file path for a downloaded file.
   static Future<String?> getLocalPath(String fileId) async {
     final downloads = await LocalDb.getDownloads();
     final match = downloads.where((d) =>
@@ -152,8 +147,6 @@ class DownloadService {
   }
 }
 
-/// BUG-A28: thrown when /api/usage/quota returns allowed=false.
-/// [reason] is one of: 'no_subscription', 'daily_limit_reached', 'monthly_limit_reached'.
 class DownloadQuotaException implements Exception {
   final String reason;
   const DownloadQuotaException(this.reason);

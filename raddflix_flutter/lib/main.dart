@@ -32,28 +32,35 @@ void main() async {
   // ApiClient silently returns fake empty data when tampered.
   await AppGuard.initialize();
 
-  // Fetch server URL from Oracle server config — no APK rebuild needed when server changes.
-  // Falls back to hardcoded AppConstants.apiBaseUrl if network/parse fails.
-  await RemoteConfig.fetch();
-  // Check for forced app updates / blocked APK on every cold start
-  await AppUpdateService.check();
+  // Run all independent startup tasks in parallel — reduces cold-start time
+  // by avoiding sequential awaits on operations that have no dependencies.
+  await Future.wait([
+    // Fetch server config (brand theme, feature flags, API URL override).
+    // SplashScreen reads from cached prefs — no second network call needed.
+    RemoteConfig.fetch(),
+    // Create poster storage directories on disk.
+    PosterService.init(),
+    // Evict expired JazzDrive CDN tokens from SQLite.
+    LocalDb.cleanExpiredStreamCache(),
+  ]);
 
-  // Boot zero-rated services
-  await PosterService.init();
+  // Load warm JazzDrive token cache into memory (depends on SQLite being ready).
   await JazzDriveService.loadCacheFromDb();
-  unawaited(JazzDriveService.warmTopFreeItems(8));
-  await LocalDb.cleanExpiredStreamCache();
-  // Auto-resync: if the v17 schema migration just ran (filename column added to episodes),
-  // reset sync timestamps so the next sync fetches full data and populates filenames.
+
+  // Auto-resync: if the v17 schema migration just ran (filename column added to
+  // episodes), reset sync timestamps so the next sync fetches full data.
   if (await LocalDb.consumeForceResyncFlag()) {
     await LocalDb.setLastSyncTimestamp(0);
     await LocalDb.setLastSyncVersion(0);
     unawaited(SyncService.sync());
     DebugLogger.log('MAIN', 'Schema v17 migration detected — forced catalog re-sync triggered');
   }
-  // Offline-first: push any positions saved while offline + pending usage bytes
-  HistoryApi.flushUnsynced().ignore();
-  UsageService.flushPending().ignore();
+
+  // Background tasks — fire-and-forget, never block app launch.
+  unawaited(JazzDriveService.warmTopFreeItems(8));   // pre-warm top free content CDN links
+  unawaited(AppUpdateService.check());               // populate _ForceUpdateGuard result
+  HistoryApi.flushUnsynced().ignore();               // push offline watch positions
+  UsageService.flushPending().ignore();              // push pending data-usage bytes
 
   // Check for initial video URI from "Open with" intent (cold start)
   try {

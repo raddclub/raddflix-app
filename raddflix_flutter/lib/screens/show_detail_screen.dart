@@ -659,6 +659,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                     titleText: '${widget.item.title} $label',
                                     streamUrl: epShareUrl,
                                     posterUrl: widget.item.posterUrl,
+                                    targetFilename: ep['filename'] as String?,
                                   );
                                 } on DownloadQuotaException catch (e) {
                                   if (context.mounted) _showQuotaError(context, e.userMessage);

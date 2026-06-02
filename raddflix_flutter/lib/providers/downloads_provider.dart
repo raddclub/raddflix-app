@@ -5,7 +5,7 @@ import '../core/download/download_service.dart';
 class DownloadsState {
   final List<Map<String, dynamic>> downloads;
   final bool loading;
-  final Map<String, double> activeProgress; // fileId → progress
+  final Map<String, double> activeProgress;
   final String? quotaError;
 
   const DownloadsState({
@@ -30,17 +30,13 @@ class DownloadsState {
     );
   }
 
-  bool isDownloading(String fileId) =>
-      activeProgress.containsKey(fileId);
-  double progressOf(String fileId) =>
-      activeProgress[fileId] ?? 0.0;
+  bool isDownloading(String fileId) => activeProgress.containsKey(fileId);
+  double progressOf(String fileId) => activeProgress[fileId] ?? 0.0;
 
-  /// True when this file has a completed local download on device.
   bool isDownloaded(String fileId) => downloads.any(
         (d) => d['file_id'] == fileId && d['status'] == 'completed' &&
                (d['local_path'] as String?)?.isNotEmpty == true);
 
-  /// Returns the local file path for a completed download, or null.
   String? getLocalPath(String fileId) {
     try {
       final match = downloads.firstWhere(
@@ -63,13 +59,18 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
     state = state.copyWith(downloads: list, loading: false);
   }
 
+  /// Start downloading a file.
+  ///
+  /// [targetFilename] — pass the episode filename (from ep['filename']) for
+  ///   folder-share episodes so the JazzDrive 3-pass matcher picks the correct
+  ///   file instead of blindly returning records.first.
   Future<void> startDownload({
     required String fileId,
     required String titleText,
     required String streamUrl,
     String? posterUrl,
+    String? targetFilename,
   }) async {
-    // Clear any previous quota error and mark as active
     final progress = Map<String, double>.from(state.activeProgress);
     progress[fileId] = 0.0;
     state = state.copyWith(activeProgress: progress, clearQuotaError: true);
@@ -80,6 +81,7 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
         titleText: titleText,
         streamUrl: streamUrl,
         posterUrl: posterUrl,
+        targetFilename: targetFilename,
         onProgress: (p) {
           final updated = Map<String, double>.from(state.activeProgress);
           updated[fileId] = p;
@@ -90,7 +92,6 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
       state = state.copyWith(quotaError: e.userMessage);
       rethrow;
     } finally {
-      // Remove from active regardless of success or failure
       final updated = Map<String, double>.from(state.activeProgress);
       updated.remove(fileId);
       state = state.copyWith(activeProgress: updated);

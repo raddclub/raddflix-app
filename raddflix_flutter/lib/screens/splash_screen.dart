@@ -2,13 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants.dart';
 import '../app.dart' show pendingVideoUri, appNavigatorKey;
 import '../core/remote_config.dart';
 import '../core/theme/brand_theme_provider.dart';
 import '../providers/auth_provider.dart';
-import '../core/services/app_update_service.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -28,9 +26,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     _pulseCtrl = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 1200))
       ..repeat(reverse: true);
-    // Load brand splash color from SharedPreferences (set by RemoteConfig.fetch)
+    // Load brand splash color from SharedPreferences (set by main.dart RemoteConfig.fetch)
     _loadBrandSplashColor();
-    Future.delayed(const Duration(milliseconds: 600), _start);
+    // Start auth check after a short pause so the logo animation has time to play.
+    // RemoteConfig was already fetched in main() — no duplicate network call here.
+    Future.delayed(const Duration(milliseconds: 300), _start);
   }
 
   Future<void> _loadBrandSplashColor() async {
@@ -46,22 +46,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _start() async {
-    await RemoteConfig.fetch();
-    // Reload brand theme (colors/font/radius) from freshly cached prefs
+    // Reload brand theme (colors/font/radius) from prefs populated in main().
+    // No network call needed — RemoteConfig.fetch() already ran in main.dart.
     ref.read(brandThemeProvider.notifier).reload();
-    // Re-apply brand splash color after fresh config fetch
     _loadBrandSplashColor();
-    unawaited(AppUpdateService.check()); // populate _ForceUpdateGuard
-    await Future.delayed(const Duration(milliseconds: 1000));
     if (!mounted) return;
-
-    final prefs = await SharedPreferences.getInstance();
-    final seen = prefs.getBool(AppConstants.onboardingSeenKey) ?? false;
-
-    if (!seen) {
-      Navigator.of(context).pushReplacementNamed(AppRoutes.onboarding);
-      return;
-    }
+    // Trigger auth check — listener below routes to home or login.
     await ref.read(authProvider.notifier).checkAuth();
   }
 
@@ -133,9 +123,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     letterSpacing: 0.3,
                   ),
                 )
-                    .animate(delay: 600.ms)
-                    .fadeIn(duration: 500.ms)
-                    .slideY(begin: 0.3, end: 0, duration: 500.ms, curve: AppCurves.standard),
+                    .animate(delay: 400.ms)
+                    .fadeIn(duration: 400.ms)
+                    .slideY(begin: 0.3, end: 0, duration: 400.ms, curve: AppCurves.standard),
                 const SizedBox(height: 80),
                 SizedBox(
                   width: 28,
@@ -147,8 +137,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     strokeCap: StrokeCap.round,
                   ),
                 )
-                    .animate(delay: 800.ms)
-                    .fadeIn(duration: 400.ms),
+                    .animate(delay: 500.ms)
+                    .fadeIn(duration: 300.ms),
               ],
             ),
           ),
@@ -184,8 +174,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         )
             .animate()
             .scale(begin: const Offset(0.5, 0.5), end: const Offset(1, 1),
-                duration: 600.ms, curve: AppCurves.enter)
-            .fadeIn(duration: 400.ms),
+                duration: 500.ms, curve: AppCurves.enter)
+            .fadeIn(duration: 300.ms),
         const SizedBox(height: 20),
         RichText(
           text: const TextSpan(
@@ -201,9 +191,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             ],
           ),
         )
-            .animate(delay: 300.ms)
-            .fadeIn(duration: 500.ms)
-            .slideY(begin: 0.2, end: 0, duration: 500.ms, curve: AppCurves.standard),
+            .animate(delay: 200.ms)
+            .fadeIn(duration: 400.ms)
+            .slideY(begin: 0.2, end: 0, duration: 400.ms, curve: AppCurves.standard),
       ],
     );
   }
