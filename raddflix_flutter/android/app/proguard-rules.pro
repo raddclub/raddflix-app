@@ -46,3 +46,14 @@
 -keepattributes SourceFile,LineNumberTable
 -keep public class * extends java.lang.Exception
 -dontwarn sun.misc.**
+
+# Google Cast SDK (play-services-cast-framework:21.5.0)
+# Required: Cast framework uses reflection to load the OptionsProvider class
+# (com.raddflix.app.CastOptionsProvider registered in AndroidManifest).
+-keep class com.google.android.gms.cast.** { *; }
+-keep class com.google.android.gms.cast.framework.** { *; }
+-keep interface com.google.android.gms.cast.** { *; }
+-dontwarn com.google.android.gms.cast.**
+# Cast framework media routes
+-keep class androidx.mediarouter.** { *; }
+-dontwarn androidx.mediarouter.**
