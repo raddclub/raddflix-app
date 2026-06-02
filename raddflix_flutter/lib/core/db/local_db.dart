@@ -332,6 +332,11 @@ class LocalDb {
     if (oldV < 17) {
       // Add filename to episodes so JazzDriveService can pick the right file in folder shares
       try { await db.execute('ALTER TABLE episodes ADD COLUMN filename TEXT'); } catch (_) {}
+      // Signal to startup that a full catalog re-sync is needed to populate the new column
+      try {
+        await db.insert('sync_meta', {'key': 'force_resync', 'value': '1'},
+            conflictAlgorithm: ConflictAlgorithm.replace);
+      } catch (_) {}
     }
   }
 
@@ -519,6 +524,20 @@ class LocalDb {
       return rawUrl != null ? await _decodeUrl(rawUrl) : null;
     }
     return null;
+  }
+
+  /// Reads and clears the force_resync flag written by the v17 migration.
+  /// Returns true exactly once — clears the flag so subsequent calls return false.
+  /// Used by main.dart to trigger a background catalog re-sync after schema upgrade.
+  static Future<bool> consumeForceResyncFlag() async {
+    final db = await instance;
+    final rows = await db.query('sync_meta',
+        where: "key = 'force_resync'", limit: 1);
+    if (rows.isNotEmpty && rows.first['value'] == '1') {
+      await db.delete('sync_meta', where: "key = 'force_resync'");
+      return true;
+    }
+    return false;
   }
 
   /// Get both share_url and filename for a file_id in one DB query.
