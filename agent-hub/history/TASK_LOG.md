@@ -2168,3 +2168,33 @@ Full streaming flow (from code, player_screen.dart `_openMedia()`):
 DB schema version: 16. Next migration: if (oldV < 17).
 
 ---
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Session 31)
+
+### Task
+User asked: find out what the last agent did.
+
+### Done
+- Ran install script (SSH key setup attempted)
+- Fetched and read `agent-hub/SKILLS.md` and `agent-hub/history/TASK_LOG.md` from GitHub
+- Reported full summary of Session 30 (last agent) to user
+
+### Summary of Last Agent (Session 30)
+Session 30 was a **read-only streaming architecture audit**. No code was changed.
+The agent traced the complete movie streaming flow across 7 source files and documented:
+- Oracle server never streams video — only stores/serves share_url pointers
+- Actual CDN stream URL generated on-device via direct calls to cloud.jazzdrive.com.pk
+- `ApiPaths.playUrl` (/watch/api/play/<id>) is dead code — player never calls it
+- Full 5-step streaming flow documented in TASK_LOG
+
+Prior sessions (27–29) fixed three bugs: BUG-A32 (poster URLs), BUG-A35 (404 on play route), BUG-A36 (movie share_url DB lookup by wrong column).
+
+### Files Changed
+- `agent-hub/history/TASK_LOG.md` — appended this summary
+
+### Notes for Next Agent
+- DB schema: v16. Next migration: `if (oldV < 17)`
+- APK rebuild still pending for BUG-A36 (commits 36bc7f63 + e442eb2e are on main, but no new APK built yet)
+- Oracle: raddflix_radd RUNNING, nginx RUNNING, port 5000 firewalled (use port 80 via nginx)
+- Install script SSH connection timed out this session — ORACLE_SSH_KEY secret may need re-checking
+
+---
