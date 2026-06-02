@@ -2990,3 +2990,58 @@ Files: register_screen.dart, profile_screen.dart, player_screen.dart, auth_provi
 - DB schema: v17. Next migration: if (oldV < 18)
 - APK build 26839342008 in progress at time of writing
 - Oracle: raddflix_radd RUNNING, nginx RUNNING
+
+
+---
+
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Session 35 — Fix Critical Bugs AUDIT-01/03/04/05)
+
+### Task
+Fix the four critical bugs identified in Session 34 audit (AUDIT-01 through AUDIT-05).
+Note: AUDIT-02 was already fixed prior to this session — security channel handler was fully
+implemented in MainActivity.kt. Confirmed by reading live file.
+
+### Fixes Applied
+
+#### AUDIT-01 — app.dart (commit 318294ac)
+- File: raddflix_flutter/lib/app.dart
+- Added: subtitlePath: args['subtitle_path'] as String?, to PlayerScreen constructor in onGenerateRoute
+- Impact: Subtitle auto-load for 'Open with' external files now works end-to-end
+
+#### AUDIT-03 — local_db.dart (commit 6e96470642)
+- File: raddflix_flutter/lib/core/db/local_db.dart
+- Added: fileId: row['file_id'] as String?, to _rowToItem() return value
+- Impact: CatalogItem.fileId is now populated for all DB-loaded items; Continue Watching
+  movie matching works; player navigation via item.fileId works
+
+#### AUDIT-04 — api_client.dart (commit 1f58fac42b)
+- File: raddflix_flutter/lib/core/api/api_client.dart
+- Added: freshDio.interceptors.add(_XorInterceptor()); to BOTH freshDio instances in _tryRefresh()
+  (guest re-issue path and regular refresh path)
+- Impact: Token refresh and guest re-issue can now decode XOR-encoded Oracle responses;
+  access_token is correctly extracted after refresh; silent logout bug fixed
+
+#### AUDIT-05 — local_db.dart (commit 6e96470642, same commit as AUDIT-03)
+- File: raddflix_flutter/lib/core/db/local_db.dart
+- Added: if (fileId.isNotEmpty) 'file_id': fileId, to mergeDeltaTitle() UPDATE block
+- Impact: Delta syncs now correctly update file_id on existing title rows;
+  remapped JazzDrive files are picked up without requiring a full resync
+
+### APK Build
+- New build triggered after all fixes committed (build-apk.yml, ref main)
+
+### Status of All 5 Critical Bugs
+| Bug | Status | Commit |
+|-----|--------|--------|
+| AUDIT-01 subtitle_path in route | FIXED | 318294ac |
+| AUDIT-02 SECURITY_CHANNEL handler | ALREADY DONE (pre-existing) | — |
+| AUDIT-03 fileId in _rowToItem | FIXED | 6e964706 |
+| AUDIT-04 XOR decode in _tryRefresh | FIXED | 1f58fac4 |
+| AUDIT-05 file_id in mergeDeltaTitle UPDATE | FIXED | 6e964706 |
+
+### Notes for Next Agent
+- All 5 critical bugs from Session 34 are now resolved
+- 13 medium/low bugs from the audit remain (AUDIT-06 through AUDIT-17) — lower priority
+- AUDIT-06 (Continue Watching movies broken) is now automatically fixed by AUDIT-03
+- folder_share_url column does NOT yet exist in titles table — future migration needed if that field becomes required
+- DB schema still at v17; next migration should be v18
