@@ -165,7 +165,7 @@ import 'dart:io';
             width: 0,
             height: 0,
             dateModifiedMs: stat.modified.millisecondsSinceEpoch,
-            hasSrt: _checkSrt(entity.path),
+            subtitlePath: _findSubtitlePath(entity.path),
           ));
         }
       }

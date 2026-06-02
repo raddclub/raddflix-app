@@ -14,7 +14,7 @@ import 'dart:typed_data';
     final int dateModifiedMs;
     final String? mimeType;
     Uint8List? thumbnail;
-    bool hasSrt;
+    String? subtitlePath;
 
     LocalVideo({
       required this.id,
@@ -30,7 +30,7 @@ import 'dart:typed_data';
       required this.dateModifiedMs,
       this.mimeType,
       this.thumbnail,
-      this.hasSrt = false,
+      this.subtitlePath,
     });
 
     bool get hasSrt => subtitlePath != null;
