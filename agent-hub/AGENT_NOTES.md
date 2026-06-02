@@ -41,6 +41,10 @@ ALL Flutter API traffic goes through **radd-hub (port 5000)** via nginx:
 | `/api/search` | `search_api.bp` | `hub/routes/search_api.py` |
 | `/api/poster/` | `poster_proxy.poster_proxy_bp` | `hub/routes/poster_proxy.py` |
 
+**Catalog endpoints require JWT auth** (added 2026-06-02):
+`/api/catalog/sync`, `db_update`, `delta`, `share_url`, `batch`, `play` → 401 without token.
+Public: `version`, `poster/<id>` (no streaming secrets).
+
 **Port 6000 is decommissioned** — `_watch_prototype` catalog service removed from supervisor.
 
 ### Supervisor Services

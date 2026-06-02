@@ -80,9 +80,17 @@ sqflite_sqlcipher: 3.1.0+1  ← PINNED. DO NOT CHANGE.
 
 ---
 
-## RULE 7 — ALL CHANGES VIA GITHUB API
-**Oracle SSH does NOT work from Replit.** Never attempt `ssh ubuntu@92.4.95.252`.
-All changes to backend, Flutter, and config files must go through GitHub API (commit pattern in REINCARNATION.md).
+## RULE 7 — ALL CHANGES VIA GITHUB API + ORACLE SSH DEPLOY
+**Workflow:** Commit to GitHub via Tree API, then deploy to Oracle via SSH.
+
+**Oracle SSH DOES work from Replit** (confirmed 2026-06-02). Use key from `ORACLE_SSH_KEY` secret.
+See SKILLS.md Rule 2 for the exact key reformat pattern.
+
+Deploy sequence after any server-side change:
+```bash
+ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \\
+  'cd /opt/jazzmax && git pull origin main && sudo supervisorctl restart raddflix_radd'
+```
 
 **Commit message format:**
 ```
@@ -142,7 +150,7 @@ Ready to start P1.2 (fix bulk_link_engine.py stream_links). Proceed?
 | Read REINCARNATION.md first | Jump straight to coding |
 | One task at a time | Work on multiple tasks simultaneously |
 | Verify CI green before done | Mark done without checking CI |
-| Use GitHub API for all commits | Try SSH to Oracle |
+| Use GitHub API for all commits first | Skip GitHub and edit server files directly |
 | Use `AppColors.*` for colors | Hardcode `Color(0xFF...)` |
 | Use `ApiPaths.*` for endpoints | Hardcode URL strings |
 | Update MASTER_PLAN + TASK_LOG | Skip documentation |

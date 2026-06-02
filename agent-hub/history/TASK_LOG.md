@@ -1729,3 +1729,49 @@ JazzDrive delta sync is unaffected — it hits `cloud.jazzdrive.com.pk` directly
 - Still open: AppGuard fingerprint verification (run keytool against release APK)
 
 ---
+
+## [2026-06-02] — Session 23: BUG-N01/N03/N05/N06 fixes + Oracle JWT catalog auth + MD cleanup
+
+### Task
+Fix remaining bugs from codebase audit (BUG-N01 through N06). Clean up agent-hub MD files.
+Remove redundant files, correct wrong information, save new architecture understanding.
+
+### Done
+
+#### Oracle catalog JWT auth (commit `53e02a3b`)
+- Added `_catalog_require_auth` to 6 catalog endpoints: `sync`, `db_update`, `delta`, `share_url`, `batch`, `play`.
+- Public endpoints unchanged: `version`, `poster/<id>`.
+- Smoke tested: protected → 401, public → 200. Flutter unaffected (_AuthInterceptor already sends token).
+
+#### BUG-N02 — Resolved (not a bug)
+- `RequestEncoder.enabled = true` in Flutter IS correct.
+- `XorWsgiMiddleware` IS applied in `app.py` lines 382–383. Both sides active.
+
+#### BUG-N01 + N03 + N05 + N06 (commit `ddfea915`)
+- **BUG-N01** (`local_db.dart`): Swapped _migrate() v11/v12 blocks. v12 appeared before v11.
+- **BUG-N03** (`app.py`): Added `title_id` to files SELECT in download_proxy(). Was KeyError.
+- **BUG-N05** (`mobile_api.py`): Added @_require_auth to notif_image(). Was publicly accessible.
+- **BUG-N06** (`mobile_api.py`): IP-based login rate limiting — 10 attempts / 15-min / IP. Returns 429.
+
+#### MD Cleanup (this commit)
+- **Deleted**: AGENT_CONNECTIONS_GUIDE.md, MASTER_PLAN.md, HANDOFF_PROMPT.md, NEXT_AGENT_PROMPT.md, PROMPT.md, README.md
+- **Corrected STREAMING_ARCHITECTURE.md**: delta DOES include share_urls; removed "PARTIALLY IMPLEMENTED"; added Oracle JWT auth note.
+- **Corrected ZERO_RATING_DELTA.md**: "all published titles" → last-24h snapshot; added Oracle vs JazzDrive distinction.
+- **Corrected AGENT_RULES.md**: Rule 7 said SSH doesn’t work — it does.
+- **Updated SKILLS.md**: Rule 12 (XOR both sides active), DB v11 row added, catalog auth note.
+- **Updated AGENT_NOTES.md**: catalog JWT auth requirement.
+
+### Architecture Confirmed
+| | Oracle | JazzDrive CDN |
+|--|--|--|
+| Content | Complete DB (day one) | Last-24h new/updated titles |
+| Auth | JWT required | None |
+| Zero-rated | No | Yes |
+| Has share_urls | Yes | Yes |
+
+### Open Items
+- BUG-A19: No HistoryApi class in Flutter — watch history never syncs
+- BUG-A30: Hardcoded `http://92.4.95.252/api/config` in remote_config.dart (low priority)
+- AppGuard: `_officialFingerprint` is placeholder — signature enforcement not active
+
+---

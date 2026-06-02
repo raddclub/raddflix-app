@@ -70,8 +70,11 @@ This is stored in the `files` table (episodes) and `titles` table (movies) in th
 
 Protection:
 - SQLCipher AES-256 on local DB (key from Android Keystore — hardware-backed)
-- Delta JSON (zero-rated catalog sync) contains metadata ONLY — NO share_url, NO file_id
-- Full catalog sync (with share_urls) only comes from Oracle → requires bundle/WiFi
+- Delta JSON (zero-rated catalog sync) **includes share_urls** — security relies on APK
+  integrity (AppGuard signature check + Frida detection), not on link hiding. A cracked APK
+  gets fake empty data, never real share_urls.
+- Oracle full catalog sync also includes share_urls and now **requires JWT auth**
+  (added 2026-06-02). Oracle = complete database; JazzDrive delta = last-24h snapshot only.
 
 ---
 
@@ -99,6 +102,11 @@ Both streaming and downloading are zero-rated. Both share the same `stream_cache
 | Playing a downloaded file | ❌ No | ❌ No | ❌ No (local file) |
 | Browsing catalog (already synced) | ❌ No | ❌ No | ❌ No (local SQLite) |
 
+> **Oracle catalog endpoints require JWT auth** (added 2026-06-02, commit `53e02a3b`).
+> Flutter already sends `Authorization: Bearer <token>` via `_AuthInterceptor`. No client change needed.
+> Endpoints `/api/catalog/sync`, `db_update`, `delta`, `share_url`, `batch`, `play` → 401 without token.
+> Public exceptions: `/api/catalog/version`, `poster/<id>` — no streaming secrets.
+
 ---
 
 ## Catalog Sync — Two Paths
@@ -109,17 +117,17 @@ Both streaming and downloading are zero-rated. Both share the same `stream_cache
 - Code: `SyncService._syncFromOracle()` in `sync_service.dart`
 - Upserts complete rows into local SQLite including share_url
 
-### Path 2: JazzDrive Delta (zero-rated — PARTIALLY IMPLEMENTED)
-- Fetches `delta.json` from `AppConstants.jazzDriveDeltaUrl`
-- Contains metadata ONLY: id, title, year, description, poster_url, genres, is_free, media_type, language, status, is_ongoing, rating, season_count, episode_count, db_version
-- **NEVER includes file_id or share_url** — security requirement (see Rule 5 in REINCARNATION.md)
-- Uses `LocalDb.mergeDeltaTitle()` which preserves existing share_url from prior Oracle syncs
+### Path 2: JazzDrive Delta (zero-rated — ACTIVE)
+- Fetches `delta.json` from `AppConstants.jazzDriveDeltaUrl` (set by RemoteConfig on startup)
+- Contains **full playback data** — includes `share_url`, `file_id`, `folder_share_url`, and
+  complete episode lists per show
+- Is a **last-24h snapshot** of new/updated titles from Oracle (not the full catalog)
+- Uses `LocalDb.mergeDeltaTitle()` which preserves any share_url from prior Oracle syncs
 - Code: `SyncService._syncFromJazzDriveDelta()` in `sync_service.dart`
 
-**Current gap:** `AppConstants.jazzDriveDeltaUrl` returns `$apiBaseUrl/api/catalog/delta` (Oracle).
-True zero-rated catalog updates require: upload a `delta.json` file to a JazzDrive share folder
-and update this constant to point at that JazzDrive URL.
-Until then, catalog sync always requires a bundle.
+**Security model:** share_urls in delta.json are permanent (never expire). Security is enforced
+by APK integrity — AppGuard signature check + Frida detection. A cracked APK sees fake empty
+data, never real share_urls. See ZERO_RATING_DELTA.md and SECURITY_ARCHITECTURE.md.
 
 ---
 

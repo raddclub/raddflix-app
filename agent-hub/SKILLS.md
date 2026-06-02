@@ -258,7 +258,8 @@ If something looks wrong, fix it before logging it as done.
   ### DB Version History
   | Version | What was added |
   |---------|---------------|
-  | 1–11    | Core tables (titles, episodes, watch_positions, downloads, etc.) |
+  | 1–10    | Core tables (titles, episodes, watch_positions, downloads, etc.) |
+  | 11      | usage_log (data tracking), quota_cache, simosa_streak (SIMOSA daily claim) |
   | 12      | show_ep_seen (new-episode badge), stream_cache (6h link TTL) |
   | 13      | catalog_fts (FTS5 virtual table — full-text search for title + description) |
 
@@ -382,10 +383,11 @@ curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub
 When `isTampered=true`, ApiClient must return fake empty responses (silent degradation).
 The attacker sees a broken app and gives up — never give them a real error message.
 
-**Rule 12 — RequestEncoder defaults: enabled=false**
-`RequestEncoder.enabled` is `false` by default (passthrough mode).
-Never set it to `true` without also deploying the server-side decode in radd-hub.
-Enabling one side without the other breaks ALL API calls.
+**Rule 12 — RequestEncoder: both sides must stay in sync**
+Current production state: `RequestEncoder.enabled = true` (Flutter `request_encoder.dart` line 28).
+Server-side `XorWsgiMiddleware` is deployed and active in `app.py` (lines 382–383).
+Both sides are active. If you ever disable encoding, change both simultaneously —
+one side enabled without the other breaks ALL API calls.
 
 **Rule 13 — share_url scrambling (RF1: prefix)**
 `RequestEncoder.scrambleUrl()` returns `RF1:<base64url_xor>`.
@@ -406,6 +408,12 @@ Build was failing since commit 978d661 due to keystore password mismatch.
 Root cause: `KEYSTORE_PASSWORD` GitHub secret was empty → keystore created with
 `RaddFlix_2024_Store` but build step got `""` → Gradle signing failed.
 Fixed in commit 81a76ea with `${{ secrets.KEYSTORE_PASSWORD || 'RaddFlix_2024_Store' }}`.
+
+### Oracle Catalog Endpoints — JWT Required (2026-06-02)
+Endpoints that return share_urls or trigger DB updates require `Authorization: Bearer <token>`:
+`/api/catalog/sync`, `db_update`, `delta`, `share_url`, `batch`, `play` → 401 without token.
+Public (no streaming secrets): `version`, `poster/<id>`, `poster-push/status`.
+Flutter `_AuthInterceptor` already sends the token on every request — no client changes needed.
 
 ### Architecture: Zero-Rating Works for ALL Users
 - Jazz SIM (paid bundle): Oracle sync ✅ + delta fallback ✅

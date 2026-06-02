@@ -13,9 +13,15 @@ After that, Jazz SIM users can get **new catalog updates without any data bundle
 because `cloud.jazzdrive.com.pk` is zero-rated on the Jazz network (whitelisted
 at the network level — no bundle required, not "free with a bundle").
 
-The delta system is a **snapshot of all published titles** uploaded to JazzDrive
-periodically. It is the bridge between Oracle (the real database) and users
-who have no active internet package.
+The delta system is a **last-24h snapshot** of new and updated titles from Oracle,
+uploaded to JazzDrive periodically. It is the bridge between Oracle (the real database)
+and Jazz SIM users who have no active internet package.
+
+**Oracle vs JazzDrive delta — critical distinction:**
+- **Oracle** (`92.4.95.252`) = complete full database, all titles since day one.
+  Oracle catalog endpoints **require JWT auth** (added 2026-06-02). Full bundle/WiFi needed.
+- **JazzDrive delta** (`cloud.jazzdrive.com.pk`) = last-24h snapshot of new/changed titles.
+  Zero-rated — works on Jazz SIM without any data bundle. No auth required.
 
 ---
 
@@ -63,7 +69,7 @@ See `agent-hub/SECURITY_ARCHITECTURE.md` for the full threat model and implement
 {
   "format": "delta_v2",
   "generated_at": 1748700000,
-  "count": 24,
+  "count": 24,  // titles added/changed in last 24h
   "titles": [ /* array of title objects — see below */ ]
 }
 ```
