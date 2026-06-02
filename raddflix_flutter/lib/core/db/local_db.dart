@@ -94,6 +94,7 @@ class LocalDb {
         quality   TEXT,
         is_free   INTEGER DEFAULT 0,
         share_url TEXT,
+        filename  TEXT,
         FOREIGN KEY (title_id) REFERENCES titles(id)
       )
     ''');
@@ -328,6 +329,10 @@ class LocalDb {
       // BUG-A36: Add file_id column to titles so getShareUrl() can find movies by file_id
       try { await db.execute('ALTER TABLE titles ADD COLUMN file_id TEXT'); } catch (_) {}
     }
+    if (oldV < 17) {
+      // Add filename to episodes so JazzDriveService can pick the right file in folder shares
+      try { await db.execute('ALTER TABLE episodes ADD COLUMN filename TEXT'); } catch (_) {}
+    }
   }
 
   // ── Titles ────────────────────────────────────────────────────────────────
@@ -514,6 +519,27 @@ class LocalDb {
       return rawUrl != null ? await _decodeUrl(rawUrl) : null;
     }
     return null;
+  }
+
+  /// Get both share_url and filename for a file_id in one DB query.
+  /// Used by player to pass the correct filename to JazzDriveService for folder shares.
+  static Future<Map<String, String?>> getShareInfo(String fileId) async {
+    final db = await instance;
+    final epRows = await db.query('episodes',
+        where: 'file_id = ?', whereArgs: [fileId], limit: 1);
+    if (epRows.isNotEmpty) {
+      final rawUrl  = epRows.first['share_url'] as String?;
+      final filename = epRows.first['filename']  as String?;
+      final url = (rawUrl != null && rawUrl.isNotEmpty) ? await _decodeUrl(rawUrl) : null;
+      return {'share_url': url, 'filename': filename};
+    }
+    final titleRows = await db.rawQuery(
+        'SELECT share_url FROM titles WHERE file_id = ? LIMIT 1', [fileId]);
+    if (titleRows.isNotEmpty) {
+      final rawUrl = titleRows.first['share_url'] as String?;
+      return {'share_url': rawUrl != null ? await _decodeUrl(rawUrl) : null, 'filename': null};
+    }
+    return {'share_url': null, 'filename': null};
   }
 
   /// Save the local poster path for a title (after permanent download).
