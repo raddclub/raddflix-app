@@ -34,6 +34,9 @@ log = logging.getLogger("hub.catalog_api")
 
 bp = Blueprint("catalog_api", __name__, url_prefix="/api/catalog")
 
+# BUG-A35: Flutter calls GET /watch/api/play/<file_id> — register /watch blueprint
+bp_watch = Blueprint("watch_api", __name__, url_prefix="/watch")
+
 _poster_push_jobs: dict = {}
 
 
@@ -304,18 +307,10 @@ def batch_share_url(_user_id=None, _phone=None):
         return jsonify({"error": "server error"}), 500
 
 
-@bp.route("/play")
-@_catalog_require_auth
-def play(_user_id=None, _phone=None):
-    """GET /api/catalog/play?file_id=<id>  — generate/return cached streaming URL."""
-    file_id_str = request.args.get("file_id", "").strip()
-    if not file_id_str:
-        return jsonify({"error": "file_id required"}), 400
-    try:
-        file_id = int(file_id_str)
-    except ValueError:
-        return jsonify({"error": "invalid file_id"}), 400
-
+def _do_play(file_id: int):
+    """Shared play logic — generate/return cached stream URL for a file.
+    Called by both /api/catalog/play and /watch/api/play/<file_id> (BUG-A35).
+    Returns a Flask Response."""
     try:
         cached = db.get_stream_link(file_id)
         if cached:
@@ -371,6 +366,28 @@ def play(_user_id=None, _phone=None):
     except Exception:
         log.exception("Error in play for file_id=%s", file_id)
         return jsonify({"error": "server error"}), 500
+
+
+@bp.route("/play")
+@_catalog_require_auth
+def play(_user_id=None, _phone=None):
+    """GET /api/catalog/play?file_id=<id>  — generate/return cached streaming URL."""
+    file_id_str = request.args.get("file_id", "").strip()
+    if not file_id_str:
+        return jsonify({"error": "file_id required"}), 400
+    try:
+        file_id = int(file_id_str)
+    except ValueError:
+        return jsonify({"error": "invalid file_id"}), 400
+    return _do_play(file_id)
+
+
+@bp_watch.route("/api/play/<int:file_id>")
+@_catalog_require_auth
+def watch_play(file_id, _user_id=None, _phone=None):
+    """BUG-A35: Flutter legacy path GET /watch/api/play/<file_id>.
+    Delegates to shared _do_play() logic."""
+    return _do_play(file_id)
 
 
 @bp.route("/posters")
