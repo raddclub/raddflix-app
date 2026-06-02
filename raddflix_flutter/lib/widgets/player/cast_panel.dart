@@ -1,17 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../services/cast_service.dart' show CastDevice, CastDeviceType;
 
 /// Phase O — Cast / External Output Panel
 /// Lists available cast targets, mirrors to TV/screen via native APIs.
-enum CastDeviceType { chromecast, airplay, dlna, miracast, localScreen }
-
-class CastDevice {
-  final String id, name, host;
-  final CastDeviceType type;
-  final int signalStrength; // 0–4
-  const CastDevice({required this.id, required this.name, required this.host,
-      required this.type, this.signalStrength = 3});
-}
+/// CastDevice and CastDeviceType are defined in cast_service.dart (single source of truth).
 
 class CastPanel extends StatefulWidget {
   final List<CastDevice> devices;

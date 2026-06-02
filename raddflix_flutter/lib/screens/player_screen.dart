@@ -13,7 +13,7 @@ import 'package:volume_controller/volume_controller.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
-import '../services/cast_service.dart' hide CastDevice;
+import '../services/cast_service.dart';
 import '../core/constants.dart';
 import '../core/security/keystore.dart';
 import '../core/db/local_db.dart';

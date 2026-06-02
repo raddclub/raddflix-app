@@ -1,8 +1,19 @@
 import 'package:flutter/services.dart';
 
+enum CastDeviceType { chromecast, airplay, dlna, miracast, localScreen }
+
 class CastDevice {
-  final String id, name, model;
-  const CastDevice({required this.id, required this.name, required this.model});
+  final String id, name, model, host;
+  final CastDeviceType type;
+  final int signalStrength; // 0–4
+  const CastDevice({
+    required this.id,
+    required this.name,
+    this.model = '',
+    this.host = '',
+    this.type = CastDeviceType.chromecast,
+    this.signalStrength = 3,
+  });
 }
 
 class CastService {
@@ -16,6 +27,9 @@ class CastService {
         id: d['id'] as String,
         name: d['name'] as String,
         model: d['model'] as String? ?? '',
+        host: d['host'] as String? ?? '',
+        type: _parseDeviceType(d['type'] as String? ?? ''),
+        signalStrength: (d['signalStrength'] as int?) ?? 3,
       )).toList();
     } catch (_) { return []; }
   }
@@ -46,4 +60,14 @@ class CastService {
       _ch.invokeMethod('seek', {'positionMs': ms}).catchError((_){});
   static Future<void> disconnect() async =>
       _ch.invokeMethod('disconnect').catchError((_){});
+
+  static CastDeviceType _parseDeviceType(String t) {
+    switch (t.toLowerCase()) {
+      case 'airplay':     return CastDeviceType.airplay;
+      case 'dlna':        return CastDeviceType.dlna;
+      case 'miracast':    return CastDeviceType.miracast;
+      case 'localscreen': return CastDeviceType.localScreen;
+      default:            return CastDeviceType.chromecast;
+    }
+  }
 }
