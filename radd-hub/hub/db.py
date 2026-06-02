@@ -662,10 +662,13 @@ def upsert_title(meta: dict) -> Optional[int]:
         vals.append(v)
 
     with _lock, _conn() as c:
-        # Lookup by content_key → slug → tmdb_id
+        # Lookup by content_key → slug → tmdb_id → title+year+media_type
         ck = meta.get("content_key")
         sl = meta.get("slug")
         ti = meta.get("tmdb_id")
+        tv = meta.get("title")
+        yr = meta.get("year")
+        mt = meta.get("media_type")
         existing = None
         if ck:
             existing = c.execute("SELECT id FROM titles WHERE content_key=?", (ck,)).fetchone()
@@ -673,6 +676,14 @@ def upsert_title(meta: dict) -> Optional[int]:
             existing = c.execute("SELECT id FROM titles WHERE slug=?", (sl,)).fetchone()
         if not existing and ti:
             existing = c.execute("SELECT id FROM titles WHERE tmdb_id=?", (ti,)).fetchone()
+        # Fallback: match by normalised title + year + media_type to prevent
+        # re-enrich from inserting duplicate rows for titles that have no
+        # content_key/slug/tmdb_id yet (e.g. scanner-only titles).
+        if not existing and tv and yr and mt:
+            existing = c.execute(
+                "SELECT id FROM titles WHERE LOWER(TRIM(title))=LOWER(TRIM(?)) AND year=? AND media_type=?",
+                (tv, yr, mt)
+            ).fetchone()
         if existing:
             tid = existing["id"]
             # Only overwrite non-null incoming values
