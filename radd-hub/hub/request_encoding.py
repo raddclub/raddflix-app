@@ -157,22 +157,22 @@ def decode_request(req=None) -> Optional[dict]:
     return None
 
 
-def encode_response(data: dict, device_id: str) -> Response:
+def encode_response(data: dict, device_id: str, status: int = 200) -> Response:
     """XOR-encode a JSON response for a device.
 
     Uses current hour key. Client decodes with the same key.
     Falls back to plain JSON if encoding fails.
     """
     if not device_id:
-        return jsonify(data)
+        return jsonify(data), status
     try:
         json_bytes = json.dumps(data, separators=(",", ":")).encode("utf-8")
         key = generate_session_key(device_id)
         encoded = xor_encode(json_bytes, key)
-        return Response(encoded, content_type="application/octet-stream")
+        return Response(encoded, content_type="application/octet-stream", status=status)
     except Exception as e:
         log.error("XOR encode response failed: %s — falling back to plain JSON", e)
-        return jsonify(data)
+        return jsonify(data), status
 
 
 # ── Flask Decorator ────────────────────────────────────────────────────────────

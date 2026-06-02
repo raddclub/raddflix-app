@@ -1548,7 +1548,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _initPlayer() async {
     _player = Player();
-    _videoCtrl = VideoController(_player);
+    _videoCtrl = VideoController(
+      _player,
+      configuration: const VideoControllerConfiguration(
+        androidAttachSurfaceAfterVideoFrameAvailable: true,
+      ),
+    );
     await _openMedia(widget.fileId, localPath: widget.localPath);
     // Auto-load external subtitle (sidecar .srt/.ass/.vtt from local folder or "Open With" intent)
     final _extSubPath = widget.subtitlePath;
