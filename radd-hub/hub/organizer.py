@@ -47,7 +47,7 @@ log = logging.getLogger("hub.organizer")
 _SKIP_FOLDERS: set[str] = {
     '__pycache__', 'system', '.trash', 'thumbnails', 'heartbeat', 'logs',
     'cache', 'temp', 'tmp', 'auth', 'node_modules', '.git', '.idea',
-    'radd-heartbeat', 'raddhub', 'uploads_test_archive', 'radd-test-folder',
+    'radd-heartbeat', 'radd-delta', 'raddhub', 'uploads_test_archive', 'radd-test-folder',
     'radd_test_folder', 'heartbeat (1)', 'radd-heartbeat (1)',
 }
 

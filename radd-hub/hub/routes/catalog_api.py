@@ -495,24 +495,57 @@ def db_update(_user_id=None, _phone=None):
 @bp.route("/delta")
 @_catalog_require_auth
 def delta(_user_id=None, _phone=None):
-    """GET /api/catalog/delta — Oracle fallback for Flutter SyncService._syncFromJazzDriveDelta()."""
+    """GET /api/catalog/delta — Oracle fallback for Flutter SyncService._syncFromJazzDriveDelta().
+
+    IMPORTANT: episodes are nested INSIDE each title object (not a flat top-level array).
+    Flutter reads row['episodes'] from each title — a flat array is silently ignored.
+    """
     now = int(time.time())
+
     with db.conn() as c:
         title_rows = c.execute(
             "SELECT t.id, t.title, t.year, t.media_type, t.plot, "
             "       t.rating, t.genres, t.language, t.is_free, t.updated_at, "
-            "       t.poster, t.poster_share_url, t.runtime, t.season_count, t.episode_count, "
-            "       f.id AS file_id, f.share_url AS file_share_url "
+            "       t.poster, t.poster_share_url, t.folder_share_url, "
+            "       f.id AS file_id, f.share_url AS file_share_url, f.quality "
             "FROM titles t "
             "LEFT JOIN files f ON f.title_id = t.id "
-            "  AND (f.season IS NULL OR f.season = 0) "
+            "  AND (f.season IS NULL OR f.season = 0 OR f.season = '') "
             "WHERE t.is_published = 1 "
             "GROUP BY t.id ORDER BY t.id"
         ).fetchall()
 
-    title_ids, titles_out = [], []
+    title_ids = [r["id"] for r in title_rows]
+
+    # Fetch all episodes and group by title_id (nested, not flat)
+    eps_by_title: dict = {}
+    if title_ids:
+        placeholders = ",".join("?" * len(title_ids))
+        with db.conn() as c:
+            ep_rows = c.execute(
+                "SELECT id, title_id, season, episode, share_url, quality "
+                "FROM files WHERE title_id IN (" + placeholders + ") "
+                "AND season IS NOT NULL AND season > 0 "
+                "ORDER BY title_id, season, episode",
+                title_ids
+            ).fetchall()
+        for r in ep_rows:
+            eps_by_title.setdefault(r["title_id"], []).append({
+                "id":       r["id"],
+                "file_id":  str(r["id"]),
+                "season":   r["season"],
+                "episode":  r["episode"],
+                "label":    "S{:02d}E{:02d}".format(r["season"] or 0, r["episode"] or 0),
+                "quality":  r["quality"] or None,
+                "is_free":  0,
+                "share_url": r["share_url"] or "",
+            })
+
+    titles_out = []
     for r in title_rows:
-        title_ids.append(r["id"])
+        tid = r["id"]
+        mt_raw = (r["media_type"] or "movie").lower().strip()
+        media_type = "show" if mt_raw in ("tv", "series", "show", "tvshow") else "movie"
         genres = []
         try:
             genres = json.loads(r["genres"] or "[]")
@@ -522,54 +555,31 @@ def delta(_user_id=None, _phone=None):
             pass
         psu = r["poster_share_url"] or ""
         titles_out.append({
-            "id":              r["id"],
-            "title":           r["title"] or "",
-            "year":            (int(r["year"]) if r["year"] and str(r["year"]).isdigit() else None),
-            "media_type":      ("show" if (r["media_type"] or "movie") in ("tv", "series") else (r["media_type"] or "movie")),
-            "description":     r["plot"] or "",
-            "rating":          r["rating"],
-            "genres":          genres,
-            "language":        r["language"] or "",
-            "is_free":         1 if r["is_free"] else 0,
-            "runtime":         r["runtime"],
-            "poster_url":      r["poster"] or "",
-            "poster_jd_url":   _poster_jd_url(r["id"], psu),
+            "id":               tid,
+            "title":            r["title"] or "",
+            "year":             (int(r["year"]) if r["year"] and str(r["year"]).isdigit() else None),
+            "media_type":       media_type,
+            "description":      r["plot"] or "",
+            "rating":           r["rating"],
+            "genres":           json.dumps(genres),
+            "language":         r["language"] or "",
+            "is_free":          1 if r["is_free"] else 0,
+            "poster_url":       r["poster"] or "",
+            "poster_jd_url":    _poster_jd_url(tid, psu),
             "poster_share_url": psu,
-            "db_version":      int(r["updated_at"] or 0),
-            "file_id":         str(r["file_id"]) if r["file_id"] is not None else None,
-            "share_url":       r["file_share_url"] or "",
+            "folder_share_url": r["folder_share_url"] or "",
+            "db_version":       int(r["updated_at"] or 0),
+            "file_id":          str(r["file_id"]) if r["file_id"] is not None else None,
+            "share_url":        r["file_share_url"] or "",
+            "episodes":         eps_by_title.get(tid, []),   # nested — Flutter reads row['episodes']
         })
-
-    episodes_out = []
-    if title_ids:
-        placeholders = ",".join("?" * len(title_ids))
-        with db.conn() as c:
-            ep_rows = c.execute(
-                "SELECT id, title_id, filename, season, episode, share_url "
-                "FROM files WHERE title_id IN (" + placeholders + ") "
-                "AND season IS NOT NULL AND season > 0 "
-                "ORDER BY title_id, season, episode",
-                title_ids
-            ).fetchall()
-        for r in ep_rows:
-            episodes_out.append({
-                "id":       r["id"],
-                "title_id": r["title_id"],
-                "file_id":  str(r["id"]),
-                "season":   r["season"],
-                "episode":  r["episode"],
-                "label":    "S{:02d}E{:02d}".format(r["season"] or 0, r["episode"] or 0),
-                "share_url": r["share_url"] or "",
-                "quality":  None,
-                "is_free":  0,
-            })
 
     catalog_version = _catalog_version() or now
     return jsonify({
         "version":      catalog_version,
         "generated_at": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "title_count":  len(titles_out),
         "titles":       titles_out,
-        "episodes":     episodes_out,
     })
 
 

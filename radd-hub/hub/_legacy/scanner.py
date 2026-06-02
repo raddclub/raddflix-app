@@ -39,7 +39,7 @@ SKIP_FOLDERS = {
     '__pycache__', 'system', '.trash', 'thumbnails', 'heartbeat', 'logs',
     'cache', 'temp', 'tmp', 'auth', 'node_modules', '.git', '.idea',
     # Radd-specific junk / test folders — never index these
-    'radd-heartbeat', 'raddhub', 'raddhub',
+    'radd-heartbeat', 'radd-delta', 'raddhub', 'raddhub',
     'uploads_test_archive', 'radd-test-folder', 'radd_test_folder',
     'heartbeat (1)', 'radd-heartbeat (1)',
 }

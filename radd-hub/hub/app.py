@@ -108,6 +108,8 @@ def create_app() -> Flask:
     # ── Catalog / Search / Poster (migrated from _watch_prototype) ────────
     app.register_blueprint(catalog_api.bp)        # url_prefix in blueprint: /api/catalog
     app.register_blueprint(catalog_api.bp_watch)  # BUG-A35: /watch/api/play/<file_id>
+    from .routes import delta_push as _delta_push
+    app.register_blueprint(_delta_push.bp)       # /api/catalog/delta-push/trigger + /status
     app.register_blueprint(search_api.bp)    # url_prefix in blueprint: /api/search
     app.register_blueprint(poster_proxy.poster_proxy_bp)  # /api/poster/*
     # ── Brand Studio (P6) ──────────────────────────────────────────────────────
@@ -296,6 +298,13 @@ def create_app() -> Flask:
             log.warning("startup_refresh error: %s", _e)
 
     threading.Thread(target=_startup_refresh, daemon=True, name="startup-refresh").start()
+
+    # Delta-push: auto-regenerate delta.json on JazzDrive every 6h
+    from .routes import delta_push as _delta_push_bg
+    threading.Thread(target=_delta_push_bg.delta_refresh_loop,
+                     daemon=True, name="delta-refresh").start()
+    self_heal.register_thread("delta-refresh", _delta_push_bg.delta_refresh_loop,
+                              (), _BG_STOP)
 
     from . import bots as _bot_manager
     threading.Thread(target=_bot_manager.start_all,
