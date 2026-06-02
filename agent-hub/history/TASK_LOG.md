@@ -2198,3 +2198,52 @@ Prior sessions (27–29) fixed three bugs: BUG-A32 (poster URLs), BUG-A35 (404 o
 - Install script SSH connection timed out this session — ORACLE_SSH_KEY secret may need re-checking
 
 ---
+
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Session 32)
+
+### Task
+User shared a screenshot of the JazzDrive Radd-Delta folder showing 12+ delta files
+accumulating (delta_pwbln3k2.txt, delta_vdr67wtw.txt, etc.). Asked why old files are
+not deleted when new ones are generated, since accumulation conflicts with the app.
+
+### Root Cause Found
+Three separate upload code paths existed; only ONE of them deleted old files:
+
+| Path | Deleted old file? | Tracked remote_id? |
+|------|------------------|-------------------|
+| `delta_push.py::upload_and_configure()` | ✅ Yes | ✅ Yes |
+| `zero_rating.py::upload_delta()` (manual button) | ❌ No | ❌ No |
+| `scheduler.py::run_delta_generation()` (24h auto) | ❌ No | ❌ No |
+
+`zero_rating.py` (manual "Upload to JazzDrive" button) and `scheduler.py` (24h
+auto-cycle) both uploaded new files without saving `remote_id` or calling
+`jd.trash_files()`. Since JazzDrive only supports folder-level share links (not
+per-file), the app's delta URL points to the whole Radd-Delta folder — users could
+see all 12+ stale delta files instead of just the current one.
+
+Additional bug in `scheduler.py`: it was calling `upload_file_to_jazzdrive()` (the
+video uploader) instead of `upload_json_to_jazzdrive()` (the correct JSON/delta uploader).
+
+### Done
+- Patched `zero_rating.py::upload_delta()`: reads `jd_delta_remote_id` before upload,
+  saves new `remote_id` after success, calls `jd.trash_files()` to delete old file
+- Patched `scheduler.py::run_delta_generation()`: same cleanup logic added; also fixed
+  wrong function call (`upload_file_to_jazzdrive` → `upload_json_to_jazzdrive`)
+- Verified both patches on server with grep
+- Restarted `raddflix_radd` → RUNNING pid 566547
+- Committed both files to GitHub: `fad3322d`
+
+### Files Changed
+- `radd-hub/hub/routes/zero_rating.py` — `upload_delta()`: added prev_remote_id read, new remote_id save, trash_files() call
+- `radd-hub/hub/scheduler.py` — `run_delta_generation()`: same cleanup logic + fixed wrong upload function
+
+### Notes for Next Agent
+- The **existing 12+ stale delta files** in Radd-Delta folder on JazzDrive are still
+  there — the fix only prevents future accumulation. On the next successful upload
+  the one file whose remote_id is stored in `jd_delta_remote_id` will be trashed.
+  The other legacy files (which have no tracked remote_id) will remain until manually
+  deleted from JazzDrive. User can delete them via JazzDrive web UI or a one-off script.
+- DB schema: v16. Next migration: `if (oldV < 17)`
+- Oracle: raddflix_radd RUNNING pid 566547, nginx RUNNING
+
+---
