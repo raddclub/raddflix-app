@@ -3117,3 +3117,85 @@ implemented in MainActivity.kt. Confirmed by reading live file.
 - Oracle: raddflix_radd RUNNING, nginx RUNNING
 - video_thumbnail: ^0.5.3 (AUDIT-11) — still in pubspec; has try-catch graceful degradation; not breaking
 - FileProvider authority is .provider; any native MainActivity.kt content:// URI creation must use "com.raddflix.app.provider"
+
+
+---
+
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Session 37 — Video Type Identification Audit)
+
+### Task
+User asked: verify that the player correctly identifies local device videos, downloaded videos, vault videos, and online/streaming videos. Fix any logic errors.
+
+### Full Audit of Video Type Detection
+
+#### How the player identifies video types:
+
+```
+_isLocalFile getter (player_screen.dart):
+  = (widget.localPath != null && widget.localPath!.isNotEmpty)
+  || _isLocalPath(widget.fileId)
+
+_isLocalPath(path):
+  = path.startsWith('/') || path.startsWith('file://') || path.startsWith('content://')
+```
+
+| Source | fileId | localPath | _isLocalFile | Correct? |
+|--------|--------|-----------|--------------|---------|
+| Online stream (show_detail) | 'abc123' | null | false | ✅ |
+| Downloaded video (show_detail) | 'abc123' | '/data/.../file.mkv' | true | ✅ |
+| Downloads screen (complete) | 'abc123' | '/data/.../file.mkv' | true | ✅ |
+| Downloads screen (null path) | 'abc123' | '' (empty!) | false | ✅ falls back to streaming |
+| Vault video | '' | '/data/.../vault/x' | true | ✅ |
+| Local folder video | '' | '/sdcard/.../x.mp4' | true | ✅ |
+| Open With (content URI) | 'content://...' | null | true (via _isLocalPath) | ✅ |
+
+#### Bugs Found
+
+**BUG 1 (player_screen.dart): `_checkQuota()` null guard inconsistency**
+`if (widget.localPath != null)` used to trigger subscription-expiry check.
+When `downloads_screen._path()` returns `''` for null paths (not null, but empty string),
+`widget.localPath = ''` satisfies `!= null` so expiry check fires — but `_isLocalFile = false`
+(empty localPath) so the player is actually about to stream online.
+This could redirect user to PlanExpiredScreen when it should just try to stream.
+
+**BUG 2 (player_screen.dart): `saveWatchPosition()` called with empty/URI fileId**
+Position listener saves every 10s; dispose saves final position.
+For vault files (fileId='') and Open With (fileId='content://...'): saves useless
+rows to SQLite with garbage keys. Continue-watching never uses these rows.
+
+**BUG 3 (player_screen.dart): `HistoryApi.syncPosition()` called for non-Oracle files**
+In dispose: fires for vault (fileId='') and Open With (fileId='content://...').
+Server receives empty or content-URI fileId → silent 400/404 errors on Oracle.
+
+**BUG 4 (player_screen.dart): `_playNextEpisode()` discards `local_path` from episode map**
+`local_folder_screen.dart` _playAll() builds episodes list with 'local_path' per video.
+But `_playNextEpisode()` only reads 'file_id' and calls `_openMedia(nextFileId)` with no localPath.
+Result: after first video ends in local folder "Play All", auto-advance tries to stream
+from Oracle (with empty fileId) → shows stream error. Next-video never plays locally.
+
+### Navigation Call Sites — All Verified Correct
+
+- **show_detail_screen.dart**: passes `local_path: null` for online, `local_path: dlState.getLocalPath(fileId)` for downloaded ✅
+- **downloads_screen.dart**: passes `local_path: _path(d)` — string, may be '' for null DB paths (graceful fallback to streaming) ✅
+- **vault_screen.dart**: passes `file_id: '', local_path: f.path` → `_isLocalFile = true` ✅
+- **local_folder_screen.dart**: passes `file_id: '', local_path: video.filePath` → `_isLocalFile = true` ✅
+- **"Open With" intent**: fileId = 'content://...', localPath = null → `_isLocalFile = true` via `_isLocalPath()` ✅
+
+### Fixes Applied (commit c2ce697c / API sha da86fe82)
+
+All 4 fixes in player_screen.dart:
+
+1. `_checkQuota()`: `if (widget.localPath != null)` → `if (widget.localPath != null && widget.localPath!.isNotEmpty)`
+2. Position listener `saveWatchPosition`: added guard `widget.fileId.isNotEmpty && !_isLocalPath(widget.fileId) && p.inSeconds % 10 == 0`
+3. Dispose `saveWatchPosition` + `HistoryApi.syncPosition`: guarded outer if with `&& widget.fileId.isNotEmpty && !_isLocalPath(widget.fileId)`
+4. `_playNextEpisode()`: reads `nextLocalPath = next['local_path'] as String?` and calls `_openMedia(nextFileId, localPath: nextLocalPath)` — fixes local folder Play All auto-advance
+
+### Files Changed
+- raddflix_flutter/lib/screens/player_screen.dart (commit c2ce697c, API sha da86fe82, 5627 lines)
+
+### Notes for Next Agent
+- APK rebuild required (player_screen.dart changed)
+- _isLocalFile detection logic itself is correct — the bugs were in downstream code using widget.localPath/fileId directly instead of _isLocalFile
+- downloads_screen._path() still returns '' for null paths (intentional: graceful streaming fallback)
+- local_folder_screen._playAll() episodes map includes 'local_path' per video — now forwarded correctly by _playNextEpisode
+- DB schema: v17. Next migration: if (oldV < 18)
