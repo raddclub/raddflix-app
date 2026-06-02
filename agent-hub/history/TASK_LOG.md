@@ -2320,3 +2320,57 @@ logged out guests the moment their 24h token expired and the server was unreacha
 - DB schema: v16. Oracle: raddflix_radd RUNNING.
 
 ---
+
+---
+
+## [2026-06-02] — Agent: Replit Agent (JazzDrive Startup Cache Warm)
+
+### Task
+Implement startup cache warm for JazzDrive: pre-fetch stream links for the top
+N free catalog items in the background so first-tap playback is instant (0ms
+from SQLite cache) instead of incurring the ~1–2s SAPI handshake cold-start delay.
+
+### Done
+
+**`LocalDb.getTopFreeMovies(int count)`** added to `local_db.dart`:
+- Queries `titles` WHERE `is_free=1 AND media_type='movie'` ordered by `db_version DESC LIMIT n`
+- Decodes scrambled share_urls via existing `_decodeUrl()` before returning
+- Returns `List<Map>` with `id`, `file_id`, `share_url` keys
+
+**`JazzDriveService.warmTopFreeItems(int count)`** added to `jazzdrive_service.dart`:
+- Fire-and-forget: call with `unawaited()` — never blocks UI
+- Iterates top-N free movie rows from `getTopFreeMovies()`
+- Calls `getStreamLink(fileId, shareUrl)` per item
+- Respects existing 180-min TTL — no-op if already cached
+- Per-item and top-level errors swallowed silently (device offline = silent skip)
+- On Jazz SIM all SAPI calls go to cloud.jazzdrive.com.pk (zero-rated)
+
+**`SyncService.sync()`** updated in `sync_service.dart`:
+- `unawaited(JazzDriveService.warmTopFreeItems(8))` fired after successful Oracle sync
+- `unawaited(JazzDriveService.warmTopFreeItems(8))` fired after successful JazzDrive delta sync
+- Added `dart:async` and `jazzdrive_service.dart` imports
+
+**`main.dart`** updated:
+- `unawaited(JazzDriveService.warmTopFreeItems(8))` fired immediately after
+  `JazzDriveService.loadCacheFromDb()` so already-synced users benefit on every
+  cold start without waiting for the next sync cycle
+
+### Files Changed
+- `raddflix_flutter/lib/core/db/local_db.dart` — add `getTopFreeMovies()`
+- `raddflix_flutter/lib/core/services/jazzdrive_service.dart` — add `warmTopFreeItems()`
+- `raddflix_flutter/lib/core/db/sync_service.dart` — fire warm after sync
+- `raddflix_flutter/lib/main.dart` — fire warm on cold start
+
+### Commit
+`bf93ac7d` — feat(jazzdrive): startup cache warm for top free items
+
+### Notes for Next Agent
+- APK rebuild required (3 Flutter files changed)
+- Warm count is hardcoded to 8 in all 3 call sites — adjust in one constant if needed
+- Only `media_type='movie'` items are warmed (episodes/shows out of scope per task spec)
+- If `getTopFreeMovies()` returns 0 rows (empty catalog), `warmTopFreeItems` is a no-op
+- The warm fires twice on a fresh install cold-start: once from `main.dart` (after
+  `loadCacheFromDb`), and once from `SyncService.sync()` after the first full sync —
+  the second call is TTL-gated so effectively a no-op for items just warmed
+
+---
