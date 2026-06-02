@@ -2247,3 +2247,76 @@ video uploader) instead of `upload_json_to_jazzdrive()` (the correct JSON/delta 
 - Oracle: raddflix_radd RUNNING pid 566547, nginx RUNNING
 
 ---
+
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Session 33)
+
+### Task
+User asked to redesign guest mode so it works offline on zero-rated Jazz SIM.
+Requirements:
+- No server call needed for guest login (works 100% offline)
+- Guest token stored locally in SQLite, not from server
+- First-time users can browse and play free content without any internet after install
+- Paid content still requires login + active subscription (unchanged)
+
+### Root Cause of Old Behaviour
+`continueAsGuest()` called `AuthApi.guestLogin()` → hit `/api/auth/guest` server endpoint →
+if offline, this THROWS and the user can't enter the app as guest at all.
+Additionally, `checkAuth()` for guest checked `Keystore.hasTokens()` — server-issued JWT
+with 24h expiry, so guests got silently kicked out every 24 hours even without doing anything.
+And `_AuthInterceptor.onError()` called `Keystore.clearAll()` on refresh failure — which
+logged out guests the moment their 24h token expired and the server was unreachable.
+
+### Design: Offline-First Local Guest Identity
+1. **Local guest ID** — permanent UUID stored in SQLite `sync_meta` table under key `guest_id`.
+   Generated once, survives offline restarts forever. Never sent to server.
+2. **Instant login** — `continueAsGuest()` creates local identity + sets authenticated state
+   immediately. Background: silently tries to get a server token for Oracle catalog fallback.
+3. **checkAuth() for guest** — reads local SQLite only, no Keystore or network call.
+4. **401 protection** — `_AuthInterceptor` checks `ApiClient.isGuestMode` flag; if true,
+   skips `Keystore.clearAll()` so guests are never force-logged-out by a 401.
+5. **Zero-rated catalog** — `SyncService` already uses JazzDrive delta (no auth needed) as
+   primary/fallback. Guest catalog sync works without any server token on Jazz SIM.
+6. **Free/paid gate** — unchanged. `is_free=1` content only for guests.
+
+### Done
+
+#### `raddflix_flutter/lib/core/db/local_db.dart`
+- Added `getOrCreateGuestId()` — creates a permanent `GUEST_<ts>_<rnd>` UUID in sync_meta
+- Added `hasGuestId()` — true if local identity exists
+- Added `clearGuestId()` — for full account reset flows
+
+#### `raddflix_flutter/lib/providers/auth_provider.dart`
+- `continueAsGuest()`: local identity first → set state immediately → background server token
+- Added `_tryAcquireGuestServerToken()`: silent background Oracle fallback, fail = no problem
+- `checkAuth()` guest branch: `getOrCreateGuestId()` + set `ApiClient.isGuestMode = true`,
+  no Keystore check, no network, then background token refresh
+- `login()`: added `ApiClient.isGuestMode = false` after successful login
+- `logout()`: added `ApiClient.isGuestMode = false`
+- Added imports: `api_client.dart`, `local_db.dart`
+
+#### `raddflix_flutter/lib/core/api/api_client.dart`
+- Added `static bool isGuestMode = false` to `ApiClient`
+- `_AuthInterceptor.onError()`: when `ApiClient.isGuestMode = true`, skip `Keystore.clearAll()`
+  and return `handler.next(err)` so guest stays authenticated
+
+### Files Changed
+- `raddflix_flutter/lib/core/db/local_db.dart`
+- `raddflix_flutter/lib/providers/auth_provider.dart`
+- `raddflix_flutter/lib/core/api/api_client.dart`
+
+### GitHub Commit
+`0d6ba805` — feat(auth): offline-first guest mode — local SQLite identity, no internet needed
+
+### Notes for Next Agent
+- APK rebuild required (3 Flutter files changed)
+- DB schema: v16. Next migration: `if (oldV < 17)` — NOT needed for this change
+  (sync_meta table already exists from schema v1, no migration needed)
+- The `guest_id` in sync_meta is permanent — it is NOT cleared on logout (intentional:
+  if user goes back to guest after trying to register, they keep their catalog).
+  Only `clearGuestId()` removes it — call this only on full data wipe.
+- Server `/api/auth/guest` endpoint still exists — app still calls it in background
+  when online (for Oracle catalog fallback). No server-side changes needed.
+- JazzDrive session still expired — cleanup of 12 stale delta files pending re-login.
+- DB schema: v16. Oracle: raddflix_radd RUNNING.
+
+---
