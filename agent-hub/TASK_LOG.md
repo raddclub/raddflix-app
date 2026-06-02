@@ -675,3 +675,57 @@ API endpoints, find all bugs, and fix everything possible.
 - `/api/app/config` endpoint is 404 — may need implementing if mobile app requires it
 
 ---
+
+## [2026-06-02 12:00 UTC] — Agent: Replit Agent (Config Endpoint Session)
+
+### Task
+Implement `GET /api/app/config` — a public remote-config endpoint so the
+Flutter app can fetch server-controlled values on every cold start without
+needing an APK rebuild.
+
+### Done
+- Added `@bp_app.route("/config", methods=["GET"])` to `mobile_api.py`
+  (bp_app is registered at `/api/app` → endpoint is `/api/app/config`)
+- **No auth required** — called before user logs in (RemoteConfig.fetch())
+- Reads all values from DB `settings` table via `db.setting()` with safe
+  hardcoded fallbacks so it never crashes even on an empty DB
+- Errors caught and safe defaults returned — always HTTP 200
+
+**Response fields:**
+| Field | Source | Default |
+|-------|--------|---------|
+| `api_base_url` | hardcoded | `http://92.4.95.252` |
+| `jd_delta_url` | `settings.jd_delta_url` | `""` |
+| `support_whatsapp` | `settings.SUPPORT_WHATSAPP_NUMBER` | `923257719165` |
+| `current_version` | `settings.app_current_version` | `1.0.0` |
+| `min_version_code` | `settings.app_min_version_code` | `0` |
+| `update_url` | `settings.app_update_url` | GitHub releases URL |
+| `update_message` | `settings.app_update_message` | `""` |
+| `flags.otp_device_switch` | `settings.ff_otp_device_switch` | `true` |
+| `flags.recommendations` | `settings.ff_recommendations` | `true` |
+| `flags.zero_rating` | `settings.ff_zero_rating` | `true` |
+| `flags.guest_mode` | `settings.ff_guest_mode` | `true` |
+| `flags.maintenance_mode` | `settings.ff_maintenance_mode` | `false` |
+| `flags.maintenance_message` | `settings.ff_maintenance_message` | `""` |
+| `flags.xor_encoding` | `settings.ff_xor_encoding` | `true` |
+| `brand.*` | 14 Brand Studio fields | RaddFlix defaults |
+
+- Verified live: `curl http://92.4.95.252/api/app/config` → HTTP 200 ✅
+- jd_delta_url, support_whatsapp, all 14 brand fields + 7 flags all present
+
+### Files Changed
+- `radd-hub/hub/routes/mobile_api.py` — added `app_config()` after `app_check()` (line 993)
+
+### Commit
+`bef03b7d` — feat(api): add GET /api/app/config — public remote config endpoint
+
+### Notes for Next Agent
+- Admin can now toggle any feature flag via SQLite settings table without APK rebuild:
+  `INSERT OR REPLACE INTO settings(k,v) VALUES('ff_maintenance_mode','true');`
+  then restart is NOT needed — reads fresh on every request
+- To add a new flag: add it to the `flags` dict in `app_config()` with a `ff_` prefix key
+- Flutter `RemoteConfig.fetch()` should call `GET /api/app/config` on cold start and
+  cache results locally — the endpoint is intentionally unauthenticated
+- Brand fields feed directly from Brand Studio admin panel (Settings → Brand tab)
+
+---
