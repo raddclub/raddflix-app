@@ -10,6 +10,7 @@ import 'core/services/poster_service.dart';
 import 'core/api/history_api.dart';
 import 'core/db/local_db.dart';
 import 'core/security/app_guard.dart';
+import 'core/services/connectivity_sync_service.dart';
 import 'core/services/usage_service.dart';
 
 void main() async {
@@ -54,6 +55,10 @@ void main() async {
       child: RaddFlixApp(),
     ),
   );
+
+  // Start connectivity-triggered sync: flushes unsynced history + usage
+  // immediately when device reconnects (not just on next cold start).
+  ConnectivitySyncService.start();
 
   // Listen for new "Open with" intents while app is running (warm start)
   const MethodChannel('com.raddflix.app/intent')
