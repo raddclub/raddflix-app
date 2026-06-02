@@ -2405,3 +2405,27 @@ Investigate and document exactly how RaddFlix generates direct download and watc
 - stream_links table = Oracle server cache; stream_cache table in Flutter SQLite = client cache
 
 ---
+
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Read-Only Session)
+
+### Task
+User asked: "Find out what the last agent did." Read SKILLS.md and TASK_LOG.md from GitHub to summarize the previous agent's work.
+
+### Done
+- Ran install.sh (SSH key setup — timed out on port 5000 test as expected per Session 26 notes; SSH itself works fine)
+- Fetched and read `agent-hub/SKILLS.md` and `agent-hub/history/TASK_LOG.md` from GitHub
+- Identified the last agent as **Session 11 (2026-06-02 UTC)**: a read-only investigation into how RaddFlix generates direct download/watch links via JazzDrive
+- Summarized findings for the user
+
+### Files Changed
+- `agent-hub/history/TASK_LOG.md` — appended this entry only
+
+### Notes for Next Agent
+- Last agent (Session 11) made NO code changes — purely a documentation/investigation session
+- All previously known open items remain:
+  - 12+ stale delta files on JazzDrive (no tracked remote_id — manual cleanup needed)
+  - APK rebuild required for Flutter changes from Sessions 33 + JazzDrive cache warm session
+  - DB schema: v16. Next migration: `if (oldV < 17)`
+  - Oracle: raddflix_radd RUNNING, nginx RUNNING
+
+---
