@@ -186,6 +186,7 @@ class SyncService {
             'quality':         epRow['quality'],
             'is_free':         (epRow['is_free'] == true || epRow['is_free'] == 1) ? 1 : 0,
             'share_url':       epRow['share_url'] ?? '',
+            'filename':        epRow['filename']  ?? '',
           });
         }
       }
@@ -316,6 +317,7 @@ class SyncService {
           'quality':   ep['quality'],
           'is_free':   (ep['is_free'] == true || ep['is_free'] == 1) ? 1 : 0,
           'share_url': ep['share_url'] as String?,
+          'filename':  ep['filename']  as String?,
         });
       }
     }
