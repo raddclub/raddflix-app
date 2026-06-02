@@ -335,7 +335,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Duration? _abLoopStart;
   Duration? _abLoopEnd;
   bool _abLoopActive = false;
-  Duration? _sleepDuration;
 
   // ── Track Intelligence ────────────────────────────────────────────────────
   int _activeAudioIdx = 0;
@@ -624,7 +623,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Immersive mode: tap = play/pause only, never show controls.
     if (_immersiveMode) {
       _player.playOrPause();
-      _userPaused = !_playing;
+      _userPaused = _playing;
       return;
     }
     if (!_prefs.rageSkipEnabled) { _toggleControls(); return; }
@@ -632,8 +631,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _tapTimer?.cancel();
     if (_tapCount >= 3) {
       _tapCount = 0;
-      final skipSecs = _prefs.rageSkipSeconds;
-      _seekRelative(skipSecs);
+      // Seek directly (not via _seekRelative) to avoid triggering seek flash
+      final target = _position + Duration(seconds: _prefs.rageSkipSeconds);
+      _player.seek(target > _duration ? _duration : target);
       HapticFeedback.heavyImpact();
       setState(() => _rageSkipActive = true);
       Future.delayed(const Duration(milliseconds: 1200), () {
@@ -789,27 +789,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await _loadBookmarks();
   }
 
-  // ── Screenshot → Gallery ──────────────────────────────────────────────────
-  void _openCastPanel() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => CastPanel(
-        devices: _castDevices,
-        connected: _connectedCastDevice,
-        scanning: _castScanning,
-        accentColor: _prefs.accentColor,
-        onConnect: (d) => setState(() => _connectedCastDevice = d),
-        onDisconnect: () => setState(() => _connectedCastDevice = null),
-        onScanRequested: () async {
-          setState(() { _castScanning = true; _castDevices = []; });
-          final discovered = await CastService.discoverDevices();
-          if (mounted) setState(() { _castScanning = false; _castDevices = discovered; });
-        },
-      ),
-    );
-  }
 
   // ── Phase C: Gesture Map ─────────────────────────────────────────────────
   void _openGestureMap() {
@@ -900,12 +879,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => AudioMixerSheet(
-        tracks: _audioTracks,
-        selectedTrackId: _selectedAudioTrack,
+        tracks: _player.state.tracks.audio,
+        selectedTrackId: _activeAudioIdx,
         audioDelay: _prefs.audioTimingOffsetMs / 1000.0,
         accentColor: _prefs.accentColor,
         onTrackSelected: (id) {
-          setState(() => _selectedAudioTrack = id);
+          if (id >= 0 && id < _player.state.tracks.audio.length) {
+            _player.setAudioTrack(_player.state.tracks.audio[id]);
+          }
+          setState(() => _activeAudioIdx = id);
           _applyAudioPrefs(_prefs);
         },
         onDelayChanged: (v) {
@@ -984,10 +966,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }
         break;
       case VoiceIntent.volumeUp:
-        _applyVolumeBoost((_volumeBoost + 0.1).clamp(1.0, 2.0));
+        { final nv = (_volume + 0.1).clamp(0.0, 1.0);
+          VolumeController().setVolume(nv);
+          _np.setProperty('volume', '${(nv * _volumeBoost * 100).toInt()}');
+          setState(() => _volume = nv); }
         break;
       case VoiceIntent.volumeDown:
-        _applyVolumeBoost((_volumeBoost - 0.1).clamp(1.0, 2.0));
+        { final nv = (_volume - 0.1).clamp(0.0, 1.0);
+          VolumeController().setVolume(nv);
+          _np.setProperty('volume', '${(nv * _volumeBoost * 100).toInt()}');
+          setState(() => _volume = nv); }
         break;
       case VoiceIntent.subtitleOn:
         setState(() => _prefs = _prefs.copyWith(subtitleEnabled: true));
@@ -1100,12 +1088,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => SleepTimerSheet(
-        currentTimer: _sleepDuration,
+        currentTimer: _sleepRemainingSeconds != null ? Duration(seconds: _sleepRemainingSeconds!) : null,
         fadeEnabled: _prefs.sleepFadeEnabled,
         fadeDurationSeconds: _prefs.sleepFadeDurationSeconds,
         accentColor: _prefs.accentColor,
-        onTimerSet: (d) => setState(() => _sleepDuration = d),
-        onCancel: () => setState(() => _sleepDuration = null),
+        onTimerSet: (d) => _setSleepTimer(d.inMinutes),
+        onCancel: _cancelSleepTimer,
         onFadeToggled: (v) {
           setState(() => _prefs = _prefs.copyWith(sleepFadeEnabled: v));
           _prefs.save();
@@ -1923,15 +1911,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
     _openMedia(nextFileId);
     _skipIntroTimer?.cancel();
+    final _nextSeriesId = nextFileId.split('/').first;
     _skipIntroTimer = Timer(const Duration(seconds: 5), () async {
       if (!mounted) return;
       if (!SmartIntroStore.shouldShow(
           contentType: widget.contentType,
           totalDuration: _duration)) return;
       if (!_prefs.showSkipIntroButton) return;
-      final seriesId = widget.fileId.split('/').first;
       final saved = await SmartIntroStore.getIntroEnd(
-          seriesId: seriesId, epIndex: _currentEpIdx);
+          seriesId: _nextSeriesId, epIndex: _currentEpIdx);
       if (!mounted) return;
       setState(() { _savedIntroEnd = saved; _skipIntroVisible = _duration.inSeconds > 60; });
       if (_prefs.autoSkipIntroEnabled && saved != null && _duration.inSeconds > 60) {
@@ -2005,16 +1993,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             _sleepRemainingSeconds! <= _prefs.sleepFadeDurationSeconds) {
           _startSleepFade();
         }
-
-        if (_sleepRemainingSeconds! <= 0) {
-          t.cancel();
-          _sleepRemainingSeconds = null;
-          _restoreVolumeAfterSleep();
-          _player.pause();
-          _userPaused = true;
-          setState(() => _showControls = true);
-        }
       });
+      // Expiry logic outside setState — avoids nested setState anti-pattern
+      if (_sleepRemainingSeconds != null && _sleepRemainingSeconds! <= 0) {
+        t.cancel();
+        _player.pause();           // pause FIRST
+        _userPaused = true;
+        _restoreVolumeAfterSleep(); // then restore volume
+        setState(() { _sleepRemainingSeconds = null; _showControls = true; });
+      }
     });
   }
 
@@ -2083,9 +2070,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ? widget.localPath!
         : widget.fileId;
     _seekThumbDebounce?.cancel();
-    _svc?.dispose();
-    _wakeTimer?.cancel();
-    _jazzRetryTimer?.cancel();
     _seekThumbDebounce = Timer(const Duration(milliseconds: 120), () async {
       final ms = (fraction * _duration.inMilliseconds).toInt();
       try {
@@ -2290,7 +2274,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           !_showAbPanel &&
           !_showBookmarksPanel &&
           !_showVideoEnhance &&
-          !_showMorePanel) {
+          !_showMorePanel &&
+          !_showVideoDisplay &&
+          !_showTransparentSlider) {
         setState(() => _showControls = false);
       }
     });
@@ -2657,17 +2643,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   decoration: BoxDecoration(
                       color: Colors.black54,
                       borderRadius: BorderRadius.circular(20)),
-                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.fast_forward_rounded, color: Colors.white, size: 16),
-                    SizedBox(width: 4),
-                    Text('2× Speed',
-                        style: TextStyle(
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.fast_forward_rounded, color: Colors.white, size: 16),
+                    const SizedBox(width: 4),
+                    Text('${_prefs.longPressSpeed}× Speed',
+                        style: const TextStyle(
                             color: Colors.white,
                             fontSize: 13,
                             fontWeight: FontWeight.w600)),
                   ]),
                 ),
-              ).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut),
+              ).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut)
+               .then(delay: 100.ms).fadeOut(duration: 200.ms),
             ),
 
           // ── Sleep fade badge ──
@@ -2734,12 +2721,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   final seekTo = _savedIntroEnd ?? 85;
                   _player.seek(Duration(seconds: seekTo));
                   setState(() => _skipIntroVisible = false);
-                  // Save for next time
-                  final seriesId = widget.fileId.split('/').first;
-                  await SmartIntroStore.saveIntroEnd(
-                    seriesId: seriesId,
-                    epIndex: _currentEpIdx,
-                    positionSeconds: seekTo);
+                  // Only save if user had previously set a custom intro end
+                  if (_savedIntroEnd != null) {
+                    final seriesId = widget.fileId.split('/').first;
+                    await SmartIntroStore.saveIntroEnd(
+                      seriesId: seriesId,
+                      epIndex: _currentEpIdx,
+                      positionSeconds: seekTo);
+                  }
                 },
               onLongPress: () async {
                   // Long-press: clear saved intro time
@@ -2933,7 +2922,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               onBack: () => Navigator.of(context).pop(),
               onPlayPause: () {
                 _player.playOrPause();
-                _userPaused = !_playing;
+                _userPaused = _playing;
               },
               onLongPressPlay: _prefs.longPressPlayRestart ? _onLongPressPlay : null,
               onSeekTo: (frac) {
@@ -3033,6 +3022,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               seekBarStyle: _prefs.seekBarStyle,
               iconPack: _prefs.iconPack,
               moodEnabled: _prefs.contentMoodEnabled,
+              videoFps: double.tryParse(_piFps.split(' ').first) ?? 24.0,
             ),
           )), // end _ControlsOverlay → Opacity → ControlsBackground
             ), // end Transform.translate (Phase H1: oneHandedMode)
@@ -3125,24 +3115,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               )),
 
           // ── Rage Skip Badge ──
+          // ── Rage Skip: full-screen flash ──
+          if (_rageSkipActive)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(color: Colors.red.withOpacity(0.22)).animate()
+                  .fadeIn(duration: 50.ms).then(delay: 150.ms).fadeOut(duration: 200.ms),
+              ),
+            ),
+          // ── Rage Skip: badge ──
           if (_rageSkipActive)
             Center(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Container(color: Colors.red.withOpacity(0.22)).animate()
-                  .fadeIn(duration: 50.ms).then(delay: 150.ms).fadeOut(duration: 200.ms),
-                Container(
+              child: Builder(builder: (_) {
+                final _rs = _prefs.rageSkipSeconds;
+                final _rLabel = _rs < 60
+                    ? '+${_rs}s'
+                    : '+${_rs ~/ 60}:${(_rs % 60).toString().padLeft(2, '0')}' ;
+                return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   decoration: BoxDecoration(
                     color: Colors.red.withOpacity(0.88),
                     borderRadius: BorderRadius.circular(12)),
                   child: Text(
-                    'RAGE SKIP ⚡ +${(_prefs.rageSkipSeconds ~/ 60)}:00',
+                    'RAGE SKIP ⚡ $_rLabel',
                     style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)),
                 ).animate()
                   .scale(begin: const Offset(0.5, 0.5), end: const Offset(1.1, 1.1), duration: 250.ms, curve: Curves.elasticOut)
                   .then().scale(end: const Offset(1.0, 1.0), duration: 100.ms)
-                  .then(delay: 600.ms).fadeOut(duration: 300.ms),
-              ]),
+                  .then(delay: 600.ms).fadeOut(duration: 300.ms);
+              }),
             ),
 
           // ── Binge Guard overlay ──
@@ -3334,6 +3335,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     onSleep: () { setState(() { _showMorePanel = false; _showSleepMenu = !_showSleepMenu; }); },
                     onBookmarks: () { setState(() { _showMorePanel = false; _showBookmarksPanel = !_showBookmarksPanel; }); },
                     onEq: () { setState(() { _showMorePanel = false; _showEqPanel = true; }); },
+                    onClipTrimmer: () { setState(() => _showMorePanel = false); _openClipTrimmer(); },
+                    onShare: () { setState(() => _showMorePanel = false); _shareTimestamp(); },
                     onScreenshot: () { setState(() => _showMorePanel = false); _takeScreenshot(); },
                     onCast: () { setState(() => _showMorePanel = false); _enterCast(); },
                     onPiP: () { setState(() => _showMorePanel = false); _enterPiP(); },
@@ -3476,7 +3479,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               fmtDur: _fmtDur,
               onPlayPause: () {
                 _player.playOrPause();
-                _userPaused = !_playing;
+                _userPaused = _playing;
               },
               onExit: _toggleImmersive,
             ),
@@ -3616,6 +3619,8 @@ class _ControlsOverlay extends StatelessWidget {
   final String seekBarStyle;
   // Phase A3: icon pack (mx|ios|fluent|material3|cute|minimal)
   final String iconPack;
+  // Actual video fps for frame counter (fetched from MPV; defaults to 24)
+  final double videoFps;
 
   const _ControlsOverlay({
     required this.title, required this.playing, required this.buffering,
@@ -3669,6 +3674,7 @@ class _ControlsOverlay extends StatelessWidget {
     this.moodEnabled = false,
     this.seekBarStyle = 'classic',
     this.iconPack = 'mx',
+    this.videoFps = 24.0,
   });
 
   /// Returns the BoxDecoration for the play button based on [shape].
@@ -4160,7 +4166,7 @@ class _ControlsOverlay extends StatelessWidget {
                         const Text('Frame',
                             style: TextStyle(color: Colors.white38, fontSize: 9)),
                         Text(
-                          '#\${(position.inMilliseconds * 24.0 / 1000).round()}',
+                          '#\${(position.inMilliseconds * videoFps / 1000).round()}',
                           style: const TextStyle(color: Colors.white70, fontSize: 9,
                               fontFamily: 'monospace', fontWeight: FontWeight.w600),
                         ),
@@ -4457,38 +4463,6 @@ List<String> _buildSubLabels(List<dynamic> tracks) {
   return names;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// TRACKS PANEL
-// ═══════════════════════════════════════════════════════════════════════════════
-class _TracksPanel extends StatelessWidget {
-  final String title;
-  final List<String> tracks;
-  final int activeIndex;
-  final ValueChanged<int> onSelect;
-  const _TracksPanel({required this.title, required this.tracks, required this.onSelect, this.activeIndex = 0});
-  @override
-  Widget build(BuildContext context) {
-    return Container(width: 200, color: Colors.black87,
-      child: Column(children: [
-        Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700))),
-        Expanded(child: tracks.isEmpty
-            ? const Center(child: Text('No tracks', style: TextStyle(color: Colors.white54, fontSize: 13)))
-            : ListView.builder(itemCount: tracks.length,
-                itemBuilder: (_, i) {
-                  final isActive = i == activeIndex;
-                  return ListTile(
-                    title: Text(tracks[i], style: TextStyle(
-                      color: isActive ? const Color(0xFFE8002D) : Colors.white,
-                      fontWeight: isActive ? FontWeight.w700 : FontWeight.normal)),
-                    trailing: isActive
-                      ? const Icon(Icons.check_rounded, color: Color(0xFFE8002D), size: 16)
-                      : null,
-                    dense: true, onTap: () => onSelect(i));
-                })),
-      ])).animate().slideX(begin: 1, end: 0, duration: 200.ms, curve: AppCurves.standard);
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SEEK FLASH
@@ -4695,6 +4669,8 @@ class _NextEpisodeOverlay extends StatelessWidget {
       final VoidCallback onSleep;
       final VoidCallback onBookmarks;
       final VoidCallback onEq;
+      final VoidCallback onClipTrimmer;
+      final VoidCallback onShare;
       final VoidCallback onScreenshot;
       final VoidCallback onCast;
       final VoidCallback onPiP;
@@ -4722,6 +4698,8 @@ class _NextEpisodeOverlay extends StatelessWidget {
         required this.onSleep,
         required this.onBookmarks,
         required this.onEq,
+        required this.onClipTrimmer,
+        required this.onShare,
         required this.onScreenshot,
         required this.onCast,
         required this.onPiP,
@@ -4738,9 +4716,9 @@ class _NextEpisodeOverlay extends StatelessWidget {
       Widget build(BuildContext context) {
         // 4-column grid matching MX Player screenshot
         final items = <Map<String, dynamic>>[
-          {'icon': Icons.queue_play_next_rounded,    'label': 'Playing\nQueue',    'active': false,             'color': null,                      'tap': onSpeed},
-          {'icon': Icons.content_cut_rounded,        'label': 'Cut',               'active': false,             'color': null,                      'tap': onScreenshot},
-          {'icon': Icons.share_rounded,              'label': 'Share',             'active': false,             'color': null,                      'tap': onOpenWith},
+          {'icon': Icons.queue_play_next_rounded,    'label': 'Playing\nQueue',    'active': false,             'color': null,                      'tap': onVideoDisplay},
+          {'icon': Icons.content_cut_rounded,        'label': 'Cut',               'active': false,             'color': null,                      'tap': onClipTrimmer},
+          {'icon': Icons.share_rounded,              'label': 'Share',             'active': false,             'color': null,                      'tap': onShare},
           {'icon': Icons.display_settings_rounded,   'label': 'Video Display\nShortcuts', 'active': false,     'color': null,                      'tap': onVideoDisplay},
           {'icon': Icons.fit_screen_rounded,         'label': 'Aspect\nRatio',     'active': fitLabel != 'Fit', 'color': const Color(0xFFE8002D),   'tap': onFit},
           {'icon': Icons.favorite_border_rounded,    'label': 'Favourite',         'active': false,             'color': Colors.red,                'tap': onBookmarks},
