@@ -1713,8 +1713,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final _routeArgs = ModalRoute.of(context)?.settings.arguments as Map?;
     final _inlineShareUrl = _routeArgs?['stream_url'] as String?;
 
-    // Step 1: Get share_url from local DB (fast, works offline on Jazz SIM)
-    String? shareUrl = fileId.isNotEmpty ? await LocalDb.getShareUrl(fileId) : null;
+    // Step 1: Get share_url + filename from local DB (fast, works offline on Jazz SIM)
+    String? shareUrl;
+    String? targetFilename;
+    if (fileId.isNotEmpty) {
+      final shareInfo = await LocalDb.getShareInfo(fileId);
+      shareUrl      = shareInfo['share_url'];
+      targetFilename = shareInfo['filename'];
+    }
 
     // Step 2: If not in local DB, try inline shareUrl or ask Oracle
     if (shareUrl == null || shareUrl.isEmpty) {
@@ -1737,7 +1743,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (shareUrl != null && shareUrl.isNotEmpty) {
       final cacheKey = fileId.isNotEmpty ? fileId : 'share_\${shareUrl.hashCode}';
       try {
-        final link = await JazzDriveService.getStreamLink(cacheKey, shareUrl);
+        final link = await JazzDriveService.getStreamLink(cacheKey, shareUrl, targetFilename: targetFilename);
         _currentPlaybackUrl = link.streamUrl;
         await _player.open(Media(link.streamUrl));
         if (mounted) setState(() { _ended = false; _position = Duration.zero; _isLinkLoading = false; });
@@ -1750,7 +1756,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             final freshUrl = await CatalogApi.getShareUrl(fileId);
             if (freshUrl != null && freshUrl.isNotEmpty) {
               await JazzDriveService.invalidate(fileId);
-              final link2 = await JazzDriveService.getStreamLink(fileId, freshUrl);
+              final link2 = await JazzDriveService.getStreamLink(fileId, freshUrl, targetFilename: targetFilename);
               _currentPlaybackUrl = link2.streamUrl;
               await _player.open(Media(link2.streamUrl));
               if (mounted) setState(() { _ended = false; _position = Duration.zero; _isLinkLoading = false; });
