@@ -1810,3 +1810,50 @@ Matches _officialFingerprint in app_guard.dart exactly. Enforcement is ACTIVE an
 - AppGuard fingerprint: verified correct
 
 ### DB version: 15. Next migration uses if (oldV < 16).
+
+---
+
+## [2026-06-02 UTC] — Session 24: Fix "Cannot Connect" + Phone Validation
+
+### Task
+User installed APK, registered and got "Cannot connect. Check your internet." on both
+register and guest mode. Also phone number "03257719165" was rejected with "Must be a
+Pakistani mobile number" even though it is a valid Pakistani number.
+
+### Root Cause Analysis
+1. **API port missing**: `AppConstants.apiBaseUrl = 'http://92.4.95.252'` uses port 80.
+   The Oracle server runs on port **5000**. Nothing listens on port 80.
+   All API calls (register, guest, login) fail with connection refused.
+2. **Server config also wrong**: `/api/config` endpoint in `api.py` hardcoded
+   `'api_base_url': 'http://92.4.95.252'` (no port) — so even RemoteConfig.fetch()
+   could not fix the URL dynamically.
+3. **RemoteConfig bootstrap URL wrong**: `_configUrl = 'http://92.4.95.252/api/config'`
+   also missing port — so the fetch itself failed before getting any override.
+4. **Phone regex bug**: Regex `r'^03\d{9}\$'` used `\$` which in a Dart raw string
+   is a literal backslash+dollar → in regex means literal `$` character, not
+   end-of-string anchor. So "03257719165" (11 valid digits) matched `^03\d{9}` but
+   then required a literal `$` character at position 12 — always failed.
+
+### Done
+- **Oracle server (SSH)**: Fixed `api.py` line 90: `'http://92.4.95.252'` → `'http://92.4.95.252:5000'`
+  Restarted `raddflix_radd`. Verified `/api/config` now returns `"api_base_url":"http://92.4.95.252:5000"`.
+- **Flutter `constants.dart`**: `apiBaseUrl` = `'http://92.4.95.252:5000'`
+- **Flutter `remote_config.dart`**: `_configUrl` = `'http://92.4.95.252:5000/api/config'`
+- **Flutter `register_screen.dart`**: Phone regex `r'^03\d{9}\$'` → `r'^03\d{9}$'`
+
+### Files Changed
+- `radd-hub/hub/routes/api.py` — port 5000 in api_base_url (server + GitHub commit 279bf7f4)
+- `raddflix_flutter/lib/core/constants.dart` — apiBaseUrl port 5000 (commit 0a435dd5)
+- `raddflix_flutter/lib/core/remote_config.dart` — _configUrl port 5000 (commit 0a435dd5)
+- `raddflix_flutter/lib/screens/register_screen.dart` — phone regex fix (commit 0a435dd5)
+
+### Notes for Next Agent
+- SSH from Replit DOES work — key is RSA (BEGIN RSA PRIVATE KEY), stored in .replit
+  with spaces replacing newlines. Use the Python reformat in SKILLS.md Rule 2.
+- Oracle server: raddflix_radd RUNNING on port 5000, raddflix_wa_bot RUNNING.
+- The app needs a new APK build for Flutter fixes to take effect (CI building now on 279bf7f4).
+- After new APK installed: registration and guest mode should work.
+- XOR encoding is active (both sides). The `/api/auth/guest` endpoint returning empty
+  from curl is expected — it's XOR-encoded. The Flutter app decodes it correctly.
+
+---
