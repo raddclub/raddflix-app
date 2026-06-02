@@ -1898,3 +1898,61 @@ at 92.4.95.252:5000. Find all mismatches, fix them.
 - Real users: 15min access + 90-day refresh.
 - GITHUB_TOKEN in .replit shared env — use Python urllib (not curl) for large file pushes.
 - DB schema version: 15. Next migration: if (oldV < 16).
+
+---
+
+## [2026-06-02 UTC] -- Session 26: Fix Cannot Connect / No Internet -- Port 5000 Firewall
+
+### Task
+User installed APK and saw:
+- Register screen: "No internet connection."
+- Sign-in screen: "Cannot connect. Check your internet."
+- Guest mode: same error
+Also: investigate why SSH was failing during install script.
+
+### Root Cause
+iptables rule 3 -- DROP tcp from non-localhost to dpt:5000 -- blocks ALL external traffic to port 5000.
+Nginx sits on ports 80/443 and proxies everything to localhost:5000. Port 80 IS publicly accessible.
+But all three of these URLs contained :5000:
+1. constants.dart: apiBaseUrl = 'http://92.4.95.252:5000'
+2. remote_config.dart: _configUrl = 'http://92.4.95.252:5000/api/config'
+3. api.py /api/config response: 'api_base_url': 'http://92.4.95.252:5000'
+
+Every API call from the Flutter app went directly to the firewalled port 5000 instead of
+going through nginx on port 80. Result: all connections refused -> all auth screens show
+"Cannot connect."
+
+### SSH Note
+SSH key IS valid and working. Use the Python key-reformat pattern (SKILLS.md Rule 2).
+The install.sh script timed out during "Testing Oracle server connection" because it
+tries to connect to port 5000 directly (firewalled). SSH on port 22 works fine.
+
+### Done
+- Oracle server (api.py line 90): 'http://92.4.95.252:5000' -> 'http://92.4.95.252'
+  Applied via SSH, restarted raddflix_radd.
+  Verified: curl http://localhost/api/config returns "api_base_url":"http://92.4.95.252"
+- Flutter constants.dart: apiBaseUrl = 'http://92.4.95.252' (removed :5000)
+- Flutter remote_config.dart: _configUrl = 'http://92.4.95.252/api/config' (removed :5000)
+- Commit: 4ec61441 -- CI building (both APK + CI workflows triggered)
+
+### Verified From Public Internet
+- curl http://92.4.95.252/api/config -> correct api_base_url returned
+- POST http://92.4.95.252/api/auth/guest -> HTTP 200 + access_token
+- POST http://92.4.95.252/api/auth/register -> HTTP 409 (phone exists = server reached)
+- No other :5000 hardcodes found anywhere in Flutter codebase
+- Both supervisor services RUNNING
+
+### Files Changed
+- raddflix_flutter/lib/core/constants.dart -- apiBaseUrl port removed
+- raddflix_flutter/lib/core/remote_config.dart -- _configUrl port removed
+- radd-hub/hub/routes/api.py -- api_base_url response port removed
+
+### Notes for Next Agent
+- The new APK from commit 4ec61441 must be installed for Flutter changes to take effect.
+- Port 5000 is intentionally firewalled externally. ALL Flutter API calls MUST use port 80
+  via nginx. NEVER hardcode :5000 in Flutter or in the /api/config response.
+- SSH from Replit works fine -- use Python key-reformat (SKILLS.md Rule 2).
+- Oracle: raddflix_radd RUNNING, raddflix_wa_bot RUNNING, nginx RUNNING.
+- DB schema version: 15. Next migration: if (oldV < 16).
+
+---
