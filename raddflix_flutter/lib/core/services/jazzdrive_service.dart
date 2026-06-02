@@ -87,6 +87,7 @@ class JazzDriveService {
     String fileId,
     String shareUrl, {
     int? titleId,
+    String? targetFilename,
   }) async {
     // 1. Check in-memory cache
     final mem = _inMemory[fileId];
@@ -122,7 +123,7 @@ class JazzDriveService {
 
     // 3. Generate fresh link via JazzDrive API (zero-rated)
     DebugLogger.log('JAZZDRIVE', 'Generating fresh link for file $fileId');
-    final link = await _generateLink(shareUrl);
+    final link = await _generateLink(shareUrl, targetFilename: targetFilename);
 
     // 4. Cache result
     final expiresAt = DateTime.now().add(_cacheTtl);
@@ -191,7 +192,7 @@ class JazzDriveService {
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
-  static Future<JazzDriveLink> _generateLink(String shareUrl) async {
+  static Future<JazzDriveLink> _generateLink(String shareUrl, {String? targetFilename}) async {
     // Extract share key from URL
     final shareKey = _extractShareKey(shareUrl);
     if (shareKey == null) {
@@ -202,7 +203,7 @@ class JazzDriveService {
     final session = await _loginShare(shareKey);
 
     // Step 2: Get video media list → get CDN URL + poster
-    final record = await _getMedia(shareKey, session.validationKey, session.cookie);
+    final record = await _getMedia(shareKey, session.validationKey, session.cookie, targetFilename: targetFilename);
 
     // Step 3: Build final URL (DO NOT add validationkey — k= token is self-signing)
     final streamUrl = _buildStreamUrl(record.rawUrl, record.filename);
@@ -262,8 +263,9 @@ class JazzDriveService {
   static Future<_MediaRecord> _getMedia(
     String shareKey,
     String validationKey,
-    String cookie,
-  ) async {
+    String cookie, {
+    String? targetFilename,
+  }) async {
     final mediaUrl = '$_cloudBase/sapi/media/video'
         '?action=get&shared=true'
         '&key=${Uri.encodeComponent(shareKey)}'
@@ -307,7 +309,38 @@ class JazzDriveService {
       throw Exception('JazzDrive: no video records found in share');
     }
 
-    final rec = records.first as Map<String, dynamic>;
+    // 3-pass filename match so folder-shares (e.g. Off Campus) pick the right episode.
+    // Falls back to records.first for single-file shares.
+    String _rname(dynamic r) =>
+        ((r as Map<String, dynamic>)['name'] ?? r['filename'] ?? '') as String;
+    Map<String, dynamic>? rec;
+    if (targetFilename != null && targetFilename.isNotEmpty) {
+      final tgt = targetFilename.toLowerCase();
+      // Pass 1: exact case-insensitive substring
+      for (final r in records) {
+        final n = _rname(r).toLowerCase();
+        if (n.contains(tgt) || tgt.contains(n)) { rec = r as Map<String, dynamic>; break; }
+      }
+      // Pass 2: normalised (dots/underscores → spaces)
+      if (rec == null) {
+        String norm(String s) => s.replaceAll(RegExp(r'[._]'), ' ').toLowerCase();
+        for (final r in records) {
+          final n = norm(_rname(r));
+          if (n.contains(norm(tgt)) || norm(tgt).contains(n)) { rec = r as Map<String, dynamic>; break; }
+        }
+      }
+      // Pass 3: episode code match — e.g. "s01e04" anywhere in filename
+      if (rec == null) {
+        final em = RegExp(r's(\d{1,2})e(\d{1,2})', caseSensitive: false).firstMatch(tgt);
+        if (em != null) {
+          final code = 's\${em.group(1)!.padLeft(2, '0')}e\${em.group(2)!.padLeft(2, '0')}';
+          for (final r in records) {
+            if (_rname(r).toLowerCase().contains(code)) { rec = r as Map<String, dynamic>; break; }
+          }
+        }
+      }
+    }
+    rec ??= records.first as Map<String, dynamic>;
     final rawUrl = (rec['url'] ?? rec['downloadUrl'] ?? rec['download_url'] ?? '') as String;
     final filename = (rec['name'] ?? rec['filename'] ?? 'video.mkv') as String;
 
