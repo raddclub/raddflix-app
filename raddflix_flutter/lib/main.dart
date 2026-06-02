@@ -7,8 +7,10 @@ import 'core/remote_config.dart';
 import 'core/services/app_update_service.dart';
 import 'core/services/jazzdrive_service.dart';
 import 'core/services/poster_service.dart';
+import 'core/api/history_api.dart';
 import 'core/db/local_db.dart';
 import 'core/security/app_guard.dart';
+import 'core/services/usage_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +39,9 @@ void main() async {
   await PosterService.init();
   await JazzDriveService.loadCacheFromDb();
   await LocalDb.cleanExpiredStreamCache();
+  // Offline-first: push any positions saved while offline + pending usage bytes
+  HistoryApi.flushUnsynced().ignore();
+  UsageService.flushPending().ignore();
 
   // Check for initial video URI from "Open with" intent (cold start)
   try {

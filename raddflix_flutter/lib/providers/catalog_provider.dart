@@ -229,6 +229,15 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
     state = state.copyWith(recentlyWatched: []);
   }
 
+  /// Reload just the Continue Watching list from local DB.
+  /// Called after HistoryApi.mergeServerHistory() to surface cross-device history.
+  Future<void> reloadRecentlyWatched() async {
+    try {
+      final recent = await _loadRecentlyWatched(state.movies, state.shows);
+      state = state.copyWith(recentlyWatched: recent);
+    } catch (_) {}
+  }
+
     Future<void> loadRecommendations() async {
     try {
       final recs = await CatalogApi.fetchRecommendations(limit: 20);

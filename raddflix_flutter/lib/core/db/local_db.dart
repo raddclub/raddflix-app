@@ -107,7 +107,8 @@ class LocalDb {
         file_id     TEXT PRIMARY KEY,
         position_ms INTEGER DEFAULT 0,
         duration_ms INTEGER DEFAULT 0,
-        updated_at  INTEGER DEFAULT 0
+        updated_at  INTEGER DEFAULT 0,
+        synced      INTEGER DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -317,6 +318,10 @@ class LocalDb {
           )
         ''');
       } catch (_) {}
+    }
+    if (oldV < 15) {
+      // Offline-first history sync queue: track which positions have been pushed to server
+      try { await db.execute('ALTER TABLE watch_positions ADD COLUMN synced INTEGER DEFAULT 0'); } catch (_) {}
     }
   }
 
@@ -675,6 +680,7 @@ class LocalDb {
         'position_ms': positionMs,
         'duration_ms': durationMs,
         'updated_at':  DateTime.now().millisecondsSinceEpoch,
+        'synced':      0,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -706,6 +712,59 @@ class LocalDb {
     required int durationMs,
   }) async {
     await savePosition(fileId, positionMs, durationMs: durationMs);
+  }
+
+  /// Returns all watch positions not yet confirmed synced to the server.
+  /// Called by HistoryApi.flushUnsynced() on startup and connectivity restore.
+  static Future<List<Map<String, dynamic>>> getUnsyncedPositions() async {
+    final db = await instance;
+    return db.query('watch_positions',
+        where: 'synced = 0 AND position_ms > 0',
+        orderBy: 'updated_at DESC');
+  }
+
+  /// Mark a watch position as successfully confirmed on the server.
+  static Future<void> markPositionSynced(String fileId) async {
+    final db = await instance;
+    await db.update(
+      'watch_positions',
+      {'synced': 1},
+      where: 'file_id = ?',
+      whereArgs: [fileId],
+    );
+  }
+
+  /// Upsert a server-side history entry into local DB.
+  /// Only overwrites local position if the server record is newer (watchedAt > updated_at).
+  /// Marks synced=1 — came from server, no need to re-push.
+  static Future<void> upsertServerPosition({
+    required String fileId,
+    required int positionMs,
+    required int durationMs,
+    required int watchedAtEpochSecs,
+  }) async {
+    final db = await instance;
+    final serverTs = watchedAtEpochSecs * 1000; // epoch-sec → epoch-ms
+    final existing = await db.query('watch_positions',
+        where: 'file_id = ?', whereArgs: [fileId], limit: 1);
+    if (existing.isNotEmpty) {
+      final localTs = existing.first['updated_at'] as int? ?? 0;
+      if (serverTs <= localTs) return; // local is newer — keep it
+      await db.update('watch_positions', {
+        'position_ms': positionMs,
+        'duration_ms': durationMs,
+        'updated_at':  serverTs,
+        'synced':      1,
+      }, where: 'file_id = ?', whereArgs: [fileId]);
+    } else {
+      await db.insert('watch_positions', {
+        'file_id':     fileId,
+        'position_ms': positionMs,
+        'duration_ms': durationMs,
+        'updated_at':  serverTs,
+        'synced':      1,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
   }
 
   // ── Downloads ─────────────────────────────────────────────────────────────

@@ -1,4 +1,6 @@
 import '../api/api_client.dart';
+import '../db/local_db.dart';
+import '../debug/debug_logger.dart';
 
 /// BUG-A08 / BUG-A19: Watch history API client.
 ///
@@ -27,8 +29,10 @@ class HistoryApi {
           'duration_ms': durationMs,
         },
       );
+      // Mark synced so flushUnsynced() skips it on next startup
+      await LocalDb.markPositionSynced(fileId);
     } catch (_) {
-      // Offline or auth error — local DB already has the position, ignore.
+      // Offline or auth error — synced=0 stays in local DB; flushUnsynced() retries on next startup.
     }
   }
 
@@ -55,5 +59,45 @@ class HistoryApi {
   static DateTime watchedAtToDateTime(dynamic watchedAt) {
     final secs = (watchedAt as num?)?.toInt() ?? 0;
     return DateTime.fromMillisecondsSinceEpoch(secs * 1000);
+  }
+
+  // ── Offline-first sync ────────────────────────────────────────────────────
+
+  /// Push all locally-saved positions not yet confirmed on the server (synced=0).
+  /// Safe to call every app startup — idempotent. Guest/offline users fail gracefully.
+  static Future<void> flushUnsynced() async {
+    final pending = await LocalDb.getUnsyncedPositions();
+    if (pending.isEmpty) return;
+    DebugLogger.log('HISTORY', 'Flushing \${pending.length} unsynced position(s) to server');
+    for (final row in pending) {
+      final fileId     = row['file_id']     as String? ?? '';
+      final positionMs = row['position_ms'] as int?    ?? 0;
+      final durationMs = row['duration_ms'] as int?    ?? 0;
+      if (fileId.isEmpty || positionMs <= 0) continue;
+      await syncPosition(
+          fileId: fileId, positionMs: positionMs, durationMs: durationMs);
+    }
+  }
+
+  /// Pull watch history from the server and merge into local DB (newer wins).
+  /// Enables cross-device 'Continue Watching': positions saved on another device
+  /// appear locally after this call. Should be called when authenticated.
+  static Future<void> mergeServerHistory() async {
+    final serverHistory = await getHistory();
+    if (serverHistory.isEmpty) return;
+    DebugLogger.log('HISTORY', 'Merging \${serverHistory.length} server history entry/ies into local DB');
+    for (final entry in serverHistory) {
+      final fileId     = entry['file_id']     as String? ?? '';
+      final positionMs = (entry['position_ms'] as num?)?.toInt() ?? 0;
+      final durationMs = (entry['duration_ms'] as num?)?.toInt() ?? 0;
+      final watchedAt  = (entry['watched_at']  as num?)?.toInt() ?? 0;
+      if (fileId.isEmpty) continue;
+      await LocalDb.upsertServerPosition(
+        fileId:             fileId,
+        positionMs:         positionMs,
+        durationMs:         durationMs,
+        watchedAtEpochSecs: watchedAt,
+      );
+    }
   }
 }

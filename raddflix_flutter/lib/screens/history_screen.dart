@@ -1,16 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/api/history_api.dart';
 import '../core/constants.dart';
 import '../models/catalog_item.dart';
 import '../providers/catalog_provider.dart';
 import '../widgets/content_card.dart';
 
-class HistoryScreen extends ConsumerWidget {
+class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Pull server history so cross-device positions appear in Continue Watching.
+    // Fire-and-forget — UI shows local data immediately; refreshes after merge.
+    _mergeServerHistory();
+  }
+
+  Future<void> _mergeServerHistory() async {
+    await HistoryApi.mergeServerHistory();
+    if (mounted) {
+      await ref.read(catalogProvider.notifier).reloadRecentlyWatched();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final catalog = ref.watch(catalogProvider);
     final items = catalog.recentlyWatched;
 
