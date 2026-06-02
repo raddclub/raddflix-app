@@ -563,7 +563,7 @@ function queueTitle(){
 async function loadTitleFiles(titleId){
   const el=document.getElementById('detail-files');
   try{
-    const d=await api('/library/api/title/'+titleId+'/files');
+    const d=await api('/library/api/files?title_id='+titleId);
     const files=d.files||[];
     if(!files.length){ el.innerHTML='<div class="muted">No files in library.</div>'; return; }
     el.innerHTML=files.map(f=>`

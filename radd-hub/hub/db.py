@@ -358,7 +358,7 @@ _DDL = [
     )""",
     "CREATE INDEX IF NOT EXISTS idx_usage_jid ON user_usage(user_jid, date)",
 
-    # ---- app_users — JazzMAX Android app subscriber accounts
+    # ---- app_users — RaddFlix Android app subscriber accounts
     """CREATE TABLE IF NOT EXISTS app_users (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         phone           TEXT UNIQUE NOT NULL,

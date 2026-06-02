@@ -150,6 +150,85 @@ def _list_titles_filtered(q="", media_type="", genre="", director="", actor="",
     return [db._enrich_title(r) for r in rows]
 
 
+
+
+
+def _notify_new_title_bg(title_id: int, val: int) -> None:
+    """Background: create in-app notification + WhatsApp blast when a title is published.
+
+    Skips if already notified (settings key notified_title_<id>).
+    Only fires when val == 1 (title being published, not unpublished).
+    """
+    if val != 1:
+        return
+    import time as _t
+    import threading as _th
+
+    dedup_key = "notified_title_" + str(title_id)
+    with db.conn() as c:
+        already = c.execute(
+            "SELECT v FROM settings WHERE k=?", (dedup_key,)
+        ).fetchone()
+        if already:
+            return  # already notified once — skip re-publish cycles
+        row = c.execute(
+            "SELECT title, media_type, poster FROM titles WHERE id=?", (title_id,)
+        ).fetchone()
+    if not row:
+        return
+
+    t_name = row["title"] or "New Title"
+    m_type = row["media_type"] or "movie"
+    poster = row["poster"] or ""
+    emoji  = "🎬" if m_type == "movie" else "📺"
+    label  = "movie" if m_type == "movie" else "show"
+    notif_title = emoji + " New on RaddFlix: " + t_name
+    notif_body  = t_name + " (" + label + ") is now available. Open RaddFlix to watch!"
+    wa_msg      = (emoji + " *New on RaddFlix!*\n"
+                   "*" + t_name + "* is now available to stream.\n"
+                   "Open the RaddFlix app to watch it now!")
+    now = int(_t.time())
+
+    with db.conn() as c:
+        c.execute(
+            "INSERT INTO notifications(user_id,title,body,image_url,created_at)"
+            " VALUES(?,?,?,?,?)",
+            (None, notif_title, notif_body, poster or None, now)
+        )
+        c.execute(
+            "INSERT OR REPLACE INTO settings(k,v) VALUES(?,?)",
+            (dedup_key, str(now))
+        )
+
+    import logging as _log
+    _log = _log.getLogger("hub.library")
+
+    def _wa_blast():
+        try:
+            import requests as _req
+            with db.conn() as c:
+                users = c.execute(
+                    "SELECT phone FROM app_users"
+                    " WHERE is_active=1 AND phone IS NOT NULL"
+                ).fetchall()
+            for u in users:
+                phone = (u["phone"] or "").lstrip("0")
+                if not phone.startswith("92"):
+                    phone = "92" + phone
+                jid = phone + "@s.whatsapp.net"
+                try:
+                    _req.post(
+                        "http://127.0.0.1:3000/api/send-message",
+                        json={"jid": jid, "text": wa_msg},
+                        timeout=8,
+                    )
+                except Exception:
+                    pass
+        except Exception as _e:
+            _log.warning("WA blast failed: %s", _e)
+
+    _th.Thread(target=_wa_blast, daemon=True, name="notif-wa-blast").start()
+
 @bp.route("/")
 @auth.login_required
 def page():
@@ -268,7 +347,7 @@ def api_poster(title_id):
     if res.get("ok"):
         direct_link = res["direct_link"]
         # Cache (default expiry for 'links' is 24h)
-        turbo_cache.set(cache_key, direct_link, site="jazzdrive", cat="links")
+        turbo_cache.set(cache_key, site="jazzdrive", cat="links", data=direct_link)
         return redirect(direct_link, code=302)
 
     return jsonify({"error": "could not generate link", "detail": res.get("error")}), 503
@@ -330,7 +409,7 @@ def api_trending():
                (SELECT COUNT(*) FROM watch_history wh
                 JOIN files fi ON fi.id = CAST(wh.file_id AS INTEGER)
                 WHERE fi.title_id = t.id
-                  AND wh.updated_at >= datetime('now', '-60 days')
+                  AND wh.watched_at >= datetime('now', '-60 days')
                ) AS recent_views
         FROM titles t
         {where}
@@ -540,6 +619,8 @@ def api_set_published(title_id):
         c.execute("UPDATE titles SET is_published=? WHERE id=?", (val, title_id))
     # Auto-regenerate db_update.json so zero-rated users get updated catalog
     threading.Thread(target=_regen_db_update_bg, daemon=True).start()
+    # Auto-notify users when a title goes live (in-app + WhatsApp)
+    threading.Thread(target=_notify_new_title_bg, args=(title_id, val), daemon=True).start()
     return jsonify({"ok": True, "is_published": val})
 
 
@@ -919,4 +1000,3 @@ def set_status():
     import threading as _thr
     _thr.Thread(target=_regen_db_update_bg, daemon=True).start()
     return jsonify({"ok": True, "title_id": title_id, "status": status, "is_ongoing": is_ongoing})
-
