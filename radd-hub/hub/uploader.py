@@ -81,7 +81,7 @@ class _RingHandler(logging.Handler):
 def _install_ring_handler() -> None:
     """Attach the ring handler to all hub loggers once at startup."""
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-                            datefmt="%H:%M:%S")
+                            datefmt="%I:%M:%S %p")
     h = _RingHandler()
     h.setFormatter(fmt)
     for name in ("hub.uploader", "hub.keepalive", "hub.jazzdrive",

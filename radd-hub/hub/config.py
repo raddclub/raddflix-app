@@ -188,7 +188,7 @@ def setup_logging(name: str = "raddhub") -> logging.Logger:
         h.setFormatter(_JsonFormatter())
     else:
         h.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-                                         datefmt="%Y-%m-%d %H:%M:%S"))
+                                         datefmt="%Y-%m-%d %I:%M:%S %p"))
     root = logging.getLogger()
     root.handlers[:] = [h]
     root.setLevel(level)
