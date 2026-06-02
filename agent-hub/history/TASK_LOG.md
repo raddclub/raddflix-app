@@ -1857,3 +1857,44 @@ Pakistani mobile number" even though it is a valid Pakistani number.
   from curl is expected — it's XOR-encoded. The Flutter app decodes it correctly.
 
 ---
+
+---
+
+## [2026-06-02 UTC] — Session 25: Full API Audit + Guest 401 Bug Fix
+
+### Task
+Complete end-to-end audit of every endpoint the Flutter app calls vs the live server
+at 92.4.95.252:5000. Find all mismatches, fix them.
+
+### Audit Results — CONFIRMED OK (no bug)
+- **Watchlist**: 100% local (LocalDb). watchlist_provider.dart never calls the network.
+- **Usage**: Flutter uses POST /api/usage (log bytes) + GET /api/usage/quota. Server has exactly these. ✓
+- **Catalog sync**: SyncService uses `since` param for delta, syncFull() on first run. ✓
+- **CatalogItem.fromJson()**: Handles `plot`→description, `poster`→posterUrl, genres array→join. ✓
+- **Search**: Uses local SQLite FTS5 — NOT the server /api/search. ✓
+- **subscription.plan**: _get_subscription_status() includes `plan` in dict. UserSubscription.fromJson reads it. ✓
+- **/api/auth/me**: Flat object — AppUser.fromJson handles via `json['user'] ?? json`. ✓
+- **LoginResult**: refresh_token always in login response. Handles user_id and user['id']. ✓
+- **Register → login**: Register returns ok+message only. Flutter calls login() after. ✓
+- **/api/catalog/poster/<id>**: Route exists in catalog_api.py. poster_jd_url path correct. ✓
+- **Episode quality**: null in sync — upsertEpisode handles null. ✓
+- **XOR encoding**: Active both sides. All endpoints tested with X-Encoded:1 headers. ✓
+
+### Bug Found and Fixed
+- **BUG-A31: Guest logout after 24h token expiry**
+  Guest tokens have 24h lifetime, no refresh token (stored as ''). On 401,
+  _tryRefresh() found empty refreshToken → returned false → Keystore.clearAll()
+  → guest permanently logged out.
+  **Fix**: In _tryRefresh(), empty refresh_token → POST /api/auth/guest to re-issue
+  guest token instead of clearing session.
+  Commit: 7a8db49d
+
+### Files Changed
+- `raddflix_flutter/lib/core/api/api_client.dart` — BUG-A31 (commit 7a8db49d)
+
+### Notes for Next Agent
+- All API endpoints verified against live 92.4.95.252:5000. Port fix (Session 24) confirmed working.
+- Guest tokens: 24h lifetime. After fix, guests auto-renew on 401.
+- Real users: 15min access + 90-day refresh.
+- GITHUB_TOKEN in .replit shared env — use Python urllib (not curl) for large file pushes.
+- DB schema version: 15. Next migration: if (oldV < 16).
