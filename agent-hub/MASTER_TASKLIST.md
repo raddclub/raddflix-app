@@ -1,5 +1,5 @@
 # RaddFlix — Master Task List
-> Last Updated: 2026-06-02 (Session 38 — AUDIT fixes + player_prefs copyWith)
+> Last Updated: 2026-06-02 (Session 33 — Bug Audit + Docs Update)
 > Read REINCARNATION.md first. Read CODE_MAP.md before touching any file.
 
 ---
@@ -21,7 +21,7 @@
 | 0.2 | Oracle server (radd-hub port 5000 via nginx 80) | OK | raddflix_radd supervisor. Restarted 2026-06-02 pid 579642 |
 | 0.3 | SSH from Replit to Oracle | OK | Use node key reformat (see SKILLS.md Rule 2). Python3 also works. |
 | 0.4 | APK keystore | OK | SHA-256: BA:4E:41:2D:...:CD:07 |
-| 0.5 | XOR encoding (Flutter + server) | OK | Both sides live. encode_response() uses matched session key (AUDIT-08 fixed) |
+| 0.5 | XOR encoding (Flutter + server) | OK | Both sides live. encode_response() accepts status param (fixed ae96f15e) |
 
 ---
 
@@ -49,9 +49,9 @@
 | A2 | 10 Seek Bar Styles (CustomPainter) | OK | seek_bar_painter.dart |
 | A3 | 8 Bundled Themes (Sakura, Gold, Matrix, etc.) | OK | player_theme.dart |
 | A4 | Theme picker sheet | OK | theme_picker_sheet.dart |
-| A5 | Wire accent + seekBarStyle to player_screen.dart | OK | Fully wired: prefs.accentColor/seekBarStyle passed to _ControlsOverlay; QuickSettingsPanel has full UI; load()/save() persist both. MASTER_TASKLIST note was stale. |
-| A6 | Button/Icon Style System (ButtonShape: circle/squircle/rounded/pill) | OK | Wired in quick_settings_panel.dart + player_screen.dart |
-| A7 | Controls Background Style (glass/gradient/solid/mesh) | OK | Wired in quick_settings_panel.dart |
+| A5 | Wire accent + seekBarStyle to player_screen.dart | TODO | Accent/seekbar still use hardcoded colors in player |
+| A6 | Button/Icon Style System (ButtonShape: circle/squircle/rounded/pill) | TODO | Phase A3 in FEATURES_ROADMAP |
+| A7 | Controls Background Style (glass/gradient/solid/mesh) | TODO | Phase A4 in FEATURES_ROADMAP |
 | A8 | Drag & Drop Layout Designer | TODO | Phase B in FEATURES_ROADMAP |
 
 ---
@@ -71,7 +71,7 @@
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 3.1 | PosterService — permanent storage, never re-download | OK | |
-| 3.2 | runBackgroundSync() — 100 posters/day | OK | Fires once via catalog_provider static guard. Removed duplicate home_screen.dart call (AUDIT-10). |
+| 3.2 | runBackgroundSync() — 100 posters/day | OK | fires once when CatalogStatus.ready |
 | 3.3 | saveFromJazzDrive() | OK | |
 | 3.4 | Use local poster_path in home_screen | OK | |
 
@@ -122,34 +122,32 @@
 
 ---
 
-## Audit Fixes (Sessions 35–38)
-
-| # | Bug | Status | Notes |
-|---|-----|--------|-------|
-| AUDIT-01 | subtitle_path missing from route | OK | Fixed Session 35 |
-| AUDIT-03 | fileId missing in _rowToItem | OK | Fixed Session 35 |
-| AUDIT-04 | XOR decode in _tryRefresh | OK | Fixed Session 35 |
-| AUDIT-05 | file_id in mergeDeltaTitle UPDATE | OK | Fixed Session 35 |
-| AUDIT-07 | ExoPlayer 2 Cast extension removed | OK | Fixed Session 36 |
-| AUDIT-08 | XOR hour-boundary decode fails (encode with wrong key) | OK | encode_response uses g.xor_session_key from decode_request (Session 38) |
-| AUDIT-09 | warmTopFreeItems called 3× on cold start | OK | 60-min static guard added to JazzDriveService (Session 38) |
-| AUDIT-10 | PosterService.runBackgroundSync() called twice on first launch | OK | Removed duplicate call from home_screen.dart; catalog_provider static guard is sole caller (Session 38) |
-| AUDIT-11 | video_thumbnail deprecated/unmaintained | LOW | try-catch graceful degradation in place; no crash |
-| AUDIT-12 | UsageService hardcodes 720p quality fallback | LOW | Logic bug only; not user-visible |
-| AUDIT-13 | speed_presets_sheet.dart imported twice in player_screen.dart | OK | Duplicate removed (Session 38) |
-| AUDIT-14 | RequestEncoder comment says keep disabled but it is enabled | OK | Comment updated to reflect server-side is deployed and active (Session 38) |
-| AUDIT-15 | _connectivitySub lazy final pattern in profile_screen.dart | LOW | Non-standard but functional; no crash |
-| AUDIT-16 | Keystore.clearAll() doesn't document why deviceId preserved | LOW | Design intent only; no functional impact |
-| AUDIT-17 | _rowToItem() reads encoded shareUrl from SQLite | LOW | Player decodes before playback; only risk is if passed inline before decode — already guarded |
-
----
-
 ## Known Issues / Remaining Work
 
 | # | Issue | Priority |
 |---|-------|----------|
+| R1 | Wire accent color + seekBarStyle into player_screen.dart seek bar + play button | High |
 | R2 | All 24 catalog titles is_free=0 — no free content for guests | Medium |
 | R3 | folder_share_url=NULL for all titles | Low |
 | R4 | SSL/HTTPS — self-signed cert — need Let's Encrypt when domain ready | Low |
 | R5 | WA Bot WhatsApp pairing pending | Low |
 | R6 | JazzDrive SAPI 401 — server cannot upload new files (does not affect streaming) | Low |
+
+---
+
+## Audit Bug Fixes (Sessions 38–39)
+
+| ID | File(s) | Description | Status |
+|----|---------|-------------|--------|
+| AUDIT-08 | request_encoding.py | XOR hour-boundary: encode_response uses g.xor_session_key set by decode_request | OK |
+| AUDIT-09 | jazzdrive_service.dart | warmTopFreeItems 60-min static guard — prevents 3x cold-start redundant calls | OK |
+| AUDIT-10 | home_screen.dart | Removed duplicate PosterService.runBackgroundSync (catalog_provider is sole caller) | OK |
+| AUDIT-11 | thumb_service.dart, local_media_service.dart | VideoThumbnail calls wrapped in try-catch | OK |
+| AUDIT-12 | player_screen.dart | _qualityFromRes maps resolution → quality label; passed to UsageService | OK |
+| AUDIT-13 | player_screen.dart | Removed duplicate speed_presets_sheet.dart import | OK |
+| AUDIT-14 | request_encoder.dart | Updated stale comment — server IS deployed and active | OK |
+| AUDIT-15 | profile_screen.dart | late final _connectivitySub lazy init — functional, no change needed | OK |
+| AUDIT-16 | keystore.dart | clearAll() docs — cosmetic only | OK |
+| AUDIT-17 | local_db.dart, player_screen.dart | _inlineShareUrl may be RF1:xxx encoded — added decodeShareUrl() + decode before JazzDrive | OK |
+| AUDIT-18 | app.dart, local_folder_screen.dart | Player route: null-safe args cast; episodes List<Map<String,Object>> crash → Map<String,dynamic>.from() | OK |
+| AUDIT-19 | player_prefs.dart | copyWith() missing channelBalance + abLoopEnabled in return body | OK |

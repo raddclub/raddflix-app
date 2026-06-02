@@ -505,7 +505,18 @@ class LocalDb {
     // Future migration: add folder_share_url column to titles when needed.
   }
 
-    /// Get the JazzDrive share_url for a file_id.
+  /// Decode a share_url that may be RF1:xxx scrambled (as stored in SQLite).
+  ///
+  /// Use this whenever a CatalogItem.shareUrl read directly from the model
+  /// (rather than via getShareUrl / getShareInfo) must be passed to an API.
+  /// Returns the decoded URL, or the original if it is not scrambled, or
+  /// null if [url] is null/empty.
+  static Future<String?> decodeShareUrl(String? url) async {
+    if (url == null || url.isEmpty) return null;
+    return _decodeUrl(url);
+  }
+
+  /// Get the JazzDrive share_url for a file_id.
   /// Checks both episodes (for TV) and titles (for movies) tables.
   static Future<String?> getShareUrl(String fileId) async {
     final db = await instance;

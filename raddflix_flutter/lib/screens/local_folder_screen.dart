@@ -94,8 +94,11 @@ import 'dart:typed_data';
     void _playAll() {
       if (_videos.isEmpty) return;
       final sorted = _sorted;
-      // Build episodes list for sequential playback
-      final episodes = sorted.map((v) => {
+      // Build episodes list for sequential playback.
+      // Explicit <String, dynamic> type required: the int value 'episode'
+      // would otherwise make Dart infer Map<String, Object>, which cannot
+      // be cast to List<Map<String, dynamic>> in app.dart's onGenerateRoute.
+      final episodes = sorted.map((v) => <String, dynamic>{
         'file_id': '',
         'title': v.title,
         'local_path': v.filePath,

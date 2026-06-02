@@ -1738,11 +1738,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       targetFilename = shareInfo['filename'];
     }
 
-    // Step 2: If not in local DB, try inline shareUrl or ask Oracle
+    // Step 2: If not in local DB, try inline shareUrl or ask Oracle.
+    // AUDIT-17: CatalogItem.shareUrl (set by _rowToItem) stores the RF1:xxx
+    // scrambled value from SQLite.  Decode it before handing to JazzDrive.
     if (shareUrl == null || shareUrl.isEmpty) {
       if (_inlineShareUrl != null && _inlineShareUrl.isNotEmpty) {
         // Caller passed shareUrl directly (handles movies without file_id in catalog)
-        shareUrl = _inlineShareUrl;
+        shareUrl = await LocalDb.decodeShareUrl(_inlineShareUrl);
         DebugLogger.log('PLAYER', 'Using inline share_url for ${fileId.isEmpty ? "direct-share" : fileId}');
       } else if (fileId.isNotEmpty) {
         // Oracle stores catalog metadata (incl. share_urls) — NOT the video files.

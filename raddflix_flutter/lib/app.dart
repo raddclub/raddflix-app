@@ -89,14 +89,25 @@ class RaddFlixApp extends ConsumerWidget {
       },
       onGenerateRoute: (settings) {
         if (settings.name == AppRoutes.player) {
-          final args = settings.arguments as Map<String, dynamic>;
+          // Guard: always produce a non-null map even if caller omitted arguments.
+          final args = (settings.arguments as Map?)?.cast<String, dynamic>()
+              ?? const <String, dynamic>{};
+          // episodes may arrive as List<Map<String,Object>> when the caller used
+          // an untyped map literal with int values (e.g. local_folder_screen).
+          // Cast each element individually so the outer List is always typed.
+          final rawEps = args['episodes'];
+          final episodes = rawEps == null
+              ? null
+              : (rawEps as List)
+                  .map((e) => Map<String, dynamic>.from(e as Map))
+                  .toList();
           return PageRouteBuilder(
             pageBuilder: (_, __, ___) => PlayerScreen(
-              fileId: args['file_id'] as String,
-              title: args['title'] as String,
+              fileId: args['file_id'] as String? ?? '',
+              title: args['title'] as String? ?? '',
               localPath: args['local_path'] as String?,
               subtitlePath: args['subtitle_path'] as String?,
-              episodes: args['episodes'] as List<Map<String, dynamic>>?,
+              episodes: episodes,
               episodeIndex: args['episode_index'] as int? ?? 0,
               contentType: args['content_type'] as String? ?? 'series',
             ),
