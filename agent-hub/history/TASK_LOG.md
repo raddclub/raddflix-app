@@ -2706,3 +2706,46 @@ User asked: "find out what the last agent did."
 - Oracle: raddflix_radd RUNNING, nginx RUNNING. Port 5000 firewalled externally.
 
 ---
+
+---
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Session 33 — Verification + Bug Audit)
+
+### Task
+User provided 7 screenshots showing errors in the app and asked to verify what the
+last agent fixed + find additional bugs independently.
+
+### Done
+
+#### Verification of Last Agent Fixes (commits ae96f15e d78ec9b1 f6143a7d 5325135b)
+- CONFIRMED: encode_response() now accepts status param — 4xx/5xx XOR responses work correctly
+- CONFIRMED: VideoController uses androidAttachSurfaceAfterVideoParameters=true (correct media_kit 1.2.5 API)
+- CONFIRMED: 4 build errors fixed (dart:async import, string literal in jazzdrive_service.dart, AudioMixerSheet type mismatch, SleepTimerSheet nullable Duration)
+- NOTE: No new APK built after these commits — user is still running old buggy APK
+
+#### Independent Bug Research (SSH to Oracle + GitHub code audit)
+- Registration 409 confirmed: phone 03257719165 already registered (correct server behavior, not a bug)
+- 24 published titles confirmed in radd_hub.db (is_published=1, all real titles like Pathaan, Salaar)
+- Home blank root cause: XOR decode bug (now fixed) + no APK build yet — new APK should fix it
+- CRITICAL FINDING: JazzDrive session EXPIRED on Oracle (SAPI 401 repeating every ~30s in logs)
+  Streaming CDN links cannot be generated until admin does OTP re-login on JazzDrive portal
+- Videos folder red thumbnail: actual video frame (not a code bug)
+- YouTube overlay on last Music video: embedded in the video thumbnail image itself (not a code bug)
+- All 24 catalog titles have is_free=0 — guests see catalog but cannot stream free content
+- folder_share_url=NULL for all titles in DB
+
+### Files Changed
+- agent-hub/history/TASK_LOG.md — appended this entry only
+
+### Notes for Next Agent
+- MOST CRITICAL: JazzDrive session expired (SAPI 401 looping). Admin must do OTP re-login on hub
+  admin panel before streaming works for any catalog content.
+- APK BUILD NEEDED: Trigger GitHub Actions "Build RaddFlix APK" on main branch.
+  Commits ae96f15e+d78ec9b1+f6143a7d+5325135b are on main but no APK was built after them.
+- After new APK: registration shows proper "Phone already registered" (not generic error).
+  User with 03257719165 should log in, not register.
+- After new APK: home shows 24 titles (XOR decode fix resolves blank screen).
+- All 24 titles have is_free=0. If guest streaming requires is_free=1, no content is freely playable.
+- DB schema: v16. Next migration: if (oldV < 17).
+- Oracle: raddflix_radd RUNNING pid 572816, nginx RUNNING. Port 5000 firewalled externally.
+
+---
