@@ -2781,3 +2781,66 @@ Prior session added subtitle/track file support to "Open With" flow + fixed 6 lo
 - Oracle: raddflix_radd RUNNING, nginx RUNNING. Port 5000 firewalled externally
 - JazzDrive SAPI 401 = server cannot upload new delta/files; streaming existing content unaffected
 - All 24 catalog titles have is_free=0 — no free content playable by guests
+
+---
+
+## Session: 2026-06-02 — 5-Bug Fix Session
+
+### Agent: Replit Agent
+### Status: COMPLETE (server live; Flutter commits pushed; APK rebuild required)
+
+---
+
+### BUG 1 — Registration shows "Registration failed" (FIXED — Flutter)
+**Root cause:** Network timeout during `/api/auth/register`. Server creates the account but the response never returns. `register_screen.dart` catches `DioException` with no response and falls back to the generic `AuthErrors.register()` message.
+**Fix:** Added `DioExceptionType` detection in `register_screen.dart` `_register()`. Connection/timeout errors now show: *"Cannot connect. If you already registered, try logging in instead."*
+**File:** `raddflix_flutter/lib/screens/register_screen.dart`
+
+---
+
+### BUG 2 — Premium account shows FREE badge (FIXED — Server + Flutter)
+**Root cause (server):** `db.check_quota("app_8")` queries JazzDrive subscription tables, which have no entry for app users. Returns `{allowed: False, reason: no_subscription, plan_name: null}`. This is cached by the app and corrupts plan display.
+**Root cause (Flutter):** Profile badge reads `user?.planName` from `authProvider`. If `SubscriptionApi.getStatus()` result was not used for the badge, stale or null data shows FREE.
+**Fix (server):** Replaced `db.check_quota(user_jid)` with new `_compute_app_quota(user_id)` helper that reads from `app_subscriptions` directly. Premium user now gets `{allowed: true, plan_name: "Premium", sub_plan: "premium"}`.
+**Fix (Flutter):** Added `_remotePlan` state variable in `profile_screen.dart`. Set from `SubscriptionApi.getStatus()` in `_loadExtras()`. Badge uses `_remotePlan ?? user?.planName ?? 'FREE'`.
+**Files:** `hub/routes/mobile_api.py`, `raddflix_flutter/lib/screens/profile_screen.dart`
+
+---
+
+### BUG 3 — Free movies (is_free=1) not playable (FIXED — Server, same as Bug 2)
+**Root cause:** `_compute_app_quota` was returning `allowed: False` for ALL users (including guests) because `db.check_quota` looked at wrong tables. Free titles (Oppenheimer id=15, All Of Us Are Dead id=31) were blocked by the quota gate.
+**Fix:** Same server fix as Bug 2. `_compute_app_quota` now returns `allowed: True` for users with no subscription (allowing free content), and respects actual data limits for paid plans.
+
+---
+
+### BUG 4 — "Daily Limit Reached" when playing local device videos (FIXED — Flutter + Server)
+**Root cause (Flutter):** `_checkQuota()` in `player_screen.dart` ran `quota['allowed'] == false` check with NO guard for local files. Since quota cache had `allowed: false` (see Bug 2), ALL videos including local ones triggered the quota screen.
+**Root cause (server):** Same broken `db.check_quota` as Bug 2.
+**Fix (Flutter):** Added `if (_isLocalFile) return;` guard in `_checkQuota()` BEFORE the `allowed` check. Local files never consume server data quota.
+**Fix (server):** Same `_compute_app_quota` fix as Bug 2.
+**File:** `raddflix_flutter/lib/screens/player_screen.dart`
+
+---
+
+### BUG 5 — App asks for login every time it is closed and reopened (FIXED — Flutter)
+**Root cause:** `checkAuth()` in `auth_provider.dart` called `AuthApi.getMe()` on every app startup. The `catch (_)` block called `Keystore.clearAll()` for ANY exception — including network timeouts and server errors. This wiped all stored tokens, forcing re-login.
+**Fix:** Implemented optimistic auth pattern:
+1. Added `_loadCachedUser()` / `_saveUserCache()` / `_clearUserCache()` helpers. Persist `id`, `phone`, `plan`, `sub_expires_at` to `SharedPreferences`.
+2. `checkAuth()` now loads cached user immediately (no network wait) and sets authenticated state.
+3. `getMe()` still verifies in the same call, but only clears tokens on HTTP `401` (definitive auth failure). Network/server errors keep the user logged in.
+4. `login()` saves user cache after successful `getMe()`.
+5. `logout()` clears the user cache.
+**Files:** `raddflix_flutter/lib/providers/auth_provider.dart`, `raddflix_flutter/lib/core/constants.dart`
+
+---
+
+### GitHub Commits
+- `f9a615c` — fix: 4 bugs — quota check, local video limit, registration error, profile plan badge
+- `0032479` — fix: stay logged in across app restarts (Bug 5)
+
+### Server Changes (Oracle 92.4.95.252 — live immediately)
+- `hub/routes/mobile_api.py`: Added `_compute_app_quota()`. Replaced `db.check_quota(user_jid)` in both `log_usage_endpoint` and `get_quota`. Server restarted via supervisorctl. Verified: `_compute_app_quota(8)` returns `{allowed: true, plan_name: "Premium"}`.
+
+### APK Rebuild Required
+All Flutter fixes require a new APK build from the `main` branch (commit `0032479`).
+
