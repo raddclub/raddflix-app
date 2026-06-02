@@ -33,14 +33,16 @@ class AuthApi {
     required String phone,
     required String password,
   }) async {
-    final deviceId = await DeviceIdentifier.getDeviceId();
+    final deviceId   = await DeviceIdentifier.getDeviceId();
+    final deviceName = await DeviceIdentifier.getDeviceName();
 
     final response = await _client.post(
       ApiPaths.login,
       data: {
-        'phone': phone,
-        'password': password,
-        'device_id': deviceId,
+        'phone':       phone,
+        'password':    password,
+        'device_id':   deviceId,
+        'device_name': deviceName,
       },
     );
 
@@ -109,7 +111,7 @@ class AuthApi {
     required String otpCode,
   }) async {
     final deviceId   = await DeviceIdentifier.getDeviceId();
-    final deviceName = 'Android Device';
+    final deviceName = await DeviceIdentifier.getDeviceName();
     final resp = await _client.post(
       ApiPaths.deviceSwitchOtpVerify,
       data: {
