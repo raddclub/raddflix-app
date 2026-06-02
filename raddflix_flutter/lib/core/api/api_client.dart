@@ -225,7 +225,23 @@ class _AuthInterceptor extends Interceptor {
   Future<bool> _tryRefresh() async {
     final refreshToken = await Keystore.getRefreshToken();
     if (refreshToken == null || refreshToken.isEmpty) {
-      DebugLogger.logWarn('AUTH', 'No refresh token available');
+      // Guest mode: no refresh token — re-issue a fresh guest token instead of logging out
+      try {
+        final freshDio = Dio(BaseOptions(baseUrl: AppConstants.apiBaseUrl));
+        final guestResp = await freshDio.post(ApiPaths.guest);
+        if (guestResp.statusCode == 200) {
+          final gData = guestResp.data as Map<String, dynamic>? ?? {};
+          final newToken = gData['access_token'] as String?;
+          if (newToken != null && newToken.isNotEmpty) {
+            await Keystore.saveAccessToken(newToken);
+            DebugLogger.log('AUTH', 'Guest token re-issued after 401 (token expired)');
+            return true;
+          }
+        }
+      } catch (e) {
+        DebugLogger.logWarn('AUTH', 'Guest token re-issue failed: $e');
+      }
+      DebugLogger.logWarn('AUTH', 'No refresh token — cannot refresh session');
       return false;
     }
 
