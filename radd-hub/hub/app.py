@@ -106,7 +106,8 @@ def create_app() -> Flask:
     app.register_blueprint(mobile_api.bp_app,          url_prefix="/api/app")
     app.register_blueprint(mobile_api.bp_rec,          url_prefix="/api")  # BUG-A26: prefix changed from /api/recommend to /api to fix no-slash 401 redirect
     # ── Catalog / Search / Poster (migrated from _watch_prototype) ────────
-    app.register_blueprint(catalog_api.bp)   # url_prefix in blueprint: /api/catalog
+    app.register_blueprint(catalog_api.bp)        # url_prefix in blueprint: /api/catalog
+    app.register_blueprint(catalog_api.bp_watch)  # BUG-A35: /watch/api/play/<file_id>
     app.register_blueprint(search_api.bp)    # url_prefix in blueprint: /api/search
     app.register_blueprint(poster_proxy.poster_proxy_bp)  # /api/poster/*
     # ── Brand Studio (P6) ──────────────────────────────────────────────────────
@@ -395,7 +396,7 @@ def create_app() -> Flask:
                 device_id = _req.headers.get('X-Device-Id', '').strip()
                 if device_id:
                     from .request_encoding import encode_response
-                    return encode_response(resp.get_json(), device_id)
+                    return encode_response(resp.get_json(), device_id, status=resp.status_code)
         except Exception:
             pass
         return resp
