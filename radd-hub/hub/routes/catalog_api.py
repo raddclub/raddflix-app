@@ -27,6 +27,7 @@ import time
 import datetime
 import logging
 from flask import Blueprint, request, jsonify, redirect
+from functools import wraps
 from hub import db
 
 log = logging.getLogger("hub.catalog_api")
@@ -98,6 +99,34 @@ def _check_admin_auth() -> bool:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Auth guard for Oracle catalog endpoints
+# Public catalog data lives on JazzDrive CDN (zero-rated, last-24h snapshot).
+# Oracle serves the COMPLETE database — must be JWT-protected so only registered
+# subscribers can download the full catalog. Zero-rating is unaffected because
+# the zero-rated path uses JazzDrive CDN directly, never touching Oracle.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _catalog_require_auth(fn):
+    """Decorator: require a valid Bearer access token on Oracle catalog routes.
+    Injects _user_id and _phone kwargs into the wrapped function.
+    Lazy-imports _verify_jwt from mobile_api to avoid circular import at module load.
+    """
+    @wraps(fn)
+    def wrapper(*a, **kw):
+        from hub.routes.mobile_api import _verify_jwt  # lazy — no circular import
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return jsonify({"error": "auth required"}), 401
+        payload = _verify_jwt(auth[7:])
+        if not payload or payload.get("type") != "access":
+            return jsonify({"error": "invalid or expired token"}), 401
+        kw["_user_id"] = int(payload["sub"])
+        kw["_phone"]   = payload.get("phone", "")
+        return fn(*a, **kw)
+    return wrapper
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Core catalog endpoints
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -117,7 +146,8 @@ def db_update_version():
 
 
 @bp.route("/sync")
-def sync():
+@_catalog_require_auth
+def sync(_user_id=None, _phone=None):
     since_raw = request.args.get("since", "0")
     try:
         since = int(since_raw)
@@ -205,7 +235,8 @@ def sync():
 
 
 @bp.route("/share_url")
-def get_share_url():
+@_catalog_require_auth
+def get_share_url(_user_id=None, _phone=None):
     """GET /api/catalog/share_url?file_id=<id>  — single file share URL lookup."""
     file_id = request.args.get("file_id", "").strip()
     if not file_id:
@@ -227,7 +258,8 @@ def get_share_url():
 
 
 @bp.route("/share_url/batch", methods=["POST", "GET"])
-def batch_share_url():
+@_catalog_require_auth
+def batch_share_url(_user_id=None, _phone=None):
     """Resolve JazzDrive share_urls for multiple files in one request.
 
     POST /api/catalog/share_url/batch   body: {"file_ids": [1, 2, 3]}  (max 50)
@@ -273,7 +305,8 @@ def batch_share_url():
 
 
 @bp.route("/play")
-def play():
+@_catalog_require_auth
+def play(_user_id=None, _phone=None):
     """GET /api/catalog/play?file_id=<id>  — generate/return cached streaming URL."""
     file_id_str = request.args.get("file_id", "").strip()
     if not file_id_str:
@@ -360,7 +393,8 @@ def posters():
 
 
 @bp.route("/db_update")
-def db_update():
+@_catalog_require_auth
+def db_update(_user_id=None, _phone=None):
     now = int(time.time())
     with db.conn() as c:
         title_rows = c.execute(
@@ -442,7 +476,8 @@ def db_update():
 
 
 @bp.route("/delta")
-def delta():
+@_catalog_require_auth
+def delta(_user_id=None, _phone=None):
     """GET /api/catalog/delta — Oracle fallback for Flutter SyncService._syncFromJazzDriveDelta()."""
     now = int(time.time())
     with db.conn() as c:
