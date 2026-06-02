@@ -1586,7 +1586,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // A-B Loop
       final seekBack = _abLoop.maybeSeekBack(p);
       if (seekBack != null) _player.seek(seekBack);
-      if (p.inSeconds % 10 == 0 && _duration.inMilliseconds > 0) {
+      // Only save for Oracle file IDs (not vault/local/Open-With URIs).
+      if (widget.fileId.isNotEmpty && !_isLocalPath(widget.fileId) &&
+          p.inSeconds % 10 == 0 && _duration.inMilliseconds > 0) {
         LocalDb.saveWatchPosition(
             fileId: widget.fileId,
             positionMs: p.inMilliseconds,
@@ -1880,8 +1882,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       final quota = await UsageService.getCachedQuota();
 
-      // 6.9 — offline plan expiry: block if subscription has expired
-      if (widget.localPath != null) {
+      // 6.9 — offline plan expiry: block if subscription has expired.
+      // Guard: must be non-null AND non-empty; downloads_screen passes '' for
+      // null DB paths, which should not trigger this check (player will stream).
+      if (widget.localPath != null && widget.localPath!.isNotEmpty) {
         final subExpiresAt = quota['sub_expires_at'];
         if (subExpiresAt != null && subExpiresAt is int && subExpiresAt > 0) {
           final nowUnix = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -1931,7 +1935,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!_hasNextEp) return;
     _nextEpTimer?.cancel();
     final next = widget.episodes![_currentEpIdx + 1];
-    final nextFileId = next['file_id']?.toString() ?? '';
+    final nextFileId   = next['file_id']?.toString() ?? '';
+    // FIX-LOCAL-3: local-folder "Play All" stores 'local_path' in episode map;
+    // pass it through so _openMedia plays the file locally, not via Oracle.
+    final nextLocalPath = next['local_path'] as String?;
     setState(() {
       _currentEpIdx++;
       _showNextEpisode = false;
@@ -1939,7 +1946,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _position = Duration.zero;
       _skipIntroVisible = false;
     });
-    _openMedia(nextFileId);
+    _openMedia(nextFileId, localPath: nextLocalPath);
     _skipIntroTimer?.cancel();
     final _nextSeriesId = nextFileId.split('/').first;
     _skipIntroTimer = Timer(const Duration(seconds: 5), () async {
@@ -2259,7 +2266,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _ambilightCtrl?.dispose();
     _bingeGuardCtrl?.dispose();
     _logWatchSession(); // log partial session on exit
-    if (_position.inMilliseconds > 0 && _duration.inMilliseconds > 0) {
+    // Only persist for Oracle file IDs — skip vault (fileId=''),
+    // Open-With content:// URIs, and raw device file paths.
+    if (_position.inMilliseconds > 0 && _duration.inMilliseconds > 0 &&
+        widget.fileId.isNotEmpty && !_isLocalPath(widget.fileId)) {
       LocalDb.saveWatchPosition(
           fileId: widget.fileId,
           positionMs: _position.inMilliseconds,
