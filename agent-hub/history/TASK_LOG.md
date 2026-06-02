@@ -1663,3 +1663,69 @@ favour of zero-rating for the Jazz subscriber base.
 | ~~N/A~~ | ~~BUG-N04~~ | ~~RETRACTED~~ | ~~No auth on catalog endpoints~~ — intentional, required for zero-rating |
 
 ---
+
+---
+
+## [2026-06-01 UTC] — Security Fix: JWT auth on Oracle catalog endpoints
+
+### Task
+After architectural review: Oracle serves the COMPLETE database (all titles, all share_urls
+going back to the beginning). JazzDrive delta.json is only the last-24h snapshot.
+A hacker who finds the Oracle IP can download the full catalog — all permanent streaming
+links — without any authentication. This must be fixed without breaking zero-rating.
+
+### Architecture constraint respected
+Zero-rating uses JazzDrive CDN directly (cloud.jazzdrive.com.pk → last-24h delta).
+The zero-rated path never contacts Oracle. Oracle is only contacted when users have
+a real internet connection — so JWT auth on Oracle is safe and doesn't affect zero-rating.
+
+### Done
+
+**`radd-hub/hub/routes/catalog_api.py`** — commit `53e02a3b70af2458493c86c985d3e813ffced464`
+
+Added `_catalog_require_auth` decorator (lazy-imports `_verify_jwt` from `mobile_api`
+to avoid circular imports). Applied to every Oracle endpoint that returns share_urls:
+
+| Endpoint | Before | After |
+|----------|--------|-------|
+| `GET /api/catalog/sync` | public | JWT required |
+| `GET /api/catalog/db_update` | public | JWT required |
+| `GET /api/catalog/delta` | public | JWT required |
+| `GET /api/catalog/share_url` | public | JWT required |
+| `POST/GET /api/catalog/share_url/batch` | public | JWT required |
+| `GET /api/catalog/play` | public | JWT required |
+
+Endpoints intentionally left public (no share_urls / version metadata only):
+
+| Endpoint | Reason |
+|----------|--------|
+| `GET /api/catalog/version` | Version number only, no secrets |
+| `GET /api/catalog/db_update/version` | Version number only |
+| `GET /api/catalog/posters` | Poster image URLs, not video share_urls |
+| `GET /api/catalog/poster/<id>` | Poster image proxy redirect |
+| `GET /api/catalog/poster-push/status` | Admin coverage info, no streaming secrets |
+| `POST /api/catalog/poster-push/bulk` | Already protected by Basic admin auth |
+
+### Implementation detail
+`_catalog_require_auth` is defined inline in `catalog_api.py` using a lazy import
+of `_verify_jwt` from `mobile_api` inside the wrapper function body — this avoids
+any circular import risk at module load time. Uses the same JWT secret and validation
+logic as all other authenticated endpoints.
+
+### Files Changed
+- `radd-hub/hub/routes/catalog_api.py` — added auth decorator to 6 endpoints
+
+### Flutter impact — None
+Flutter's `CatalogApi` already attaches `Authorization: Bearer <token>` on every
+request via the `_AuthInterceptor` in `api_client.dart`. No Flutter changes needed.
+The token is obtained at login and refreshed via `_refresh_token_jwt`. Zero-rated
+JazzDrive delta sync is unaffected — it hits `cloud.jazzdrive.com.pk` directly.
+
+### Notes for Next Agent
+- The catalog auth fix is deployed. Restart radd-hub on Oracle after pulling:
+  `sudo supervisorctl restart raddflix_radd`
+- Still open: BUG-N03 (`download_proxy` title_id KeyError in app.py line 167)
+- Still open: BUG-N06 (login endpoint rate limiting)
+- Still open: AppGuard fingerprint verification (run keytool against release APK)
+
+---
