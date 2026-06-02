@@ -3301,3 +3301,79 @@ Add a "Now Playing" indicator to the episode list so the user can see which epis
 - The `_nowPlayingIdx` null-clears reliably when player pops (back button, swipe, timer end)
 - No changes needed in player_screen.dart for this feature
 - APK rebuild required (two Dart files changed this session)
+
+---
+
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Session 38 — AUDIT fixes)
+
+### Task
+Fix all remaining audit bugs: copyWith missing fields, AUDIT-08 through AUDIT-14.
+
+### Audit Findings Resolved
+
+**BUG-FIX-1: player_prefs.dart — copyWith() missing channelBalance + abLoopEnabled**
+Both fields were declared, persisted in load()/save(), but NOT included in the
+copyWith() return body. Every call to `_prefs.copyWith(anyField: value)` silently
+reset channelBalance to 0.0 and abLoopEnabled to false — audio balance and A-B loop
+could not be changed from QuickSettingsPanel.
+
+Fix: Added to copyWith return body:
+```dart
+channelBalance:  channelBalance  ?? this.channelBalance,
+abLoopEnabled:   abLoopEnabled   ?? this.abLoopEnabled,
+```
+
+**AUDIT-08: XOR hour-boundary decode failure (server-side)**
+decode_request() already tried current + previous hour keys (_candidate_keys).
+But encode_response() always used current hour key, so if a request arrived at :00
+decoded with the :59 key, the response was encoded with :00, and the client (holding
+:59) failed to decode.
+
+Fix: decode_request() now stores the successful key in `g.xor_session_key`.
+encode_response() uses `g.xor_session_key` if available, else falls back to current hour.
+
+**AUDIT-09: warmTopFreeItems called 3× on cold start (main.dart + Oracle sync + JazzDrive sync)**
+Fix: Added static `_lastWarmTime` guard in JazzDriveService. Returns early if called
+within 60 minutes of last execution regardless of call site.
+
+**AUDIT-10: PosterService.runBackgroundSync() double-fire on first launch**
+catalog_provider.dart already has a static `_posterSyncDone` guard. home_screen.dart
+had its own instance-variable guard that was independent, causing both to fire.
+Fix: Removed the ref.listenManual block + _posterSyncDone field + poster_service.dart
+import from home_screen.dart entirely. catalog_provider is now the sole caller.
+
+**AUDIT-13: speed_presets_sheet.dart imported twice in player_screen.dart**
+Fix: Removed the second duplicate import (line 95).
+
+**AUDIT-14: RequestEncoder.enabled = true but comment says "Keep false until..."**
+Fix: Updated comment in request_encoder.dart to accurately reflect that server-side
+decode/encode is fully deployed and active.
+
+**R1/A5 stale MASTER_TASKLIST entry**
+A full audit confirmed that accent color + seekBarStyle + buttonShape + iconPack are
+fully wired end-to-end:
+- PlayerPrefs has all fields with load()/save() persistence
+- QuickSettingsPanel has Theme/Color/SeekBar/Shape UI that calls _update() → widget.onChanged
+- player_screen.dart onChanged does setState(() => _prefs = newPrefs) + newPrefs.save()
+- _ControlsOverlay receives _prefs.accentColor / _prefs.seekBarStyle / _prefs.buttonShape
+MASTER_TASKLIST A5/A6/A7 updated to OK.
+
+### Files Changed
+- raddflix_flutter/lib/core/player/player_prefs.dart — copyWith: added channelBalance + abLoopEnabled
+- raddflix_flutter/lib/core/services/jazzdrive_service.dart — warmTopFreeItems: 60-min static guard
+- raddflix_flutter/lib/screens/player_screen.dart — removed duplicate speed_presets_sheet import
+- raddflix_flutter/lib/screens/home_screen.dart — removed duplicate PosterService.runBackgroundSync call
+- raddflix_flutter/lib/core/security/request_encoder.dart — updated stale comment
+- radd-hub/hub/request_encoding.py — encode_response uses g.xor_session_key; decode_request stores it
+- agent-hub/MASTER_TASKLIST.md — A5/A6/A7 marked OK; AUDIT table added; R1 removed
+- agent-hub/history/TASK_LOG.md — appended this entry
+
+### Notes for Next Agent
+- flutter analyze still passes (all fixes are logic/lint, no type errors)
+- Oracle: pull + restart raddflix_radd to apply request_encoding.py fix
+- DB schema: v17. Next migration: if (oldV < 18)
+- AUDIT-11 (video_thumbnail deprecated), AUDIT-12 (UsageService 720p hardcode),
+  AUDIT-15 (_connectivitySub), AUDIT-16 (Keystore.clearAll docs), AUDIT-17 (encoded shareUrl)
+  all remain as LOW priority — no crash risk, just tech debt
+- channelBalance and abLoopEnabled copyWith fix is Flutter-only; no APK rebuild needed
+  for the server-side XOR fix, but Oracle git pull + restart is needed

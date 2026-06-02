@@ -14,7 +14,6 @@ import '../widgets/content_card.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/notification_banner.dart';
 import '../core/services/notification_service.dart';
-import '../core/services/poster_service.dart';
 import '../widgets/simosa_card.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -29,8 +28,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final ScrollController _scroll = ScrollController();
   bool _scrolled = false;
   Timer? _notifTimer;
-  bool _posterSyncDone = false; // BUG-A20: ensure poster sync fires once per session
-
   static const _categories = ['All', 'Movies', 'Shows', 'Dramas', 'Urdu', 'Punjabi', 'English'];
 
   @override
@@ -43,16 +40,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(catalogProvider.notifier).initialize();
       NotificationService.instance.fetch();
-    });
-    // BUG-A20: trigger poster background sync once when catalog first becomes ready
-    ref.listenManual<CatalogState>(catalogProvider, (prev, next) {
-      if (!_posterSyncDone && next.status == CatalogStatus.ready) {
-        _posterSyncDone = true;
-        final items = [...next.movies, ...next.shows]
-            .map((i) => <String, dynamic>{'id': i.id, 'poster_url': i.posterUrl ?? ''})
-            .toList();
-        PosterService.runBackgroundSync(items);
-      }
     });
     _notifTimer = Timer.periodic(const Duration(minutes: 5),
         (_) => NotificationService.instance.fetch());

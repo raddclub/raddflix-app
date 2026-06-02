@@ -35,7 +35,7 @@ import '../core/player/haptic_service.dart'; // Phase J5
 import '../widgets/player/reaction_stamps_overlay.dart'; // Phase I2
 import '../widgets/player/zoom_focus_overlay.dart'; // Phase L3
 import '../core/player/enhanced_screenshot_service.dart'; // Phase L1
-import '../widgets/player/speed_presets_sheet.dart'; // Phase M1
+import '../widgets/player/speed_presets_sheet.dart';
 import '../widgets/player/jump_to_panel.dart'; // Phase M2
 import '../core/player/end_of_video_actions.dart'; // Phase M3
 import '../core/player/smart_skip_service.dart'; // Phase M4
@@ -92,7 +92,6 @@ import '../widgets/player/intro_skip_editor.dart';
 import '../widgets/player/dual_subtitle_overlay.dart';
 import '../widgets/player/jump_to_sheet.dart';
 import '../widgets/player/end_action_sheet.dart';
-import '../widgets/player/speed_presets_sheet.dart';
 import '../widgets/player/silence_skip_sheet.dart';
 import '../widgets/player/zoom_crop_overlay.dart';
 

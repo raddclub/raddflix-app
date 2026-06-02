@@ -168,7 +168,20 @@ class JazzDriveService {
   /// the TTL window. On Jazz SIM all SAPI calls go directly to
   /// cloud.jazzdrive.com.pk (zero-rated). Silently swallows all errors so
   /// an offline device or unreachable JazzDrive never surfaces to the user.
+  ///
+  /// AUDIT-09: called from multiple sites (main.dart, Oracle sync, JazzDrive sync).
+  /// A 60-minute static guard ensures the warm only executes once per hour
+  /// regardless of how many callers trigger it on cold start.
+  static DateTime? _lastWarmTime;
+
   static Future<void> warmTopFreeItems(int count) async {
+    final now = DateTime.now();
+    if (_lastWarmTime != null &&
+        now.difference(_lastWarmTime!).inMinutes < 60) {
+      DebugLogger.log('JAZZDRIVE', 'warmTopFreeItems skipped (already ran ${now.difference(_lastWarmTime!).inMinutes}m ago)');
+      return;
+    }
+    _lastWarmTime = now;
     try {
       final rows = await LocalDb.getTopFreeMovies(count);
       int warmed = 0;

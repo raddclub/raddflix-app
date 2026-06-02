@@ -708,6 +708,8 @@ class PlayerPrefs {
       downloadQuality:             downloadQuality              ?? this.downloadQuality,
       networkSpeedHud:             networkSpeedHud              ?? this.networkSpeedHud,
       moodTagsData:                moodTagsData                 ?? this.moodTagsData,
+      channelBalance:              channelBalance               ?? this.channelBalance,
+      abLoopEnabled:               abLoopEnabled                ?? this.abLoopEnabled,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────

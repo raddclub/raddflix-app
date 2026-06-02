@@ -149,6 +149,11 @@ def decode_request(req=None) -> Optional[dict]:
             decoded_bytes = xor_decode(raw_body, key)
             result = json.loads(decoded_bytes.decode("utf-8"))
             log.debug("XOR decode: success for device=%s...", device_id[:8])
+            # Store the successful key so encode_response can mirror it (AUDIT-08)
+            try:
+                g.xor_session_key = key
+            except RuntimeError:
+                pass  # outside Flask request context (tests/CLI)
             return result
         except Exception:
             continue
@@ -160,14 +165,21 @@ def decode_request(req=None) -> Optional[dict]:
 def encode_response(data: dict, device_id: str, status: int = 200) -> Response:
     """XOR-encode a JSON response for a device.
 
-    Uses current hour key. Client decodes with the same key.
-    Falls back to plain JSON if encoding fails.
+    Uses the same session key that successfully decoded the incoming request
+    (stored in Flask g.xor_session_key by decode_request).  Falling back to
+    the current-hour key keeps backward-compat for callers that encode without
+    first calling decode_request (e.g. GET responses).
+
+    This is the fix for AUDIT-08: a request sent at :59 is decoded with the
+    :59 key; the response must be encoded with the same :59 key so the client
+    (still holding its :59 key) can decode it successfully.
     """
     if not device_id:
         return jsonify(data), status
     try:
         json_bytes = json.dumps(data, separators=(",", ":")).encode("utf-8")
-        key = generate_session_key(device_id)
+        # Prefer the key that successfully decoded this request (AUDIT-08 grace period)
+        key = getattr(g, "xor_session_key", None) or generate_session_key(device_id)
         encoded = xor_encode(json_bytes, key)
         return Response(encoded, content_type="application/octet-stream", status=status)
     except Exception as e:

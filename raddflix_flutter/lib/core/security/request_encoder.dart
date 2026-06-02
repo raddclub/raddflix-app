@@ -23,8 +23,8 @@ import 'package:crypto/crypto.dart';
 ///   Prefix: "RF1:" identifies a scrambled URL vs plain legacy URL.
 class RequestEncoder {
   /// Enable XOR encoding layer for all Oracle API calls.
-  /// Keep false until Oracle server implements matching decode logic.
-  /// Toggle via RemoteConfig once both sides are deployed.
+  /// Server-side decode/encode is fully implemented in radd-hub/hub/request_encoding.py.
+  /// Toggle via RemoteConfig if a hotfix requires temporarily disabling.
   static bool enabled = true;
 
   static const String _xorSeed = 'raddflix_xor_v1';
