@@ -247,11 +247,21 @@ def generate_delta_json(out_path: str | Path) -> dict:
 def upload_and_configure(delta_path: str | Path) -> dict:
     """
     Upload delta_path to JazzDrive using upload_json_to_jazzdrive().
-    On success, store the share_url as jd_delta_url in the settings table.
+    On success, trash the previous delta file (tracked via jd_delta_remote_id),
+    store the new remote_id, and update jd_delta_url in settings.
     Returns {"ok": True/False, "share_url": "...", ...}
     """
     from hub import jazzdrive as jd
     delta_path = Path(delta_path)
+
+    # Read the previous file ID so we can delete it after a successful upload.
+    prev_remote_id = None
+    try:
+        prev_raw = db.setting("jd_delta_remote_id")
+        if prev_raw and str(prev_raw).isdigit():
+            prev_remote_id = int(prev_raw)
+    except Exception:
+        pass
 
     log.info("delta_push: uploading %s to JazzDrive …", delta_path.name)
     result = jd.upload_json_to_jazzdrive(delta_path)
@@ -265,8 +275,30 @@ def upload_and_configure(delta_path: str | Path) -> dict:
         log.error("delta_push: upload returned ok=True but no share_url — %s", result)
         return {"ok": False, "error": "Upload succeeded but no share_url returned", "raw": result}
 
+    new_remote_id_str = str(result.get("remote_id") or "")
+
+    # Trash the old delta file from JazzDrive (keep exactly one copy in Radd-Delta).
+    if prev_remote_id:
+        try:
+            with db.conn() as _c:
+                aid_row = _c.execute(
+                    "SELECT id FROM accounts WHERE is_active=1 ORDER BY id LIMIT 1"
+                ).fetchone()
+            if aid_row:
+                tr = jd.trash_files(aid_row["id"], [prev_remote_id], media_type="file")
+                log.info("delta_push: trashed old delta remote_id=%d → %s",
+                         prev_remote_id, tr)
+            else:
+                log.warning("delta_push: no active account — skipping old-file cleanup")
+        except Exception as _te:
+            log.warning("delta_push: could not trash old delta remote_id=%s — %s",
+                        prev_remote_id, _te)
+
+    # Persist new share URL and remote_id.
     db.set_setting("jd_delta_url", share_url)
-    log.info("delta_push: jd_delta_url set → %s", share_url)
+    if new_remote_id_str:
+        db.set_setting("jd_delta_remote_id", new_remote_id_str)
+    log.info("delta_push: jd_delta_url set → %s  remote_id=%s", share_url, new_remote_id_str)
     return {"ok": True, "share_url": share_url, "upload_result": result}
 
 
