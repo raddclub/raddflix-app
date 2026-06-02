@@ -103,8 +103,7 @@ def generate_delta_payload() -> dict:
             with db.conn() as c:
                 ep_rows = c.execute(f"""
                     SELECT f.id, f.title_id, f.season, f.episode,
-                           f.share_url, f.folder_share_url AS ep_folder_share_url,
-                           f.quality, f.is_ready
+                           f.share_url, f.quality, f.is_ready
                     FROM files f
                     WHERE f.title_id IN ({ph})
                       AND f.season IS NOT NULL AND f.season > 0
@@ -120,10 +119,10 @@ def generate_delta_payload() -> dict:
                     "file_id":         str(ep["id"]),
                     "season":          ep["season"],
                     "episode":         ep["episode"],
-                    "label":           f"S{ep['season']:02d}E{ep['episode']:02d}",
+                    "label":           "S{:02d}E{:02d}".format(ep["season"] or 0, ep["episode"] or 0),
                     "quality":         ep["quality"],
                     "share_url":       ep["share_url"] or "",
-                    "folder_share_url": ep["ep_folder_share_url"] or "",
+                    "folder_share_url": "",
                 })
 
             for t in titles_out:
@@ -421,15 +420,19 @@ _HTML = """
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _infer_status(row) -> str:
-    if row.get("status"):
-        return row["status"]
-    if row.get("is_ongoing"):
+    # sqlite3.Row does not support .get() — use try/except or dict() conversion
+    def _get(r, k, default=None):
+        try: return r[k]
+        except (IndexError, KeyError): return default
+    if _get(row, "status"):
+        return _get(row, "status")
+    if _get(row, "is_ongoing"):
         return "ongoing"
-    mt = (row.get("media_type") or "movie").lower()
+    mt = (_get(row, "media_type") or "movie").lower()
     if mt == "movie":
         return "released"
     try:
-        yr = int(row.get("year") or 0)
+        yr = int(_get(row, "year") or 0)
         if yr >= 2025:
             return "ongoing"
         return "completed"
