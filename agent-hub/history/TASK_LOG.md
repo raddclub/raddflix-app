@@ -3045,3 +3045,75 @@ implemented in MainActivity.kt. Confirmed by reading live file.
 - AUDIT-06 (Continue Watching movies broken) is now automatically fixed by AUDIT-03
 - folder_share_url column does NOT yet exist in titles table — future migration needed if that field becomes required
 - DB schema still at v17; next migration should be v18
+
+
+---
+
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Session 36 — AUDIT-07 + Android Compat + FileProvider)
+
+### Task
+1. Fix AUDIT-07: ExoPlayer 2 Cast extension conflicts with Media3/media_kit stack in build.gradle
+2. Full Android version compatibility (minSdk 21 → targetSdk aligned to compileSdk 36)
+3. Fix Android permission gaps (POST_NOTIFICATIONS, READ_MEDIA_IMAGES, requestLegacyExternalStorage)
+4. Add FileProvider for content:// URI sharing (Android 7+/API 24)
+5. Add Google Cast SDK ProGuard keep rules
+6. Verify all UI screens are reachable (not hidden in code only)
+
+### Investigation Results
+
+#### UI Screen Accessibility Audit (ALL SCREENS REACHABLE)
+- All named routes properly registered in app.dart routes map and onGenerateRoute
+- tid_status_screen.dart — reached via Navigator.push(MaterialPageRoute()) from subscription_screen.dart after TID submit (correct sub-flow, not a named route)
+- layout_designer_screen.dart — reachable at '/layout-designer' with _LayoutDesignerLoader
+- onboarding_screen.dart — route registered; intentionally not shown at startup (Session 33 removed splash redirect by design)
+- quota_full_screen.dart / plan_expired_screen.dart — reachable via _checkQuota() redirect (correct: error states)
+- admin_queue_screen.dart — reachable at AppRoutes.adminQueue; gated to non-guest (correct: admin only)
+
+#### build.gradle Issues Confirmed
+- compileSdk 36 but targetSdkVersion 34 — inconsistent; targetSdk must match
+- ExoPlayer 2 extension-cast:2.19.1 — CONFIRMED CONFLICT with media_kit/Media3 (ExoPlayer 3); class conflicts at runtime
+
+#### AndroidManifest.xml Gaps Confirmed
+- Missing POST_NOTIFICATIONS (API 33+) — download/playback notifications fail silently on Android 13+
+- Missing READ_MEDIA_IMAGES (API 33+) — saver_gallery screenshot saves fail silently on Android 13+
+- Missing requestLegacyExternalStorage="true" — downloads to /sdcard/Download fail on Android 10 (API 29)
+- Missing FileProvider — share_plus file:// URIs blocked on Android 7+; no res/xml/file_provider_paths.xml existed
+
+### Fixes Applied
+
+#### 1. build.gradle (commit c43a0a76)
+- Removed: implementation 'com.google.android.exoplayer:extension-cast:2.19.1' (AUDIT-07)
+- Changed: targetSdkVersion 34 → 36 (aligns with compileSdk 36)
+- Kept: play-services-cast-framework:21.5.0 (sufficient; CastOptionsProvider.kt uses it)
+
+#### 2. AndroidManifest.xml (commit be7f65bd)
+- Added: POST_NOTIFICATIONS permission (API 33+)
+- Added: READ_MEDIA_IMAGES permission (API 33+)
+- Added: android:requestLegacyExternalStorage="true" to application tag (API 29)
+- Added: FileProvider declaration with authority ${applicationId}.provider
+- Fixed: Cast framework meta-data now properly inside application closing tag
+
+#### 3. proguard-rules.pro (commit 8167fc09)
+- Added: keep rules for com.google.android.gms.cast.** and com.google.android.gms.cast.framework.**
+- Added: keep rules for androidx.mediarouter.**
+- Reason: Cast framework uses reflection to load CastOptionsProvider; R8 strips it without keep rules
+
+#### 4. file_provider_paths.xml — NEW FILE (commit e66a12ba)
+- Created: raddflix_flutter/android/app/src/main/res/xml/file_provider_paths.xml
+- Paths: files, cache, external-files, external-cache, external-root
+- Authority: com.raddflix.app.provider (distinct from share_plus's .fileprovider)
+
+### Files Changed
+- raddflix_flutter/android/app/build.gradle (commit c43a0a76)
+- raddflix_flutter/android/app/src/main/AndroidManifest.xml (commit be7f65bd)
+- raddflix_flutter/android/app/proguard-rules.pro (commit 8167fc09)
+- raddflix_flutter/android/app/src/main/res/xml/file_provider_paths.xml (NEW, commit e66a12ba)
+
+### Notes for Next Agent
+- APK rebuild required: build config + manifest changed
+- Remaining AUDIT items still open: AUDIT-08 through AUDIT-17 (medium/low priority)
+- AUDIT-06 (Continue Watching) was auto-fixed by AUDIT-03 in Session 35
+- DB schema: v17. Next migration: if (oldV < 18)
+- Oracle: raddflix_radd RUNNING, nginx RUNNING
+- video_thumbnail: ^0.5.3 (AUDIT-11) — still in pubspec; has try-catch graceful degradation; not breaking
+- FileProvider authority is .provider; any native MainActivity.kt content:// URI creation must use "com.raddflix.app.provider"
