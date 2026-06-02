@@ -17,6 +17,9 @@ class VaultService {
       resetOnError: true,
     ),
   );
+  static const int minPinLength = 4;
+  static const int maxPinLength = 6;
+
   static const _pinKey       = 'vault_pin_hash';
   static const _fakePinKey   = 'vault_fake_pin_hash';
   static const _autoLockKey  = 'vault_auto_lock_seconds';
@@ -28,12 +31,16 @@ class VaultService {
   static final _auth = LocalAuthentication();
   static const _mediaChannel = MethodChannel('com.raddflix.app/media');
 
-  /// Notify Android MediaStore that [path] was deleted so other apps stop seeing it.
-  static Future<void> _removefromMediaStore(String path) async {
+  /// Notify Android MediaStore about [path] (deletion or new file).
+  /// Call after deleting a file — scanner notices it's gone and removes it from gallery index.
+  /// Call after restoring/creating a file — scanner adds it to gallery.
+  static Future<void> notifyMediaStore(String path) async {
     try {
       await _mediaChannel.invokeMethod('scanFile', {'path': path});
     } catch (_) {}
   }
+  // Keep private alias for internal use
+  static Future<void> _removefromMediaStore(String path) => notifyMediaStore(path);
   static bool _unlocked = false;
   static DateTime? _unlockedAt;
   static bool _isFakeVault = false;
@@ -51,6 +58,8 @@ class VaultService {
   }
 
   static Future<void> setPin(String pin) async {
+    if (pin.length < minPinLength) throw ArgumentError('PIN must be at least $minPinLength digits');
+    if (pin.length > maxPinLength) throw ArgumentError('PIN must be at most $maxPinLength digits');
     await _storage.write(key: _pinKey, value: _hashPin(pin));
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_pinLengthKey, pin.length);
@@ -60,6 +69,8 @@ class VaultService {
     if (pin.isEmpty) {
       await _storage.delete(key: _fakePinKey);
     } else {
+      if (pin.length < minPinLength) throw ArgumentError('Decoy PIN must be at least $minPinLength digits');
+      if (pin.length > maxPinLength) throw ArgumentError('Decoy PIN must be at most $maxPinLength digits');
       await _storage.write(key: _fakePinKey, value: _hashPin(pin));
     }
   }
@@ -186,7 +197,8 @@ class VaultService {
   // ── Settings ─────────────────────────────────────────────────────────────
   static Future<int> getAutoLockSeconds() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_autoLockKey) ?? 0;
+    _cachedAutoLock = prefs.getInt(_autoLockKey) ?? 0; // keep sync cache up to date
+    return _cachedAutoLock;
   }
 
   static int _autoLockSecondsSync() {
@@ -300,6 +312,8 @@ class VaultService {
     final dest = File(p.join(destDir, p.basename(vaultPath)));
     await src.copy(dest.path);
     await src.delete();
+    // Tell Android MediaStore about the newly restored file so it appears in gallery
+    await notifyMediaStore(dest.path);
   }
 
   static Future<void> deleteVaultFile(String path) async {

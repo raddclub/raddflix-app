@@ -107,9 +107,11 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
   Future<(String, String)?> _showPinDialog(String title, String hint) async {
     final ctrl1 = TextEditingController();
     final ctrl2 = TextEditingController();
+    final ctrl3 = TextEditingController(); // confirm new PIN
+    String? _localError;
     return showDialog<(String, String)>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setS) => AlertDialog(
         backgroundColor: AppColors.surface,
         title: Text(title, style: TextStyle(color: AppColors.text)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -117,37 +119,80 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
           const SizedBox(height: 16),
           _pinField(ctrl1, 'Current PIN'),
           const SizedBox(height: 10),
-          _pinField(ctrl2, 'New PIN'),
+          _pinField(ctrl2, 'New PIN (${VaultService.minPinLength}–${VaultService.maxPinLength} digits)'),
+          const SizedBox(height: 10),
+          _pinField(ctrl3, 'Confirm New PIN'),
+          if (_localError != null) ...[
+            const SizedBox(height: 8),
+            Text(_localError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+          ],
         ]),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context),
+          TextButton(onPressed: () => Navigator.pop(ctx),
               child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary))),
-          TextButton(onPressed: () => Navigator.pop(context, (ctrl1.text, ctrl2.text)),
-              child: Text('Change', style: TextStyle(color: AppColors.primary))),
+          TextButton(
+            onPressed: () {
+              final oldPin = ctrl1.text.trim();
+              final newPin = ctrl2.text.trim();
+              final confirm = ctrl3.text.trim();
+              if (newPin.length < VaultService.minPinLength) {
+                setS(() => _localError = 'New PIN must be at least ${VaultService.minPinLength} digits');
+                return;
+              }
+              if (newPin.length > VaultService.maxPinLength) {
+                setS(() => _localError = 'New PIN must be at most ${VaultService.maxPinLength} digits');
+                return;
+              }
+              if (newPin != confirm) {
+                setS(() => _localError = 'New PINs do not match');
+                return;
+              }
+              Navigator.pop(ctx, (oldPin, newPin));
+            },
+            child: Text('Change', style: TextStyle(color: AppColors.primary)),
+          ),
         ],
-      ),
+      )),
     );
   }
 
   Future<String?> _showNewPinDialog(String title, String hint) async {
     final ctrl = TextEditingController();
+    String? _localError;
     return showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setS) => AlertDialog(
         backgroundColor: AppColors.surface,
         title: Text(title, style: TextStyle(color: AppColors.text)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(hint, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
           const SizedBox(height: 16),
           _pinField(ctrl, 'PIN (leave empty to remove)'),
+          if (_localError != null) ...[
+            const SizedBox(height: 8),
+            Text(_localError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+          ],
         ]),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context),
+          TextButton(onPressed: () => Navigator.pop(ctx),
               child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary))),
-          TextButton(onPressed: () => Navigator.pop(context, ctrl.text),
-              child: Text('Save', style: TextStyle(color: AppColors.primary))),
+          TextButton(
+            onPressed: () {
+              final pin = ctrl.text.trim();
+              if (pin.isNotEmpty && pin.length < VaultService.minPinLength) {
+                setS(() => _localError = 'PIN must be at least ${VaultService.minPinLength} digits');
+                return;
+              }
+              if (pin.length > VaultService.maxPinLength) {
+                setS(() => _localError = 'PIN must be at most ${VaultService.maxPinLength} digits');
+                return;
+              }
+              Navigator.pop(ctx, pin);
+            },
+            child: Text('Save', style: TextStyle(color: AppColors.primary)),
+          ),
         ],
-      ),
+      )),
     );
   }
 
@@ -155,7 +200,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
     controller: ctrl,
     obscureText: true,
     keyboardType: TextInputType.number,
-    maxLength: 6,
+    maxLength: VaultService.maxPinLength,
     style: TextStyle(color: AppColors.text, fontSize: 20, letterSpacing: 8),
     decoration: InputDecoration(
       hintText: hint,

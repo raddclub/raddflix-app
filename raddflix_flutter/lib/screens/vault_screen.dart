@@ -414,6 +414,11 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
           _SheetTile(icon: Icons.drive_file_rename_outline_rounded, label: 'Rename', onTap: () {
             Navigator.pop(context); _renameFile(f);
           }),
+          if (!f.isFolder)
+            _SheetTile(icon: Icons.restore_rounded, label: 'Restore to Gallery', onTap: () async {
+              Navigator.pop(context);
+              await _restoreToGallery(f);
+            }),
           _SheetTile(icon: Icons.delete_outline_rounded, label: 'Delete', color: Colors.red,
               onTap: () async {
                 Navigator.pop(context);
@@ -426,38 +431,70 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _restoreToGallery(VaultFile f) async {
+    try {
+      // On Android, restore to the Downloads directory (always accessible)
+      final destDir = '/storage/emulated/0/Download';
+      await VaultService.restoreFile(f.path, destDir);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Restored to Downloads folder'),
+          backgroundColor: AppColors.surface,
+        ));
+        await _load();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Restore failed: $e'),
+          backgroundColor: AppColors.error,
+        ));
+      }
+    }
+  }
+
   Future<void> _importFiles(FileType type) async {
     Navigator.pop(context); // close bottom sheet first
     try {
+      // withData:false avoids loading large video files entirely into RAM (OOM risk).
+      // FilePicker still gives us file.path (either real path or a temp cache copy).
       final result = await FilePicker.platform.pickFiles(
         type: type,
         allowMultiple: true,
-        withData: true,
+        withData: false,
         withReadStream: false,
       );
       if (result == null || result.files.isEmpty) return;
 
       int imported = 0;
+      bool hadBytesOnlyImport = false;
+
       for (final file in result.files) {
-        final bytes = file.bytes;
-        final src   = file.path;
+        final src = file.path;
         final folder = widget.folderPath != null
             ? widget.folderPath!.split('/').last
             : null;
-        if (bytes != null) {
-          // Android 11+ scoped storage returns content URI — use bytes directly
-          await VaultService.importFileBytes(bytes, file.name, folder: folder);
-          imported++;
-        } else if (src != null) {
+
+        if (src != null) {
+          // Best path: move file to vault, delete original, notify MediaStore.
+          // Works on Android <11 (real path) and Android 11+ (temp cache path from FilePicker).
           await VaultService.moveFileToVault(src, folder: folder);
           imported++;
+        } else {
+          // Rare fallback: content URI with no resolvable path (some Android 11+ edge cases).
+          // Re-pick with data just for this file isn't possible — skip gracefully.
+          hadBytesOnlyImport = true;
         }
       }
 
       if (mounted && imported > 0) {
+        final msg = hadBytesOnlyImport
+            ? '$imported file${imported > 1 ? "s" : ""} added. Some originals may still appear in gallery — delete them manually.'
+            : '$imported file${imported > 1 ? "s" : ""} added to vault';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('$imported file${imported > 1 ? "s" : ""} added to vault'),
+          content: Text(msg),
           backgroundColor: AppColors.surface,
+          duration: Duration(seconds: hadBytesOnlyImport ? 5 : 3),
         ));
         await _load();
       }

@@ -24,6 +24,8 @@ class _VaultLockScreenState extends State<VaultLockScreen>
   int _failedAttempts = 0;
   DateTime? _lockedUntil;
   int _expectedPinLength = 6;
+  // During setup: user-chosen PIN length (4 or 6)
+  int _pinLengthChoice = 6;
 
   late AnimationController _shakeCtrl;
   late Animation<double> _shakeAnim;
@@ -102,7 +104,7 @@ class _VaultLockScreenState extends State<VaultLockScreen>
 
   Future<void> _submit() async {
     final current = _confirming ? _confirmPin : _pin;
-    if (current.length < 4) return;
+    if (current.length < VaultService.minPinLength) return;
 
     if (widget.isSetup) {
       if (!_confirming) {
@@ -130,7 +132,7 @@ class _VaultLockScreenState extends State<VaultLockScreen>
         final info = await VaultService.getLockoutInfo();
         _shake(info.lockedUntil != null
             ? 'Too many attempts. ${VaultLockedException(info.lockedUntil!).message}'
-            : 'Wrong PIN. ${info.attempts >= 3 ? "${6 - info.attempts} attempts left" : ""}');
+            : 'Wrong PIN. ${info.attempts >= 3 ? "${5 - info.attempts} attempt${5 - info.attempts == 1 ? '' : 's'} left" : ""}');
         setState(() {
           _pin = '';
           _loading = false;
@@ -209,7 +211,7 @@ class _VaultLockScreenState extends State<VaultLockScreen>
                       const SizedBox(height: 4),
                       Text(
                         widget.isSetup
-                            ? (_confirming ? 'Re-enter your PIN to confirm' : 'Choose a 6-digit PIN')
+                            ? (_confirming ? 'Re-enter your PIN to confirm' : 'Choose a ${_pinLengthChoice}-digit PIN')
                             : isLocked
                                 ? VaultLockedException(_lockedUntil!).message
                                 : 'Enter your PIN to continue',
@@ -271,6 +273,52 @@ class _VaultLockScreenState extends State<VaultLockScreen>
             ],
 
             const Spacer(),
+
+            // PIN length selector (setup mode, before confirmation step)
+            if (widget.isSetup && !_confirming)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('PIN length:', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                    const SizedBox(width: 16),
+                    for (final len in [4, 6])
+                      GestureDetector(
+                        onTap: () => setState(() {
+                          _pinLengthChoice = len;
+                          _expectedPinLength = len;
+                          _pin = ''; _confirmPin = '';
+                        }),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.symmetric(horizontal: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _pinLengthChoice == len
+                                ? const Color(0xFF7C5CFF)
+                                : const Color(0xFF12151E),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _pinLengthChoice == len
+                                  ? const Color(0xFF7C5CFF)
+                                  : const Color(0xFF1E2530),
+                            ),
+                          ),
+                          child: Text(
+                            '$len digits',
+                            style: TextStyle(
+                              color: _pinLengthChoice == len ? Colors.white : Colors.white54,
+                              fontSize: 14,
+                              fontWeight: _pinLengthChoice == len
+                                  ? FontWeight.w700 : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
 
             // Numpad
             if (!isLocked)
