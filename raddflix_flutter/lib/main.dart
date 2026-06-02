@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
-import 'app.dart';
+import 'app.dart' show pendingVideoUri, pendingVideoTitle, appNavigatorKey;
 import 'core/remote_config.dart';
 import 'core/services/app_update_service.dart';
 import 'core/services/jazzdrive_service.dart';
@@ -62,10 +62,11 @@ void main() async {
   HistoryApi.flushUnsynced().ignore();               // push offline watch positions
   UsageService.flushPending().ignore();              // push pending data-usage bytes
 
-  // Check for initial video URI from "Open with" intent (cold start)
+  // Check for initial video URI + display name from "Open with" intent (cold start)
   try {
     const _ch = MethodChannel('com.raddflix.app/intent');
-    pendingVideoUri = await _ch.invokeMethod<String>('getPendingVideoUri');
+    pendingVideoUri   = await _ch.invokeMethod<String>('getPendingVideoUri');
+    pendingVideoTitle = await _ch.invokeMethod<String>('getPendingVideoTitle');
   } catch (_) {}
 
   runApp(
@@ -78,21 +79,46 @@ void main() async {
   // immediately when device reconnects (not just on next cold start).
   ConnectivitySyncService.start();
 
-  // Listen for new "Open with" intents while app is running (warm start)
+  // Listen for new "Open with" intents while app is running (warm start).
+  // MainActivity sends a Map {"uri": String, "title": String} so we get the
+  // proper display name resolved by ContentResolver — not just the URI segment.
   const MethodChannel('com.raddflix.app/intent')
       .setMethodCallHandler((call) async {
     if (call.method == 'onVideoUri') {
-      final uri = call.arguments as String?;
-      if (uri != null && uri.isNotEmpty) {
-        appNavigatorKey.currentState?.pushNamed(
-          '/player',
-          arguments: {
-            'file_id': '',
-            'title': uri.split('/').last.replaceAll(RegExp(r'%20'), ' '),
-            'local_path': uri.startsWith('file://') ? uri.replaceFirst('file://', '') : uri,
-          },
-        );
-      }
+      final args = call.arguments;
+      final String? uri = args is Map ? args['uri'] as String? : args as String?;
+      if (uri == null || uri.isEmpty) return;
+
+      // Resolve title: prefer ContentResolver name, fall back to URI last segment (fully decoded)
+      final String rawTitle = args is Map ? (args['title'] as String? ?? '') : '';
+      final String title = rawTitle.isNotEmpty
+          ? rawTitle
+          : Uri.decodeFull(uri.split('/').last);
+
+      // Normalise path: strip file:// prefix; pass content:// URIs as-is (media_kit handles them)
+      final String localPath =
+          uri.startsWith('file://') ? uri.replaceFirst('file://', '') : uri;
+
+      final nav = appNavigatorKey.currentState;
+      if (nav == null) return;
+
+      // Only push player when the navigator is ready and app is past auth screens.
+      // Pushing onto login/splash would show a player with no auth context.
+      final currentRoute = nav.widget.pages.isNotEmpty
+          ? null
+          : ModalRoute.of(nav.context)?.settings.name;
+      // Use popUntil to discard any stacked player screens before pushing a new one,
+      // so repeated "Open with" taps don't accumulate player screens.
+      nav.popUntil((route) => route.settings.name != '/player');
+      nav.pushNamed(
+        '/player',
+        arguments: {
+          'file_id': '',
+          'title': title,
+          'local_path': localPath,
+          'content_type': 'movie',
+        },
+      );
     }
   });
 }

@@ -28,6 +28,7 @@ class MainActivity : FlutterActivity() {
     private val SECURITY_CHANNEL = "com.raddflix.app/security"
 
     private var pendingVideoUri: String? = null
+    private var pendingVideoTitle: String? = null   // display name resolved from ContentResolver
     private var intentMethodChannel: MethodChannel? = null
 
     private var castContext: CastContext? = null
@@ -49,6 +50,10 @@ class MainActivity : FlutterActivity() {
                 "getPendingVideoUri" -> {
                     result.success(pendingVideoUri)
                     pendingVideoUri = null
+                }
+                "getPendingVideoTitle" -> {
+                    result.success(pendingVideoTitle)
+                    pendingVideoTitle = null
                 }
                 "openVideoWith" -> {
                     val uri = call.argument<String>("uri") ?: ""
@@ -244,17 +249,48 @@ class MainActivity : FlutterActivity() {
         extractVideoUri(intent)
         val uri = pendingVideoUri
         if (uri != null) {
-            intentMethodChannel?.invokeMethod("onVideoUri", uri)
+            // Pass both uri and resolved display name so Flutter can show a proper title
+            val args = mapOf("uri" to uri, "title" to (pendingVideoTitle ?: ""))
+            intentMethodChannel?.invokeMethod("onVideoUri", args)
             pendingVideoUri = null
+            pendingVideoTitle = null
         }
     }
 
     private fun extractVideoUri(intent: Intent?) {
         if (intent?.action == Intent.ACTION_VIEW) {
-            val uri = intent.data?.toString()
-            if (!uri.isNullOrEmpty()) {
-                pendingVideoUri = uri
+            val data = intent.data ?: return
+            val uriStr = data.toString()
+            if (uriStr.isNotEmpty()) {
+                pendingVideoUri = uriStr
+                pendingVideoTitle = resolveDisplayName(data)
             }
+        }
+    }
+
+    /** Query Android ContentResolver for the human-readable display name of a URI.
+     *  Works for content:// (MediaStore, Downloads, file pickers) and file:// URIs.
+     *  Returns null if name cannot be resolved — caller falls back to URI path segment. */
+    private fun resolveDisplayName(uri: android.net.Uri): String? {
+        return when (uri.scheme) {
+            "content" -> {
+                try {
+                    val cursor = contentResolver.query(uri, null, null, null, null)
+                    cursor?.use {
+                        if (it.moveToFirst()) {
+                            val col = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                            if (col >= 0) it.getString(col) else null
+                        } else null
+                    }
+                } catch (e: Exception) { null }
+            }
+            "file" -> {
+                try {
+                    val raw = uri.lastPathSegment ?: return null
+                    java.net.URLDecoder.decode(raw, "UTF-8")
+                } catch (e: Exception) { uri.lastPathSegment }
+            }
+            else -> null
         }
     }
 }

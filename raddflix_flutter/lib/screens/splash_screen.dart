@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
-import '../app.dart' show pendingVideoUri, appNavigatorKey;
+import '../app.dart' show pendingVideoUri, pendingVideoTitle, appNavigatorKey;
 import '../core/remote_config.dart';
 import '../core/theme/brand_theme_provider.dart';
 import '../providers/auth_provider.dart';
@@ -71,17 +71,29 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         // If app was opened via "Open with" intent, push player after home loads
         final uri = pendingVideoUri;
         if (uri != null && uri.isNotEmpty) {
-          pendingVideoUri = null;
+          pendingVideoUri   = null;
+          final String? resolvedTitle = pendingVideoTitle;
+          pendingVideoTitle = null;
           Future.delayed(const Duration(milliseconds: 400), () {
-            appNavigatorKey.currentState?.pushNamed(
-              '/player',
-              arguments: {
-                'file_id': '',
-                'title': uri.split('/').last.replaceAll(RegExp(r'%20'), ' '),
-                'local_path': uri.startsWith('file://') ? uri.substring(7) : uri,
-                'content_type': 'movie',
-              },
-            );
+            // Prefer ContentResolver display name; fall back to fully-decoded URI segment.
+            final String title = (resolvedTitle != null && resolvedTitle.isNotEmpty)
+                ? resolvedTitle
+                : Uri.decodeFull(uri.split('/').last);
+            // Normalise path: strip file:// prefix; content:// passed as-is for media_kit.
+            final String localPath =
+                uri.startsWith('file://') ? uri.substring(7) : uri;
+            // Pop any stale player screen before pushing (cold-start edge case).
+            appNavigatorKey.currentState
+              ?..popUntil((route) => route.settings.name != '/player')
+              ..pushNamed(
+                '/player',
+                arguments: {
+                  'file_id': '',
+                  'title': title,
+                  'local_path': localPath,
+                  'content_type': 'movie',
+                },
+              );
           });
         }
       } else if (next.status == AuthStatus.unauthenticated) {

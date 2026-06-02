@@ -42,6 +42,10 @@ final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 /// Read once by SplashScreen._start() then cleared.
 String? pendingVideoUri;
 
+/// Resolved display name for [pendingVideoUri] (from Android ContentResolver).
+/// Set alongside pendingVideoUri; cleared after use.
+String? pendingVideoTitle;
+
 class RaddFlixApp extends ConsumerWidget {
   const RaddFlixApp({super.key});
 
