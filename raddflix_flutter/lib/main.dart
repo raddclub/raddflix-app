@@ -1,8 +1,9 @@
+import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
-import 'app.dart' show pendingVideoUri, pendingVideoTitle, pendingSubtitleUri, appNavigatorKey;
+import 'app.dart' show RaddFlixApp, pendingVideoUri, pendingVideoTitle, pendingSubtitleUri, appNavigatorKey;
 import 'core/remote_config.dart';
 import 'core/services/app_update_service.dart';
 import 'core/services/jazzdrive_service.dart';

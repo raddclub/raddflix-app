@@ -881,7 +881,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => AudioMixerSheet(
-        tracks: _player.state.tracks.audio,
+        tracks: _player.state.tracks.audio
+            .asMap()
+            .entries
+            .map((e) => AudioTrack(
+              id: e.key,
+              title: e.value.title?.isNotEmpty == true
+                  ? e.value.title!
+                  : 'Track ${e.key + 1}',
+              language: e.value.language ?? '',
+            ))
+            .toList(),
         selectedTrackId: _activeAudioIdx,
         audioDelay: _prefs.audioTimingOffsetMs / 1000.0,
         accentColor: _prefs.accentColor,
@@ -1094,7 +1104,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         fadeEnabled: _prefs.sleepFadeEnabled,
         fadeDurationSeconds: _prefs.sleepFadeDurationSeconds,
         accentColor: _prefs.accentColor,
-        onTimerSet: (d) => _setSleepTimer(d.inMinutes),
+        onTimerSet: (d) => _setSleepTimer(d?.inMinutes ?? 0),
         onCancel: _cancelSleepTimer,
         onFadeToggled: (v) {
           setState(() => _prefs = _prefs.copyWith(sleepFadeEnabled: v));

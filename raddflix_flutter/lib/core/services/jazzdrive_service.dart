@@ -333,7 +333,7 @@ class JazzDriveService {
       if (rec == null) {
         final em = RegExp(r's(\d{1,2})e(\d{1,2})', caseSensitive: false).firstMatch(tgt);
         if (em != null) {
-          final code = 's\${em.group(1)!.padLeft(2, '0')}e\${em.group(2)!.padLeft(2, '0')}';
+          final code = 's\${em.group(1)!.padLeft(2, "0")}e\${em.group(2)!.padLeft(2, "0")}';
           for (final r in records) {
             if (_rname(r).toLowerCase().contains(code)) { rec = r as Map<String, dynamic>; break; }
           }
