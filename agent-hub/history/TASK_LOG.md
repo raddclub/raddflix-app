@@ -2534,3 +2534,31 @@ Result: 3 independent tasks run simultaneously instead of one-by-one; app reache
 22. Dead _sleepDuration state var — removed; SleepTimerSheet.currentTimer now derived from _sleepRemainingSeconds
 23. Dead _audioTracks/_selectedAudioTrack state vars — replaced with live player state
 24. Dead _TracksPanel class (never instantiated) — removed
+---
+## 2026-06-02 — Vault: 10 logic bugs fixed (4 files)
+
+**Commit:** 961eba227e
+**Files:** vault_service.dart, vault_lock_screen.dart, vault_settings_screen.dart, vault_screen.dart
+
+### Bugs Fixed
+
+**vault_service.dart**
+1. Auto-lock never fired after cold start: _cachedAutoLock stuck at 0 (never loaded from SharedPrefs). Fixed: getAutoLockSeconds() now syncs cache.
+2. restoreFile() never notified MediaStore: restored files invisible in gallery apps. Fixed: notifyMediaStore(dest.path) called after restore.
+3. setPin/setFakePin accepted any length (even 1 digit): security hole. Fixed: added minPinLength=4/maxPinLength=6 constants + validation in both methods.
+4. _removefromMediaStore was private: callers outside service couldn't use it. Fixed: exposed as public notifyMediaStore().
+
+**vault_lock_screen.dart**
+5. Setup always hardcoded 6-digit PIN: no way to choose 4-digit PIN despite code supporting it. Fixed: added 4/6 chip selector UI; subtitle updates dynamically.
+6. Attempts-left counter off by one: lockout fires at 5 fails but showed "2 left" at 4 fails. Fixed: 6-attempts -> 5-attempts.
+7. _submit() min-length guard used magic number 4. Fixed: uses VaultService.minPinLength.
+
+**vault_settings_screen.dart**
+8. Change PIN dialog had no confirm-new-PIN field: mistyped new PIN = permanent lockout. Fixed: added 3rd field "Confirm New PIN" + inline validation.
+9. Decoy PIN dialog had no min-length check: could set 1-digit decoy PIN. Fixed: validates >= minPinLength.
+10. _pinField.maxLength hardcoded 6. Fixed: uses VaultService.maxPinLength.
+
+**vault_screen.dart**
+11. _importFiles used withData:true: OOM crash on large video files loaded into RAM. Fixed: withData:false, relies on file.path.
+12. Android 11+ import via bytes never deleted original from gallery: file stayed visible. Fixed: withData:false + moveFileToVault() always deletes source + notifies MediaStore.
+13. No way to restore vault files back to gallery. Fixed: added "Restore to Gallery" in file menu -> _restoreToGallery() -> Downloads folder + MediaStore scan.
