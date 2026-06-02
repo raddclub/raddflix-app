@@ -3199,3 +3199,40 @@ All 4 fixes in player_screen.dart:
 - downloads_screen._path() still returns '' for null paths (intentional: graceful streaming fallback)
 - local_folder_screen._playAll() episodes map includes 'local_path' per video — now forwarded correctly by _playNextEpisode
 - DB schema: v17. Next migration: if (oldV < 18)
+
+
+---
+
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Session 37b — Now Playing indicator)
+
+### Task
+Add a "Now Playing" indicator to the episode list so the user can see which episode is currently playing without scrolling.
+
+### Implementation
+
+**Location**: `show_detail_screen.dart`
+
+**State**: Added `int? _nowPlayingIdx` field to `_ShowDetailScreenState`.
+
+**`_playEpisode`** — converted from `void` to `Future<void> async`:
+- `setState(() => _nowPlayingIdx = episodeIndex)` before pushing the player route
+- `await Navigator.pushNamed(...)` to wait for the player to close
+- `if (mounted) setState(() => _nowPlayingIdx = null)` when the player pops
+
+**Episode list builder** — passes `isNowPlaying: i == _nowPlayingIdx` to each `_EpisodeTile`.
+
+**`_EpisodeTile` widget** — added `bool isNowPlaying` field (default `false`), three visual changes when `true`:
+1. **Card border**: primary-coloured (55% opacity, 1.5px wide) + faint primary background tint
+2. **Number badge**: replaced by `Icons.graphic_eq_rounded` pulsing via `flutter_animate` repeat (scale 0.92→1.0, 700ms)
+3. **Label row badge**: "NOW PLAYING" chip (matches style of OFFLINE/FREE badges, same 9px font, primary colour)
+   - Badge priority: NOW PLAYING > OFFLINE > FREE (mutually exclusive in one row slot)
+
+### Files Changed
+- raddflix_flutter/lib/screens/show_detail_screen.dart (commit acfc1857, API sha ed7cf399, 1035 lines)
+
+### Notes for Next Agent
+- `_nowPlayingIdx` uses episode index within the current season's `_currentEpisodes` list (0-based)
+- When user auto-advances episodes inside the player, `_nowPlayingIdx` stays on the original tapped episode — acceptable since the episode list is behind the full-screen player and not visible
+- The `_nowPlayingIdx` null-clears reliably when player pops (back button, swipe, timer end)
+- No changes needed in player_screen.dart for this feature
+- APK rebuild required (two Dart files changed this session)
