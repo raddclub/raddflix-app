@@ -2124,3 +2124,47 @@ Server restarted: `supervisorctl restart raddflix_radd` → RUNNING pid 546084
 - `e442eb2e` — bump catalogDbVersion 15→16 for BUG-A36 migration
 
 **APK rebuild required:** Yes (Flutter-side fix)
+
+## [2026-06-02] — Session 30: Streaming Architecture Audit (read-only)
+
+### Task
+User asked: how does the app stream a movie — where does the stream URL come from?
+No code changes this session — pure source code read to trace the real flow.
+
+### Files Read
+- `raddflix_flutter/lib/screens/player_screen.dart` — `_openMedia()` lines 1697–1790
+- `raddflix_flutter/lib/core/services/jazzdrive_service.dart` — full file
+- `raddflix_flutter/lib/core/api/catalog_api.dart` — full file
+- `raddflix_flutter/lib/core/db/local_db.dart` — `getShareUrl()`, stream_cache, schema
+- `raddflix_flutter/lib/core/constants.dart` — `ApiPaths`
+- `radd-hub/hub/routes/catalog_api.py` — `_do_play()`, `get_share_url()`, `_watch_base()`
+- `radd-hub/hub/jazzdrive.py` — `generate_direct_link()` (line 1922)
+
+### Done
+- Traced complete streaming flow end-to-end from source code (no assumptions/guessing)
+- Oracle server does NOT serve video — only stores and serves share_urls to the app
+- Stream CDN URL is generated ON DEVICE by Flutter calling cloud.jazzdrive.com.pk directly
+- `ApiPaths.playUrl` (/watch/api/play/<id>) is DEAD CODE — player never calls it
+- Full architecture reported to user
+
+### Notes for Next Agent
+Full streaming flow (from code, player_screen.dart `_openMedia()`):
+1. User taps play → `_openMedia(fileId)` called
+2. `LocalDb.getShareUrl(fileId)`:
+   - Queries `episodes WHERE file_id=?` (TV shows)
+   - Then `titles WHERE file_id=?` (movies — BUG-A36 fix)
+   - Decodes RF1: scrambled URL using device ID → returns plain JazzDrive share_url
+3. If not in SQLite: tries inline share_url from route args, then Oracle fallback:
+   `CatalogApi.getShareUrl(fileId)` → GET /api/catalog/share_url?file_id=<id>
+4. `JazzDriveService.getStreamLink(fileId, shareUrl)`:
+   a. In-memory cache hit? Return immediately
+   b. SQLite stream_cache hit (TTL 180 min)? Return
+   c. Otherwise: 2 live HTTPS calls to cloud.jazzdrive.com.pk (zero-rated Jazz SIM):
+      POST /sapi/link/login → validationKey + JSESSIONID
+      GET /sapi/media/video → raw CDN URL + filename
+      Build final CDN URL, cache 180 min in memory + SQLite
+5. `_player.open(Media(cdnUrl))` — media_kit streams bytes from CDN
+
+DB schema version: 16. Next migration: if (oldV < 17).
+
+---
