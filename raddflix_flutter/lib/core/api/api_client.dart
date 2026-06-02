@@ -241,6 +241,7 @@ class _AuthInterceptor extends Interceptor {
       // Guest mode: no refresh token — re-issue a fresh guest token instead of logging out
       try {
         final freshDio = Dio(BaseOptions(baseUrl: AppConstants.apiBaseUrl));
+        freshDio.interceptors.add(_XorInterceptor()); // AUDIT-04: decode XOR response without auth loop
         final guestResp = await freshDio.post(ApiPaths.guest);
         if (guestResp.statusCode == 200) {
           final gData = guestResp.data as Map<String, dynamic>? ?? {};
@@ -259,8 +260,10 @@ class _AuthInterceptor extends Interceptor {
     }
 
     try {
-      // Use a fresh Dio instance (no interceptors) to avoid infinite loop
+      // Use a fresh Dio instance (no _AuthInterceptor) to avoid infinite retry loop.
+      // _XorInterceptor is safe here — it only encodes/decodes, contains no auth logic.
       final freshDio = Dio(BaseOptions(baseUrl: AppConstants.apiBaseUrl));
+      freshDio.interceptors.add(_XorInterceptor()); // AUDIT-04: decode XOR response without auth loop
       final response = await freshDio.post(
         ApiPaths.refresh,
         data: {'refresh_token': refreshToken},
