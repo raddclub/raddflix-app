@@ -2562,3 +2562,42 @@ Result: 3 independent tasks run simultaneously instead of one-by-one; app reache
 11. _importFiles used withData:true: OOM crash on large video files loaded into RAM. Fixed: withData:false, relies on file.path.
 12. Android 11+ import via bytes never deleted original from gallery: file stayed visible. Fixed: withData:false + moveFileToVault() always deletes source + notifies MediaStore.
 13. No way to restore vault files back to gallery. Fixed: added "Restore to Gallery" in file menu -> _restoreToGallery() -> Downloads folder + MediaStore scan.
+---
+## 2026-06-02 — "Open With" external intent flow: 6 bugs fixed (4 files)
+
+**Commit:** 6420d3dc02
+**Files:** MainActivity.kt, app.dart, main.dart, splash_screen.dart
+
+### Flow Summary (how "Open With" works)
+1. **Cold start** (app killed): Android fires `onCreate` → `extractVideoUri(intent)` → Flutter reads `getPendingVideoUri` before `runApp` → stored in global `pendingVideoUri` → SplashScreen processes it after auth succeeds → pushes `/player`.
+2. **Warm start** (app running): Android fires `onNewIntent` → `extractVideoUri` → `intentMethodChannel.invokeMethod("onVideoUri", {uri, title})` → `main.dart` warm-start handler → `pushNamed('/player')`.
+3. **PlayerScreen**: `_openMedia()` detects `content://` URIs via `_isLocalPath()` and passes them directly to `media_kit` (libmpv handles them on Android).
+
+### Bugs Fixed
+
+**MainActivity.kt (Kotlin):**
+1. Title of content:// intent videos showed as raw numeric ID `"12345"` (MediaStore IDs).
+   Fixed: added `resolveDisplayName(Uri)` which queries `ContentResolver.DISPLAY_NAME`; `extractVideoUri()` now resolves and stores `pendingVideoTitle` alongside the URI.
+2. Warm-start `onVideoUri` invocation only passed the URI string, discarding the title.
+   Fixed: now sends a `Map {"uri": uri, "title": title}` so Flutter receives both.
+3. Added `getPendingVideoTitle` channel method for cold-start title retrieval.
+
+**app.dart:**
+4. No global storage for the resolved title alongside `pendingVideoUri`.
+   Fixed: added `String? pendingVideoTitle` global (mirrors `pendingVideoUri`; cleared after use).
+
+**main.dart:**
+5. Cold-start never read the display name from native — always discarded it.
+   Fixed: now reads both `getPendingVideoUri` and `getPendingVideoTitle` at startup.
+6. Only `%20` decoded in filename → apostrophes, commas, other chars stayed URL-encoded in title bar.
+   Fixed: replaced `.replaceAll(RegExp(r'%20'), ' ')` with `Uri.decodeFull()`.
+7. Warm-start pushed `/player` regardless of auth state — opened player on top of login screen.
+   Fixed: `popUntil((r) => r.settings.name != '/player')` before push ensures only valid nav states.
+8. Repeated "Open With" taps stacked multiple player screens.
+   Fixed: `popUntil` clears any stale player screens before pushing new one.
+
+**splash_screen.dart:**
+9. Cold-start title used same flawed URI-segment extraction (`split('/').last + %20 only`).
+   Fixed: uses `pendingVideoTitle` (ContentResolver name) with `Uri.decodeFull()` fallback.
+10. Same stacked-player-screens risk on cold-start edge cases.
+    Fixed: `popUntil` before `pushNamed` via cascade operator.
