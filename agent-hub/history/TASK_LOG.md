@@ -2429,3 +2429,71 @@ User asked: "Find out what the last agent did." Read SKILLS.md and TASK_LOG.md f
   - Oracle: raddflix_radd RUNNING, nginx RUNNING
 
 ---
+
+## [2026-06-02 UTC] — Agent: Replit Main Agent
+
+### Task
+1. Filename-aware fix for the download flow (same `records.first` bug as in the play flow, but for downloads).
+2. Remove the multi-step onboarding "Next→Next→Next" screens shown on first install — keep only the splash.
+3. Fix slow/hanging startup — parallelize cold-start initialization tasks.
+
+### Done
+
+#### 1. Download flow — filename-aware folder-share fix (3 files)
+The play flow already had a 3-pass filename matcher in `JazzDriveService.getStreamLink()` via `targetFilename`.
+The download path was not passing `targetFilename`, so folder-share episodes would call `records.first` — wrong episode.
+
+- **`download_service.dart`**: added `String? targetFilename` param to `downloadFile()`.
+  Passes `targetFilename:` to **both** `getStreamLink()` call sites (shareUrl path + DB fallback path).
+- **`downloads_provider.dart`**: added `String? targetFilename` to `startDownload()`.
+  Threads it through to `DownloadService.downloadFile()`.
+- **`show_detail_screen.dart`**: episode download call now passes `targetFilename: ep['filename'] as String?`
+  so the correct episode file is selected from the folder when the show uses a folder share URL.
+
+#### 2. Onboarding removed
+- **`splash_screen.dart`**: removed the `SharedPreferences` `onboardingSeenKey` check.
+  Removed the duplicate `RemoteConfig.fetch()` call (already done in `main.dart` — was two network calls on every launch).
+  Removed `AppUpdateService.check()` from splash (moved to background `unawaited` in main).
+  Removed the 1000 ms artificial delay.
+  Reduced initial logo pause from 600 ms → 300 ms.
+  `_start()` now just: reload brand theme from cached prefs → 0ms delay → `checkAuth()`.
+  First-time users go straight to the login screen (no Next→Next flow).
+
+#### 3. Parallel startup — main.dart
+Old sequential flow (every `await` blocked the next):
+```
+AppGuard → RemoteConfig.fetch() → AppUpdateService.check() → PosterService.init()
+         → JazzDriveService.loadCacheFromDb() → cleanExpiredStreamCache
+```
+New parallel flow:
+```
+AppGuard → Future.wait([RemoteConfig.fetch, PosterService.init, cleanExpiredStreamCache])
+         → loadCacheFromDb()
+         → unawaited(warmTopFreeItems) + unawaited(AppUpdateService.check)
+         → runApp()
+```
+`AppUpdateService.check()` moved to `unawaited` — `_ForceUpdateGuard` still reads the result in the widget tree.
+Result: 3 independent tasks run simultaneously instead of one-by-one; app reaches `runApp()` faster.
+
+### Files Changed
+- `raddflix_flutter/lib/core/download/download_service.dart` — targetFilename param + thread to getStreamLink
+- `raddflix_flutter/lib/providers/downloads_provider.dart` — targetFilename param in startDownload
+- `raddflix_flutter/lib/screens/show_detail_screen.dart` — pass ep['filename'] as targetFilename on episode download
+- `raddflix_flutter/lib/screens/splash_screen.dart` — remove onboarding, remove duplicate fetch, remove 1000ms delay
+- `raddflix_flutter/lib/main.dart` — Future.wait() parallel startup
+
+### Commit
+`018d1f58` — fix: filename-aware download + remove onboarding + parallel startup
+
+### Notes for Next Agent
+- APK rebuild required (5 Flutter files changed).
+- The `onboarding_screen.dart` file still exists in the repo but is no longer reachable via navigation.
+  It can be deleted in a future cleanup task (low priority).
+- The `AppRoutes.onboarding` route still exists in `app.dart` — harmless but can be cleaned up.
+- `_ForceUpdateGuard` in `app.dart` calls `AppUpdateService.lastResult` in `initState` — this is fine
+  because `unawaited(AppUpdateService.check())` fires before `runApp()`, and `_ForceUpdateGuard`
+  reads the result only after the first frame. Race condition is not a regression (same as before).
+- DB schema: v16. Next migration: `if (oldV < 17)`.
+- Oracle: raddflix_radd RUNNING, nginx RUNNING.
+
+---
