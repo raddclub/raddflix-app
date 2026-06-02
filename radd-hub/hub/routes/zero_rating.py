@@ -613,7 +613,7 @@ def generate():
                 "id": r["id"], "title_id": r["title_id"],
                 "file_id": str(r["id"]),
                 "season": r["season"], "episode": r["episode"],
-                "label": f"S{r['season']:02d}E{r['episode']:02d}",
+                "label": "S{:02d}E{:02d}".format(r["season"] or 0, r["episode"] or 0),
                 "quality": None, "is_free": 0,
             })
 
