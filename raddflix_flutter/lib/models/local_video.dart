@@ -33,7 +33,9 @@ import 'dart:typed_data';
       this.hasSrt = false,
     });
 
-    String get formattedDuration {
+    bool get hasSrt => subtitlePath != null;
+
+  String get formattedDuration {
       final total = durationMs ~/ 1000;
       final h = total ~/ 3600;
       final m = (total % 3600) ~/ 60;

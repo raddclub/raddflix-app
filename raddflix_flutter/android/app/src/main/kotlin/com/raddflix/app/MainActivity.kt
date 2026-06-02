@@ -29,6 +29,13 @@ class MainActivity : FlutterActivity() {
 
     private var pendingVideoUri: String? = null
     private var pendingVideoTitle: String? = null   // display name resolved from ContentResolver
+    private var pendingSubtitleUri: String? = null  // subtitle file alongside the video (or vice versa)
+
+    // Known subtitle and video file extensions for "Open With" routing
+    companion object {
+        private val SUBTITLE_EXTS = setOf("srt", "ass", "ssa", "vtt", "sub")
+        private val VIDEO_EXTS    = setOf("mp4", "mkv", "avi", "mov", "flv", "wmv", "m4v", "3gp", "ts", "webm", "m2ts", "mts")
+    }
     private var intentMethodChannel: MethodChannel? = null
 
     private var castContext: CastContext? = null
@@ -54,6 +61,10 @@ class MainActivity : FlutterActivity() {
                 "getPendingVideoTitle" -> {
                     result.success(pendingVideoTitle)
                     pendingVideoTitle = null
+                }
+                "getPendingSubtitleUri" -> {
+                    result.success(pendingSubtitleUri)
+                    pendingSubtitleUri = null
                 }
                 "openVideoWith" -> {
                     val uri = call.argument<String>("uri") ?: ""
@@ -248,24 +259,138 @@ class MainActivity : FlutterActivity() {
         super.onNewIntent(intent)
         extractVideoUri(intent)
         val uri = pendingVideoUri
-        if (uri != null) {
-            // Pass both uri and resolved display name so Flutter can show a proper title
-            val args = mapOf("uri" to uri, "title" to (pendingVideoTitle ?: ""))
+        if (uri != null || pendingSubtitleUri != null) {
+            val args = mapOf(
+                "uri"      to (uri ?: ""),
+                "title"    to (pendingVideoTitle ?: ""),
+                "subtitle" to (pendingSubtitleUri ?: "")
+            )
             intentMethodChannel?.invokeMethod("onVideoUri", args)
-            pendingVideoUri = null
-            pendingVideoTitle = null
+            pendingVideoUri    = null
+            pendingVideoTitle  = null
+            pendingSubtitleUri = null
         }
     }
 
     private fun extractVideoUri(intent: Intent?) {
-        if (intent?.action == Intent.ACTION_VIEW) {
-            val data = intent.data ?: return
-            val uriStr = data.toString()
-            if (uriStr.isNotEmpty()) {
-                pendingVideoUri = uriStr
-                pendingVideoTitle = resolveDisplayName(data)
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val data = intent.data ?: return
+        val uriStr = data.toString()
+        if (uriStr.isEmpty()) return
+
+        val displayName = resolveDisplayName(data) ?: ""
+        val ext = displayName.substringAfterLast('.', "").lowercase()
+
+        when {
+            ext in SUBTITLE_EXTS -> {
+                // User opened a subtitle file — find the matching video in the same directory.
+                val subPath = resolveSubtitlePath(data, displayName)
+                pendingSubtitleUri = subPath ?: uriStr  // prefer real path, keep URI as fallback
+                val videoPath = findMatchingVideo(data, displayName)
+                if (videoPath != null) {
+                    pendingVideoUri   = "file://${'$'}videoPath"
+                    pendingVideoTitle = videoPath.substringAfterLast('/')
+                }
+                // If no matching video found, pendingVideoUri stays null →
+                // Flutter won't push the player (subtitle alone is useless).
+            }
+            else -> {
+                // Normal video file (or unknown — pass through so media_kit can try).
+                pendingVideoUri   = uriStr
+                pendingVideoTitle = displayName.ifEmpty { resolveDisplayName(data) }
+                // Try to auto-discover a sidecar subtitle next to the video.
+                val videoFilePath = getFilePath(data)
+                if (videoFilePath != null) {
+                    pendingSubtitleUri = findMatchingSubtitle(videoFilePath, displayName)
+                }
             }
         }
+    }
+
+    /** Resolve a subtitle URI to an absolute file path.
+     *  Tries DATA column first; falls back to copying content into app cache. */
+    private fun resolveSubtitlePath(uri: android.net.Uri, displayName: String): String? {
+        // Fast path: real file path via _data
+        val filePath = getFilePath(uri)
+        if (filePath != null) return filePath
+        // Fallback: copy to app cache so MPV can read it by absolute path
+        val ext = displayName.substringAfterLast('.', "srt")
+        return try {
+            val tmp = java.io.File(cacheDir, "sub_${'$'}{System.currentTimeMillis()}.${'$'}ext")
+            contentResolver.openInputStream(uri)?.use { input ->
+                tmp.outputStream().use { out -> input.copyTo(out) }
+            }
+            tmp.absolutePath
+        } catch (_: Exception) { null }
+    }
+
+    /** Given a subtitle URI, find a video file with the same base name in the same directory. */
+    private fun findMatchingVideo(subtitleUri: android.net.Uri, subtitleName: String): String? {
+        val base = subtitleName.substringBeforeLast('.')
+        if (base.isEmpty()) return null
+
+        // Try filesystem first (works when we have a real file path)
+        val subPath = getFilePath(subtitleUri)
+        if (subPath != null) {
+            val dir = java.io.File(subPath).parentFile ?: return null
+            for (ext in VIDEO_EXTS) {
+                val candidate = java.io.File(dir, "${'$'}base.${'$'}ext")
+                if (candidate.exists()) return candidate.absolutePath
+            }
+            return null
+        }
+
+        // MediaStore fallback: query by display name
+        val proj = arrayOf(android.provider.MediaStore.Video.Media.DATA)
+        for (ext in VIDEO_EXTS) {
+            try {
+                contentResolver.query(
+                    android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                    proj,
+                    "${'$'}{android.provider.MediaStore.Video.Media.DISPLAY_NAME} = ?",
+                    arrayOf("${'$'}base.${'$'}ext"),
+                    null
+                )?.use { c ->
+                    if (c.moveToFirst()) {
+                        val path = c.getString(0)
+                        if (!path.isNullOrEmpty()) return path
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        return null
+    }
+
+    /** Given a video file path + display name, find a subtitle file in the same directory. */
+    private fun findMatchingSubtitle(videoFilePath: String, videoName: String): String? {
+        val base = videoName.substringBeforeLast('.')
+        if (base.isEmpty()) return null
+        val dir = java.io.File(videoFilePath).parentFile ?: return null
+        for (ext in SUBTITLE_EXTS) {
+            val candidate = java.io.File(dir, "${'$'}base.${'$'}ext")
+            if (candidate.exists()) return candidate.absolutePath
+            val upper = java.io.File(dir, "${'$'}base.${'$'}{ext.uppercase()}")
+            if (upper.exists()) return upper.absolutePath
+        }
+        return null
+    }
+
+    /** Get the real filesystem path from a URI (content:// or file://).
+     *  Returns null when the path cannot be resolved (e.g. cloud-only providers). */
+    private fun getFilePath(uri: android.net.Uri): String? {
+        return try {
+            when (uri.scheme) {
+                "file" -> uri.path
+                "content" -> contentResolver.query(
+                    uri,
+                    arrayOf(android.provider.MediaStore.MediaColumns.DATA),
+                    null, null, null
+                )?.use { c ->
+                    if (c.moveToFirst()) c.getString(0) else null
+                }
+                else -> null
+            }
+        } catch (_: Exception) { null }
     }
 
     /** Query Android ContentResolver for the human-readable display name of a URI.

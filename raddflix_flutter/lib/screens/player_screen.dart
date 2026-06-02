@@ -103,6 +103,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
   final String fileId;
   final String title;
   final String? localPath;
+  final String? subtitlePath;  // external subtitle file (.srt/.ass/.vtt etc.) to auto-load
   final List<Map<String, dynamic>>? episodes;
   final int episodeIndex;
   final String contentType; // 'series'|'drama'|'anime'|'movie'|'song'|etc.
@@ -112,6 +113,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
     required this.fileId,
     required this.title,
     this.localPath,
+    this.subtitlePath,
     this.episodes,
     this.episodeIndex = 0,
     this.contentType = 'series',
@@ -1538,6 +1540,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _player = Player();
     _videoCtrl = VideoController(_player);
     await _openMedia(widget.fileId, localPath: widget.localPath);
+    // Auto-load external subtitle (sidecar .srt/.ass/.vtt from local folder or "Open With" intent)
+    final _extSubPath = widget.subtitlePath;
+    if (_extSubPath != null && _extSubPath.isNotEmpty) {
+      try {
+        await _np.command(['sub-add', _extSubPath, 'select', 'External']);
+        DebugLogger.log('PLAYER', 'External subtitle loaded: $_extSubPath');
+      } catch (e) {
+        DebugLogger.logError('PLAYER', 'Failed to load subtitle: $_extSubPath', e);
+      }
+    }
     _loadSkipSegments(); // Phase P: load custom skip segments
     // Phase SVL: Smart Volume Leveling controller
     _svc = _SmartVolumeController(

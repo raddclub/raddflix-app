@@ -46,6 +46,11 @@ String? pendingVideoUri;
 /// Set alongside pendingVideoUri; cleared after use.
 String? pendingVideoTitle;
 
+/// Path to an external subtitle file found alongside the opened video (or vice versa).
+/// Set by native MainActivity when a sidecar .srt/.ass exists, or when user opens a
+/// subtitle file and the matching video is found in the same directory.
+String? pendingSubtitleUri;
+
 class RaddFlixApp extends ConsumerWidget {
   const RaddFlixApp({super.key});
 

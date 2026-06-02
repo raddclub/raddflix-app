@@ -53,14 +53,9 @@ import 'dart:io';
             height:         m['height'] as int? ?? 0,
             dateModifiedMs: (m['date_modified'] as int? ?? 0) * 1000,
             mimeType:       m['mime_type'] as String?,
-            hasSrt:         _checkSrt(m['file_path'] as String? ?? ''),
+            subtitlePath:   _findSubtitlePath(m['file_path'] as String? ?? ''),
           );
         }).where((v) => v.durationMs > 0 && v.sizeBytes > 50 * 1024).toList();
-
-        // Mark new files (not in seen set)
-        for (final v in videos) {
-          v.hasSrt = _checkSrt(v.filePath);
-        }
 
         return videos;
       } on PlatformException catch (e) {
@@ -83,7 +78,21 @@ import 'dart:io';
         ..sort((a, b) => b.videos.first.dateModifiedMs.compareTo(a.videos.first.dateModifiedMs));
     }
 
-    // ── Generate thumbnail ────────────────────────────────────────────────────
+    // ── Native MediaStore thumbnail (fast — API 29+ reads pre-cached thumbs) ────
+    static Future<Uint8List?> getThumbnailById(int mediaStoreId, {int size = 200}) async {
+      try {
+        final bytes = await _channel.invokeMethod<Uint8List>('getThumbnail', {
+          'id': mediaStoreId,
+          'size': size,
+        });
+        return bytes;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // ── File-path thumbnail fallback (filesystem / "Open With" URIs) ──────────
+    // Uses timeMs:0 (first frame) — safe for clips of any length.
     static Future<Uint8List?> getThumbnail(String filePath, {int quality = 50, int maxDimension = 200}) async {
       try {
         return await VideoThumbnail.thumbnailData(
@@ -91,7 +100,7 @@ import 'dart:io';
           imageFormat: ImageFormat.JPEG,
           maxWidth: maxDimension,
           quality: quality,
-          timeMs: 3000,
+          timeMs: 0,
         );
       } catch (_) {
         return null;
@@ -111,11 +120,16 @@ import 'dart:io';
       return (prefs.getStringList(_seenKey) ?? []).toSet();
     }
 
-    // ── Check SRT subtitle ────────────────────────────────────────────────────
-    static bool _checkSrt(String filePath) {
-      if (filePath.isEmpty) return false;
+    // ── Find subtitle file alongside video (checks .srt .ass .ssa .vtt .sub) ─────
+    static String? _findSubtitlePath(String filePath) {
+      if (filePath.isEmpty) return null;
       final base = filePath.replaceAll(RegExp(r'\.[^.]+$'), '');
-      return File('$base.srt').existsSync() || File('$base.SRT').existsSync();
+      const exts = ['srt', 'SRT', 'ass', 'ASS', 'ssa', 'SSA', 'vtt', 'VTT', 'sub', 'SUB'];
+      for (final ext in exts) {
+        final candidate = File('$base.$ext');
+        if (candidate.existsSync()) return candidate.path;
+      }
+      return null;
     }
 
     // ── Filesystem fallback scan ──────────────────────────────────────────────

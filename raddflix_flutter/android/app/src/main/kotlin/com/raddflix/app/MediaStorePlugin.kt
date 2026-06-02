@@ -7,7 +7,8 @@ package com.raddflix.app
   import android.content.pm.PackageManager
   import android.net.Uri
   import android.os.Build
-  import android.provider.MediaStore
+  import android.graphics.Bitmap
+import android.provider.MediaStore
   import android.provider.Settings
   import androidx.core.content.ContextCompat
   import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -58,6 +59,7 @@ package com.raddflix.app
               "checkMediaPermission"   -> result.success(hasPermission())
               "requestMediaPermission" -> { pendingResult = result; requestPermission() }
               "queryVideos"            -> queryVideos(result)
+              "getThumbnail"           -> getThumbnail(call, result)
               "openAppSettings"        -> { openAppSettings(); result.success(null) }
               else                     -> result.notImplemented()
           }
@@ -178,5 +180,37 @@ package com.raddflix.app
 
           result.success(videos)
       }
-  }
   
+      // ── Video thumbnail (fast — reads MediaStore cached thumbnail DB on API 29+) ─
+      private fun getThumbnail(call: MethodCall, result: MethodChannel.Result) {
+          val id   = (call.argument<Any>("id") as? Number)?.toLong()
+          val size = call.argument<Int>("size") ?: 200
+          if (id == null) { result.success(null); return }
+          try {
+              val uri = ContentUris.withAppendedId(
+                  MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
+              val bytes: ByteArray = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                  val sz  = android.util.Size(size, size)
+                  val bmp = context.contentResolver.loadThumbnail(uri, sz, null)
+                  java.io.ByteArrayOutputStream().also { out ->
+                      bmp.compress(Bitmap.CompressFormat.JPEG, 82, out)
+                  }.toByteArray()
+              } else {
+                  val filePath = context.contentResolver.query(
+                      uri, arrayOf(MediaStore.Video.Media.DATA), null, null, null
+                  )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+                      ?: return result.success(null)
+                  @Suppress("DEPRECATION")
+                  val bmp = android.media.ThumbnailUtils.createVideoThumbnail(
+                      filePath, MediaStore.Images.Thumbnails.MINI_KIND
+                  ) ?: return result.success(null)
+                  java.io.ByteArrayOutputStream().also { out ->
+                      bmp.compress(Bitmap.CompressFormat.JPEG, 82, out)
+                  }.toByteArray()
+              }
+              result.success(bytes)
+          } catch (e: Exception) {
+              result.success(null)
+          }
+      }
+  }

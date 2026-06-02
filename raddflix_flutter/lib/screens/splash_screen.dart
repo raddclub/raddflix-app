@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
-import '../app.dart' show pendingVideoUri, pendingVideoTitle, appNavigatorKey;
+import '../app.dart' show pendingVideoUri, pendingVideoTitle, pendingSubtitleUri, appNavigatorKey;
 import '../core/remote_config.dart';
 import '../core/theme/brand_theme_provider.dart';
 import '../providers/auth_provider.dart';
@@ -74,6 +74,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           pendingVideoUri   = null;
           final String? resolvedTitle = pendingVideoTitle;
           pendingVideoTitle = null;
+          final String? subtitlePath = pendingSubtitleUri;
+          pendingSubtitleUri = null;
           Future.delayed(const Duration(milliseconds: 400), () {
             // Prefer ContentResolver display name; fall back to fully-decoded URI segment.
             final String title = (resolvedTitle != null && resolvedTitle.isNotEmpty)
@@ -91,6 +93,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   'file_id': '',
                   'title': title,
                   'local_path': localPath,
+                  'subtitle_path': subtitlePath,
                   'content_type': 'movie',
                 },
               );

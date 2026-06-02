@@ -80,14 +80,30 @@ import 'dart:typed_data';
       _loadThumbnails(folders);
     }
 
+    // Loads folder cover thumbnails in parallel batches of 4.
+    // Tries up to 3 videos per folder as fallback cover sources.
+    // Prefers fast MediaStore cached thumbnail (API 29+); falls back to file decode.
     Future<void> _loadThumbnails(List<LocalFolder> folders) async {
-      for (final folder in folders) {
+      const batchSize = 4;
+      for (int i = 0; i < folders.length; i += batchSize) {
         if (!mounted) return;
-        final first = folder.firstVideo;
-        if (first == null) continue;
-        if (_thumbCache.containsKey(folder.path)) continue;
-        final thumb = await LocalMediaService.getThumbnail(first.filePath, quality: 40, maxDimension: 160);
-        if (mounted) setState(() => _thumbCache[folder.path] = thumb);
+        final batch = folders.skip(i).take(batchSize).toList();
+        await Future.wait(batch.map((folder) async {
+          if (_thumbCache.containsKey(folder.path)) return;
+          for (final video in folder.videos.take(3)) {
+            Uint8List? thumb;
+            if (video.id > 0) {
+              thumb = await LocalMediaService.getThumbnailById(video.id, size: 160);
+            }
+            thumb ??= await LocalMediaService.getThumbnail(
+                video.filePath, quality: 40, maxDimension: 160);
+            if (thumb != null) {
+              if (mounted) setState(() => _thumbCache[folder.path] = thumb);
+              return;
+            }
+          }
+          if (mounted) setState(() => _thumbCache[folder.path] = null);
+        }));
       }
     }
 

@@ -45,12 +45,23 @@ import 'dart:typed_data';
       super.dispose();
     }
 
+    // Loads video thumbnails in parallel batches of 4.
+    // Prefers fast native MediaStore cache (API 29+); falls back to file decode.
     Future<void> _loadThumbnails() async {
-      for (final v in _videos) {
+      const batchSize = 4;
+      for (int i = 0; i < _videos.length; i += batchSize) {
         if (!mounted) return;
-        if (_thumbCache.containsKey(v.filePath)) continue;
-        final thumb = await LocalMediaService.getThumbnail(v.filePath, quality: 55, maxDimension: 220);
-        if (mounted) setState(() => _thumbCache[v.filePath] = thumb);
+        final batch = _videos.skip(i).take(batchSize).toList();
+        await Future.wait(batch.map((v) async {
+          if (_thumbCache.containsKey(v.filePath)) return;
+          Uint8List? thumb;
+          if (v.id > 0) {
+            thumb = await LocalMediaService.getThumbnailById(v.id, size: 220);
+          }
+          thumb ??= await LocalMediaService.getThumbnail(
+              v.filePath, quality: 55, maxDimension: 220);
+          if (mounted) setState(() => _thumbCache[v.filePath] = thumb);
+        }));
       }
       if (mounted) setState(() => _loadingThumbs = false);
     }
@@ -75,6 +86,7 @@ import 'dart:typed_data';
         'file_id': '',
         'title': video.title,
         'local_path': video.filePath,
+        'subtitle_path': video.subtitlePath,
         'content_type': 'local',
       });
     }

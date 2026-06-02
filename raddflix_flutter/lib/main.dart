@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
-import 'app.dart' show pendingVideoUri, pendingVideoTitle, appNavigatorKey;
+import 'app.dart' show pendingVideoUri, pendingVideoTitle, pendingSubtitleUri, appNavigatorKey;
 import 'core/remote_config.dart';
 import 'core/services/app_update_service.dart';
 import 'core/services/jazzdrive_service.dart';
@@ -65,8 +65,9 @@ void main() async {
   // Check for initial video URI + display name from "Open with" intent (cold start)
   try {
     const _ch = MethodChannel('com.raddflix.app/intent');
-    pendingVideoUri   = await _ch.invokeMethod<String>('getPendingVideoUri');
-    pendingVideoTitle = await _ch.invokeMethod<String>('getPendingVideoTitle');
+    pendingVideoUri    = await _ch.invokeMethod<String>('getPendingVideoUri');
+    pendingVideoTitle  = await _ch.invokeMethod<String>('getPendingVideoTitle');
+    pendingSubtitleUri = await _ch.invokeMethod<String?>('getPendingSubtitleUri');
   } catch (_) {}
 
   runApp(
@@ -110,12 +111,17 @@ void main() async {
       // Use popUntil to discard any stacked player screens before pushing a new one,
       // so repeated "Open with" taps don't accumulate player screens.
       nav.popUntil((route) => route.settings.name != '/player');
+      // subtitle resolved by native (null if no sidecar found)
+      final String? subtitlePath =
+          args is Map ? (args['subtitle'] as String?) : null;
+
       nav.pushNamed(
         '/player',
         arguments: {
           'file_id': '',
           'title': title,
           'local_path': localPath,
+          'subtitle_path': subtitlePath,
           'content_type': 'movie',
         },
       );
