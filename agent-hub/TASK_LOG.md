@@ -613,3 +613,65 @@ Verification of all previous agent work, completing remaining tasks, and activat
 - `agent-hub/TASK_LOG.md` — this entry
 
 ---
+
+## [2026-06-02 11:30 UTC] — Agent: Replit Agent (Bug Audit Session)
+
+### Task
+Full bug audit and fix session for http://92.4.95.252 — check all pages and
+API endpoints, find all bugs, and fix everything possible.
+
+### Done
+- Ran install script (SSH key written, Oracle SSH confirmed working)
+- Read all required docs: SKILLS.md, TASK_LOG.md, REINCARNATION.md, PRODUCT_CONTEXT.md
+- Verified both services RUNNING: raddflix_radd + raddflix_wa_bot
+- Audited ALL pages (/, /library/, /scan/, /upload/, /admin/, /settings/, /organizer/,
+  /analytics/, /subscriptions/, /broadcast/, /plans/, /billing/, /bots/, /tid/,
+  /app-users/, /zero-rating/, /brand/) — all return HTTP 200
+- Tested all API endpoints and found 3 critical bugs + 1 branding issue
+
+**BUG-TRENDING FIXED** (`radd-hub/hub/routes/library.py`):
+  - `/library/api/trending` was returning HTTP 500 for every call
+  - SQL query referenced `wh.updated_at` but `watch_history` table column is `watched_at`
+  - Fixed: changed to `wh.watched_at` → now returns 200 with full trending data
+
+**BUG-POSTER FIXED** (`radd-hub/hub/routes/library.py`):
+  - `/library/api/poster/<id>` was returning HTTP 500 TypeError
+  - `turbo_cache.set(cache_key, direct_link, site="jazzdrive", cat="links")` — `direct_link`
+    was passed as the positional `site` argument, then `site=` keyword conflicted → TypeError
+  - Fixed: `turbo_cache.set(cache_key, site="jazzdrive", cat="links", data=direct_link)`
+  - Now returns 302 redirect to poster URL correctly
+
+**BUG-JS-FILES FIXED** (`radd-hub/hub/templates/library.html`):
+  - `loadTitleFiles()` JS called `/library/api/title/${id}/files` which returns 404
+  - That route does not exist — correct route is `/library/api/files?title_id=${id}`
+  - Fixed JS fetch URL → file list now loads in the library detail panel
+
+**BRANDING FIXED** (`radd-hub/hub/db.py`):
+  - Comment "JazzMAX Android app" → "RaddFlix Android app" (Rule 7 compliance)
+
+- All 4 fixes applied live on server via SSH Python str.replace()
+- Service restarted and all fixes verified returning correct HTTP codes
+- All changes committed to GitHub: `1977526a`
+
+### Other Findings (Non-Critical / Already Has Fallback)
+- FTS5 bm25 search unavailable — falls back to LIKE search (pre-existing SQLite issue,
+  search still works correctly via fallback)
+- `/api/recommend` returns 401 when called without token (correct — mobile API auth)
+- `/api/app/config` returns 404 (route may not be implemented yet)
+
+### Files Changed
+- `radd-hub/hub/routes/library.py` — BUG-TRENDING (watched_at) + BUG-POSTER (turbo_cache.set arg order)
+- `radd-hub/hub/templates/library.html` — BUG-JS-FILES (loadTitleFiles fetch URL)
+- `radd-hub/hub/db.py` — JazzMAX → RaddFlix branding in comment
+
+### Commit
+`1977526a` — fix(library): 3 critical bugs + branding cleanup
+
+### Notes for Next Agent
+- Trending API now works correctly — 20 results ranked by watch count × rating
+- Poster proxy now works correctly — check `/library/api/poster/<id>` redirects to CDN URL
+- Library detail panel now correctly loads per-title file list (JS URL was wrong for months)
+- FTS5 bm25 still broken (SQLite context issue) — investigate if needed, LIKE fallback works
+- `/api/app/config` endpoint is 404 — may need implementing if mobile app requires it
+
+---
