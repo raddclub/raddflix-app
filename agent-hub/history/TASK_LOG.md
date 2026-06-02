@@ -2374,3 +2374,34 @@ from SQLite cache) instead of incurring the ~1–2s SAPI handshake cold-start de
   the second call is TTL-gated so effectively a no-op for items just warmed
 
 ---
+
+## [2026-06-02 UTC] — Agent: Replit Agent (Session 11)
+
+### Task
+Investigate and document exactly how RaddFlix generates direct download and watch links — both on the Oracle server API and in the Flutter/Dart client from local SQLite. User wanted a diagram, plain-language explanation, login requirements, timing, and live verification that generated URLs are real video files (not fake HTML/XML with wrong extension).
+
+### Done
+- SSH into Oracle: raddflix_radd RUNNING, raddflix_wa_bot RUNNING
+- Read: jazzdrive.py::generate_direct_link(), catalog_api.py::_do_play(), jazzdrive_service.dart::JazzDriveService, player_screen.dart::_openMedia(), local_db.dart::getShareUrl()
+- Discovered both share URL types: per-file files.share_url and per-folder titles.folder_share_url
+- Live DB audit: 44/45 files have share_url, 26 episodes with per-file URLs, 8 titles with folder_share_url
+- Live test movie (Pathaan): generated link OK in 0.96s → real 1.66 GB MKV confirmed
+- Live test episode (Off Campus S01E01): OK in 0.57s → 704 MB real MKV confirmed
+- Live test folder_share_url (Interstellar folder): OK in 0.48s → correct .mkv filename confirmed
+- Documented full 5-step client flow: local SQLite → memory/DB cache → JD login → JD media list → CDN URL
+- Documented full Oracle server flow: _do_play, stream_links cache, generate_direct_link
+- Documented folder-URL flow: 3-pass filename matching for episodes in same folder
+- Confirmed: NO login needed to call JazzDrive CDN directly (share key = credential); JWT required only for Oracle API endpoints
+- Confirmed: URL is cloud.jazzdrive.com.pk/sapi/download/video?action=get&k=... — self-signing token, real video, correct .mkv extension
+
+### Files Changed
+- agent-hub/history/TASK_LOG.md — this entry only (read-only investigation session)
+
+### Notes for Next Agent
+- Link generation: ~0.5-1s fresh, 0ms from 180-min client cache (8h on Oracle stream_links table)
+- The k= token in CDN URL is self-authenticating — no extra headers needed for playback
+- folder_share_url = show where all episodes are in one JazzDrive folder; files.share_url = per individual episode; both use same generate_direct_link() function
+- Oracle HEAD check to JazzDrive CDN times out (slow outbound from Oracle) but link generation works fine
+- stream_links table = Oracle server cache; stream_cache table in Flutter SQLite = client cache
+
+---
