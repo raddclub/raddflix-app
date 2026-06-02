@@ -2497,3 +2497,40 @@ Result: 3 independent tasks run simultaneously instead of one-by-one; app reache
 - Oracle: raddflix_radd RUNNING, nginx RUNNING.
 
 ---
+---
+## 2026-06-02 — player_screen.dart: 24 audit bugs fixed
+
+**Commit:** 5d2802a3a5
+**File:** raddflix_flutter/lib/screens/player_screen.dart (5608 -> 5587 lines)
+
+### Bugs Fixed (24 across 3 categories)
+
+**Broken Logic (10)**
+1. _updateSeekThumb spuriously called _svc?.dispose() + _wakeTimer?.cancel() on every seek scrub — removed
+2. _userPaused = !_playing in 3 play/pause callbacks — corrected to _userPaused = _playing
+3. Sleep timer: nested setState inside outer setState — extracted expiry block outside
+4. Sleep timer: volume restored before _player.pause() — swapped order (pause first)
+5. AudioMixerSheet received _audioTracks (always []) — now receives _player.state.tracks.audio
+6. AudioMixerSheet.onTrackSelected never called _player.setAudioTrack() — fixed
+7. Voice volume up/down clamped boost to >=1.0 (could never go below 100%) — now operates on system volume
+8. _playNextEpisode used widget.fileId for seriesId in skip-intro lookup — changed to nextFileId
+9. Skip intro button saved 85s when _savedIntroEnd == null — now only saves if user had previously set a custom time
+10. SleepTimerSheet callbacks wired to dead state variable setters — now wire to _setSleepTimer/_cancelSleepTimer
+
+**Animation Issues (5)**
+11. Long-press speed badge hardcoded "2x Speed" — now uses _prefs.longPressSpeed dynamically
+12. Long-press badge had no fade-out animation — added .then(delay:100ms).fadeOut(200ms)
+13. Rage skip flash Container had no size (invisible) — refactored to Positioned.fill
+14. Rage skip called _seekRelative() triggering seek flash simultaneously — now uses direct _player.seek()
+15. Rage skip badge showed "+0:00" for <60s — fixed time format
+
+**UX / Dead Code (9)**
+16. _scheduleHide would auto-hide while _showVideoDisplay or _showTransparentSlider were open — added to guard
+17. More Sheet "Playing Queue" wired to onSpeed — fixed to onVideoDisplay
+18. More Sheet "Cut" wired to onScreenshot — added onClipTrimmer callback, wired correctly
+19. More Sheet "Share" wired to onOpenWith (external player) — added onShare callback -> _shareTimestamp
+20. _ControlsOverlay frame counter hardcoded 24fps — added videoFps param, parent passes _piFps
+21. _openCastPanel() method unreachable (never called) — removed
+22. Dead _sleepDuration state var — removed; SleepTimerSheet.currentTimer now derived from _sleepRemainingSeconds
+23. Dead _audioTracks/_selectedAudioTrack state vars — replaced with live player state
+24. Dead _TracksPanel class (never instantiated) — removed
