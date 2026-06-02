@@ -13,16 +13,19 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
-    <!-- Storage for downloads -->
+    <!-- Storage for downloads (API ≤32 legacy; API 29 scoped-storage opt-out via requestLegacyExternalStorage) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29"/>
 
-    <!-- Android 13+ (API 33+): read user video files via file_picker (My Files tab) -->
+    <!-- Android 13+ (API 33+): granular media permissions replacing READ_EXTERNAL_STORAGE -->
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
-    <!-- Android 13+: read audio files (for local media playback) -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+
+    <!-- Android 13+ (API 33+): show download-complete / playback notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <!-- WorkManager — background downloads that survive app kill -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
@@ -34,6 +37,7 @@
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
         android:fullBackupContent="false"
+        android:requestLegacyExternalStorage="true"
         android:networkSecurityConfig="@xml/network_security_config">
 
         <activity
@@ -104,15 +108,29 @@
             </intent-filter>
         </receiver>
 
+        <!-- FileProvider: content:// URIs for share_plus, subtitle picker, and
+             the openVideoWith intent channel (Android 7+ / API 24 requirement).
+             Authority uses ".provider" suffix to avoid conflict with share_plus's
+             own built-in FileProvider which uses ".fileprovider". -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_provider_paths"/>
+        </provider>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
-    
-    <!-- Chromecast / Google Cast -->
-    <meta-data
-        android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
-        android:value="com.raddflix.app.CastOptionsProvider" />
-</application>
+
+        <!-- Chromecast / Google Cast -->
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="com.raddflix.app.CastOptionsProvider" />
+    </application>
 
     <!-- url_launcher + android_intent_plus: external apps we may launch -->
     <queries>
