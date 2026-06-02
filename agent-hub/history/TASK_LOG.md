@@ -58,6 +58,71 @@ Full rewrite from scrolling toggle list → `TabBar` with 5 tabs:
   ```
 
 ---
+## [2026-06-03] — Session 34 | Full Bug Audit + Oracle Sync + Server Fixes
+
+### Task
+Full bug audit of the RaddFlix app. Read REINCARNATION.md, MASTER_TASKLIST.md, TASK_LOG.md. Checked server logs, nginx logs, CI results, and all critical source files.
+
+### Bug Audit Results — Previously Documented Bugs
+
+| Bug ID | Description | Status |
+|--------|-------------|--------|
+| BUG-A01 | `year` returned as TEXT, Flutter int? cast returns null | ✅ FIXED — `int.tryParse()` already in catalog_item.dart |
+| BUG-A02 | Server returns `media_type` as `"tv"/"series"` | ✅ FIXED — `_normalizeMediaType()` handles all variants |
+| BUG-A03 | `is_active` returned as Python bool not int | ✅ FIXED — returns `1 if ... else 0` |
+| BUG-A04 | `mergeDeltaTitle` uses `ON CONFLICT DO UPDATE` (SQLite 3.24+, crashes Android 8) | ✅ FIXED — uses SELECT+UPDATE/INSERT pattern |
+| BUG-A05 | Vault PIN length mismatch (setup=4, unlock expects 6) | ✅ FIXED — `_expectedPinLength` is dynamically set |
+| BUG-A06 | `session_err` NameError in `download_proxy()` | ✅ FIXED — `session_err = None` properly initialised before use |
+| BUG-A09 | `/api/notifications/read` ignores IDs array | ✅ FIXED — server properly uses IDs in WHERE clause |
+| BUG-A10 | `POST /api/auth/device` crashes with guest token | ✅ FIXED — returns 403 for guest (`_user_id == 0`) |
+| BUG-A32 | FLASK_SECRET_KEY regenerated on restart → JWTs invalidated | ✅ FIXED — secret persisted in settings table via `INSERT OR IGNORE` |
+| BUG-A33 | `AppTheme.light` doesn't exist → crash on light mode | ✅ FIXED — `JazzThemeData.build()` fully implements light theme |
+
+### New Bugs Found & Fixed This Session
+
+**BUG-N01 (FIXED): Oracle server had uncommitted local improvements**
+- `library.py`: `api_set_free` was NOT updating `updated_at` timestamp → catalog delta sync wouldn't pick up free/paid changes. Also missing delta regen trigger.
+- `mobile_api.py`: `get_quota` and `log_usage` used `db.check_quota()` which only knows about JazzDrive accounts, not app subscriptions → quota always showed wrong values for paying subscribers.
+- Fix: Committed Oracle's local improvements to GitHub (commit `a07e0bf7`), then pulled and restarted Oracle.
+
+**BUG-N02 (FIXED): `GET /api/app/version` → 404**
+- CI test suite calls `GET /api/app/version` at startup but the endpoint didn't exist (server only had `POST /api/app/check`). Test warned on every CI run.
+- Fix: Added `GET /api/app/version` to `bp_app` blueprint. Returns `{"ok": true, "version": "..."}` from settings table.
+
+**BUG-N03 (CONFIRMED — existing, not fixed): CI auto-deploy always fails**
+- The `Deploy to Oracle` CI job fails on every push (`continue-on-error: true` so it doesn't block build).
+- Root cause: SSH key format in CI secrets doesn't reconstruct properly with the sed/tr approach used in the workflow.
+- Oracle was 2 commits behind GitHub before this session (manually pulled).
+- Not fixed this session — low priority given manual pull works fine.
+
+### Server State After Session
+- Oracle: `a07e0bf7` (latest), RUNNING (pid 593269)
+- New `GET /api/app/version` endpoint live and returning `{"ok":true,"version":"1.0.0"}`
+- `_compute_app_quota()` now used for all app user quota checks
+- Catalog delta now triggers on `is_free` changes (previously silently skipped)
+
+### Files Changed
+- `radd-hub/hub/routes/library.py` — `api_set_free` + `api_set_published` updated_at + regen
+- `radd-hub/hub/routes/mobile_api.py` — `_compute_app_quota()`, quota endpoints, new `GET /api/app/version`
+- `agent-hub/history/TASK_LOG.md` — this entry
+
+### CI Result
+- Flutter Analyze: ✅ PASSED
+- Build Release APK: ✅ SUCCESS (APK: RaddFlix-1.0.0+1-build639.apk, 58MB)
+- Deploy to Oracle: ❌ FAILED (pre-existing SSH key issue in CI — manually pulled)
+
+### Commit
+`a07e0bf7` — fix(server): commit Oracle local improvements + add GET /api/app/version
+
+### Notes for Next Agent
+- All 10 previously documented bugs (A01–A06, A09, A10, A32, A33) are CONFIRMED FIXED
+- All 24 catalog titles still have `is_free=0` — no free content for guests (R2 in MASTER_TASKLIST)
+- CI auto-deploy never works — every code push needs manual Oracle git pull (BUG-N03)
+- WA bot WhatsApp pairing still pending (check `/opt/jazzmax/radd-hub/hub/bots/whatsapp/pairing-number.txt` for current code)
+- `POST /api/stream/3` → 404 in CI tests is EXPECTED — file_id 3 has no file record; test handles it as a warning
+
+
+---
 
 ## [2026-06-01 14:00 UTC] — Agent: Replit Agent (Session 7)
 
