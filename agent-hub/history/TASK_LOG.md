@@ -2935,3 +2935,58 @@ Files: register_screen.dart, profile_screen.dart, player_screen.dart, auth_provi
 - Oracle: raddflix_radd RUNNING, nginx RUNNING. Port 5000 firewalled externally
 - All 24 catalog titles have is_free=0 — no free content for guests currently
 - JazzDrive SAPI 401 = server cannot upload new files; streaming existing content unaffected
+
+
+---
+
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Session 34 — APK Trigger + Full Audit)
+
+### Task
+1. Trigger GitHub Actions APK rebuild
+2. Comprehensive Flutter codebase audit — errors, logic conflicts, incomplete features
+
+### APK Build
+- Triggered workflow ID 282572869 (Build RaddFlix APK) → run 26839342008 — IN PROGRESS
+- Build commit: cb9498d9 (latest on main)
+
+### Audit Findings Summary
+**17 distinct bugs found across 5 severity levels. See full report in TASK_LOG.**
+
+#### CRITICAL (App-Breaking or Security-Breaking)
+1. AUDIT-01: app.dart onGenerateRoute NEVER passes subtitle_path to PlayerScreen constructor
+2. AUDIT-02: SECURITY_CHANNEL has no setMethodCallHandler in MainActivity — signature check + native Frida + native root checks all silently fail
+3. AUDIT-03: _rowToItem() in local_db.dart never reads file_id column — CatalogItem.fileId is always null for DB-loaded items — movie streaming broken from home screen
+4. AUDIT-04: _AuthInterceptor._tryRefresh() uses freshDio with NO interceptors — XOR-encoded refresh + guest token responses cannot be decoded — token refresh silently broken
+5. AUDIT-05: mergeDeltaTitle() UPDATE path omits file_id and folder_share_url — delta updates never write these columns on existing rows
+
+#### HIGH (Feature Always Broken)
+6. AUDIT-06: Continue Watching for movies broken — _loadRecentlyWatched() matches by item.fileId which is always null
+7. AUDIT-07: ExoPlayer 2 Cast extension + Media3/ExoPlayer 3 coexist in build.gradle — class conflicts at runtime if Cast used
+8. AUDIT-08: XOR hourly key rollover has no grace period — requests made at :59 and processed at :00 use different keys; decode silently fails for those 60 seconds/hour
+
+#### MEDIUM (Partially Broken)
+9. AUDIT-09: warmTopFreeItems(8) called 3x on cold start (main.dart + Oracle sync + JazzDrive sync) — SQLite query overhead x3 per launch
+10. AUDIT-10: PosterService.runBackgroundSync() called from BOTH home_screen.dart listener AND catalog_provider.dart _schedulePosterSync() — double poster sync on first launch
+11. AUDIT-11: video_thumbnail: ^0.5.3 is deprecated/unmaintained — seek thumbnail generation may fail on Android 14+
+12. AUDIT-12: UsageService hardcodes quality estimate fallback to 720p — usage reporting inaccurate for 1080p/480p content
+
+#### LOW (Logic / Technical Debt)
+13. AUDIT-13: speed_presets_sheet.dart imported TWICE in player_screen.dart — Dart allows this but is confusing
+14. AUDIT-14: RequestEncoder code comment says keep enabled=false but it IS true — misleading stale comment
+15. AUDIT-15: _connectivitySub lazy final pattern in profile_screen.dart is non-standard and confusing
+16. AUDIT-16: Keystore.clearAll() doesn't document why deviceId is intentionally preserved — silent design decision
+17. AUDIT-17: _rowToItem() reads raw (encoded) shareUrl from SQLite — if ever used as inline share_url in player args, RF1:xxxx prefix would be passed directly to JazzDrive
+
+### Files Changed
+- agent-hub/history/TASK_LOG.md — appended this entry
+
+### Notes for Next Agent
+**MOST CRITICAL FIXES NEEDED (in order):**
+1. AUDIT-01 FIX: In app.dart onGenerateRoute, add subtitlePath: args['subtitle_path'] as String? to PlayerScreen constructor
+2. AUDIT-03 FIX: In local_db.dart _rowToItem(), add fileId: row['file_id']?.toString() to the returned CatalogItem
+3. AUDIT-04 FIX: Token refresh and guest re-issue in _AuthInterceptor._tryRefresh() must use a Dio instance WITH _XorInterceptor, or call the endpoints via ApiClient.instance.dio directly
+4. AUDIT-02 FIX: In MainActivity.kt, add setMethodCallHandler for SECURITY_CHANNEL with implementations for getSignatureFingerprint, checkFrida, checkRoot
+5. AUDIT-05 FIX: In mergeDeltaTitle() UPDATE branch, also update file_id when incoming value is non-empty
+- DB schema: v17. Next migration: if (oldV < 18)
+- APK build 26839342008 in progress at time of writing
+- Oracle: raddflix_radd RUNNING, nginx RUNNING
