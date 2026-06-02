@@ -478,6 +478,8 @@ class LocalDb {
         'is_ongoing':       isOngoing,
         // Only overwrite share_url if delta has a value; preserve Oracle-synced URL otherwise
         'share_url':        shareUrl.isNotEmpty ? await _encodeUrl(shareUrl) : oldShareUrl,
+        // AUDIT-05: write file_id when delta provides one; preserve existing if delta omits it
+        if (fileId.isNotEmpty) 'file_id': fileId,
       }, where: 'id = ?', whereArgs: [id]);
     } else {
       await db.insert('titles', {
@@ -1078,6 +1080,7 @@ class LocalDb {
       language:    row['language'] as String?,
       status:      row['status'] as String?,
       isOngoing:   (row['is_ongoing'] as int? ?? 0) == 1,
+      fileId:      row['file_id'] as String?,  // AUDIT-03: was missing — CatalogItem.fileId was always null
     );
   }
 
