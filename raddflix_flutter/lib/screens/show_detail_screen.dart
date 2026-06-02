@@ -31,6 +31,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   List<int> _seasons = [];
   Map<String, double> _watchProgress = {};
   int? _resumeEpisodeIndex;  // episode index (in _episodes) to resume
+  int? _nowPlayingIdx;       // episode index currently open in the player
 
   @override
   void initState() {
@@ -102,7 +103,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   List<Map<String, dynamic>> get _currentEpisodes =>
       _episodes.where((e) => (e['season'] as int? ?? 1) == _selectedSeason).toList();
 
-  void _playEpisode(int episodeIndex) {
+  Future<void> _playEpisode(int episodeIndex) async {
     final allEps = _currentEpisodes;
     if (episodeIndex >= allEps.length) return;
     final ep = allEps[episodeIndex];
@@ -129,7 +130,10 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
       return;
     }
 
-    Navigator.pushNamed(
+    // Mark this episode as "now playing" so the tile shows the indicator;
+    // clear it when the player route pops (user exits or PiP closes).
+    setState(() => _nowPlayingIdx = episodeIndex);
+    await Navigator.pushNamed(
       context,
       AppRoutes.player,
       arguments: {
@@ -143,6 +147,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         'content_type': widget.item.mediaType,
       },
     );
+    if (mounted) setState(() => _nowPlayingIdx = null);
   }
 
   void _playMovie() {
@@ -645,6 +650,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                               label: label,
                               isFree: isFree,
                               progress: progress,
+                              isNowPlaying: i == _nowPlayingIdx,
                               onTap: () => _playEpisode(i),
                               isDownloading: isDownloading,
                               isDownloaded: isDownloaded,
@@ -708,6 +714,7 @@ class _EpisodeTile extends StatelessWidget {
   final String label;
   final bool isFree;
   final double progress;
+  final bool isNowPlaying;
   final VoidCallback onTap;
   final VoidCallback? onDownload;
   final bool isDownloading;
@@ -719,6 +726,7 @@ class _EpisodeTile extends StatelessWidget {
     required this.isFree,
     required this.progress,
     required this.onTap,
+    this.isNowPlaying = false,
     this.onDownload,
     this.isDownloading = false,
     this.isDownloaded = false,
@@ -738,37 +746,54 @@ class _EpisodeTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           child: Ink(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: isNowPlaying ? AppColors.primary.withOpacity(0.06) : AppColors.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(
+                color: isNowPlaying ? AppColors.primary.withOpacity(0.55) : AppColors.border,
+                width: isNowPlaying ? 1.5 : 1.0,
+              ),
             ),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  // Episode number badge
-                  Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(
-                      color: completed
-                          ? Colors.green.withOpacity(0.15)
-                          : watched
-                              ? AppColors.primary.withOpacity(0.15)
-                              : AppColors.border,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Center(
-                      child: completed
-                          ? const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20)
-                          : Text(
-                              '${index + 1}',
-                              style: TextStyle(
-                                color: watched ? AppColors.primary : AppColors.textSecondary,
-                                fontWeight: FontWeight.w700, fontSize: 15,
-                              ),
-                            ),
-                    ),
-                  ),
+                  // Episode number badge — replaced by animated ▶ while playing
+                  isNowPlaying
+                      ? Container(
+                          width: 44, height: 44,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.18),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.primary.withOpacity(0.4)),
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.graphic_eq_rounded,
+                                color: AppColors.primary, size: 22),
+                          ),
+                        ).animate(onPlay: (c) => c.repeat(reverse: true))
+                         .scaleXY(begin: 0.92, end: 1.0, duration: 700.ms, curve: Curves.easeInOut)
+                      : Container(
+                          width: 44, height: 44,
+                          decoration: BoxDecoration(
+                            color: completed
+                                ? Colors.green.withOpacity(0.15)
+                                : watched
+                                    ? AppColors.primary.withOpacity(0.15)
+                                    : AppColors.border,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Center(
+                            child: completed
+                                ? const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20)
+                                : Text(
+                                    '${index + 1}',
+                                    style: TextStyle(
+                                      color: watched ? AppColors.primary : AppColors.textSecondary,
+                                      fontWeight: FontWeight.w700, fontSize: 15,
+                                    ),
+                                  ),
+                          ),
+                        ),
                   const SizedBox(width: 12),
                   // Episode info
                   Expanded(
@@ -788,7 +813,28 @@ class _EpisodeTile extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            if (isDownloaded)
+                            if (isNowPlaying)
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(Icons.graphic_eq_rounded,
+                                        color: AppColors.primary, size: 9),
+                                    SizedBox(width: 3),
+                                    Text('NOW PLAYING', style: TextStyle(
+                                      color: AppColors.primary, fontSize: 9,
+                                      fontWeight: FontWeight.w800, letterSpacing: 0.5,
+                                    )),
+                                  ],
+                                ),
+                              )
+                            else if (isDownloaded)
                               Container(
                                 margin: const EdgeInsets.only(left: 8),
                                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
