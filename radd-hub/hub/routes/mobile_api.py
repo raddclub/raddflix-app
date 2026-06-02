@@ -989,6 +989,96 @@ def app_check():
         return jsonify({"ok": True, "force_update": False, "blocked": False,
                         "message": "", "update_url": "", "current_version": ""})
 
+
+@bp_app.route("/config", methods=["GET"])
+def app_config():
+    """GET /api/app/config — public, no auth required.
+    Called on every cold start by RemoteConfig.fetch().
+    Returns all server-controlled config values so the app never needs an
+    APK rebuild to change support numbers, CDN URLs, flags, or brand theme.
+    """
+    def _s(k, default=""):
+        try:
+            return db.setting(k, default) or default
+        except Exception:
+            return default
+
+    def _flag(k, default="true"):
+        return _s(k, default).lower() in ("1", "true", "yes")
+
+    try:
+        jd_delta_url     = _s("jd_delta_url", "")
+        support_whatsapp = _s("SUPPORT_WHATSAPP_NUMBER", "923257719165")
+        current_version  = _s("app_current_version", "1.0.0")
+        min_code         = int(_s("app_min_version_code", "0") or 0)
+        update_url       = _s("app_update_url",
+                              "https://github.com/raddclub/raddflix-app/releases/latest")
+        update_message   = _s("app_update_message", "")
+
+        flags = {
+            "otp_device_switch":   _flag("ff_otp_device_switch",   "true"),
+            "recommendations":     _flag("ff_recommendations",     "true"),
+            "zero_rating":         _flag("ff_zero_rating",         "true"),
+            "guest_mode":          _flag("ff_guest_mode",          "true"),
+            "maintenance_mode":    _flag("ff_maintenance_mode",    "false"),
+            "maintenance_message": _s("ff_maintenance_message", ""),
+            "xor_encoding":        _flag("ff_xor_encoding",        "true"),
+        }
+
+        _brand_defaults = {
+            "brand_primary_color":      "#E8002D",
+            "brand_accent_color":       "#FF5C5C",
+            "brand_tagline":            "Zero-rated Pakistani streaming",
+            "brand_logo_url":           "",
+            "brand_splash_color":       "#08080E",
+            "brand_background_color":   "#08080E",
+            "brand_surface_color":      "#0E0E1C",
+            "brand_card_color":         "#1A1A2E",
+            "brand_text_primary_color": "#F2F2FF",
+            "brand_app_name":           "RaddFlix",
+            "brand_font":               "inter",
+            "brand_button_radius":      "14",
+            "brand_status_bar_dark":    "true",
+            "brand_onboarding_pages":   "[]",
+        }
+        brand = {k: _s(k, v) for k, v in _brand_defaults.items()}
+
+        return jsonify({
+            "ok":               True,
+            "api_base_url":     "http://92.4.95.252",
+            "jd_delta_url":     jd_delta_url,
+            "support_whatsapp": support_whatsapp,
+            "current_version":  current_version,
+            "min_version_code": min_code,
+            "update_url":       update_url,
+            "update_message":   update_message,
+            "flags":            flags,
+            "brand":            brand,
+        })
+
+    except Exception as _e:
+        log.warning("app_config error: %s", _e)
+        return jsonify({
+            "ok":               True,
+            "api_base_url":     "http://92.4.95.252",
+            "jd_delta_url":     "",
+            "support_whatsapp": "923257719165",
+            "current_version":  "1.0.0",
+            "min_version_code": 0,
+            "update_url":       "",
+            "update_message":   "",
+            "flags": {
+                "otp_device_switch":   True,
+                "recommendations":     True,
+                "zero_rating":         True,
+                "guest_mode":          True,
+                "maintenance_mode":    False,
+                "maintenance_message": "",
+                "xor_encoding":        True,
+            },
+            "brand": {},
+        })
+
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 def _normalize_phone(phone: str) -> str:
