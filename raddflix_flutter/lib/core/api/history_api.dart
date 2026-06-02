@@ -68,7 +68,7 @@ class HistoryApi {
   static Future<void> flushUnsynced() async {
     final pending = await LocalDb.getUnsyncedPositions();
     if (pending.isEmpty) return;
-    DebugLogger.log('HISTORY', 'Flushing \${pending.length} unsynced position(s) to server');
+    DebugLogger.log('HISTORY', 'Flushing ${pending.length} unsynced position(s) to server');
     for (final row in pending) {
       final fileId     = row['file_id']     as String? ?? '';
       final positionMs = row['position_ms'] as int?    ?? 0;
@@ -85,7 +85,7 @@ class HistoryApi {
   static Future<void> mergeServerHistory() async {
     final serverHistory = await getHistory();
     if (serverHistory.isEmpty) return;
-    DebugLogger.log('HISTORY', 'Merging \${serverHistory.length} server history entry/ies into local DB');
+    DebugLogger.log('HISTORY', 'Merging ${serverHistory.length} server history entry/ies into local DB');
     for (final entry in serverHistory) {
       final fileId     = entry['file_id']     as String? ?? '';
       final positionMs = (entry['position_ms'] as num?)?.toInt() ?? 0;

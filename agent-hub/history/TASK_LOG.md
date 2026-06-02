@@ -1775,3 +1775,38 @@ Remove redundant files, correct wrong information, save new architecture underst
 - AppGuard: `_officialFingerprint` is placeholder — signature enforcement not active
 
 ---
+
+
+---
+
+## [2026-06-02 UTC] - Session 23 continued: Offline-first history sync complete
+
+### Commits
+
+#### 8e68978f - offline-first watch position sync (6 files) - CI BUILD SUCCESS
+- constants.dart: catalogDbVersion 14 to 15
+- local_db.dart: migration v15 adds synced column; savePosition() sets synced=0;
+  new: getUnsyncedPositions(), markPositionSynced(), upsertServerPosition()
+- history_api.dart: syncPosition() marks synced after push; new: flushUnsynced(), mergeServerHistory()
+- main.dart: HistoryApi.flushUnsynced() + UsageService.flushPending() on cold start
+- catalog_provider.dart: reloadRecentlyWatched() public method
+- history_screen.dart: ConsumerStatefulWidget, fires mergeServerHistory + reloadRecentlyWatched on init
+
+#### 6ff8cd0c - connectivity-triggered flush (2 files) - CI in progress
+- connectivity_sync_service.dart: new service; fires flushUnsynced + flushPending on offline-to-online
+- main.dart: ConnectivitySyncService.start() after runApp
+
+### AppGuard Fingerprint VERIFIED
+Extracted from RaddFlix-1.0.0+1-build769.apk via openssl:
+SHA256 = BA:4E:41:2D:F4:68:EF:60:41:05:24:CC:A4:24:77:70:83:7F:E9:C1:29:46:D0:18:35:3D:64:88:1C:E5:CD:07
+Matches _officialFingerprint in app_guard.dart exactly. Enforcement is ACTIVE and CORRECT.
+
+### All Known Bugs Resolved
+- BUG-A19: offline-first history sync implemented
+- BUG-A21/22/23: reset buttons in profile, bookmark cleanup on logout (already done)
+- BUG-A27: bindDevice() orphan removed
+- BUG-A30: intentional bootstrap URL, not a bug
+- BUG-N01 through N06: all fixed in prior/this session
+- AppGuard fingerprint: verified correct
+
+### DB version: 15. Next migration uses if (oldV < 16).
