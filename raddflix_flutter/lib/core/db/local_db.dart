@@ -615,6 +615,13 @@ class LocalDb {
     return RequestEncoder.unscrambleUrl(url, deviceId);
   }
 
+  /// Public wrapper: decode a potentially-scrambled share_url from a raw SQLite
+  /// row (e.g. getEpisodes() returns encoded values).  Null/empty → null.
+  static Future<String?> decodeShareUrl(String? raw) async {
+    if (raw == null || raw.isEmpty) return null;
+    return _decodeUrl(raw);
+  }
+
   // ── Stream Cache ──────────────────────────────────────────────────────────
 
   /// Get a cached stream link for [fileId]. Returns null if not cached or expired.
