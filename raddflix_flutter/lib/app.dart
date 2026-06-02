@@ -95,6 +95,7 @@ class RaddFlixApp extends ConsumerWidget {
               fileId: args['file_id'] as String,
               title: args['title'] as String,
               localPath: args['local_path'] as String?,
+              subtitlePath: args['subtitle_path'] as String?,
               episodes: args['episodes'] as List<Map<String, dynamic>>?,
               episodeIndex: args['episode_index'] as int? ?? 0,
               contentType: args['content_type'] as String? ?? 'series',
