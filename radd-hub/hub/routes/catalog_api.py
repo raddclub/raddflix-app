@@ -230,6 +230,7 @@ def sync(_user_id=None, _phone=None):
                 "episode":  r["episode"],
                 "label":    "S{:02d}E{:02d}".format(r["season"] or 0, r["episode"] or 0),
                 "share_url": r["share_url"] or "",
+                "filename":  r["filename"] or "",
                 "is_free":  0,
             })
 
@@ -476,6 +477,7 @@ def db_update(_user_id=None, _phone=None):
                 "episode":  r["episode"],
                 "label":    "S{:02d}E{:02d}".format(r["season"] or 0, r["episode"] or 0),
                 "share_url": r["share_url"] or "",
+                "filename":  r["filename"] or "",
                 "quality":  None,
                 "is_free":  0,
             })
@@ -523,7 +525,7 @@ def delta(_user_id=None, _phone=None):
         placeholders = ",".join("?" * len(title_ids))
         with db.conn() as c:
             ep_rows = c.execute(
-                "SELECT id, title_id, season, episode, share_url, quality "
+                "SELECT id, title_id, filename, season, episode, share_url, quality "
                 "FROM files WHERE title_id IN (" + placeholders + ") "
                 "AND season IS NOT NULL AND season > 0 "
                 "ORDER BY title_id, season, episode",
@@ -539,6 +541,7 @@ def delta(_user_id=None, _phone=None):
                 "quality":  r["quality"] or None,
                 "is_free":  0,
                 "share_url": r["share_url"] or "",
+                "filename":  r["filename"] or "",
             })
 
     titles_out = []
