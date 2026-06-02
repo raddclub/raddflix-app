@@ -2749,3 +2749,35 @@ last agent fixed + find additional bugs independently.
 - Oracle: raddflix_radd RUNNING pid 572816, nginx RUNNING. Port 5000 firewalled externally.
 
 ---
+
+---
+## [2026-06-02 UTC] — Agent: Replit Main Agent (Read-Only)
+
+### Task
+User asked: "find out what last agent did."
+
+### Done
+- Ran install.sh (SSH key setup attempted; Oracle port test timed out as expected)
+- Fetched and read SKILLS.md, REINCARNATION.md, MASTER_TASKLIST.md, and TASK_LOG.md from GitHub
+- Identified and summarized the last actual work session for the user
+
+### Summary of Last Agent Work
+The most recent **code-changing** session was **Session 33 — Verification + Bug Audit** (2026-06-02):
+- Verified 4 commits (ae96f15e, d78ec9b1, f6143a7d, 5325135b) from earlier sessions
+- CONFIRMED: encode_response() now accepts status param — 4xx/5xx XOR responses work correctly
+- CONFIRMED: VideoController uses androidAttachSurfaceAfterVideoParameters=true (correct media_kit 1.2.5 API)
+- CONFIRMED: 4 build errors fixed (dart:async import, string literal, AudioMixerSheet type, Duration? nullable)
+- SSH to Oracle: 24 published titles, 44/45 files have share_url, JazzDrive SAPI 401 in logs (server cannot upload NEW files; streaming existing content unaffected)
+- No new APK built after those commits
+
+Prior session added subtitle/track file support to "Open With" flow + fixed 6 local thumbnail bugs (commit cf8defde, 10 files).
+
+### Files Changed
+- agent-hub/history/TASK_LOG.md — appended this entry only
+
+### Notes for Next Agent
+- DB schema: v16. Next migration: if (oldV < 17)
+- APK rebuild needed for all Flutter changes merged to main
+- Oracle: raddflix_radd RUNNING, nginx RUNNING. Port 5000 firewalled externally
+- JazzDrive SAPI 401 = server cannot upload new delta/files; streaming existing content unaffected
+- All 24 catalog titles have is_free=0 — no free content playable by guests
