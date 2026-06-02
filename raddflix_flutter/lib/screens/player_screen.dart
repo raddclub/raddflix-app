@@ -1551,7 +1551,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _videoCtrl = VideoController(
       _player,
       configuration: const VideoControllerConfiguration(
-        androidAttachSurfaceAfterVideoFrameAvailable: true,
+        androidAttachSurfaceAfterVideoParameters: true,
       ),
     );
     await _openMedia(widget.fileId, localPath: widget.localPath);
