@@ -41,11 +41,10 @@ def generate_delta_payload() -> dict:
 
     with db.conn() as c:
         rows = c.execute("""
-            SELECT t.id, t.title, t.year, t.media_type, t.plot, t.overview,
+            SELECT t.id, t.title, t.year, t.media_type, t.plot,
                    t.rating, t.genres, t.language, t.is_free, t.updated_at,
                    t.poster, t.status, t.is_ongoing, t.runtime,
                    t.season_count, t.episode_count,
-                   t.share_url AS title_share_url,
                    t.folder_share_url, t.poster_share_url,
                    f.id AS file_id, f.share_url AS file_share_url
             FROM titles t
@@ -69,7 +68,7 @@ def generate_delta_payload() -> dict:
             pass
 
         status = r["status"] or _infer_status(r)
-        share_url = r["file_share_url"] or r["title_share_url"] or ""
+        share_url = r["file_share_url"] or ""
         file_id   = str(r["file_id"]) if r["file_id"] else None
 
         titles_out.append({
@@ -77,7 +76,7 @@ def generate_delta_payload() -> dict:
             "title":          r["title"] or "",
             "year":           r["year"],
             "media_type":     r["media_type"] or "movie",
-            "description":    r["plot"] or r["overview"] or "",
+            "description":    r["plot"] or "",
             "rating":         float(r["rating"] or 0),
             "genres":         genres,
             "language":       r["language"] or "",
