@@ -555,7 +555,7 @@ def clear_db_update_url():
 def generate():
     with db.conn() as c:
         title_rows = c.execute("""
-            SELECT t.id, t.title, t.year, t.media_type, t.plot, t.overview,
+            SELECT t.id, t.title, t.year, t.media_type, t.plot,
                    t.rating, t.genres, t.language, t.is_free, t.updated_at,
                    t.poster, t.poster_share_url, t.runtime, t.season_count, t.episode_count,
                    t.status, t.is_ongoing,
@@ -579,7 +579,7 @@ def generate():
         titles_out.append({
             "id": r["id"], "title": r["title"] or "",
             "year": r["year"], "media_type": r["media_type"] or "movie",
-            "description": r["plot"] or r["overview"] or "",
+            "description": r["plot"] or "",
             "rating": float(r["rating"] or 0), "genres": genres,
             "language": r["language"] or "",
             "is_free": 1 if r["is_free"] else 0,
