@@ -36,7 +36,8 @@ _state = {
     "last_error":       None,   # str
     "running":          False,
 }
-_state_lock = threading.Lock()
+_state_lock  = threading.Lock()
+_wake_event  = threading.Event()   # set to wake the loop immediately
 
 # ── Core: generate delta.json (nested format Flutter expects) ─────────────────
 
@@ -363,19 +364,45 @@ def run_full_pipeline() -> dict:
 
 # ── Background refresh loop ───────────────────────────────────────────────────
 
-_REFRESH_INTERVAL = 6 * 3600   # 6 hours
+_DEFAULT_INTERVAL_H = 6   # fallback when DB has no setting
+
+def _get_loop_config() -> tuple:
+    """Read (enabled: bool, interval_secs: int) from DB settings.
+    Defaults: enabled=True, interval=6h. Minimum interval 1h.
+    """
+    try:
+        ev = db.setting("delta_auto_enabled")
+        iv = db.setting("delta_auto_interval_h")
+        enabled    = (ev is None) or str(ev).strip() not in ("0", "false", "no")
+        interval_h = int(iv) if iv and str(iv).strip().isdigit() else _DEFAULT_INTERVAL_H
+        return enabled, max(1, interval_h) * 3600
+    except Exception:
+        return True, _DEFAULT_INTERVAL_H * 3600
+
 
 def delta_refresh_loop():
     """
-    Background thread: every 6 hours, check if catalog version changed.
-    If yes (or no upload ever done), regenerate delta.json and re-upload.
+    Background thread: auto-regenerate + upload delta.json on a configurable schedule.
+    Interval and enabled/disabled flag are read from the DB on every iteration,
+    so admin changes take effect without restarting Oracle.
+    The loop is woken immediately when _wake_event is set (e.g. config change or
+    manual trigger), avoiding a full sleep-cycle wait.
     Registered with self_heal in app.py so it auto-restarts on crash.
     """
-    log.info("delta_push: refresh loop started (interval=%dh)", _REFRESH_INTERVAL // 3600)
+    log.info("delta_push: refresh loop started")
+    _wake_event.clear()
     time.sleep(30)   # wait for server to fully start
 
     while True:
         try:
+            enabled, interval_secs = _get_loop_config()
+
+            if not enabled:
+                log.debug("delta_push: auto-sync disabled — sleeping 60 s then re-checking")
+                _wake_event.wait(timeout=60)
+                _wake_event.clear()
+                continue
+
             # Read current catalog version
             with db.conn() as c:
                 row = c.execute(
@@ -384,23 +411,23 @@ def delta_refresh_loop():
             current_version = int(row["v"] or 0)
 
             with _state_lock:
-                last_version    = _state["last_version"]
-                last_upload_at  = _state["last_upload_at"]
-                is_running      = _state["running"]
+                last_version   = _state["last_version"]
+                last_upload_at = _state["last_upload_at"]
+                is_running     = _state["running"]
 
             needs_refresh = (
                 is_running is False and (
-                    last_version is None           # never uploaded
+                    last_version is None
                     or last_upload_at is None
-                    or current_version != last_version   # catalog changed
-                    or (time.time() - last_upload_at) > _REFRESH_INTERVAL  # 6h elapsed
+                    or current_version != last_version        # catalog changed
+                    or (time.time() - last_upload_at) > interval_secs  # interval elapsed
                 )
             )
 
             if needs_refresh:
                 log.info(
-                    "delta_push: refreshing (current_v=%d, last_v=%s)",
-                    current_version, last_version
+                    "delta_push: refreshing (current_v=%d, last_v=%s, interval=%dh)",
+                    current_version, last_version, interval_secs // 3600
                 )
                 result = run_full_pipeline()
                 if result.get("ok"):
@@ -414,7 +441,9 @@ def delta_refresh_loop():
         except Exception:
             log.exception("delta_push: refresh loop error (will retry)")
 
-        time.sleep(_REFRESH_INTERVAL)
+        # Sleep until interval elapses OR until woken by _wake_event
+        _wake_event.wait(timeout=interval_secs)
+        _wake_event.clear()
 
 
 # ── Admin endpoints ───────────────────────────────────────────────────────────
@@ -448,13 +477,63 @@ def trigger():
 
 @bp.route("/status")
 def status():
-    """GET /api/catalog/delta-push/status — public status (no secrets exposed)."""
+    """GET /api/catalog/delta-push/status — runtime state + current config."""
     with _state_lock:
         s = dict(_state)
+    ev = db.setting("delta_auto_enabled")
+    iv = db.setting("delta_auto_interval_h")
+    enabled    = (ev is None) or str(ev).strip() not in ("0", "false", "no")
+    interval_h = int(iv) if iv and str(iv).strip().isdigit() else _DEFAULT_INTERVAL_H
     return jsonify({
-        "last_upload_at":  s["last_upload_at"],
-        "last_version":    s["last_version"],
-        "running":         s["running"],
-        "last_error":      s["last_error"],
+        "last_upload_at":   s["last_upload_at"],
+        "last_version":     s["last_version"],
+        "running":          s["running"],
+        "last_error":       s["last_error"],
         "jd_delta_url_set": bool(s["last_share_url"] or db.setting("jd_delta_url")),
+        "auto_enabled":     enabled,
+        "interval_h":       max(1, interval_h),
     })
+
+
+@bp.route("/config", methods=["GET", "POST"])
+def config_view():
+    """GET/POST /api/catalog/delta-push/config
+    GET  — returns current interval_h and enabled flag.
+    POST — updates them and wakes the loop so the new config takes effect immediately.
+    Body: {"interval_h": 4, "enabled": true}  (either or both keys)
+    """
+    if not _check_admin():
+        return jsonify({"error": "Unauthorized"}), 401
+
+    if request.method == "GET":
+        ev = db.setting("delta_auto_enabled")
+        iv = db.setting("delta_auto_interval_h")
+        enabled    = (ev is None) or str(ev).strip() not in ("0", "false", "no")
+        interval_h = int(iv) if iv and str(iv).strip().isdigit() else _DEFAULT_INTERVAL_H
+        return jsonify({"ok": True, "enabled": enabled, "interval_h": max(1, interval_h)})
+
+    body = request.get_json(silent=True) or {}
+    if "enabled" in body:
+        db.set_setting("delta_auto_enabled", "1" if body["enabled"] else "0")
+    if "interval_h" in body:
+        db.set_setting("delta_auto_interval_h", str(max(1, int(body["interval_h"]))))
+    _wake_event.set()   # wake the sleeping loop so new config applies now
+    log.info("delta_push: config updated via API — %s", body)
+    return jsonify({"ok": True})
+
+
+@bp.route("/restart", methods=["POST"])
+def restart_oracle():
+    """POST /api/catalog/delta-push/restart
+    Sends SIGTERM to the current process. supervisord (autorestart=true) brings
+    it back within seconds. Useful after config changes that need a cold restart.
+    """
+    if not _check_admin():
+        return jsonify({"error": "Unauthorized"}), 401
+    import signal as _sig, threading as _t
+    def _do_kill():
+        time.sleep(0.6)   # let the HTTP response flush first
+        log.info("delta_push: restart requested — sending SIGTERM")
+        os.kill(os.getpid(), _sig.SIGTERM)
+    _t.Thread(target=_do_kill, daemon=True).start()
+    return jsonify({"ok": True, "message": "Oracle restarting — supervisord will bring it back in ~5 s"})

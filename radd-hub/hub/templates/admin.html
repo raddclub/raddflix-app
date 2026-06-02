@@ -593,4 +593,145 @@ async function ddRunSite(site){
     }, 8000);
   } catch(e){ _ddMsg('Error: '+e.message, true); }
 }
+
+
+<!-- ── Delta Sync ──────────────────────────────────────────────────────── -->
+<div class="card" id="delta-card">
+  <div class="row" style="justify-content:space-between;margin-bottom:14px">
+    <h3 style="margin:0">Delta Sync (Zero-Rated)</h3>
+    <span class="badge b-mut" id="ds-state-badge">loading…</span>
+  </div>
+
+  <!-- Status row -->
+  <div class="grid grid-2" style="gap:10px;margin-bottom:16px">
+    <div class="card" style="margin:0;background:var(--panel2);padding:10px 14px">
+      <div class="muted" style="font-size:11px;margin-bottom:4px">Last upload</div>
+      <div id="ds-last-upload" style="font-size:13px;font-weight:600">—</div>
+    </div>
+    <div class="card" style="margin:0;background:var(--panel2);padding:10px 14px">
+      <div class="muted" style="font-size:11px;margin-bottom:4px">Last error</div>
+      <div id="ds-last-error" style="font-size:12px;color:var(--danger)">—</div>
+    </div>
+  </div>
+
+  <!-- Config -->
+  <div class="form-row" style="align-items:center;gap:12px;margin-bottom:10px">
+    <label style="min-width:130px">Auto-sync enabled</label>
+    <label class="toggle">
+      <input type="checkbox" id="ds-enabled">
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="form-row" style="margin-bottom:16px">
+    <label>Interval (hours)</label>
+    <input type="number" id="ds-interval" min="1" max="168" style="width:100px">
+    <span class="muted" style="font-size:12px">Minimum 1 h · restart not required</span>
+  </div>
+
+  <!-- Action buttons -->
+  <div class="row" style="gap:8px;flex-wrap:wrap">
+    <button id="ds-save-btn" onclick="dsSaveConfig()">💾 Save config</button>
+    <button class="ghost" id="ds-trigger-btn" onclick="dsTriggerNow()">▶ Generate now</button>
+    <button class="ghost" id="ds-restart-btn" onclick="dsRestartOracle()">↺ Restart Oracle</button>
+  </div>
+  <div id="ds-msg" style="margin-top:10px;font-size:13px"></div>
+</div>
+
+<script>
+// ── Delta Sync panel ──────────────────────────────────────────────────────────
+
+const _dsAuthHdr = () => ({
+  Authorization: 'Basic ' + btoa(document.cookie.match(/adm_u=([^;]+)/)?.[1]||'admin'
+    + ':' + (document.cookie.match(/adm_p=([^;]+)/)?.[1]||'')),
+});
+
+async function dsLoad() {
+  try {
+    const s = await fetch('/api/catalog/delta-push/status').then(r=>r.json());
+    document.getElementById('ds-last-upload').textContent =
+      s.last_upload_at ? new Date(s.last_upload_at*1000).toLocaleString() : 'Never';
+    document.getElementById('ds-last-error').textContent = s.last_error || 'None';
+
+    const badge = document.getElementById('ds-state-badge');
+    if (s.running) {
+      badge.textContent = 'running'; badge.className = 'badge b-ok';
+    } else if (s.auto_enabled) {
+      badge.textContent = 'idle · auto ON'; badge.className = 'badge b-mut';
+    } else {
+      badge.textContent = 'auto OFF'; badge.className = 'badge b-warn';
+    }
+
+    document.getElementById('ds-enabled').checked  = s.auto_enabled;
+    document.getElementById('ds-interval').value   = s.interval_h || 6;
+  } catch(e) { _dsMsg('Load failed: '+e.message, true); }
+}
+
+function _dsMsg(m, isErr) {
+  const el = document.getElementById('ds-msg');
+  el.textContent = m;
+  el.style.color = isErr ? 'var(--danger)' : 'var(--accent)';
+}
+
+async function dsSaveConfig() {
+  const btn = document.getElementById('ds-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const body = {
+      enabled:    document.getElementById('ds-enabled').checked,
+      interval_h: parseInt(document.getElementById('ds-interval').value, 10) || 6,
+    };
+    const r = await fetch('/api/catalog/delta-push/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ..._dsAuthHdr() },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.ok) { _dsMsg('Config saved — loop will apply new interval on next cycle'); dsLoad(); }
+    else       { _dsMsg(d.error||'Save failed', true); }
+  } catch(e) { _dsMsg('Error: '+e.message, true); }
+  finally    { btn.disabled = false; btn.textContent = '💾 Save config'; }
+}
+
+async function dsTriggerNow() {
+  const btn = document.getElementById('ds-trigger-btn');
+  btn.disabled = true; btn.textContent = 'Generating…';
+  _dsMsg('Running pipeline — this may take ~15 s…');
+  try {
+    const r = await fetch('/api/catalog/delta-push/trigger', {
+      method: 'POST', headers: _dsAuthHdr(),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      _dsMsg('✓ Done — '+d.title_count+' titles, '+d.episode_count+' episodes, '
+             +d.size_kb+' KB');
+      dsLoad();
+    } else { _dsMsg('Pipeline failed: '+(d.error||JSON.stringify(d)), true); }
+  } catch(e) { _dsMsg('Error: '+e.message, true); }
+  finally    { btn.disabled = false; btn.textContent = '▶ Generate now'; }
+}
+
+async function dsRestartOracle() {
+  if (!confirm('Restart Oracle server?
+All active connections will drop for ~5 seconds.')) return;
+  const btn = document.getElementById('ds-restart-btn');
+  btn.disabled = true; btn.textContent = 'Restarting…';
+  _dsMsg('Sending restart signal…');
+  try {
+    const r = await fetch('/api/catalog/delta-push/restart', {
+      method: 'POST', headers: _dsAuthHdr(),
+    });
+    const d = await r.json();
+    _dsMsg(d.message || 'Restarting…');
+    setTimeout(() => { btn.disabled = false; btn.textContent = '↺ Restart Oracle'; dsLoad(); }, 8000);
+  } catch(e) {
+    // fetch will fail because server is restarting — that is expected
+    _dsMsg('Oracle is restarting — page will work again in ~5 s');
+    setTimeout(() => { btn.disabled = false; btn.textContent = '↺ Restart Oracle'; dsLoad(); }, 8000);
+  }
+}
+
+// Auto-refresh status every 30 s and load on page init
+dsLoad();
+setInterval(dsLoad, 30000);
+</script>
 </script>{% endblock %}
