@@ -314,12 +314,41 @@ def run_delta_generation(log_fn=None):
         # Attempt JazzDrive upload
         try:
             from . import jazzdrive as jd
-            result = jd.upload_file_to_jazzdrive(_DELTA_PATH)
+
+            # Read previous remote_id before upload so we can delete it after
+            prev_remote_id = None
+            try:
+                with db.conn() as _c:
+                    pr = _c.execute("SELECT v FROM settings WHERE k='jd_delta_remote_id'").fetchone()
+                    if pr and str(pr["v"]).isdigit():
+                        prev_remote_id = int(pr["v"])
+            except Exception:
+                pass
+
+            result = jd.upload_json_to_jazzdrive(_DELTA_PATH)
             if result.get("ok"):
                 share_url = result.get("share_url") or result.get("url") or ""
+                new_remote_id = str(result.get("remote_id") or "")
                 if share_url:
                     with db.conn() as c:
                         c.execute("INSERT OR REPLACE INTO settings(k,v) VALUES('jd_delta_url',?)", (share_url,))
+                    if new_remote_id:
+                        with db.conn() as c:
+                            c.execute("INSERT OR REPLACE INTO settings(k,v) VALUES('jd_delta_remote_id',?)", (new_remote_id,))
+
+                    # Trash the old delta file so only one copy exists in Radd-Delta folder
+                    if prev_remote_id:
+                        try:
+                            with db.conn() as _c:
+                                aid_row = _c.execute("SELECT id FROM accounts WHERE is_active=1 ORDER BY id LIMIT 1").fetchone()
+                            if aid_row:
+                                tr = jd.trash_files(aid_row["id"], [prev_remote_id], media_type="file")
+                                _log(f"Delta generation: trashed old delta remote_id={prev_remote_id} → {tr}")
+                            else:
+                                _log("Delta generation: no active account — skipping old-file cleanup")
+                        except Exception as _te:
+                            _log(f"Delta generation: could not trash old delta remote_id={prev_remote_id} — {_te}")
+
                     _log(f"Delta generation: uploaded to JazzDrive → {share_url}")
                 else:
                     _log("Delta generation: upload OK but no share URL returned — URL not updated")
