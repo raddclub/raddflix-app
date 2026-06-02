@@ -39,6 +39,7 @@ void main() async {
   // Boot zero-rated services
   await PosterService.init();
   await JazzDriveService.loadCacheFromDb();
+  unawaited(JazzDriveService.warmTopFreeItems(8));
   await LocalDb.cleanExpiredStreamCache();
   // Offline-first: push any positions saved while offline + pending usage bytes
   HistoryApi.flushUnsynced().ignore();

@@ -155,6 +155,40 @@ class JazzDriveService {
     await LocalDb.deleteStreamCache(fileId);
   }
 
+
+  /// Pre-warm the stream-link cache for the top [count] free movies.
+  ///
+  /// Fire-and-forget: call with [unawaited] so it never delays app launch
+  /// or UI rendering. Queries SQLite for the top [count] is_free=1 movie
+  /// titles ordered by db_version DESC, then calls [getStreamLink] for each.
+  ///
+  /// Because [getStreamLink] honours the existing 180-min TTL the warm step
+  /// is a no-op for items already cached — zero extra network calls within
+  /// the TTL window. On Jazz SIM all SAPI calls go directly to
+  /// cloud.jazzdrive.com.pk (zero-rated). Silently swallows all errors so
+  /// an offline device or unreachable JazzDrive never surfaces to the user.
+  static Future<void> warmTopFreeItems(int count) async {
+    try {
+      final rows = await LocalDb.getTopFreeMovies(count);
+      int warmed = 0;
+      for (final row in rows) {
+        try {
+          final fileId   = row['file_id']   as String? ?? '';
+          final shareUrl = row['share_url'] as String? ?? '';
+          if (fileId.isEmpty || shareUrl.isEmpty) continue;
+          await getStreamLink(fileId, shareUrl);
+          warmed++;
+        } catch (_) {
+          // Per-item failure — silently continue to the next item.
+        }
+      }
+      DebugLogger.log(
+          'JAZZDRIVE', 'Warm complete: $warmed/${rows.length} item(s) pre-fetched');
+    } catch (e) {
+      DebugLogger.logWarn('JAZZDRIVE', 'warmTopFreeItems failed silently: $e');
+    }
+  }
+
   // ── Private helpers ────────────────────────────────────────────────────────
 
   static Future<JazzDriveLink> _generateLink(String shareUrl) async {

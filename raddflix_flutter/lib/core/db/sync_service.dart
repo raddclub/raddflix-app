@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../api/catalog_api.dart';
 import '../constants.dart';
 import '../debug/debug_logger.dart';
+import '../services/jazzdrive_service.dart';
 import '../services/usage_service.dart';
 import 'local_db.dart';
 import '../../models/catalog_item.dart';
@@ -83,6 +85,7 @@ class SyncService {
     await LocalDb.setLastSyncTimestamp(nowTs);
 
     DebugLogger.log('SYNC', 'Oracle sync complete: ${items.length} item(s)');
+    unawaited(JazzDriveService.warmTopFreeItems(8));
     return SyncResult(
       success: true,
       itemsSynced: items.length,
@@ -195,6 +198,7 @@ class SyncService {
     await LocalDb.setLastSyncTimestamp(nowTs);
 
     DebugLogger.log('SYNC', 'JazzDrive delta sync complete: $merged title(s) merged');
+    unawaited(JazzDriveService.warmTopFreeItems(8));
     return SyncResult(
       success: true,
       itemsSynced: merged,

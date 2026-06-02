@@ -628,6 +628,35 @@ class LocalDb {
     }
   }
 
+
+  /// Return up to [count] is_free=1 movie titles ordered by db_version DESC.
+  ///
+  /// Used by [JazzDriveService.warmTopFreeItems] to pre-warm the stream-link
+  /// cache on startup. share_urls are decoded (unscrambled) before returning.
+  static Future<List<Map<String, dynamic>>> getTopFreeMovies(int count) async {
+    final db = await instance;
+    final rows = await db.rawQuery(
+      "SELECT id, file_id, share_url FROM titles "
+      "WHERE is_free = 1 AND media_type = 'movie' "
+      "  AND file_id IS NOT NULL AND file_id != '' "
+      "  AND share_url IS NOT NULL AND share_url != '' "
+      "ORDER BY db_version DESC LIMIT ?",
+      [count],
+    );
+    final result = <Map<String, dynamic>>[];
+    for (final row in rows) {
+      final rawUrl = row['share_url'] as String? ?? '';
+      final decoded = rawUrl.isNotEmpty ? await _decodeUrl(rawUrl) : '';
+      if (decoded.isEmpty) continue;
+      result.add({
+        'id':        row['id'],
+        'file_id':   row['file_id'] as String? ?? '',
+        'share_url': decoded,
+      });
+    }
+    return result;
+  }
+
   // ── Sync metadata ─────────────────────────────────────────────────────────
 
   static Future<int> getLastSyncVersion() async {
