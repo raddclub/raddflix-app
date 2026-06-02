@@ -39,6 +39,33 @@ from .. import db
 log = logging.getLogger("hub.mobile_api")
 _EMERGENCY_SECRET: Optional[str] = None  # BUG-A32: per-process random last-resort JWT secret
 
+# ── Login rate limiting (in-memory, per-IP) ──────────────────────────────────
+_login_ip_window: dict = {}   # ip → list[float] of attempt timestamps
+_LOGIN_RATE_WINDOW = 900      # 15-minute sliding window
+_LOGIN_RATE_MAX    = 10       # max attempts per window per IP
+
+
+def _login_rate_check(ip: str) -> bool:
+    """Return True (allowed) or False (rate-limited). Prunes stale IPs.
+    Returns False silently — caller returns 429, attacker gets no detail.
+    """
+    import time as _t
+    now  = _t.time()
+    hits = _login_ip_window.get(ip, [])
+    hits = [t for t in hits if now - t < _LOGIN_RATE_WINDOW]
+    if len(hits) >= _LOGIN_RATE_MAX:
+        _login_ip_window[ip] = hits
+        return False
+    hits.append(now)
+    _login_ip_window[ip] = hits
+    # Prune stale IPs every ~100 new IPs
+    if len(_login_ip_window) > 500:
+        stale = [k for k, v in list(_login_ip_window.items())
+                 if not any(now - t < _LOGIN_RATE_WINDOW for t in v)]
+        for k in stale:
+            del _login_ip_window[k]
+    return True
+
 # ── JWT helpers ────────────────────────────────────────────────────────────
 
 def _secret() -> str:
@@ -230,6 +257,12 @@ def login():
 
     if not phone or not password:
         return jsonify({"error": "phone and password required"}), 400
+
+    # Rate-limit login attempts per IP (BUG-N06)
+    _ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown")
+    _ip = _ip.split(",")[0].strip()
+    if not _login_rate_check(_ip):
+        return jsonify({"error": "Too many login attempts. Please try again later."}), 429
 
     now = int(time.time())
 
@@ -825,7 +858,8 @@ def mark_read(_user_id, _phone):
 
 
 @bp_notif.route("/image/<int:notif_id>")
-def notif_image(notif_id):
+@_require_auth
+def notif_image(notif_id, _user_id=None, _phone=None):
     try:
         with db.conn() as c:
             row = c.execute(

@@ -141,7 +141,7 @@ def create_app() -> Flask:
             with db.conn() as c:
                 row = c.execute(
                     "SELECT id, filename, share_url, download_url, "
-                    "remote_folder_id, account_id FROM files "
+                    "remote_folder_id, account_id, title_id FROM files "
                     "WHERE remote_id=? OR remote_file_id=? OR fingerprint=? LIMIT 1",
                     (remote_id, remote_id, remote_id)
                 ).fetchone()

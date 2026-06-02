@@ -235,32 +235,6 @@ class LocalDb {
       // Add local poster path to titles
       try { await db.execute('ALTER TABLE titles ADD COLUMN poster_path TEXT'); } catch (_) {}
     }
-    if (oldV < 12) {
-      // New-episode badge tracking table
-      try {
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS show_ep_seen (
-            show_id    INTEGER PRIMARY KEY,
-            seen_count INTEGER NOT NULL DEFAULT 0
-          )
-        ''');
-      } catch (_) {}
-      // Stream link cache table (6h TTL, shared for watch + download)
-      try {
-        await db.execute('''
-          CREATE TABLE IF NOT EXISTS stream_cache (
-            file_id    TEXT PRIMARY KEY,
-            stream_url TEXT NOT NULL,
-            poster_url TEXT,
-            created_at INTEGER DEFAULT 0,
-            expires_at INTEGER DEFAULT 0
-          )
-        ''');
-        await db.execute(
-          'CREATE INDEX IF NOT EXISTS idx_stream_cache_expires ON stream_cache(expires_at)',
-        );
-      } catch (_) {}
-    }
     if (oldV < 11) {
       try {
         await db.execute('''
@@ -288,6 +262,32 @@ class LocalDb {
             last_claim TEXT
           )
         ''');
+      } catch (_) {}
+    }
+    if (oldV < 12) {
+      // New-episode badge tracking table
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS show_ep_seen (
+            show_id    INTEGER PRIMARY KEY,
+            seen_count INTEGER NOT NULL DEFAULT 0
+          )
+        ''');
+      } catch (_) {}
+      // Stream link cache table (6h TTL, shared for watch + download)
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS stream_cache (
+            file_id    TEXT PRIMARY KEY,
+            stream_url TEXT NOT NULL,
+            poster_url TEXT,
+            created_at INTEGER DEFAULT 0,
+            expires_at INTEGER DEFAULT 0
+          )
+        ''');
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_stream_cache_expires ON stream_cache(expires_at)',
+        );
       } catch (_) {}
     }
     if (oldV < 13) {
