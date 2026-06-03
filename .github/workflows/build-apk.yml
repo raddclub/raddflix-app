@@ -1,6 +1,11 @@
 name: Build RaddFlix APK
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "raddflix_flutter/**"
+      - ".github/workflows/build-apk.yml"
   workflow_dispatch:
     inputs:
       release_tag:
