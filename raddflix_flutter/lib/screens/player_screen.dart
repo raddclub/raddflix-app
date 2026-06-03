@@ -350,8 +350,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     WidgetsBinding.instance.addObserver(this);
     _currentEpIdx = widget.episodeIndex;
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    SystemChrome.setPreferredOrientations(
-        [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     WakelockPlus.enable();
     _initPlayer();
     _startWakeTimer(); // Phase H4: optional wake timeout

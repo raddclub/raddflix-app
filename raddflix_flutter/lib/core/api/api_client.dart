@@ -324,9 +324,22 @@ class _XorInterceptor extends Interceptor {
     return _cachedDeviceId!;
   }
 
+  // Auth paths: skip XOR body encoding so server receives plain JSON.
+  // These use HTTPS anyway — XOR adds no benefit and causes parse failures
+  // if device-id isn't ready yet.
+  static const _noXorPaths = [
+    ApiPaths.login,
+    ApiPaths.register,
+    ApiPaths.refresh,
+    ApiPaths.guest,
+  ];
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
     if (!RequestEncoder.enabled) return handler.next(options);
+
+    // Skip XOR entirely for auth endpoints — send plain JSON
+    if (_noXorPaths.contains(options.path)) return handler.next(options);
 
     try {
       final deviceId   = await _getDeviceId();
