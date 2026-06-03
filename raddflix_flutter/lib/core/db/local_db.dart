@@ -709,7 +709,7 @@ class LocalDb {
     for (final row in rows) {
       final rawUrl = row['share_url'] as String? ?? '';
       final decoded = rawUrl.isNotEmpty ? await _decodeUrl(rawUrl) : '';
-      if (decoded.isEmpty) continue;
+      if (decoded == null || decoded.isEmpty) continue;
       result.add({
         'id':        row['id'],
         'file_id':   row['file_id'] as String? ?? '',

@@ -272,7 +272,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                   controller: _ctrl,
                   focusNode: _focus,
                   style: TextStyle(color: t.textPrimary, fontSize: 15),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Movies, shows, dramas…',
                     hintStyle: TextStyle(color: t.textMuted),
                     border: InputBorder.none,
