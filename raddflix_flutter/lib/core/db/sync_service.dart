@@ -19,6 +19,11 @@ import '../../models/catalog_item.dart';
 /// Includes file_id, share_url, folder_share_url, and full episode list.
 /// Merges into local SQLite — skips duplicates, never deletes user data.
 ///
+/// Sync type decision (Oracle path):
+///   - First run (lastSyncTs == 0)          → full sync
+///   - Admin force-bump (forcedTs > local)  → full sync (plan/quota change)
+///   - Normal delta                         → syncDelta(localVersion)
+///
 /// JazzDrive share URL resolution:
 ///   The jd_delta_url is a share page URL (cloud.jazzdrive.com.pk/share/f/KEY).
 ///   Fetching it directly returns HTML. Resolution requires a 2-step API flow:
@@ -58,9 +63,9 @@ class SyncService {
   static Future<SyncResult> _syncFromOracle() async {
     UsageService.fetchQuota().ignore();
 
-    final lastSyncTs = await LocalDb.getLastSyncTimestamp();
-    final serverVersion = await CatalogApi.getVersion();
-    final localVersion = await LocalDb.getLastSyncVersion();
+    final lastSyncTs     = await LocalDb.getLastSyncTimestamp();
+    final serverVersion  = await CatalogApi.getVersion();
+    final localVersion   = await LocalDb.getLastSyncVersion();
 
     if (localVersion >= serverVersion.version && lastSyncTs > 0) {
       return const SyncResult(
@@ -72,7 +77,16 @@ class SyncService {
     }
 
     List<CatalogItem> items;
-    if (lastSyncTs == 0) {
+
+    // Task C — forced_ts handling:
+    // If admin force-bumped the catalog (e.g. plan/quota change) and the
+    // forced_ts is newer than our local catalog version, run a full sync
+    // so the app picks up all changes, not just the delta window.
+    final needsFullSync = lastSyncTs == 0 || serverVersion.forcedTs > localVersion;
+    if (needsFullSync) {
+      DebugLogger.log('SYNC', lastSyncTs == 0
+          ? 'First sync — running full catalog sync'
+          : 'Admin force-bump detected (forcedTs=${serverVersion.forcedTs} > local=$localVersion) — running full sync');
       items = await CatalogApi.syncFull();
     } else {
       items = await CatalogApi.syncDelta(localVersion);

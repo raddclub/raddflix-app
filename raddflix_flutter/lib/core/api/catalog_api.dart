@@ -5,14 +5,19 @@ import '../../models/catalog_item.dart';
 class CatalogApi {
   static final _client = ApiClient.instance;
 
-  /// Returns the current catalog version number + total item count.
-  /// Use this to check if a sync is needed before downloading everything.
+  /// Returns the current catalog version number + total item count +
+  /// the last admin-forced version bump timestamp (forced_ts).
+  ///
+  /// forced_ts > 0 means an admin explicitly bumped the version via
+  /// POST /api/catalog/force-version-bump (e.g. after a plan/quota change).
+  /// SyncService uses forced_ts to decide between a full sync and a delta sync.
   static Future<CatalogVersion> getVersion() async {
     final response = await _client.get(ApiPaths.catalogVersion);
     final data = response.data as Map<String, dynamic>;
     return CatalogVersion(
-      version: data['version'] as int? ?? 0,
-      count: data['count'] as int? ?? 0,
+      version:  data['version']   as int? ?? 0,
+      count:    data['count']     as int? ?? 0,
+      forcedTs: data['forced_ts'] as int? ?? 0,
     );
   }
 
@@ -96,5 +101,16 @@ class CatalogApi {
 class CatalogVersion {
   final int version;
   final int count;
-  const CatalogVersion({required this.version, required this.count});
+
+  /// Timestamp of the last admin-forced catalog version bump.
+  /// When [forcedTs] > localVersion stored in SQLite, SyncService will run
+  /// a full sync instead of a delta — ensuring plan/quota changes reach the
+  /// app even if no title row was edited on the server.
+  final int forcedTs;
+
+  const CatalogVersion({
+    required this.version,
+    required this.count,
+    this.forcedTs = 0,
+  });
 }
