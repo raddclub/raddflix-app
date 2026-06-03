@@ -32,7 +32,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       await ref.read(authProvider.notifier).register(phone: _phone.text.trim(), password: _pass.text);
-      if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Account created! Please sign in.'),
+          backgroundColor: Color(0xFF2ECC71),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      Navigator.of(context).pop();
     } on DioException catch (e) {
       final _errData = e.response?.data;
       final serverMsg = (_errData is Map
@@ -44,7 +52,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           e.type == DioExceptionType.receiveTimeout;
       setState(() {
         _error = _isNetErr
-            ? 'Cannot connect. If you already registered, try logging in instead.'
+            ? 'Cannot connect. Check your internet connection.'
             : (serverMsg ?? AuthErrors.register(e.toString()));
         _loading = false;
       });

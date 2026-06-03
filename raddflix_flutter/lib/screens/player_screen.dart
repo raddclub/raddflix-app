@@ -1481,8 +1481,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _applyRotation(String mode) {
     switch (mode) {
       case 'auto':
-        // Empty list = OS controls all orientations (MX Player-style auto-rotate)
-        SystemChrome.setPreferredOrientations([]);
+        // All orientations — let OS handle physical rotation
+        SystemChrome.setPreferredOrientations(DeviceOrientation.values);
         break;
       case 'lock_left':
         SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft]);
@@ -3871,32 +3871,37 @@ class _ControlsOverlay extends StatelessWidget {
         ),
   
 
-      // ── CENTER CONTROLS (MX Player landscape: vertical — up=seek-back, down=seek-fwd) ──
+      // ── CENTER CONTROLS (horizontal: seek-back | play | seek-forward) ──────
         if (!locked)
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _MxSeekBtn(isForward: false, seconds: 15, onTap: onSeekBack),
-                const SizedBox(height: 20),
-                GestureDetector(
-                  onTap: onPlayPause,
-                  onLongPress: onLongPressPlay,
-                  child: Container(
-                    width: 68, height: 68,
-                    decoration: _playBtnDecoration(buttonShape, accentColor),
-                    clipBehavior: Clip.hardEdge,
-                    child: Icon(
-                      playing
-                          ? _iconForPack(iconPack, 'pause')
-                          : _iconForPack(iconPack, 'play'),
-                      color: Colors.white, size: 40,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _MxSeekBtn(isForward: false, seconds: 15, onTap: onSeekBack),
+                    const SizedBox(width: 24),
+                    GestureDetector(
+                      onTap: onPlayPause,
+                      onLongPress: onLongPressPlay,
+                      child: Container(
+                        width: 68, height: 68,
+                        decoration: _playBtnDecoration(buttonShape, accentColor),
+                        clipBehavior: Clip.hardEdge,
+                        child: Icon(
+                          playing
+                              ? _iconForPack(iconPack, 'pause')
+                              : _iconForPack(iconPack, 'play'),
+                          color: Colors.white, size: 40,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 24),
+                    _MxSeekBtn(isForward: true, seconds: 15, onTap: onSeekForward),
+                  ],
                 ),
-                const SizedBox(height: 20),
-                _MxSeekBtn(isForward: true, seconds: 15, onTap: onSeekForward),
                 if (hasNext) ...[
                   const SizedBox(height: 16),
                   GestureDetector(
@@ -3961,264 +3966,254 @@ class _ControlsOverlay extends StatelessWidget {
         ),
 
   
-      // ── LEFT SIDE SEEK BAR (MX Player landscape: vertical seek on left edge) ──────
+      // ── BOTTOM SEEK BAR (standard horizontal layout) ─────────────────────
       if (!locked)
         Positioned(
-          left: 0, top: 0, bottom: 0,
+          bottom: 0, left: 0, right: 0,
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 56),
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ── Seek thumbnail (shows beside bar when dragging local file) ──
+                  // ── Seek thumbnail above slider when dragging local file ──
                   if (seekThumb != null && sliderDragging && isLocal)
-                    Container(
-                      width: 120, height: 70,
-                      margin: const EdgeInsets.only(left: 12),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white38),
-                        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 8)],
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Stack(children: [
-                        Image.memory(seekThumb!, fit: BoxFit.cover, width: 120, height: 70),
-                        Positioned(
-                          bottom: 0, left: 0, right: 0,
-                          child: Container(
-                            color: Colors.black54,
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: Text(
-                              fmtDur(Duration(milliseconds:
-                                  (progress * duration.inMilliseconds).toInt())),
-                              style: const TextStyle(color: Colors.white, fontSize: 9,
-                                  fontWeight: FontWeight.w600),
-                              textAlign: TextAlign.center,
+                    Align(
+                      alignment: Alignment(
+                          ((progress * 2.0) - 1.0).clamp(-0.9, 0.9), 0),
+                      child: Container(
+                        width: 120, height: 70,
+                        margin: const EdgeInsets.only(bottom: 6),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white38),
+                          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 8)],
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: Stack(children: [
+                          Image.memory(seekThumb!, fit: BoxFit.cover, width: 120, height: 70),
+                          Positioned(
+                            bottom: 0, left: 0, right: 0,
+                            child: Container(
+                              color: Colors.black54,
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Text(
+                                fmtDur(Duration(milliseconds:
+                                    (progress * duration.inMilliseconds).toInt())),
+                                style: const TextStyle(color: Colors.white, fontSize: 9,
+                                    fontWeight: FontWeight.w600),
+                                textAlign: TextAlign.center,
+                              ),
                             ),
                           ),
-                        ),
-                      ]),
-                    ),
-                  // ── Current position time (top of bar) ──
-                  GestureDetector(
-                    onTap: onToggleRemaining,
-                    onLongPress: onJumpToTime,
-                    child: Text(
-                      showRemaining
-                          ? '-${fmtDur(duration - position)}'
-                          : fmtDur(position),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                        ]),
                       ),
                     ),
-                  ),
-                  // ── Vertical seek slider ──────────────────────────────────────
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: LayoutBuilder(
-                        builder: (ctx, constraints) {
-                          final sliderLen = constraints.maxHeight;
-                          return SizedBox(
-                            width: 44,
-                            child: Stack(alignment: Alignment.center, children: [
-                              // Buffered progress (vertical background track)
-                              Positioned(
-                                top: 0, bottom: 0,
-                                child: RotatedBox(
-                                  quarterTurns: 1,
-                                  child: SizedBox(
-                                    width: sliderLen, height: 3,
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(4),
-                                      child: LinearProgressIndicator(
-                                        value: bufferedFraction.clamp(0.0, 1.0),
-                                        backgroundColor: Colors.white12,
-                                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white30),
-                                        minHeight: 3,
-                                      ),
+                  // ── Frame-step controls when paused ──────────────────────────
+                  if (!playing && showFrameStep)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(
+                          icon: const Icon(Icons.skip_previous_rounded,
+                              color: Colors.white70, size: 18),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: onFrameBackStep),
+                        Column(mainAxisSize: MainAxisSize.min, children: [
+                          const Text('Frame',
+                              style: TextStyle(color: Colors.white38, fontSize: 9)),
+                          Text(
+                            '#${(position.inMilliseconds * videoFps / 1000).round()}',
+                            style: const TextStyle(color: Colors.white70, fontSize: 9,
+                                fontFamily: 'monospace', fontWeight: FontWeight.w600),
+                          ),
+                        ]),
+                        IconButton(
+                          icon: const Icon(Icons.skip_next_rounded,
+                              color: Colors.white70, size: 18),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: onFrameStep),
+                      ]),
+                    ),
+                  // ── Seek row: position | slider | duration ──────────────────
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: onToggleRemaining,
+                        onLongPress: onJumpToTime,
+                        child: Text(
+                          showRemaining
+                              ? '-${fmtDur(duration - position)}'
+                              : fmtDur(position),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (ctx, constraints) {
+                            final sliderLen = constraints.maxWidth;
+                            return SizedBox(
+                              height: 44,
+                              child: Stack(alignment: Alignment.center, children: [
+                                // Buffered progress (horizontal background track)
+                                Positioned(
+                                  left: 0, right: 0,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: bufferedFraction.clamp(0.0, 1.0),
+                                      backgroundColor: Colors.white12,
+                                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.white30),
+                                      minHeight: 3,
                                     ),
                                   ),
                                 ),
-                              ),
-                              // A-B loop point A marker
-                              if (abLoop.pointA != null && duration.inMilliseconds > 0)
-                                Positioned(
-                                  bottom: ((abLoop.pointA!.inMilliseconds /
-                                      duration.inMilliseconds).clamp(0.0,1.0) * sliderLen),
-                                  child: Container(
-                                    width: 10, height: 10,
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle, color: Colors.orange),
+                                // A-B loop point A marker
+                                if (abLoop.pointA != null && duration.inMilliseconds > 0)
+                                  Positioned(
+                                    left: ((abLoop.pointA!.inMilliseconds /
+                                        duration.inMilliseconds).clamp(0.0, 1.0) * sliderLen) - 5,
+                                    child: Container(
+                                      width: 10, height: 10,
+                                      decoration: const BoxDecoration(
+                                        shape: BoxShape.circle, color: Colors.orange),
+                                    ),
                                   ),
-                                ),
-                              // A-B loop point B marker
-                              if (abLoop.pointB != null && duration.inMilliseconds > 0)
-                                Positioned(
-                                  bottom: ((abLoop.pointB!.inMilliseconds /
-                                      duration.inMilliseconds).clamp(0.0,1.0) * sliderLen),
-                                  child: Container(
-                                    width: 10, height: 10,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle, color: accentColor),
-                                  ),
-                                ),
-                              // Bookmark emoji markers on the bar
-                              ...bookmarks.map((bm) {
-                                if (duration.inMilliseconds <= 0) return const SizedBox.shrink();
-                                final frac = (bm.positionMs / duration.inMilliseconds).clamp(0.0,1.0);
-                                return Positioned(
-                                  bottom: frac * sliderLen - 8,
-                                  child: GestureDetector(
-                                    onTap: () => onSeekTo(frac),
-                                    child: Text(bm.emoji,
-                                        style: const TextStyle(fontSize: 10)),
-                                  ),
-                                );
-                              }),
-                              // Chapter markers as thin horizontal lines
-                              ...chapters.map((ch) {
-                                if (duration.inMilliseconds <= 0) return const SizedBox.shrink();
-                                final frac = (ch.inMilliseconds / duration.inMilliseconds).clamp(0.0,1.0);
-                                return Positioned(
-                                  bottom: frac * sliderLen - 1,
-                                  left: 6, right: 6,
-                                  child: Container(
-                                    height: 2,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white54,
-                                      borderRadius: BorderRadius.circular(1)),
-                                  ),
-                                );
-                              }),
-                              // Phase G4: Narrative arc mood zone tints ─────
-                              if (moodEnabled)
-                                ...List.generate(4, (z) {
-                                  const zColors = [
-                                    Color(0x281E90FF), // 0-25%  intro/calm
-                                    Color(0x2832CD32), // 25-50% rising action
-                                    Color(0x28FF8C00), // 50-75% tension
-                                    Color(0x28DC143C), // 75-100% climax
-                                  ];
-                                  final zLen = sliderLen / 4;
-                                  return Positioned(
-                                    bottom: z * zLen,
-                                    left: 2, right: 2,
-                                    height: zLen,
-                                    child: DecoratedBox(
+                                // A-B loop point B marker
+                                if (abLoop.pointB != null && duration.inMilliseconds > 0)
+                                  Positioned(
+                                    left: ((abLoop.pointB!.inMilliseconds /
+                                        duration.inMilliseconds).clamp(0.0, 1.0) * sliderLen) - 5,
+                                    child: Container(
+                                      width: 10, height: 10,
                                       decoration: BoxDecoration(
-                                        color: zColors[z],
+                                        shape: BoxShape.circle, color: accentColor),
+                                    ),
+                                  ),
+                                // Bookmark emoji markers on the bar
+                                ...bookmarks.map((bm) {
+                                  if (duration.inMilliseconds <= 0) return const SizedBox.shrink();
+                                  final frac = (bm.positionMs / duration.inMilliseconds).clamp(0.0, 1.0);
+                                  return Positioned(
+                                    left: frac * sliderLen - 8,
+                                    child: GestureDetector(
+                                      onTap: () => onSeekTo(frac),
+                                      child: Text(bm.emoji,
+                                          style: const TextStyle(fontSize: 10)),
+                                    ),
+                                  );
+                                }),
+                                // Chapter markers as thin vertical lines
+                                ...chapters.map((ch) {
+                                  if (duration.inMilliseconds <= 0) return const SizedBox.shrink();
+                                  final frac = (ch.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
+                                  return Positioned(
+                                    left: frac * sliderLen - 1,
+                                    top: 12, bottom: 12,
+                                    child: Container(
+                                      width: 2,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white54,
                                         borderRadius: BorderRadius.circular(1)),
                                     ),
                                   );
                                 }),
-                              // Seek-bar long-press gesture overlay
-                              if (onSeekBarLongPress != null)
-                                Positioned.fill(
-                                  child: GestureDetector(
-                                    behavior: HitTestBehavior.translucent,
-                                    onLongPress: onSeekBarLongPress,
-                                    child: const SizedBox.expand(),
-                                  ),
-                                ),
-                              // The vertical slider — SeekBarPainter for non-classic styles ──
-                              RotatedBox(
-                                quarterTurns: 1,
-                                child: SizedBox(
-                                  width: sliderLen,
-                                  child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      // Custom painter for all non-classic seek bar styles
-                                      if (seekBarStyle != 'classic')
-                                        Positioned.fill(
-                                          child: CustomPaint(
-                                            painter: SeekBarPainter(
-                                              style: seekBarStyleFromString(seekBarStyle),
-                                              progress: progress.clamp(0.0, 1.0),
-                                              buffered: bufferedFraction,
-                                              accentColor: accentColor,
-                                              chapterFractions: chapters
-                                                  .where((_) => duration.inMilliseconds > 0)
-                                                  .map((c) => (c.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0))
-                                                  .toList(),
-                                              moodEnabled: moodEnabled,
-                                            ),
-                                          ),
-                                        ),
-                                      SliderTheme(
-                                        data: SliderTheme.of(ctx).copyWith(
-                                          trackHeight: seekBarStyle != 'classic'
-                                              ? 0 : (sliderDragging ? 5 : 3),
-                                          thumbShape: RoundSliderThumbShape(
-                                              enabledThumbRadius: sliderDragging ? 10 : 6),
-                                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
-                                          activeTrackColor: seekBarStyle != 'classic'
-                                              ? Colors.transparent : accentColor,
-                                          inactiveTrackColor: seekBarStyle != 'classic'
-                                              ? Colors.transparent : Colors.white12,
-                                          thumbColor: Colors.white,
-                                          overlayColor: accentColor.withOpacity(0.13),
-                                        ),
-                                        child: Slider(
-                                          value: progress.clamp(0.0, 1.0),
-                                          onChangeStart: onSliderStart,
-                                          onChanged: onSliderChange,
-                                          onChangeEnd: onSliderEnd,
-                                        ),
+                                // Phase G4: Narrative arc mood zone tints
+                                if (moodEnabled)
+                                  ...List.generate(4, (z) {
+                                    const zColors = [
+                                      Color(0x281E90FF),
+                                      Color(0x2832CD32),
+                                      Color(0x28FF8C00),
+                                      Color(0x28DC143C),
+                                    ];
+                                    final zLen = sliderLen / 4;
+                                    return Positioned(
+                                      left: z * zLen,
+                                      top: 0, bottom: 0,
+                                      width: zLen,
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          color: zColors[z],
+                                          borderRadius: BorderRadius.circular(1)),
                                       ),
-                                    ],
+                                    );
+                                  }),
+                                // Seek-bar long-press gesture overlay
+                                if (onSeekBarLongPress != null)
+                                  Positioned.fill(
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.translucent,
+                                      onLongPress: onSeekBarLongPress,
+                                      child: const SizedBox.expand(),
+                                    ),
+                                  ),
+                                // Custom painter for non-classic seek bar styles
+                                if (seekBarStyle != 'classic')
+                                  Positioned.fill(
+                                    child: CustomPaint(
+                                      painter: SeekBarPainter(
+                                        style: seekBarStyleFromString(seekBarStyle),
+                                        progress: progress.clamp(0.0, 1.0),
+                                        buffered: bufferedFraction,
+                                        accentColor: accentColor,
+                                        chapterFractions: chapters
+                                            .where((_) => duration.inMilliseconds > 0)
+                                            .map((c) => (c.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0))
+                                            .toList(),
+                                        moodEnabled: moodEnabled,
+                                      ),
+                                    ),
+                                  ),
+                                // The horizontal slider
+                                SliderTheme(
+                                  data: SliderTheme.of(ctx).copyWith(
+                                    trackHeight: seekBarStyle != 'classic'
+                                        ? 0 : (sliderDragging ? 5 : 3),
+                                    thumbShape: RoundSliderThumbShape(
+                                        enabledThumbRadius: sliderDragging ? 10 : 6),
+                                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
+                                    activeTrackColor: seekBarStyle != 'classic'
+                                        ? Colors.transparent : accentColor,
+                                    inactiveTrackColor: seekBarStyle != 'classic'
+                                        ? Colors.transparent : Colors.white12,
+                                    thumbColor: Colors.white,
+                                    overlayColor: accentColor.withOpacity(0.13),
+                                  ),
+                                  child: Slider(
+                                    value: progress.clamp(0.0, 1.0),
+                                    onChangeStart: onSliderStart,
+                                    onChanged: onSliderChange,
+                                    onChangeEnd: onSliderEnd,
                                   ),
                                 ),
-                              ),
-                            ]),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  // ── Duration at bottom of bar ─────────────────────────────────
-                  GestureDetector(
-                    onLongPress: onShareTimestamp,
-                    child: Text(
-                      fmtDur(duration),
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
-                        shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
-                      ),
-                    ),
-                  ),
-                  // ── Frame-step controls when paused ──────────────────────────
-                  if (!playing && showFrameStep)
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      IconButton(
-                        icon: const Icon(Icons.skip_previous_rounded,
-                            color: Colors.white70, size: 18),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: onFrameBackStep),
-                      Column(mainAxisSize: MainAxisSize.min, children: [
-                        const Text('Frame',
-                            style: TextStyle(color: Colors.white38, fontSize: 9)),
-                        Text(
-                          '#\${(position.inMilliseconds * videoFps / 1000).round()}',
-                          style: const TextStyle(color: Colors.white70, fontSize: 9,
-                              fontFamily: 'monospace', fontWeight: FontWeight.w600),
+                              ]),
+                            );
+                          },
                         ),
-                      ]),
-                      IconButton(
-                        icon: const Icon(Icons.skip_next_rounded,
-                            color: Colors.white70, size: 18),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: onFrameStep),
-                    ]),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onLongPress: onShareTimestamp,
+                        child: Text(
+                          fmtDur(duration),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut),
             ),

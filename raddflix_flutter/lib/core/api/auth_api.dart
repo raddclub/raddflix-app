@@ -16,15 +16,16 @@ class AuthApi {
   }
 
   /// Register a new account with phone + password.
-  static Future<Map<String, dynamic>> register({
+  /// Returns void — if no DioException is thrown, the account was created.
+  /// Does NOT parse the response body to avoid cast errors on XOR-encoded responses.
+  static Future<void> register({
     required String phone,
     required String password,
   }) async {
-    final response = await _client.post(
+    await _client.post(
       ApiPaths.register,
       data: {'phone': phone, 'password': password},
     );
-    return response.data as Map<String, dynamic>;
   }
 
   /// Login with phone + password. Returns access + refresh tokens.

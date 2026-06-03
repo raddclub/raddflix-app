@@ -154,7 +154,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> register({required String phone, required String password}) async {
     await AuthApi.register(phone: phone, password: password);
-    await login(phone: phone, password: password);
+    // Auto-login removed: calling login() after register caused auth-state
+    // race conditions that showed "Registration failed" even when the account
+    // was created. User is sent to the login screen to sign in manually.
   }
 
   Future<void> continueAsGuest() async {
