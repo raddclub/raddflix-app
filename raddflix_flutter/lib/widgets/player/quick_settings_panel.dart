@@ -897,7 +897,8 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
             children: speedPresetsFromString(_p.speedPresets).map((s) {
               return GestureDetector(
                 onTap: () {
-                  // directly set speed (player wires this externally)
+                  widget.onSpeedChanged(s);
+                  widget.onDone();
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
@@ -915,7 +916,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                   context,
                   currentSpeed: 1.0,
                   presets: speedPresetsFromString(_p.speedPresets),
-                  onSpeedSelected: (_) {},
+                  onSpeedSelected: (s) { widget.onSpeedChanged(s); widget.onDone(); },
                   onPresetsChanged: (l) => _update(_p.copyWith(
                       speedPresets: speedPresetsToString(l))),
                   accentColor: _accent,
