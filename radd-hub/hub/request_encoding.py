@@ -135,6 +135,11 @@ def decode_request(req=None) -> Optional[dict]:
     Returns parsed JSON dict, or None if decoding fails.
     """
     req = req or request
+
+    # BUG-S06 fix: if XorWsgiMiddleware already decoded the body, skip re-decode
+    if req.environ.get("HTTP_X_ALREADY_DECODED") == "1":
+        return req.get_json(silent=True) or {}
+
     device_id = get_request_device_id(req)
     if not device_id:
         log.warning("XOR decode: no device_id in request, cannot derive key")
@@ -315,9 +320,11 @@ class XorWsgiMiddleware:
 
                         if decoded_body:
                             from io import BytesIO
-                            environ["wsgi.input"]     = BytesIO(decoded_body)
-                            environ["CONTENT_LENGTH"] = str(len(decoded_body))
-                            environ["CONTENT_TYPE"]   = "application/json; charset=utf-8"
+                            environ["wsgi.input"]         = BytesIO(decoded_body)
+                            environ["CONTENT_LENGTH"]     = str(len(decoded_body))
+                            environ["CONTENT_TYPE"]       = "application/json; charset=utf-8"
+                            # BUG-S06 fix: flag tells decode_request() body is already plain JSON
+                            environ["HTTP_X_ALREADY_DECODED"] = "1"
                             log.debug("XOR middleware: decoded for device %s...", device_id[:8])
                         else:
                             from io import BytesIO

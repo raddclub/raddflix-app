@@ -183,7 +183,7 @@ def force_version_bump():
     previous_version = max(titles_max, prev_forced_ts)
 
     # Store the new forced version — bump wins if > titles_max, no-ops otherwise
-    db.set_setting("catalog_forced_version", str(now_ts + 1))
+    db.set_setting("catalog_forced_version", str(now_ts))
     new_version = max(titles_max, now_ts)
 
     log.info(
@@ -226,11 +226,14 @@ def sync(_user_id=None, _phone=None):
                    t.poster, t.poster_share_url, t.runtime, t.season_count, t.episode_count,
                    f.id AS file_id, f.share_url AS file_share_url
             FROM titles t
-            LEFT JOIN files f ON f.title_id = t.id
-              AND (f.season IS NULL OR f.season = 0)
+            LEFT JOIN files f ON f.id = (
+                SELECT id FROM files
+                WHERE title_id = t.id AND (season IS NULL OR season = 0)
+                ORDER BY id ASC
+                LIMIT 1
+            )
             WHERE t.is_published = 1
               AND t.updated_at IS NOT NULL AND t.updated_at > ?
-            GROUP BY t.id
             ORDER BY t.updated_at DESC
             """, (since_param,)
         ).fetchall()
@@ -481,10 +484,11 @@ def db_update(_user_id=None, _phone=None):
             "       t.poster, t.poster_share_url, t.runtime, t.season_count, t.episode_count, "
             "       f.id AS file_id, f.share_url AS file_share_url "
             "FROM titles t "
-            "LEFT JOIN files f ON f.title_id = t.id "
-            "  AND (f.season IS NULL OR f.season = 0) "
-            "WHERE t.is_published = 1 "
-            "GROUP BY t.id ORDER BY t.id"
+            "LEFT JOIN files f ON f.id = ("
+            "  SELECT id FROM files WHERE title_id = t.id "
+            "  AND (season IS NULL OR season = 0) ORDER BY id ASC LIMIT 1) "
+"WHERE t.is_published = 1 "
+            "ORDER BY t.id"
         ).fetchall()
 
     title_ids, titles_out = [], []
@@ -571,10 +575,11 @@ def delta(_user_id=None, _phone=None):
             "       t.poster, t.poster_share_url, t.folder_share_url, "
             "       f.id AS file_id, f.share_url AS file_share_url, f.quality "
             "FROM titles t "
-            "LEFT JOIN files f ON f.title_id = t.id "
-            "  AND (f.season IS NULL OR f.season = 0 OR f.season = '') "
-            "WHERE t.is_published = 1 "
-            "GROUP BY t.id ORDER BY t.id"
+            "LEFT JOIN files f ON f.id = ("
+            "  SELECT id FROM files WHERE title_id = t.id "
+            "  AND (season IS NULL OR season = 0 OR season = '') ORDER BY id ASC LIMIT 1) "
+"WHERE t.is_published = 1 "
+            "ORDER BY t.id"
         ).fetchall()
 
     title_ids = [r["id"] for r in title_rows]

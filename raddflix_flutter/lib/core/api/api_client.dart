@@ -177,7 +177,8 @@ class _LoggingInterceptor extends Interceptor {
 /// Interceptor: attaches auth header + handles 401 token refresh.
 class _AuthInterceptor extends Interceptor {
   final Dio _dio;
-  bool _isRefreshing = false;
+  // BUG-F04 fix: use Completer<bool>? instead of bool to atomically serialize refresh
+  Completer<bool>? _refreshCompleter;
 
   _AuthInterceptor(this._dio);
 
@@ -203,25 +204,39 @@ class _AuthInterceptor extends Interceptor {
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     // Never attempt token refresh for auth endpoints — a 401 there means bad credentials
     final _noRefreshPaths = [ApiPaths.login, ApiPaths.register, ApiPaths.refresh, ApiPaths.guest];
-    if (err.response?.statusCode == 401 && !_isRefreshing && !_noRefreshPaths.contains(err.requestOptions.path)) {
+    // BUG-F04 fix: if refresh already in progress, wait for it then retry
+    if (err.response?.statusCode == 401 && _refreshCompleter != null && !_noRefreshPaths.contains(err.requestOptions.path)) {
+      final refreshed = await _refreshCompleter!.future;
+      if (refreshed) {
+        final newToken = await Keystore.getAccessToken();
+        final opts = err.requestOptions;
+        opts.headers['Authorization'] = 'Bearer $newToken';
+        final response = await _dio.fetch(opts);
+        return handler.resolve(response);
+      }
+    }
+    if (err.response?.statusCode == 401 && _refreshCompleter == null && !_noRefreshPaths.contains(err.requestOptions.path)) {
       DebugLogger.logWarn('AUTH', '401 received on ${err.requestOptions.path} — attempting token refresh');
-      _isRefreshing = true;
+      _refreshCompleter = Completer<bool>();
+      bool refreshed = false;
       try {
-        final refreshed = await _tryRefresh();
-        if (refreshed) {
+        refreshed = await _tryRefresh();
+        _refreshCompleter!.complete(refreshed);
+      } catch (e) {
+        DebugLogger.logError('AUTH', 'Token refresh threw exception', e);
+        _refreshCompleter!.complete(false);
+      } finally {
+        _refreshCompleter = null;
+      }
+      if (refreshed) {
           // Retry the original request with new token
           final newToken = await Keystore.getAccessToken();
           final opts = err.requestOptions;
           opts.headers['Authorization'] = 'Bearer $newToken';
           DebugLogger.log('AUTH', 'Token refreshed — retrying ${opts.path}');
           final response = await _dio.fetch(opts);
-          _isRefreshing = false;
           return handler.resolve(response);
-        }
-      } catch (e) {
-        DebugLogger.logError('AUTH', 'Token refresh threw exception', e);
       }
-      _isRefreshing = false;
       if (ApiClient.isGuestMode) {
         // Guest mode: never log out on 401 — guest identity is local-only.
         // They will continue using zero-rated JazzDrive delta catalog offline.
@@ -320,6 +335,9 @@ class _XorInterceptor extends Interceptor {
       options.headers['X-Encoded']   = '1';
       options.headers['X-Device-Id'] = deviceId;
 
+      // BUG-F10 fix: store session key BEFORE body encoding so response always decodable
+      options.extra['_xor_session_key'] = sessionKey;
+
       // Encode request body for write methods only
       final method = options.method.toUpperCase();
       if (options.data != null && (method == 'POST' || method == 'PUT' || method == 'PATCH')) {
@@ -331,9 +349,6 @@ class _XorInterceptor extends Interceptor {
         options.contentType = 'text/plain; charset=utf-8';
         DebugLogger.log('XOR', 'Encoded request body for ${options.path}');
       }
-
-      // Store session key for response decoding
-      options.extra['_xor_session_key'] = sessionKey;
     } catch (e) {
       DebugLogger.logWarn('XOR', 'Encoding error for ${options.path}: $e');
     }

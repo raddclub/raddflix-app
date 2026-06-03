@@ -449,6 +449,9 @@ _DDL = [
         UNIQUE(user_id, file_id)
     )""",
     "CREATE INDEX IF NOT EXISTS idx_watch_history_user ON watch_history(user_id, watched_at)",
+    # BUG-S11 fix: ensure UNIQUE constraint exists on migrated DBs (pre-constraint tables won't have it)
+    """CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_history_unique
+       ON watch_history(user_id, file_id)""",
     # ── notifications — push notification inbox (Phase 9)
     """CREATE TABLE IF NOT EXISTS notifications (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
