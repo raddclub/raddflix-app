@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
 
@@ -16,12 +17,11 @@ class RaddFlixBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final t = RaddTheme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.surface : Colors.white,
-        border: Border(top: BorderSide(
-          color: isDark ? AppColors.glassBorder : AppColors.lightBorder, width: 0.5)),
+        color: t.surface,
+        border: Border(top: BorderSide(color: t.border, width: 0.5)),
         boxShadow: [BoxShadow(
           color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
           blurRadius: 20, offset: const Offset(0, -4))],
@@ -51,6 +51,7 @@ class _NavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -66,7 +67,7 @@ class _NavButton extends StatelessWidget {
             ),
             child: Icon(
               isActive ? item.active : item.icon,
-              color: isActive ? AppColors.primary : AppColors.textMuted,
+              color: isActive ? AppColors.primary : t.textMuted,
               size: 22,
             ),
           ),
@@ -74,7 +75,7 @@ class _NavButton extends StatelessWidget {
           AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 200),
             style: TextStyle(
-              color: isActive ? AppColors.primary : AppColors.textMuted,
+              color: isActive ? AppColors.primary : t.textMuted,
               fontSize: 10,
               fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
             ),

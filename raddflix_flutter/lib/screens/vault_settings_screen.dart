@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:local_auth/local_auth.dart';
@@ -76,17 +77,17 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text('Clear Vault?', style: TextStyle(color: Colors.red.shade300)),
+        backgroundColor: t.surface,
+        title: Text('Clear Vault?', style: TextStyle(color: AppColors.error.withOpacity(0.85))),
         content: Text(
           'This permanently deletes ALL files in your vault. This cannot be undone.',
-          style: TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: t.textSecondary),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary))),
+              child: Text('Cancel', style: TextStyle(color: t.textSecondary))),
           TextButton(onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete Everything', style: TextStyle(color: Colors.red))),
+              child: const Text('Delete Everything', style: TextStyle(color: AppColors.error))),
         ],
       ),
     );
@@ -112,10 +113,10 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
     return showDialog<(String, String)>(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setS) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text(title, style: TextStyle(color: AppColors.text)),
+        backgroundColor: t.surface,
+        title: Text(title, style: TextStyle(color: t.textPrimary)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(hint, style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+          Text(hint, style: TextStyle(color: t.textSecondary, fontSize: 13)),
           const SizedBox(height: 16),
           _pinField(ctrl1, 'Current PIN'),
           const SizedBox(height: 10),
@@ -124,12 +125,12 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
           _pinField(ctrl3, 'Confirm New PIN'),
           if (_localError != null) ...[
             const SizedBox(height: 8),
-            Text(_localError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+            Text(_localError!, style: const TextStyle(color: AppColors.error, fontSize: 12)),
           ],
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary))),
+              child: Text('Cancel', style: TextStyle(color: t.textSecondary))),
           TextButton(
             onPressed: () {
               final oldPin = ctrl1.text.trim();
@@ -162,20 +163,20 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
     return showDialog<String>(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setS) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text(title, style: TextStyle(color: AppColors.text)),
+        backgroundColor: t.surface,
+        title: Text(title, style: TextStyle(color: t.textPrimary)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(hint, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          Text(hint, style: TextStyle(color: t.textSecondary, fontSize: 12)),
           const SizedBox(height: 16),
           _pinField(ctrl, 'PIN (leave empty to remove)'),
           if (_localError != null) ...[
             const SizedBox(height: 8),
-            Text(_localError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+            Text(_localError!, style: const TextStyle(color: AppColors.error, fontSize: 12)),
           ],
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx),
-              child: Text('Cancel', style: TextStyle(color: AppColors.textSecondary))),
+              child: Text('Cancel', style: TextStyle(color: t.textSecondary))),
           TextButton(
             onPressed: () {
               final pin = ctrl.text.trim();
@@ -201,26 +202,28 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
     obscureText: true,
     keyboardType: TextInputType.number,
     maxLength: VaultService.maxPinLength,
-    style: TextStyle(color: AppColors.text, fontSize: 20, letterSpacing: 8),
+    style: TextStyle(color: t.textPrimary, fontSize: 20, letterSpacing: 8),
     decoration: InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: AppColors.textSecondary, fontSize: 13, letterSpacing: 0),
+      hintStyle: TextStyle(color: t.textSecondary, fontSize: 13, letterSpacing: 0),
       counterText: '',
       filled: true,
-      fillColor: AppColors.background,
+      fillColor: t.bg,
       border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: AppColors.border)),
+          borderSide: BorderSide(color: t.border)),
     ),
   );
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: t.bg,
       appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        title: Text('Vault Settings', style: TextStyle(color: AppColors.text)),
+        backgroundColor: t.surface,
+        title: Text('Vault Settings', style: TextStyle(color: t.textPrimary)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, size: 18),
           onPressed: () => Navigator.pop(context),
@@ -237,7 +240,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
               title: 'Change PIN',
               subtitle: 'Update your vault unlock PIN',
               onTap: _changePin,
-              trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white38),
+              trailing: Icon(Icons.chevron_right_rounded, color: t.textSecondary.withOpacity(0.4)),
             ),
             if (_biometricAvailable) ...[
               const _Divider(),
@@ -263,7 +266,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
                   .firstWhere((o) => o.value == _autoLockSeconds,
                       orElse: () => (label: 'Custom', value: _autoLockSeconds))
                   .label,
-              trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white38),
+              trailing: Icon(Icons.chevron_right_rounded, color: t.textSecondary.withOpacity(0.4)),
               onTap: () => _showAutoLockPicker(),
             ),
           ]).animate().fadeIn(delay: 50.ms),
@@ -283,14 +286,14 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
                 if (_hasFakePin) Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.15),
+                    color: AppColors.success.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text('ON', style: TextStyle(
-                      color: Colors.green, fontSize: 11, fontWeight: FontWeight.w700)),
+                      color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w700)),
                 ),
                 const SizedBox(width: 8),
-                const Icon(Icons.chevron_right_rounded, color: Colors.white38),
+                Icon(Icons.chevron_right_rounded, color: t.textSecondary.withOpacity(0.4)),
               ]),
               onTap: _setFakePin,
             ),
@@ -305,9 +308,9 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
               icon: Icons.delete_forever_rounded,
               title: 'Clear Vault',
               subtitle: 'Permanently delete all vault files',
-              titleColor: Colors.red.shade300,
+              titleColor: AppColors.error.withOpacity(0.85),
               onTap: _clearVault,
-              trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white38),
+              trailing: Icon(Icons.chevron_right_rounded, color: t.textSecondary.withOpacity(0.4)),
             ),
           ]).animate().fadeIn(delay: 150.ms),
 
@@ -326,7 +329,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
               const SizedBox(width: 12),
               Expanded(child: Text(
                 'Vault files are stored in your app\'s private directory — invisible to other apps, file managers, and the system gallery. Auto-lock secures the vault when your phone is idle.',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.5),
+                style: TextStyle(color: t.textSecondary, fontSize: 12, height: 1.5),
               )),
             ]),
           ).animate().fadeIn(delay: 200.ms),
@@ -338,13 +341,13 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
   void _showAutoLockPicker() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: t.surface,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(width: 36, height: 4, margin: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+              decoration: BoxDecoration(color: t.border, borderRadius: BorderRadius.circular(2))),
           const Padding(
             padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
             child: Align(alignment: Alignment.centerLeft,
@@ -353,7 +356,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
             ),
           ),
           ..._lockOptions.map((o) => ListTile(
-            title: Text(o.label, style: TextStyle(color: AppColors.text)),
+            title: Text(o.label, style: TextStyle(color: t.textPrimary)),
             trailing: _autoLockSeconds == o.value
                 ? Icon(Icons.check_rounded, color: AppColors.primary)
                 : null,
@@ -377,7 +380,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(left: 4, bottom: 8),
     child: Text(label.toUpperCase(), style: TextStyle(
-        color: AppColors.textSecondary, fontSize: 11,
+        color: t.textSecondary, fontSize: 11,
         fontWeight: FontWeight.w700, letterSpacing: 1.2)),
   );
 }
@@ -388,9 +391,9 @@ class _SettingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
-      color: AppColors.surface,
+      color: t.surface,
       borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: AppColors.border),
+      border: Border.all(color: t.border),
     ),
     child: Column(children: children),
   );
@@ -408,19 +411,21 @@ class _SettingTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     return ListTile(
       onTap: onTap,
       leading: Container(
         width: 36, height: 36,
         decoration: BoxDecoration(
-          color: AppColors.border,
+          color: t.border,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, color: titleColor ?? AppColors.text, size: 20),
+        child: Icon(icon, color: titleColor ?? t.textPrimary, size: 20),
       ),
       title: Text(title, style: TextStyle(
-          color: titleColor ?? AppColors.text, fontSize: 14, fontWeight: FontWeight.w500)),
-      subtitle: Text(subtitle, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          color: titleColor ?? t.textPrimary, fontSize: 14, fontWeight: FontWeight.w500)),
+      subtitle: Text(subtitle, style: TextStyle(color: t.textSecondary, fontSize: 12)),
       trailing: trailing,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
     );
@@ -432,6 +437,6 @@ class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Divider(
     height: 1, indent: 64,
-    color: AppColors.border,
+    color: t.border,
   );
 }

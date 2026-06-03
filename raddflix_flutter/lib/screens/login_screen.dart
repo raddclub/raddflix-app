@@ -297,9 +297,9 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFB45309).withOpacity(0.08),
+        color: AppColors.warningDark.withOpacity(0.08),
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: const Color(0xFFB45309).withOpacity(0.4), width: 1),
+        border: Border.all(color: AppColors.warningDark.withOpacity(0.4), width: 1),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header

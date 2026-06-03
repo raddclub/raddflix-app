@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/constants.dart';
 import '../core/services/notification_service.dart';
@@ -8,6 +9,8 @@ class NotificationBell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     return ListenableBuilder(
       listenable: NotificationService.instance,
       builder: (context, _) {
@@ -56,6 +59,8 @@ class _NotificationSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
       minChildSize: 0.35,
@@ -63,7 +68,7 @@ class _NotificationSheet extends StatelessWidget {
       builder: (_, ctrl) {
         return Container(
           decoration: const BoxDecoration(
-            color: AppColors.surface,
+            color: t.surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(children: [
@@ -72,7 +77,7 @@ class _NotificationSheet extends StatelessWidget {
               margin: const EdgeInsets.only(top: 10, bottom: 4),
               width: 36, height: 4,
               decoration: BoxDecoration(
-                color: AppColors.textMuted.withOpacity(0.35),
+                color: t.textMuted.withOpacity(0.35),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -83,7 +88,7 @@ class _NotificationSheet extends StatelessWidget {
                 const Icon(Icons.notifications_outlined, color: AppColors.primary, size: 20),
                 const SizedBox(width: 8),
                 const Text('Notifications',
-                    style: TextStyle(color: AppColors.textPrimary,
+                    style: TextStyle(color: t.textPrimary,
                         fontWeight: FontWeight.w700, fontSize: 16)),
                 const Spacer(),
                 ListenableBuilder(
@@ -100,7 +105,7 @@ class _NotificationSheet extends StatelessWidget {
                 ),
               ]),
             ),
-            const Divider(height: 1, color: AppColors.divider),
+            Divider(height: 1, color: t.divider),
             // Notification list
             Expanded(
               child: ListenableBuilder(
@@ -112,13 +117,13 @@ class _NotificationSheet extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.notifications_none_rounded,
-                            size: 48, color: AppColors.textMuted),
+                            size: 48, color: t.textMuted),
                         SizedBox(height: 12),
                         Text('No notifications yet',
-                            style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+                            style: TextStyle(color: t.textMuted, fontSize: 14)),
                         SizedBox(height: 4),
                         Text('Check back later for updates',
-                            style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                            style: TextStyle(color: t.textMuted, fontSize: 12)),
                       ],
                     ));
                   }
@@ -127,7 +132,7 @@ class _NotificationSheet extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 24),
                     itemCount: notifs.length,
                     separatorBuilder: (_, __) =>
-                        const Divider(height: 1, indent: 16, color: AppColors.divider),
+                        Divider(height: 1, indent: 16, color: t.divider),
                     itemBuilder: (_, i) => _NotificationCard(notif: notifs[i]),
                   );
                 },
@@ -148,12 +153,14 @@ class _NotificationCard extends StatelessWidget {
     'new_content':  (Icons.movie_outlined, AppColors.info),
     'promo':        (Icons.card_giftcard_outlined, AppColors.success),
     'renewal':      (Icons.timer_outlined, AppColors.warning),
-    'maintenance':  (Icons.build_outlined, AppColors.textMuted),
+    'maintenance':  (Icons.build_outlined, t.textMuted),
     'info':         (Icons.info_outline_rounded, AppColors.primary),
   };
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     final (icon, iconColor) = _icons[notif.type] ?? _icons['info']!;
     final hasImage = notif.imageUrl != null && notif.imageUrl!.isNotEmpty;
     final imageFullUrl = hasImage
@@ -175,7 +182,7 @@ class _NotificationCard extends StatelessWidget {
               fit: BoxFit.cover,
               placeholder: (_, __) => Container(
                 height: 140,
-                color: AppColors.card,
+                color: t.card,
                 child: const Center(
                   child: SizedBox(width: 20, height: 20,
                       child: CircularProgressIndicator(strokeWidth: 1.5,
@@ -202,7 +209,7 @@ class _NotificationCard extends StatelessWidget {
               Expanded(
                 child: Text(notif.title,
                     style: TextStyle(
-                      color: AppColors.textPrimary,
+                      color: t.textPrimary,
                       fontWeight: notif.isRead ? FontWeight.w500 : FontWeight.w700,
                       fontSize: 14,
                     )),
@@ -216,10 +223,10 @@ class _NotificationCard extends StatelessWidget {
             ]),
             const SizedBox(height: 4),
             Text(notif.body,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4)),
+                style: TextStyle(color: t.textSecondary, fontSize: 13, height: 1.4)),
             const SizedBox(height: 6),
             Text(_timeAgo(notif.createdAt),
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                style: TextStyle(color: t.textMuted, fontSize: 11)),
           ])),
         ]),
       ]),

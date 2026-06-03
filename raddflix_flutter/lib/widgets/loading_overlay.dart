@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import '../core/constants.dart';
 
 class LoadingOverlay extends StatelessWidget {
@@ -9,6 +10,7 @@ class LoadingOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Stack(children: [
       child,
       if (loading)
@@ -19,7 +21,7 @@ class LoadingOverlay extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: t.surface,
                   borderRadius: BorderRadius.circular(AppRadius.lg),
                   boxShadow: AppShadows.elevated,
                 ),
@@ -30,9 +32,9 @@ class LoadingOverlay extends StatelessWidget {
                     strokeCap: StrokeCap.round,
                   ),
                   if (message != null) ...[
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     Text(message!, style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 13)),
+                        color: t.textSecondary, fontSize: 13)),
                   ],
                 ]),
               ),

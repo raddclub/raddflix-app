@@ -498,12 +498,12 @@ class _JazzPartnerBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF006633), Color(0xFF00A651)],
+          colors: [AppColors.jazzGreenDark, AppColors.jazzGreen],
           begin: Alignment.centerLeft, end: Alignment.centerRight,
         ),
         borderRadius: BorderRadius.circular(AppRadius.sm),
         boxShadow: [
-          BoxShadow(color: const Color(0xFF00A651).withOpacity(0.25),
+          BoxShadow(color: const AppColors.jazzGreen.withOpacity(0.25),
               blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),
@@ -514,7 +514,7 @@ class _JazzPartnerBadge extends StatelessWidget {
             shape: BoxShape.circle, color: Colors.white),
           child: const Center(
             child: Text('J', style: TextStyle(
-              color: Color(0xFF006633), fontSize: 11,
+              color: AppColors.jazzGreenDark, fontSize: 11,
               fontWeight: FontWeight.w900))),
         ),
         const SizedBox(width: 8),

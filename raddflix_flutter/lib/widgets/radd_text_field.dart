@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/constants.dart';
+import '../core/theme/radd_theme.dart';
 
 class RaddTextField extends StatelessWidget {
   final TextEditingController controller;
@@ -29,21 +30,21 @@ class RaddTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final t = RaddTheme.of(context);
     return TextFormField(
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
       maxLines: maxLines,
       style: TextStyle(
-        color: isDark ? AppColors.textPrimary : AppColors.lightTextPrimary,
+        color: t.textPrimary,
         fontSize: 15,
       ),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
         prefixIcon: prefixIcon != null
-            ? Icon(prefixIcon, color: AppColors.textMuted, size: 20)
+            ? Icon(prefixIcon, color: t.textMuted, size: 20)
             : null,
         suffixIcon: suffixIcon,
       ),

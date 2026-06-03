@@ -311,7 +311,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       itemBuilder: (_, i) {
         final folder = _folders[i];
         final count = state.downloads.where((d) => _folderFor(d) == folder).length;
-        final folderColor = _folderColor(folder);
+        final folderColor = _folderColor(folder, t.textMuted);
         return GestureDetector(
           onTap: count > 0 ? () => setState(() => _activeFolder = folder) : null,
           child: AnimatedContainer(
@@ -497,12 +497,12 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     }
   }
 
-  Color _folderColor(String name) {
+  Color _folderColor(String name, Color fallback) {
     switch (name) {
       case 'Movies':   return const Color(0xFFE8002D);
       case 'TV Shows': return const Color(0xFF3B82F6);
       case 'Dramas':   return const Color(0xFF8B5CF6);
-      default:         return AppColors.textMuted;
+      default:         return fallback;
     }
   }
 }

@@ -85,14 +85,14 @@ class _SimosaCardState extends State<SimosaCard>
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: isDark
-                  ? [const Color(0xFF1A0A2E), const Color(0xFF2D1B5E)]
-                  : [const Color(0xFFEDE7FF), const Color(0xFFD8C8FF)],
+                  ? [AppColors.simosaBgDark, AppColors.simosaBgDark2]
+                  : [AppColors.simosaBgLight, AppColors.simosaBgLight2],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: const Color(0xFF7C5CFF).withOpacity(0.4),
+              color: AppColors.simosaAccent.withOpacity(0.4),
               width: 1,
             ),
           ),
@@ -114,7 +114,7 @@ class _SimosaCardState extends State<SimosaCard>
                           Text(
                             'FREE 100 MB',
                             style: theme.textTheme.labelMedium?.copyWith(
-                              color: const Color(0xFF7C5CFF),
+                              color: AppColors.simosaAccent,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.5,
                             ),
@@ -151,7 +151,7 @@ class _SimosaCardState extends State<SimosaCard>
                         child: ElevatedButton(
                           onPressed: _onClaim,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF7C5CFF),
+                            backgroundColor: AppColors.simosaAccent,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 6),
@@ -173,16 +173,16 @@ class _SimosaCardState extends State<SimosaCard>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.15),
+                          color: AppColors.success.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                              color: Colors.green.withOpacity(0.4)),
+                              color: AppColors.success.withOpacity(0.4)),
                         ),
                         child: const Text(
                           'Claimed ✓',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.green,
+                            color: AppColors.success,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -220,7 +220,7 @@ class _JazzIcon extends StatelessWidget {
       width: 42,
       height: 42,
       decoration: BoxDecoration(
-        color: const Color(0xFF7C5CFF).withOpacity(0.15),
+        color: AppColors.simosaAccent.withOpacity(0.15),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Center(
@@ -241,15 +241,15 @@ class _StreakBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.orange.withOpacity(0.15),
+        color: AppAppColors.orange.withOpacity(0.15),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.orange.withOpacity(0.5)),
+        border: Border.all(color: AppAppColors.orange.withOpacity(0.5)),
       ),
       child: Text(
         '🔥 $streak day streak',
         style: const TextStyle(
           fontSize: 10,
-          color: Colors.orange,
+          color: AppColors.orange,
           fontWeight: FontWeight.w700,
         ),
       ),

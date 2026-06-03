@@ -105,7 +105,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
     final accent = widget.playerPrefs.accentColor;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D1A),
+      backgroundColor: AppColors.layoutDeep,
       body: SafeArea(
         child: Column(children: [
           // ── Top toolbar ────────────────────────────────────────────────
@@ -151,7 +151,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
     height: 52,
     padding: const EdgeInsets.symmetric(horizontal: 12),
     decoration: BoxDecoration(
-      color: const Color(0xFF12121E),
+      color: AppColors.layoutPanel,
       border: Border(bottom: BorderSide(color: Colors.white10)),
     ),
     child: Row(children: [
@@ -320,7 +320,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
       duration: const Duration(milliseconds: 200),
       height: selected != null ? 96 : 56,
       decoration: BoxDecoration(
-        color: const Color(0xFF12121E),
+        color: AppColors.layoutPanel,
         border: Border(top: BorderSide(color: Colors.white10)),
       ),
       child: selected != null
@@ -405,7 +405,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
     final discard = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E2E),
+        backgroundColor: AppColors.layoutSheet,
         title: const Text('Discard changes?',
             style: TextStyle(color: Colors.white, fontSize: 16)),
         content: const Text('Your layout changes will be lost.',

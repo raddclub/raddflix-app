@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import '../core/constants.dart';
@@ -143,10 +144,12 @@ class _TidStatusScreenState extends State<TidStatusScreen>
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: t.bg,
       appBar: AppBar(
-        backgroundColor: AppColors.surface,
+        backgroundColor: t.surface,
         elevation: 0,
         leading: _status != _TidStatus.approved
             ? IconButton(
@@ -236,7 +239,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   Widget _buildStatusSubtitle() {
     return Text(
       _statusSubtitleText(),
-      style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+      style: TextStyle(color: t.textSecondary, fontSize: 14),
       textAlign: TextAlign.center,
     );
   }
@@ -245,19 +248,19 @@ class _TidStatusScreenState extends State<TidStatusScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: t.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: t.divider),
       ),
       child: Column(
         children: [
           _SummaryRow(label: 'Plan', value: _planLabel),
-          const Divider(color: AppColors.divider, height: 20),
+          Divider(color: t.divider, height: 20),
           _SummaryRow(label: 'Payment Via', value: _methodLabel),
-          const Divider(color: AppColors.divider, height: 20),
+          Divider(color: t.divider, height: 20),
           Row(
             children: [
-              const Text('TID', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              Text('TID', style: TextStyle(color: t.textSecondary, fontSize: 13)),
               const Spacer(),
               Text(
                 widget.tid,
@@ -278,11 +281,11 @@ class _TidStatusScreenState extends State<TidStatusScreen>
                     backgroundColor: AppColors.primary,
                   ));
                 },
-                child: const Icon(Icons.copy_rounded, size: 16, color: AppColors.textSecondary),
+                child: Icon(Icons.copy_rounded, size: 16, color: t.textSecondary),
               ),
             ],
           ),
-          const Divider(color: AppColors.divider, height: 20),
+          Divider(color: t.divider, height: 20),
           _SummaryRow(label: 'Phone', value: widget.phone),
         ],
       ),
@@ -293,9 +296,9 @@ class _TidStatusScreenState extends State<TidStatusScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: t.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: t.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -354,7 +357,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
         const SizedBox(width: 10),
         Text(
           'Checking in ${_countdown}s   (check $_pollCount)',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: TextStyle(color: t.textSecondary, fontSize: 13),
         ),
         if (_errorMsg != null) ...[
           const SizedBox(width: 8),
@@ -456,8 +459,8 @@ class _TidStatusScreenState extends State<TidStatusScreen>
       child: OutlinedButton(
         onPressed: () => Navigator.pop(context),
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.textSecondary,
-          side: const BorderSide(color: AppColors.divider),
+          foregroundColor: t.textSecondary,
+          side: BorderSide(color: t.divider),
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
@@ -521,7 +524,7 @@ class _SummaryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
         children: [
-          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+          Text(label, style: TextStyle(color: t.textSecondary, fontSize: 13)),
           const Spacer(),
           Text(value,
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
@@ -550,13 +553,15 @@ class _TimelineStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     final Color color = isDone
         ? const Color(0xFF22C55E)
         : isFailed
             ? AppColors.error
             : isActive
                 ? AppColors.primary
-                : AppColors.divider;
+                : t.divider;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -597,13 +602,13 @@ class _TimelineStep extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
-                    color: isActive || isDone ? AppColors.textPrimary : AppColors.textSecondary,
+                    color: isActive || isDone ? t.textPrimary : t.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   sublabel,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  style: TextStyle(color: t.textSecondary, fontSize: 12),
                 ),
                 if (!isLast) const SizedBox(height: 20),
               ],

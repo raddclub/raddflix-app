@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
@@ -17,6 +18,8 @@ class ContentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: onTap ?? () => _onTap(context),
       onLongPress: onLongPress ?? () => _showQuickView(context),
@@ -134,9 +137,9 @@ class ContentCard extends StatelessWidget {
         imageUrl: item.posterUrl!,
         fit: BoxFit.cover,
         placeholder: (_, __) => Shimmer.fromColors(
-          baseColor: AppColors.card,
-          highlightColor: AppColors.surfaceHigh,
-          child: Container(color: AppColors.card),
+          baseColor: t.card,
+          highlightColor: t.surfaceHigh,
+          child: Container(color: t.card),
         ),
         errorWidget: (_, __, ___) => _Fallback(item: item),
       );
@@ -164,12 +167,14 @@ class ShimmerCard extends StatelessWidget {
   const ShimmerCard({super.key});
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Shimmer.fromColors(
-        baseColor: AppColors.surface,
-        highlightColor: AppColors.surfaceHigh,
-        child: Container(color: AppColors.surface),
+        baseColor: t.surface,
+        highlightColor: t.surfaceHigh,
+        child: Container(color: t.surface),
       ),
     );
   }
@@ -181,6 +186,8 @@ class _Badge extends StatelessWidget {
   const _Badge({required this.label, required this.color});
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
@@ -195,16 +202,18 @@ class _Fallback extends StatelessWidget {
   const _Fallback({required this.item});
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     return Container(
-      color: AppColors.card,
+      color: t.card,
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Icon(item.isShow ? Icons.tv_outlined : Icons.movie_outlined,
-            color: AppColors.textMuted, size: 28),
+            color: t.textMuted, size: 28),
         const SizedBox(height: 6),
         Padding(padding: const EdgeInsets.symmetric(horizontal: 6),
           child: Text(item.title, textAlign: TextAlign.center, maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 10))),
+              style: TextStyle(color: t.textMuted, fontSize: 10))),
       ]),
     );
   }
@@ -215,17 +224,19 @@ class _DetailSheet extends StatelessWidget {
   const _DetailSheet({required this.item});
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: t.surface,
         borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: AppColors.glassBorder),
+        border: Border.all(color: t.border),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         // Handle
         Container(width: 36, height: 4, margin: const EdgeInsets.only(top: 12, bottom: 16),
-            decoration: BoxDecoration(color: AppColors.textMuted.withOpacity(0.4),
+            decoration: BoxDecoration(color: t.textMuted.withOpacity(0.4),
                 borderRadius: BorderRadius.circular(2))),
         Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 24), child: Column(
           crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -235,21 +246,21 @@ class _DetailSheet extends StatelessWidget {
               ClipRRect(borderRadius: BorderRadius.circular(AppRadius.sm),
                 child: SizedBox(width: 64, height: 96,
                   child: CachedNetworkImage(imageUrl: item.posterUrl!, fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => Container(color: AppColors.card)))),
+                      errorWidget: (_, __, ___) => Container(color: t.card)))),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(item.title, style: const TextStyle(color: AppColors.textPrimary,
+              Text(item.title, style: TextStyle(color: t.textPrimary,
                   fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
               const SizedBox(height: 6),
               Row(children: [
                 if (item.displayYear.isNotEmpty)
-                  Text(item.displayYear, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                  Text(item.displayYear, style: TextStyle(color: t.textMuted, fontSize: 13)),
                 if (item.displayYear.isNotEmpty && item.displayRating.isNotEmpty)
-                  const Text(' · ', style: TextStyle(color: AppColors.textMuted)),
+                  Text(' · ', style: TextStyle(color: t.textMuted)),
                 if (item.displayRating.isNotEmpty)
                   Row(children: [
                     const Icon(Icons.star_rounded, color: Colors.amber, size: 14),
-                    Text(item.displayRating, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                    Text(item.displayRating, style: TextStyle(color: t.textMuted, fontSize: 13)),
                   ]),
               ]),
               const SizedBox(height: 8),
@@ -263,7 +274,7 @@ class _DetailSheet extends StatelessWidget {
           if (item.description != null && item.description!.isNotEmpty) ...[
             const SizedBox(height: 16),
             Text(item.description!, maxLines: 4, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.6)),
+                style: TextStyle(color: t.textSecondary, fontSize: 13, height: 1.6)),
           ],
           const SizedBox(height: 20),
           Container(height: 50,
@@ -294,6 +305,8 @@ class _NewEpBadge extends StatelessWidget {
   const _NewEpBadge({required this.count});
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
@@ -325,6 +338,8 @@ class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.label, required this.color});
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
@@ -360,13 +375,15 @@ class _UploadingBadgeState extends State<_UploadingBadge>
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final t = RaddTheme.of(context);
     return FadeTransition(
       opacity: Tween<double>(begin: 0.4, end: 1.0).animate(
           CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut)),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
         decoration: BoxDecoration(
-          color: const Color(0xFFFF9800),
+          color: AppColors.orange,
           borderRadius: BorderRadius.circular(3),
         ),
         child: const Text('⬆ UPLOADING',
