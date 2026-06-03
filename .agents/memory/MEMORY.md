@@ -1,1 +1,4 @@
 - [No new feature suggestions](no-new-features.md) — NEVER suggest new features or ideas, only fix existing broken code. User rule, permanent.
+- [Oracle server location](oracle-server.md) — production server is at /opt/jazzmax/, NOT /home/ubuntu/jazzmax/; radd-hub is a monorepo at /opt/jazzmax/ tracking github.com/raddclub/raddflix-app.
+- [XOR encoding layer](xor-encoding.md) — Flutter sends X-Encoded:1 + X-Device-Id; XorWsgiMiddleware decodes requests; after_request encodes responses for /api/*. Auth endpoints must skip XOR body encoding.
+- [Catalog sync auth](catalog-sync.md) — /api/catalog/sync uses @_catalog_require_auth decorator; must be public (no decorator) so guest users can sync before acquiring a token.
