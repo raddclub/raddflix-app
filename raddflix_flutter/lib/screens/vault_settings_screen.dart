@@ -377,6 +377,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
     );
   }
 }
+}
 
 class _SectionHeader extends StatelessWidget {
   final String label;

@@ -10,7 +10,6 @@ class NotificationBell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final t = RaddTheme.of(context);
     return ListenableBuilder(
       listenable: NotificationService.instance,
       builder: (context, _) {
@@ -59,7 +58,6 @@ class _NotificationSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
     final t = RaddTheme.of(context);
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -153,13 +151,12 @@ class _NotificationCard extends StatelessWidget {
     'new_content':  (Icons.movie_outlined, AppColors.info),
     'promo':        (Icons.card_giftcard_outlined, AppColors.success),
     'renewal':      (Icons.timer_outlined, AppColors.warning),
-    'maintenance':  (Icons.build_outlined, t.textMuted),
+    'maintenance':  (Icons.build_outlined, AppColors.textMuted),
     'info':         (Icons.info_outline_rounded, AppColors.primary),
   };
 
   @override
   Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
     final t = RaddTheme.of(context);
     final (icon, iconColor) = _icons[notif.type] ?? _icons['info']!;
     final hasImage = notif.imageUrl != null && notif.imageUrl!.isNotEmpty;

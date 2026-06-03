@@ -195,8 +195,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             .fadeIn(duration: 300.ms),
         SizedBox(height: 20),
         RichText(
-          text: const TextSpan(
-            style: TextStyle(
+          text: TextSpan(
+            style: const TextStyle(
               fontSize: 44,
               fontWeight: FontWeight.w900,
               letterSpacing: -2,

@@ -109,8 +109,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   colors: [t.bg, Colors.transparent]),
               )),
       title: RichText(
-        text: const TextSpan(
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+        text: TextSpan(
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5),
           children: [
             TextSpan(text: 'Radd', style: TextStyle(color: t.textPrimary)),
             TextSpan(text: 'Flix', style: TextStyle(color: AppColors.primary)),
