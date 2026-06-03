@@ -252,86 +252,296 @@ async function forceSyncUsers() {
 fsyncLoad();
 </script>
 
-<!-- Server Settings (api_base_url, etc.) — Task B -->
+<!-- Server Settings — expanded (Tasks B+) -->
 <div class="card">
-  <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+  <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px">
     <div>
       <h3 style="margin:0">Server Settings</h3>
       <div class="muted" style="font-size:12px;margin-top:3px">
-        Change Oracle API URL and other server config stored in the database &mdash; no code edit or redeploy needed.
-        App reads these on every cold start via <code>/api/app/config</code>.
+        All fields are stored in the Oracle database and returned to the app on every cold start via
+        <code>/api/app/config</code>. Changes take effect immediately — no redeploy needed.
       </div>
     </div>
-    <span class="badge b-mut" id="sset-status-badge">loading&hellip;</span>
+    <span class="badge b-mut" id="sset-badge">loading&hellip;</span>
   </div>
+  <div id="sset-global-msg" style="font-size:13px;min-height:16px;margin-bottom:10px"></div>
 
-  <div style="margin-bottom:16px">
-    <label style="display:block;font-size:12px;font-weight:600;margin-bottom:6px;color:var(--muted,#888)">
-      API Base URL
-      <span style="font-weight:400;font-size:11px">(returned to app via /api/app/config &rarr; api_base_url)</span>
-    </label>
-    <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
-      <input id="sset-api-url" type="url" placeholder="http://92.4.95.252"
-             style="flex:1;min-width:220px;font-family:monospace;font-size:13px">
-      <button id="sset-save-btn" onclick="ssetSave()">&#x1F4BE; Save</button>
-      <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="ssetLoad()">&#x21BA; Refresh</button>
+  <!-- ── Section 1: API Config ─────────────────────────────────── -->
+  <div style="margin-bottom:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted,#888)">API Config</div>
+  <div style="display:grid;gap:10px;margin-bottom:18px">
+
+    <div class="sset-row">
+      <label class="sset-label">API Base URL
+        <span class="sset-hint">Oracle HTTP endpoint returned to app</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-api_base_url" type="url" placeholder="http://92.4.95.252" class="sset-input mono">
+        <button class="ghost sset-btn" onclick="ssetSave('api_base_url')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-api_base_url" class="sset-msg"></div>
     </div>
+
+    <div class="sset-row">
+      <label class="sset-label">JazzDrive Delta URL
+        <span class="sset-hint">Zero-rated delta.json share URL — empty = disabled</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-jd_delta_url" type="url" placeholder="https://cloud.jazzdrive.com.pk/share/f/..." class="sset-input mono">
+        <button class="ghost sset-btn" onclick="ssetSave('jd_delta_url')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-jd_delta_url" class="sset-msg"></div>
+    </div>
+
+    <div class="sset-row">
+      <label class="sset-label">Watch Server External URL
+        <span class="sset-hint">Oracle public URL for poster/play proxying</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-WATCH_SERVER_EXTERNAL_URL" type="url" placeholder="http://92.4.95.252" class="sset-input mono">
+        <button class="ghost sset-btn" onclick="ssetSave('WATCH_SERVER_EXTERNAL_URL')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-WATCH_SERVER_EXTERNAL_URL" class="sset-msg"></div>
+    </div>
+
   </div>
 
-  <div id="sset-msg" style="font-size:13px;min-height:18px"></div>
+  <!-- ── Section 2: Support ────────────────────────────────────── -->
+  <div style="margin-bottom:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted,#888)">Support</div>
+  <div style="display:grid;gap:10px;margin-bottom:18px">
+
+    <div class="sset-row">
+      <label class="sset-label">WhatsApp Support Number
+        <span class="sset-hint">International format, no + or spaces (e.g. 923001234567)</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-SUPPORT_WHATSAPP_NUMBER" type="text" placeholder="923257719165" class="sset-input mono">
+        <button class="ghost sset-btn" onclick="ssetSave('SUPPORT_WHATSAPP_NUMBER')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-SUPPORT_WHATSAPP_NUMBER" class="sset-msg"></div>
+    </div>
+
+  </div>
+
+  <!-- ── Section 3: App Version & Updates ─────────────────────── -->
+  <div style="margin-bottom:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted,#888)">App Version &amp; Updates</div>
+  <div style="display:grid;gap:10px;margin-bottom:18px">
+
+    <div class="sset-row">
+      <label class="sset-label">Current Version String
+        <span class="sset-hint">e.g. 1.0.0 — shown in app About screen</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-app_current_version" type="text" placeholder="1.0.0" class="sset-input mono" style="max-width:140px">
+        <button class="ghost sset-btn" onclick="ssetSave('app_current_version')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-app_current_version" class="sset-msg"></div>
+    </div>
+
+    <div class="sset-row">
+      <label class="sset-label">Min Version Code
+        <span class="sset-hint">Integer — older builds are force-updated</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-app_min_version_code" type="number" placeholder="0" min="0" class="sset-input mono" style="max-width:100px">
+        <button class="ghost sset-btn" onclick="ssetSave('app_min_version_code')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-app_min_version_code" class="sset-msg"></div>
+    </div>
+
+    <div class="sset-row">
+      <label class="sset-label">Update Download URL
+        <span class="sset-hint">Play Store or APK direct link</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-app_update_url" type="url" placeholder="https://play.google.com/..." class="sset-input mono">
+        <button class="ghost sset-btn" onclick="ssetSave('app_update_url')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-app_update_url" class="sset-msg"></div>
+    </div>
+
+    <div class="sset-row">
+      <label class="sset-label">Update Prompt Message
+        <span class="sset-hint">Shown in update dialog — leave blank to hide dialog</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-app_update_message" type="text" placeholder="New version available!" class="sset-input">
+        <button class="ghost sset-btn" onclick="ssetSave('app_update_message')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-app_update_message" class="sset-msg"></div>
+    </div>
+
+  </div>
+
+  <!-- ── Section 4: Feature Flags ──────────────────────────────── -->
+  <div style="margin-bottom:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted,#888)">Feature Flags</div>
+  <div style="display:grid;gap:0;margin-bottom:10px">
+
+    <div class="sset-flag-row" id="sset-ff-maintenance">
+      <label class="sset-flag-lbl">
+        <input type="checkbox" id="sset-ff-maintenance_mode" onchange="ssetSaveFlag('ff_maintenance_mode')">
+        <span>Maintenance Mode</span>
+      </label>
+      <div id="sset-msg-ff_maintenance_mode" class="sset-msg" style="margin-left:26px"></div>
+    </div>
+
+    <div class="sset-row" id="sset-ff-maint-msg-row" style="margin-bottom:10px;padding-left:26px">
+      <label class="sset-label" style="font-size:11px">Maintenance Message
+        <span class="sset-hint">Shown in app during maintenance</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-ff_maintenance_message" type="text" placeholder="We are updating RaddFlix..." class="sset-input">
+        <button class="ghost sset-btn" onclick="ssetSave('ff_maintenance_message')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-ff_maintenance_message" class="sset-msg"></div>
+    </div>
+
+    <div class="sset-flag-row">
+      <label class="sset-flag-lbl">
+        <input type="checkbox" id="sset-ff-xor_encoding" onchange="ssetSaveFlag('ff_xor_encoding')">
+        <span>XOR Request Encoding <span class="sset-hint">(obfuscates API traffic over HTTPS)</span></span>
+      </label>
+      <div id="sset-msg-ff_xor_encoding" class="sset-msg" style="margin-left:26px"></div>
+    </div>
+
+    <div class="sset-flag-row">
+      <label class="sset-flag-lbl">
+        <input type="checkbox" id="sset-ff-zero_rating" onchange="ssetSaveFlag('ff_zero_rating')">
+        <span>Zero Rating (JazzDrive CDN) <span class="sset-hint">(disable if JazzDrive SAPI is down)</span></span>
+      </label>
+      <div id="sset-msg-ff_zero_rating" class="sset-msg" style="margin-left:26px"></div>
+    </div>
+
+    <div class="sset-flag-row">
+      <label class="sset-flag-lbl">
+        <input type="checkbox" id="sset-ff-guest_mode" onchange="ssetSaveFlag('ff_guest_mode')">
+        <span>Guest Mode <span class="sset-hint">(allow browsing without account)</span></span>
+      </label>
+      <div id="sset-msg-ff_guest_mode" class="sset-msg" style="margin-left:26px"></div>
+    </div>
+
+    <div class="sset-flag-row">
+      <label class="sset-flag-lbl">
+        <input type="checkbox" id="sset-ff-recommendations" onchange="ssetSaveFlag('ff_recommendations')">
+        <span>TMDB Recommendations <span class="sset-hint">(show "you might like" suggestions)</span></span>
+      </label>
+      <div id="sset-msg-ff_recommendations" class="sset-msg" style="margin-left:26px"></div>
+    </div>
+
+    <div class="sset-flag-row" style="border-bottom:none">
+      <label class="sset-flag-lbl">
+        <input type="checkbox" id="sset-ff-otp_device_switch" onchange="ssetSaveFlag('ff_otp_device_switch')">
+        <span>OTP Device Switch <span class="sset-hint">(let users self-serve device change via WhatsApp OTP)</span></span>
+      </label>
+      <div id="sset-msg-ff_otp_device_switch" class="sset-msg" style="margin-left:26px"></div>
+    </div>
+
+  </div>
+
+  <div class="row" style="gap:8px;margin-top:8px">
+    <button onclick="ssetLoad()">&#x21BA; Refresh All</button>
+  </div>
 </div>
 
+<style>
+.sset-row { display:grid; gap:4px; }
+.sset-label { font-size:12px; font-weight:600; color:var(--muted,#888); }
+.sset-hint { font-weight:400; font-size:11px; margin-left:4px; }
+.sset-ctrl { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.sset-input { flex:1; min-width:180px; font-size:13px; }
+.sset-input.mono { font-family:monospace; }
+.sset-btn { padding:4px 10px; font-size:14px; }
+.sset-msg { font-size:12px; min-height:16px; }
+.sset-flag-row { display:grid; padding:8px 0; border-bottom:1px solid var(--border,rgba(255,255,255,.07)); }
+.sset-flag-lbl { display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; user-select:none; }
+.sset-flag-lbl input[type=checkbox] { width:16px; height:16px; cursor:pointer; accent-color:var(--accent,#E8002D); }
+</style>
+
 <script>
-const _ssetAuthHdr = () => ({
+const _ssetAuth = () => ({
   Authorization: 'Basic ' + btoa(
-    (document.cookie.match(/adm_u=([^;]+)/)?.[1] || 'admin')
-    + ':' +
+    (document.cookie.match(/adm_u=([^;]+)/)?.[1] || 'admin') + ':' +
     (document.cookie.match(/adm_p=([^;]+)/)?.[1] || '')
   ),
 });
 
-function _ssetMsg(m, isErr) {
-  const el = document.getElementById('sset-msg');
+function _ssetFieldMsg(key, msg, isErr) {
+  const el = document.getElementById('sset-msg-' + key);
   if (!el) return;
-  el.textContent = m;
+  el.textContent = msg;
   el.style.color = isErr ? 'var(--err,#e55)' : 'var(--ok,#4c4)';
+  if (!isErr && msg) setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 4000);
 }
 
 async function ssetLoad() {
-  const badge = document.getElementById('sset-status-badge');
+  const badge = document.getElementById('sset-badge');
   try {
     const d = await fetch('/api/app/config').then(r => r.json());
-    const inp = document.getElementById('sset-api-url');
-    if (inp) inp.value = d.api_base_url || '';
+    // Text fields
+    const textMap = {
+      'api_base_url': d.api_base_url || '',
+      'jd_delta_url': d.jd_delta_url || '',
+      'WATCH_SERVER_EXTERNAL_URL': d.watch_server_url || '',
+      'SUPPORT_WHATSAPP_NUMBER': d.support_whatsapp || '',
+      'app_current_version': d.current_version || '',
+      'app_min_version_code': (d.min_version_code || 0) + '',
+      'app_update_url': d.update_url || '',
+      'app_update_message': d.update_message || '',
+      'ff_maintenance_message': (d.flags && d.flags.maintenance_message) || '',
+    };
+    Object.entries(textMap).forEach(([k, v]) => {
+      const el = document.getElementById('sset-' + k);
+      if (el) el.value = v;
+    });
+    // Checkboxes
+    const flagMap = {
+      'maintenance_mode': d.flags?.maintenance_mode,
+      'xor_encoding': d.flags?.xor_encoding,
+      'zero_rating': d.flags?.zero_rating,
+      'guest_mode': d.flags?.guest_mode,
+      'recommendations': d.flags?.recommendations,
+      'otp_device_switch': d.flags?.otp_device_switch,
+    };
+    Object.entries(flagMap).forEach(([k, v]) => {
+      const el = document.getElementById('sset-ff-' + k);
+      if (el) el.checked = (v === true || v === 'true' || v === 1);
+    });
     if (badge) { badge.textContent = 'loaded'; badge.className = 'badge b-ok'; }
   } catch(e) {
     if (badge) { badge.textContent = 'error'; badge.className = 'badge b-err'; }
-    _ssetMsg('Failed to load current value: ' + e.message, true);
+    const gm = document.getElementById('sset-global-msg');
+    if (gm) { gm.textContent = 'Failed to load settings: ' + e.message; gm.style.color = 'var(--err,#e55)'; }
   }
 }
 
-async function ssetSave() {
-  const btn = document.getElementById('sset-save-btn');
-  const val = (document.getElementById('sset-api-url')?.value || '').trim();
-  if (!val) { _ssetMsg('URL cannot be empty', true); return; }
-  btn.disabled = true; btn.textContent = 'Saving…';
-  _ssetMsg('');
+async function ssetSave(key) {
+  const inp = document.getElementById('sset-' + key);
+  if (!inp) return;
+  const val = inp.value.trim();
+  const origTxt = inp.closest('.sset-ctrl')?.querySelector('.sset-btn')?.textContent;
+  const btn = inp.closest('.sset-ctrl')?.querySelector('.sset-btn');
+  if (btn) btn.disabled = true;
+  _ssetFieldMsg(key, 'Saving…', false);
   try {
     const r = await fetch('/api/catalog/admin/setting', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ..._ssetAuthHdr() },
-      body: JSON.stringify({ key: 'api_base_url', value: val }),
+      headers: { 'Content-Type': 'application/json', ..._ssetAuth() },
+      body: JSON.stringify({ key, value: val }),
     });
     const d = await r.json();
-    if (r.ok && d.ok) {
-      _ssetMsg('✓ Saved — api_base_url is now: ' + d.value, false);
-    } else {
-      _ssetMsg('Error: ' + (d.error || JSON.stringify(d)), true);
-    }
+    _ssetFieldMsg(key, r.ok && d.ok ? '✓ Saved' : 'Error: ' + (d.error || '?'), !(r.ok && d.ok));
   } catch(e) {
-    _ssetMsg('Request failed: ' + e.message, true);
+    _ssetFieldMsg(key, 'Request failed: ' + e.message, true);
   } finally {
-    btn.disabled = false; btn.textContent = '💾 Save';
+    if (btn) { btn.disabled = false; }
+  }
+}
+
+async function ssetSaveFlag(key) {
+  const chk = document.getElementById('sset-ff-' + key.replace('ff_', ''));
+  if (!chk) return;
+  const val = chk.checked ? 'true' : 'false';
+  _ssetFieldMsg(key, 'Saving…', false);
+  try {
+    const r = await fetch('/api/catalog/admin/setting', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ..._ssetAuth() },
+      body: JSON.stringify({ key, value: val }),
+    });
+    const d = await r.json();
+    _ssetFieldMsg(key, r.ok && d.ok ? '✓ ' + (chk.checked ? 'Enabled' : 'Disabled') : 'Error: ' + (d.error || '?'), !(r.ok && d.ok));
+  } catch(e) {
+    _ssetFieldMsg(key, 'Request failed: ' + e.message, true);
   }
 }
 
