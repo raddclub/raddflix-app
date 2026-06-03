@@ -7,6 +7,7 @@ import '../core/constants.dart';
 import '../core/theme/radd_theme.dart';
 import '../models/local_video.dart';
 import '../services/local_media_service.dart';
+import '../core/db/local_db.dart';
 import 'player_screen.dart';
 
   class LocalFolderScreen extends StatefulWidget {
@@ -92,7 +93,7 @@ import 'player_screen.dart';
       });
     }
 
-    void _playAll() {
+    void _playAll() async {
       if (_videos.isEmpty) return;
       final sorted = _sorted;
       // Build episodes list for sequential playback.
@@ -105,12 +106,30 @@ import 'player_screen.dart';
         'local_path': v.filePath,
         'episode': sorted.indexOf(v) + 1,
       }).toList();
+
+      // Resume from the last-watched video in this folder (if any).
+      int startIndex = 0;
+      try {
+        final positions = await LocalDb.getWatchPositions();
+        final posMap = <String, int>{
+          for (final p in positions)
+            (p['file_id'] as String? ?? ''): (p['position_ms'] as int? ?? 0),
+        };
+        for (int i = 0; i < sorted.length; i++) {
+          if ((posMap[sorted[i].filePath] ?? 0) > 0) {
+            startIndex = i;
+            break;
+          }
+        }
+      } catch (_) {}
+
+      if (!mounted) return;
       Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
         'file_id': '',
-        'title': sorted.first.title,
-        'local_path': sorted.first.filePath,
+        'title': sorted[startIndex].title,
+        'local_path': sorted[startIndex].filePath,
         'episodes': episodes,
-        'episode_index': 0,
+        'episode_index': startIndex,
         'content_type': 'local',
       });
     }
