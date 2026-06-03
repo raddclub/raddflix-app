@@ -32,15 +32,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       await ref.read(authProvider.notifier).register(phone: _phone.text.trim(), password: _pass.text);
+      // Auto-login immediately so the user goes straight to the home screen.
+      await ref.read(authProvider.notifier).login(
+          phone: _phone.text.trim(), password: _pass.text);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Account created! Please sign in.'),
-          backgroundColor: Color(0xFF2ECC71),
-          duration: Duration(seconds: 3),
-        ),
-      );
-      Navigator.of(context).pop();
+      Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
     } on DioException catch (e) {
       final _errData = e.response?.data;
       final serverMsg = (_errData is Map
