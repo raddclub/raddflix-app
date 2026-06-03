@@ -864,3 +864,61 @@ def poster_push_stop(job_id: str):
         return jsonify({"error": "job not found"}), 404
     job["stop_requested"] = True
     return jsonify({"ok": True, "message": "Stop requested"})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Admin Settings — read/write allowed DB settings from the admin panel UI
+# ─────────────────────────────────────────────────────────────────────────────
+
+@bp.route("/admin/setting", methods=["POST"])
+def admin_set_setting():
+    """POST /api/catalog/admin/setting  (admin Basic auth required)
+
+    Save an allowed setting key to the DB settings table.
+    Used by the admin panel UI to set api_base_url and other config
+    without requiring a code edit or server redeploy.
+
+    Body:    {"key": "api_base_url", "value": "https://example.com"}
+    Returns: {"ok": true, "key": "api_base_url", "value": "https://example.com"}
+
+    ALLOWED keys (whitelist — prevents arbitrary key injection):
+      api_base_url              — returned to app via /api/app/config
+      jd_delta_url              — JazzDrive zero-rated delta.json share URL
+      SUPPORT_WHATSAPP_NUMBER   — WhatsApp support number shown in app
+      app_current_version       — current APK version string
+      app_update_url            — Play Store / APK download URL
+      app_update_message        — optional update prompt message
+      app_min_version_code      — minimum allowed APK version code (int)
+      WATCH_SERVER_EXTERNAL_URL — external Oracle URL for poster/play proxying
+      ff_maintenance_mode       — feature flag: show maintenance screen
+      ff_maintenance_message    — maintenance banner text
+      ff_xor_encoding           — feature flag: XOR request encoding
+      ff_zero_rating             — feature flag: JazzDrive zero-rating path
+      ff_guest_mode             — feature flag: allow guest access
+      ff_recommendations        — feature flag: TMDB recommendations
+      ff_otp_device_switch      — feature flag: OTP-based device switching
+    """
+    if not _check_admin_auth():
+        return jsonify({"error": "admin auth required (Basic)"}), 401
+
+    data  = request.get_json(force=True, silent=True) or {}
+    key   = (data.get("key")   or "").strip()
+    value = (data.get("value") or "").strip()
+
+    ALLOWED = {
+        "api_base_url", "jd_delta_url", "SUPPORT_WHATSAPP_NUMBER",
+        "app_current_version", "app_update_url", "app_update_message",
+        "app_min_version_code", "WATCH_SERVER_EXTERNAL_URL",
+        "ff_maintenance_mode", "ff_maintenance_message",
+        "ff_xor_encoding", "ff_zero_rating", "ff_guest_mode",
+        "ff_recommendations", "ff_otp_device_switch",
+    }
+
+    if not key:
+        return jsonify({"error": "key is required"}), 400
+    if key not in ALLOWED:
+        return jsonify({"error": "disallowed setting key: " + key}), 400
+
+    db.set_setting(key, value)
+    log.info("admin set_setting: %s = %r", key, value)
+    return jsonify({"ok": True, "key": key, "value": value})
