@@ -74,15 +74,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
         _methodsLoading = false;
       });
     } catch (_) {
-      setState(() {
-        _methods = [
-          const _PayMethod(key: 'jazzcash', name: 'JazzCash',
-              accountNumber: '03xxxxxxxxx', instructions: 'Send to this JazzCash number, then enter your transaction ID below.'),
-          const _PayMethod(key: 'easypaisa', name: 'EasyPaisa',
-              accountNumber: '03xxxxxxxxx', instructions: 'Send to this EasyPaisa account, then enter your transaction ID below.'),
-        ];
-        _methodsLoading = false;
-      });
+      // Payment methods API unavailable. Do NOT show placeholder account numbers —
+      // users could send real money to a wrong/fake number. Show empty list instead.
+      setState(() { _methods = []; _methodsLoading = false; });
     }
   }
 
@@ -104,7 +98,6 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       );
       if (success) {
         setState(() { _submitting = false; });
-        final user = ref.read(authProvider).user;
         if (mounted) {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => TidStatusScreen(
@@ -214,7 +207,39 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
 
         if (_selectedPlanId != null) ...[
           SizedBox(height: 24),
-          Text('Pay With', style: TextStyle(color: t.textPrimary,
+          if (ref.read(authProvider).user?.isGuest == true)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: AppColors.primary.withOpacity(0.3))),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const Icon(Icons.account_circle_outlined, color: AppColors.primary, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('Sign in to Subscribe',
+                      style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14)),
+                ]),
+                const SizedBox(height: 8),
+                Text('Create a free account to subscribe. Guest users cannot make payments.',
+                    style: TextStyle(color: t.textMuted, fontSize: 13, height: 1.5)),
+                const SizedBox(height: 12),
+                SizedBox(width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil(
+                        AppRoutes.register, (r) => false),
+                    icon: const Icon(Icons.person_add_outlined, size: 16),
+                    label: const Text('Create Account', style: TextStyle(fontSize: 13)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: BorderSide(color: AppColors.primary.withOpacity(0.5))),
+                  )),
+              ]),
+            ),
+          if (ref.read(authProvider).user?.isGuest != true)
+            Text('Pay With', style: TextStyle(color: t.textPrimary,
               fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3))
               .animate().fadeIn(duration: 300.ms),
           SizedBox(height: 12),
@@ -237,34 +262,34 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
           Text('After sending payment, enter the Transaction ID here for verification.',
               style: TextStyle(color: t.textMuted, fontSize: 13, height: 1.5)),
           const SizedBox(height: 14),
-          RaddTextField(
-            controller: _tidCtrl,
-            label: 'Transaction ID',
-            hint: 'e.g. T123456789',
-            prefixIcon: Icons.receipt_long_outlined,
-          ).animate().fadeIn(duration: 300.ms),
-          if (_tidError != null) ...[
-            const SizedBox(height: 8),
-            Text(_tidError!, style: const TextStyle(color: AppColors.error, fontSize: 12))
-                .animate().fadeIn(duration: 200.ms).shakeX(hz: 3, amount: 4),
-          ],
-          if (_tidSuccess != null) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(color: AppColors.success.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                  border: Border.all(color: AppColors.success.withOpacity(0.3))),
-              child: Row(children: [
-                const Icon(Icons.check_circle_outline_rounded, color: AppColors.success, size: 16),
-                const SizedBox(width: 8),
-                Expanded(child: Text(_tidSuccess!,
-                    style: const TextStyle(color: AppColors.success, fontSize: 12))),
-              ]),
+            RaddTextField(
+              controller: _tidCtrl,
+              label: 'Transaction ID',
+              hint: 'e.g. T123456789',
+              prefixIcon: Icons.receipt_long_outlined,
             ).animate().fadeIn(duration: 300.ms),
-          ],
-          const SizedBox(height: 16),
-          Container(height: 52,
+            if (_tidError != null) ...[
+              const SizedBox(height: 8),
+              Text(_tidError!, style: const TextStyle(color: AppColors.error, fontSize: 12))
+                  .animate().fadeIn(duration: 200.ms).shakeX(hz: 3, amount: 4),
+            ],
+            if (_tidSuccess != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(color: AppColors.success.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(color: AppColors.success.withOpacity(0.3))),
+                child: Row(children: [
+                  const Icon(Icons.check_circle_outline_rounded, color: AppColors.success, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(_tidSuccess!,
+                      style: const TextStyle(color: AppColors.success, fontSize: 12))),
+                ]),
+              ).animate().fadeIn(duration: 300.ms),
+            ],
+            const SizedBox(height: 16),
+            Container(height: 52,
             decoration: BoxDecoration(gradient: AppColors.primaryGradient,
                 borderRadius: BorderRadius.circular(AppRadius.md),
                 boxShadow: AppShadows.primary),
@@ -274,6 +299,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                 child: const Center(child: Text('Submit Transaction',
                     style: TextStyle(color: Colors.white, fontSize: 15,
                         fontWeight: FontWeight.w700)))))),
+          ], // end guest payment block
           const SizedBox(height: 32),
         ],
 
