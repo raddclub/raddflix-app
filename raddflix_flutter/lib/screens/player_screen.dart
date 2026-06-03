@@ -2837,7 +2837,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             FilmGrainOverlay(level: _prefs.filmGrainLevel),
 
           // ── Phase I2: Reaction Stamps ─────────────────────────────────────
-          if (_prefs.reactionsEnabled)
+          if (false) // reactions disabled — clutters landscape player
             ReactionStampsOverlay(
               position: _position,
               contentId: widget.fileId,
