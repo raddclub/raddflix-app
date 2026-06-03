@@ -151,3 +151,16 @@
 | AUDIT-17 | local_db.dart, player_screen.dart | _inlineShareUrl may be RF1:xxx encoded — added decodeShareUrl() + decode before JazzDrive | OK |
 | AUDIT-18 | app.dart, local_folder_screen.dart | Player route: null-safe args cast; episodes List<Map<String,Object>> crash → Map<String,dynamic>.from() | OK |
 | AUDIT-19 | player_prefs.dart | copyWith() missing channelBalance + abLoopEnabled in return body | OK |
+
+---
+
+## Phase 8 — Real-time Catalog Sync
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 8.1 | Foreground resume sync (WidgetsBindingObserver) | OK | 5-min debounce prevents hammering on quick screen cycles |
+| 8.2 | 15-min foreground poll timer | OK | Timer.periodic in CatalogNotifier.initialize(); cancelled on dispose |
+| 8.3 | Connectivity-restore sync | OK | Was already in CatalogNotifier; now co-exists with 8.1/8.2 |
+| 8.4 | 6-hour WorkManager background sync | OK | callbackDispatcher top-level fn; ExistingWorkPolicy.keep |
+| 8.5 | Post-sync silentRefresh (subscription/quota) | OK | authProvider.silentRefresh() after every successful SyncService.sync() |
+| 8.6 | workmanager ^0.5.7 added to pubspec | OK | |

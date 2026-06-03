@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/db/local_db.dart';
 import '../core/db/sync_service.dart';
@@ -57,17 +58,38 @@ class CatalogState {
   bool get isReady => status == CatalogStatus.ready;
 }
 
-class CatalogNotifier extends StateNotifier<CatalogState> {
+class CatalogNotifier extends StateNotifier<CatalogState>
+    with WidgetsBindingObserver {
   CatalogNotifier(this._ref) : super(const CatalogState());
   final Ref _ref;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  Timer? _pollTimer;
+
+  // Minimum gap between foreground-resume syncs (avoids hammering on quick
+  // screen-off/on cycles and back-button navigation).
+  DateTime? _lastSyncTime;
+  static const _minResumeSyncGap = Duration(minutes: 5);
 
   Future<void> initialize() async {
     await _loadFromDb();
     await syncFromServer();
+    _lastSyncTime = DateTime.now();
+
     // Load recommendations in background — non-blocking
     Future.microtask(loadRecommendations);
-    // Auto-sync when internet is restored (catches plan upgrades, new titles, is_free changes)
+
+    // 1. Lifecycle observer — sync on every foreground resume
+    WidgetsBinding.instance.addObserver(this);
+
+    // 2. Foreground poll — sync every 15 min while app is open
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(minutes: 15), (_) {
+      if (mounted && state.status != CatalogStatus.syncing) {
+        syncFromServer();
+      }
+    });
+
+    // 3. Connectivity restore — sync immediately when internet comes back
     _connectivitySub?.cancel();
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       final hasNet = results.isNotEmpty && results.first != ConnectivityResult.none;
@@ -79,9 +101,25 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
     });
   }
 
+  // Called by WidgetsBindingObserver whenever the app comes to the foreground.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final now = DateTime.now();
+      final last = _lastSyncTime;
+      if (last == null || now.difference(last) >= _minResumeSyncGap) {
+        if (this.state.status != CatalogStatus.syncing) {
+          syncFromServer();
+        }
+      }
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _connectivitySub?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
@@ -271,10 +309,12 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
   Future<void> syncFromServer() async {
     state = state.copyWith(status: CatalogStatus.syncing, error: null);
     final result = await SyncService.sync();
+    _lastSyncTime = DateTime.now();
     if (result.success) {
       await _loadFromDb();
       // Refresh subscription / plan silently after every successful sync so
-      // plan upgrades and quota changes reach the user without manual re-login.
+      // plan upgrades, quota changes, and is_free changes reach the user
+      // instantly without manual re-login.
       _ref.read(authProvider.notifier).silentRefresh().ignore();
     } else {
       state = state.copyWith(

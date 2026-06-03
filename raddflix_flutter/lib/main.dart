@@ -6,6 +6,7 @@ import 'package:media_kit/media_kit.dart';
 import 'app.dart' show RaddFlixApp, pendingVideoUri, pendingVideoTitle, pendingSubtitleUri, appNavigatorKey;
 import 'core/remote_config.dart';
 import 'core/services/app_update_service.dart';
+import 'core/services/background_sync_service.dart';
 import 'core/services/jazzdrive_service.dart';
 import 'core/services/poster_service.dart';
 import 'core/api/history_api.dart';
@@ -62,6 +63,10 @@ void main() async {
   unawaited(AppUpdateService.check());               // populate _ForceUpdateGuard result
   HistoryApi.flushUnsynced().ignore();               // push offline watch positions
   UsageService.flushPending().ignore();              // push pending data-usage bytes
+
+  // Register 6-hour background sync task (WorkManager / BGTaskScheduler).
+  // ExistingWorkPolicy.keep means this is a no-op if already registered.
+  unawaited(BackgroundSyncService.initialize());
 
   // Check for initial video URI + display name from "Open with" intent (cold start)
   try {

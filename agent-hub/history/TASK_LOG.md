@@ -3353,3 +3353,45 @@ to `JazzDriveService.getStreamLink()` → JazzDrive rejects the encoded URL → 
 - All AUDIT items 08–19 are resolved. Known Issues R2–R6 remain (content/infra, not code bugs).
 - `LocalDb.decodeShareUrl(url)` is now the canonical way to decode any `CatalogItem.shareUrl` before passing to JazzDrive or any API.
 - `Map<String, dynamic>.from(e as Map)` in `app.dart` onGenerateRoute makes the episodes cast future-proof regardless of map value types.
+
+---
+
+## Session 39b — 2026-06-02 (Real-time Catalog Sync)
+
+### Goal
+Any change in Oracle catalog DB (is_free, new title, subscription status, poster_url, etc.)
+propagates to every user's local SQLite automatically — instantly if online, within 6 h offline.
+
+### Architecture
+
+```
+Oracle DB change (e.g. is_free=1)
+       │
+       ├─ User has internet
+       │    ├─ App in foreground → WidgetsBindingObserver.didChangeAppLifecycleState(resumed)
+       │    │    → SyncService.sync() within 5 min of last sync
+       │    ├─ 15-min poll timer → SyncService.sync() every 15 min while open
+       │    └─ Internet reconnect → ConnectivitySyncService triggers immediate sync
+       │
+       └─ User offline / app closed
+            └─ WorkManager periodic task every 6 h (BackgroundSyncService)
+                 → SyncService.sync() + UsageService.fetchQuota()
+                 → runs even when app is fully closed on Android
+```
+
+After every SyncService.sync() success:
+- `_loadFromDb()` re-reads SQLite → CatalogState updated → UI rebuilds (FREE badges, new titles)
+- `authProvider.silentRefresh()` → subscription/quota/plan updated in auth state
+
+### Files Changed
+- `lib/core/services/background_sync_service.dart` — NEW: WorkManager 6-h task registration
+- `lib/providers/catalog_provider.dart` — added WidgetsBindingObserver mixin, 15-min poll timer, 5-min resume debounce
+- `lib/main.dart` — BackgroundSyncService.initialize() on cold start
+- `pubspec.yaml` — workmanager: ^0.5.7
+
+### Notes for Next Agent
+- `callbackDispatcher` MUST be a top-level function with `@pragma('vm:entry-point')` — WorkManager runs it in a separate Dart isolate.
+- `ExistingWorkPolicy.keep` means calling `initialize()` on every cold start is safe — the 6 h window is never reset.
+- The minimum resume-sync gap is 5 min (`_minResumeSyncGap`) — prevents rapid hammering on quick screen-off/on or back-navigation.
+- `_pollTimer` is cancelled in `dispose()` — no timer leak.
+- AndroidManifest.xml `android:name="${applicationName}"` is the correct Flutter placeholder — do NOT change it.
