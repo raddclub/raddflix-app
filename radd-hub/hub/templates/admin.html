@@ -152,6 +152,96 @@
   <div id="quota-leaderboard-tbl"><div class="muted empty">Loading…</div></div>
 </div>
 
+<!-- Force User Sync -->
+<div class="card">
+  <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <div>
+      <h3 style="margin:0">Force User Sync</h3>
+      <div class="muted" style="font-size:12px;margin-top:3px">
+        Bump the catalog version so all online users re-sync on next app open.
+        Use after changing subscription plans, quota, or any setting that does not edit a title row.
+      </div>
+    </div>
+    <span class="badge b-mut" id="fsync-ver-badge">loading…</span>
+  </div>
+
+  <div class="grid grid-2" style="gap:10px;margin-bottom:16px">
+    <div class="card" style="margin:0;background:var(--panel2);padding:10px 14px">
+      <div class="muted" style="font-size:11px;margin-bottom:4px">Current catalog version</div>
+      <div id="fsync-cur-ver" style="font-size:13px;font-weight:600;font-family:monospace">—</div>
+    </div>
+    <div class="card" style="margin:0;background:var(--panel2);padding:10px 14px">
+      <div class="muted" style="font-size:11px;margin-bottom:4px">Published titles</div>
+      <div id="fsync-count" style="font-size:13px;font-weight:600">—</div>
+    </div>
+  </div>
+
+  <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+    <button id="fsync-btn" onclick="forceSyncUsers()">&#x1F504; Force Sync All Users</button>
+    <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="fsyncLoad()">&#x21BA; Refresh</button>
+  </div>
+  <div id="fsync-msg" style="margin-top:10px;font-size:13px;min-height:18px"></div>
+</div>
+
+<script>
+const _fsyncAuthHdr = () => ({
+  Authorization: 'Basic ' + btoa(
+    (document.cookie.match(/adm_u=([^;]+)/)?.[1] || 'admin')
+    + ':' +
+    (document.cookie.match(/adm_p=([^;]+)/)?.[1] || '')
+  ),
+});
+
+function _fsyncMsg(m, isErr) {
+  const el = document.getElementById('fsync-msg');
+  if (!el) return;
+  el.textContent = m;
+  el.style.color = isErr ? 'var(--err,#e55)' : 'var(--ok,#4c4)';
+}
+
+async function fsyncLoad() {
+  try {
+    const d = await fetch('/api/catalog/version').then(r => r.json());
+    const ver = d.version || 0;
+    const count = d.count || 0;
+    const badge = document.getElementById('fsync-ver-badge');
+    const verEl = document.getElementById('fsync-cur-ver');
+    const cntEl = document.getElementById('fsync-count');
+    if (badge) { badge.textContent = 'v' + ver; badge.className = 'badge b-ok'; }
+    if (verEl) verEl.textContent = ver + '  (' + new Date(ver * 1000).toLocaleString() + ')';
+    if (cntEl) cntEl.textContent = count + ' titles';
+  } catch(e) {
+    const badge = document.getElementById('fsync-ver-badge');
+    if (badge) { badge.textContent = 'error'; badge.className = 'badge b-err'; }
+  }
+}
+
+async function forceSyncUsers() {
+  const btn = document.getElementById('fsync-btn');
+  btn.disabled = true; btn.textContent = 'Bumping version…';
+  _fsyncMsg('');
+  try {
+    const r = await fetch('/api/catalog/force-version-bump', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ..._fsyncAuthHdr() },
+    });
+    const d = await r.json();
+    if (r.ok && d.ok) {
+      _fsyncMsg('✓ ' + d.message, false);
+      fsyncLoad();
+    } else {
+      _fsyncMsg('Error: ' + (d.error || JSON.stringify(d)), true);
+    }
+  } catch(e) {
+    _fsyncMsg('Request failed: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = '\u{1F504} Force Sync All Users';
+  }
+}
+
+fsyncLoad();
+</script>
+
 <!-- Database management -->
 <div class="card">
   <h3>Database Management</h3>
