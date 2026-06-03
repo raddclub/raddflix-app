@@ -99,10 +99,6 @@ dependencies:
   flutter_colorpicker: ^1.1.0
   audio_session: ^0.1.21
 
-  # Background sync — WorkManager (Android) / BGTaskScheduler (iOS)
-  # Runs catalog delta + quota refresh every 6 h even when app is closed.
-  workmanager: ^0.5.7
-
 dev_dependencies:
   flutter_test:
     sdk: flutter

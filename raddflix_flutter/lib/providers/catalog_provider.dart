@@ -63,55 +63,52 @@ class CatalogNotifier extends StateNotifier<CatalogState>
   CatalogNotifier(this._ref) : super(const CatalogState());
   final Ref _ref;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
-  Timer? _pollTimer;
 
-  // Minimum gap between foreground-resume syncs (avoids hammering on quick
-  // screen-off/on cycles and back-button navigation).
-  DateTime? _lastSyncTime;
-  static const _minResumeSyncGap = Duration(minutes: 5);
+  // ── Version-gate sync strategy ──────────────────────────────────────────────
+  // SyncService.sync() always calls /api/catalog/version first — a ~200 byte
+  // request that returns MAX(updated_at) across all published titles in Oracle.
+  //
+  // • If Oracle version == local version → returns immediately. Zero download.
+  // • If Oracle version > local version  → runs delta sync to fetch new/changed
+  //   titles and updates the local SQLite. UI rebuilds (FREE badges, new titles).
+  //
+  // No periodic timers, no WorkManager background tasks. Syncing only does real
+  // work when the admin has actually changed something in the database.
+  //
+  // Triggers:
+  //   1. Cold / warm start — syncFromServer() in initialize()
+  //   2. App foreground    — WidgetsBindingObserver.didChangeAppLifecycleState
+  //   3. Internet restored — Connectivity().onConnectivityChanged
 
   Future<void> initialize() async {
     await _loadFromDb();
-    await syncFromServer();
-    _lastSyncTime = DateTime.now();
+    await syncFromServer(); // version-gated: no-op if Oracle unchanged
 
     // Load recommendations in background — non-blocking
     Future.microtask(loadRecommendations);
 
-    // 1. Lifecycle observer — sync on every foreground resume
+    // Trigger 2: foreground resume — cheaply re-check Oracle version
     WidgetsBinding.instance.addObserver(this);
 
-    // 2. Foreground poll — sync every 15 min while app is open
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(minutes: 15), (_) {
-      if (mounted && state.status != CatalogStatus.syncing) {
-        syncFromServer();
-      }
-    });
-
-    // 3. Connectivity restore — sync immediately when internet comes back
+    // Trigger 3: internet restored — catch changes that happened while offline
     _connectivitySub?.cancel();
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       final hasNet = results.isNotEmpty && results.first != ConnectivityResult.none;
       if (hasNet && state.status != CatalogStatus.syncing) {
         Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) syncFromServer();
+          if (mounted) syncFromServer(); // version-gated: no-op if Oracle unchanged
         });
       }
     });
   }
 
-  // Called by WidgetsBindingObserver whenever the app comes to the foreground.
+  // Called when the app returns to the foreground.
+  // Cost: one ~200-byte HTTP call. Skips all sync work when Oracle is unchanged.
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      final now = DateTime.now();
-      final last = _lastSyncTime;
-      if (last == null || now.difference(last) >= _minResumeSyncGap) {
-        if (this.state.status != CatalogStatus.syncing) {
-          syncFromServer();
-        }
-      }
+  void didChangeAppLifecycleState(AppLifecycleState appState) {
+    if (appState == AppLifecycleState.resumed &&
+        state.status != CatalogStatus.syncing) {
+      syncFromServer(); // version-gated: no-op if Oracle unchanged
     }
   }
 
@@ -119,7 +116,6 @@ class CatalogNotifier extends StateNotifier<CatalogState>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _connectivitySub?.cancel();
-    _pollTimer?.cancel();
     super.dispose();
   }
 
