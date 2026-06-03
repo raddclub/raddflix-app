@@ -40,29 +40,75 @@ from .. import db
 log = logging.getLogger("hub.mobile_api")
 _EMERGENCY_SECRET: Optional[str] = None  # BUG-A32: per-process random last-resort JWT secret
 
-# ── Login rate limiting (in-memory, per-IP) ──────────────────────────────────
-_login_ip_window: dict = {}   # ip → list[float] of attempt timestamps
+# ── Login rate limiting (DB-backed per-IP) ───────────────────────────────────
+_login_ip_window: dict = {}   # ip → list[float] — in-memory cache layer
 _LOGIN_RATE_WINDOW = 900      # 15-minute sliding window
 _LOGIN_RATE_MAX    = 10       # max attempts per window per IP
 
+# BUG-S14 fix: also persist to DB so rate limit survives server restarts
+_RATE_TABLE_DDL = (
+    "CREATE TABLE IF NOT EXISTS login_rate_log "
+    "(ip TEXT NOT NULL, ts REAL NOT NULL)"
+)
+_rate_table_ok = False
+
+def _ensure_rate_table() -> None:
+    global _rate_table_ok
+    if _rate_table_ok:
+        return
+    try:
+        with db.conn() as _c:
+            _c.execute(_RATE_TABLE_DDL)
+            _c.execute("CREATE INDEX IF NOT EXISTS idx_lrl_ip ON login_rate_log(ip)")
+        _rate_table_ok = True
+    except Exception:
+        pass
+
 
 def _login_rate_check(ip: str) -> bool:
-    """Return True (allowed) or False (rate-limited). Prunes stale IPs.
-    Returns False silently — caller returns 429, attacker gets no detail.
+    """Return True (allowed) or False (rate-limited).
+    Checks in-memory window first (fast path), then DB for cross-restart persistence.
+    BUG-S14 fix: DB-backed so limits survive server restarts.
     """
     import time as _t
     now  = _t.time()
+    cutoff = now - _LOGIN_RATE_WINDOW
+
+    # Fast in-memory path
     hits = _login_ip_window.get(ip, [])
-    hits = [t for t in hits if now - t < _LOGIN_RATE_WINDOW]
-    if len(hits) >= _LOGIN_RATE_MAX:
-        _login_ip_window[ip] = hits
+    hits = [t for t in hits if t > cutoff]
+
+    # Merge from DB (catches attempts from before last restart)
+    _ensure_rate_table()
+    try:
+        with db.conn() as _c:
+            rows = _c.execute(
+                "SELECT ts FROM login_rate_log WHERE ip=? AND ts>?", (ip, cutoff)
+            ).fetchall()
+            db_hits = {r["ts"] for r in rows}
+            # Merge without duplicating in-memory entries
+            all_ts = sorted(set(hits) | db_hits)
+    except Exception:
+        all_ts = hits
+
+    if len(all_ts) >= _LOGIN_RATE_MAX:
+        _login_ip_window[ip] = all_ts
         return False
-    hits.append(now)
-    _login_ip_window[ip] = hits
-    # Prune stale IPs every ~100 new IPs
+
+    all_ts.append(now)
+    _login_ip_window[ip] = all_ts
+    # Persist new attempt to DB (best-effort)
+    try:
+        with db.conn() as _c:
+            _c.execute("INSERT INTO login_rate_log(ip,ts) VALUES(?,?)", (ip, now))
+            # Prune old rows from DB (keep it small)
+            _c.execute("DELETE FROM login_rate_log WHERE ts<?", (cutoff,))
+    except Exception:
+        pass
+    # Prune stale IPs from in-memory dict every ~100 new IPs
     if len(_login_ip_window) > 500:
         stale = [k for k, v in list(_login_ip_window.items())
-                 if not any(now - t < _LOGIN_RATE_WINDOW for t in v)]
+                 if not any(t > cutoff for t in v)]
         for k in stale:
             del _login_ip_window[k]
     return True

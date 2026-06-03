@@ -807,6 +807,8 @@ def poster_push_bulk():
                 job["failed"] += 1
                 job["errors"].append({"title_id": r["id"], "title": r["title"], "error": str(e)})
                 log.exception("poster-push failed for title %d (%s)", r["id"], r["title"])
+            # BUG-S12 fix: 2-second pause between JazzDrive uploads to respect SAPI rate limits
+            time.sleep(2)
         job["status"] = "done"
         job["finished_at"] = int(time.time())
         elapsed = job["finished_at"] - job["started_at"]

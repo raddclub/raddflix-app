@@ -227,7 +227,19 @@ def _notify_new_title_bg(title_id: int, val: int) -> None:
         except Exception as _e:
             _log.warning("WA blast failed: %s", _e)
 
-    _th.Thread(target=_wa_blast, daemon=True, name="notif-wa-blast").start()
+    def _wa_blast_delayed():
+        # BUG-S13 fix: 60-second grace period lets admin cancel by un-publishing before blast fires
+        _t.sleep(60)
+        with db.conn() as _c:
+            still_pub = _c.execute(
+                "SELECT is_published FROM titles WHERE id=?", (title_id,)
+            ).fetchone()
+        if not still_pub or not still_pub["is_published"]:
+            _log.info("WA blast cancelled — title %d was un-published during grace period", title_id)
+            return
+        _wa_blast()
+
+    _th.Thread(target=_wa_blast_delayed, daemon=True, name="notif-wa-blast").start()
 
 @bp.route("/")
 @auth.login_required

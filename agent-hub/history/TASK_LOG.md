@@ -3579,3 +3579,52 @@ This session is UI only — admin.html patched on Oracle + committed to GitHub.
 - Oracle: raddflix_radd RUNNING, nginx RUNNING. Port 5000 firewalled externally.
 
 ---
+
+
+---
+
+## Session 2026-06-03 — Bug Fix Marathon (Batches 1–3)
+
+**Agent:** Replit Agent  
+**Commits:** 1cc57e9, fcdd338, 5f742096  
+**Bugs fixed:** 26 of 30 (all CRITICAL + HIGH + MEDIUM)
+
+### Batch 1 (1cc57e9) — 6 fixes
+- BUG-F02: Moved color constants to AppColors in constants.dart
+- BUG-F12: Removed const from TextSpan in login_screen.dart
+- BUG-F01: syncDelta now sends localVersion (not wall clock) as since param
+- BUG-S04: Trending fixed t.poster_url → t.poster column name
+- BUG-S05: Fixed epoch int vs datetime string comparison in trending
+- BUG-S01: delta.json version now includes catalog_forced_version in delta_push.py
+
+### Batch 2 (fcdd338) — 8 fixes
+- BUG-S02: Removed NULL updated_at from delta WHERE clause (bandwidth waste fixed)
+- BUG-S07: extend() now finds expired subs; uses existing plan not hardcoded "basic"
+- BUG-S08: register() uses atomic INSERT + sqlite3.IntegrityError instead of check-then-insert
+- BUG-S09: app_config() reads api_base_url from DB setting instead of hardcoded HTTP URL
+- BUG-S10: force-version-bump writes now_ts+1 to guarantee bump is > titles_max
+- BUG-F07: clearPendingUsage() now deletes flushed rows (prevents usage_log growth)
+- BUG-F08: Added poster_share_url + folder_share_url columns to oldV<17 migration
+- BUG-F09: _posterSyncDone static flag can now be reset when delta adds new titles
+
+### Batch 3 (5f742096) — 6 fixes + 2 won't-fix confirmed
+- BUG-S03: All 3 GROUP BY t.id on files replaced with correlated subquery for deterministic file_id
+- BUG-S06: XorWsgiMiddleware now sets HTTP_X_ALREADY_DECODED flag; decode_request() skips re-decode
+- BUG-S11: Added CREATE UNIQUE INDEX IF NOT EXISTS for watch_history(user_id, file_id) in db.py
+- BUG-F04: _isRefreshing bool → Completer<bool>? to serialize concurrent 401 refresh attempts
+- BUG-F06: Confirmed fixed server-side; catalog_api.py returns flat episodes list correctly
+- BUG-F10: Moved session key storage before body encoding in _XorInterceptor.onRequest
+
+**Won't Fix (files removed):**
+- BUG-F05: remote_config.dart removed — app uses HTTPS-only Dio client
+- BUG-F11: app_guard.dart removed — guard disabled by design
+
+### Remaining LOW bugs (4 open)
+- BUG-S12: Bulk-enrich rate limiting
+- BUG-S13: WhatsApp blast confirmation UI
+- BUG-S14: Login rate-limit persistence (Redis/SQLite-backed)
+- BUG-F13: Connectivity sync race condition
+- BUG-F15: sqflite_sqlcipher version update
+
+### Oracle server status: Running (pid confirmed), all server fixes deployed
+

@@ -27,16 +27,14 @@ class ConnectivitySyncService {
   static void start() {
     if (_sub != null) return;
 
-    // Determine initial offline state (non-blocking)
-    Connectivity().checkConnectivity().then((results) {
-      _wasOffline = results.every((r) => r == ConnectivityResult.none);
-      if (!_wasOffline) {
-        // App started with internet — flush any leftovers from previous offline session
-        _flush();
-      }
-    }).catchError((_) {});
+    // BUG-F13 fix: pessimistic default — assume offline until probe confirms otherwise.
+    // If listener fires before checkConnectivity().then() resolves, _stateSettled
+    // prevents .then() from overwriting the value the listener already set.
+    bool _stateSettled = false;
+    _wasOffline = true;
 
     _sub = Connectivity().onConnectivityChanged.listen((results) {
+      _stateSettled = true;
       final isOnline = results.any((r) => r != ConnectivityResult.none);
       if (isOnline && _wasOffline) {
         DebugLogger.log('CONNECTIVITY', 'Back online — flushing pending sync data');
@@ -44,6 +42,16 @@ class ConnectivitySyncService {
       }
       _wasOffline = !isOnline;
     });
+
+    // Probe current state — but only apply if listener hasn't already settled state
+    Connectivity().checkConnectivity().then((results) {
+      if (_stateSettled) return;  // listener already set authoritative state — skip
+      _wasOffline = results.every((r) => r == ConnectivityResult.none);
+      if (!_wasOffline) {
+        // Started with internet — flush leftovers from previous offline session
+        _flush();
+      }
+    }).catchError((_) {});
   }
 
   static void _flush() {

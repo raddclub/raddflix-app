@@ -33,7 +33,7 @@ dependencies:
   # Pinned to 3.1.0+1 — last release before 3.2.0 which introduced flutter.compileSdkVersion
   # flutter.compileSdkVersion in build.gradle, which breaks Gradle on
   # Flutter 3.22.x CI (AGP version mismatch).
-  sqflite_sqlcipher: 3.1.0+1
+  sqflite_sqlcipher: 4.0.1  # BUG-F15 fix: updated from 3.1.0+1 (unpatched SQLCipher)
   path_provider: ^2.1.2
   path: ^1.9.0
 
