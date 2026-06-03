@@ -9,7 +9,7 @@ class AppConstants {
 
   static const String onboardingSeenKey = 'jm_onboarding_seen';
 
-  static const Duration accessTokenValidity = Duration(minutes: 15);
+  static const Duration accessTokenValidity = Duration(days: 7);
   static const Duration refreshTokenValidity = Duration(days: 90);
 
   static const Duration catalogSyncInterval = Duration(hours: 6);
