@@ -3628,3 +3628,133 @@ This session is UI only — admin.html patched on Oracle + committed to GitHub.
 
 ### Oracle server status: Running (pid confirmed), all server fixes deployed
 
+
+
+---
+## [2026-06-03 UTC] — Agent: Replit Main Agent (Session 37 — All Tasks + Full Audit)
+
+### Task
+User requested: check all remaining bugs/errors, then complete Tasks A, B, C.
+
+### Audit Findings (before any code changes)
+Read actual source files to verify bug status. All 5 "open" LOW bugs were
+already fixed in commit 47a3051 — the BUG_TRACKER.md just wasn't updated.
+
+| Bug | File | Verified Fixed In |
+|-----|------|-------------------|
+| BUG-S12 | catalog_api.py | poster_push_bulk() — 2s sleep between JD uploads |
+| BUG-S13 | library.py | _wa_blast_delayed() — 60s grace period |
+| BUG-S14 | mobile_api.py | login_rate_log DB table + in-memory cache layer |
+| BUG-F13 | connectivity_sync_service.dart | _stateSettled flag prevents race |
+| BUG-F15 | pubspec.yaml | sqflite_sqlcipher: 4.0.1 (comment says BUG-F15 fix) |
+
+All 30 bugs are now confirmed fixed (28 fixed + 2 won't fix = 30 total).
+
+---
+
+### Task A — Flutter APK Rebuild Guide
+
+**pubspec.yaml confirmed:**
+- sqflite_sqlcipher: 4.0.1 ✅
+- workmanager: ^0.5.7 (added Session 39b — now unused, background_sync_service.dart is a stub comment)
+- All other deps unchanged from last known good state
+
+**api_client.dart confirmed:**
+- Completer<bool>? _refreshCompleter ✅ (BUG-F04 fix present)
+
+**Flutter files changed since last APK build (Sessions 36, 37, 39, 39b):**
+- lib/core/api/api_client.dart — _refreshCompleter atomic 401 fix
+- lib/core/api/catalog_api.dart — forced_ts in CatalogVersion (Session 37)
+- lib/core/db/local_db.dart — clearPendingUsage() fix, poster_share_url columns, watch_positions migration
+- lib/core/db/sync_service.dart — localVersion as delta since param; forced_ts full-sync trigger (Session 37)
+- lib/core/services/connectivity_sync_service.dart — _stateSettled race fix
+- lib/core/services/background_sync_service.dart — stub (WorkManager removed)
+- lib/providers/catalog_provider.dart — _posterSyncDone reset; WidgetsBindingObserver sync
+- lib/core/constants.dart — AppColors separated from ApiPaths
+- lib/screens/login_screen.dart — const TextSpan fix
+- lib/main.dart — BackgroundSyncService.initialize() call (now a no-op stub)
+- app.dart — null-safe player route args; Map<String,dynamic>.from() cast fix
+- local_folder_screen.dart — episodes type fix
+- player_screen.dart — _playNextEpisode local_path fix; LocalDb.decodeShareUrl() use
+- pubspec.yaml — sqflite_sqlcipher 4.0.1; workmanager ^0.5.7
+
+**APK build command sequence (clean release):**
+```bash
+cd raddflix_flutter
+flutter clean
+flutter pub get
+# Build split APKs per ABI (smallest download, best compatibility)
+flutter build apk --release --target-platform android-arm64,android-arm --split-per-abi
+# Output files:
+#   build/app/outputs/flutter-apk/app-arm64-v8a-release.apk  (modern phones)
+#   build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk (older phones)
+# Universal APK (if needed for sideload):
+flutter build apk --release
+# Output: build/app/outputs/flutter-apk/app-release.apk
+```
+
+**pubspec.lock:** Not in GitHub repo — will be generated fresh on build machine.
+No need to commit it; lock files are excluded from .gitignore in Flutter projects.
+
+---
+
+### Task B — Admin Panel: api_base_url Settings Card
+
+**Server (catalog_api.py):**
+New endpoint: `POST /api/catalog/admin/setting` (admin Basic auth required)
+- Accepts `{"key": "api_base_url", "value": "https://..."}` 
+- Whitelisted keys: api_base_url, jd_delta_url, SUPPORT_WHATSAPP_NUMBER, feature flags, etc.
+- Rejects unknown keys (prevents arbitrary DB key injection)
+- Reads are via existing `/api/app/config` (no new read endpoint needed)
+
+**Admin Panel (admin.html):**
+New card: "Server Settings" — positioned before Database Management card
+- Loads current api_base_url from `/api/app/config` on page open
+- Save button POSTs to `/api/catalog/admin/setting` with cookie-based Basic auth
+- Same auth pattern as Force Sync card (adm_u / adm_p cookies)
+- Shows success/error inline (no page reload)
+
+**Oracle deployment:**
+git stash → pull → stash pop → supervisorctl restart → verified ✅
+Test: POST /api/catalog/admin/setting → {"ok":true,"key":"api_base_url","value":"http://92.4.95.252"}
+
+---
+
+### Task C — forced_ts Handling in Flutter
+
+**catalog_api.dart:**
+- CatalogVersion now has `forcedTs` field (default 0)
+- getVersion() reads `data['forced_ts']` from /api/catalog/version response
+- Server already returns forced_ts (commit 87ed1d4) — this was the missing Flutter side
+
+**sync_service.dart:**
+- _syncFromOracle() now checks: if forced_ts > localVersion → full sync
+- Rationale: admin force-bump means plan/quota changed (no title row edited),
+  so we need a full re-sync not just the delta window
+- If forced_ts == localVersion (normal delta bump) → syncDelta() as before
+- Debug log distinguishes "first sync" vs "admin force-bump" vs "delta sync"
+
+---
+
+### Files Changed
+
+| File | Commit | Change |
+|------|--------|--------|
+| raddflix_flutter/lib/core/api/catalog_api.dart | 81eed759 | Task C: forced_ts field |
+| raddflix_flutter/lib/core/db/sync_service.dart | 81eed759 | Task C: full-sync on force-bump |
+| radd-hub/hub/routes/catalog_api.py | 30780323 | Task B: POST /api/catalog/admin/setting |
+| radd-hub/hub/templates/admin.html | 30780323 | Task B: Server Settings card |
+| .agents/tasks/BUG_TRACKER.md | this commit | All 30 bugs marked resolved |
+| agent-hub/history/TASK_LOG.md | this commit | This entry |
+
+### Notes for Next Agent
+- DB schema: v17. Next migration: if (oldV < 18)
+- Oracle: raddflix_radd RUNNING pid 628893, nginx RUNNING. Port 5000 firewalled externally.
+- ALL 30 bugs confirmed fixed. No open bugs remain.
+- Flutter APK rebuild is the top priority — see Task A build commands above.
+- workmanager package is in pubspec.yaml but background_sync_service.dart is now a stub.
+  The workmanager dep can be removed in a future cleanup (it's unused). Low priority.
+- Admin panel now has: Force User Sync card + Server Settings card (new) + Database Management.
+- api_base_url write: POST /api/catalog/admin/setting (whitelist-protected, admin Basic auth)
+- api_base_url read: GET /api/app/config → field "api_base_url"
+- GITHUB_TOKEN was rotated 2026-06-03 — Oracle git credentials also updated to new token.
