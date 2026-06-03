@@ -62,7 +62,12 @@ def _catalog_version() -> int:
         row = c.execute(
             "SELECT MAX(updated_at) AS v FROM titles WHERE is_published=1"
         ).fetchone()
-        return int(row["v"] or 0)
+        titles_max = int(row["v"] or 0)
+    # Admin can force a version bump (e.g. after plan/subscription changes)
+    # without editing any title row — POST /api/catalog/force-version-bump.
+    forced = db.setting("catalog_forced_version")
+    forced_ts = int(forced) if forced and str(forced).isdigit() else 0
+    return max(titles_max, forced_ts)
 
 
 def _count_published() -> int:
@@ -140,6 +145,61 @@ def version():
     resp.set_etag(str(v))
     resp.headers["Cache-Control"] = "max-age=60"
     return resp
+
+
+@bp.route("/force-version-bump", methods=["POST"])
+def force_version_bump():
+    """POST /api/catalog/force-version-bump  (admin Basic auth required)
+
+    Forces a catalog version bump without editing any title row.
+    Use this after changing subscription plans, quota limits, or any Oracle
+    setting that should trigger a re-sync on all user devices.
+
+    The bumped version is stored in the settings table under the key
+    'catalog_forced_version'. _catalog_version() returns MAX(titles version,
+    forced version) — so normal title edits still auto-bump as before.
+
+    Response:
+        {"ok": true, "version": <new_ts>, "previous": <old_ts>,
+         "message": "Version bumped. All online users sync on next app resume."}
+    """
+    if not _check_admin_auth():
+        return jsonify({"error": "admin auth required (Basic)"}), 401
+
+    import time as _time
+    now_ts = int(_time.time())
+
+    # Read previous forced version for the response
+    prev_forced = db.setting("catalog_forced_version")
+    prev_forced_ts = int(prev_forced) if prev_forced and str(prev_forced).isdigit() else 0
+
+    # Read current titles MAX(updated_at) — so we can report what the version was
+    with db.conn() as c:
+        row = c.execute(
+            "SELECT MAX(updated_at) AS v FROM titles WHERE is_published=1"
+        ).fetchone()
+        titles_max = int(row["v"] or 0)
+
+    previous_version = max(titles_max, prev_forced_ts)
+
+    # Store the new forced version — bump wins if > titles_max, no-ops otherwise
+    db.set_setting("catalog_forced_version", str(now_ts))
+    new_version = max(titles_max, now_ts)
+
+    log.info(
+        "catalog force-version-bump: %d → %d (titles_max=%d)",
+        previous_version, new_version, titles_max
+    )
+
+    return jsonify({
+        "ok":              True,
+        "version":         new_version,
+        "previous":        previous_version,
+        "forced_ts":       now_ts,
+        "message": (
+            "Version bumped to {}. All online users will sync on next app resume.".format(new_version)
+        ),
+    })
 
 
 @bp.route("/db_update/version")
