@@ -173,7 +173,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ]).animate().scale(begin: const Offset(0.6, 0.6), end: const Offset(1, 1),
                       duration: 400.ms, curve: AppCurves.enter),
                   SizedBox(height: 14),
-                  Text(user?.phone ?? '—', style: TextStyle(
+                  Text(user == null || user.isGuest || user.phone == 'guest' ? 'Guest' : user.phone, style: TextStyle(
                       color: t.textPrimary, fontSize: 20, fontWeight: FontWeight.w700,
                       letterSpacing: -0.3))
                       .animate(delay: 100.ms).fadeIn(duration: 300.ms),
