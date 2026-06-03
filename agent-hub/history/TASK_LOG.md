@@ -3489,3 +3489,41 @@ quota limits, or metadata change and you want all user devices to re-sync immedi
 - Admin password: in /opt/jazzmax/radd-hub/.env as RADD_ADMIN_PASS
 
 ---
+
+---
+## [2026-06-03 UTC] — Agent: Replit Main Agent (Admin Force-Sync UI)
+
+### Task
+Add a "Force Sync All Users" button to the Oracle admin panel UI so the admin
+can trigger a catalog version bump with one click instead of a curl command.
+
+### Done
+
+#### admin.html — new card added before Database Management section
+
+**Card: Force User Sync**
+- Shows current catalog version (live from /api/catalog/version) + published title count
+- "Force Sync All Users" button → POST /api/catalog/force-version-bump (Basic auth auto-constructed from session cookies adm_u / adm_p — same pattern as Delta Sync panel)
+- Shows previous version and confirmation message after bump: "Version bumped to X. All online users will sync on next app resume."
+- Refresh button to reload version display without bumping
+
+#### No server-side changes needed
+The backend endpoint (POST /api/catalog/force-version-bump) was built in the previous session.
+This session is UI only — admin.html patched on Oracle + committed to GitHub.
+
+### Files Changed
+- radd-hub/hub/templates/admin.html — commit e95f5b3effb5092ff6b5b156c7bfef87a3235ee1
+
+### Verification
+- Server restarted: raddflix_radd RUNNING pid 622392
+- Admin panel HTTP 302 (correct — auth redirect) ✅
+- /api/catalog/version returning 24 titles, version 1780482891 ✅
+- forceSyncUsers() function and fsync-btn element present in template ✅
+
+### Notes for Next Agent
+- Force Sync card is positioned between the Quota Leaderboard and Database Management cards in admin.html
+- Auth for the button uses same cookie-based Basic auth as Delta Sync panel (_fsyncAuthHdr)
+- DB schema: v17. Next migration: if (oldV < 18)
+- Oracle: raddflix_radd RUNNING, nginx RUNNING. Port 5000 firewalled externally.
+
+---
