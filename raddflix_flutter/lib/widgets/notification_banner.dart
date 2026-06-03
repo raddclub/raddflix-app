@@ -65,9 +65,9 @@ class _NotificationSheet extends StatelessWidget {
       maxChildSize: 0.92,
       builder: (_, ctrl) {
         return Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: t.surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(children: [
             // Handle bar
@@ -85,7 +85,7 @@ class _NotificationSheet extends StatelessWidget {
               child: Row(children: [
                 const Icon(Icons.notifications_outlined, color: AppColors.primary, size: 20),
                 const SizedBox(width: 8),
-                const Text('Notifications',
+                Text('Notifications',
                     style: TextStyle(color: t.textPrimary,
                         fontWeight: FontWeight.w700, fontSize: 16)),
                 const Spacer(),
@@ -111,15 +111,15 @@ class _NotificationSheet extends StatelessWidget {
                 builder: (_, __) {
                   final notifs = NotificationService.instance.notifications;
                   if (notifs.isEmpty) {
-                    return const Center(child: Column(
+                    return Center(child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.notifications_none_rounded,
                             size: 48, color: t.textMuted),
-                        SizedBox(height: 12),
+                        const SizedBox(height: 12),
                         Text('No notifications yet',
                             style: TextStyle(color: t.textMuted, fontSize: 14)),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text('Check back later for updates',
                             style: TextStyle(color: t.textMuted, fontSize: 12)),
                       ],

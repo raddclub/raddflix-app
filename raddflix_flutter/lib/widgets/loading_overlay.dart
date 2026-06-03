@@ -33,7 +33,7 @@ class LoadingOverlay extends StatelessWidget {
                   ),
                   if (message != null) ...[
                     SizedBox(height: 14),
-                    Text(message!, style: const TextStyle(
+                    Text(message!, style: TextStyle(
                         color: t.textSecondary, fontSize: 13)),
                   ],
                 ]),

@@ -241,9 +241,9 @@ class _StreakBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppAppColors.orange.withOpacity(0.15),
+        color: AppColors.orange.withOpacity(0.15),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppAppColors.orange.withOpacity(0.5)),
+        border: Border.all(color: AppColors.orange.withOpacity(0.5)),
       ),
       child: Text(
         '🔥 $streak day streak',

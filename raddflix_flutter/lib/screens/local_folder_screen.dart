@@ -1,12 +1,13 @@
 import 'dart:io';
 import 'dart:typed_data';
-  import 'package:flutter/material.dart';
-  import 'package:flutter_animate/flutter_animate.dart';
-  import 'package:shimmer/shimmer.dart';
-  import '../core/constants.dart';
-  import '../models/local_video.dart';
-  import '../services/local_media_service.dart';
-  import 'player_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shimmer/shimmer.dart';
+import '../core/constants.dart';
+import '../core/theme/radd_theme.dart';
+import '../models/local_video.dart';
+import '../services/local_media_service.dart';
+import 'player_screen.dart';
 
   class LocalFolderScreen extends StatefulWidget {
     final LocalFolder folder;
@@ -123,6 +124,7 @@ import 'dart:typed_data';
     }
 
     void _deleteSelected() async {
+      final t = RaddTheme.of(context);
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
@@ -191,6 +193,7 @@ import 'dart:typed_data';
     }
 
     Widget _buildTopBar(List<LocalVideo> sorted) {
+      final t = RaddTheme.of(context);
       if (_selecting) {
         return Container(
           height: 56,
@@ -286,15 +289,19 @@ import 'dart:typed_data';
       );
     }
 
-    PopupMenuEntry<String> _menuDivider(String label) => PopupMenuItem<String>(
-      enabled: false, height: 28,
-      child: Text(label.toUpperCase(),
-          style: TextStyle(color: t.textMuted, fontSize: 10,
-              fontWeight: FontWeight.w700, letterSpacing: 0.8)),
-    );
+    PopupMenuEntry<String> _menuDivider(String label) {
+      final t = RaddTheme.of(context);
+      return PopupMenuItem<String>(
+        enabled: false, height: 28,
+        child: Text(label.toUpperCase(),
+            style: TextStyle(color: t.textMuted, fontSize: 10,
+                fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+      );
+    }
 
-    PopupMenuItem<String> _menuItem(String val, IconData icon, String label, bool active) =>
-      PopupMenuItem(
+    PopupMenuItem<String> _menuItem(String val, IconData icon, String label, bool active) {
+      final t = RaddTheme.of(context);
+      return PopupMenuItem(
         value: val,
         child: Row(children: [
           Icon(icon, color: active ? AppColors.primary : t.textMuted, size: 18),
@@ -306,8 +313,10 @@ import 'dart:typed_data';
             Icon(Icons.check_rounded, color: AppColors.primary, size: 16)],
         ]),
       );
+    }
 
     Widget _buildSearchBar() {
+      final t = RaddTheme.of(context);
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
         child: TextField(
@@ -329,6 +338,7 @@ import 'dart:typed_data';
     }
 
     Widget _buildStatsBar(List<LocalVideo> sorted) {
+      final t = RaddTheme.of(context);
       final totalSize = sorted.fold(0, (s, v) => s + v.sizeBytes);
       final sizeStr = totalSize > 1024 * 1024 * 1024
           ? '${(totalSize / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB'
@@ -349,6 +359,7 @@ import 'dart:typed_data';
     }
 
     Widget _buildBody(List<LocalVideo> sorted) {
+      final t = RaddTheme.of(context);
       if (sorted.isEmpty) {
         return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.videocam_off_rounded, color: t.textMuted, size: 48),
@@ -516,6 +527,7 @@ import 'dart:typed_data';
     );
 
     void _showVideoMenu(BuildContext context) {
+      final t = RaddTheme.of(context);
       showModalBottomSheet(
         context: context,
         backgroundColor: t.surface,
@@ -563,8 +575,9 @@ import 'dart:typed_data';
     }
 
     ListTile _menuTile(BuildContext ctx, IconData icon, String label,
-        VoidCallback onPressed, {bool isDestructive = false}) =>
-      ListTile(
+        VoidCallback onPressed, {bool isDestructive = false}) {
+      final t = RaddTheme.of(ctx);
+      return ListTile(
         leading: Icon(icon,
             color: isDestructive ? AppColors.error : t.textSecondary, size: 22),
         title: Text(label,
@@ -574,11 +587,13 @@ import 'dart:typed_data';
         onTap: onPressed,
         dense: true,
       );
+    }
 
     void _showFileInfo(BuildContext context) {
+      final t = RaddTheme.of(context);
       showDialog(
         context: context,
-        builder: (_) => AlertDialog(
+        builder: (ctx) => AlertDialog(
           backgroundColor: t.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
           title: Text('File Info', style: TextStyle(color: t.textPrimary,
@@ -586,12 +601,12 @@ import 'dart:typed_data';
           content: Column(mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _infoRow('Name',       video.displayName),
-              _infoRow('Duration',   video.durationMs > 0 ? video.formattedDuration : 'Unknown'),
-              _infoRow('Size',       video.formattedSize),
-              _infoRow('Resolution', video.resolution.isNotEmpty ? '${video.width}×${video.height} (${video.resolution})' : 'Unknown'),
-              _infoRow('Subtitle',   video.hasSrt ? 'SRT found' : 'None'),
-              _infoRow('Path',       video.filePath),
+              _infoRow(ctx, 'Name',       video.displayName),
+              _infoRow(ctx, 'Duration',   video.durationMs > 0 ? video.formattedDuration : 'Unknown'),
+              _infoRow(ctx, 'Size',       video.formattedSize),
+              _infoRow(ctx, 'Resolution', video.resolution.isNotEmpty ? '${video.width}×${video.height} (${video.resolution})' : 'Unknown'),
+              _infoRow(ctx, 'Subtitle',   video.hasSrt ? 'SRT found' : 'None'),
+              _infoRow(ctx, 'Path',       video.filePath),
             ]),
           actions: [TextButton(
             onPressed: () => Navigator.pop(context),
@@ -601,15 +616,18 @@ import 'dart:typed_data';
       );
     }
 
-    Widget _infoRow(String label, String value) => Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: RichText(text: TextSpan(children: [
-        TextSpan(text: '$label: ',
-            style: TextStyle(color: t.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
-        TextSpan(text: value,
-            style: TextStyle(color: t.textSecondary, fontSize: 12)),
-      ])),
-    );
+    Widget _infoRow(BuildContext context, String label, String value) {
+      final t = RaddTheme.of(context);
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: RichText(text: TextSpan(children: [
+          TextSpan(text: '$label: ',
+              style: TextStyle(color: t.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+          TextSpan(text: value,
+              style: TextStyle(color: t.textSecondary, fontSize: 12)),
+        ])),
+      );
+    }
   }
 
   // ── Video grid card ────────────────────────────────────────────────────────────

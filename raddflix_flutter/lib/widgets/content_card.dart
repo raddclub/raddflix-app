@@ -19,7 +19,6 @@ class ContentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: onTap ?? () => _onTap(context),
       onLongPress: onLongPress ?? () => _showQuickView(context),
@@ -32,7 +31,7 @@ class ContentCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppRadius.sm),
           child: Stack(fit: StackFit.expand, children: [
             // Poster
-            _buildPoster(),
+            _buildPoster(context),
             // Gradient overlay
             Positioned(bottom: 0, left: 0, right: 0,
               child: Container(
@@ -121,17 +120,18 @@ class ContentCard extends StatelessWidget {
     );
   }
 
-  Widget _buildPoster() {
+  Widget _buildPoster(BuildContext context) {
     // Prefer local cached poster (works offline/zero-rated)
     if (item.posterPath != null && item.posterPath!.isNotEmpty) {
       final f = File(item.posterPath!);
       return Image.file(f, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildNetworkPoster());
+          errorBuilder: (_, __, ___) => _buildNetworkPoster(context));
     }
-    return _buildNetworkPoster();
+    return _buildNetworkPoster(context);
   }
 
-  Widget _buildNetworkPoster() {
+  Widget _buildNetworkPoster(BuildContext context) {
+    final t = RaddTheme.of(context);
     if (item.posterUrl != null && item.posterUrl!.isNotEmpty) {
       return CachedNetworkImage(
         imageUrl: item.posterUrl!,
@@ -168,7 +168,6 @@ class ShimmerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final t = RaddTheme.of(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Shimmer.fromColors(
@@ -187,7 +186,6 @@ class _Badge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final t = RaddTheme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
@@ -202,7 +200,6 @@ class _Fallback extends StatelessWidget {
   const _Fallback({required this.item});
   @override
   Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
     final t = RaddTheme.of(context);
     return Container(
       color: t.card,
@@ -224,7 +221,6 @@ class _DetailSheet extends StatelessWidget {
   const _DetailSheet({required this.item});
   @override
   Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
     final t = RaddTheme.of(context);
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -306,7 +302,6 @@ class _NewEpBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final t = RaddTheme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
@@ -338,7 +333,6 @@ class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.label, required this.color});
   @override
   Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
     final t = RaddTheme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
@@ -375,7 +369,6 @@ class _UploadingBadgeState extends State<_UploadingBadge>
 
   @override
   Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
     final t = RaddTheme.of(context);
     return FadeTransition(
       opacity: Tween<double>(begin: 0.4, end: 1.0).animate(

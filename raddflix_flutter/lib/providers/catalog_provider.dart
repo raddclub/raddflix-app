@@ -63,6 +63,7 @@ class CatalogNotifier extends StateNotifier<CatalogState>
   CatalogNotifier(this._ref) : super(const CatalogState());
   final Ref _ref;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  DateTime? _lastSyncTime;
 
   // ── Version-gate sync strategy ──────────────────────────────────────────────
   // SyncService.sync() always calls /api/catalog/version first — a ~200 byte

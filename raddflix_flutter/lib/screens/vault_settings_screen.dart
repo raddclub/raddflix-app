@@ -219,6 +219,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
           borderSide: BorderSide(color: t.border)),
     ),
   );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -344,6 +345,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
   }
 
   void _showAutoLockPicker() {
+    final t = RaddTheme.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: t.surface,

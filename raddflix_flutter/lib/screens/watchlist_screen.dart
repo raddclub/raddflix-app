@@ -12,6 +12,7 @@ class WatchlistScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = RaddTheme.of(context);
     final state = ref.watch(watchlistProvider);
 
     return Scaffold(
@@ -118,6 +119,7 @@ class WatchlistScreen extends ConsumerWidget {
 
   Widget _buildGrid(
       BuildContext context, WidgetRef ref, List<CatalogItem> items) {
+    final t = RaddTheme.of(context);
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
