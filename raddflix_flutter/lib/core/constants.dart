@@ -277,6 +277,24 @@ class StorageKeys {
 }
 
 // ── API Paths ─────────────────────────────────────────────────────────────────
+  // ── Brand / Partner colors ─────────────────────────────────────────────────
+  static const Color warningDark    = Color(0xFFB45309); // dark amber — device conflict warning
+  static const Color jazzGreen      = Color(0xFF00A651); // JazzCash brand green
+  static const Color jazzGreenDark  = Color(0xFF006633); // JazzCash dark green
+  static const Color orange         = Color(0xFFFF9800); // upload badge / burn indicator
+  static const Color simosaAccent   = Color(0xFF7C5CFF); // Simosa card purple accent
+  static const Color simosaBgDark   = Color(0xFF1A0A2E); // Simosa dark bg gradient start
+  static const Color simosaBgDark2  = Color(0xFF2D1B5E); // Simosa dark bg gradient end
+  static const Color simosaBgLight  = Color(0xFFEDE7FF); // Simosa light bg gradient start
+  static const Color simosaBgLight2 = Color(0xFFD8C8FF); // Simosa light bg gradient end
+
+  // ── Layout designer ────────────────────────────────────────────────────────
+  static const Color layoutDeep     = Color(0xFF0D0D1A); // Layout designer scaffold bg
+  static const Color layoutPanel    = Color(0xFF12121E); // Layout designer header/footer panel
+  static const Color layoutSheet    = Color(0xFF1E1E2E); // Layout designer bottom sheet
+
+}
+
 class ApiPaths {
   static const String register          = '/api/auth/register';
   static const String login             = '/api/auth/login';
@@ -319,17 +337,4 @@ class ApiPaths {
   static const String usage  = '/api/usage';
   static const String quota  = '/api/usage/quota';
 
-  // ── Brand / utility named constants (appended by theme migration) ──────────
-  static const Color warningDark    = Color(0xFFB45309); // dark amber — device conflict warning
-  static const Color jazzGreen      = Color(0xFF00A651); // SIMOSA / JazzCash brand green
-  static const Color jazzGreenDark  = Color(0xFF006633); // SIMOSA / JazzCash dark green
-  static const Color orange         = Color(0xFFFF9800); // upload badge / burn indicator
-  static const Color simosaAccent   = Color(0xFF7C5CFF); // Simosa card purple accent
-  static const Color simosaBgDark   = Color(0xFF1A0A2E); // Simosa dark bg gradient start
-  static const Color simosaBgDark2  = Color(0xFF2D1B5E); // Simosa dark bg gradient end
-  static const Color simosaBgLight  = Color(0xFFEDE7FF); // Simosa light bg gradient start
-  static const Color simosaBgLight2 = Color(0xFFD8C8FF); // Simosa light bg gradient end
-  static const Color layoutDeep     = Color(0xFF0D0D1A); // Layout designer scaffold bg
-  static const Color layoutPanel    = Color(0xFF12121E); // Layout designer header/footer panel
-  static const Color layoutSheet    = Color(0xFF1E1E2E); // Layout designer bottom sheet
 }

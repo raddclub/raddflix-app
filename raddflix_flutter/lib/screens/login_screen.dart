@@ -444,7 +444,7 @@ class _Logo extends StatelessWidget {
         ),
         SizedBox(height: 14),
         RichText(
-          text: const TextSpan(
+          text: TextSpan(
             style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -1.5, height: 1),
             children: [
               TextSpan(text: 'Radd', style: TextStyle(color: t.textPrimary)),

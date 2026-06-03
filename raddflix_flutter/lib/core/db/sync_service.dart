@@ -75,7 +75,7 @@ class SyncService {
     if (lastSyncTs == 0) {
       items = await CatalogApi.syncFull();
     } else {
-      items = await CatalogApi.syncDelta(lastSyncTs);
+      items = await CatalogApi.syncDelta(localVersion);
     }
 
     await _persistItems(items);

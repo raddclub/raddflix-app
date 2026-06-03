@@ -210,12 +210,14 @@ def generate_delta_json(out_path: str | Path) -> dict:
             "episodes":        episodes_out,    # nested list (empty for movies)
         })
 
-    # ── 5. Catalog version (MAX updated_at of published titles) ──────────────
+    # ── 5. Catalog version (MAX updated_at OR forced version — matches /api/catalog/version) ─
     with db.conn() as c:
         ver_row = c.execute(
             "SELECT MAX(updated_at) AS v FROM titles WHERE is_published=1"
         ).fetchone()
-    catalog_version = int(ver_row["v"] or now_ts)
+    titles_max = int(ver_row["v"] or 0)
+    forced_ts  = int(db.get_setting("catalog_forced_version") or 0)
+    catalog_version = max(titles_max, forced_ts) or now_ts
 
     # ── 6. Write JSON ─────────────────────────────────────────────────────────
     payload = {

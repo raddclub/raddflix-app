@@ -390,7 +390,7 @@ def api_trending():
     limit = int(request.args.get("limit", 20))
     media_type = request.args.get("type", "").strip().lower()
 
-    conditions = ["t.is_published = 1", "t.poster_url IS NOT NULL AND t.poster_url != ''"]
+    conditions = ["t.is_published = 1", "t.poster IS NOT NULL AND t.poster != ''"]
     params = []
 
     if media_type:
@@ -403,13 +403,13 @@ def api_trending():
     sql = f"""
         SELECT t.id, t.title, t.year, t.media_type, t.plot,
                t.rating, t.genres, t.language, t.is_free, t.updated_at,
-               t.poster, t.poster_share_url, t.poster_url, t.runtime,
+               t.poster, t.poster_share_url, t.runtime,
                t.season_count, t.episode_count,
                (SELECT id FROM files WHERE title_id = t.id LIMIT 1) AS file_id,
                (SELECT COUNT(*) FROM watch_history wh
                 JOIN files fi ON fi.id = CAST(wh.file_id AS INTEGER)
                 WHERE fi.title_id = t.id
-                  AND wh.watched_at >= datetime('now', '-60 days')
+                  AND wh.watched_at >= (strftime('%s', 'now') - 5184000)
                ) AS recent_views
         FROM titles t
         {where}
@@ -445,7 +445,7 @@ def api_trending():
                 "runtime": r["runtime"],
                 "season_count": r["season_count"],
                 "episode_count": r["episode_count"],
-                "poster_url": r["poster_url"] or r["poster"] or "",
+                "poster_url": r["poster"] or "",
                 "poster_share_url": r["poster_share_url"] or "",
                 "db_version": int(r["updated_at"] or 0),
                 "file_id": str(r["file_id"]) if r["file_id"] else None,
