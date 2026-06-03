@@ -3395,3 +3395,44 @@ After every SyncService.sync() success:
 - The minimum resume-sync gap is 5 min (`_minResumeSyncGap`) — prevents rapid hammering on quick screen-off/on or back-navigation.
 - `_pollTimer` is cancelled in `dispose()` — no timer leak.
 - AndroidManifest.xml `android:name="${applicationName}"` is the correct Flutter placeholder — do NOT change it.
+
+---
+## [2026-06-03 UTC] — Agent: Replit Main Agent (Read-Only)
+
+### Task
+User asked: "find out what the last agent did, what changes and work it was doing."
+
+### Done
+- Ran install.sh (SSH key setup attempted; Oracle port test timed out on port 5000 as expected)
+- Fetched and read SKILLS.md, REINCARNATION.md, MASTER_TASKLIST.md, TASK_LOG.md from GitHub
+- Identified and summarized the last two code-changing sessions for the user
+
+### Files Changed
+- agent-hub/history/TASK_LOG.md — appended this entry only
+
+### Summary of Last Agent Work
+
+The two most recent code-changing sessions were both on 2026-06-02:
+
+#### Last session: Session 39b — Real-time Catalog Sync
+- Added automatic catalog propagation: Oracle DB changes (is_free, new title, poster, plan) reach users automatically
+- Foreground: WidgetsBindingObserver resumes sync (5-min debounce) + 15-min poll timer in CatalogNotifier
+- Background: WorkManager 6-hour periodic task via BackgroundSyncService (runs even when app is closed)
+- Post-sync: authProvider.silentRefresh() refreshes subscription/quota/plan after every sync
+- Files: background_sync_service.dart (NEW), catalog_provider.dart, main.dart, pubspec.yaml (workmanager ^0.5.7)
+
+#### Session 39 — Comprehensive Bug Hunt (4 bugs fixed)
+- AUDIT-18a (app.dart): null-unsafe player route args crash → null-safe cast with fallback defaults
+- AUDIT-18b (app.dart + local_folder_screen.dart): episodes List type mismatch crash (Map<String,Object> vs Map<String,dynamic>) → explicit Map<String,dynamic>.from()
+- AUDIT-17 (local_db.dart + player_screen.dart): RF1:xxx encoded share_url passed raw to JazzDrive → added LocalDb.decodeShareUrl() helper + decode before passing
+- player_screen.dart: _playNextEpisode() discarded local_path → local folder Play All auto-advance now works
+- Files changed: app.dart, local_folder_screen.dart, local_db.dart, player_screen.dart
+
+### Notes for Next Agent
+- DB schema: v17. Next migration: if (oldV < 18)
+- APK rebuild required for all Flutter changes merged to main (sessions 37b, 39, 39b)
+- Oracle: raddflix_radd RUNNING, nginx RUNNING. Port 5000 firewalled externally
+- Known Issues remaining: R1 (wire accent+seekBarStyle to player), R2 (all titles is_free=0), R3 (folder_share_url=NULL), R4 (SSL), R5 (WA Bot pairing), R6 (JazzDrive SAPI 401)
+- LocalDb.decodeShareUrl(url) is now canonical for decoding any CatalogItem.shareUrl before JazzDrive/API use
+
+---
