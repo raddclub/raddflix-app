@@ -905,7 +905,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                     color: Colors.white10,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Colors.white.withOpacity(0.20))),
-                  child: Text('\${s}×',
+                  child: Text('${s}×',
                       style: const TextStyle(color: Colors.white60, fontSize: 12)),
                 ),
               );
