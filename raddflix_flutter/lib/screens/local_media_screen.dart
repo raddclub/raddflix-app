@@ -125,9 +125,10 @@ import 'dart:typed_data';
 
     @override
     Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
       super.build(context);
       return Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: t.bg,
         body: SafeArea(
           child: Column(children: [
             _buildTopBar(),
@@ -146,7 +147,7 @@ import 'dart:typed_data';
           RichText(text: const TextSpan(
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5),
             children: [
-              TextSpan(text: 'Local ', style: TextStyle(color: AppColors.textPrimary)),
+              TextSpan(text: 'Local ', style: TextStyle(color: t.textPrimary)),
               TextSpan(text: 'Media', style: TextStyle(color: AppColors.primary)),
             ],
           )),
@@ -156,22 +157,22 @@ import 'dart:typed_data';
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: t.surface,
                 borderRadius: BorderRadius.circular(AppRadius.round),
-                border: Border.all(color: AppColors.glassBorder),
+                border: Border.all(color: t.border),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.video_library_rounded, size: 11, color: AppColors.primary),
-                const SizedBox(width: 4),
+                Icon(Icons.video_library_rounded, size: 11, color: AppColors.primary),
+                SizedBox(width: 4),
                 Text('$_totalVideos',
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w600)),
+                    style: TextStyle(color: t.textMuted, fontSize: 11, fontWeight: FontWeight.w600)),
               ]),
             ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           // Search
           IconButton(
             icon: Icon(_searching ? Icons.close_rounded : Icons.search_rounded,
-                color: AppColors.textSecondary, size: 22),
+                color: t.textSecondary, size: 22),
             onPressed: () {
               setState(() {
                 _searching = !_searching;
@@ -188,7 +189,7 @@ import 'dart:typed_data';
               _view == _LocalViewMode.list
                   ? Icons.grid_view_rounded
                   : Icons.view_list_rounded,
-              color: AppColors.textSecondary, size: 22),
+              color: t.textSecondary, size: 22),
             onPressed: () => setState(() =>
                 _view = _view == _LocalViewMode.list
                     ? _LocalViewMode.grid
@@ -198,8 +199,8 @@ import 'dart:typed_data';
           ),
           // Sort
           PopupMenuButton<_LocalSortMode>(
-            icon: const Icon(Icons.sort_rounded, color: AppColors.textSecondary, size: 22),
-            color: AppColors.surface,
+            icon: Icon(Icons.sort_rounded, color: t.textSecondary, size: 22),
+            color: t.surface,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
             onSelected: (m) => setState(() => _sort = m),
             itemBuilder: (_) => [
@@ -219,13 +220,13 @@ import 'dart:typed_data';
       return PopupMenuItem(
         value: mode,
         child: Row(children: [
-          Icon(icon, color: active ? AppColors.primary : AppColors.textMuted, size: 18),
-          const SizedBox(width: 10),
+          Icon(icon, color: active ? AppColors.primary : t.textMuted, size: 18),
+          SizedBox(width: 10),
           Text(label, style: TextStyle(
-              color: active ? AppColors.primary : AppColors.textPrimary, fontSize: 14,
+              color: active ? AppColors.primary : t.textPrimary, fontSize: 14,
               fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
           if (active) ...[const Spacer(),
-            const Icon(Icons.check_rounded, color: AppColors.primary, size: 16)],
+            Icon(Icons.check_rounded, color: AppColors.primary, size: 16)],
         ]),
       );
     }
@@ -237,13 +238,13 @@ import 'dart:typed_data';
           controller: _searchCtrl,
           focusNode: _searchFocus,
           onChanged: (v) => setState(() => _searchQuery = v),
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+          style: TextStyle(color: t.textPrimary, fontSize: 15),
           decoration: InputDecoration(
             hintText: 'Search folders…',
-            hintStyle: const TextStyle(color: AppColors.textMuted),
-            prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textMuted, size: 20),
+            hintStyle: TextStyle(color: t.textMuted),
+            prefixIcon: Icon(Icons.search_rounded, color: t.textMuted, size: 20),
             filled: true,
-            fillColor: AppColors.surface,
+            fillColor: t.surface,
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppRadius.md),
                 borderSide: BorderSide.none),
@@ -276,7 +277,7 @@ import 'dart:typed_data';
 
       return RefreshIndicator(
         color: AppColors.primary,
-        backgroundColor: AppColors.surface,
+        backgroundColor: t.surface,
         onRefresh: () => _load(refresh: true),
         child: ListView.builder(
           padding: const EdgeInsets.fromLTRB(0, 4, 0, 24),
@@ -307,14 +308,14 @@ import 'dart:typed_data';
           Container(width: 80, height: 80,
             decoration: BoxDecoration(shape: BoxShape.circle,
                 color: AppColors.error.withOpacity(0.1)),
-            child: const Icon(Icons.folder_off_rounded, color: AppColors.error, size: 40)),
-          const SizedBox(height: 24),
-          const Text('Storage Permission Required',
-              style: TextStyle(color: AppColors.textPrimary, fontSize: 18,
+            child: Icon(Icons.folder_off_rounded, color: AppColors.error, size: 40)),
+          SizedBox(height: 24),
+          Text('Storage Permission Required',
+              style: TextStyle(color: t.textPrimary, fontSize: 18,
                   fontWeight: FontWeight.w700), textAlign: TextAlign.center),
-          const SizedBox(height: 10),
-          const Text('RaddFlix needs permission to browse your videos',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 14, height: 1.6),
+          SizedBox(height: 10),
+          Text('RaddFlix needs permission to browse your videos',
+              style: TextStyle(color: t.textMuted, fontSize: 14, height: 1.6),
               textAlign: TextAlign.center),
           const SizedBox(height: 28),
           GestureDetector(
@@ -326,7 +327,7 @@ import 'dart:typed_data';
                 borderRadius: BorderRadius.circular(AppRadius.round),
                 boxShadow: AppShadows.primary,
               ),
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.settings_rounded, size: 18, color: Colors.white),
                 SizedBox(width: 8),
                 Text('Open Settings', style: TextStyle(color: Colors.white,
@@ -334,10 +335,10 @@ import 'dart:typed_data';
               ]),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           TextButton(
             onPressed: _load,
-            child: const Text('Try Again', style: TextStyle(color: AppColors.textSecondary)),
+            child: Text('Try Again', style: TextStyle(color: t.textSecondary)),
           ),
         ]),
       ));
@@ -347,16 +348,16 @@ import 'dart:typed_data';
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(
           width: 84, height: 84,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.surface,
-              border: Border.all(color: AppColors.glassBorder, width: 1.5)),
-          child: const Icon(Icons.video_library_outlined, color: AppColors.textMuted, size: 40),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: t.surface,
+              border: Border.all(color: t.border, width: 1.5)),
+          child: Icon(Icons.video_library_outlined, color: t.textMuted, size: 40),
         ),
-        const SizedBox(height: 18),
+        SizedBox(height: 18),
         Text(_searchQuery.isNotEmpty ? 'No folders match "$_searchQuery"' : 'No videos found',
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 6),
-        const Text('Videos on your device will appear here.',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+            style: TextStyle(color: t.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+        SizedBox(height: 6),
+        Text('Videos on your device will appear here.',
+            style: TextStyle(color: t.textMuted, fontSize: 13)),
       ]));
     }
 
@@ -365,11 +366,11 @@ import 'dart:typed_data';
         itemCount: 7,
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemBuilder: (_, __) => Shimmer.fromColors(
-          baseColor: AppColors.surface,
-          highlightColor: AppColors.surfaceHigh,
+          baseColor: t.surface,
+          highlightColor: t.surfaceHigh,
           child: Container(
             height: 72, margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            decoration: BoxDecoration(color: AppColors.surface,
+            decoration: BoxDecoration(color: t.surface,
                 borderRadius: BorderRadius.circular(AppRadius.md))),
         ),
       );
@@ -385,6 +386,7 @@ import 'dart:typed_data';
 
     @override
     Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
       return Material(
         color: Colors.transparent,
         child: InkWell(
@@ -397,29 +399,29 @@ import 'dart:typed_data';
               Container(
                 width: 68, height: 58,
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: t.surface,
                   borderRadius: BorderRadius.circular(AppRadius.sm),
-                  border: Border.all(color: AppColors.glassBorder, width: 0.5),
+                  border: Border.all(color: t.border, width: 0.5),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(AppRadius.sm - 0.5),
                   child: thumb != null
                       ? Image.memory(thumb!, fit: BoxFit.cover)
-                      : const Center(child: Icon(Icons.folder_rounded,
-                          color: AppColors.textMuted, size: 28)),
+                      : Center(child: Icon(Icons.folder_rounded,
+                          color: t.textMuted, size: 28)),
                 ),
               ),
-              const SizedBox(width: 14),
+              SizedBox(width: 14),
               // Info
               Expanded(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(folder.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.textPrimary,
+                      style: TextStyle(color: t.textPrimary,
                           fontSize: 14, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Row(children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -428,11 +430,11 @@ import 'dart:typed_data';
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text('${folder.videos.length} vid${folder.videos.length == 1 ? '' : 's'}',
-                          style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
+                          style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Text(folder.formattedTotalSize,
-                        style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                        style: TextStyle(color: t.textMuted, fontSize: 11)),
                   ]),
                 ],
               )),
@@ -447,10 +449,10 @@ import 'dart:typed_data';
                   ),
                   child: Text(
                     folder.newCount > 99 ? '99+' : '${folder.newCount} new',
-                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800),
+                    style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800),
                   ),
                 ),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 20),
+              Icon(Icons.chevron_right_rounded, color: t.textMuted, size: 20),
             ]),
           ),
         ),
@@ -467,6 +469,7 @@ import 'dart:typed_data';
 
     @override
     Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
       return GestureDetector(
         onTap: onTap,
         child: ClipRRect(
@@ -474,8 +477,8 @@ import 'dart:typed_data';
           child: Stack(fit: StackFit.expand, children: [
             thumb != null
                 ? Image.memory(thumb!, fit: BoxFit.cover)
-                : Container(color: AppColors.surface,
-                    child: const Icon(Icons.folder_rounded, color: AppColors.textMuted, size: 36)),
+                : Container(color: t.surface,
+                    child: Icon(Icons.folder_rounded, color: t.textMuted, size: 36)),
             // Gradient scrim
             DecoratedBox(decoration: BoxDecoration(
               gradient: LinearGradient(

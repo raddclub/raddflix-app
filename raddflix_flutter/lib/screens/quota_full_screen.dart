@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/constants.dart';
 
@@ -7,10 +8,11 @@ class QuotaFullScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return PopScope(
       canPop: true,
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: t.bg,
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -43,11 +45,11 @@ class QuotaFullScreen extends StatelessWidget {
                     border: Border.all(
                         color: AppColors.primary.withOpacity(0.25), width: 2),
                   ),
-                  child: const Icon(Icons.data_usage_rounded,
+                  child: Icon(Icons.data_usage_rounded,
                       color: AppColors.primary, size: 46),
                 ),
-                const SizedBox(height: 32),
-                const Text(
+                SizedBox(height: 32),
+                Text(
                   'Daily Limit Reached',
                   style: TextStyle(
                       color: Colors.white,
@@ -56,11 +58,11 @@ class QuotaFullScreen extends StatelessWidget {
                       letterSpacing: -0.5),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 14),
-                const Text(
+                SizedBox(height: 14),
+                Text(
                   "You've used your daily data quota. Upgrade your plan for more streaming, or get 100 MB free today via SIMOSA.",
                   style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: t.textSecondary,
                       fontSize: 14,
                       height: 1.6),
                   textAlign: TextAlign.center,
@@ -102,7 +104,7 @@ class QuotaFullScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 GestureDetector(
                   onTap: () async {
                     final uri =
@@ -116,11 +118,11 @@ class QuotaFullScreen extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     decoration: BoxDecoration(
-                      color: AppColors.card,
+                      color: t.card,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.cardBorder),
+                      border: Border.all(color: t.cardBorder),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text('🔥', style: TextStyle(fontSize: 18)),
@@ -134,12 +136,12 @@ class QuotaFullScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Go Back',
+                  child: Text('Go Back',
                       style: TextStyle(
-                          color: AppColors.textMuted, fontSize: 14)),
+                          color: t.textMuted, fontSize: 14)),
                 ),
               ],
             ),

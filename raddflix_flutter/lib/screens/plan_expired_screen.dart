@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import '../core/constants.dart';
 
 /// Task 6.9 — shown when an offline file is opened but the subscription
@@ -8,10 +9,11 @@ class PlanExpiredScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return PopScope(
       canPop: true,
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: t.bg,
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -44,11 +46,11 @@ class PlanExpiredScreen extends StatelessWidget {
                     border: Border.all(
                         color: AppColors.primary.withOpacity(0.25), width: 2),
                   ),
-                  child: const Icon(Icons.lock_clock_rounded,
+                  child: Icon(Icons.lock_clock_rounded,
                       color: AppColors.primary, size: 46),
                 ),
-                const SizedBox(height: 32),
-                const Text(
+                SizedBox(height: 32),
+                Text(
                   'Plan Expired',
                   style: TextStyle(
                       color: Colors.white,
@@ -57,11 +59,11 @@ class PlanExpiredScreen extends StatelessWidget {
                       letterSpacing: -0.5),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 14),
-                const Text(
+                SizedBox(height: 14),
+                Text(
                   'Your subscription has expired. Renew your plan to continue watching downloaded content offline.',
                   style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: t.textSecondary,
                       fontSize: 14,
                       height: 1.6),
                   textAlign: TextAlign.center,
@@ -103,12 +105,12 @@ class PlanExpiredScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Go Back',
+                  child: Text('Go Back',
                       style: TextStyle(
-                          color: AppColors.textMuted, fontSize: 14)),
+                          color: t.textMuted, fontSize: 14)),
                 ),
               ],
             ),

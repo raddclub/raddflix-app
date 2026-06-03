@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -67,6 +68,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     final catalog = ref.watch(catalogProvider);
     final user    = ref.watch(authProvider).user;
 
@@ -76,7 +78,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: _buildAppBar(user),
       body: RefreshIndicator(
         color: AppColors.primary,
-        backgroundColor: AppColors.surface,
+        backgroundColor: t.surface,
         onRefresh: () => ref.read(catalogProvider.notifier).syncFromServer(),
         child: catalog.isEmpty && catalog.status == CatalogStatus.syncing
             ? _buildShimmer()
@@ -96,7 +98,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   PreferredSizeWidget _buildAppBar(dynamic user) {
     return AppBar(
-      backgroundColor: _scrolled ? AppColors.surface.withOpacity(0.95) : Colors.transparent,
+      backgroundColor: _scrolled ? t.surface.withOpacity(0.95) : Colors.transparent,
       elevation: 0,
       flexibleSpace: _scrolled
           ? null
@@ -104,13 +106,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                  colors: [AppColors.background, Colors.transparent]),
+                  colors: [t.bg, Colors.transparent]),
               )),
       title: RichText(
         text: const TextSpan(
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5),
           children: [
-            TextSpan(text: 'Radd', style: TextStyle(color: AppColors.textPrimary)),
+            TextSpan(text: 'Radd', style: TextStyle(color: t.textPrimary)),
             TextSpan(text: 'Flix', style: TextStyle(color: AppColors.primary)),
           ],
         ),
@@ -160,7 +162,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: t.surface,
                   borderRadius: BorderRadius.circular(AppRadius.round),
                   border: Border.all(color: AppColors.primary.withOpacity(0.25)),
                   boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.08), blurRadius: 12)],
@@ -250,10 +252,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     child: Center(child: Padding(
                       padding: const EdgeInsets.only(top: 40),
                       child: Column(children: [
-                        const Icon(Icons.search_off_rounded, color: AppColors.textMuted, size: 48),
-                        const SizedBox(height: 12),
+                        Icon(Icons.search_off_rounded, color: t.textMuted, size: 48),
+                        SizedBox(height: 12),
                         Text('No $_selectedCategory content yet',
-                            style: const TextStyle(color: AppColors.textMuted)),
+                            style: TextStyle(color: t.textMuted)),
                       ]),
                     )))
                 : SliverGrid(
@@ -276,22 +278,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildShimmer() {
     return ListView(physics: const NeverScrollableScrollPhysics(), children: [
-      const SizedBox(height: 96),
+      SizedBox(height: 96),
       // Hero shimmer
       Shimmer.fromColors(
-        baseColor: AppColors.surface, highlightColor: AppColors.surfaceHigh,
+        baseColor: t.surface, highlightColor: t.surfaceHigh,
         child: Container(height: 264, margin: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(color: AppColors.surface,
+            decoration: BoxDecoration(color: t.surface,
                 borderRadius: BorderRadius.circular(AppRadius.lg)))),
-      const SizedBox(height: 16),
+      SizedBox(height: 16),
       // Row shimmer
       SizedBox(height: 180,
         child: ListView.builder(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16),
           itemCount: 5, itemBuilder: (_, __) =>
               Padding(padding: const EdgeInsets.only(right: 10),
-                child: Shimmer.fromColors(baseColor: AppColors.surface,
-                  highlightColor: AppColors.surfaceHigh,
-                  child: Container(width: 120, decoration: BoxDecoration(color: AppColors.surface,
+                child: Shimmer.fromColors(baseColor: t.surface,
+                  highlightColor: t.surfaceHigh,
+                  child: Container(width: 120, decoration: BoxDecoration(color: t.surface,
                       borderRadius: BorderRadius.circular(AppRadius.sm))))))),
     ]);
   }
@@ -329,6 +331,7 @@ class _HeroSpotlightState extends State<_HeroSpotlight> {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Column(children: [
       SizedBox(
         height: 264,
@@ -339,7 +342,7 @@ class _HeroSpotlightState extends State<_HeroSpotlight> {
           itemBuilder: (_, i) => _HeroCard(item: widget.items[i]),
         ),
       ),
-      const SizedBox(height: 10),
+      SizedBox(height: 10),
       Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(
         widget.items.length,
         (i) => AnimatedContainer(
@@ -348,7 +351,7 @@ class _HeroSpotlightState extends State<_HeroSpotlight> {
           width: _current == i ? 22 : 5,
           height: 5,
           decoration: BoxDecoration(
-            color: _current == i ? AppColors.primary : AppColors.textMuted.withOpacity(0.3),
+            color: _current == i ? AppColors.primary : t.textMuted.withOpacity(0.3),
             borderRadius: BorderRadius.circular(3)),
         ),
       )),
@@ -362,6 +365,7 @@ class _HeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: () {
         Navigator.of(context).pushNamed(AppRoutes.showDetail, arguments: item);
@@ -450,7 +454,7 @@ class _HeroCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(AppRadius.round),
                         border: Border.all(color: Colors.white24),
                       ),
-                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Icon(Icons.add_rounded, color: Colors.white, size: 16),
                         SizedBox(width: 4),
                         Text('My List', style: TextStyle(color: Colors.white,
@@ -468,8 +472,8 @@ class _HeroCard extends StatelessWidget {
 
   Widget _buildPosterImage() {
     const placeholder = DecoratedBox(
-      decoration: BoxDecoration(color: AppColors.card),
-      child: Center(child: Icon(Icons.movie_outlined, color: AppColors.textMuted, size: 48)),
+      decoration: BoxDecoration(color: t.card),
+      child: Center(child: Icon(Icons.movie_outlined, color: t.textMuted, size: 48)),
     );
 
     // 1. Local file (permanent cached poster — zero network, instant load)
@@ -513,6 +517,7 @@ class _ContentSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
@@ -526,7 +531,7 @@ class _ContentSection extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          Text(title, style: const TextStyle(color: AppColors.textPrimary,
+          Text(title, style: TextStyle(color: t.textPrimary,
               fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
           if (count != null) ...[
             const SizedBox(width: 8),
@@ -538,7 +543,7 @@ class _ContentSection extends StatelessWidget {
                 border: Border.all(color: AppColors.primary.withOpacity(0.2)),
               ),
               child: Text(count.toString(),
-                  style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
+                  style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
             ),
           ],
           const Spacer(),
@@ -553,9 +558,9 @@ class _ContentSection extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: t.surface,
                 borderRadius: BorderRadius.circular(AppRadius.round),
-                border: Border.all(color: AppColors.glassBorder),
+                border: Border.all(color: t.border),
               ),
               child: const Text('See all', style: TextStyle(
                   color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
@@ -595,40 +600,40 @@ class _ContentSection extends StatelessWidget {
       builder: (_) => Container(
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: t.surface,
           borderRadius: BorderRadius.circular(AppRadius.xl),
-          border: Border.all(color: AppColors.glassBorder),
+          border: Border.all(color: t.border),
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(width: 36, height: 4, margin: const EdgeInsets.only(top: 12, bottom: 16),
-              decoration: BoxDecoration(color: AppColors.textMuted.withOpacity(0.4),
+              decoration: BoxDecoration(color: t.textMuted.withOpacity(0.4),
                   borderRadius: BorderRadius.circular(2))),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
             child: Column(children: [
               Row(children: [
-                const Icon(Icons.remove_circle_outline_rounded,
+                Icon(Icons.remove_circle_outline_rounded,
                     color: AppColors.error, size: 20),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(child: Text(
                   'Remove "${item.title}" from Continue Watching?',
-                  style: const TextStyle(color: AppColors.textPrimary,
+                  style: TextStyle(color: t.textPrimary,
                       fontSize: 14, fontWeight: FontWeight.w600),
                 )),
               ]),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Row(children: [
                 Expanded(child: GestureDetector(
                   onTap: () => Navigator.pop(context),
                   child: Container(
                     height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceHigh,
+                      color: t.surfaceHigh,
                       borderRadius: BorderRadius.circular(AppRadius.md),
-                      border: Border.all(color: AppColors.glassBorder),
+                      border: Border.all(color: t.border),
                     ),
-                    child: const Center(child: Text('Cancel',
-                        style: TextStyle(color: AppColors.textMuted, fontSize: 14))),
+                    child: Center(child: Text('Cancel',
+                        style: TextStyle(color: t.textMuted, fontSize: 14))),
                   ),
                 )),
                 const SizedBox(width: 12),
@@ -667,6 +672,7 @@ class _CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -677,16 +683,16 @@ class _CategoryChip extends StatelessWidget {
           gradient: isSelected
               ? AppColors.primaryGradient
               : null,
-          color: isSelected ? null : AppColors.surface,
+          color: isSelected ? null : t.surface,
           borderRadius: BorderRadius.circular(AppRadius.round),
           border: Border.all(
-            color: isSelected ? Colors.transparent : AppColors.glassBorder, width: 1),
+            color: isSelected ? Colors.transparent : t.border, width: 1),
           boxShadow: isSelected
               ? [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))]
               : null,
         ),
         child: Text(label, style: TextStyle(
-          color: isSelected ? Colors.white : AppColors.textMuted,
+          color: isSelected ? Colors.white : t.textMuted,
           fontSize: 12, fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500)),
       ),
     );
@@ -700,6 +706,7 @@ class _RecommendationsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
@@ -707,19 +714,19 @@ class _RecommendationsSection extends StatelessWidget {
           Container(width: 3, height: 20, margin: const EdgeInsets.only(right: 10),
               decoration: BoxDecoration(gradient: AppColors.primaryGradient,
                   borderRadius: BorderRadius.circular(2))),
-          const Text('You Might Like',
-              style: TextStyle(color: AppColors.textPrimary, fontSize: 17,
+          Text('You Might Like',
+              style: TextStyle(color: t.textPrimary, fontSize: 17,
                   fontWeight: FontWeight.w800, letterSpacing: -0.4)),
           const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: t.surface,
               borderRadius: BorderRadius.circular(AppRadius.round),
-              border: Border.all(color: AppColors.glassBorder),
+              border: Border.all(color: t.border),
             ),
-            child: const Text('TMDB',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 9,
+            child: Text('TMDB',
+                style: TextStyle(color: t.textMuted, fontSize: 9,
                     fontWeight: FontWeight.w700, letterSpacing: 0.5)),
           ),
         ]),
@@ -760,11 +767,12 @@ class _RecommendCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: () {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('"$title" is not in the RaddFlix library yet'),
-          backgroundColor: AppColors.surface,
+          backgroundColor: t.surface,
           behavior: SnackBarBehavior.floating,
           action: SnackBarAction(
             label: 'Search',
@@ -784,15 +792,15 @@ class _RecommendCard extends StatelessWidget {
             poster.isNotEmpty
                 ? CachedNetworkImage(imageUrl: poster, fit: BoxFit.cover,
                     placeholder: (_, __) => Shimmer.fromColors(
-                      baseColor: AppColors.card,
-                      highlightColor: AppColors.surfaceHigh,
-                      child: Container(color: AppColors.card)),
-                    errorWidget: (_, __, ___) => Container(color: AppColors.card,
-                        child: const Icon(Icons.movie_outlined,
-                            color: AppColors.textMuted, size: 28)))
-                : Container(color: AppColors.card,
-                    child: const Icon(Icons.movie_outlined,
-                        color: AppColors.textMuted, size: 28)),
+                      baseColor: t.card,
+                      highlightColor: t.surfaceHigh,
+                      child: Container(color: t.card)),
+                    errorWidget: (_, __, ___) => Container(color: t.card,
+                        child: Icon(Icons.movie_outlined,
+                            color: t.textMuted, size: 28)))
+                : Container(color: t.card,
+                    child: Icon(Icons.movie_outlined,
+                        color: t.textMuted, size: 28)),
             // Gradient overlay
             Positioned(bottom: 0, left: 0, right: 0,
               child: Container(

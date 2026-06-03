@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -62,6 +63,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     final authState = ref.watch(authProvider);
     return LoadingOverlay(
       loading: _loading,
@@ -88,21 +90,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 48),
+                    SizedBox(height: 48),
                     // Logo
                     Center(child: _Logo())
                         .animate().fadeIn(duration: 500.ms)
                         .scale(begin: const Offset(0.8, 0.8), end: const Offset(1, 1),
                             duration: 500.ms, curve: AppCurves.enter),
-                    const SizedBox(height: 48),
+                    SizedBox(height: 48),
                     Text('Welcome back',
                         style: TextStyle(
-                          color: AppColors.textMuted, fontSize: 14, letterSpacing: 0.3))
+                          color: t.textMuted, fontSize: 14, letterSpacing: 0.3))
                         .animate(delay: 100.ms).fadeIn(duration: 400.ms),
-                    const SizedBox(height: 4),
-                    const Text('Sign In',
+                    SizedBox(height: 4),
+                    Text('Sign In',
                         style: TextStyle(
-                          color: AppColors.textPrimary, fontSize: 28,
+                          color: t.textPrimary, fontSize: 28,
                           fontWeight: FontWeight.w800, letterSpacing: -0.5))
                         .animate(delay: 150.ms).fadeIn(duration: 400.ms)
                         .slideX(begin: -0.2, end: 0, duration: 400.ms, curve: AppCurves.standard),
@@ -122,7 +124,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           },
                         ).animate(delay: 200.ms).fadeIn(duration: 350.ms)
                             .slideY(begin: 0.2, end: 0, duration: 350.ms, curve: AppCurves.standard),
-                        const SizedBox(height: 14),
+                        SizedBox(height: 14),
                         RaddTextField(
                           controller: _passCtrl,
                           label: 'Password',
@@ -131,7 +133,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                              color: AppColors.textMuted, size: 20),
+                              color: t.textMuted, size: 20),
                             onPressed: () => setState(() => _obscure = !_obscure),
                           ),
                           validator: (v) {
@@ -152,26 +154,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       _ErrorBanner(message: _error!)
                           .animate().fadeIn(duration: 250.ms).shakeX(hz: 3, amount: 4),
                     ],
-                    const SizedBox(height: 28),
+                    SizedBox(height: 28),
                     // Sign In Button
                     _GradientButton(label: 'Sign In', onTap: _loading ? null : _login)
                         .animate(delay: 320.ms).fadeIn(duration: 350.ms)
                         .slideY(begin: 0.2, end: 0, duration: 350.ms, curve: AppCurves.standard),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     // Guest
                     OutlinedButton(
                       onPressed: _loading ? null : _guest,
-                      child: const Text('Continue as Guest'),
+                      child: Text('Continue as Guest'),
                     )
                         .animate(delay: 370.ms).fadeIn(duration: 350.ms),
-                    const SizedBox(height: 24),
+                    SizedBox(height: 24),
                     Center(
                       child: GestureDetector(
                         onTap: () => Navigator.of(context).pushNamed(AppRoutes.register),
                         child: Text.rich(
                           TextSpan(
                             text: "Don't have an account? ",
-                            style: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+                            style: TextStyle(color: t.textMuted, fontSize: 14),
                             children: [
                               TextSpan(text: 'Register',
                                   style: const TextStyle(
@@ -291,6 +293,7 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -301,17 +304,17 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header
         Row(children: [
-          const Icon(Icons.devices_outlined, color: Color(0xFFF59E0B), size: 18),
-          const SizedBox(width: 8),
-          const Text('Device Conflict',
+          Icon(Icons.devices_outlined, color: Color(0xFFF59E0B), size: 18),
+          SizedBox(width: 8),
+          Text('Device Conflict',
               style: TextStyle(color: Color(0xFFF59E0B), fontSize: 14,
                   fontWeight: FontWeight.w700)),
         ]),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         Text(
           'This account is already signed in on "${widget.deviceName}". '
           'RaddFlix allows only one device per account.',
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.5),
+          style: TextStyle(color: t.textMuted, fontSize: 13, height: 1.5),
         ),
         const SizedBox(height: 12),
 
@@ -324,8 +327,8 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
               foregroundColor: const Color(0xFF25D366),
               padding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            icon: const Icon(Icons.chat_outlined, size: 16),
-            label: const Text('Contact Support on WhatsApp',
+            icon: Icon(Icons.chat_outlined, size: 16),
+            label: Text('Contact Support on WhatsApp',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
             onPressed: _openWhatsApp,
           ),
@@ -335,13 +338,13 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
         // To activate: set AppConstants.otpDeviceSwitchEnabled = true
         // and implement the two AuthApi OTP methods.
         if (AppConstants.otpDeviceSwitchEnabled) ...[
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Row(children: [
-            const Expanded(child: Divider(color: Color(0x33FFFFFF))),
-            const Padding(
+            Expanded(child: Divider(color: Color(0x33FFFFFF))),
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 10),
               child: Text('or switch yourself',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                  style: TextStyle(color: t.textMuted, fontSize: 11)),
             ),
             const Expanded(child: Divider(color: Color(0x33FFFFFF))),
           ]),
@@ -392,16 +395,16 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
                 ),
                 onPressed: _otpLoading ? null : _verifyOtp,
                 child: _otpLoading
-                    ? const SizedBox(height: 16, width: 16,
+                    ? SizedBox(height: 16, width: 16,
                         child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Verify & Switch Device',
+                    : Text('Verify & Switch Device',
                         style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               ),
             ),
             TextButton(
               onPressed: () => setState(() { _otpSent = false; _otpCtrl.clear(); }),
-              child: const Text('Resend OTP',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              child: Text('Resend OTP',
+                  style: TextStyle(color: t.textMuted, fontSize: 12)),
             ),
           ],
           if (_otpError != null) ...[
@@ -420,6 +423,7 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
 class _Logo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Column(
       children: [
         Container(
@@ -432,18 +436,18 @@ class _Logo extends StatelessWidget {
             ),
             boxShadow: AppShadows.glow,
           ),
-          child: const Center(
+          child: Center(
             child: Text('R', style: TextStyle(
               color: Colors.white, fontSize: 32,
               fontWeight: FontWeight.w900, letterSpacing: -1)),
           ),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         RichText(
           text: const TextSpan(
             style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -1.5, height: 1),
             children: [
-              TextSpan(text: 'Radd', style: TextStyle(color: AppColors.textPrimary)),
+              TextSpan(text: 'Radd', style: TextStyle(color: t.textPrimary)),
               TextSpan(text: 'Flix', style: TextStyle(color: AppColors.primary)),
             ],
           ),
@@ -459,6 +463,7 @@ class _ErrorBanner extends StatelessWidget {
   const _ErrorBanner({required this.message});
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -485,6 +490,7 @@ class _GradientButton extends StatelessWidget {
   const _GradientButton({required this.label, this.onTap});
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Container(
       height: 52,
       decoration: BoxDecoration(

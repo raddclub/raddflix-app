@@ -126,15 +126,15 @@ import 'dart:typed_data';
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
-          backgroundColor: AppColors.surface,
+          backgroundColor: t.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-          title: const Text('Delete Files',
-              style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+          title: Text('Delete Files',
+              style: TextStyle(color: t.textPrimary, fontWeight: FontWeight.w700)),
           content: Text('Delete ${_selected.length} file${_selected.length == 1 ? '' : 's'}? This cannot be undone.',
-              style: const TextStyle(color: AppColors.textSecondary)),
+              style: TextStyle(color: t.textSecondary)),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
+                child: Text('Cancel', style: TextStyle(color: t.textMuted))),
             TextButton(onPressed: () => Navigator.pop(context, true),
                 child: const Text('Delete', style: TextStyle(color: AppColors.error,
                     fontWeight: FontWeight.w700))),
@@ -169,9 +169,10 @@ import 'dart:typed_data';
 
     @override
     Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
       final sorted = _sorted;
       return Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: t.bg,
         body: SafeArea(child: Column(children: [
           _buildTopBar(sorted),
           if (_searching) _buildSearchBar(),
@@ -183,7 +184,7 @@ import 'dart:typed_data';
             ? FloatingActionButton(
                 backgroundColor: AppColors.primary,
                 onPressed: _playAll,
-                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
+                child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
               )
             : null,
       );
@@ -194,22 +195,22 @@ import 'dart:typed_data';
         return Container(
           height: 56,
           padding: const EdgeInsets.symmetric(horizontal: 8),
-          color: AppColors.surface,
+          color: t.surface,
           child: Row(children: [
             IconButton(
-              icon: const Icon(Icons.close_rounded, color: AppColors.textPrimary),
+              icon: Icon(Icons.close_rounded, color: t.textPrimary),
               onPressed: () => setState(() { _selected.clear(); _selecting = false; }),
             ),
             Expanded(child: Text('${_selected.length} selected',
-                style: const TextStyle(color: AppColors.textPrimary,
+                style: TextStyle(color: t.textPrimary,
                     fontSize: 16, fontWeight: FontWeight.w700))),
             if (_selected.isNotEmpty) ...[
               IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
+                icon: Icon(Icons.delete_outline_rounded, color: AppColors.error),
                 onPressed: _deleteSelected,
               ),
               IconButton(
-                icon: const Icon(Icons.share_rounded, color: AppColors.textSecondary),
+                icon: Icon(Icons.share_rounded, color: t.textSecondary),
                 onPressed: () {/* share */},
               ),
             ],
@@ -219,7 +220,7 @@ import 'dart:typed_data';
                 else _selected.addAll(sorted.map((v) => v.filePath));
               }),
               child: Text(_selected.length == sorted.length ? 'Deselect All' : 'Select All',
-                  style: const TextStyle(color: AppColors.primary, fontSize: 13)),
+                  style: TextStyle(color: AppColors.primary, fontSize: 13)),
             ),
           ]),
         );
@@ -230,18 +231,18 @@ import 'dart:typed_data';
         padding: const EdgeInsets.symmetric(horizontal: 4),
         child: Row(children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: AppColors.textPrimary, size: 20),
+            icon: Icon(Icons.arrow_back_ios_new_rounded,
+                color: t.textPrimary, size: 20),
             onPressed: () => Navigator.of(context).pop(),
           ),
           Expanded(child: Text(widget.folder.name, maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.textPrimary,
+              style: TextStyle(color: t.textPrimary,
                   fontSize: 18, fontWeight: FontWeight.w700))),
           // Search
           IconButton(
             icon: Icon(_searching ? Icons.close_rounded : Icons.search_rounded,
-                color: AppColors.textSecondary, size: 22),
+                color: t.textSecondary, size: 22),
             onPressed: () {
               setState(() {
                 _searching = !_searching;
@@ -255,7 +256,7 @@ import 'dart:typed_data';
           IconButton(
             icon: Icon(_view == _VideoViewMode.list
                 ? Icons.grid_view_rounded : Icons.view_list_rounded,
-                color: AppColors.textSecondary, size: 22),
+                color: t.textSecondary, size: 22),
             onPressed: () => setState(() =>
                 _view = _view == _VideoViewMode.list
                     ? _VideoViewMode.grid : _VideoViewMode.list),
@@ -263,8 +264,8 @@ import 'dart:typed_data';
           ),
           // Sort + more menu
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded, color: AppColors.textSecondary, size: 22),
-            color: AppColors.surface,
+            icon: Icon(Icons.more_vert_rounded, color: t.textSecondary, size: 22),
+            color: t.surface,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
             onSelected: (v) {
               if (v == 'select') setState(() => _selecting = true);
@@ -288,7 +289,7 @@ import 'dart:typed_data';
     PopupMenuEntry<String> _menuDivider(String label) => PopupMenuItem<String>(
       enabled: false, height: 28,
       child: Text(label.toUpperCase(),
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 10,
+          style: TextStyle(color: t.textMuted, fontSize: 10,
               fontWeight: FontWeight.w700, letterSpacing: 0.8)),
     );
 
@@ -296,13 +297,13 @@ import 'dart:typed_data';
       PopupMenuItem(
         value: val,
         child: Row(children: [
-          Icon(icon, color: active ? AppColors.primary : AppColors.textMuted, size: 18),
-          const SizedBox(width: 10),
+          Icon(icon, color: active ? AppColors.primary : t.textMuted, size: 18),
+          SizedBox(width: 10),
           Text(label, style: TextStyle(
-              color: active ? AppColors.primary : AppColors.textPrimary,
+              color: active ? AppColors.primary : t.textPrimary,
               fontSize: 14, fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
           if (active) ...[const Spacer(),
-            const Icon(Icons.check_rounded, color: AppColors.primary, size: 16)],
+            Icon(Icons.check_rounded, color: AppColors.primary, size: 16)],
         ]),
       );
 
@@ -313,12 +314,12 @@ import 'dart:typed_data';
           controller: _searchCtrl,
           focusNode: _searchFocus,
           onChanged: (v) => setState(() => _searchQuery = v),
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+          style: TextStyle(color: t.textPrimary, fontSize: 15),
           decoration: InputDecoration(
             hintText: 'Search in ${widget.folder.name}…',
-            hintStyle: const TextStyle(color: AppColors.textMuted),
-            prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textMuted, size: 20),
-            filled: true, fillColor: AppColors.surface,
+            hintStyle: TextStyle(color: t.textMuted),
+            prefixIcon: Icon(Icons.search_rounded, color: t.textMuted, size: 20),
+            filled: true, fillColor: t.surface,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md),
                 borderSide: BorderSide.none),
             contentPadding: const EdgeInsets.symmetric(vertical: 10),
@@ -337,12 +338,12 @@ import 'dart:typed_data';
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(children: [
           Text('${sorted.length} videos  •  $sizeStr',
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              style: TextStyle(color: t.textMuted, fontSize: 12)),
           const Spacer(),
           if (_loadingThumbs)
-            const SizedBox(width: 12, height: 12,
+            SizedBox(width: 12, height: 12,
               child: CircularProgressIndicator(strokeWidth: 1.5,
-                  valueColor: AlwaysStoppedAnimation(AppColors.textMuted))),
+                  valueColor: AlwaysStoppedAnimation(t.textMuted))),
         ]),
       );
     }
@@ -350,10 +351,10 @@ import 'dart:typed_data';
     Widget _buildBody(List<LocalVideo> sorted) {
       if (sorted.isEmpty) {
         return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.videocam_off_rounded, color: AppColors.textMuted, size: 48),
-          const SizedBox(height: 12),
+          Icon(Icons.videocam_off_rounded, color: t.textMuted, size: 48),
+          SizedBox(height: 12),
           Text(_searchQuery.isNotEmpty ? 'No results for "$_searchQuery"' : 'No videos',
-              style: const TextStyle(color: AppColors.textMuted)),
+              style: TextStyle(color: t.textMuted)),
         ]));
       }
 
@@ -412,6 +413,7 @@ import 'dart:typed_data';
 
     @override
     Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
       return InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
@@ -430,10 +432,10 @@ import 'dart:typed_data';
                     shape: BoxShape.circle,
                     color: selected ? AppColors.primary : Colors.transparent,
                     border: Border.all(
-                      color: selected ? AppColors.primary : AppColors.textMuted, width: 2),
+                      color: selected ? AppColors.primary : t.textMuted, width: 2),
                   ),
                   child: selected
-                      ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
+                      ? Icon(Icons.check_rounded, color: Colors.white, size: 14)
                       : null,
                 ),
               ),
@@ -445,9 +447,9 @@ import 'dart:typed_data';
                   width: 116, height: 68,
                   child: thumb != null
                       ? Image.memory(thumb!, fit: BoxFit.cover)
-                      : Container(color: AppColors.surface,
-                          child: const Icon(Icons.play_circle_outline_rounded,
-                              color: AppColors.textMuted, size: 32)),
+                      : Container(color: t.surface,
+                          child: Icon(Icons.play_circle_outline_rounded,
+                              color: t.textMuted, size: 32)),
                 ),
               ),
               // Duration badge
@@ -460,40 +462,40 @@ import 'dart:typed_data';
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(video.formattedDuration,
-                        style: const TextStyle(color: Colors.white,
+                        style: TextStyle(color: Colors.white,
                             fontSize: 10, fontWeight: FontWeight.w600)),
                   )),
             ]),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             // Info
             Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(video.title, maxLines: 2, overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: selected ? AppColors.primary : AppColors.textPrimary,
+                      color: selected ? AppColors.primary : t.textPrimary,
                       fontSize: 13, fontWeight: FontWeight.w600, height: 1.35)),
-                const SizedBox(height: 5),
+                SizedBox(height: 5),
                 Row(children: [
                   // SRT badge
                   if (video.hasSrt)
                     _badge('SRT', AppColors.info),
-                  if (video.hasSrt) const SizedBox(width: 5),
+                  if (video.hasSrt) SizedBox(width: 5),
                   // Resolution badge
                   if (video.resolution.isNotEmpty)
                     _badge(video.resolution,
-                        video.isHighRes ? AppColors.primary : AppColors.textMuted),
-                  if (video.resolution.isNotEmpty) const SizedBox(width: 5),
+                        video.isHighRes ? AppColors.primary : t.textMuted),
+                  if (video.resolution.isNotEmpty) SizedBox(width: 5),
                   // Size
                   Text(video.formattedSize,
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                      style: TextStyle(color: t.textMuted, fontSize: 11)),
                 ]),
               ],
             )),
             // More button
             if (!selecting)
               IconButton(
-                icon: const Icon(Icons.more_vert_rounded, color: AppColors.textMuted, size: 20),
+                icon: Icon(Icons.more_vert_rounded, color: t.textMuted, size: 20),
                 onPressed: () => _showVideoMenu(context),
                 constraints: const BoxConstraints(),
                 padding: const EdgeInsets.all(8),
@@ -516,13 +518,13 @@ import 'dart:typed_data';
     void _showVideoMenu(BuildContext context) {
       showModalBottomSheet(
         context: context,
-        backgroundColor: AppColors.surface,
+        backgroundColor: t.surface,
         shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         builder: (_) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(width: 36, height: 4,
               margin: const EdgeInsets.only(top: 10, bottom: 16),
-              decoration: BoxDecoration(color: AppColors.textMuted.withOpacity(0.3),
+              decoration: BoxDecoration(color: t.textMuted.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(2))),
           // Thumbnail header
           Padding(
@@ -532,15 +534,15 @@ import 'dart:typed_data';
                 child: SizedBox(width: 72, height: 44,
                   child: thumb != null
                       ? Image.memory(thumb!, fit: BoxFit.cover)
-                      : Container(color: AppColors.card))),
-              const SizedBox(width: 12),
+                      : Container(color: t.card))),
+              SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(video.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.textPrimary,
+                    style: TextStyle(color: t.textPrimary,
                         fontSize: 13, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 3),
+                SizedBox(height: 3),
                 Text('${video.formattedDuration}  •  ${video.formattedSize}',
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                    style: TextStyle(color: t.textMuted, fontSize: 11)),
               ])),
             ]),
           ),
@@ -555,7 +557,7 @@ import 'dart:typed_data';
           _menuTile(context, Icons.share_rounded, 'Share', () { Navigator.pop(context); }),
           _menuTile(context, Icons.delete_outline_rounded, 'Delete',
               () { Navigator.pop(context); }, isDestructive: true),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
         ])),
       );
     }
@@ -564,10 +566,10 @@ import 'dart:typed_data';
         VoidCallback onPressed, {bool isDestructive = false}) =>
       ListTile(
         leading: Icon(icon,
-            color: isDestructive ? AppColors.error : AppColors.textSecondary, size: 22),
+            color: isDestructive ? AppColors.error : t.textSecondary, size: 22),
         title: Text(label,
             style: TextStyle(
-                color: isDestructive ? AppColors.error : AppColors.textPrimary,
+                color: isDestructive ? AppColors.error : t.textPrimary,
                 fontSize: 15)),
         onTap: onPressed,
         dense: true,
@@ -577,9 +579,9 @@ import 'dart:typed_data';
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          backgroundColor: AppColors.surface,
+          backgroundColor: t.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-          title: const Text('File Info', style: TextStyle(color: AppColors.textPrimary,
+          title: Text('File Info', style: TextStyle(color: t.textPrimary,
               fontWeight: FontWeight.w700)),
           content: Column(mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -593,7 +595,7 @@ import 'dart:typed_data';
             ]),
           actions: [TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close', style: TextStyle(color: AppColors.primary)),
+            child: Text('Close', style: TextStyle(color: AppColors.primary)),
           )],
         ),
       );
@@ -603,9 +605,9 @@ import 'dart:typed_data';
       padding: const EdgeInsets.only(bottom: 8),
       child: RichText(text: TextSpan(children: [
         TextSpan(text: '$label: ',
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+            style: TextStyle(color: t.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
         TextSpan(text: value,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            style: TextStyle(color: t.textSecondary, fontSize: 12)),
       ])),
     );
   }
@@ -624,6 +626,7 @@ import 'dart:typed_data';
 
     @override
     Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
       return GestureDetector(
         onTap: onTap, onLongPress: onLongPress,
         child: ClipRRect(
@@ -631,9 +634,9 @@ import 'dart:typed_data';
           child: Stack(fit: StackFit.expand, children: [
             thumb != null
                 ? Image.memory(thumb!, fit: BoxFit.cover)
-                : Container(color: AppColors.surface,
-                    child: const Icon(Icons.play_circle_outline_rounded,
-                        color: AppColors.textMuted, size: 32)),
+                : Container(color: t.surface,
+                    child: Icon(Icons.play_circle_outline_rounded,
+                        color: t.textMuted, size: 32)),
             // Scrim
             DecoratedBox(decoration: BoxDecoration(
               gradient: LinearGradient(

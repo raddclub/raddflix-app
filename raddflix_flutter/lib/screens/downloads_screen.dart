@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
@@ -91,6 +92,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     final state = ref.watch(downloadsProvider);
     return Scaffold(
       backgroundColor: null,
@@ -112,7 +114,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
 
   PreferredSizeWidget _buildAppBar(DownloadsState state) {
     return AppBar(
-      backgroundColor: AppColors.background,
+      backgroundColor: t.bg,
       elevation: 0,
       scrolledUnderElevation: 0,
       title: _selecting
@@ -172,9 +174,9 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 6),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: t.surface,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.glassBorder),
+        border: Border.all(color: t.border),
       ),
       child: Row(children: [
         Container(
@@ -184,14 +186,14 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             color: AppColors.primary.withOpacity(0.12),
             border: Border.all(color: AppColors.primary.withOpacity(0.25)),
           ),
-          child: const Icon(Icons.download_done_rounded, size: 20, color: AppColors.primary),
+          child: Icon(Icons.download_done_rounded, size: 20, color: AppColors.primary),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Text(_fmtSize(totalBytes),
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
-            const Text(' stored', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                style: TextStyle(color: t.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
+            Text(' stored', style: TextStyle(color: t.textMuted, fontSize: 12)),
             const Spacer(),
             if (active > 0)
               Container(
@@ -200,15 +202,15 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                   color: AppColors.primary.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text('$active loading', style: const TextStyle(
+                child: Text('$active loading', style: TextStyle(
                     color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
               ),
           ]),
-          const SizedBox(height: 5),
+          SizedBox(height: 5),
           Row(children: [
-            Text('$completed complete', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-            const Text(' · ', style: TextStyle(color: AppColors.textMuted)),
-            Text('${state.downloads.length} total', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+            Text('$completed complete', style: TextStyle(color: t.textMuted, fontSize: 11)),
+            Text(' · ', style: TextStyle(color: t.textMuted)),
+            Text('${state.downloads.length} total', style: TextStyle(color: t.textMuted, fontSize: 11)),
           ]),
         ])),
       ]),
@@ -233,13 +235,13 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
               decoration: BoxDecoration(
                 gradient: selected ? AppColors.primaryGradient : null,
-                color: selected ? null : AppColors.surface,
+                color: selected ? null : t.surface,
                 borderRadius: BorderRadius.circular(AppRadius.round),
-                border: Border.all(color: selected ? Colors.transparent : AppColors.glassBorder),
+                border: Border.all(color: selected ? Colors.transparent : t.border),
                 boxShadow: selected ? [BoxShadow(color: AppColors.primary.withOpacity(0.35), blurRadius: 10, offset: const Offset(0,3))] : null,
               ),
               child: Text(labels[f]!, style: TextStyle(
-                  color: selected ? Colors.white : AppColors.textMuted,
+                  color: selected ? Colors.white : t.textMuted,
                   fontSize: 12, fontWeight: selected ? FontWeight.w800 : FontWeight.w500)),
             ),
           );
@@ -255,8 +257,8 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           crossAxisCount: 2, childAspectRatio: 0.72, crossAxisSpacing: 12, mainAxisSpacing: 12),
       itemCount: 6,
       itemBuilder: (_, __) => Shimmer.fromColors(
-        baseColor: AppColors.surface, highlightColor: AppColors.surfaceHigh,
-        child: Container(decoration: BoxDecoration(color: AppColors.surface,
+        baseColor: t.surface, highlightColor: t.surfaceHigh,
+        child: Container(decoration: BoxDecoration(color: t.surface,
             borderRadius: BorderRadius.circular(AppRadius.sm)))),
     );
   }
@@ -268,19 +270,19 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           width: 100, height: 100,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: AppColors.surface,
-            border: Border.all(color: AppColors.glassBorder, width: 1.5),
+            color: t.surface,
+            border: Border.all(color: t.border, width: 1.5),
           ),
-          child: const Icon(Icons.download_for_offline_outlined,
-              color: AppColors.textMuted, size: 48),
+          child: Icon(Icons.download_for_offline_outlined,
+              color: t.textMuted, size: 48),
         ),
-        const SizedBox(height: 24),
-        const Text('No Downloads Yet', style: TextStyle(
-            color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w800,
+        SizedBox(height: 24),
+        Text('No Downloads Yet', style: TextStyle(
+            color: t.textPrimary, fontSize: 20, fontWeight: FontWeight.w800,
             letterSpacing: -0.3)),
-        const SizedBox(height: 8),
-        const Text('Download videos to watch offline.',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+        SizedBox(height: 8),
+        Text('Download videos to watch offline.',
+            style: TextStyle(color: t.textMuted, fontSize: 14)),
         const SizedBox(height: 28),
         GestureDetector(
           onTap: () => Navigator.of(context).pushReplacementNamed(AppRoutes.home),
@@ -315,10 +317,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: t.surface,
               borderRadius: BorderRadius.circular(AppRadius.md),
               border: Border.all(
-                color: count > 0 ? folderColor.withOpacity(0.25) : AppColors.glassBorder,
+                color: count > 0 ? folderColor.withOpacity(0.25) : t.border,
                 width: count > 0 ? 1.0 : 0.5,
               ),
               boxShadow: count > 0 ? [
@@ -337,7 +339,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                       border: Border.all(color: folderColor.withOpacity(count > 0 ? 0.3 : 0.1)),
                     ),
                     child: Icon(_folderIcon(folder),
-                        color: count > 0 ? folderColor : AppColors.textMuted, size: 22),
+                        color: count > 0 ? folderColor : t.textMuted, size: 22),
                   ),
                   const Spacer(),
                   if (count > 0) Container(
@@ -351,11 +353,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 ]),
                 const Spacer(),
                 Text(folder, style: TextStyle(
-                    color: count > 0 ? AppColors.textPrimary : AppColors.textMuted,
+                    color: count > 0 ? t.textPrimary : t.textMuted,
                     fontSize: 15, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(count == 0 ? 'Empty' : '$count video${count == 1 ? '' : 's'}',
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                    style: TextStyle(color: t.textMuted, fontSize: 11)),
               ]),
             ),
           ),
@@ -373,10 +375,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
 
     if (items.isEmpty) {
       return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const Icon(Icons.filter_list_off_rounded, color: AppColors.textMuted, size: 48),
-        const SizedBox(height: 12),
+        Icon(Icons.filter_list_off_rounded, color: t.textMuted, size: 48),
+        SizedBox(height: 12),
         Text('No ${_filter.name} downloads in $_activeFolder',
-            style: const TextStyle(color: AppColors.textMuted)),
+            style: TextStyle(color: t.textMuted)),
       ]));
     }
 
@@ -530,15 +532,16 @@ class _DownloadCardState extends State<_DownloadCard> {
   }
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: widget.onTap, onLongPress: widget.onLongPress,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: widget.isSelected ? AppColors.primary.withOpacity(0.1) : AppColors.surface,
+          color: widget.isSelected ? AppColors.primary.withOpacity(0.1) : t.surface,
           borderRadius: BorderRadius.circular(AppRadius.sm),
           border: Border.all(
-              color: widget.isSelected ? AppColors.primary : AppColors.glassBorder,
+              color: widget.isSelected ? AppColors.primary : t.border,
               width: widget.isSelected ? 1.5 : 0.5)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // Thumbnail area
@@ -547,9 +550,9 @@ class _DownloadCardState extends State<_DownloadCard> {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.sm - 1)),
               child: _thumb != null
                 ? Image.memory(_thumb!, fit: BoxFit.cover)
-                : Container(color: AppColors.card,
-                    child: const Center(child: Icon(Icons.movie_outlined,
-                        color: AppColors.textMuted, size: 36)))),
+                : Container(color: t.card,
+                    child: Center(child: Icon(Icons.movie_outlined,
+                        color: t.textMuted, size: 36)))),
             // Play overlay
             if (widget.isComplete && !widget.isSelecting)
               Center(child: Container(
@@ -572,14 +575,14 @@ class _DownloadCardState extends State<_DownloadCard> {
                 decoration: BoxDecoration(shape: BoxShape.circle,
                     color: widget.isSelected ? AppColors.primary : Colors.black38,
                     border: Border.all(color: widget.isSelected ? AppColors.primary : Colors.white38, width: 1.5)),
-                child: widget.isSelected ? const Icon(Icons.check_rounded, color: Colors.white, size: 14) : null)),
+                child: widget.isSelected ? Icon(Icons.check_rounded, color: Colors.white, size: 14) : null)),
             // Failed badge
             if (widget.statusStr == 'failed')
               Positioned(top: 6, left: 6, child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                 decoration: BoxDecoration(color: AppColors.error,
                     borderRadius: BorderRadius.circular(3)),
-                child: const Text('FAILED', style: TextStyle(
+                child: Text('FAILED', style: TextStyle(
                     color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800)))),
           ])),
           // Info
@@ -587,16 +590,16 @@ class _DownloadCardState extends State<_DownloadCard> {
             padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(widget.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 11,
+                  style: TextStyle(color: t.textPrimary, fontSize: 11,
                       fontWeight: FontWeight.w600, height: 1.3)),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Row(children: [
-                Text(widget.sizeStr, style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                Text(widget.sizeStr, style: TextStyle(color: t.textMuted, fontSize: 10)),
                 const Spacer(),
                 if (!widget.isSelecting)
                   GestureDetector(onTap: widget.onDelete,
-                      child: const Icon(Icons.delete_outline_rounded,
-                          size: 16, color: AppColors.textMuted)),
+                      child: Icon(Icons.delete_outline_rounded,
+                          size: 16, color: t.textMuted)),
               ]),
               if (widget.isActive) ...[
                 const SizedBox(height: 4),
@@ -638,6 +641,7 @@ class _DownloadListTileState extends State<_DownloadListTile> {
   }
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: widget.onTap, onLongPress: widget.onLongPress,
       child: AnimatedContainer(
@@ -645,25 +649,25 @@ class _DownloadListTileState extends State<_DownloadListTile> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: widget.isSelected ? AppColors.primary.withOpacity(0.08) : AppColors.surface,
+          color: widget.isSelected ? AppColors.primary.withOpacity(0.08) : t.surface,
           borderRadius: BorderRadius.circular(AppRadius.sm),
           border: Border.all(
-              color: widget.isSelected ? AppColors.primary : AppColors.glassBorder,
+              color: widget.isSelected ? AppColors.primary : t.border,
               width: widget.isSelected ? 1.5 : 0.5)),
         child: Row(children: [
           // Thumbnail
           Container(width: 64, height: 48,
-            decoration: BoxDecoration(color: AppColors.card,
+            decoration: BoxDecoration(color: t.card,
                 borderRadius: BorderRadius.circular(AppRadius.xs)),
             clipBehavior: Clip.antiAlias,
             child: Stack(fit: StackFit.expand, children: [
               _thumb != null
                 ? Image.memory(_thumb!, fit: BoxFit.cover)
-                : const Center(child: Icon(Icons.movie_outlined, color: AppColors.textMuted, size: 24)),
+                : Center(child: Icon(Icons.movie_outlined, color: t.textMuted, size: 24)),
               if (widget.isComplete && !widget.isSelecting)
                 Center(child: Container(width: 24, height: 24,
-                    decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black54),
-                    child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 16))),
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black54),
+                    child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 16))),
               if (widget.isSelecting)
                 Positioned(top: 4, right: 4, child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -671,39 +675,39 @@ class _DownloadListTileState extends State<_DownloadListTile> {
                   decoration: BoxDecoration(shape: BoxShape.circle,
                       color: widget.isSelected ? AppColors.primary : Colors.black38,
                       border: Border.all(color: Colors.white38)),
-                  child: widget.isSelected ? const Icon(Icons.check_rounded, color: Colors.white, size: 10) : null)),
+                  child: widget.isSelected ? Icon(Icons.check_rounded, color: Colors.white, size: 10) : null)),
             ])),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(widget.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13,
+                style: TextStyle(color: t.textPrimary, fontSize: 13,
                     fontWeight: FontWeight.w600, height: 1.3)),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Row(children: [
-              Text(widget.sizeStr, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+              Text(widget.sizeStr, style: TextStyle(color: t.textMuted, fontSize: 11)),
               if (widget.statusStr == 'failed') ...[
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                     decoration: BoxDecoration(color: AppColors.error.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(3)),
-                    child: const Text('FAILED', style: TextStyle(
+                    child: Text('FAILED', style: TextStyle(
                         color: AppColors.error, fontSize: 9, fontWeight: FontWeight.w700))),
               ],
             ]),
             if (widget.isActive) ...[
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               LinearProgressIndicator(value: widget.progress,
-                  backgroundColor: AppColors.card,
+                  backgroundColor: t.card,
                   valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
                   minHeight: 2),
-              const SizedBox(height: 3),
+              SizedBox(height: 3),
               Text('${(widget.progress * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
+                  style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
             ],
           ])),
           if (!widget.isSelecting)
-            IconButton(icon: const Icon(Icons.delete_outline_rounded,
-                size: 18, color: AppColors.textMuted), onPressed: widget.onDelete),
+            IconButton(icon: Icon(Icons.delete_outline_rounded,
+                size: 18, color: t.textMuted), onPressed: widget.onDelete),
         ]),
       ),
     );

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -199,6 +200,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     final catalog   = ref.watch(catalogProvider);
     final allItems  = [...catalog.movies, ...catalog.shows];
     final genres    = _extractGenres(allItems);
@@ -207,14 +209,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     final hasFilter = _typeFilter != null || _genreFilter != null || _yearFilter != null;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: t.bg,
       body: SafeArea(
         child: Column(children: [
           _buildSearchBar(),
           _buildTypeChips(),
           if ((hasQuery || hasFilter) && (genres.isNotEmpty || years.isNotEmpty))
             _buildGenreYearChips(genres, years),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Expanded(child: _buildBody(allItems, genres, years, catalog.trending, hasQuery)),
         ]),
       ),
@@ -228,7 +230,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       padding: const EdgeInsets.fromLTRB(8, 12, 16, 0),
       child: Row(children: [
         IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: t.textPrimary),
           onPressed: () => Navigator.of(context).pop(),
         ),
         Expanded(
@@ -236,10 +238,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             animation: _glowAnim,
             builder: (_, child) => Container(
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: t.surface,
                 borderRadius: BorderRadius.circular(AppRadius.md),
                 border: Border.all(
-                  color: Color.lerp(AppColors.glassBorder, AppColors.primary, _glowAnim.value)!,
+                  color: Color.lerp(t.border, AppColors.primary, _glowAnim.value)!,
                   width: 1 + _glowAnim.value * 0.5,
                 ),
                 boxShadow: [
@@ -256,21 +258,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 200),
                   child: _loading
-                      ? const SizedBox(key: ValueKey('spin'), width: 20, height: 20,
+                      ? SizedBox(key: ValueKey('spin'), width: 20, height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation(AppColors.primary)))
-                      : const Icon(key: ValueKey('icon'),
-                          Icons.search_rounded, color: AppColors.textMuted, size: 22),
+                      : Icon(key: ValueKey('icon'),
+                          Icons.search_rounded, color: t.textMuted, size: 22),
                 ),
               ),
               Expanded(
                 child: TextField(
                   controller: _ctrl,
                   focusNode: _focus,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+                  style: TextStyle(color: t.textPrimary, fontSize: 15),
                   decoration: const InputDecoration(
                     hintText: 'Movies, shows, dramas…',
-                    hintStyle: TextStyle(color: AppColors.textMuted),
+                    hintStyle: TextStyle(color: t.textMuted),
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
@@ -284,7 +286,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               ),
               if (_ctrl.text.isNotEmpty)
                 IconButton(
-                  icon: const Icon(Icons.clear_rounded, size: 18, color: AppColors.textMuted),
+                  icon: Icon(Icons.clear_rounded, size: 18, color: t.textMuted),
                   onPressed: () {
                     _ctrl.clear();
                     setState(() { _results = null; _loading = false; });
@@ -319,13 +321,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               decoration: BoxDecoration(
                 gradient: active ? AppColors.primaryGradient : null,
-                color: active ? null : AppColors.surface,
+                color: active ? null : t.surface,
                 borderRadius: BorderRadius.circular(AppRadius.round),
-                border: Border.all(color: active ? Colors.transparent : AppColors.glassBorder),
+                border: Border.all(color: active ? Colors.transparent : t.border),
                 boxShadow: active ? AppShadows.primary : null,
               ),
               child: Text(labels[i], style: TextStyle(
-                color: active ? Colors.white : AppColors.textMuted,
+                color: active ? Colors.white : t.textMuted,
                 fontSize: 13, fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
             ),
           );
@@ -354,13 +356,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                   decoration: BoxDecoration(
                     gradient: active ? AppColors.primaryGradient : null,
-                    color: active ? null : AppColors.surface,
+                    color: active ? null : t.surface,
                     borderRadius: BorderRadius.circular(AppRadius.round),
-                    border: Border.all(color: active ? Colors.transparent : AppColors.glassBorder),
+                    border: Border.all(color: active ? Colors.transparent : t.border),
                     boxShadow: active ? [BoxShadow(color: AppColors.primary.withOpacity(0.35), blurRadius: 10, offset: const Offset(0,3))] : null,
                   ),
                   child: Text(g, style: TextStyle(
-                    color: active ? Colors.white : AppColors.textMuted,
+                    color: active ? Colors.white : t.textMuted,
                     fontSize: 12, fontWeight: active ? FontWeight.w800 : FontWeight.w500)),
                 ),
               );
@@ -370,7 +372,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           if (genres.isNotEmpty && years.isNotEmpty)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-              width: 1, color: AppColors.divider),
+              width: 1, color: t.divider),
           // Year chips
           if (years.isNotEmpty) ...[
             ...years.take(5).map((y) {
@@ -382,14 +384,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                   margin: const EdgeInsets.only(right: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                   decoration: BoxDecoration(
-                    color: active ? AppColors.accent.withOpacity(0.15) : AppColors.surface,
+                    color: active ? AppColors.accent.withOpacity(0.15) : t.surface,
                     borderRadius: BorderRadius.circular(AppRadius.round),
                     border: Border.all(
-                      color: active ? AppColors.accent : AppColors.glassBorder,
+                      color: active ? AppColors.accent : t.border,
                       width: active ? 1.5 : 1),
                   ),
                   child: Text('$y', style: TextStyle(
-                    color: active ? AppColors.accent : AppColors.textMuted,
+                    color: active ? AppColors.accent : t.textMuted,
                     fontSize: 12, fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
                 ),
               );
@@ -418,10 +420,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           crossAxisCount: 3, childAspectRatio: 2/3, crossAxisSpacing: 10, mainAxisSpacing: 10),
       itemCount: 9,
       itemBuilder: (_, __) => Shimmer.fromColors(
-        baseColor: AppColors.surface,
-        highlightColor: AppColors.surfaceHigh,
+        baseColor: t.surface,
+        highlightColor: t.surfaceHigh,
         child: Container(decoration: BoxDecoration(
-            color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.sm))),
+            color: t.surface, borderRadius: BorderRadius.circular(AppRadius.sm))),
       ),
     );
   }
@@ -435,21 +437,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       return Center(
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           Container(width: 88, height: 88,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.surface,
-                border: Border.all(color: AppColors.glassBorder, width: 1.5)),
-            child: const Icon(Icons.search_off_rounded, color: AppColors.textMuted, size: 40)),
-          const SizedBox(height: 20),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: t.surface,
+                border: Border.all(color: t.border, width: 1.5)),
+            child: Icon(Icons.search_off_rounded, color: t.textMuted, size: 40)),
+          SizedBox(height: 20),
           RichText(text: TextSpan(
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: t.textPrimary),
             children: [
               const TextSpan(text: 'No results for '),
               TextSpan(text: '"${_ctrl.text}"',
-                  style: const TextStyle(color: AppColors.primary)),
+                  style: TextStyle(color: AppColors.primary)),
             ],
           )),
-          const SizedBox(height: 8),
-          const Text('Try different keywords or clear filters.',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+          SizedBox(height: 8),
+          Text('Try different keywords or clear filters.',
+              style: TextStyle(color: t.textMuted, fontSize: 13),
               textAlign: TextAlign.center),
           if (hasActiveFilter) ...[
             const SizedBox(height: 20),
@@ -486,9 +488,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                 blendMode: BlendMode.srcIn,
                 shaderCallback: (b) => AppColors.primaryGradient.createShader(b),
                 child: Text('${_results!.length}',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800))),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800))),
               Text(' result${_results!.length == 1 ? "" : "s"} for "${_ctrl.text}"',
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                  style: TextStyle(color: t.textMuted, fontSize: 13)),
               if (hasActiveFilter) ...[
                 const Spacer(),
                 GestureDetector(
@@ -547,24 +549,24 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               Container(width: 3, height: 16, margin: const EdgeInsets.only(right: 10),
                   decoration: BoxDecoration(gradient: AppColors.primaryGradient,
                       borderRadius: BorderRadius.circular(2))),
-              const Icon(Icons.history_rounded, color: AppColors.textMuted, size: 15),
-              const SizedBox(width: 6),
-              const Text('Recent', style: TextStyle(
-                  color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.2)),
+              Icon(Icons.history_rounded, color: t.textMuted, size: 15),
+              SizedBox(width: 6),
+              Text('Recent', style: TextStyle(
+                  color: t.textPrimary, fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.2)),
             ]),
             GestureDetector(
               onTap: _clearHistory,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.round),
-                  border: Border.all(color: AppColors.glassBorder),
+                  color: t.surface, borderRadius: BorderRadius.circular(AppRadius.round),
+                  border: Border.all(color: t.border),
                 ),
-                child: const Text('Clear', style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w600)),
+                child: Text('Clear', style: TextStyle(color: t.textMuted, fontSize: 11, fontWeight: FontWeight.w600)),
               ),
             ),
           ]),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Wrap(
             spacing: 8, runSpacing: 8,
             children: _history.map((h) => _HistoryPill(
@@ -572,7 +574,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               onTap: () => _tapSuggestion(h),
               onDelete: () => _removeFromHistory(h),
             )).toList()),
-          const SizedBox(height: 28),
+          SizedBox(height: 28),
         ],
 
         // ── Trending ───────────────────────────────────────────────────────
@@ -580,10 +582,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           Container(width: 3, height: 18, margin: const EdgeInsets.only(right: 10),
               decoration: BoxDecoration(gradient: AppColors.primaryGradient,
                   borderRadius: BorderRadius.circular(2))),
-          const Icon(Icons.local_fire_department_rounded, color: AppColors.primary, size: 17),
-          const SizedBox(width: 6),
-          const Text('Trending Now', style: TextStyle(
-              color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+          Icon(Icons.local_fire_department_rounded, color: AppColors.primary, size: 17),
+          SizedBox(width: 6),
+          Text('Trending Now', style: TextStyle(
+              color: t.textPrimary, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
         ]),
         const SizedBox(height: 10),
           Builder(builder: (context) {
@@ -621,19 +623,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
         // ── Browse by Genre ────────────────────────────────────────────────
         if (byGenre.isNotEmpty) ...[
-          const SizedBox(height: 28),
+          SizedBox(height: 28),
           Row(children: [
             Container(width: 3, height: 18, margin: const EdgeInsets.only(right: 10),
                 decoration: BoxDecoration(gradient: AppColors.primaryGradient,
                     borderRadius: BorderRadius.circular(2))),
-            const Icon(Icons.grid_view_rounded, color: AppColors.primary, size: 17),
-            const SizedBox(width: 6),
+            Icon(Icons.grid_view_rounded, color: AppColors.primary, size: 17),
+            SizedBox(width: 6),
             Text(
               _typeFilter != null ? 'Browse $_typeFilter' : 'Browse by Genre',
-              style: const TextStyle(
-                  color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+              style: TextStyle(
+                  color: t.textPrimary, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
           ]),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           ...byGenre.entries.toList().asMap().entries.map((outer) {
             final entry = outer.value;
             return _GenreRow(
@@ -646,15 +648,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
         // Empty discover state (catalog still loading)
         if (allItems.isEmpty) ...[
-          const SizedBox(height: 48),
+          SizedBox(height: 48),
           Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
             Container(width: 80, height: 80,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.surface,
-                  border: Border.all(color: AppColors.glassBorder, width: 1.5)),
-              child: const Icon(Icons.search_rounded, color: AppColors.textMuted, size: 36)),
-            const SizedBox(height: 16),
-            const Text('Start typing to search', style: TextStyle(
-                color: AppColors.textMuted, fontSize: 14)),
+              decoration: BoxDecoration(shape: BoxShape.circle, color: t.surface,
+                  border: Border.all(color: t.border, width: 1.5)),
+              child: Icon(Icons.search_rounded, color: t.textMuted, size: 36)),
+            SizedBox(height: 16),
+            Text('Start typing to search', style: TextStyle(
+                color: t.textMuted, fontSize: 14)),
           ])),
         ],
       ]),
@@ -671,29 +673,30 @@ class _HistoryPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: t.surface,
           borderRadius: BorderRadius.circular(AppRadius.round),
-          border: Border.all(color: AppColors.glassBorder),
+          border: Border.all(color: t.border),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.history_rounded, size: 13, color: AppColors.textMuted),
-          const SizedBox(width: 6),
+          Icon(Icons.history_rounded, size: 13, color: t.textMuted),
+          SizedBox(width: 6),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 140),
             child: Text(text, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13))),
-          const SizedBox(width: 6),
+                style: TextStyle(color: t.textSecondary, fontSize: 13))),
+          SizedBox(width: 6),
           GestureDetector(
             onTap: onDelete,
             behavior: HitTestBehavior.opaque,
-            child: const Padding(
+            child: Padding(
               padding: EdgeInsets.all(2),
-              child: Icon(Icons.close_rounded, size: 13, color: AppColors.textMuted))),
+              child: Icon(Icons.close_rounded, size: 13, color: t.textMuted))),
         ]),
       ),
     );
@@ -709,15 +712,16 @@ class _TrendingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: t.surface,
           borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(color: AppColors.glassBorder),
+          border: Border.all(color: t.border),
         ),
         child: Row(children: [
           SizedBox(
@@ -725,13 +729,13 @@ class _TrendingRow extends StatelessWidget {
             child: ShaderMask(
               blendMode: BlendMode.srcIn,
               shaderCallback: (b) => AppColors.primaryGradient.createShader(b),
-              child: Text('$rank', style: const TextStyle(
+              child: Text('$rank', style: TextStyle(
                   fontSize: 15, fontWeight: FontWeight.w900))),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(child: Text(label,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14))),
-          Icon(Icons.north_east_rounded, color: AppColors.textMuted, size: 16),
+              style: TextStyle(color: t.textPrimary, fontSize: 14))),
+          Icon(Icons.north_east_rounded, color: t.textMuted, size: 16),
         ]),
       ),
     );
@@ -747,6 +751,7 @@ class _GenreRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Container(
@@ -756,8 +761,8 @@ class _GenreRow extends StatelessWidget {
             gradient: AppColors.primaryGradient,
             borderRadius: BorderRadius.circular(2)),
         ),
-        Expanded(child: Text(genre, style: const TextStyle(
-            color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700))),
+        Expanded(child: Text(genre, style: TextStyle(
+            color: t.textPrimary, fontSize: 15, fontWeight: FontWeight.w700))),
         TextButton(
           onPressed: onTapSeeAll,
           style: TextButton.styleFrom(foregroundColor: AppColors.primary,

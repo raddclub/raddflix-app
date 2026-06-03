@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api/history_api.dart';
@@ -32,23 +33,24 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     final catalog = ref.watch(catalogProvider);
     final items = catalog.recentlyWatched;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: t.bg,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: t.bg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back_ios_new_rounded,
+              color: t.textPrimary),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
+        title: Text(
           'Watch History',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: t.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
@@ -60,12 +62,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 final ok = await showDialog<bool>(
                   context: context,
                   builder: (_) => AlertDialog(
-                    backgroundColor: AppColors.card,
-                    title: const Text('Clear History',
-                        style: TextStyle(color: AppColors.textPrimary)),
-                    content: const Text(
+                    backgroundColor: t.card,
+                    title: Text('Clear History',
+                        style: TextStyle(color: t.textPrimary)),
+                    content: Text(
                         'This will remove all items from your watch history.',
-                        style: TextStyle(color: AppColors.textSecondary)),
+                        style: TextStyle(color: t.textSecondary)),
                     actions: [
                       TextButton(
                           onPressed: () => Navigator.pop(context, false),
@@ -95,6 +97,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   Widget _buildEmpty(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -103,28 +106,28 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: t.surface,
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: t.border),
             ),
-            child: const Icon(Icons.history_rounded,
-                color: AppColors.textMuted, size: 36),
+            child: Icon(Icons.history_rounded,
+                color: t.textMuted, size: 36),
           ),
-          const SizedBox(height: 20),
-          const Text(
+          SizedBox(height: 20),
+          Text(
             'No Watch History',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: t.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
+          SizedBox(height: 8),
+          Text(
             'Movies and shows you watch\nwill appear here.',
             textAlign: TextAlign.center,
             style: TextStyle(
-                color: AppColors.textMuted, fontSize: 14, height: 1.5),
+                color: t.textMuted, fontSize: 14, height: 1.5),
           ),
           const SizedBox(height: 28),
           GestureDetector(
@@ -152,6 +155,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   Widget _buildGrid(BuildContext context, List<CatalogItem> items) {
+    final t = RaddTheme.of(context);
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -109,6 +110,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     final user  = ref.watch(authProvider).user;
     final theme = ref.watch(themeProvider);
     final initial = user?.phone.isNotEmpty == true ? user!.phone[0].toUpperCase() : 'U';
@@ -129,13 +131,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     RichText(text: const TextSpan(
                       style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5),
                       children: [
-                        TextSpan(text: 'My ', style: TextStyle(color: AppColors.textPrimary)),
+                        TextSpan(text: 'My ', style: TextStyle(color: t.textPrimary)),
                         TextSpan(text: 'Profile', style: TextStyle(color: AppColors.primary)),
                       ],
                     )),
                     const Spacer(),
                     IconButton(onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close_rounded, color: AppColors.textMuted)),
+                        icon: Icon(Icons.close_rounded, color: t.textMuted)),
                   ]),
                 ),
               ).animate().fadeIn(duration: 300.ms),
@@ -165,14 +167,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           BoxShadow(color: AppColors.primary.withOpacity(0.45), blurRadius: 28, spreadRadius: 2),
                         ],
                       ),
-                      child: Center(child: Text(initial, style: const TextStyle(
+                      child: Center(child: Text(initial, style: TextStyle(
                           color: Colors.white, fontSize: 40, fontWeight: FontWeight.w900))),
                     ),
                   ]).animate().scale(begin: const Offset(0.6, 0.6), end: const Offset(1, 1),
                       duration: 400.ms, curve: AppCurves.enter),
-                  const SizedBox(height: 14),
-                  Text(user?.phone ?? '—', style: const TextStyle(
-                      color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w700,
+                  SizedBox(height: 14),
+                  Text(user?.phone ?? '—', style: TextStyle(
+                      color: t.textPrimary, fontSize: 20, fontWeight: FontWeight.w700,
                       letterSpacing: -0.3))
                       .animate(delay: 100.ms).fadeIn(duration: 300.ms),
                   const SizedBox(height: 8),
@@ -218,14 +220,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.07), blurRadius: 20)],
                     ),
                     child: Row(children: [
-                      const Icon(Icons.star_rounded, color: AppColors.primary, size: 24),
-                      const SizedBox(width: 12),
+                      Icon(Icons.star_rounded, color: AppColors.primary, size: 24),
+                      SizedBox(width: 12),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        const Text('Active Subscription', style: TextStyle(
-                            color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
+                        Text('Active Subscription', style: TextStyle(
+                            color: t.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
                         if (user!.subscription!.expiresAt != null)
                           Text('Expires ${_fmt(user.subscription!.expiresAt!)}',
-                              style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                              style: TextStyle(color: t.textMuted, fontSize: 12)),
                         if (_daysLeft != null) ...[
                           const SizedBox(height: 2),
                           Text(
@@ -244,7 +246,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ])),
                       TextButton(
                         onPressed: () => Navigator.of(context).pushNamed(AppRoutes.subscription),
-                        child: const Text('Manage', style: TextStyle(fontSize: 12))),
+                        child: Text('Manage', style: TextStyle(fontSize: 12))),
                     ]),
                   ),
                 ).animate(delay: 200.ms).fadeIn(duration: 350.ms)
@@ -262,7 +264,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       icon: Icons.palette_outlined,
                       label: 'Theme',
                       trailing: Text(ref.watch(themeProvider.notifier).displayName,
-                          style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                          style: TextStyle(color: t.textMuted, fontSize: 13)),
                       onTap: () => _showThemePicker(context),
                     ),
                   ]),
@@ -341,14 +343,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.history),
                     ),
                   ]),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   // Device
                   _Section(title: 'Device', children: [
                     _SectionTile(
                       icon: Icons.smartphone_rounded,
                       label: 'Device',
                       trailing: Text(_deviceName ?? '…',
-                          style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                          style: TextStyle(color: t.textMuted, fontSize: 12)),
                     ),
                     _divider(),
                     _SectionTile(
@@ -425,7 +427,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             color: const Color(0x223B82F6),
                             borderRadius: BorderRadius.circular(5),
                           ),
-                          child: const Text('ADMIN', style: TextStyle(
+                          child: Text('ADMIN', style: TextStyle(
                               color: Color(0xFF3B82F6), fontSize: 9, fontWeight: FontWeight.w700)),
                         ),
                         onTap: () => Navigator.of(context).pushNamed(AppRoutes.adminQueue),
@@ -440,18 +442,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       onTap: _loggingOut ? null : _logout,
                     ),
                   ]),
-                  const SizedBox(height: 32),
+                  SizedBox(height: 32),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: t.surface,
                       borderRadius: BorderRadius.circular(AppRadius.round),
-                      border: Border.all(color: AppColors.glassBorder),
+                      border: Border.all(color: t.border),
                     ),
                     child: RichText(
                       textAlign: TextAlign.center,
                       text: TextSpan(
-                        style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                        style: TextStyle(color: t.textMuted, fontSize: 11),
                         children: [
                           TextSpan(text: 'Radd', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
                           const TextSpan(text: 'Flix', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
@@ -501,9 +503,9 @@ class _ThemePicker extends ConsumerWidget {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Handle
         Center(child: Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 20),
-            decoration: BoxDecoration(color: AppColors.textMuted.withOpacity(0.3), borderRadius: BorderRadius.circular(2)))),
-        const Text('Choose Theme', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary)),
+            decoration: BoxDecoration(color: t.textMuted.withOpacity(0.3), borderRadius: BorderRadius.circular(2)))),
+        Text('Choose Theme', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
+            color: t.textPrimary)),
         const SizedBox(height: 16),
         ..._options.map((opt) => _ThemeOption(
           icon: opt.$2, title: opt.$3, subtitle: opt.$4,
@@ -526,6 +528,7 @@ class _ThemeOption extends StatelessWidget {
       required this.isSelected, required this.onTap});
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -533,16 +536,16 @@ class _ThemeOption extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.12) : AppColors.surface,
+          color: isSelected ? AppColors.primary.withOpacity(0.12) : t.surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: isSelected ? AppColors.primary : AppColors.glassBorder)),
+          border: Border.all(color: isSelected ? AppColors.primary : t.border)),
         child: Row(children: [
-          Text(icon, style: const TextStyle(fontSize: 24)),
-          const SizedBox(width: 14),
+          Text(icon, style: TextStyle(fontSize: 24)),
+          SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: TextStyle(color: isSelected ? AppColors.primary : AppColors.textPrimary,
+            Text(title, style: TextStyle(color: isSelected ? AppColors.primary : t.textPrimary,
                 fontWeight: FontWeight.w600, fontSize: 15)),
-            Text(subtitle, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            Text(subtitle, style: TextStyle(color: t.textMuted, fontSize: 12)),
           ])),
           if (isSelected) const Icon(Icons.check_circle_rounded, color: AppColors.primary),
         ]),
@@ -557,19 +560,20 @@ class _Section extends StatelessWidget {
   const _Section({required this.title, required this.children});
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(padding: const EdgeInsets.only(left: 4, bottom: 8),
         child: Row(children: [
           Container(width: 12, height: 1.5,
               margin: const EdgeInsets.only(right: 6),
               color: AppColors.primary.withOpacity(0.6)),
-          Text(title.toUpperCase(), style: const TextStyle(
-              color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+          Text(title.toUpperCase(), style: TextStyle(
+              color: t.textMuted, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
         ])),
       Container(
-        decoration: BoxDecoration(color: AppColors.surface,
+        decoration: BoxDecoration(color: t.surface,
             borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(color: AppColors.glassBorder)),
+            border: Border.all(color: t.border)),
         child: Column(children: children),
       ),
     ]);
@@ -587,19 +591,20 @@ class _SectionTile extends StatelessWidget {
       this.labelColor, this.trailing, this.onTap});
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       leading: Container(width: 38, height: 38,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: (iconColor ?? AppColors.textMuted).withOpacity(0.12),
-          border: Border.all(color: (iconColor ?? AppColors.textMuted).withOpacity(0.15)),
+          color: (iconColor ?? t.textMuted).withOpacity(0.12),
+          border: Border.all(color: (iconColor ?? t.textMuted).withOpacity(0.15)),
         ),
-        child: Icon(icon, size: 18, color: iconColor ?? AppColors.textMuted)),
+        child: Icon(icon, size: 18, color: iconColor ?? t.textMuted)),
       title: Text(label, style: TextStyle(
-          color: labelColor ?? AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w500)),
+          color: labelColor ?? t.textPrimary, fontSize: 14, fontWeight: FontWeight.w500)),
       trailing: trailing ?? (onTap != null
-          ? const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 20)
+          ? Icon(Icons.chevron_right_rounded, color: t.textMuted, size: 20)
           : null),
       onTap: onTap,
     );
