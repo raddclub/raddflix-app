@@ -1,139 +1,111 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║              JazzMAX — Push to Oracle Server                        ║
+# ║              RaddFlix — Deploy to Oracle Server                      ║
 # ║                                                                      ║
-# ║  Syncs backend code to Oracle VPS (92.4.95.252)                     ║
+# ║  Pulls latest GitHub code on Oracle and restarts the server.        ║
 # ║                                                                      ║
 # ║  HOW TO RUN:                                                         ║
 # ║    bash push_to_oracle.sh                                            ║
 # ║                                                                      ║
-# ║  REQUIREMENT: Add ORACLE_SSH_KEY to Replit Secrets                  ║
+# ║  REQUIREMENT: ORACLE_SSH_KEY in Replit Secrets                      ║
+# ║  Push to GitHub first: bash push_to_github.sh                       ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 ORACLE_IP="92.4.95.252"
 ORACLE_USER="ubuntu"
-WORKSPACE="/home/runner/workspace"
-REMOTE_DIR="/home/ubuntu/jazzmax"
+ORACLE_DIR="/opt/jazzmax"
 
 echo ""
 echo "╔══════════════════════════════════════════════════╗"
-echo "║         JazzMAX → Oracle VPS Sync               ║"
+echo "║         RaddFlix → Oracle Deploy                  ║"
 echo "║         Host: $ORACLE_IP                  ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""
 
+# ── Check ORACLE_SSH_KEY ──────────────────────────────────────────────────────
 if [ -z "$ORACLE_SSH_KEY" ]; then
     echo "  ❌ ERROR: ORACLE_SSH_KEY secret is not set!"
+    echo ""
+    echo "  Fix: Replit sidebar → Secrets (🔒) → + Add Secret"
+    echo "       Name:  ORACLE_SSH_KEY"
+    echo "       Value: SSH private key for ubuntu@$ORACLE_IP"
+    echo ""
     exit 1
 fi
 
-# ── Reconstruct SSH key (stored as one-liner in Replit secret) ───────────────
-KEY_FILE=$(mktemp /tmp/oracle_key_XXXXXX.pem)
-python3 - <<PYEOF
-import os, sys
-raw = os.environ.get('ORACLE_SSH_KEY', '').strip()
-raw = raw.replace('-----BEGIN OPENSSH PRIVATE KEY-----', '')
-raw = raw.replace('-----END OPENSSH PRIVATE KEY-----', '')
-b64 = ''.join(raw.split())
-wrapped = '\n'.join(b64[i:i+70] for i in range(0, len(b64), 70))
-key = '-----BEGIN OPENSSH PRIVATE KEY-----\n' + wrapped + '\n-----END OPENSSH PRIVATE KEY-----\n'
-with open('${KEY_FILE}', 'w') as f:
-    f.write(key)
-PYEOF
-chmod 600 "$KEY_FILE"
+# ── Restore SSH key ───────────────────────────────────────────────────────────
+KEY_FILE="/tmp/oracle_deploy_key"
+node -e "
+const raw = process.env.ORACLE_SSH_KEY || '';
+const m = raw.match(/(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)/s);
+if (m) {
+    require('fs').writeFileSync('$KEY_FILE',
+        m[1].trim()+'\n'+m[2].trim().replace(/ /g,'\n')+'\n'+m[3].trim()+'\n',
+        {mode: 0o600});
+    console.log('  ✓ SSH key restored');
+} else {
+    console.error('  ❌ Could not parse ORACLE_SSH_KEY');
+    process.exit(1);
+}
+"
 
 SSH="ssh -i $KEY_FILE -o StrictHostKeyChecking=no -o ConnectTimeout=15"
-SCP="scp -i $KEY_FILE -o StrictHostKeyChecking=no -o ConnectTimeout=15"
 
-echo "  → Testing connection to Oracle..."
+# ── Test connection ───────────────────────────────────────────────────────────
+echo ""
+echo "▶ Testing connection to Oracle..."
 if ! $SSH ${ORACLE_USER}@${ORACLE_IP} "echo OK" > /dev/null 2>&1; then
-    echo "  ❌ Cannot connect to Oracle VPS"
+    echo "  ❌ Cannot connect to Oracle ($ORACLE_IP)"
     rm -f "$KEY_FILE"
     exit 1
 fi
-echo "  ✅ Connection OK"
+echo "  ✓ Connected to $ORACLE_IP"
 
+# ── Pull latest code ──────────────────────────────────────────────────────────
 echo ""
-echo "▶ Syncing backend files..."
-
-# Create remote directories
+echo "▶ Pulling latest code from GitHub..."
 $SSH ${ORACLE_USER}@${ORACLE_IP} "
-    mkdir -p $REMOTE_DIR/_watch_prototype/routes
-    mkdir -p $REMOTE_DIR/_watch_prototype/templates
-    mkdir -p $REMOTE_DIR/radd-hub/hub
-    mkdir -p $REMOTE_DIR/radd-hub/data
-    mkdir -p $REMOTE_DIR/jazzmax_flutter/lib/services
-    mkdir -p $REMOTE_DIR/jazzmax_flutter/lib/core/db
-    mkdir -p $REMOTE_DIR/jazzmax_flutter/lib/screens
-    mkdir -p $REMOTE_DIR/jazzmax_flutter/lib/widgets
-    mkdir -p $REMOTE_DIR/jazzmax_flutter/lib/providers
-    mkdir -p $REMOTE_DIR/jazzmax_flutter/lib/models
+    cd $ORACLE_DIR
+    git pull 2>&1 | tail -5
+    echo 'Current commit:' \$(git log --oneline -1)
 "
 
-# Sync Watch Prototype routes
-for f in $(find "$WORKSPACE/_watch_prototype" -name "*.py" | grep -v __pycache__ | grep -v .pyc); do
-    rel="${f#$WORKSPACE/}"
-    $SCP -q "$f" "${ORACLE_USER}@${ORACLE_IP}:${REMOTE_DIR}/${rel}" 2>/dev/null && echo "  ✅ $rel" || echo "  ❌ $rel"
-done
-
-# Sync radd-hub python files (not DB)
-for f in $(find "$WORKSPACE/radd-hub" -name "*.py" | grep -v __pycache__ | grep -v .pyc); do
-    rel="${f#$WORKSPACE/}"
-    $SCP -q "$f" "${ORACLE_USER}@${ORACLE_IP}:${REMOTE_DIR}/${rel}" 2>/dev/null
-done
-echo "  ✅ radd-hub/*.py"
-
-# Sync flutter dart files
-for f in $(find "$WORKSPACE/jazzmax_flutter/lib" -name "*.dart"); do
-    rel="${f#$WORKSPACE/}"
-    $SCP -q "$f" "${ORACLE_USER}@${ORACLE_IP}:${REMOTE_DIR}/${rel}" 2>/dev/null
-done
-echo "  ✅ jazzmax_flutter/lib/*.dart"
-
-# Sync root files
-for f in JAZZMAX_MASTER.md HANDOFF.md requirements.txt push_to_github.sh push_to_oracle.sh; do
-    $SCP -q "$WORKSPACE/$f" "${ORACLE_USER}@${ORACLE_IP}:${REMOTE_DIR}/$f" 2>/dev/null && echo "  ✅ $f"
-done
-
-# Add TMDB keys to Oracle DB (plaintext, no encryption)
+# ── Install any new Python deps ───────────────────────────────────────────────
 echo ""
-echo "▶ Updating TMDB keys on Oracle..."
-$SSH ${ORACLE_USER}@${ORACLE_IP} "python3 -c \"
-import sqlite3, time
-DB = '$REMOTE_DIR/radd-hub/data/radd_hub.db'
-try:
-    conn = sqlite3.connect(DB)
-    conn.execute(\\\"DELETE FROM keys WHERE provider='tmdb'\\\")
-    now = int(time.time())
-    conn.execute(\\\"INSERT INTO keys(provider,label,value_enc,is_active,created_at,updated_at) VALUES('tmdb','tmdb-key-1','69dc400803546646ccfa74add11d424b',1,?,?)\\\", (now,now))
-    conn.execute(\\\"INSERT INTO keys(provider,label,value_enc,is_active,created_at,updated_at) VALUES('tmdb','tmdb-key-2','d078f97b2b7992a234ee6198021a0e14',1,?,?)\\\", (now,now))
-    conn.commit(); conn.close()
-    print('  ✅ TMDB keys added to Oracle DB')
-except Exception as e:
-    print(f'  ⚠️ DB update: {e}')
-\"" 2>/dev/null || echo "  ⚠️ DB not yet initialized (will init on first run)"
-
-echo ""
-echo "▶ Restarting services on Oracle..."
+echo "▶ Installing Python dependencies..."
 $SSH ${ORACLE_USER}@${ORACLE_IP} "
-    pkill -f '_watch_prototype/run.py' 2>/dev/null || true
-    pkill -f 'radd_hub.py' 2>/dev/null || true
-    sleep 1
-    cd $REMOTE_DIR
-    pip3 install -r requirements.txt -q --break-system-packages 2>/dev/null | tail -1 || true
-    nohup python3 _watch_prototype/run.py > /tmp/watch.log 2>&1 &
-    echo '  ✅ Watch Prototype started (PID: '\$!')'
+    cd $ORACLE_DIR
+    pip3 install -r requirements.txt -q --break-system-packages 2>/dev/null | tail -2 || true
+    echo '  ✓ Dependencies ready'
+"
+
+# ── Restart Flask server ──────────────────────────────────────────────────────
+echo ""
+echo "▶ Restarting RaddFlix server..."
+$SSH ${ORACLE_USER}@${ORACLE_IP} "
+    sudo supervisorctl restart raddflix_radd 2>&1
     sleep 2
-    nohup bash -c 'cd radd-hub && python3 radd_hub.py run --skip-setup' > /tmp/hub.log 2>&1 &
-    echo '  ✅ Radd Hub started (PID: '\$!')'
+    sudo supervisorctl status raddflix_radd
 "
+
+# ── Verify API is responding ──────────────────────────────────────────────────
+echo ""
+echo "▶ Verifying API..."
+sleep 2
+API_RESP=$($SSH ${ORACLE_USER}@${ORACLE_IP} "curl -s http://localhost:5000/api/app/version" 2>/dev/null)
+if echo "$API_RESP" | grep -q '"ok"'; then
+    echo "  ✅ API responding: $API_RESP"
+else
+    echo "  ⚠️  API check: $API_RESP"
+    echo "  Check logs: ssh to oracle → sudo supervisorctl tail raddflix_radd"
+fi
 
 rm -f "$KEY_FILE"
 
 echo ""
 echo "╔══════════════════════════════════════════════════╗"
-echo "║   ✅ Oracle sync complete!                       ║"
-echo "║   API:   http://$ORACLE_IP:6000          ║"
-echo "║   Admin: http://$ORACLE_IP:5000          ║"
+echo "║   ✅ Oracle deploy complete!                      ║"
+echo "║   API:   http://$ORACLE_IP/api/app/version ║"
+echo "║   Admin: http://$ORACLE_IP/admin           ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""

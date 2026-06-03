@@ -1,17 +1,14 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║              JazzMAX — Push to GitHub                               ║
+# ║              RaddFlix — Push to GitHub                               ║
 # ║                                                                      ║
-# ║  Run at the end of every work session instead of create_zip.sh      ║
-# ║  (or in addition to it).                                            ║
+# ║  Run at the end of every work session to push changes to GitHub.    ║
 # ║                                                                      ║
 # ║  HOW TO RUN:                                                         ║
 # ║    bash push_to_github.sh                                            ║
+# ║    bash push_to_github.sh "your commit message"   (optional)        ║
 # ║                                                                      ║
-# ║  REQUIREMENT: Add GITHUB_TOKEN to Replit Secrets first              ║
-# ║    Replit sidebar → Secrets → + Add Secret                          ║
-# ║    Name: GITHUB_TOKEN                                                ║
-# ║    Value: your GitHub Personal Access Token                         ║
+# ║  REQUIREMENT: GITHUB_TOKEN in Replit Secrets                        ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 set -e
@@ -26,132 +23,83 @@ echo "║         RaddFlix → GitHub Push                    ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""
 
-# ── Check GITHUB_TOKEN is set ─────────────────────────────────────────────────
+# ── Check GITHUB_TOKEN ────────────────────────────────────────────────────────
 if [ -z "$GITHUB_TOKEN" ]; then
     echo "  ❌ ERROR: GITHUB_TOKEN secret is not set!"
     echo ""
     echo "  Fix: Replit sidebar → Secrets (🔒) → + Add Secret"
     echo "       Name:  GITHUB_TOKEN"
-    echo "       Value: your GitHub Personal Access Token"
-    echo ""
-    echo "  Your token needs these permissions:"
-    echo "    ✓ repo (full control)"
+    echo "       Value: your GitHub Personal Access Token (repo scope)"
     echo ""
     exit 1
 fi
 
 echo "  ✓ GITHUB_TOKEN found"
 
-# ── Step 1: Checkpoint SQLite database ───────────────────────────────────────
-echo ""
-echo "▶ Step 1/5 — Checkpointing database..."
-python3 -c "
-import sqlite3
-db = sqlite3.connect('$WORKSPACE/radd-hub/data/radd_hub.db')
-db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
-db.close()
-print('  ✓ Database checkpointed')
-" 2>/dev/null || echo "  ✓ Database ready"
+# ── Verify token works ────────────────────────────────────────────────────────
+LOGIN=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+    "https://api.github.com/user" | grep '"login"' | cut -d'"' -f4)
+if [ -z "$LOGIN" ]; then
+    echo "  ❌ ERROR: GITHUB_TOKEN is invalid or expired — generate a new one"
+    exit 1
+fi
+echo "  ✓ Authenticated as: $LOGIN"
 
-# ── Step 2: Create GitHub repo if it doesn't exist ───────────────────────────
+# ── Check repo exists ─────────────────────────────────────────────────────────
 echo ""
-echo "▶ Step 2/5 — Checking GitHub repo..."
-
-HTTP_STATUS=$(curl -s -o /tmp/gh_repo_check.json -w "%{http_code}" \
+echo "▶ Checking GitHub repo..."
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
     -H "Authorization: token $GITHUB_TOKEN" \
-    -H "Accept: application/vnd.github.v3+json" \
     "https://api.github.com/repos/$GITHUB_USER/$GITHUB_REPO")
 
 if [ "$HTTP_STATUS" = "200" ]; then
-    echo "  ✓ Repo already exists: github.com/$GITHUB_USER/$GITHUB_REPO"
-elif [ "$HTTP_STATUS" = "404" ]; then
-    echo "  → Repo not found, creating it..."
-    CREATE_STATUS=$(curl -s -o /tmp/gh_create.json -w "%{http_code}" \
-        -X POST \
-        -H "Authorization: token $GITHUB_TOKEN" \
-        -H "Accept: application/vnd.github.v3+json" \
-        "https://api.github.com/user/repos" \
-        -d "{
-            \"name\": \"$GITHUB_REPO\",
-            \"description\": \"JazzMAX — Flutter Android streaming app for Jazz SIM users in Pakistan\",
-            \"private\": true,
-            \"auto_init\": false
-        }")
-    if [ "$CREATE_STATUS" = "201" ]; then
-        echo "  ✓ Repo created: github.com/$GITHUB_USER/$GITHUB_REPO (private)"
-    else
-        echo "  ❌ Failed to create repo (HTTP $CREATE_STATUS)"
-        cat /tmp/gh_create.json
-        exit 1
-    fi
+    echo "  ✓ Repo: github.com/$GITHUB_USER/$GITHUB_REPO"
 else
-    echo "  ❌ GitHub API error (HTTP $HTTP_STATUS)"
-    cat /tmp/gh_repo_check.json
+    echo "  ❌ Repo not found or no access (HTTP $HTTP_STATUS)"
     exit 1
 fi
 
-# ── Step 3: Set/update git remote ────────────────────────────────────────────
+# ── Set git remote ────────────────────────────────────────────────────────────
 echo ""
-echo "▶ Step 3/5 — Setting git remote..."
+echo "▶ Setting git remote..."
 cd "$WORKSPACE"
 
 REMOTE_URL="https://$GITHUB_TOKEN@github.com/$GITHUB_USER/$GITHUB_REPO.git"
 
-if git remote get-url github 2>/dev/null; then
-    git remote set-url github "$REMOTE_URL"
-    echo "  ✓ Remote 'github' updated"
+if git remote get-url origin 2>/dev/null | grep -q "github.com"; then
+    git remote set-url origin "$REMOTE_URL"
+    echo "  ✓ Remote 'origin' updated"
 else
-    git remote add github "$REMOTE_URL"
-    echo "  ✓ Remote 'github' added"
+    git remote add origin "$REMOTE_URL" 2>/dev/null || \
+    git remote set-url origin "$REMOTE_URL"
+    echo "  ✓ Remote 'origin' set"
 fi
 
-# ── Step 4: Configure git identity (needed on fresh Replit accounts) ──────────
-echo ""
-echo "▶ Step 4/5 — Configuring git identity..."
-git config user.email "rehan@raddflix.app" 2>/dev/null || true
-git config user.name "Muhammad Rehan" 2>/dev/null || true
-echo "  ✓ Identity set"
+# ── Configure git identity ────────────────────────────────────────────────────
+git config user.email "agent@raddflix.app" 2>/dev/null || true
+git config user.name "RaddFlix Agent" 2>/dev/null || true
 
-# ── Step 5: Commit and push ───────────────────────────────────────────────────
+# ── Commit and push ───────────────────────────────────────────────────────────
 echo ""
-echo "▶ Step 5/5 — Committing and pushing..."
+echo "▶ Committing and pushing..."
 
-# Stage everything (gitignore handles exclusions)
 git add -A
 
-# Check if there's anything to commit
 if git diff --cached --quiet; then
     echo "  ✓ Nothing new to commit — already up to date"
 else
-    COMMIT_MSG="RaddFlix update — $(date '+%Y-%m-%d %H:%M')"
+    COMMIT_MSG="${1:-RaddFlix update — $(date '+%Y-%m-%d %H:%M')}"
     git commit -m "$COMMIT_MSG"
     echo "  ✓ Committed: $COMMIT_MSG"
 fi
 
-# Push to GitHub
 echo "  → Pushing to github.com/$GITHUB_USER/$GITHUB_REPO ..."
-git push github main --force-with-lease 2>&1 | sed "s/$GITHUB_TOKEN/[TOKEN]/g"
+git push origin main 2>&1 | sed "s/$GITHUB_TOKEN/[TOKEN]/g"
 
 echo ""
 echo "══════════════════════════════════════════════════════════════"
+echo "  ✅ Pushed to: https://github.com/$GITHUB_USER/$GITHUB_REPO"
 echo ""
-echo "  ✅ DONE! Code is live at:"
-echo "     https://github.com/$GITHUB_USER/$GITHUB_REPO"
-echo ""
-echo "  HOW TO CONTINUE ON NEXT REPLIT ACCOUNT:"
-echo ""
-echo "  1. Create a new Repl (any type) and add GITHUB_TOKEN + SESSION_SECRET"
-echo "     to Replit Secrets (sidebar → lock icon)"
-echo ""
-echo "  2. Open Shell and run ONE command:"
-echo ""
-echo '     curl -s -H "Authorization: token $GITHUB_TOKEN" \'
-echo "       \"https://raw.githubusercontent.com/$GITHUB_USER/$GITHUB_REPO/main/setup_new_account.sh\" \\"
-echo "       | bash"
-echo ""
-echo "  3. Tell the Replit Agent:"
-echo '     "Set up the Radd Hub and Watch Prototype workflows"'
-echo ""
-echo "  4. Read JAZZMAX_MASTER.md — continue from where you left off"
-echo ""
+echo "  Next: run bash push_to_oracle.sh to deploy to the server"
 echo "══════════════════════════════════════════════════════════════"
+echo ""
