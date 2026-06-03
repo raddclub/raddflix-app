@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
@@ -18,7 +19,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     with TickerProviderStateMixin {
   late AnimationController _pulseCtrl;
   bool _started = false;
-  Color _splashBg = AppColors.background;
+  Color _splashBg = t.bg;
 
   @override
   void initState() {
@@ -41,7 +42,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       final color = Color(int.parse('FF$hex', radix: 16));
       if (mounted) setState(() => _splashBg = color);
     } catch (_) {
-      // Silent fallback — AppColors.background used
+      // Silent fallback — t.bg used
     }
   }
 
@@ -63,6 +64,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     ref.listen<AuthState>(authProvider, (_, next) {
       if (!mounted || _started) return;
       if (next.status == AuthStatus.authenticated) {
@@ -129,11 +131,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _buildLogo(),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text(
                   AppConstants.tagline,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
+                  style: TextStyle(
+                    color: t.textMuted,
                     fontSize: 13,
                     letterSpacing: 0.3,
                   ),
@@ -191,7 +193,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             .scale(begin: const Offset(0.5, 0.5), end: const Offset(1, 1),
                 duration: 500.ms, curve: AppCurves.enter)
             .fadeIn(duration: 300.ms),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         RichText(
           text: const TextSpan(
             style: TextStyle(
@@ -201,7 +203,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               height: 1,
             ),
             children: [
-              TextSpan(text: 'Radd', style: TextStyle(color: AppColors.textPrimary)),
+              TextSpan(text: 'Radd', style: TextStyle(color: t.textPrimary)),
               TextSpan(text: 'Flix', style: TextStyle(color: AppColors.primary)),
             ],
           ),

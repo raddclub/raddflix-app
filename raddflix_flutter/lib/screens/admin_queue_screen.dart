@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
 import '../core/api/api_client.dart';
@@ -54,8 +55,8 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
       case 'downloading':
       case 'uploading':  return AppColors.info;
       case 'queued':     return AppColors.warning;
-      case 'cancelled':  return AppColors.textMuted;
-      default:           return AppColors.textMuted;
+      case 'cancelled':  return t.textMuted;
+      default:           return t.textMuted;
     }
   }
 
@@ -98,34 +99,35 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     final active   = _jobs.where((j) => !['done','error','failed','cancelled'].contains(j['status'])).toList();
     final finished = _jobs.where((j) =>  ['done','error','failed','cancelled'].contains(j['status'])).toList();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: t.bg,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
           // App bar
           SliverAppBar(
-            backgroundColor: AppColors.background,
+            backgroundColor: t.bg,
             surfaceTintColor: Colors.transparent,
             pinned: true,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                  color: AppColors.textPrimary, size: 20),
+              icon: Icon(Icons.arrow_back_ios_new_rounded,
+                  color: t.textPrimary, size: 20),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            title: const Text('Server Downloads',
-                style: TextStyle(color: AppColors.textPrimary,
+            title: Text('Server Downloads',
+                style: TextStyle(color: t.textPrimary,
                     fontSize: 18, fontWeight: FontWeight.w700)),
             actions: [
               IconButton(
-                icon: const Icon(Icons.refresh_rounded,
-                    color: AppColors.textMuted, size: 22),
+                icon: Icon(Icons.refresh_rounded,
+                    color: t.textMuted, size: 22),
                 onPressed: _load,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
             ],
           ),
 
@@ -140,18 +142,18 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
             SliverFillRemaining(
               child: Center(
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Icon(Icons.cloud_off_rounded,
-                      color: AppColors.textMuted, size: 48),
-                  const SizedBox(height: 12),
-                  const Text('Could not reach server',
-                      style: TextStyle(color: AppColors.textMuted, fontSize: 15)),
-                  const SizedBox(height: 6),
-                  Text(_error!, style: const TextStyle(
-                      color: AppColors.textMuted, fontSize: 11),
+                  Icon(Icons.cloud_off_rounded,
+                      color: t.textMuted, size: 48),
+                  SizedBox(height: 12),
+                  Text('Could not reach server',
+                      style: TextStyle(color: t.textMuted, fontSize: 15)),
+                  SizedBox(height: 6),
+                  Text(_error!, style: TextStyle(
+                      color: t.textMuted, fontSize: 11),
                       textAlign: TextAlign.center),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
                   TextButton(onPressed: _load,
-                      child: const Text('Retry',
+                      child: Text('Retry',
                           style: TextStyle(color: AppColors.primary))),
                 ]),
               ),
@@ -162,14 +164,14 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
               child: Center(child: Column(
                   mainAxisAlignment: MainAxisAlignment.center, children: [
                 Icon(Icons.download_done_rounded,
-                    color: AppColors.textMuted, size: 52),
+                    color: t.textMuted, size: 52),
                 SizedBox(height: 12),
                 Text('No download jobs yet',
-                    style: TextStyle(color: AppColors.textMuted,
+                    style: TextStyle(color: t.textMuted,
                         fontSize: 16, fontWeight: FontWeight.w600)),
                 SizedBox(height: 6),
                 Text('Use the admin panel to start a download.',
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                    style: TextStyle(color: t.textMuted, fontSize: 13)),
               ])),
             )
 
@@ -180,9 +182,9 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: t.surface,
                   borderRadius: BorderRadius.circular(AppRadius.md),
-                  border: Border.all(color: AppColors.glassBorder),
+                  border: Border.all(color: t.border),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -198,7 +200,7 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
                         color: AppColors.error),
                     _Stat(label: 'Total',
                         value: _jobs.length.toString(),
-                        color: AppColors.textMuted),
+                        color: t.textMuted),
                   ],
                 ),
               ).animate().fadeIn(duration: 300.ms),
@@ -210,7 +212,7 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
                   child: Text('ACTIVE', style: TextStyle(
-                      color: AppColors.textMuted, fontSize: 11,
+                      color: t.textMuted, fontSize: 11,
                       fontWeight: FontWeight.w700, letterSpacing: 1)),
                 ),
               ),
@@ -236,7 +238,7 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
                   child: Text('RECENT', style: TextStyle(
-                      color: AppColors.textMuted, fontSize: 11,
+                      color: t.textMuted, fontSize: 11,
                       fontWeight: FontWeight.w700, letterSpacing: 1)),
                 ),
               ),
@@ -270,12 +272,13 @@ class _Stat extends StatelessWidget {
   const _Stat({required this.label, required this.value, required this.color});
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Text(value, style: TextStyle(
           color: color, fontSize: 22, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 2),
-      Text(label, style: const TextStyle(
-          color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w500)),
+      SizedBox(height: 2),
+      Text(label, style: TextStyle(
+          color: t.textMuted, fontSize: 11, fontWeight: FontWeight.w500)),
     ]);
   }
 }
@@ -298,6 +301,7 @@ class _JobCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     final status   = job['status'] as String? ?? '';
     final progress = (job['progress'] as num?)?.toDouble() ?? 0.0;
     final message  = job['message'] as String? ?? '';
@@ -310,12 +314,12 @@ class _JobCard extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: t.surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
             color: isActive
                 ? statusColor.withOpacity(0.35)
-                : AppColors.glassBorder,
+                : t.border,
           ),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -328,14 +332,14 @@ class _JobCard extends StatelessWidget {
               ),
               child: Icon(statusIcon, color: statusColor, size: 16),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(movie, style: const TextStyle(
-                    color: AppColors.textPrimary,
+                Text(movie, style: TextStyle(
+                    color: t.textPrimary,
                     fontSize: 13, fontWeight: FontWeight.w600),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Row(children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -347,12 +351,12 @@ class _JobCard extends StatelessWidget {
                         style: TextStyle(color: statusColor, fontSize: 9,
                             fontWeight: FontWeight.w700, letterSpacing: 0.5)),
                   ),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   Text(siteLabel,
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+                      style: TextStyle(color: t.textMuted, fontSize: 11)),
                   const Spacer(),
                   Text(relTime,
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                      style: TextStyle(color: t.textMuted, fontSize: 10)),
                 ]),
               ]),
             ),
@@ -360,17 +364,17 @@ class _JobCard extends StatelessWidget {
 
           // Progress bar (for active jobs)
           if (isActive && progress > 0) ...[
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             ClipRRect(
               borderRadius: BorderRadius.circular(3),
               child: LinearProgressIndicator(
                 value: progress / 100,
-                backgroundColor: AppColors.glassBorder,
+                backgroundColor: t.border,
                 valueColor: AlwaysStoppedAnimation<Color>(statusColor),
                 minHeight: 4,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text('${progress.toStringAsFixed(1)}%',
                 style: TextStyle(color: statusColor,
                     fontSize: 10, fontWeight: FontWeight.w600)),
@@ -378,11 +382,11 @@ class _JobCard extends StatelessWidget {
 
           // Indeterminate for queued
           if (status == 'queued') ...[
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             ClipRRect(
               borderRadius: BorderRadius.circular(3),
               child: const LinearProgressIndicator(
-                backgroundColor: AppColors.glassBorder,
+                backgroundColor: t.border,
                 valueColor: AlwaysStoppedAnimation<Color>(AppColors.warning),
                 minHeight: 4,
               ),
@@ -391,9 +395,9 @@ class _JobCard extends StatelessWidget {
 
           // Message
           if (message.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(message,
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                style: TextStyle(color: t.textMuted, fontSize: 11),
                 maxLines: 2, overflow: TextOverflow.ellipsis),
           ],
         ]),

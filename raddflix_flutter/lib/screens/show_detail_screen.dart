@@ -844,16 +844,16 @@ class _EpisodeTile extends StatelessWidget {
                                 margin: const EdgeInsets.only(left: 8),
                                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: Colors.teal.withOpacity(0.15),
+                                  color: AppColors.success.withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: const [
-                                    Icon(Icons.download_done_rounded, color: Colors.teal, size: 9),
+                                    Icon(Icons.download_done_rounded, color: AppColors.success, size: 9),
                                     SizedBox(width: 3),
                                     Text('OFFLINE', style: TextStyle(
-                                      color: Colors.teal, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5,
+                                      color: AppColors.success, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5,
                                     )),
                                   ],
                                 ),
@@ -901,7 +901,7 @@ class _EpisodeTile extends StatelessWidget {
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 4),
                       child: Icon(Icons.download_done_rounded,
-                          color: Colors.teal, size: 22))
+                          color: AppColors.success, size: 22))
                   else if (isDownloading)
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 4),
@@ -1019,7 +1019,7 @@ class _StatusPill extends StatelessWidget {
       case 'ongoing':   return const Color(0xFF22C55E);
       case 'completed': return const Color(0xFF3B82F6);
       case 'cancelled': return const Color(0xFFEF4444);
-      default:          return const Color(0xFF888899);
+      default:          return t.textMuted;
     }
   }
 

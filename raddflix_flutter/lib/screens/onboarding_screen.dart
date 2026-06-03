@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
@@ -91,9 +92,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     final isLast = _page == _pages.length - 1;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: t.bg,
       body: Stack(
         children: [
           // Animated gradient background
@@ -105,7 +107,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 radius: 1.2,
                 colors: [
                   _pages[_page].gradient[0].withOpacity(0.15),
-                  AppColors.background,
+                  t.bg,
                 ],
               ),
             ),
@@ -120,8 +122,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     padding: const EdgeInsets.all(16),
                     child: TextButton(
                       onPressed: _finish,
-                      child: const Text('Skip',
-                          style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+                      child: Text('Skip',
+                          style: TextStyle(color: t.textMuted, fontSize: 14)),
                     ),
                   ),
                 ),
@@ -144,7 +146,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     expansionFactor: 3,
                     spacing: 6,
                     activeDotColor: AppColors.primary,
-                    dotColor: AppColors.textMuted.withOpacity(0.3),
+                    dotColor: t.textMuted.withOpacity(0.3),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -217,6 +219,7 @@ class _OnboardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
@@ -241,18 +244,18 @@ class _OnboardPage extends StatelessWidget {
               ),
             ),
             child: Center(
-              child: Text(data.icon, style: const TextStyle(fontSize: 56)),
+              child: Text(data.icon, style: TextStyle(fontSize: 56)),
             ),
           )
               .animate(target: isActive ? 1.0 : 0.0)
               .scale(begin: const Offset(0.8, 0.8), end: const Offset(1, 1),
                   duration: 400.ms, curve: AppCurves.enter),
-          const SizedBox(height: 48),
+          SizedBox(height: 48),
           Text(
             data.title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: t.textPrimary,
               fontSize: 26,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.5,
@@ -262,12 +265,12 @@ class _OnboardPage extends StatelessWidget {
               .animate(target: isActive ? 1.0 : 0.0)
               .fadeIn(duration: 350.ms, delay: 100.ms)
               .slideY(begin: 0.3, end: 0, duration: 350.ms, curve: AppCurves.standard),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Text(
             data.body,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textMuted,
+            style: TextStyle(
+              color: t.textMuted,
               fontSize: 15,
               height: 1.65,
               letterSpacing: 0.1,

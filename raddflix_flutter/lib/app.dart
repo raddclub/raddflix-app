@@ -192,7 +192,7 @@ class _ForceUpdateScreen extends StatelessWidget {
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: const Color(0xFF08080E),
+        backgroundColor: AppColors.background,
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -283,9 +283,9 @@ class _ForceUpdateScreen extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 17),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A2E),
+                      color: AppColors.card,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFF252540)),
+                      border: Border.all(color: AppColors.cardBorder),
                     ),
                     child: const Text('Contact Support',
                         textAlign: TextAlign.center,

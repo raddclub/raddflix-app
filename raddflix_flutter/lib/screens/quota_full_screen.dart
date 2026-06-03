@@ -52,7 +52,7 @@ class QuotaFullScreen extends StatelessWidget {
                 Text(
                   'Daily Limit Reached',
                   style: TextStyle(
-                      color: Colors.white,
+                      color: t.textPrimary,
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.5),
@@ -129,7 +129,7 @@ class QuotaFullScreen extends StatelessWidget {
                         SizedBox(width: 8),
                         Text('Get 100 MB Free via SIMOSA',
                             style: TextStyle(
-                                color: Colors.white,
+                                color: t.textPrimary,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 15)),
                       ],

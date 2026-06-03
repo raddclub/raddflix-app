@@ -502,7 +502,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       case 'Movies':   return const Color(0xFFE8002D);
       case 'TV Shows': return const Color(0xFF3B82F6);
       case 'Dramas':   return const Color(0xFF8B5CF6);
-      default:         return const Color(0xFF64748B);
+      default:         return AppColors.textMuted;
     }
   }
 }

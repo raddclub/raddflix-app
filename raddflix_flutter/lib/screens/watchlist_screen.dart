@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants.dart';
@@ -14,18 +15,18 @@ class WatchlistScreen extends ConsumerWidget {
     final state = ref.watch(watchlistProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: t.bg,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: t.bg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: t.textPrimary),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
+        title: Text(
           'My Watchlist',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: t.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
@@ -55,7 +56,7 @@ class WatchlistScreen extends ConsumerWidget {
         ],
       ),
       body: state.loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? Center(child: CircularProgressIndicator(color: AppColors.primary))
           : state.items.isEmpty
               ? _buildEmpty(context)
               : _buildGrid(context, ref, state.items),
@@ -63,6 +64,7 @@ class WatchlistScreen extends ConsumerWidget {
   }
 
   Widget _buildEmpty(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -70,27 +72,27 @@ class WatchlistScreen extends ConsumerWidget {
           Container(
             width: 80, height: 80,
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: t.surface,
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: t.border),
             ),
-            child: const Icon(Icons.bookmark_add_outlined,
-                color: AppColors.textMuted, size: 36),
+            child: Icon(Icons.bookmark_add_outlined,
+                color: t.textMuted, size: 36),
           ),
-          const SizedBox(height: 20),
-          const Text(
+          SizedBox(height: 20),
+          Text(
             'Your Watchlist is Empty',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: t.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
+          SizedBox(height: 8),
+          Text(
             'Tap the bookmark icon on any\nmovie or show to save it here.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textMuted, fontSize: 14, height: 1.5),
+            style: TextStyle(color: t.textMuted, fontSize: 14, height: 1.5),
           ),
           const SizedBox(height: 28),
           GestureDetector(
@@ -149,11 +151,11 @@ class WatchlistScreen extends ConsumerWidget {
                   width: 26,
                   height: 26,
                   decoration: BoxDecoration(
-                    color: AppColors.background.withOpacity(0.85),
+                    color: t.bg.withOpacity(0.85),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.close_rounded,
-                      color: AppColors.textMuted, size: 15),
+                  child: Icon(Icons.close_rounded,
+                      color: t.textMuted, size: 15),
                 ),
               ),
             ),

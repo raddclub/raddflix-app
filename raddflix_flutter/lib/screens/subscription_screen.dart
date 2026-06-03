@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/radd_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -123,6 +124,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     final state = ref.watch(subscriptionProvider);
     return LoadingOverlay(
       loading: _submitting,
@@ -135,7 +137,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
             onPressed: () => Navigator.of(context).pop()),
         ),
         body: state.loading
-            ? const Center(child: CircularProgressIndicator(
+            ? Center(child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation(AppColors.primary), strokeCap: StrokeCap.round))
             : _buildBody(state),
       ),
@@ -153,17 +155,17 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
               .animate().fadeIn(duration: 400.ms).slideY(begin: -0.2, end: 0, duration: 400.ms),
 
         // Plans header
-        const Text('Choose a Plan', style: TextStyle(color: AppColors.textPrimary,
+        Text('Choose a Plan', style: TextStyle(color: t.textPrimary,
             fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3))
             .animate().fadeIn(duration: 400.ms),
-        const SizedBox(height: 6),
-        const Text('Zero-rated on Jazz · HD quality · All content',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 13))
+        SizedBox(height: 6),
+        Text('Zero-rated on Jazz · HD quality · All content',
+            style: TextStyle(color: t.textMuted, fontSize: 13))
             .animate(delay: 80.ms).fadeIn(duration: 300.ms),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         const _JazzPartnerBadge()
             .animate(delay: 120.ms).fadeIn(duration: 400.ms),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
 
         // Plan cards
         if (state.plans.isEmpty)
@@ -178,15 +180,15 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
               .slideY(begin: 0.15, end: 0, duration: 350.ms, curve: AppCurves.standard)),
 
         if (_selectedPlanId != null) ...[
-          const SizedBox(height: 24),
-          const Text('Pay With', style: TextStyle(color: AppColors.textPrimary,
+          SizedBox(height: 24),
+          Text('Pay With', style: TextStyle(color: t.textPrimary,
               fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3))
               .animate().fadeIn(duration: 300.ms),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           if (_methodsLoading)
             ...List.generate(2, (_) => Container(
               height: 80, margin: const EdgeInsets.only(bottom: 10),
-              decoration: BoxDecoration(color: AppColors.surface,
+              decoration: BoxDecoration(color: t.surface,
                   borderRadius: BorderRadius.circular(AppRadius.md))))
           else
             ..._methods.map((m) => _PayMethodCard(
@@ -195,12 +197,12 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
               onSelect: () => setState(() => _selectedMethod = m.key),
             ).animate().fadeIn(duration: 300.ms)),
 
-          const SizedBox(height: 20),
-          const Text('Transaction ID', style: TextStyle(color: AppColors.textPrimary,
+          SizedBox(height: 20),
+          Text('Transaction ID', style: TextStyle(color: t.textPrimary,
               fontSize: 16, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          const Text('After sending payment, enter the Transaction ID here for verification.',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.5)),
+          SizedBox(height: 6),
+          Text('After sending payment, enter the Transaction ID here for verification.',
+              style: TextStyle(color: t.textMuted, fontSize: 13, height: 1.5)),
           const SizedBox(height: 14),
           RaddTextField(
             controller: _tidCtrl,
@@ -271,15 +273,15 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
         Container(width: 44, height: 44,
           decoration: BoxDecoration(shape: BoxShape.circle,
               color: AppColors.success.withOpacity(0.15)),
-          child: const Center(child: Icon(Icons.verified_rounded,
+          child: Center(child: Icon(Icons.verified_rounded,
               color: AppColors.success, size: 24))),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Active: ${sub.plan.toUpperCase()}', style: const TextStyle(
-              color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+          Text('Active: ${sub.plan.toUpperCase()}', style: TextStyle(
+              color: t.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
           if (expStr != null)
-            Text('Expires $expStr', style: const TextStyle(
-                color: AppColors.textMuted, fontSize: 12)),
+            Text('Expires $expStr', style: TextStyle(
+                color: t.textMuted, fontSize: 12)),
         ])),
       ]),
     );
@@ -287,7 +289,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
 
   List<Widget> _shimmerPlans() => List.generate(3, (_) => Container(
     height: 100, margin: const EdgeInsets.only(bottom: 12),
-    decoration: BoxDecoration(color: AppColors.surface,
+    decoration: BoxDecoration(color: t.surface,
         borderRadius: BorderRadius.circular(AppRadius.md))));
 }
 
@@ -301,6 +303,7 @@ class _PlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: onSelect,
       child: AnimatedContainer(
@@ -308,10 +311,10 @@ class _PlanCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.08) : AppColors.surface,
+          color: isSelected ? AppColors.primary.withOpacity(0.08) : t.surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.glassBorder,
+              color: isSelected ? AppColors.primary : t.border,
               width: isSelected ? 1.5 : 0.5),
           boxShadow: isSelected ? AppShadows.primary : null),
         child: Row(children: [
@@ -319,38 +322,38 @@ class _PlanCard extends StatelessWidget {
             width: 20, height: 20,
             decoration: BoxDecoration(shape: BoxShape.circle,
                 color: isSelected ? AppColors.primary : Colors.transparent,
-                border: Border.all(color: isSelected ? AppColors.primary : AppColors.textMuted, width: 2)),
-            child: isSelected ? const Center(
+                border: Border.all(color: isSelected ? AppColors.primary : t.textMuted, width: 2)),
+            child: isSelected ? Center(
                 child: Icon(Icons.check_rounded, size: 12, color: Colors.white)) : null),
-          const SizedBox(width: 14),
+          SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Text(plan.name, style: TextStyle(
-                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                  color: isSelected ? AppColors.primary : t.textPrimary,
                   fontSize: 16, fontWeight: FontWeight.w700)),
               if (isPopular) ...[
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(color: AppColors.warning.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(4)),
-                  child: const Text('POPULAR', style: TextStyle(
+                  child: Text('POPULAR', style: TextStyle(
                       color: AppColors.warning, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.8))),
               ],
             ]),
             if (plan.features.isNotEmpty) ...[
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(plan.features.take(3).join(' · '),
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 11), maxLines: 2),
+                  style: TextStyle(color: t.textMuted, fontSize: 11), maxLines: 2),
             ],
           ])),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(plan.priceMonthly == 0 ? 'Free' : 'Rs. ${plan.priceMonthly}',
                 style: TextStyle(
-                    color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                    color: isSelected ? AppColors.primary : t.textPrimary,
                     fontSize: 17, fontWeight: FontWeight.w800)),
             if (plan.priceMonthly > 0)
-              const Text('/month', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+              Text('/month', style: TextStyle(color: t.textMuted, fontSize: 11)),
           ]),
         ]),
       ),
@@ -367,6 +370,7 @@ class _PayMethodCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: onSelect,
       child: AnimatedContainer(
@@ -374,10 +378,10 @@ class _PayMethodCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.06) : AppColors.surface,
+          color: isSelected ? AppColors.primary.withOpacity(0.06) : t.surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.glassBorder,
+              color: isSelected ? AppColors.primary : t.border,
               width: isSelected ? 1.5 : 0.5)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
@@ -385,12 +389,12 @@ class _PayMethodCard extends StatelessWidget {
               width: 18, height: 18,
               decoration: BoxDecoration(shape: BoxShape.circle,
                   color: isSelected ? AppColors.primary : Colors.transparent,
-                  border: Border.all(color: isSelected ? AppColors.primary : AppColors.textMuted, width: 2)),
-              child: isSelected ? const Center(
+                  border: Border.all(color: isSelected ? AppColors.primary : t.textMuted, width: 2)),
+              child: isSelected ? Center(
                   child: Icon(Icons.check_rounded, size: 10, color: Colors.white)) : null),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Text(method.name, style: TextStyle(
-                color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                color: isSelected ? AppColors.primary : t.textPrimary,
                 fontSize: 14, fontWeight: FontWeight.w700)),
           ]),
           if (isSelected && method.accountNumber != null) ...[
@@ -402,9 +406,9 @@ class _PayMethodCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(AppRadius.xs),
                     border: Border.all(color: AppColors.primary.withOpacity(0.2))),
                 child: Row(children: [
-                  const Icon(Icons.account_balance_wallet_outlined, size: 16, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(method.accountNumber!, style: const TextStyle(
+                  Icon(Icons.account_balance_wallet_outlined, size: 16, color: AppColors.primary),
+                  SizedBox(width: 8),
+                  Expanded(child: Text(method.accountNumber!, style: TextStyle(
                       color: AppColors.primary, fontSize: 14, fontWeight: FontWeight.w700,
                       letterSpacing: 0.5))),
                   GestureDetector(
@@ -414,14 +418,14 @@ class _PayMethodCard extends StatelessWidget {
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                           content: Text('Copied!'), duration: Duration(seconds: 2)));
                     },
-                    child: const Icon(Icons.copy_rounded, size: 16, color: AppColors.primary)),
+                    child: Icon(Icons.copy_rounded, size: 16, color: AppColors.primary)),
                 ]),
               )),
             ]),
             if (method.instructions != null) ...[
-              const SizedBox(height: 8),
-              Text(method.instructions!, style: const TextStyle(
-                  color: AppColors.textMuted, fontSize: 12, height: 1.5)),
+              SizedBox(height: 8),
+              Text(method.instructions!, style: TextStyle(
+                  color: t.textMuted, fontSize: 12, height: 1.5)),
             ],
           ],
         ]),
@@ -445,30 +449,31 @@ class _FeatureTable extends StatelessWidget {
   static const _heads = ['Basic', 'Standard', 'Premium'];
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('Plan Comparison', style: TextStyle(color: AppColors.textPrimary,
+      Text('Plan Comparison', style: TextStyle(color: t.textPrimary,
           fontSize: 16, fontWeight: FontWeight.w700)),
-      const SizedBox(height: 12),
+      SizedBox(height: 12),
       Container(
-        decoration: BoxDecoration(color: AppColors.surface,
+        decoration: BoxDecoration(color: t.surface,
             borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(color: AppColors.glassBorder)),
+            border: Border.all(color: t.border)),
         child: Column(children: [
           Padding(padding: const EdgeInsets.symmetric(vertical: 10),
             child: Row(children: [
-              const Expanded(flex: 3, child: Padding(padding: EdgeInsets.only(left: 16),
-                child: Text('Feature', style: TextStyle(color: AppColors.textMuted,
+              Expanded(flex: 3, child: Padding(padding: EdgeInsets.only(left: 16),
+                child: Text('Feature', style: TextStyle(color: t.textMuted,
                     fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1)))),
               ...List.generate(3, (i) => Expanded(child: Center(
-                  child: Text(_heads[i], style: const TextStyle(
-                      color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w700))))),
+                  child: Text(_heads[i], style: TextStyle(
+                      color: t.textMuted, fontSize: 10, fontWeight: FontWeight.w700))))),
             ])),
           const Divider(height: 1),
           ..._rows.asMap().entries.map((e) => Column(children: [
             Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(children: [
               Expanded(flex: 3, child: Padding(padding: const EdgeInsets.only(left: 16),
-                child: Text(e.value.$1, style: const TextStyle(
-                    color: AppColors.textPrimary, fontSize: 12)))),
+                child: Text(e.value.$1, style: TextStyle(
+                    color: t.textPrimary, fontSize: 12)))),
               _cell(e.value.$2), _cell(e.value.$3), _cell(e.value.$4),
             ])),
             if (e.key < _rows.length - 1) const Divider(height: 1, indent: 16),
@@ -479,7 +484,7 @@ class _FeatureTable extends StatelessWidget {
   }
   Widget _cell(bool yes) => Expanded(child: Center(child: Icon(
       yes ? Icons.check_circle_rounded : Icons.remove_rounded,
-      size: 16, color: yes ? AppColors.success : AppColors.textDisabled)));
+      size: 16, color: yes ? AppColors.success : t.textDisabled)));
 }
 
 
@@ -488,6 +493,7 @@ class _JazzPartnerBadge extends StatelessWidget {
   const _JazzPartnerBadge();
   @override
   Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
