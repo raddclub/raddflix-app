@@ -157,10 +157,15 @@ class CatalogNotifier extends StateNotifier<CatalogState>
   // BUG-A20: static guard — poster sync fires once per app lifecycle, not per catalog reload
   static bool _posterSyncDone = false;
 
+  // BUG-F09 fix: allow reset so delta-synced titles get posters downloaded
+  static void resetPosterSyncFlag() { _posterSyncDone = false; }
+
   void _schedulePosterSync(
     List<CatalogItem> movies,
-    List<CatalogItem> shows,
-  ) {
+    List<CatalogItem> shows, {
+    bool forceReset = false,
+  }) {
+    if (forceReset) _posterSyncDone = false;
     if (_posterSyncDone) return;
     _posterSyncDone = true;
     // Delay so UI is interactive first

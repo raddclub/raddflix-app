@@ -182,13 +182,13 @@ def extend(user_id: int):
     days = int(request.form.get("days", 30))
     now  = int(time.time())
     with db.conn() as c:
-        sub = c.execute("SELECT * FROM app_subscriptions WHERE user_id=? AND is_active=1 ORDER BY id DESC LIMIT 1", (user_id,)).fetchone()
+        sub = c.execute("SELECT * FROM app_subscriptions WHERE user_id=? ORDER BY expires_at DESC LIMIT 1", (user_id,)).fetchone()
         if sub:
             new_exp = max(sub["expires_at"], now) + days * 86400
             c.execute("UPDATE app_subscriptions SET expires_at=? WHERE id=?", (new_exp, sub["id"]))
         else:
             c.execute("INSERT INTO app_subscriptions(user_id,plan,started_at,expires_at,is_active,created_at) VALUES(?,?,?,?,1,?)",
-                      (user_id, "basic", now, now + days*86400, now))
+                      (user_id, sub["plan"] if sub else "basic", now, now + days*86400, now))
     log.info("Extended user %s by %d days", user_id, days)
     return redirect(url_for("subscriptions.index", tab=request.args.get("tab","active")))
 

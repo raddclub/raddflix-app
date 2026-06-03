@@ -183,7 +183,7 @@ def force_version_bump():
     previous_version = max(titles_max, prev_forced_ts)
 
     # Store the new forced version — bump wins if > titles_max, no-ops otherwise
-    db.set_setting("catalog_forced_version", str(now_ts))
+    db.set_setting("catalog_forced_version", str(now_ts + 1))
     new_version = max(titles_max, now_ts)
 
     log.info(
@@ -229,7 +229,7 @@ def sync(_user_id=None, _phone=None):
             LEFT JOIN files f ON f.title_id = t.id
               AND (f.season IS NULL OR f.season = 0)
             WHERE t.is_published = 1
-              AND (t.updated_at IS NULL OR t.updated_at > ?)
+              AND t.updated_at IS NOT NULL AND t.updated_at > ?
             GROUP BY t.id
             ORDER BY t.updated_at DESC
             """, (since_param,)

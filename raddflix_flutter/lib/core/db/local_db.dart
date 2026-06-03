@@ -332,6 +332,9 @@ class LocalDb {
     if (oldV < 17) {
       // Add filename to episodes so JazzDriveService can pick the right file in folder shares
       try { await db.execute('ALTER TABLE episodes ADD COLUMN filename TEXT'); } catch (_) {}
+      // BUG-F08 fix: add JazzDrive share URL columns to titles
+      try { await db.execute('ALTER TABLE titles ADD COLUMN poster_share_url TEXT'); } catch (_) {}
+      try { await db.execute('ALTER TABLE titles ADD COLUMN folder_share_url TEXT'); } catch (_) {}
       // Signal to startup that a full catalog re-sync is needed to populate the new column
       try {
         await db.insert('sync_meta', {'key': 'force_resync', 'value': '1'},
@@ -954,6 +957,8 @@ class LocalDb {
   static Future<void> clearPendingUsage() async {
     final db = await instance;
     await db.update('usage_log', {'flushed': 1}, where: 'flushed = ?', whereArgs: [0]);
+    // BUG-F07 fix: delete already-flushed rows to prevent unbounded table growth
+    await db.delete('usage_log', where: 'flushed = ?', whereArgs: [1]);
   }
 
   static Future<void> cacheQuota(Map<String, dynamic> quota) async {

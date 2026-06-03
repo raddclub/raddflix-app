@@ -28,6 +28,7 @@ import hmac as _hmac
 import json
 import logging
 import os
+import sqlite3
 import time
 from functools import wraps
 from typing import Optional
@@ -232,16 +233,14 @@ def register():
     now     = int(time.time())
     try:
         with db.conn() as c:
-            existing = c.execute(
-                "SELECT id FROM app_users WHERE phone=?", (phone,)
-            ).fetchone()
-            if existing:
-                return jsonify({"error": "Phone already registered"}), 409
             c.execute(
                 "INSERT INTO app_users(phone, password_hash, created_at) VALUES(?,?,?)",
                 (phone, pw_hash, now)
             )
         return jsonify({"ok": True, "message": "Account created. Please log in."})
+    except sqlite3.IntegrityError:
+        # BUG-S08 fix: catch UNIQUE constraint atomically instead of check-then-insert
+        return jsonify({"error": "Phone already registered"}), 409
     except Exception as e:
         log.error("register error: %s", e)
         return jsonify({"error": "Registration failed"}), 500
@@ -1115,7 +1114,7 @@ def app_config():
 
         return jsonify({
             "ok":               True,
-            "api_base_url":     "http://92.4.95.252",
+            "api_base_url":     db.get_setting("api_base_url") or "http://92.4.95.252",
             "jd_delta_url":     jd_delta_url,
             "support_whatsapp": support_whatsapp,
             "current_version":  current_version,
@@ -1130,7 +1129,7 @@ def app_config():
         log.warning("app_config error: %s", _e)
         return jsonify({
             "ok":               True,
-            "api_base_url":     "http://92.4.95.252",
+            "api_base_url":     db.get_setting("api_base_url") or "http://92.4.95.252",
             "jd_delta_url":     "",
             "support_whatsapp": "923257719165",
             "current_version":  "1.0.0",
