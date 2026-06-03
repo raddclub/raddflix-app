@@ -239,7 +239,7 @@ class _ForceUpdateScreen extends StatelessWidget {
                           ? 'This version of RaddFlix is not authorized. Please download the official app.'
                           : 'A required update is available. Please update RaddFlix to continue watching.',
                   style: const TextStyle(
-                      color: Color(0xFF9090B0), fontSize: 15, height: 1.65),
+                      color: AppColors.textSecondary, fontSize: 15, height: 1.65),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 52),
@@ -289,13 +289,13 @@ class _ForceUpdateScreen extends StatelessWidget {
                     ),
                     child: const Text('Contact Support',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Color(0xFF9090B0),
+                        style: TextStyle(color: AppColors.textSecondary,
                             fontWeight: FontWeight.w600, fontSize: 15)),
                   ),
                 const SizedBox(height: 24),
                 if (result.currentVersion.isNotEmpty)
                   Text('Latest version: ${result.currentVersion}',
-                      style: const TextStyle(color: Color(0xFF505070), fontSize: 12)),
+                      style: const TextStyle(color: AppColors.textDisabled, fontSize: 12)),
               ],
             ),
           ),
@@ -316,7 +316,7 @@ class _PlayerSettingsLoader extends StatelessWidget {
       builder: (context, snap) {
         if (!snap.hasData) {
           return const Scaffold(
-            backgroundColor: Color(0xFF08080E),
+            backgroundColor: AppColors.background,
             body: Center(child: CircularProgressIndicator()),
           );
         }
@@ -339,7 +339,7 @@ class _LayoutDesignerLoader extends StatelessWidget {
       builder: (context, snap) {
         if (!snap.hasData) {
           return const Scaffold(
-            backgroundColor: Color(0xFF08080E),
+            backgroundColor: AppColors.background,
             body: Center(child: CircularProgressIndicator()),
           );
         }

@@ -20,7 +20,7 @@ class QuotaFullScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 RichText(
-                  text: const TextSpan(
+                  text: TextSpan(
                     style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w900,
@@ -28,7 +28,7 @@ class QuotaFullScreen extends StatelessWidget {
                     children: [
                       TextSpan(
                           text: 'Radd',
-                          style: TextStyle(color: Colors.white)),
+                          style: TextStyle(color: t.textPrimary)),
                       TextSpan(
                           text: 'Flix',
                           style: TextStyle(color: AppColors.primary)),

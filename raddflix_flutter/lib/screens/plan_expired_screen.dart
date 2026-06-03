@@ -53,7 +53,7 @@ class PlanExpiredScreen extends StatelessWidget {
                 Text(
                   'Plan Expired',
                   style: TextStyle(
-                      color: Colors.white,
+                      color: t.textPrimary,
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.5),

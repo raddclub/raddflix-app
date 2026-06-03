@@ -19,7 +19,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     with TickerProviderStateMixin {
   late AnimationController _pulseCtrl;
   bool _started = false;
-  Color _splashBg = t.bg;
+  Color _splashBg = AppColors.background;
 
   @override
   void initState() {
@@ -42,7 +42,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       final color = Color(int.parse('FF$hex', radix: 16));
       if (mounted) setState(() => _splashBg = color);
     } catch (_) {
-      // Silent fallback — t.bg used
+      // Silent fallback — AppColors.background used
     }
   }
 
