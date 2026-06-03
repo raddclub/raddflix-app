@@ -234,8 +234,7 @@ def db_update_version():
 
 
 @bp.route("/sync")
-@_catalog_require_auth
-def sync(_user_id=None, _phone=None):
+def sync():
     since_raw = request.args.get("since", "0")
     try:
         since = int(since_raw)
