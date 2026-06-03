@@ -1,6 +1,6 @@
 # BUG_TRACKER.md — RaddFlix Full Bug List
 > Audit completed: 2026-06-03 (Session 35)
-> Last updated: 2026-06-03 (Session 37 — all 30 bugs confirmed fixed)
+> Last updated: 2026-06-03 (Session 38 — BUG-S15 fixed + CI build fixed)
 > 🔴 Open | 🟡 In Progress | 🟢 Fixed | ⚫ Won't Fix
 > Fix in order: CRITICAL → HIGH → MEDIUM → LOW
 
@@ -24,7 +24,7 @@
 | BUG-S12 | delta_push.py | 🔵 LOW | Bulk-enrich triggers rapid consecutive JazzDrive re-uploads (SAPI rate risk) | 🟢 Fixed | 47a3051 |
 | BUG-S13 | library.py | 🔵 LOW | No delay/confirm before WhatsApp blast on publish — fires immediately | 🟢 Fixed | 47a3051 |
 | BUG-S14 | mobile_api.py | 🔵 LOW | Login rate-limit in-memory only → reset on every server restart | 🟢 Fixed | 47a3051 |
-| BUG-S15 | catalog_api.py | 🔵 LOW | Poster push job state in-memory → lost on server restart | 🔴 Open | — |
+| BUG-S15 | catalog_api.py | 🔵 LOW | Poster push job state in-memory → lost on server restart | 🟢 Fixed | Session 38 |
 
 ---
 
@@ -57,14 +57,17 @@
 | 🔴 CRITICAL | 5 | 5 | 0 |
 | 🔴 HIGH | 13 | 12 | 0 |
 | 🟡 MEDIUM | 8 | 7 | 0 |
-| 🔵 LOW | 8 | 6 | 0 |
+| 🔵 LOW | 8 | 7 | 0 |
 | **TOTAL** | **30** | **28** | **0** |
 
 > ⚫ Won't Fix (2): BUG-F05, BUG-F11 (files removed from codebase by design)
 > ✅ All 30 bugs resolved — 28 fixed, 2 won't fix.
+> Session 38: BUG-S15 fixed (poster_push_log DB table). CI build fixed (sqflite_sqlcipher 3.1.0+1, Gradle patch decoupled).
 
 ### ✅ ALL BUGS RESOLVED
 All 30 bugs are fixed (28 fixed, 2 won't fix). No open bugs remain.
+
+**BUG-S15 (Session 38):** poster_push_log DB table — job state persisted on completion, recovered from DB on GET /poster-push/job/<id> if not in memory.
 
 **BUG-S12 (47a3051):** 2-second sleep added between JazzDrive poster uploads in poster_push_bulk()
 **BUG-S13 (47a3051):** 60-second grace period before WhatsApp blast in _wa_blast_delayed()

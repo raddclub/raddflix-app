@@ -3758,3 +3758,65 @@ Test: POST /api/catalog/admin/setting → {"ok":true,"key":"api_base_url","value
 - api_base_url write: POST /api/catalog/admin/setting (whitelist-protected, admin Basic auth)
 - api_base_url read: GET /api/app/config → field "api_base_url"
 - GITHUB_TOKEN was rotated 2026-06-03 — Oracle git credentials also updated to new token.
+
+---
+
+## Session 38 — 2026-06-03
+
+**Agent:** Replit Agent
+**Focus:** CI Build Fix + BUG-S15 (poster push persistence)
+
+---
+
+### Task A — CI Build Fix (sqflite_sqlcipher + Gradle patch)
+
+**Root cause:** sqflite_sqlcipher 3.2.0 uses `flutter.compileSdkVersion` in its build.gradle
+AND already has a `namespace` declaration. The existing CI Gradle patch required BOTH
+conditions: (flutter.compileSdkVersion present) AND (namespace absent). Since 3.2.0 has
+namespace, the patch skipped it entirely → Gradle crash:
+  `Could not get unknown property 'flutter' for extension 'android'`
+
+**Fix 1 — pubspec.yaml:** Reverted sqflite_sqlcipher 3.2.0 → 3.1.0+1
+  Per AGENT_HANDOFF rule: NEVER upgrade sqflite_sqlcipher until CI uses Flutter 3.27+
+  (3.1.0+1 does not use flutter.compileSdkVersion at all → no Gradle conflict)
+
+**Fix 2 — build-apk.yml Gradle patch step:** Decoupled the two concerns:
+  - Fix A: replace flutter.compileSdkVersion → 34 for ALL packages that use it
+    (regardless of whether they have a namespace — catches packages like sqflite_sqlcipher 3.x)
+  - Fix B: inject namespace only for packages missing it
+  Old logic: `if [has flutter.compileSdkVersion] AND [no namespace]` → both in one block
+  New logic: `if [has flutter.compileSdkVersion] OR [no namespace]` → Fix A always, Fix B conditional
+
+---
+
+### Task B — BUG-S15 Fix (poster push job persistence)
+
+**catalog_api.py changes:**
+1. Added `_PUSH_LOG_DDL` + `_ensure_push_log_table()` — creates `poster_push_log` table lazily
+2. `poster_push_bulk()`: INSERT job record to DB when job starts (status=running)
+3. `_worker()`: UPDATE DB record when job completes (status=done, done/failed counts, errors)
+4. `poster_push_job()`: DB fallback — if job_id not in memory, read from poster_push_log table
+
+Result: Job status survives server restarts. Running jobs that were killed by restart
+show as "running" in DB (no dedicated interrupted state — low priority, acceptable).
+
+---
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| raddflix_flutter/pubspec.yaml | sqflite_sqlcipher 3.2.0 → 3.1.0+1 |
+| .github/workflows/build-apk.yml | Gradle patch decoupled (Fix A + Fix B separate) |
+| radd-hub/hub/routes/catalog_api.py | BUG-S15: poster_push_log table + persistence |
+| .agents/tasks/BUG_TRACKER.md | BUG-S15 marked Fixed |
+| agent-hub/history/TASK_LOG.md | This entry |
+
+### Notes for Next Agent
+- CI build was failing due to sqflite_sqlcipher 3.2.0 using flutter.compileSdkVersion with AGP 8+
+- All 30 bugs now truly fixed: 28 fixed, 2 won't fix. No remaining open bugs.
+- Next step: verify CI passes → APK builds → download artifact → upload to Play Store
+- sqflite_sqlcipher MUST stay at 3.1.0+1 until CI is upgraded to Flutter 3.27+
+- Gradle patch now handles packages with namespace AND flutter.compileSdkVersion (like sqflite_sqlcipher 3.x)
+- Oracle NOT touched this session (CI fix was GitHub-only)
+- poster_push_log table created lazily on first server hit — no Oracle restart needed for BUG-S15

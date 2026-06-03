@@ -33,7 +33,7 @@ dependencies:
   # Pinned to 3.1.0+1 — last release before 3.2.0 which introduced flutter.compileSdkVersion
   # flutter.compileSdkVersion in build.gradle, which breaks Gradle on
   # Flutter 3.22.x CI (AGP version mismatch).
-  sqflite_sqlcipher: 3.2.0  # pinned: 3.2.1+ require Flutter>=3.27.0; 3.2.0 is highest compat with Flutter 3.22.x (Dart 3.4.x)
+  sqflite_sqlcipher: 3.1.0+1  # pinned: NEVER upgrade until CI uses Flutter 3.27+ (see AGENT_HANDOFF)
   path_provider: ^2.1.2
   path: ^1.9.0
 

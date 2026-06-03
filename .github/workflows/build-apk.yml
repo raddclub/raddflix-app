@@ -59,11 +59,9 @@ jobs:
           BRAND_DIR="${{ github.workspace }}/brand_assets"
           if [ -d "$BRAND_DIR" ]; then
             echo "Found brand_assets/ — applying brand files"
-            # Copy icon if present
             for f in "$BRAND_DIR"/brand_icon.*; do
               [ -f "$f" ] && cp "$f" android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png && echo "Applied icon: $f"
             done
-            # Copy splash if present
             for f in "$BRAND_DIR"/brand_splash.*; do
               [ -f "$f" ] && cp "$f" assets/images/splash.png && echo "Applied splash: $f"
             done
@@ -71,26 +69,44 @@ jobs:
             echo "No brand_assets/ directory found — skipping brand asset application"
           fi
 
-      - name: Patch Gradle namespace for AGP 8 (fix legacy pub packages)
+      - name: Patch Gradle for AGP 8 (fix legacy pub packages)
         working-directory: raddflix_flutter
         run: |
           # AGP 8+ requires 'namespace' in every library module's build.gradle.
-          # Some pub.dev packages (gal, image_gallery_saver, saver_gallery, etc.) pre-date this.
-          # We patch any offending package in the pub cache before the build.
+          # Some pub.dev packages pre-date AGP 8 AND/OR use flutter.compileSdkVersion
+          # (a property that resolves in app context but NOT in library module context
+          #  with AGP 8+ — causes "Could not get unknown property 'flutter'" error).
+          #
+          # Root cause of previous CI failures: old patch required BOTH
+          #   (a) flutter.compileSdkVersion present  AND  (b) namespace absent
+          # sqflite_sqlcipher 3.x has a namespace but still uses flutter.compileSdkVersion,
+          # so the patch skipped it entirely → Gradle crash.
+          #
+          # Fix: decouple the two concerns:
+          #   Fix A — replace flutter.compileSdkVersion → 34 for ALL matching packages
+          #            (regardless of whether they already have a namespace)
+          #   Fix B — inject namespace only for packages that are missing it
           find ~/.pub-cache -name "build.gradle" -path "*/android/*" | while read f; do
-            if grep -qE "compileSdkVersion flutter\.compileSdkVersion|compileSdk flutter\.compileSdkVersion" "$f" 2>/dev/null && ! grep -q "namespace" "$f" 2>/dev/null; then
+            HAS_FLUTTER_SDK=0
+            grep -qE "compileSdkVersion flutter\.compileSdkVersion|compileSdk flutter\.compileSdkVersion" "$f" 2>/dev/null && HAS_FLUTTER_SDK=1 || true
+            HAS_NS=0
+            grep -q "namespace" "$f" 2>/dev/null && HAS_NS=1 || true
+            if [ "$HAS_FLUTTER_SDK" -eq 1 ] || [ "$HAS_NS" -eq 0 ]; then
               PKG=$(basename "$(dirname "$(dirname "$(dirname "$f")")")")
-              echo "Patching namespace for: $PKG  ($f)"
-              # Replace flutter.compileSdkVersion with a concrete value
+              echo "Patching: $PKG  ($f)"
+              # Fix A: replace flutter.compileSdkVersion with concrete SDK level
               sed -i 's/compileSdkVersion flutter\.compileSdkVersion/compileSdkVersion 34/g' "$f"
               sed -i 's/compileSdk flutter\.compileSdkVersion/compileSdk 34/g' "$f"
-              # Inject namespace after 'android {' opening brace
-              SAFE_PKG=$(echo "$PKG" | tr '-' '_' | tr '.' '_' | cut -c1-40)
-              sed -i "s/android {/android {\n    namespace \"com.patch.${SAFE_PKG}\"/" "$f"
+              # Fix B: inject namespace if missing
+              if [ "$HAS_NS" -eq 0 ] && grep -q "android {" "$f"; then
+                SAFE_PKG=$(echo "$PKG" | tr '-' '_' | tr '.' '_' | cut -c1-40)
+                sed -i "s/android {/android {\n    namespace \"com.patch.${SAFE_PKG}\"/" "$f"
+                echo "  Added namespace."
+              fi
               echo "  Done."
             fi
           done
-          echo "Namespace patch complete."
+          echo "Gradle patch complete."
 
       - name: Set up keystore
         working-directory: raddflix_flutter/android/app/keystore
@@ -124,7 +140,6 @@ jobs:
         env:
           KEYSTORE_PATH: keystore/raddflix.keystore
           KEYSTORE_TYPE: PKCS12
-          # Use secret if set, fall back to the same defaults used in keystore generation above
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'RaddFlix_2024_Store' }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'raddflix' }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'RaddFlix_2024_Key' }}

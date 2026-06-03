@@ -38,6 +38,29 @@ bp = Blueprint("catalog_api", __name__, url_prefix="/api/catalog")
 bp_watch = Blueprint("watch_api", __name__, url_prefix="/watch")
 
 _poster_push_jobs: dict = {}
+# BUG-S15: DB-backed job log so job state survives server restarts.
+_PUSH_LOG_DDL = (
+    "CREATE TABLE IF NOT EXISTS poster_push_log ("
+    "  job_id TEXT PRIMARY KEY,"
+    "  status TEXT NOT NULL DEFAULT 'running',"
+    "  total INTEGER DEFAULT 0,"
+    "  done INTEGER DEFAULT 0,"
+    "  failed INTEGER DEFAULT 0,"
+    "  errors_json TEXT DEFAULT '[]',"
+    "  started_at INTEGER,"
+    "  finished_at INTEGER"
+    ")"
+)
+
+def _ensure_push_log_table() -> None:
+    try:
+        with db.conn() as c:
+            c.execute(_PUSH_LOG_DDL)
+    except Exception:
+        pass
+
+_ensure_push_log_table()
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -788,6 +811,19 @@ def poster_push_bulk():
         "finished_at": None,
     }
 
+
+    # BUG-S15: persist job record to DB so it survives server restart
+    try:
+        _ensure_push_log_table()
+        with db.conn() as c:
+            c.execute(
+                "INSERT OR REPLACE INTO poster_push_log"
+                "(job_id, status, total, done, failed, errors_json, started_at)"
+                " VALUES(?,?,?,?,?,?,?)",
+                (job_id, "running", len(rows), 0, 0, "[]", int(time.time()))
+            )
+    except Exception:
+        pass
     def _worker(rows, account_id, job_id):
         from hub import assets
         job = _poster_push_jobs[job_id]
@@ -814,6 +850,18 @@ def poster_push_bulk():
         job["status"] = "done"
         job["finished_at"] = int(time.time())
         elapsed = job["finished_at"] - job["started_at"]
+
+        # BUG-S15: persist final state to DB
+        try:
+            with db.conn() as c:
+                c.execute(
+                    "UPDATE poster_push_log SET status=?,done=?,failed=?,"
+                    "errors_json=?,finished_at=? WHERE job_id=?",
+                    (job["status"], job["done"], job["failed"],
+                     json.dumps(job["errors"][-50:]), job["finished_at"], job_id)
+                )
+        except Exception:
+            pass
         log.info("poster-push job %s complete: %d ok / %d failed in %ds",
                  job_id, job["done"], job["failed"], elapsed)
 
@@ -840,7 +888,26 @@ def poster_push_job(job_id: str):
     """GET /api/catalog/poster-push/job/<job_id>  — poll background push job."""
     job = _poster_push_jobs.get(job_id)
     if not job:
-        return jsonify({"error": "job not found — may have expired after server restart"}), 404
+        # BUG-S15: fall back to DB for jobs from before server restart
+        try:
+            with db.conn() as c:
+                row = c.execute(
+                    "SELECT * FROM poster_push_log WHERE job_id=?", (job_id,)
+                ).fetchone()
+            if row:
+                job = {
+                    "status":     row["status"],
+                    "total":      row["total"],
+                    "done":       row["done"],
+                    "failed":     row["failed"],
+                    "errors":     json.loads(row["errors_json"] or "[]"),
+                    "started_at": row["started_at"],
+                    "finished_at": row["finished_at"],
+                }
+        except Exception:
+            pass
+    if not job:
+        return jsonify({"error": "job not found"}), 404
     pct = round(100 * job["done"] / max(job["total"], 1))
     return jsonify({
         "ok":         True,
