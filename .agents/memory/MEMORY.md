@@ -1,0 +1,1 @@
+- [No new feature suggestions](no-new-features.md) — NEVER suggest new features or ideas, only fix existing broken code. User rule, permanent.
