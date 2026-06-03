@@ -3363,7 +3363,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     cinematicMode: _cinematicMode,
                     abLoopActive: _abLoop.isActive,
                     sleepActive: _sleepRemainingSeconds != null || _sleepAtEpisodeEnd,
-                    bookmarkCount: _bookmarks.length,
                     speed: _speed,
                     fitLabel: _ratios[_ratioIdx] == BoxFit.contain ? 'Fit'
                         : _ratios[_ratioIdx] == BoxFit.cover ? 'Crop' : 'Fill',
@@ -3373,7 +3372,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     onNight: () { setState(() { _showMorePanel = false; }); _toggleCinematic(); },
                     onLoop: () { setState(() { _showMorePanel = false; _showAbPanel = !_showAbPanel; }); },
                     onSleep: () { setState(() { _showMorePanel = false; _showSleepMenu = !_showSleepMenu; }); },
-                    onBookmarks: () { setState(() { _showMorePanel = false; _showBookmarksPanel = !_showBookmarksPanel; }); },
                     onEq: () { setState(() { _showMorePanel = false; _showEqPanel = true; }); },
                     onClipTrimmer: () { setState(() => _showMorePanel = false); _openClipTrimmer(); },
                     onShare: () { setState(() => _showMorePanel = false); _shareTimestamp(); },
@@ -4097,19 +4095,6 @@ class _ControlsOverlay extends StatelessWidget {
                                         shape: BoxShape.circle, color: accentColor),
                                     ),
                                   ),
-                                // Bookmark emoji markers on the bar
-                                ...bookmarks.map((bm) {
-                                  if (duration.inMilliseconds <= 0) return const SizedBox.shrink();
-                                  final frac = (bm.positionMs / duration.inMilliseconds).clamp(0.0, 1.0);
-                                  return Positioned(
-                                    left: frac * sliderLen - 8,
-                                    child: GestureDetector(
-                                      onTap: () => onSeekTo(frac),
-                                      child: Text(bm.emoji,
-                                          style: const TextStyle(fontSize: 10)),
-                                    ),
-                                  );
-                                }),
                                 // Chapter markers as thin vertical lines
                                 ...chapters.map((ch) {
                                   if (duration.inMilliseconds <= 0) return const SizedBox.shrink();
@@ -4285,7 +4270,7 @@ class _MxSideBtn extends StatelessWidget {
   }
 }
 
-/// Triangular seek button (MX Player landscape style: double-chevron arrow + seconds)
+/// Seek button (MX Player style: horizontal double-chevron left/right + seconds)
 class _MxSeekBtn extends StatelessWidget {
   final bool isForward;
   final int seconds;
@@ -4296,25 +4281,29 @@ class _MxSeekBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () { HapticFeedback.selectionClick(); onTap(); },
-      child: SizedBox(
-        width: 54,
+      child: Container(
+        width: 64, height: 64,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withOpacity(0.08),
+        ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (!isForward)
-              Icon(Icons.keyboard_double_arrow_up_rounded,
-                  color: Colors.white, size: 36),
+            Icon(
+              isForward
+                  ? Icons.keyboard_double_arrow_right_rounded
+                  : Icons.keyboard_double_arrow_left_rounded,
+              color: Colors.white, size: 28,
+            ),
             Text(
               '${seconds}s',
               style: const TextStyle(
                 color: Colors.white70,
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.w700,
               ),
             ),
-            if (isForward)
-              Icon(Icons.keyboard_double_arrow_down_rounded,
-                  color: Colors.white, size: 36),
           ],
         ),
       ),
@@ -4693,7 +4682,6 @@ class _NextEpisodeOverlay extends StatelessWidget {
       final bool immersiveMode;
       final bool abLoopActive;
       final bool sleepActive;
-      final int bookmarkCount;
       final double speed;
       final String fitLabel;
       final bool castConnected;
@@ -4702,7 +4690,6 @@ class _NextEpisodeOverlay extends StatelessWidget {
       final VoidCallback onNight;
       final VoidCallback onLoop;
       final VoidCallback onSleep;
-      final VoidCallback onBookmarks;
       final VoidCallback onEq;
       final VoidCallback onClipTrimmer;
       final VoidCallback onShare;
@@ -4722,7 +4709,6 @@ class _NextEpisodeOverlay extends StatelessWidget {
         required this.immersiveMode,
         required this.abLoopActive,
         required this.sleepActive,
-        required this.bookmarkCount,
         required this.speed,
         required this.fitLabel,
         required this.castConnected,
@@ -4731,7 +4717,6 @@ class _NextEpisodeOverlay extends StatelessWidget {
         required this.onNight,
         required this.onLoop,
         required this.onSleep,
-        required this.onBookmarks,
         required this.onEq,
         required this.onClipTrimmer,
         required this.onShare,
@@ -4749,25 +4734,29 @@ class _NextEpisodeOverlay extends StatelessWidget {
 
       @override
       Widget build(BuildContext context) {
-        // 4-column grid matching MX Player screenshot
+        // 4-column grid — MX Player style, no duplicates, no bookmarks
         final items = <Map<String, dynamic>>[
-          {'icon': Icons.queue_play_next_rounded,    'label': 'Playing\nQueue',    'active': false,             'color': null,                      'tap': onVideoDisplay},
-          {'icon': Icons.content_cut_rounded,        'label': 'Cut',               'active': false,             'color': null,                      'tap': onClipTrimmer},
-          {'icon': Icons.share_rounded,              'label': 'Share',             'active': false,             'color': null,                      'tap': onShare},
-          {'icon': Icons.display_settings_rounded,   'label': 'Video Display\nShortcuts', 'active': false,     'color': null,                      'tap': onVideoDisplay},
-          {'icon': Icons.fit_screen_rounded,         'label': 'Aspect\nRatio',     'active': fitLabel != 'Fit', 'color': const Color(0xFFE8002D),   'tap': onFit},
-          {'icon': Icons.favorite_border_rounded,    'label': 'Favourite',         'active': false,             'color': Colors.red,                'tap': onBookmarks},
-          {'icon': Icons.cast_rounded,               'label': 'Network\nStream',   'active': castConnected,     'color': const Color(0xFF4FC3F7),   'tap': onCast},
-          {'icon': Icons.picture_in_picture_alt_rounded, 'label': 'PiP',           'active': false,             'color': null,                      'tap': onPiP},
-          {'icon': Icons.playlist_add_rounded,       'label': 'Add To\nPlaylist',  'active': false,             'color': null,                      'tap': onBookmarks},
-          {'icon': Icons.visibility_off_rounded,     'label': 'Immersive\nMode',   'active': immersiveMode,     'color': const Color(0xFF8B5CF6),   'tap': onImmersive,  'longTap': onImmersiveSettings},
-          {'icon': Icons.equalizer_rounded,          'label': 'Equalizer',         'active': false,             'color': null,                      'tap': onEq},
-          {'icon': Icons.dark_mode_rounded,          'label': 'Night\nMode',       'active': cinematicMode,     'color': const Color(0xFF3B82F6),   'tap': onNight,      'longTap': onCinematicSettings},
-          {'icon': Icons.info_outline_rounded,       'label': 'Information',       'active': false,             'color': null,                      'tap': onSettings},
-          {'icon': Icons.bookmarks_rounded,          'label': 'Bookmark',          'active': bookmarkCount > 0, 'color': Colors.amber,              'tap': onBookmarks},
+          // Row 1
+          {'icon': Icons.display_settings_rounded,        'label': 'Video\nDisplay',    'active': false,              'color': null,                      'tap': onVideoDisplay},
+          {'icon': Icons.content_cut_rounded,             'label': 'Clip\nTrimmer',     'active': false,              'color': null,                      'tap': onClipTrimmer},
+          {'icon': Icons.share_rounded,                   'label': 'Share',             'active': false,              'color': null,                      'tap': onShare},
+          {'icon': Icons.fit_screen_rounded,              'label': 'Aspect\nRatio',     'active': fitLabel != 'Fit',  'color': const Color(0xFFE8002D),   'tap': onFit},
+          // Row 2
+          {'icon': Icons.cast_rounded,                    'label': 'Network\nStream',   'active': castConnected,      'color': const Color(0xFF4FC3F7),   'tap': onCast},
+          {'icon': Icons.picture_in_picture_alt_rounded,  'label': 'PiP',               'active': false,              'color': null,                      'tap': onPiP},
+          {'icon': Icons.visibility_off_rounded,          'label': 'Immersive\nMode',   'active': immersiveMode,      'color': const Color(0xFF8B5CF6),   'tap': onImmersive, 'longTap': onImmersiveSettings},
+          {'icon': Icons.equalizer_rounded,               'label': 'Equalizer',         'active': false,              'color': null,                      'tap': onEq},
+          // Row 3
+          {'icon': Icons.dark_mode_rounded,               'label': 'Night\nMode',       'active': cinematicMode,      'color': const Color(0xFF3B82F6),   'tap': onNight, 'longTap': onCinematicSettings},
           {'icon': sleepActive ? Icons.bedtime_rounded : Icons.bedtime_outlined,
-                                                     'label': 'Sleep\nTimer',      'active': sleepActive,       'color': Colors.orange,             'tap': onSleep},
-          {'icon': Icons.loop_rounded,               'label': 'A-B\nRepeat',       'active': abLoopActive,      'color': const Color(0xFFE8002D),   'tap': onLoop},
+                                                          'label': 'Sleep\nTimer',      'active': sleepActive,        'color': Colors.orange,             'tap': onSleep},
+          {'icon': Icons.loop_rounded,                    'label': 'A-B\nRepeat',       'active': abLoopActive,       'color': const Color(0xFFE8002D),   'tap': onLoop},
+          {'icon': Icons.speed_rounded,                   'label': speed != 1.0 ? '${speed}×\nSpeed' : 'Speed', 'active': speed != 1.0, 'color': Colors.amber, 'tap': onSpeed},
+          // Row 4
+          {'icon': Icons.camera_alt_rounded,              'label': 'Screenshot',        'active': false,              'color': null,                      'tap': onScreenshot},
+          {'icon': Icons.screen_rotation_rounded,         'label': 'Rotation',          'active': false,              'color': null,                      'tap': onRotation},
+          {'icon': Icons.open_in_new_rounded,             'label': 'Open\nWith',        'active': false,              'color': null,                      'tap': onOpenWith},
+          {'icon': Icons.settings_rounded,                'label': 'Settings',          'active': false,              'color': null,                      'tap': onSettings},
         ];
         return Container(
           decoration: const BoxDecoration(
