@@ -17,6 +17,8 @@ class SplashScreen extends ConsumerStatefulWidget {
 
 class _SplashScreenState extends ConsumerState<SplashScreen>
     with TickerProviderStateMixin {
+  RaddTheme get t => RaddTheme.of(context);
+
   late AnimationController _pulseCtrl;
   bool _started = false;
   Color _splashBg = AppColors.background;

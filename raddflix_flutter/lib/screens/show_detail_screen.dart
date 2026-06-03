@@ -25,6 +25,8 @@ class ShowDetailScreen extends ConsumerStatefulWidget {
 
 class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     with TickerProviderStateMixin {
+  RaddTheme get t => RaddTheme.of(context);
+
   late TabController? _seasonTab;
   List<Map<String, dynamic>> _episodes = [];
   bool _loading = true;
@@ -1003,10 +1005,13 @@ class _ExpandableTextState extends State<_ExpandableText> {
 class _Dot extends StatelessWidget {
   const _Dot();
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 6),
-    child: Text('·', style: TextStyle(color: t.textSecondary)),
-  );
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Text('·', style: TextStyle(color: t.textSecondary)),
+    );
+  }
 }
 
 class _StatusPill extends StatelessWidget {
@@ -1019,7 +1024,7 @@ class _StatusPill extends StatelessWidget {
       case 'ongoing':   return const Color(0xFF22C55E);
       case 'completed': return const Color(0xFF3B82F6);
       case 'cancelled': return const Color(0xFFEF4444);
-      default:          return t.textMuted;
+      default:          return AppColors.textMuted;
     }
   }
 

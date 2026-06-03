@@ -128,8 +128,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                   child: Row(children: [
-                    RichText(text: const TextSpan(
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+                    RichText(text: TextSpan(
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5),
                       children: [
                         TextSpan(text: 'My ', style: TextStyle(color: t.textPrimary)),
                         TextSpan(text: 'Profile', style: TextStyle(color: AppColors.primary)),
@@ -497,6 +497,7 @@ class _ThemePicker extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = RaddTheme.of(context);
     final current = ref.watch(themeProvider).mode;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),

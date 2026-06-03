@@ -20,6 +20,8 @@ class DownloadsScreen extends ConsumerStatefulWidget {
 }
 
 class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
+  RaddTheme get t => RaddTheme.of(context);
+
   _SortMode   _sort   = _SortMode.date;
   _FilterMode _filter = _FilterMode.all;
   _ViewMode   _view   = _ViewMode.grid;

@@ -24,6 +24,8 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  RaddTheme get t => RaddTheme.of(context);
+
   int _navIndex = 0;
   String _selectedCategory = 'All';
   final ScrollController _scroll = ScrollController();
@@ -471,9 +473,9 @@ class _HeroCard extends StatelessWidget {
   }
 
   Widget _buildPosterImage() {
-    const placeholder = DecoratedBox(
-      decoration: BoxDecoration(color: t.card),
-      child: Center(child: Icon(Icons.movie_outlined, color: t.textMuted, size: 48)),
+    final placeholder = DecoratedBox(
+      decoration: const BoxDecoration(color: AppColors.card),
+      child: const Center(child: Icon(Icons.movie_outlined, color: AppColors.textMuted, size: 48)),
     );
 
     // 1. Local file (permanent cached poster — zero network, instant load)
@@ -594,6 +596,7 @@ class _ContentSection extends StatelessWidget {
   }
 
   void _showRemoveDialog(BuildContext context, CatalogItem item) {
+    final t = RaddTheme.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,

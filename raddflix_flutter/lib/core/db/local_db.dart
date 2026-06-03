@@ -621,6 +621,15 @@ class LocalDb {
     return RequestEncoder.scrambleUrl(url, deviceId);
   }
 
+  /// Decode a share_url that may be RF1:xxx scrambled (as stored in SQLite).
+  /// Returns the decoded URL, or the original if not scrambled, or null if null/empty.
+  static Future<String?> _decodeUrl(String? url) async {
+    if (url == null || url.isEmpty) return url;
+    if (!url.startsWith('RF1:')) return url;
+    final deviceId = await DeviceIdentifier.getDeviceId();
+    return RequestEncoder.unscrambleUrl(url, deviceId);
+  }
+
   // ── Stream Cache ──────────────────────────────────────────────────────────
 
   /// Get a cached stream link for [fileId]. Returns null if not cached or expired.

@@ -18,6 +18,8 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen>
     with SingleTickerProviderStateMixin {
+  RaddTheme get t => RaddTheme.of(context);
+
   final _ctrl  = TextEditingController();
   final _focus = FocusNode();
   Timer? _debounce;

@@ -12,6 +12,8 @@ class AdminQueueScreen extends StatefulWidget {
 }
 
 class _AdminQueueScreenState extends State<AdminQueueScreen> {
+  RaddTheme get t => RaddTheme.of(context);
+
   List<Map<String, dynamic>> _jobs = [];
   bool _loading = true;
   String? _error;
@@ -160,7 +162,7 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
             )
 
           else if (_jobs.isEmpty)
-            const SliverFillRemaining(
+            SliverFillRemaining(
               child: Center(child: Column(
                   mainAxisAlignment: MainAxisAlignment.center, children: [
                 Icon(Icons.download_done_rounded,
@@ -208,9 +210,9 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
 
             // Active jobs
             if (active.isNotEmpty) ...[
-              const SliverToBoxAdapter(
+              SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
                   child: Text('ACTIVE', style: TextStyle(
                       color: t.textMuted, fontSize: 11,
                       fontWeight: FontWeight.w700, letterSpacing: 1)),
@@ -234,9 +236,9 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
 
             // Finished jobs
             if (finished.isNotEmpty) ...[
-              const SliverToBoxAdapter(
+              SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                   child: Text('RECENT', style: TextStyle(
                       color: t.textMuted, fontSize: 11,
                       fontWeight: FontWeight.w700, letterSpacing: 1)),
@@ -385,7 +387,7 @@ class _JobCard extends StatelessWidget {
             SizedBox(height: 10),
             ClipRRect(
               borderRadius: BorderRadius.circular(3),
-              child: const LinearProgressIndicator(
+              child: LinearProgressIndicator(
                 backgroundColor: t.border,
                 valueColor: AlwaysStoppedAnimation<Color>(AppColors.warning),
                 minHeight: 4,

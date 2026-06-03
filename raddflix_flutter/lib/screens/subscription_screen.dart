@@ -37,6 +37,8 @@ class SubscriptionScreen extends ConsumerStatefulWidget {
 }
 
 class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
+  RaddTheme get t => RaddTheme.of(context);
+
   final _tidCtrl      = TextEditingController();
   bool _submitting    = false;
   String? _tidError;
@@ -484,7 +486,7 @@ class _FeatureTable extends StatelessWidget {
   }
   Widget _cell(bool yes) => Expanded(child: Center(child: Icon(
       yes ? Icons.check_circle_rounded : Icons.remove_rounded,
-      size: 16, color: yes ? AppColors.success : t.textDisabled)));
+      size: 16, color: yes ? AppColors.success : AppColors.textDisabled)));
 }
 
 
@@ -503,7 +505,7 @@ class _JazzPartnerBadge extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(AppRadius.sm),
         boxShadow: [
-          BoxShadow(color: const AppColors.jazzGreen.withOpacity(0.25),
+          BoxShadow(color: AppColors.jazzGreen.withOpacity(0.25),
               blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),

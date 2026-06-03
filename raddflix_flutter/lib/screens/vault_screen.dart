@@ -19,6 +19,8 @@ class VaultScreen extends StatefulWidget {
 }
 
 class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
+  RaddTheme get t => RaddTheme.of(context);
+
   List<VaultFile> _files = [];
   bool _loading = true;
   bool _gridView = false;

@@ -8,6 +8,7 @@ import 'dart:typed_data';
   import '../services/local_media_service.dart';
   import 'local_folder_screen.dart';
   import '../widgets/bottom_nav.dart';
+import '../core/theme/radd_theme.dart';
 
   class LocalMediaScreen extends StatefulWidget {
     const LocalMediaScreen({super.key});
@@ -140,12 +141,13 @@ import 'dart:typed_data';
     }
 
     Widget _buildTopBar() {
+      final t = RaddTheme.of(context);
       return Container(
         height: 60,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(children: [
-          RichText(text: const TextSpan(
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+          RichText(text: TextSpan(
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5),
             children: [
               TextSpan(text: 'Local ', style: TextStyle(color: t.textPrimary)),
               TextSpan(text: 'Media', style: TextStyle(color: AppColors.primary)),
@@ -216,6 +218,7 @@ import 'dart:typed_data';
 
     PopupMenuItem<_LocalSortMode> _sortItem(
         _LocalSortMode mode, IconData icon, String label, _LocalSortMode current) {
+      final t = RaddTheme.of(context);
       final active = current == mode;
       return PopupMenuItem(
         value: mode,
@@ -232,6 +235,7 @@ import 'dart:typed_data';
     }
 
     Widget _buildSearchBar() {
+      final t = RaddTheme.of(context);
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
         child: TextField(
@@ -255,6 +259,7 @@ import 'dart:typed_data';
     }
 
     Widget _buildBody() {
+      final t = RaddTheme.of(context);
       if (_loading) return _buildShimmer();
       if (_permissionDenied) return _buildPermissionError();
       final sorted = _sorted;
@@ -302,6 +307,7 @@ import 'dart:typed_data';
     }
 
     Widget _buildPermissionError() {
+      final t = RaddTheme.of(context);
       return Center(child: Padding(
         padding: const EdgeInsets.all(40),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -345,6 +351,7 @@ import 'dart:typed_data';
     }
 
     Widget _buildEmpty() {
+      final t = RaddTheme.of(context);
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(
           width: 84, height: 84,
@@ -362,6 +369,7 @@ import 'dart:typed_data';
     }
 
     Widget _buildShimmer() {
+      final t = RaddTheme.of(context);
       return ListView.builder(
         itemCount: 7,
         padding: const EdgeInsets.symmetric(vertical: 8),
