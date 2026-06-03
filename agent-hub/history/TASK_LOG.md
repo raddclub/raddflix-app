@@ -3436,3 +3436,56 @@ The two most recent code-changing sessions were both on 2026-06-02:
 - LocalDb.decodeShareUrl(url) is now canonical for decoding any CatalogItem.shareUrl before JazzDrive/API use
 
 ---
+
+---
+## [2026-06-03 UTC] — Agent: Replit Main Agent (Force-Version-Bump)
+
+### Task
+Add POST /api/catalog/force-version-bump — an admin endpoint that manually bumps
+the catalog version without editing any title row. Useful when subscription plans,
+quota limits, or metadata change and you want all user devices to re-sync immediately.
+
+### Done
+
+#### Server — catalog_api.py (radd-hub/hub/routes/catalog_api.py)
+
+**_catalog_version() updated:**
+- Was: pure MAX(updated_at) from titles table
+- Now: MAX(titles MAX(updated_at), catalog_forced_version from settings table)
+- So: normal title edits still auto-bump version as before. Admin force-bump also bumps it.
+
+**New endpoint: POST /api/catalog/force-version-bump**
+- Admin Basic auth required (RADD_ADMIN_USER / RADD_ADMIN_PASS env vars)
+- Writes current Unix timestamp to settings key 'catalog_forced_version'
+- Returns: { ok, version, previous, forced_ts, message }
+- No-op safe: calling it again just sets a newer timestamp, users sync once per call
+
+#### How the full flow works:
+1. Admin changes subscription plans / quota (no title row touched)
+2. Admin POSTs to /api/catalog/force-version-bump (one curl or admin panel button)
+3. Oracle settings table: catalog_forced_version = <current timestamp>
+4. _catalog_version() now returns the new timestamp (> old titles MAX)
+5. Next time any user opens the app / comes to foreground / gets internet:
+   → GET /api/catalog/version → new version ≠ local version → delta sync runs
+   → authProvider.silentRefresh() updates plan/quota/subscription state
+6. All online users re-synced within seconds of opening the app
+
+#### Live verification (Oracle 92.4.95.252):
+- Before bump: version = 1780437662
+- After bump:  version = 1780482891 ✅
+- No-auth request: 401 { error: 'admin auth required (Basic)' } ✅
+- Admin-auth request: { ok: true, version: 1780482891, previous: 1780437662 } ✅
+- Server restarted: raddflix_radd RUNNING pid 621798 ✅
+
+### Files Changed
+- radd-hub/hub/routes/catalog_api.py — commit 7ae934911699768119800ac8bffe20e414ff4507
+
+### Notes for Next Agent
+- catalog_forced_version is stored in the settings table (k/v). Safe across restarts.
+- To reset: db.set_setting('catalog_forced_version', '0') or just edit any title to auto-bump.
+- The endpoint is server-side only — no Flutter changes needed. Sync trigger is the version number.
+- DB schema: v17. Next migration: if (oldV < 18)
+- Oracle: raddflix_radd RUNNING, nginx RUNNING. Port 5000 firewalled externally.
+- Admin password: in /opt/jazzmax/radd-hub/.env as RADD_ADMIN_PASS
+
+---
