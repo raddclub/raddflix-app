@@ -141,7 +141,9 @@ def _catalog_require_auth(fn):
 @bp.route("/version")
 def version():
     v = _catalog_version()
-    resp = jsonify({"version": v, "count": _count_published()})
+    forced = db.setting("catalog_forced_version")
+    forced_ts = int(forced) if forced and str(forced).isdigit() else 0
+    resp = jsonify({"version": v, "count": _count_published(), "forced_ts": forced_ts})
     resp.set_etag(str(v))
     resp.headers["Cache-Control"] = "max-age=60"
     return resp
