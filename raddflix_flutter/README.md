@@ -1,41 +1,59 @@
 # RaddFlix Flutter App
 
-Flutter mobile app for the RaddFlix streaming platform.
+Flutter Android app for the RaddFlix streaming platform.
 
-**Package ID:** `com.raddflix.app`
-**Min Android SDK:** 21
-**Server path (Oracle):** `/opt/jazzmax/raddflix_flutter/`
+**Package ID:** `com.raddflix.app`  
+**Min Android SDK:** 21 (Android 5.0)  
+**Target SDK:** 36  
+**Flutter version (CI):** 3.22.x  
 
-## Build (on dev machine with Flutter SDK)
+## Build
 
+APK is built automatically by GitHub Actions on every push to `main`:  
+→ `.github/workflows/build-apk.yml`
+
+Download the latest APK from:  
+**GitHub → Actions → Build RaddFlix APK → latest successful run → Artifacts**
+
+To build locally:
 ```bash
+cd raddflix_flutter
+flutter pub get
 flutter build apk --release
 ```
-
-APK output: `build/app/outputs/flutter-apk/app-release.apk`
+Output: `build/app/outputs/flutter-apk/app-release.apk`
 
 ## Key Folders
 
 ```
 lib/
 ├── core/
-│   ├── api/          ← HTTP client (Dio)
-│   ├── db/           ← Local SQLite cache + sync
-│   ├── services/     ← JazzDrive, notifications, updates
-│   ├── security/     ← Device ID, keystore
-│   └── theme/        ← radd_colors.dart (dark/light theme)
+│   ├── api/          ← HTTP client (Dio + XOR encoding)
+│   ├── db/           ← Local SQLite (SQLCipher AES-256) + sync
+│   ├── services/     ← JazzDrive stream links, poster cache
+│   ├── security/     ← Device ID, Android Keystore wrapper
+│   ├── player/       ← Player prefs, A-B loop, bookmarks
+│   └── theme/        ← App colors, text styles
+├── models/           ← Data models (Title, Episode, User, etc.)
+├── providers/        ← Riverpod state (catalog, auth, subscription)
 ├── screens/          ← All app screens
-└── widgets/          ← Shared UI widgets (radd_text_field, etc.)
+│   └── player/       ← Video player (player_screen.dart)
+└── widgets/          ← Shared UI components
 android/
-├── app/build.gradle  ← Signing config (uses KEYSTORE_* env vars)
-└── app/src/main/res/xml/network_security_config.xml
+├── app/build.gradle  ← compileSdk 36, signing config (KEYSTORE_* env vars)
+└── gradle-wrapper    ← Gradle 8.3
 ```
 
-→ Full documentation: [`agent-hub/projects/flutter-app.md`](../agent-hub/projects/flutter-app.md)
+## Important Notes
 
-  ## Recent Changes (2026-05-28)
+- **SQLCipher pin:** `sqflite_sqlcipher: 3.1.0+1` — do NOT upgrade until CI uses Flutter 3.27+
+- **DB version:** `catalogDbVersion = 17` — next migration uses `if (oldV < 18)`
+- **Migration param:** must be `oldV` (not `oldVersion`) — compile error if wrong
+- **XOR encoding:** all API requests/responses are XOR-encrypted — both sides must stay in sync
+- **Android 8 compat:** no raw SQL `ON CONFLICT DO UPDATE` — use `ConflictAlgorithm.replace`
 
-  - **MX Player-style UI** — `player_screen.dart` `_ControlsOverlay` fully redesigned: right-side vertical strip, large red circle play/pause, circular seek buttons, clean bottom bar
-  - **Bug fix** — Error popup no longer fires during active playback on slow streams
-  - **Bug fix** — Movie "Play Now" button now shows a friendly error instead of silently doing nothing
-  
+## Architecture docs
+
+→ [`agent-hub/STREAMING_ARCHITECTURE.md`](../agent-hub/STREAMING_ARCHITECTURE.md)  
+→ [`agent-hub/ZERO_RATING_DELTA.md`](../agent-hub/ZERO_RATING_DELTA.md)  
+→ [`agent-hub/PLAYER_SPEC.md`](../agent-hub/PLAYER_SPEC.md)

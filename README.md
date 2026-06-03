@@ -1,36 +1,48 @@
 # RaddFlix — Pakistan ka Entertainment, Data-Free
 
-**RaddFlix** is a Pakistani streaming platform built for Jazz SIM users. Content is streamed via JazzDrive CDN (zero-rated — no data charges). Users can watch movies/dramas without consuming their mobile data.
+**RaddFlix** is a Pakistani streaming platform built for Jazz SIM users. Content is streamed via JazzDrive CDN (`cloud.jazzdrive.com.pk`) which Jazz zero-rates at the network level — no data bundle needed.
 
 ## What's in this repo
 
 | Folder | What it is |
 |--------|-----------|
-| `radd-hub/` | Flask admin panel (Radd Hub v3.0) — content management, user management, subscriptions, analytics |
-| `raddflix_flutter/` | Flutter mobile app — the user-facing streaming app |
-| `_watch_prototype/` | Early prototype of watch API (reference only) |
-| `scripts/` | Utility scripts (firewall, oracle setup, push helpers) |
-| `agent-hub/` | **AI agent coordination system** — read this if you are an AI agent |
+| `radd-hub/` | Flask admin panel — content management, user management, subscriptions, analytics |
+| `raddflix_flutter/` | Flutter mobile app — the user-facing Android streaming app |
+| `agent-hub/` | Core architecture & feature specs (streaming, player, security, zero-rating) |
+| `scripts/` | Post-merge and workspace utility scripts |
 
 ## Live Infrastructure
 
-| Component | Location | Port |
-|-----------|----------|------|
-| Oracle Ubuntu Server | `ubuntu@92.4.95.252` | — |
-| Radd Hub (admin panel) | Oracle server | 5000 |
-| Watch API (mobile backend) | Oracle server | 6000 |
-| GitHub repo | `raddclub/raddflix-app` | — |
+| Component | Details |
+|-----------|---------|
+| Oracle Ubuntu Server | `ubuntu@92.4.95.252` |
+| Radd Hub (admin + API) | nginx port 80 → Flask port 5000 |
+| Supervisor service | `raddflix_radd` |
+| GitHub repo | `raddclub/raddflix-app` (main branch) |
+| CI / APK build | GitHub Actions → `.github/workflows/build-apk.yml` |
 
-## Quick links for AI agents
+## Key scripts
 
-→ Start here: [`agent-hub/README.md`](agent-hub/README.md)
-→ Task history: [`agent-hub/history/TASK_LOG.md`](agent-hub/history/TASK_LOG.md)
-→ Rules: [`agent-hub/SKILLS.md`](agent-hub/SKILLS.md)
-→ Setup script: [`agent-hub/scripts/install.sh`](agent-hub/scripts/install.sh)
+```bash
+bash push_to_github.sh          # commit & push to GitHub
+bash push_to_oracle.sh          # git pull + restart on Oracle
+```
 
-  ## Latest Changes (2026-05-28)
+## Agent quick-start
 
-  - 🎬 **MX Player-style video player** — right-side vertical icon strip, large red circular play/pause, circular ±15s seek buttons, clean bottom bar with red slider
-  - 🐛 **Error popup fix** — no more false error dialogs appearing during active playback on slow streams
-  - 🎬 **Movie Play Now fix** — shows friendly message instead of silently doing nothing when a video isn't linked yet
-  
+1. Add secrets: `GITHUB_TOKEN` and `ORACLE_SSH_KEY`
+2. Restore SSH key and verify Oracle:
+   ```bash
+   node -e "const raw=process.env.ORACLE_SSH_KEY;const m=raw.match(/(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)/s);if(m)require('fs').writeFileSync('/tmp/oracle_key',m[1].trim()+'\n'+m[2].trim().replace(/ /g,'\n')+'\n'+m[3].trim()+'\n',{mode:0o600})"
+   ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 "curl -s http://localhost:5000/api/app/version"
+   ```
+3. Read architecture: `agent-hub/STREAMING_ARCHITECTURE.md`
+4. Read product context: `agent-hub/PRODUCT_CONTEXT.md`
+
+## Architecture (one-liner)
+
+```
+Phone → Oracle (auth/catalog/subs) + JazzDrive CDN (video, zero-rated)
+```
+
+Oracle never proxies video. JazzDrive API calls go phone→CDN directly (zero-rated).
