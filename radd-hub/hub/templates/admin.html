@@ -165,7 +165,7 @@
     <span class="badge b-mut" id="fsync-ver-badge">loading…</span>
   </div>
 
-  <div class="grid grid-2" style="gap:10px;margin-bottom:16px">
+  <div class="grid grid-3" style="gap:10px;margin-bottom:16px">
     <div class="card" style="margin:0;background:var(--panel2);padding:10px 14px">
       <div class="muted" style="font-size:11px;margin-bottom:4px">Current catalog version</div>
       <div id="fsync-cur-ver" style="font-size:13px;font-weight:600;font-family:monospace">—</div>
@@ -173,6 +173,10 @@
     <div class="card" style="margin:0;background:var(--panel2);padding:10px 14px">
       <div class="muted" style="font-size:11px;margin-bottom:4px">Published titles</div>
       <div id="fsync-count" style="font-size:13px;font-weight:600">—</div>
+    </div>
+    <div class="card" style="margin:0;background:var(--panel2);padding:10px 14px">
+      <div class="muted" style="font-size:11px;margin-bottom:4px">Last force-synced</div>
+      <div id="fsync-last-bump" style="font-size:12px;font-weight:600">—</div>
     </div>
   </div>
 
@@ -210,6 +214,12 @@ async function fsyncLoad() {
     if (badge) { badge.textContent = 'v' + ver; badge.className = 'badge b-ok'; }
     if (verEl) verEl.textContent = ver + '  (' + new Date(ver * 1000).toLocaleString() + ')';
     if (cntEl) cntEl.textContent = count + ' titles';
+    const bumpEl = document.getElementById('fsync-last-bump');
+    if (bumpEl) {
+      const ft = d.forced_ts || 0;
+      bumpEl.textContent = ft > 0 ? new Date(ft * 1000).toLocaleString() : 'Never';
+      bumpEl.style.color = ft > 0 ? 'var(--ok,#4c4)' : 'var(--muted,#888)';
+    }
   } catch(e) {
     const badge = document.getElementById('fsync-ver-badge');
     if (badge) { badge.textContent = 'error'; badge.className = 'badge b-err'; }
