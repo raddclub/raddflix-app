@@ -434,7 +434,7 @@ class PlayerPrefs {
     this.colorLook                 = 'none',
     this.filmGrainLevel            = 'none',
     this.hapticLevel               = 'heavy',
-    this.reactionsEnabled          = true,
+    this.reactionsEnabled          = false,
     this.historyPinEnabled         = false,
     this.motorImpairmentMode       = false,
     this.screenshotWatermark       = true,
