@@ -170,7 +170,38 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
         SizedBox(height: 16),
 
         // Plan cards
-        if (state.plans.isEmpty)
+        if (state.plans.isEmpty && state.error != null)
+          ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: AppColors.error.withOpacity(0.25))),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(Icons.wifi_off_rounded, color: AppColors.error, size: 18),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('Could not load plans',
+                      style: TextStyle(color: AppColors.error, fontSize: 13,
+                          fontWeight: FontWeight.w600))),
+                ]),
+                SizedBox(height: 10),
+                SizedBox(width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => ref.read(subscriptionProvider.notifier).loadPlans(),
+                    icon: Icon(Icons.refresh_rounded, size: 16),
+                    label: Text('Try Again', style: TextStyle(fontSize: 13)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: BorderSide(color: AppColors.primary.withOpacity(0.5))),
+                  )),
+              ]),
+            ),
+            const SizedBox(height: 8),
+          ]
+        else if (state.plans.isEmpty)
           ..._shimmerPlans()
         else
           ...state.plans.asMap().entries.map((e) => _PlanCard(
