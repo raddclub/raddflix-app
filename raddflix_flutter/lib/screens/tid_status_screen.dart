@@ -145,7 +145,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final t = RaddTheme.of(context);
+
     return Scaffold(
       backgroundColor: t.bg,
       appBar: AppBar(
@@ -205,6 +205,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   }
 
   Widget _buildStatusIcon() {
+    final t = RaddTheme.of(context);
     return AnimatedBuilder(
       animation: _pulseAnim,
       builder: (context, child) => Transform.scale(
@@ -225,6 +226,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   }
 
   Widget _buildStatusTitle() {
+    final t = RaddTheme.of(context);
     return Text(
       _statusTitleText(),
       style: TextStyle(
@@ -237,6 +239,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   }
 
   Widget _buildStatusSubtitle() {
+    final t = RaddTheme.of(context);
     return Text(
       _statusSubtitleText(),
       style: TextStyle(color: t.textSecondary, fontSize: 14),
@@ -245,6 +248,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   }
 
   Widget _buildPaymentSummaryCard() {
+    final t = RaddTheme.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -293,6 +297,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   }
 
   Widget _buildTimeline() {
+    final t = RaddTheme.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -343,6 +348,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   }
 
   Widget _buildPollIndicator() {
+    final t = RaddTheme.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -368,6 +374,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   }
 
   Widget _buildManualRefresh() {
+    final t = RaddTheme.of(context);
     return OutlinedButton.icon(
       onPressed: () {
         _countdownTimer?.cancel();
@@ -385,6 +392,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   }
 
   Widget _buildWhatsAppButton() {
+    final t = RaddTheme.of(context);
     return TextButton.icon(
       onPressed: () async {
         final uri = Uri.parse(
@@ -406,6 +414,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   }
 
   Widget _buildStartWatchingButton() {
+    final t = RaddTheme.of(context);
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
@@ -425,6 +434,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   }
 
   Widget _buildContactSupportButton() {
+    final t = RaddTheme.of(context);
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
@@ -454,6 +464,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   }
 
   Widget _buildTryAgainButton() {
+    final t = RaddTheme.of(context);
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton(
@@ -522,7 +533,9 @@ class _SummaryRow extends StatelessWidget {
   const _SummaryRow({required this.label, required this.value});
 
   @override
-  Widget build(BuildContext context) => Row(
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Row(
         children: [
           Text(label, style: TextStyle(color: t.textSecondary, fontSize: 13)),
           const Spacer(),
@@ -530,6 +543,7 @@ class _SummaryRow extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
         ],
       );
+  }
 }
 
 class _TimelineStep extends StatelessWidget {
@@ -554,7 +568,7 @@ class _TimelineStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final t = RaddTheme.of(context);
+
     final Color color = isDone
         ? const Color(0xFF22C55E)
         : isFailed

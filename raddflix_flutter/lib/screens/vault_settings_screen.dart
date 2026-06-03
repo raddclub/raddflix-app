@@ -74,6 +74,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
   }
 
   Future<void> _clearVault() async {
+    final t = RaddTheme.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -106,6 +107,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
 
   // Simplified pin dialogs
   Future<(String, String)?> _showPinDialog(String title, String hint) async {
+    final t = RaddTheme.of(context);
     final ctrl1 = TextEditingController();
     final ctrl2 = TextEditingController();
     final ctrl3 = TextEditingController(); // confirm new PIN
@@ -158,6 +160,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
   }
 
   Future<String?> _showNewPinDialog(String title, String hint) async {
+    final t = RaddTheme.of(context);
     final ctrl = TextEditingController();
     String? _localError;
     return showDialog<String>(
@@ -197,7 +200,9 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
     );
   }
 
-  Widget _pinField(TextEditingController ctrl, String hint) => TextField(
+  Widget _pinField(TextEditingController ctrl, String hint) {
+    final t = RaddTheme.of(context);
+    return TextField(
     controller: ctrl,
     obscureText: true,
     keyboardType: TextInputType.number,
@@ -218,7 +223,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final t = RaddTheme.of(context);
+
     return Scaffold(
       backgroundColor: t.bg,
       appBar: AppBar(
@@ -377,26 +382,32 @@ class _SectionHeader extends StatelessWidget {
   final String label;
   const _SectionHeader({required this.label});
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Padding(
     padding: const EdgeInsets.only(left: 4, bottom: 8),
     child: Text(label.toUpperCase(), style: TextStyle(
         color: t.textSecondary, fontSize: 11,
         fontWeight: FontWeight.w700, letterSpacing: 1.2)),
-  );
+    );
+  }
 }
 
 class _SettingCard extends StatelessWidget {
   final List<Widget> children;
   const _SettingCard({required this.children});
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Container(
     decoration: BoxDecoration(
       color: t.surface,
       borderRadius: BorderRadius.circular(14),
       border: Border.all(color: t.border),
     ),
     child: Column(children: children),
-  );
+    );
+  }
 }
 
 class _SettingTile extends StatelessWidget {
@@ -412,7 +423,7 @@ class _SettingTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final t = RaddTheme.of(context);
+
     return ListTile(
       onTap: onTap,
       leading: Container(
@@ -435,8 +446,11 @@ class _SettingTile extends StatelessWidget {
 class _Divider extends StatelessWidget {
   const _Divider();
   @override
-  Widget build(BuildContext context) => Divider(
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Divider(
     height: 1, indent: 64,
     color: t.border,
-  );
+    );
+  }
 }
