@@ -391,3 +391,27 @@ Wrapped Steps 1–3 in `_openMedia` with `try/catch/finally`:
 - All 4 planned improvements implemented and committed
 - Oracle pulled successfully (17 files changed from previous sessions also landed)
 - Build #981 (previous session) completed successfully
+
+---
+
+## Session 2026-06-04 — player_screen.dart bug fixes (6 bugs)
+
+**Agent:** Replit Agent (main branch)
+**Objective:** Fix all 6 bugs identified in full line-by-line analysis of player_screen.dart
+
+### Bugs fixed
+
+| ID | Line | Severity | Description |
+|---|---|---|---|
+| BUG-P01 | 1586 | 🔴 Critical | Position save fires 50–67×/sec at each 10s boundary. Fixed: checkpoint index (`p.inSeconds ~/ 10`) + `_lastSaveCheckpoint` state var — saves exactly once per 10s tick |
+| BUG-P02 | 2253 | 🔴 Critical | Completed video saved position=duration on dispose — next open resumed from end, triggering instant next-ep countdown. Fixed: added `!_ended` guard |
+| BUG-P03 | 2819 | 🔴 Critical | `CountdownNextOverlay` passed `widget.title` (current ep) as "next title" — showed "Up next: [episode already watched]". Fixed: changed to `_nextEpLabel` |
+| BUG-P04 | 1565 | 🟡 Medium | `SmartVolumeController` created in `_initPlayer` before `_loadPrefs` completed — used default prefs, not user's saved settings. Fixed: moved SVC creation to end of `_loadPrefs()` |
+| BUG-P05 | 2293 | 🟡 Medium | `_scheduleHide` missing `_showJumpPanel` guard — controls could hide while Jump To panel was open, leaving panel floating with no way back. Fixed: added `!_showJumpPanel` |
+| BUG-P06 | 3295 | 🟡 Medium | `onQualityChanged` was a permanent no-op `(_) {}` — users tapped quality options with zero feedback. Fixed: shows "Quality selection coming soon" SnackBar |
+
+### Files changed
+- `raddflix_flutter/lib/screens/player_screen.dart` — commit `d39af21`
+
+### APK build
+- Build triggered after commit d39af21
