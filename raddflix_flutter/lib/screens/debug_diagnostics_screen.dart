@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,33 +6,79 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api/api_client.dart';
 import '../core/constants.dart';
 import '../core/db/local_db.dart';
+import '../core/debug/debug_logger.dart';
 import '../core/security/keystore.dart';
 import '../core/security/request_encoder.dart';
 import '../core/security/device_id.dart';
 import '../core/theme/radd_theme.dart';
 import '../providers/auth_provider.dart';
 
-/// Debug-only diagnostics screen.
-/// Gated behind kDebugMode — completely absent from release APK.
-/// Access: tap the version text in Profile 7 times.
+/// Debug-only diagnostics screen — completely absent from release APK.
+/// Entry: tap version text in Profile 7 times (kDebugMode only).
 class DebugDiagnosticsScreen extends ConsumerStatefulWidget {
   const DebugDiagnosticsScreen({super.key});
   @override
   ConsumerState<DebugDiagnosticsScreen> createState() => _DebugDiagnosticsScreenState();
 }
 
-class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen> {
+class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
+    with SingleTickerProviderStateMixin {
+
+  // ── Checks tab state ─────────────────────────────────────────────────────
   final List<_DiagResult> _results = [];
   bool _running = false;
+
+  // ── Logs tab state ───────────────────────────────────────────────────────
+  late final TabController _tabs;
+  Timer? _logTimer;
+  String _logFilter  = 'ALL';
+  String _rawLogs    = '';
+  bool   _autoScroll = true;
+  final ScrollController _logScroll = ScrollController();
+  static const _filters = ['ALL', 'ERROR', 'WARN', 'API', 'SYNC', 'DB'];
 
   @override
   void initState() {
     super.initState();
+    _tabs = TabController(length: 2, vsync: this);
+    _tabs.addListener(() {
+      if (_tabs.index == 1 && !_tabs.indexIsChanging) _startLogTimer();
+      if (_tabs.index == 0 && !_tabs.indexIsChanging) _stopLogTimer();
+    });
     if (kDebugMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _runAll());
     }
   }
 
+  @override
+  void dispose() {
+    _stopLogTimer();
+    _tabs.dispose();
+    _logScroll.dispose();
+    super.dispose();
+  }
+
+  // ── Log timer ─────────────────────────────────────────────────────────────
+  void _startLogTimer() {
+    _logTimer?.cancel();
+    _refreshLogs();
+    _logTimer = Timer.periodic(const Duration(seconds: 2), (_) => _refreshLogs());
+  }
+  void _stopLogTimer() { _logTimer?.cancel(); _logTimer = null; }
+
+  void _refreshLogs() {
+    if (!mounted) return;
+    setState(() => _rawLogs = DebugLogger.getLastLines(500));
+    if (_autoScroll && _logScroll.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_logScroll.hasClients && _logScroll.position.hasContentDimensions) {
+          _logScroll.jumpTo(_logScroll.position.maxScrollExtent);
+        }
+      });
+    }
+  }
+
+  // ── Checks ────────────────────────────────────────────────────────────────
   Future<void> _runAll() async {
     if (_running) return;
     setState(() { _running = true; _results.clear(); });
@@ -51,13 +98,14 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
       setState(() => _results[_results.length - 1] = r.withLabel(label));
     } catch (e) {
       setState(() => _results[_results.length - 1] =
-          _DiagResult(label: label, status: _Status.fail, detail: e.toString().split('\n').first));
+          _DiagResult(label: label, status: _Status.fail,
+              detail: e.toString().split('\n').first));
     }
   }
 
   Future<_DiagResult> _checkOracle() async {
     try {
-      final res = await ApiClient.instance.get('/healthz');
+      final res  = await ApiClient.instance.get('/healthz');
       final data = res.data;
       if (data is Map) {
         return _DiagResult(label: '', status: _Status.ok,
@@ -65,13 +113,14 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
       }
       return _DiagResult(label: '', status: _Status.ok, detail: 'HTTP ${res.statusCode}');
     } catch (e) {
-      return _DiagResult(label: '', status: _Status.fail, detail: e.toString().split('\n').first);
+      return _DiagResult(label: '', status: _Status.fail,
+          detail: e.toString().split('\n').first);
     }
   }
 
   Future<_DiagResult> _checkXor() async {
     try {
-      final res = await ApiClient.instance.get(ApiPaths.catalogVersion);
+      final res  = await ApiClient.instance.get(ApiPaths.catalogVersion);
       final data = res.data;
       if (data is Map && data['version'] != null) {
         return _DiagResult(label: '', status: _Status.ok,
@@ -80,7 +129,8 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
       return _DiagResult(label: '', status: _Status.fail,
           detail: 'Decode failed — response.data is ${data.runtimeType}');
     } catch (e) {
-      return _DiagResult(label: '', status: _Status.fail, detail: e.toString().split('\n').first);
+      return _DiagResult(label: '', status: _Status.fail,
+          detail: e.toString().split('\n').first);
     }
   }
 
@@ -102,11 +152,11 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
       return _DiagResult(label: '', status: _Status.warn, detail: 'No tokens — not logged in');
     }
     final user    = ref.read(authProvider).user;
-    final plan    = user?.planName ?? 'unknown';
-    final phone   = user?.phone   ?? 'unknown';
     final isGuest = user?.isGuest ?? false;
     return _DiagResult(label: '', status: _Status.ok,
-        detail: isGuest ? 'Guest session active' : '$phone · plan=$plan');
+        detail: isGuest
+            ? 'Guest session active'
+            : '${user?.phone ?? "-"} · plan=${user?.planName ?? "-"}');
   }
 
   Future<_DiagResult> _checkSyncMeta() async {
@@ -124,20 +174,26 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
 
   Future<_DiagResult> _checkDeviceId() async {
     final id    = await DeviceIdentifier.getDeviceId();
-    final short = id.length > 12 ? '${id.substring(0, 6)}…${id.substring(id.length - 6)}' : id;
-    final key   = RequestEncoder.generateSessionKey(id);
+    final short = id.length > 12
+        ? '${id.substring(0, 6)}…${id.substring(id.length - 6)}'
+        : id;
+    final key = RequestEncoder.generateSessionKey(id);
     return _DiagResult(label: '', status: _Status.ok,
         detail: 'id=$short · key=${key.substring(0, 8)}… (hourly rotating)');
   }
 
+  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     if (!kDebugMode) return const SizedBox.shrink();
-    final t = RaddTheme.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFF050510),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0A1A),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          onPressed: () => Navigator.of(context).pop()),
         title: Row(children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -154,77 +210,252 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
           const Text('Diagnostics',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         ]),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          onPressed: () => Navigator.of(context).pop()),
         actions: [
-          if (_running)
-            const Padding(
-              padding: EdgeInsets.only(right: 16),
-              child: Center(child: SizedBox(width: 18, height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange))))
-          else
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded, color: Colors.orange),
-              tooltip: 'Re-run all checks',
-              onPressed: _runAll),
+          AnimatedBuilder(
+            animation: _tabs,
+            builder: (_, __) {
+              if (_tabs.index == 0) {
+                return _running
+                    ? const Padding(padding: EdgeInsets.only(right: 16),
+                        child: Center(child: SizedBox(width: 18, height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange))))
+                    : IconButton(icon: const Icon(Icons.refresh_rounded, color: Colors.orange),
+                        tooltip: 'Re-run checks', onPressed: _runAll);
+              }
+              return Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(
+                  icon: Icon(
+                    _autoScroll ? Icons.vertical_align_bottom_rounded : Icons.pause_rounded,
+                    color: _autoScroll ? Colors.orange : Colors.grey, size: 20),
+                  tooltip: _autoScroll ? 'Auto-scroll ON' : 'Paused',
+                  onPressed: () => setState(() => _autoScroll = !_autoScroll)),
+                IconButton(
+                  icon: const Icon(Icons.share_rounded, color: Colors.orange, size: 20),
+                  tooltip: 'Share log file',
+                  onPressed: DebugLogger.shareLogs),
+              ]);
+            },
+          ),
         ],
+        bottom: TabBar(
+          controller: _tabs,
+          indicatorColor: Colors.orange,
+          labelColor: Colors.orange,
+          unselectedLabelColor: Colors.grey,
+          tabs: const [Tab(text: 'Checks'), Tab(text: 'Live Logs')],
+        ),
       ),
       body: Column(children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          color: Colors.orange.withOpacity(0.08),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          color: Colors.orange.withOpacity(0.07),
           child: Row(children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
+            const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 14),
             const SizedBox(width: 8),
             Text('Debug only — stripped from release APK',
-                style: TextStyle(color: Colors.orange.withOpacity(0.8), fontSize: 12)),
+                style: TextStyle(color: Colors.orange.withOpacity(0.75), fontSize: 11)),
           ]),
         ),
-        Expanded(
-          child: _results.isEmpty && _running
-              ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const CircularProgressIndicator(color: Colors.orange, strokeWidth: 2),
-                  const SizedBox(height: 16),
-                  Text('Running checks…',
-                      style: TextStyle(color: t.textMuted, fontSize: 13)),
-                ]))
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _results.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, i) => _ResultCard(result: _results[i]),
-                ),
-        ),
-        if (_results.isNotEmpty && !_running)
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.orange,
-                    side: BorderSide(color: Colors.orange.withOpacity(0.4)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  icon: const Icon(Icons.copy_rounded, size: 16),
-                  label: const Text('Copy Report', style: TextStyle(fontSize: 13)),
-                  onPressed: () {
-                    final report = _results.map((r) {
-                      final icon = r.status == _Status.ok ? '✓'
-                          : r.status == _Status.warn ? '⚠' : '✗';
-                      return '$icon ${r.label}: ${r.detail}';
-                    }).join('\n');
-                    Clipboard.setData(ClipboardData(text: report));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Report copied to clipboard')));
-                  },
-                ),
-              ),
+        Expanded(child: TabBarView(
+          controller: _tabs,
+          children: [
+            _ChecksTab(results: _results, running: _running),
+            _LogsTab(
+              rawLogs:    _rawLogs,
+              filter:     _logFilter,
+              autoScroll: _autoScroll,
+              scrollCtrl: _logScroll,
+              filters:    _filters,
+              onFilter:   (f) { setState(() => _logFilter = f); _refreshLogs(); },
+              onClear:    () { DebugLogger.clearBuffer(); setState(() => _rawLogs = ''); },
             ),
-          ),
+          ],
+        )),
+      ]),
+    );
+  }
+}
+
+// ── Checks Tab ────────────────────────────────────────────────────────────────
+class _ChecksTab extends StatelessWidget {
+  final List<_DiagResult> results;
+  final bool running;
+  const _ChecksTab({required this.results, required this.running});
+
+  @override
+  Widget build(BuildContext context) {
+    if (results.isEmpty && running) {
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const CircularProgressIndicator(color: Colors.orange, strokeWidth: 2),
+        const SizedBox(height: 16),
+        Text('Running checks…', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+      ]));
+    }
+    return Column(children: [
+      Expanded(child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: results.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (_, i) => _ResultCard(result: results[i]),
+      )),
+      if (results.isNotEmpty && !running)
+        SafeArea(child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: SizedBox(width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.orange,
+                side: BorderSide(color: Colors.orange.withOpacity(0.4)),
+                padding: const EdgeInsets.symmetric(vertical: 12)),
+              icon: const Icon(Icons.copy_rounded, size: 16),
+              label: const Text('Copy Report', style: TextStyle(fontSize: 13)),
+              onPressed: () {
+                final txt = results.map((r) {
+                  final ic = r.status == _Status.ok ? '✓' : r.status == _Status.warn ? '⚠' : '✗';
+                  return '${ic} ${r.label}: ${r.detail}';
+                }).join('\n');
+                Clipboard.setData(ClipboardData(text: txt));
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Report copied')));
+              })),
+        )),
+    ]);
+  }
+}
+
+// ── Logs Tab ──────────────────────────────────────────────────────────────────
+class _LogsTab extends StatelessWidget {
+  final String rawLogs;
+  final String filter;
+  final bool autoScroll;
+  final ScrollController scrollCtrl;
+  final List<String> filters;
+  final void Function(String) onFilter;
+  final VoidCallback onClear;
+
+  const _LogsTab({
+    required this.rawLogs, required this.filter,
+    required this.autoScroll, required this.scrollCtrl,
+    required this.filters, required this.onFilter, required this.onClear,
+  });
+
+  Color _lineColor(String line) {
+    if (line.contains('[ERROR]') || line.contains('[CRASH]')) return const Color(0xFFEF4444);
+    if (line.contains('[WARN ]')) return Colors.orange;
+    if (line.contains('[API  ]')) return const Color(0xFF60A5FA);
+    if (line.contains('[SYNC ]')) return const Color(0xFF34D399);
+    if (line.contains('[DB   ]')) return const Color(0xFF22D3EE);
+    if (line.contains('[NAV  ]')) return const Color(0xFFA78BFA);
+    if (line.contains('[UI   ]')) return const Color(0xFFFBBF24);
+    if (line.contains('[INFO ]')) return const Color(0xFF9CA3AF);
+    return const Color(0xFF6B7280);
+  }
+
+  List<String> _filtered() {
+    final lines = rawLogs.split('\n').where((l) => l.isNotEmpty).toList();
+    if (filter == 'ALL') return lines;
+    final tag = '[${filter.padRight(5)}]';
+    return lines.where((l) => l.contains(tag)).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = _filtered();
+    return Column(children: [
+      // Filter chips
+      SizedBox(height: 44, child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        itemCount: filters.length + 1,
+        itemBuilder: (_, i) {
+          if (i == filters.length) {
+            return Padding(padding: const EdgeInsets.only(left: 4),
+              child: ActionChip(
+                label: const Text('Clear', style: TextStyle(fontSize: 11)),
+                backgroundColor: Colors.red.withOpacity(0.12),
+                side: BorderSide(color: Colors.red.withOpacity(0.3)),
+                labelStyle: const TextStyle(color: Colors.red),
+                onPressed: onClear,
+                visualDensity: VisualDensity.compact));
+          }
+          final f = filters[i]; final selected = filter == f;
+          return Padding(padding: const EdgeInsets.only(right: 6),
+            child: FilterChip(
+              label: Text(f, style: TextStyle(fontSize: 11)),
+              selected: selected, onSelected: (_) => onFilter(f),
+              selectedColor: Colors.orange.withOpacity(0.2),
+              backgroundColor: const Color(0xFF0A0A1A),
+              side: BorderSide(color: selected ? Colors.orange : Colors.grey.withOpacity(0.3)),
+              labelStyle: TextStyle(color: selected ? Colors.orange : Colors.grey),
+              checkmarkColor: Colors.orange,
+              visualDensity: VisualDensity.compact));
+        })),
+      // Stats
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        child: Row(children: [
+          Text('${lines.length} lines', style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+          const Spacer(),
+          Flexible(child: Text(DebugLogger.getLogPath(),
+              style: TextStyle(color: Colors.grey[700], fontSize: 10),
+              overflow: TextOverflow.ellipsis, maxLines: 1)),
+        ])),
+      const SizedBox(height: 4),
+      // Log output
+      Expanded(child: lines.isEmpty
+          ? Center(child: Text(
+              rawLogs.isEmpty ? 'No logs yet — navigate the app to generate logs'
+                             : 'No $filter entries in buffer',
+              style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              textAlign: TextAlign.center))
+          : Scrollbar(controller: scrollCtrl,
+              child: ListView.builder(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                itemCount: lines.length,
+                itemBuilder: (_, i) => SelectableText(lines[i],
+                  style: TextStyle(
+                    color: _lineColor(lines[i]), fontSize: 10.5,
+                    fontFamily: 'monospace', height: 1.5,
+                    fontWeight: lines[i].contains('[ERROR]') || lines[i].contains('[CRASH]')
+                        ? FontWeight.w600 : FontWeight.normal))))),
+    ]);
+  }
+}
+
+// ── Shared ────────────────────────────────────────────────────────────────────
+class _ResultCard extends StatelessWidget {
+  final _DiagResult result;
+  const _ResultCard({super.key, required this.result});
+  @override
+  Widget build(BuildContext context) {
+    final Color color; final IconData icon;
+    switch (result.status) {
+      case _Status.ok:      color = const Color(0xFF22C55E); icon = Icons.check_circle_rounded;  break;
+      case _Status.warn:    color = Colors.orange;           icon = Icons.warning_amber_rounded;  break;
+      case _Status.fail:    color = const Color(0xFFEF4444); icon = Icons.cancel_rounded;         break;
+      case _Status.running: color = Colors.blueGrey;         icon = Icons.hourglass_top_rounded;  break;
+    }
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2))),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        result.status == _Status.running
+            ? SizedBox(width:20,height:20,child:CircularProgressIndicator(strokeWidth:2,color:color))
+            : Icon(icon, color: color, size: 20),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(result.label, style: TextStyle(
+              color: Colors.white.withOpacity(0.9), fontSize: 14, fontWeight: FontWeight.w600)),
+          if (result.detail.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(result.detail, style: TextStyle(
+                color: Colors.white.withOpacity(0.5), fontSize: 12, fontFamily: 'monospace')),
+          ],
+        ])),
       ]),
     );
   }
@@ -237,53 +468,5 @@ class _DiagResult {
   final _Status status;
   final String detail;
   const _DiagResult({required this.label, required this.status, this.detail = ''});
-  _DiagResult withLabel(String l) =>
-      _DiagResult(label: l, status: status, detail: detail);
-}
-
-class _ResultCard extends StatelessWidget {
-  final _DiagResult result;
-  const _ResultCard({super.key, required this.result});
-
-  @override
-  Widget build(BuildContext context) {
-    final Color color;
-    final IconData icon;
-    switch (result.status) {
-      case _Status.ok:
-        color = const Color(0xFF22C55E); icon = Icons.check_circle_rounded; break;
-      case _Status.warn:
-        color = Colors.orange; icon = Icons.warning_amber_rounded; break;
-      case _Status.fail:
-        color = const Color(0xFFEF4444); icon = Icons.cancel_rounded; break;
-      case _Status.running:
-        color = Colors.blueGrey; icon = Icons.hourglass_top_rounded; break;
-    }
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        result.status == _Status.running
-            ? SizedBox(width: 20, height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: color))
-            : Icon(icon, color: color, size: 20),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(result.label, style: TextStyle(
-              color: Colors.white.withOpacity(0.9),
-              fontSize: 14, fontWeight: FontWeight.w600)),
-          if (result.detail.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(result.detail, style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontSize: 12, fontFamily: 'monospace')),
-          ],
-        ])),
-      ]),
-    );
-  }
+  _DiagResult withLabel(String l) => _DiagResult(label: l, status: status, detail: detail);
 }
