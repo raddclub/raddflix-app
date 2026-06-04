@@ -1,4 +1,5 @@
-- [No new feature suggestions](no-new-features.md) — NEVER suggest new features or ideas, only fix existing broken code. User rule, permanent.
-- [Oracle server location](oracle-server.md) — production server is at /opt/jazzmax/, NOT /home/ubuntu/jazzmax/; radd-hub is a monorepo at /opt/jazzmax/ tracking github.com/raddclub/raddflix-app.
-- [XOR encoding layer](xor-encoding.md) — Flutter sends X-Encoded:1 + X-Device-Id; XorWsgiMiddleware decodes requests; after_request encodes responses for /api/*. Auth endpoints must skip XOR body encoding.
-- [Catalog sync auth](catalog-sync.md) — /api/catalog/sync uses @_catalog_require_auth decorator; must be public (no decorator) so guest users can sync before acquiring a token.
+- [Player local-file black screen bugs](player-local-bugs.md) — BUG #3 + #4 root causes and fixes in player_screen.dart
+- [Oracle DB structure](oracle-db.md) — radd_hub.db backup has all catalog data; live raddflix.db is empty (sync target)
+- [JazzDrive connectivity](jazzdrive-connectivity.md) — requires Jazz SIM / Pakistani network; API at cloud.jazzdrive.com.pk is zero-rated only on Jazz
+- [JazzDrive Pass3 escape bug](jazzdrive-pass3-bug.md) — Dart \$ in non-raw strings = literal dollar, not interpolation; Pass3 was dead.
+- [JazzDrive share validation](jazzdrive-connectivity.md) — cloud.jazzdrive.com.pk reachable from any IP but share keys return MED-1011 without Jazz SIM.
