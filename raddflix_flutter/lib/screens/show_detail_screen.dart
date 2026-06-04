@@ -36,6 +36,11 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   int? _resumeEpisodeIndex;  // episode index (in _episodes) to resume
   int? _nowPlayingIdx;       // episode index currently open in the player
 
+  // Admin panel
+  Map<String, String> _overrides = {};
+  bool _adminMode = false;
+  int _adminTapCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -65,6 +70,8 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
       }
     }
 
+    final overrides = await LocalDb.getEpisodeOverrides(widget.item.id);
+
     final seasonNums = eps
         .map((e) => (e['season'] as int? ?? 1))
         .toSet()
@@ -89,6 +96,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         _seasons = seasonNums.isEmpty ? [1] : seasonNums;
         _selectedSeason = _seasons.first;
         _watchProgress = prog;
+        _overrides = overrides;
         _resumeEpisodeIndex = resumeIdx;
         _loading = false;
         if (_seasons.length > 1) {
@@ -120,6 +128,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
             'episode': g,
             'season': eps[i]['season'] ?? _selectedSeason,
             'label': 'S${_selectedSeason.toString().padLeft(2, '0')}E${g.toString().padLeft(2, '0')}',
+            '_override': _overrides['${_selectedSeason}_$g'],
           });
         }
       }
@@ -225,6 +234,26 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         ),
       ),
     ));
+  }
+
+  Future<void> _showAdminSheet(int episode, int season) async {
+    final gaps = _currentEpisodesWithGaps
+        .where((e) => e['_placeholder'] == true)
+        .toList();
+    if (gaps.isEmpty) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AdminEpisodePanel(
+        showId: widget.item.id,
+        showTitle: widget.item.title,
+        season: season,
+        gaps: gaps,
+        overrides: Map<String, String>.from(_overrides),
+        onChanged: (updated) => setState(() => _overrides = updated),
+      ),
+    );
   }
 
   @override
@@ -573,11 +602,46 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                     // Season header
                     Row(
                       children: [
-                        Text(
-                          'Episodes',
-                          style: TextStyle(
-                            color: t.textPrimary, fontSize: 18,
-                            fontWeight: FontWeight.w700,
+                        GestureDetector(
+                          onTap: () {
+                            _adminTapCount++;
+                            if (_adminTapCount >= 5) {
+                              _adminTapCount = 0;
+                              setState(() => _adminMode = !_adminMode);
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text(
+                                  _adminMode ? 'Admin mode enabled' : 'Admin mode disabled'),
+                                duration: const Duration(seconds: 2),
+                                behavior: SnackBarBehavior.floating,
+                              ));
+                            }
+                          },
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Episodes',
+                                style: TextStyle(
+                                  color: t.textPrimary, fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (_adminMode) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.orange.withOpacity(0.6)),
+                                  ),
+                                  child: const Text('ADMIN', style: TextStyle(
+                                    color: Colors.orange, fontSize: 9,
+                                    fontWeight: FontWeight.w800, letterSpacing: 1,
+                                  )),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         const Spacer(),
@@ -662,8 +726,13 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                             final label = ep['label'] as String? ??
                                 'S${season.toString().padLeft(2, '0')}E${epNum.toString().padLeft(2, '0')}';
                             if (ep['_placeholder'] == true) {
-                              return _EpisodeUnavailableTile(label: label)
-                                  .animate()
+                              return _EpisodeUnavailableTile(
+                                label: label,
+                                override: ep['_override'] as String?,
+                                onLongPress: _adminMode
+                                    ? () => _showAdminSheet(epNum, season)
+                                    : null,
+                              ).animate()
                                   .fadeIn(delay: Duration(milliseconds: 50 + i * 40));
                             }
                             final realIdx = ep['_realIndex'] as int;
@@ -980,64 +1049,276 @@ class _EpisodeShimmer extends StatelessWidget {
 // ── Unavailable episode placeholder ──────────────────────────────────────────
 class _EpisodeUnavailableTile extends StatelessWidget {
   final String label;
-  const _EpisodeUnavailableTile({required this.label});
+  /// null='not available'  |  'coming_soon'=amber  |  'uploading'=blue
+  final String? override;
+  final VoidCallback? onLongPress;
+  const _EpisodeUnavailableTile({required this.label, this.override, this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Opacity(
-        opacity: 0.38,
-        child: Container(
-          height: 68,
-          decoration: BoxDecoration(
-            color: t.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: t.border),
+    final isComingSoon = override == 'coming_soon';
+    final isUploading  = override == 'uploading';
+    final hasOverride  = isComingSoon || isUploading;
+    final accent = isUploading
+        ? const Color(0xFF3B82F6)
+        : isComingSoon
+            ? const Color(0xFFF59E0B)
+            : t.textSecondary;
+    final statusText = isUploading
+        ? 'Uploading now...'
+        : isComingSoon ? 'Coming Soon' : 'Not available';
+    final tileIcon = isUploading
+        ? Icons.cloud_upload_rounded
+        : isComingSoon ? Icons.schedule_rounded : Icons.block_rounded;
+    return GestureDetector(
+      onLongPress: onLongPress,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: hasOverride ? 0.78 : 0.38,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            height: 68,
+            decoration: BoxDecoration(
+              color: hasOverride ? accent.withOpacity(0.08) : t.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: hasOverride ? accent.withOpacity(0.45) : t.border,
+                width: hasOverride ? 1.5 : 1.0,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                      color: hasOverride ? accent.withOpacity(0.18) : t.border,
+                      borderRadius: BorderRadius.circular(10),
+                      border: hasOverride
+                          ? Border.all(color: accent.withOpacity(0.4))
+                          : null,
+                    ),
+                    child: Center(child: Icon(tileIcon, color: accent, size: 18)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(label, style: TextStyle(
+                          color: t.textPrimary,
+                          fontWeight: FontWeight.w600, fontSize: 14)),
+                        const SizedBox(height: 3),
+                        Text(statusText, style: TextStyle(
+                          color: accent, fontSize: 12,
+                          fontWeight: hasOverride ? FontWeight.w600 : FontWeight.normal)),
+                      ],
+                    ),
+                  ),
+                  if (onLongPress != null)
+                    Icon(Icons.edit_rounded,
+                        color: Colors.orange.withOpacity(0.7), size: 16),
+                ],
+              ),
+            ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Admin episode status panel ──────────────────────────────────────────────
+class _AdminEpisodePanel extends StatefulWidget {
+  final int showId;
+  final String showTitle;
+  final int season;
+  final List<Map<String, dynamic>> gaps;
+  final Map<String, String> overrides;
+  final ValueChanged<Map<String, String>> onChanged;
+  const _AdminEpisodePanel({
+    required this.showId, required this.showTitle, required this.season,
+    required this.gaps, required this.overrides, required this.onChanged,
+  });
+  @override
+  State<_AdminEpisodePanel> createState() => _AdminEpisodePanelState();
+}
+
+class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
+  late Map<String, String> _local;
+
+  @override
+  void initState() {
+    super.initState();
+    _local = Map<String, String>.from(widget.overrides);
+  }
+
+  Future<void> _set(int ep, String? status) async {
+    await LocalDb.setEpisodeOverride(widget.showId, widget.season, ep, status);
+    final key = '${widget.season}_$ep';
+    setState(() {
+      if (status == null) _local.remove(key);
+      else _local[key] = status;
+    });
+    widget.onChanged(Map<String, String>.from(_local));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(top: 60),
+      decoration: BoxDecoration(
+        color: t.bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            width: 40, height: 4,
+            decoration: BoxDecoration(
+              color: t.border, borderRadius: BorderRadius.circular(2)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
             child: Row(
               children: [
                 Container(
-                  width: 44, height: 44,
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: t.border,
+                    color: Colors.orange.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Center(
-                    child: Icon(Icons.block_rounded,
-                        color: t.textSecondary, size: 18),
-                  ),
+                  child: const Icon(Icons.admin_panel_settings_rounded,
+                      color: Colors.orange, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: t.textPrimary,
-                          fontWeight: FontWeight.w600, fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Not available',
-                        style: TextStyle(color: t.textSecondary, fontSize: 12),
-                      ),
+                      Text('Episode Status', style: TextStyle(
+                        color: t.textPrimary,
+                        fontWeight: FontWeight.w800, fontSize: 16)),
+                      Text('Season ${widget.season} · ${widget.gaps.length} missing',
+                        style: TextStyle(color: t.textSecondary, fontSize: 12)),
                     ],
                   ),
                 ),
-                Icon(Icons.cloud_off_rounded,
-                    color: t.textSecondary, size: 18),
-                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => Navigator.pop(context),
+                ),
               ],
             ),
           ),
+          Divider(height: 1, color: t.border),
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: widget.gaps.length,
+              itemBuilder: (_, i) {
+                final ep = widget.gaps[i];
+                final epNum = ep['episode'] as int;
+                final padS = widget.season.toString().padLeft(2, '0');
+                final padE = epNum.toString().padLeft(2, '0');
+                final lbl = ep['label'] as String? ?? 'S${padS}E${padE}';
+                final key = '${widget.season}_$epNum';
+                final cur = _local[key];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(lbl, style: TextStyle(
+                        color: t.textPrimary,
+                        fontWeight: FontWeight.w600, fontSize: 14))),
+                      const SizedBox(width: 8),
+                      _AdminChip(
+                        label: 'None', icon: Icons.block_rounded,
+                        color: t.textSecondary, selected: cur == null,
+                        onTap: () => _set(epNum, null)),
+                      const SizedBox(width: 5),
+                      _AdminChip(
+                        label: 'Soon', icon: Icons.schedule_rounded,
+                        color: const Color(0xFFF59E0B),
+                        selected: cur == 'coming_soon',
+                        onTap: () => _set(epNum, 'coming_soon')),
+                      const SizedBox(width: 5),
+                      _AdminChip(
+                        label: 'Uploading', icon: Icons.cloud_upload_rounded,
+                        color: const Color(0xFF3B82F6),
+                        selected: cur == 'uploading',
+                        onTap: () => _set(epNum, 'uploading')),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16,
+                16 + MediaQuery.of(context).viewInsets.bottom),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                icon: const Icon(Icons.check_rounded, size: 18),
+                label: const Text('Done'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+  const _AdminChip({required this.label, required this.icon,
+      required this.color, required this.selected, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? color.withOpacity(0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? color : color.withOpacity(0.3),
+            width: selected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 11, color: selected ? color : color.withOpacity(0.5)),
+            const SizedBox(width: 3),
+            Text(label, style: TextStyle(
+              color: selected ? color : color.withOpacity(0.5),
+              fontSize: 10, fontWeight: FontWeight.w700)),
+          ],
         ),
       ),
     );
