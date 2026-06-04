@@ -363,3 +363,31 @@ Wrapped Steps 1–3 in `_openMedia` with `try/catch/finally`:
 - Overrides are device-local only — not yet synced to Oracle (future feature)
 - Substitution wrangling: the _resumeEpisodeIndex line sits between _watchProgress and
   _loading in the setState block — anchors must include it
+
+---
+
+## Session 2026-06-04 (continued) — show_detail_screen UX improvements
+
+**Agent:** Replit Agent (main branch)
+**Objective:** Implement 4 UX improvements planned by previous agent (cut off at quota limit)
+
+### Changes made to `show_detail_screen.dart`
+
+1. **Pull-to-refresh** — Wrapped `CustomScrollView` in `RefreshIndicator` (calls `_loadEpisodes`, uses `AlwaysScrollableScrollPhysics` so pull works even on short lists)
+
+2. **Episode sort toggle** — Added `_sortAscending = true` state var; `_currentEpisodes` getter now reverses when false; animated sort icon (↓/↑) added to Episodes header with `AnimatedSwitcher` + tooltip
+
+3. **Season progress chips** — Added `_totalCountForSeason(s)` and `_watchedCountForSeason(s)` helpers; chip text changes from `'Season $s'` to `'S$s · 2/8'` format when episodes are loaded (counts episodes with progress ≥ 95%)
+
+4. **Admin "Clear all statuses"** — Added orange `OutlinedButton` above Done button in `_AdminEpisodePanel`; loops through all gap episodes and calls `LocalDb.setEpisodeOverride(..., null)` to reset them all at once
+
+### Files changed
+- `raddflix_flutter/lib/screens/show_detail_screen.dart` — commit `80d6a1b`
+
+### APK build
+- Build #983 triggered — in progress
+
+### State at end of session
+- All 4 planned improvements implemented and committed
+- Oracle pulled successfully (17 files changed from previous sessions also landed)
+- Build #981 (previous session) completed successfully
