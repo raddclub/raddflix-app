@@ -1862,7 +1862,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // 6.9 — offline plan expiry: block if subscription has expired.
       // Guard: must be non-null AND non-empty; downloads_screen passes '' for
       // null DB paths, which should not trigger this check (player will stream).
-      if (widget.localPath != null && widget.localPath!.isNotEmpty) {
+      // BUG #4 FIX: also skip for user-owned local files (fileId='') — they
+      // never require a subscription. Without this guard, stale quota-cache
+      // sub_expires_at was firing pushReplacementNamed(planExpired) 1-3s after
+      // local playback started, replacing the player with a black screen while
+      // audio continued in the background.
+      if (widget.localPath != null && widget.localPath!.isNotEmpty && widget.fileId.isNotEmpty) {
         final subExpiresAt = quota['sub_expires_at'];
         if (subExpiresAt != null && subExpiresAt is int && subExpiresAt > 0) {
           final nowUnix = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -2447,14 +2452,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   },
                   child: Transform.scale(
                     scale: _zoomLevel,
-                    child: Video(
-                      controller: _videoCtrl,
-                      fit: _aspectMode == AspectMode.fill    ? BoxFit.cover
-                          : _aspectMode == AspectMode.stretch ? BoxFit.fill
-                          : _ratios[_ratioIdx],
-                      filterQuality: FilterQuality.medium,
-                      controls: NoVideoControls,
-                      subtitleViewConfiguration: const SubtitleViewConfiguration(visible: false),
+                    child: AnimatedOpacity(
+                      // BUG #3 FIX: fade in local video only after first frame
+                      // — prevents ~1-2s black flash from surface attach before
+                      // the first frame is decoded.
+                      opacity: (_isLocalFile && !_playing && _position == Duration.zero) ? 0.0 : 1.0,
+                      duration: const Duration(milliseconds: 400),
+                      child: Video(
+                        controller: _videoCtrl,
+                        fit: _aspectMode == AspectMode.fill    ? BoxFit.cover
+                            : _aspectMode == AspectMode.stretch ? BoxFit.fill
+                            : _ratios[_ratioIdx],
+                        filterQuality: FilterQuality.medium,
+                        controls: NoVideoControls,
+                        subtitleViewConfiguration: const SubtitleViewConfiguration(visible: false),
+                      ),
                     ),
                   ),
                 ),
