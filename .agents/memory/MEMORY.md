@@ -4,3 +4,4 @@
 - [JazzDrive Pass3 escape bug](jazzdrive-pass3-bug.md) — Dart \$ in non-raw strings = literal dollar, not interpolation; Pass3 was dead.
 - [JazzDrive share validation](jazzdrive-connectivity.md) — cloud.jazzdrive.com.pk reachable from any IP but share keys return MED-1011 without Jazz SIM.
 - [Admin panel anchor quirks](admin-panel-anchors.md) — setState block has _resumeEpisodeIndex between _watchProgress and _loading; skip-condition must check for method signature not call site.
+- [Dart reserved field names](dart-field-name-pitfalls.md) — naming a widget field override shadows the @override annotation causing compile error; use statusOverride or similar.
