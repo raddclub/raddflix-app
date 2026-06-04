@@ -322,3 +322,44 @@ Wrapped Steps 1–3 in `_openMedia` with `try/catch/finally`:
 - .agents/memory/ updated with JazzDrive Pass3 lesson
 - Known open data gap: BUG #2 / DATA-01 — All Of Us Are Dead E03/E04/E05/E09
   missing from Oracle DB (need upload to JazzDrive and sync)
+
+---
+
+## Session 2026-06-04 (continued) — Admin Episode Status Panel
+
+**Agent:** Replit Agent (main branch)
+**Objective:** Admin panel in show_detail_screen.dart — mark episode gap tiles as Coming Soon / Uploading
+
+### DB layer (v18)
+- `local_db.dart`: new `episode_overrides` table (PK: show_id + season + episode)
+- `LocalDb.getEpisodeOverrides(int showId)` returns `Map<String,String>` keyed `'season_ep'`
+- `LocalDb.setEpisodeOverride(showId, season, episode, status)` — null clears entry
+- `constants.dart`: `catalogDbVersion` bumped 17 → 18
+
+### UI layer (show_detail_screen.dart)
+- State: `_overrides`, `_adminMode`, `_adminTapCount` added to `_ShowDetailScreenState`
+- Overrides loaded from LocalDb on every `_loadEpisodes()` call
+- Gap placeholder maps now carry `'_override'` key
+- **`_EpisodeUnavailableTile`** — new `override` + `onLongPress` params:
+  - `null` → grey/block/"Not available" (unchanged)
+  - `'coming_soon'` → amber tint, schedule icon, "Coming Soon"
+  - `'uploading'` → blue tint, cloud_upload, "Uploading now..."
+  - Edit pencil icon visible when admin mode is active
+- **5-tap unlock**: tap "Episodes" header 5× → toggles `_adminMode`; orange ADMIN badge
+- **Long-press gap tile** → `_showAdminSheet()` → `_AdminEpisodePanel` bottom sheet
+- **`_AdminEpisodePanel`**: lists all missing season episodes with [None|Soon|Uploading] chips;
+  auto-saves to LocalDb on each tap; `onChanged` refreshes parent tile visuals instantly
+- **`_AdminChip`**: animated toggle chip widget (reusable)
+
+### Commits
+- `3efaa4f` — feat: bump catalogDbVersion to 18 (episode_overrides table)
+- `abe5667` — feat: add episode_overrides table + getEpisodeOverrides / setEpisodeOverride
+- `e51b34c` — feat: admin episode status panel
+
+### APK build
+- Build #979 triggered (in progress)
+
+### Notes
+- Overrides are device-local only — not yet synced to Oracle (future feature)
+- Substitution wrangling: the _resumeEpisodeIndex line sits between _watchProgress and
+  _loading in the setState block — anchors must include it
