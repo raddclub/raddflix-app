@@ -1925,6 +1925,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
   }
 
+  void _playPrevEpisode() {
+    if (widget.episodes == null || _currentEpIdx <= 0) return;
+    _nextEpTimer?.cancel();
+    final prev = widget.episodes![_currentEpIdx - 1];
+    final prevFileId   = prev['file_id']?.toString() ?? '';
+    final prevLocalPath = prev['local_path'] as String?;
+    setState(() {
+      _currentEpIdx--;
+      _showNextEpisode = false;
+      _ended = false;
+      _position = Duration.zero;
+      _skipIntroVisible = false;
+    });
+    _openMedia(prevFileId, localPath: prevLocalPath);
+    _skipIntroTimer?.cancel();
+    final prevSeriesId = prevFileId.split('/').first;
+    _skipIntroTimer = Timer(const Duration(seconds: 5), () async {
+      if (!mounted) return;
+      if (!SmartIntroStore.shouldShow(
+          contentType: widget.contentType,
+          totalDuration: _duration)) return;
+      if (!_prefs.showSkipIntroButton) return;
+      final saved = await SmartIntroStore.getIntroEnd(
+          seriesId: prevSeriesId, epIndex: _currentEpIdx);
+      if (!mounted) return;
+      setState(() { _savedIntroEnd = saved; _skipIntroVisible = _duration.inSeconds > 60; });
+      if (_prefs.autoSkipIntroEnabled && saved != null && _duration.inSeconds > 60) {
+        _player.seek(Duration(seconds: saved));
+        setState(() => _skipIntroVisible = false);
+        return;
+      }
+      Timer(const Duration(seconds: 8), () {
+        if (mounted) setState(() => _skipIntroVisible = false);
+      });
+    });
+  }
+
   void _playNextEpisode() {
     if (!_hasNextEp) return;
     _nextEpTimer?.cancel();
@@ -3028,6 +3065,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               iconPack: _prefs.iconPack,
               moodEnabled: _prefs.contentMoodEnabled,
               videoFps: double.tryParse(_piFps.split(' ').first) ?? 24.0,
+              centerBtnScale:          _prefs.centerBtnScale,
+              centerBtnVerticalOffset: _prefs.centerBtnVerticalOffset,
+              centerBtnIconOnly:       _prefs.centerBtnIconOnly,
+              centerBtnBgOpacity:      _prefs.centerBtnBgOpacity,
+              showCenterPrev:          _prefs.showCenterPrev,
+              showCenterSkip:          _prefs.showCenterSkip,
+              showCenterNext:          _prefs.showCenterNext,
+              onPrevEpisode: (widget.episodes != null && _currentEpIdx > 0)
+                  ? _playPrevEpisode
+                  : null,
+              onSkipIntroCenter: (_skipIntroVisible && _prefs.showCenterSkip)
+                  ? () {
+                      final endMs = (_savedIntroEnd ?? 85) * 1000;
+                      _player.seek(Duration(milliseconds: endMs));
+                      setState(() => _skipIntroVisible = false);
+                    }
+                  : null,
             ),
           )), // end _ControlsOverlay → Opacity → ControlsBackground
             ), // end Transform.translate (Phase H1: oneHandedMode)
@@ -3633,6 +3687,17 @@ class _ControlsOverlay extends StatelessWidget {
   // Actual video fps for frame counter (fetched from MPV; defaults to 24)
   final double videoFps;
 
+  // ── Center Button Customization ─────────────────────────────────────────
+  final double centerBtnScale;
+  final double centerBtnVerticalOffset;
+  final bool   centerBtnIconOnly;
+  final double centerBtnBgOpacity;
+  final bool   showCenterPrev;
+  final bool   showCenterSkip;
+  final bool   showCenterNext;
+  final VoidCallback? onPrevEpisode;
+  final VoidCallback? onSkipIntroCenter;
+
   const _ControlsOverlay({
     required this.title, required this.playing, required this.buffering,
     required this.bufferedFraction,
@@ -3686,6 +3751,15 @@ class _ControlsOverlay extends StatelessWidget {
     this.seekBarStyle = 'classic',
     this.iconPack = 'mx',
     this.videoFps = 24.0,
+    this.centerBtnScale              = 1.0,
+    this.centerBtnVerticalOffset     = 0.0,
+    this.centerBtnIconOnly           = false,
+    this.centerBtnBgOpacity          = 0.3,
+    this.showCenterPrev              = false,
+    this.showCenterSkip              = false,
+    this.showCenterNext              = true,
+    this.onPrevEpisode,
+    this.onSkipIntroCenter,
   });
 
   /// Returns the BoxDecoration for the play button based on [shape].
@@ -3843,56 +3917,112 @@ class _ControlsOverlay extends StatelessWidget {
 
       // ── CENTER CONTROLS (horizontal: seek-back | play | seek-forward) ──────
         if (!locked)
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    _MxSeekBtn(isForward: false, seconds: 15, onTap: onSeekBack),
-                    const SizedBox(width: 24),
-                    GestureDetector(
-                      onTap: onPlayPause,
-                      onLongPress: onLongPressPlay,
-                      child: Container(
-                        width: 68, height: 68,
-                        decoration: _playBtnDecoration(buttonShape, accentColor),
-                        clipBehavior: Clip.hardEdge,
-                        child: Icon(
-                          playing
-                              ? _iconForPack(iconPack, 'pause')
-                              : _iconForPack(iconPack, 'play'),
-                          color: Colors.white, size: 40,
+          Transform.translate(
+            offset: Offset(0, centerBtnVerticalOffset),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Optional top row: Prev | Skip Intro ──────────────────
+                  if ((showCenterPrev && onPrevEpisode != null) ||
+                      (showCenterSkip && onSkipIntroCenter != null)) ...[
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (showCenterPrev && onPrevEpisode != null) ...[
+                          _CenterAuxBtn(
+                            icon: Icons.skip_previous_rounded,
+                            label: 'Prev',
+                            iconOnly: centerBtnIconOnly,
+                            bgOpacity: centerBtnBgOpacity,
+                            scale: centerBtnScale,
+                            onTap: onPrevEpisode!,
+                          ),
+                          if (showCenterSkip && onSkipIntroCenter != null)
+                            SizedBox(width: 16 * centerBtnScale),
+                        ],
+                        if (showCenterSkip && onSkipIntroCenter != null)
+                          _CenterAuxBtn(
+                            icon: Icons.fast_forward_rounded,
+                            label: 'Skip',
+                            iconOnly: centerBtnIconOnly,
+                            bgOpacity: centerBtnBgOpacity,
+                            scale: centerBtnScale,
+                            onTap: onSkipIntroCenter!,
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: 14 * centerBtnScale),
+                  ],
+                  // ── Main row: seek-back | play/pause | seek-forward ───────
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _MxSeekBtn(
+                        isForward: false, seconds: 15, onTap: onSeekBack,
+                        bgOpacity: centerBtnIconOnly ? 0.0 : centerBtnBgOpacity,
+                        scale: centerBtnScale,
+                      ),
+                      SizedBox(width: 24 * centerBtnScale),
+                      GestureDetector(
+                        onTap: onPlayPause,
+                        onLongPress: onLongPressPlay,
+                        child: Container(
+                          width: 68 * centerBtnScale,
+                          height: 68 * centerBtnScale,
+                          decoration: _playBtnDecoration(buttonShape, accentColor),
+                          clipBehavior: Clip.hardEdge,
+                          child: Icon(
+                            playing
+                                ? _iconForPack(iconPack, 'pause')
+                                : _iconForPack(iconPack, 'play'),
+                            color: Colors.white, size: 40 * centerBtnScale,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 24),
-                    _MxSeekBtn(isForward: true, seconds: 15, onTap: onSeekForward),
-                  ],
-                ),
-                if (hasNext) ...[
-                  const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap: onNextEpisode,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white24),
+                      SizedBox(width: 24 * centerBtnScale),
+                      _MxSeekBtn(
+                        isForward: true, seconds: 15, onTap: onSeekForward,
+                        bgOpacity: centerBtnIconOnly ? 0.0 : centerBtnBgOpacity,
+                        scale: centerBtnScale,
                       ),
-                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                        Text('Next', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-                        SizedBox(width: 4),
-                        Icon(Icons.skip_next_rounded, color: Colors.white, size: 18),
-                      ]),
-                    ),
+                    ],
                   ),
+                  // ── Next episode (inline, below main row) ─────────────────
+                  if (showCenterNext && hasNext) ...[
+                    SizedBox(height: 16 * centerBtnScale),
+                    GestureDetector(
+                      onTap: onNextEpisode,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 14 * centerBtnScale,
+                            vertical: 10 * centerBtnScale),
+                        decoration: centerBtnIconOnly
+                            ? null
+                            : BoxDecoration(
+                                color: Colors.black.withOpacity(
+                                    centerBtnBgOpacity.clamp(0.0, 1.0)),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.white24),
+                              ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text('Next',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12 * centerBtnScale,
+                                  fontWeight: FontWeight.w600)),
+                          SizedBox(width: 4 * centerBtnScale),
+                          Icon(Icons.skip_next_rounded,
+                              color: Colors.white,
+                              size: 18 * centerBtnScale),
+                        ]),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
-            ).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut),
+              ).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut),
+            ),
           ),
 
       // ── RIGHT-SIDE STRIP (MX Player: vertical icon strip on right edge) ──────
@@ -4248,17 +4378,25 @@ class _MxSeekBtn extends StatelessWidget {
   final bool isForward;
   final int seconds;
   final VoidCallback onTap;
-  const _MxSeekBtn({required this.isForward, required this.seconds, required this.onTap});
+  final double bgOpacity;
+  final double scale;
+  const _MxSeekBtn({
+    required this.isForward,
+    required this.seconds,
+    required this.onTap,
+    this.bgOpacity = 0.08,
+    this.scale = 1.0,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () { HapticFeedback.selectionClick(); onTap(); },
       child: Container(
-        width: 64, height: 64,
+        width: 64 * scale, height: 64 * scale,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: Colors.white.withOpacity(0.08),
+          color: Colors.white.withOpacity(bgOpacity.clamp(0.0, 1.0)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -4267,16 +4405,66 @@ class _MxSeekBtn extends StatelessWidget {
               isForward
                   ? Icons.keyboard_double_arrow_right_rounded
                   : Icons.keyboard_double_arrow_left_rounded,
-              color: Colors.white, size: 28,
+              color: Colors.white, size: 28 * scale,
             ),
-            Text(
-              '${seconds}s',
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
+            if (bgOpacity > 0.0)
+              Text(
+                '${seconds}s',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 10 * scale,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Auxiliary center button (Prev episode, Skip Intro) with customisable
+/// icon-only mode and background opacity.
+class _CenterAuxBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool iconOnly;
+  final double bgOpacity;
+  final double scale;
+  final VoidCallback onTap;
+  const _CenterAuxBtn({
+    required this.icon,
+    required this.label,
+    required this.iconOnly,
+    required this.bgOpacity,
+    required this.scale,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () { HapticFeedback.selectionClick(); onTap(); },
+      child: Container(
+        width: 52 * scale, height: 52 * scale,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withOpacity(
+              iconOnly ? 0.0 : bgOpacity.clamp(0.0, 1.0)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 24 * scale),
+            if (!iconOnly)
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 9 * scale,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
           ],
         ),
       ),
