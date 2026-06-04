@@ -466,3 +466,44 @@ Wrapped Steps 1–3 in `_openMedia` with `try/catch/finally`:
 - No Python files changed — Flask restart not needed
 - BUG-N01 + BUG-N02 together fix playback on fresh JazzDrive delta-only installs
 - All prior bugs remain fixed
+
+---
+## Session: 2026-06-04 — God-Level Search
+
+### Commits: 6765750
+
+**search_screen.dart** — Full rewrite (1090 lines)
+- _FilterState immutable value-object drives all 9 filter dimensions
+- Collapsible filter panel (tuner icon) with active-count badge
+- Genre chips (top 20 from catalog)
+- Language chips (distinct values from titles.language)
+- Rating filter: Any / 6+ / 7+ / 8+ / 9+ with star icon
+- Year chips: Any + last 15 years from DB
+- Status chips: Ongoing / Completed / Released
+- Free Only / Premium / Downloaded (offline) toggles
+- Sort: Best Match / Top Rated / Newest / Oldest / A-Z
+- Active filter summary bar with per-pill labels + Clear all
+- Results as list rows: poster + title + metadata tags + description snippet
+- _SnippetText widget renders FTS5 [matched] tokens highlighted in primary color
+- _SearchResultTile shows language badge, rating, FREE badge, status, year
+- Discover mode unchanged: history pills, trending, browse-by-genre
+
+**local_db.dart** — 3 new static methods + SearchResult class
+- searchAdvanced(): genre LIKE, language=, year=, rating>=, is_free=,
+  status, offlineOnly INNER JOIN downloads, sort clause.
+  FTS5 snippet(catalog_fts, 1, mark_start, mark_end) for highlights.
+  Fallback LIKE on FTS error.
+- getDistinctLanguages(): SELECT DISTINCT language for filter chips
+- getDistinctYears(): SELECT DISTINCT year DESC for year chips
+- SearchResult class: wraps CatalogItem + optional snippet string
+
+### Filter-to-DB-column mapping
+Genre -> titles.genres LIKE %genre%
+Language -> titles.language (case-insensitive)
+Min Rating -> titles.rating >=
+Year -> titles.year =
+Status -> titles.status / is_ongoing
+Free Only -> titles.is_free = 1
+Premium -> titles.is_free = 0
+Downloaded -> INNER JOIN downloads WHERE status=completed
+Sort -> rank/rating/year/title ORDER BY
