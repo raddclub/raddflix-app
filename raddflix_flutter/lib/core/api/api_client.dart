@@ -379,7 +379,12 @@ class _XorInterceptor extends Interceptor {
       if (sessionKey != null) {
         final contentType = response.headers.value('content-type') ?? '';
         if (contentType.contains('octet-stream')) {
-          final rawData = response.data?.toString() ?? '';
+          // Dio may return String or List<int> for octet-stream — handle both
+          final rawData = response.data is String
+              ? response.data as String
+              : response.data is List<int>
+                  ? String.fromCharCodes(response.data as List<int>)
+                  : response.data?.toString() ?? '';
           if (rawData.isNotEmpty) {
             final decoded = RequestEncoder.decode(rawData, sessionKey);
             try {
@@ -407,7 +412,11 @@ class _XorInterceptor extends Interceptor {
       if (sessionKey != null && err.response != null) {
         final contentType = err.response!.headers.value('content-type') ?? '';
         if (contentType.contains('octet-stream')) {
-          final rawData = err.response!.data?.toString() ?? '';
+          final rawData = err.response!.data is String
+              ? err.response!.data as String
+              : err.response!.data is List<int>
+                  ? String.fromCharCodes(err.response!.data as List<int>)
+                  : err.response!.data?.toString() ?? '';
           if (rawData.isNotEmpty) {
             final decoded = RequestEncoder.decode(rawData, sessionKey);
             try {
