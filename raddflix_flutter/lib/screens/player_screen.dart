@@ -5726,7 +5726,7 @@ class _StreamErrorOverlay extends StatelessWidget {
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                       side: const BorderSide(
-                                          color: Colors.white18)),
+                                          color: Colors.white24)),
                                 ),
                                 onPressed: onBack,
                                 child: const Text(
