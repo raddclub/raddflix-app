@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -251,6 +252,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   int _jazzRetryCount = 0;
   Timer? _jazzRetryTimer;
   String? _streamError;
+  bool _isRetrying = false;
   String? _currentPlaybackUrl; // track current URL for "Open with" feature
 
   // Time display toggle (tap = elapsed/remaining)
@@ -2528,60 +2530,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
           // ── Stream error overlay ──
           if (_streamError != null)
-            Container(
-              color: Colors.black.withOpacity(0.85),
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.error_outline_rounded,
-                        color: _prefs.accentColor, size: 48),
-                    const SizedBox(height: 16),
-                    const Text('Could not load video',
-                        style: TextStyle(color: Colors.white,
-                            fontSize: 18, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 8),
-                    Text('The video link may have expired.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white.withOpacity(0.65),
-                            fontSize: 13)),
-                    const SizedBox(height: 28),
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      // Retry button
-                      TextButton.icon(
-                        style: TextButton.styleFrom(
-                          backgroundColor: _prefs.accentColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10))),
-                        icon: const Icon(Icons.refresh_rounded, size: 18),
-                        label: const Text('Retry', style: TextStyle(fontWeight: FontWeight.w700)),
-                        onPressed: () {
-                          setState(() { _streamError = null; _jazzRetryCount = 0; });
-                          JazzDriveService.invalidate(widget.fileId);
-                          _openMedia(widget.fileId);
-                        },
-                      ),
-                      const SizedBox(width: 12),
-                      // Back button
-                      TextButton(
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.white70,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              side: BorderSide(color: Colors.white24))),
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Go Back'),
-                      ),
-                    ]),
-                  ]),
-                ),
-              ),
+            _StreamErrorOverlay(
+              error: _streamError!,
+              accentColor: _prefs.accentColor,
+              isRetrying: _isRetrying,
+              onRetry: () async {
+                setState(() { _streamError = null; _jazzRetryCount = 0; _isRetrying = true; });
+                await JazzDriveService.invalidate(widget.fileId);
+                await _openMedia(widget.fileId);
+                if (mounted) setState(() => _isRetrying = false);
+              },
+              onBack: () => Navigator.of(context).pop(),
             ).animate().fadeIn(duration: 300.ms),
 
-          // ── Link loading (JazzDrive/Oracle URL resolution) ──
           // ── Link loading (JazzDrive URL resolution) — shimmer + spinner ──
           if (_isLinkLoading)
             Stack(children: [
@@ -5580,5 +5541,207 @@ class _SmartVolumeController {
   void dispose() {
     _timer?.cancel();
     _running = false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stream Error Overlay — shown when JazzDrive fails to generate a CDN link.
+// Clears the 3-hour cache and retries directly via JazzDrive (zero-rated).
+// ─────────────────────────────────────────────────────────────────────────────
+class _StreamErrorOverlay extends StatelessWidget {
+  final String error;
+  final Color accentColor;
+  final bool isRetrying;
+  final VoidCallback? onBack;
+  final Future<void> Function() onRetry;
+
+  const _StreamErrorOverlay({
+    required this.error,
+    required this.accentColor,
+    required this.isRetrying,
+    required this.onRetry,
+    this.onBack,
+  });
+
+  bool get _isJazzError => error.toLowerCase().contains('jazz');
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black.withOpacity(0.88),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: accentColor.withOpacity(0.35),
+                    width: 1.2,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ── Icon ──────────────────────────────────────────────
+                    Container(
+                      width: 68,
+                      height: 68,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accentColor.withOpacity(0.12),
+                        border: Border.all(
+                          color: accentColor.withOpacity(0.4),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Icon(
+                        _isJazzError
+                            ? Icons.signal_cellular_connected_no_internet_4_bar_rounded
+                            : Icons.cloud_off_rounded,
+                        color: accentColor,
+                        size: 32,
+                      ),
+                    )
+                        .animate(onPlay: (c) => c.repeat())
+                        .shimmer(
+                          duration: 2400.ms,
+                          color: accentColor.withOpacity(0.6),
+                          delay: 600.ms,
+                        ),
+
+                    const SizedBox(height: 20),
+
+                    // ── Title ─────────────────────────────────────────────
+                    Text(
+                      _isJazzError ? 'Jazz SIM Required' : 'Video Unavailable',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // ── Dynamic error message ─────────────────────────────
+                    Text(
+                      error,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.6),
+                        fontSize: 12.5,
+                        height: 1.5,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // ── Cache clear note ──────────────────────────────────
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: accentColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.cached_rounded,
+                              size: 11, color: accentColor.withOpacity(0.7)),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Retry clears the 3-hour cache',
+                            style: TextStyle(
+                              color: accentColor.withOpacity(0.7),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // ── Buttons ───────────────────────────────────────────
+                    isRetrying
+                        ? Column(children: [
+                            SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(accentColor),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Refreshing JazzDrive cache…',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 11.5,
+                              ),
+                            ),
+                          ])
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Retry
+                              TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  backgroundColor: accentColor,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 22, vertical: 13),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12)),
+                                  elevation: 0,
+                                ),
+                                icon: const Icon(Icons.refresh_rounded, size: 17),
+                                label: const Text(
+                                  'Retry',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13.5),
+                                ),
+                                onPressed: onRetry,
+                              ),
+                              const SizedBox(width: 10),
+                              // Go Back
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white70,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 18, vertical: 13),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: const BorderSide(
+                                          color: Colors.white18)),
+                                ),
+                                onPressed: onBack,
+                                child: const Text(
+                                  'Go Back',
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
