@@ -46,15 +46,17 @@ class WatchlistNotifier extends StateNotifier<WatchlistState> {
 
   Future<void> toggle(CatalogItem item) async {
     if (state.isInWatchlist(item.id)) {
-      await LocalDb.removeFromWatchlist(item.id);
+      // Optimistic update — UI responds instantly
       final updated = state.items.where((i) => i.id != item.id).toList();
       final updatedIds = Set<int>.from(state.ids)..remove(item.id);
       state = state.copyWith(items: updated, ids: updatedIds);
+      await LocalDb.removeFromWatchlist(item.id);
     } else {
-      await LocalDb.addToWatchlist(item);
+      // Optimistic update — UI responds instantly
       final updated = [item, ...state.items];
       final updatedIds = Set<int>.from(state.ids)..add(item.id);
       state = state.copyWith(items: updated, ids: updatedIds);
+      await LocalDb.addToWatchlist(item);
     }
   }
 }
