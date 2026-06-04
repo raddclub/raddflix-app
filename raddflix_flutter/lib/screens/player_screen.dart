@@ -1732,7 +1732,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       targetFilename = shareInfo['filename'];
     }
 
-    // Step 2: If not in local DB, try inline shareUrl or ask Oracle.
+    // Step 2: If not in local DB, try inline shareUrl passed from detail screen.
     // AUDIT-17: CatalogItem.shareUrl (set by _rowToItem) stores the RF1:xxx
     // scrambled value from SQLite.  Decode it before handing to JazzDrive.
     if (shareUrl == null || shareUrl.isEmpty) {
@@ -1740,37 +1740,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // Caller passed shareUrl directly (handles movies without file_id in catalog)
         shareUrl = await LocalDb.decodeShareUrl(_inlineShareUrl);
         DebugLogger.log('PLAYER', 'Using inline share_url for ${fileId.isEmpty ? "direct-share" : fileId}');
-      } else if (fileId.isNotEmpty) {
-        // Oracle stores catalog metadata (incl. share_urls) — NOT the video files.
-        try {
-          shareUrl = await CatalogApi.getShareUrl(fileId);
-          DebugLogger.log('PLAYER', 'Got share_url from Oracle for ${fileId}');
-        } catch (e) {
-          DebugLogger.logError('PLAYER', 'Oracle share_url lookup failed for ${fileId}', e);
-        }
       }
     }
 
-    // Step 2.5: shareUrl still missing but fileId known — try Oracle's direct play
-    // endpoint. Oracle holds its own JazzDrive session + stream-link cache, so it can
-    // serve a CDN URL even when the user-facing share tokens have expired.
-    if ((shareUrl == null || shareUrl.isEmpty) && fileId.isNotEmpty) {
-      try {
-        final directUrl = await CatalogApi.getDirectPlayUrl(fileId);
-        if (directUrl != null && directUrl.isNotEmpty) {
-          _currentPlaybackUrl = directUrl;
-          await _player.open(Media(directUrl));
-          if (mounted) setState(() { _ended = false; _position = Duration.zero; _isLinkLoading = false; });
-          return;
-        }
-      } catch (e) {
-        DebugLogger.logError('PLAYER', 'Oracle direct play (step 2.5) failed for $fileId', e);
-      }
-    }
-
-    // Step 3: Generate direct CDN stream URL via JazzDrive (zero-rated on Jazz SIM)
+    // Step 3: Generate direct CDN stream URL via JazzDrive (zero-rated on Jazz SIM).
+    // The share_url is a permanent JazzDrive share — it never expires.
+    // Only the final CDN URL expires (3h cache). Calling JazzDrive again with the
+    // same share_url always gives a fresh CDN link. No Oracle needed here.
     if (shareUrl != null && shareUrl.isNotEmpty) {
-      final cacheKey = fileId.isNotEmpty ? fileId : 'share_\${shareUrl.hashCode}';
+      final cacheKey = fileId.isNotEmpty ? fileId : 'share_${shareUrl.hashCode}';
       try {
         final link = await JazzDriveService.getStreamLink(cacheKey, shareUrl, targetFilename: targetFilename);
         _currentPlaybackUrl = link.streamUrl;
@@ -1778,32 +1756,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (mounted) setState(() { _ended = false; _position = Duration.zero; _isLinkLoading = false; });
         return;
       } catch (e) {
-        DebugLogger.logError('PLAYER', 'JazzDrive stream link failed for \$cacheKey', e);
-        // Step 3b: JazzDrive share token expired — ask Oracle to generate a fresh
-        // CDN link using its own JazzDrive session (bypasses expired user share tokens).
-        if (fileId.isNotEmpty) {
-          try {
-            final directUrl = await CatalogApi.getDirectPlayUrl(fileId);
-            if (directUrl != null && directUrl.isNotEmpty) {
-              _currentPlaybackUrl = directUrl;
-              await _player.open(Media(directUrl));
-              if (mounted) setState(() { _ended = false; _position = Duration.zero; _isLinkLoading = false; });
-              return;
-            }
-          } catch (e2) {
-            DebugLogger.logError('PLAYER', 'Oracle direct play (step 3b) failed for \$fileId', e2);
-          }
-        }
+        DebugLogger.logError('PLAYER', 'JazzDrive stream link failed for $cacheKey', e);
       }
     }
 
-    // All methods failed — show sync guidance
+    // All methods failed — show user-friendly guidance
     if (mounted) {
       setState(() {
         _isLinkLoading = false;
         _streamError = (shareUrl == null || shareUrl.isEmpty)
             ? 'No stream link found. Please sync your library in Settings → Sync.'
-            : 'Stream link expired. Tap Retry to refresh.';
+            : 'Could not connect to JazzDrive. Make sure you are on a Jazz SIM.';
       });
     }
   }
