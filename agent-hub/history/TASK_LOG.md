@@ -507,3 +507,38 @@ Free Only -> titles.is_free = 1
 Premium -> titles.is_free = 0
 Downloaded -> INNER JOIN downloads WHERE status=completed
 Sort -> rank/rating/year/title ORDER BY
+
+## Session 2026-06-04 — Cast: TMDB → IMDB + Wikipedia (free, no key)
+
+### What was done
+- Replaced TMDB-based cast implementation in `actor_service.dart` with a fully free,
+  no-API-key-required approach using IMDB + OMDb (optional) + Wikipedia.
+- Root issue: TMDB cast was gated on `--dart-define=TMDB_API_KEY=xxx`; with no key set
+  `hasKey` was always false and cast always returned empty ([]).
+
+### New data sources
+| Source | Purpose | Key required? |
+|--------|---------|---------------|
+| IMDB suggestion API (`v3.sg.media-imdb.com/suggestion/titles`) | Title → IMDB `tt` ID + top star names | ❌ None |
+| OMDb API (`omdbapi.com`) | Extended cast list (~4 actors) | ✅ Optional (`OMDB_API_KEY` dart-define) |
+| Wikipedia Thumbnail API (`en.wikipedia.org/w/api.php`) | Batch actor profile photos (1 HTTP call) | ❌ None |
+
+### Key design decisions
+- `person_id` INTEGER derived via deterministic FNV-1a 32-bit hash of actor name — stable
+  across devices/app versions, preserves filmography query behaviour.
+- Wikipedia batch API: all actor names in ONE request (`titles=name1|name2|...`) with
+  `formatversion=2` (response is array, not keyed-by-pageid object).
+- Character names not available from free IMDB/OMDb endpoints — set to null (UI handles gracefully).
+- Fully backward-compatible: same `CastMember` class, same `LocalDb` interface, same
+  SQLite schema (persons + cast_members tables), same photo download/caching infrastructure.
+
+### Files changed
+- `raddflix_flutter/lib/services/actor_service.dart` — commit `a7b4bb4`
+
+### APK build
+- Run #995 triggered after commit a7b4bb4 — in progress (no Python changes, no Flask restart needed)
+
+### State at end of session
+- Oracle pulled successfully (fast-forward to a7b4bb4)
+- Cast feature now works out of the box with zero configuration
+- OMDb key can optionally be added at build time for slightly richer cast lists
