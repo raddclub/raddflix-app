@@ -6,9 +6,82 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
+import '../core/db/local_db.dart';
 import '../providers/catalog_provider.dart';
 import '../models/catalog_item.dart';
 import '../widgets/content_card.dart';
+
+// ── Filter state ─────────────────────────────────────────────────────────────
+class _FilterState {
+  final String? type;       // null | 'Movies' | 'Shows'
+  final String? genre;
+  final int?    year;
+  final String? language;
+  final double? minRating;  // null | 6 | 7 | 8 | 9
+  final bool?   isFree;     // null=any | true=free | false=premium
+  final String? status;     // null | 'ongoing' | 'completed' | 'released'
+  final bool    offlineOnly;
+  final String  sortBy;     // 'relevance'|'rating'|'year_desc'|'year_asc'|'title'
+
+  const _FilterState({
+    this.type,
+    this.genre,
+    this.year,
+    this.language,
+    this.minRating,
+    this.isFree,
+    this.status,
+    this.offlineOnly = false,
+    this.sortBy = 'relevance',
+  });
+
+  _FilterState copyWith({
+    Object? type      = _sentinel,
+    Object? genre     = _sentinel,
+    Object? year      = _sentinel,
+    Object? language  = _sentinel,
+    Object? minRating = _sentinel,
+    Object? isFree    = _sentinel,
+    Object? status    = _sentinel,
+    bool?   offlineOnly,
+    String? sortBy,
+  }) => _FilterState(
+    type:        type      == _sentinel ? this.type       : type      as String?,
+    genre:       genre     == _sentinel ? this.genre      : genre     as String?,
+    year:        year      == _sentinel ? this.year       : year      as int?,
+    language:    language  == _sentinel ? this.language   : language  as String?,
+    minRating:   minRating == _sentinel ? this.minRating  : minRating as double?,
+    isFree:      isFree    == _sentinel ? this.isFree     : isFree    as bool?,
+    status:      status    == _sentinel ? this.status     : status    as String?,
+    offlineOnly: offlineOnly ?? this.offlineOnly,
+    sortBy:      sortBy    ?? this.sortBy,
+  );
+
+  bool get hasAny =>
+      type != null || genre != null || year != null || language != null ||
+      minRating != null || isFree != null || status != null || offlineOnly ||
+      sortBy != 'relevance';
+
+  int get activeCount {
+    int n = 0;
+    if (type      != null) n++;
+    if (genre     != null) n++;
+    if (year      != null) n++;
+    if (language  != null) n++;
+    if (minRating != null) n++;
+    if (isFree    != null) n++;
+    if (status    != null) n++;
+    if (offlineOnly)       n++;
+    if (sortBy != 'relevance') n++;
+    return n;
+  }
+
+  _FilterState clear() => const _FilterState();
+}
+
+const _sentinel = Object();
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -24,20 +97,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   final _focus = FocusNode();
   Timer? _debounce;
 
-  List<CatalogItem>? _results;
+  List<SearchResult>? _results;
   bool _loading = false;
   List<String> _history = [];
+  bool _showFilters = false;
 
-  // Active filters
-  String? _typeFilter;   // null = All | 'Movies' | 'Shows'
-  String? _genreFilter;  // null = any genre
-  int?    _yearFilter;   // null = any year
+  _FilterState _filters = const _FilterState();
 
-  // Focus glow animation
+  // Meta for filter dropdowns (loaded once from DB)
+  List<String> _availLanguages = [];
+  List<int>    _availYears     = [];
+  List<String> _availGenres    = [];
+
+  // Focus glow
   late final AnimationController _glowCtrl;
   late final Animation<double>   _glowAnim;
 
-  // ── Lifecycle ───────────────────────────────────────────────────────────────
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -48,11 +124,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       if (_focus.hasFocus) _glowCtrl.forward(); else _glowCtrl.reverse();
     });
     _loadHistory();
+    _loadFilterMeta();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focus.requestFocus();
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       final f = args?['initialFilter'] as String?;
-      if (f != null && f != 'All' && mounted) setState(() => _typeFilter = f);
+      if (f != null && f != 'All' && mounted) {
+        setState(() => _filters = _filters.copyWith(type: f));
+      }
     });
   }
 
@@ -65,7 +144,24 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     super.dispose();
   }
 
-  // ── History ─────────────────────────────────────────────────────────────────
+  // ── Meta loaders ──────────────────────────────────────────────────────────
+
+  Future<void> _loadFilterMeta() async {
+    final [langs, years] = await Future.wait([
+      LocalDb.getDistinctLanguages(),
+      LocalDb.getDistinctYears(),
+    ]);
+    final catalog  = ref.read(catalogProvider);
+    final allItems = [...catalog.movies, ...catalog.shows];
+    final genres   = _extractGenres(allItems);
+    if (mounted) setState(() {
+      _availLanguages = langs as List<String>;
+      _availYears     = years as List<int>;
+      _availGenres    = genres;
+    });
+  }
+
+  // ── History ────────────────────────────────────────────────────────────────
 
   Future<void> _loadHistory() async {
     final prefs = await SharedPreferences.getInstance();
@@ -94,76 +190,71 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     if (mounted) setState(() => _history = []);
   }
 
-  // ── Search logic ─────────────────────────────────────────────────────────────
+  // ── Search logic ──────────────────────────────────────────────────────────
 
   void _onQueryChanged(String q) {
     _debounce?.cancel();
-    setState(() {}); // redraw for clear-button + filter visibility
-    if (q.trim().isEmpty) {
-      setState(() { _results = null; _loading = false; });
-      return;
-    }
-    setState(() => _loading = true);
-    _debounce = Timer(const Duration(milliseconds: 200), () => _doSearch(q));
+    setState(() {});
+    _debounce = Timer(const Duration(milliseconds: 220), () => _doSearch());
   }
 
-  Future<void> _doSearch(String q) async {
+  Future<void> _doSearch() async {
     if (!mounted) return;
+    setState(() => _loading = true);
     try {
-      final raw      = await ref.read(catalogProvider.notifier).search(q);
-      final filtered = _applyFilters(raw);
-      if (mounted) setState(() { _results = filtered; _loading = false; });
-      await _saveToHistory(q);
+      final f = _filters;
+      // Apply type filter via media_type — we do it in Dart after DB call for simplicity
+      // because advanced search returns all types; type filter is a fast Dart pass
+      final raw = await LocalDb.searchAdvanced(
+        query:       _ctrl.text.trim(),
+        genre:       f.genre,
+        year:        f.year,
+        language:    f.language,
+        minRating:   f.minRating,
+        isFree:      f.isFree,
+        status:      f.status,
+        offlineOnly: f.offlineOnly,
+        sortBy:      f.sortBy,
+        limit:       200,
+      );
+      List<SearchResult> results = raw;
+      if (f.type == 'Movies') results = raw.where((r) => r.item.isMovie).toList();
+      if (f.type == 'Shows')  results = raw.where((r) => r.item.isShow).toList();
+
+      if (mounted) setState(() { _results = results; _loading = false; });
+      if (_ctrl.text.trim().isNotEmpty) await _saveToHistory(_ctrl.text.trim());
     } catch (_) {
       if (mounted) setState(() { _results = []; _loading = false; });
     }
   }
 
-  List<CatalogItem> _applyFilters(List<CatalogItem> items) {
-    return items.where((item) {
-      if (_typeFilter == 'Movies' && !item.isMovie)  return false;
-      if (_typeFilter == 'Shows'  && !item.isShow)   return false;
-      if (_genreFilter != null) {
-        if (!(item.genres ?? '').toLowerCase().contains(_genreFilter!.toLowerCase())) return false;
-      }
-      if (_yearFilter != null && item.year != _yearFilter) return false;
-      return true;
-    }).toList();
+  void _applyFilter(_FilterState f) {
+    setState(() => _filters = f);
+    _doSearch();
   }
 
-  void _onFilterChanged() {
-    if (_ctrl.text.isNotEmpty) {
-      setState(() => _loading = true);
-      _doSearch(_ctrl.text);
-    } else {
-      setState(() {});
-    }
+  void _clearAll() {
+    setState(() { _filters = const _FilterState(); });
+    if (_ctrl.text.trim().isNotEmpty) _doSearch();
+    else setState(() => _results = null);
   }
 
   void _tapSuggestion(String q) {
     _ctrl.text = q;
     _ctrl.selection = TextSelection.collapsed(offset: q.length);
-    _doSearch(q);
+    _doSearch();
   }
 
-  void _clearFilters() {
-    setState(() { _typeFilter = null; _genreFilter = null; _yearFilter = null; });
-    if (_ctrl.text.isNotEmpty) _doSearch(_ctrl.text);
-  }
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
-  // ── Catalog helpers ──────────────────────────────────────────────────────────
-
-  /// BUG-A16: genres may be stored as JSON array '["Action","Drama"]' or
-  /// as comma-separated 'Action, Drama'. Detect and handle both.
   List<String> _extractGenres(List<CatalogItem> all) {
     final counts = <String, int>{};
     for (final item in all) {
       final raw = item.genres ?? '';
       List<String> parts;
       if (raw.trimLeft().startsWith('[')) {
-        // JSON array format from DB — strip brackets, quotes, split by comma
         final inner = raw.trim().replaceAll(RegExp(r'^\[|\]$'), '');
-        parts = inner.split(',').map((s) => s.trim().replaceAll('"', "").replaceAll("'", "")).toList();
+        parts = inner.split(',').map((s) => s.trim().replaceAll('"', '').replaceAll("'", '')).toList();
       } else {
         parts = raw.split(',');
       }
@@ -173,23 +264,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       }
     }
     final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    return sorted.take(8).map((e) => e.key).toList();
+    return sorted.take(20).map((e) => e.key).toList();
   }
 
-  List<int> _extractYears(List<CatalogItem> all) {
-    return all.map((i) => i.year).whereType<int>().toSet().toList()
-      ..sort((a, b) => b.compareTo(a));
-  }
-
-  List<CatalogItem> _discoverItems(List<CatalogItem> all) {
-    if (_typeFilter == 'Movies') return all.where((i) => i.isMovie).toList();
-    if (_typeFilter == 'Shows')  return all.where((i) => i.isShow).toList();
-    return all;
-  }
-
-  Map<String, List<CatalogItem>> _byGenre(List<CatalogItem> all, List<String> genres) {
+  Map<String, List<CatalogItem>> _byGenre(List<CatalogItem> all) {
     final map = <String, List<CatalogItem>>{};
-    for (final genre in genres) {
+    for (final genre in _availGenres.take(8)) {
       final items = all
           .where((i) => (i.genres ?? '').toLowerCase().contains(genre.toLowerCase()))
           .toList();
@@ -198,38 +278,45 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     return map;
   }
 
-  // ── Build ────────────────────────────────────────────────────────────────────
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
     final catalog   = ref.watch(catalogProvider);
     final allItems  = [...catalog.movies, ...catalog.shows];
-    final genres    = _extractGenres(allItems);
-    final years     = _extractYears(allItems);
     final hasQuery  = _ctrl.text.isNotEmpty;
-    final hasFilter = _typeFilter != null || _genreFilter != null || _yearFilter != null;
+    final hasFilter = _filters.hasAny;
+    final showResultsArea = hasQuery || hasFilter;
 
     return Scaffold(
       backgroundColor: t.bg,
       body: SafeArea(
         child: Column(children: [
           _buildSearchBar(),
-          _buildTypeChips(),
-          if ((hasQuery || hasFilter) && (genres.isNotEmpty || years.isNotEmpty))
-            _buildGenreYearChips(genres, years),
-          SizedBox(height: 6),
-          Expanded(child: _buildBody(allItems, genres, years, catalog.trending, hasQuery)),
+          _buildTypeRow(),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeInOut,
+            child: _showFilters ? _buildFilterPanel() : const SizedBox.shrink(),
+          ),
+          if (_filters.hasAny)
+            _buildActiveFilterBar(),
+          const SizedBox(height: 4),
+          Expanded(
+            child: showResultsArea
+                ? _buildResults()
+                : _buildDiscover(allItems, catalog.trending),
+          ),
         ]),
       ),
     );
   }
 
-  // ── Search bar ───────────────────────────────────────────────────────────────
+  // ── Search bar ─────────────────────────────────────────────────────────────
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(8, 12, 12, 0),
       child: Row(children: [
         IconButton(
           icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: t.textPrimary),
@@ -260,10 +347,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 200),
                   child: _loading
-                      ? SizedBox(key: ValueKey('spin'), width: 20, height: 20,
+                      ? SizedBox(key: const ValueKey('spin'), width: 20, height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation(AppColors.primary)))
-                      : Icon(key: ValueKey('icon'),
+                      : Icon(key: const ValueKey('icon'),
                           Icons.search_rounded, color: t.textMuted, size: 22),
                 ),
               ),
@@ -278,12 +365,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
                     filled: false,
                   ),
                   onChanged: _onQueryChanged,
                   textInputAction: TextInputAction.search,
-                  onSubmitted: _doSearch,
+                  onSubmitted: (_) => _doSearch(),
                 ),
               ),
               if (_ctrl.text.isNotEmpty)
@@ -298,14 +385,50 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             ]),
           ),
         ),
+        const SizedBox(width: 6),
+        // Filter toggle button with badge
+        GestureDetector(
+          onTap: () => setState(() => _showFilters = !_showFilters),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: _showFilters || _filters.hasAny
+                  ? AppColors.primary.withOpacity(0.15)
+                  : t.surface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(
+                color: _showFilters || _filters.hasAny ? AppColors.primary : t.border,
+                width: _showFilters || _filters.hasAny ? 1.5 : 1,
+              ),
+            ),
+            child: Stack(clipBehavior: Clip.none, children: [
+              Icon(Icons.tune_rounded, size: 20,
+                  color: _showFilters || _filters.hasAny ? AppColors.primary : t.textMuted),
+              if (_filters.activeCount > 0)
+                Positioned(
+                  top: -6, right: -6,
+                  child: Container(
+                    width: 16, height: 16,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary, shape: BoxShape.circle),
+                    child: Center(
+                      child: Text('${_filters.activeCount}',
+                          style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                ),
+            ]),
+          ),
+        ),
       ]),
     ).animate().fadeIn(duration: 250.ms).slideY(begin: -0.1, end: 0, duration: 250.ms);
   }
 
-  // ── Type chips (All / Movies / Shows) ────────────────────────────────────────
+  // ── Type chips (All / Movies / Shows) ──────────────────────────────────────
 
-  Widget _buildTypeChips() {
-    final types  = [null,  'Movies', 'Shows'];
+  Widget _buildTypeRow() {
+    final types  = [null, 'Movies', 'Shows'];
     final labels = ['All', 'Movies', 'Shows'];
     return SizedBox(
       height: 44,
@@ -314,9 +437,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
         itemCount: types.length,
         itemBuilder: (_, i) {
-          final active = _typeFilter == types[i];
+          final active = _filters.type == types[i];
           return GestureDetector(
-            onTap: () { setState(() => _typeFilter = types[i]); _onFilterChanged(); },
+            onTap: () {
+              _applyFilter(_filters.copyWith(type: types[i]));
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.only(right: 8),
@@ -338,452 +463,627 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     );
   }
 
-  // ── Genre + Year chips ────────────────────────────────────────────────────────
+  // ── Expanded filter panel ──────────────────────────────────────────────────
 
-  Widget _buildGenreYearChips(List<String> genres, List<int> years) {
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-        children: [
-          if (genres.isNotEmpty) ...[
-            ...genres.map((g) {
-              final active = _genreFilter == g;
-              return GestureDetector(
-                onTap: () { setState(() => _genreFilter = active ? null : g); _onFilterChanged(); },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                  decoration: BoxDecoration(
-                    gradient: active ? AppColors.primaryGradient : null,
-                    color: active ? null : t.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.round),
-                    border: Border.all(color: active ? Colors.transparent : t.border),
-                    boxShadow: active ? [BoxShadow(color: AppColors.primary.withOpacity(0.35), blurRadius: 10, offset: const Offset(0,3))] : null,
-                  ),
-                  child: Text(g, style: TextStyle(
-                    color: active ? Colors.white : t.textMuted,
-                    fontSize: 12, fontWeight: active ? FontWeight.w800 : FontWeight.w500)),
-                ),
-              );
-            }),
-          ],
-          // Separator
-          if (genres.isNotEmpty && years.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-              width: 1, color: t.divider),
-          // Year chips
-          if (years.isNotEmpty) ...[
-            ...years.take(5).map((y) {
-              final active = _yearFilter == y;
-              return GestureDetector(
-                onTap: () { setState(() => _yearFilter = active ? null : y); _onFilterChanged(); },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: active ? AppColors.accent.withOpacity(0.15) : t.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.round),
-                    border: Border.all(
-                      color: active ? AppColors.accent : t.border,
-                      width: active ? 1.5 : 1),
-                  ),
-                  child: Text('$y', style: TextStyle(
-                    color: active ? AppColors.accent : t.textMuted,
-                    fontSize: 12, fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
-                ),
-              );
-            }),
-          ],
+  Widget _buildFilterPanel() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: t.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+        // ── Row 1: Genre ─────────────────────────────────────────────────────
+        if (_availGenres.isNotEmpty) ...[
+          _filterLabel('Genre'),
+          const SizedBox(height: 6),
+          _chipWrap(_availGenres, (g) => _filters.genre == g, (g) {
+            _applyFilter(_filters.copyWith(genre: _filters.genre == g ? null : g));
+          }),
+          const SizedBox(height: 12),
         ],
-      ),
-    ).animate().fadeIn(duration: 200.ms).slideY(begin: -0.3, end: 0, duration: 200.ms);
-  }
 
-  // ── Body dispatcher ──────────────────────────────────────────────────────────
+        // ── Row 2: Language ──────────────────────────────────────────────────
+        if (_availLanguages.isNotEmpty) ...[
+          _filterLabel('Language'),
+          const SizedBox(height: 6),
+          _chipWrap(_availLanguages, (l) => _filters.language == l, (l) {
+            _applyFilter(_filters.copyWith(language: _filters.language == l ? null : l));
+          }, capitalize: true),
+          const SizedBox(height: 12),
+        ],
 
-  Widget _buildBody(
-      List<CatalogItem> allItems, List<String> genres, List<int> years, List<CatalogItem> trending, bool hasQuery) {
-    if (_loading) return _buildShimmer();
-    if (_results != null) return _buildResults();
-    return _buildDiscover(allItems, genres, trending);
-  }
+        // ── Row 3: Rating ────────────────────────────────────────────────────
+        _filterLabel('Min Rating'),
+        const SizedBox(height: 6),
+        Row(children: [null, 6.0, 7.0, 8.0, 9.0].map((r) {
+          final active = _filters.minRating == r;
+          return GestureDetector(
+            onTap: () => _applyFilter(_filters.copyWith(minRating: active ? null : r)),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: active ? AppColors.accent.withOpacity(0.18) : t.bg,
+                borderRadius: BorderRadius.circular(AppRadius.round),
+                border: Border.all(
+                  color: active ? AppColors.accent : t.border,
+                  width: active ? 1.5 : 1),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                if (r != null) ...[
+                  Icon(Icons.star_rounded, size: 13,
+                      color: active ? AppColors.accent : t.textMuted),
+                  const SizedBox(width: 3),
+                ],
+                Text(r == null ? 'Any' : '${r.toInt()}+',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: active ? AppColors.accent : t.textMuted,
+                      fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
+              ]),
+            ),
+          );
+        }).toList()),
+        const SizedBox(height: 12),
 
-  // ── Shimmer ──────────────────────────────────────────────────────────────────
+        // ── Row 4: Year ──────────────────────────────────────────────────────
+        if (_availYears.isNotEmpty) ...[
+          _filterLabel('Year'),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 32,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [null, ..._availYears.take(15)].map((y) {
+                final active = _filters.year == y;
+                return GestureDetector(
+                  onTap: () => _applyFilter(_filters.copyWith(year: active ? null : y)),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: active ? AppColors.primary.withOpacity(0.15) : t.bg,
+                      borderRadius: BorderRadius.circular(AppRadius.round),
+                      border: Border.all(
+                        color: active ? AppColors.primary : t.border,
+                        width: active ? 1.5 : 1),
+                    ),
+                    child: Text(y == null ? 'Any Year' : '$y',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: active ? AppColors.primary : t.textMuted,
+                          fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
 
-  Widget _buildShimmer() {
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3, childAspectRatio: 2/3, crossAxisSpacing: 10, mainAxisSpacing: 10),
-      itemCount: 9,
-      itemBuilder: (_, __) => Shimmer.fromColors(
-        baseColor: t.surface,
-        highlightColor: t.surfaceHigh,
-        child: Container(decoration: BoxDecoration(
-            color: t.surface, borderRadius: BorderRadius.circular(AppRadius.sm))),
-      ),
-    );
-  }
+        // ── Row 5: Status ────────────────────────────────────────────────────
+        _filterLabel('Status'),
+        const SizedBox(height: 6),
+        _chipWrap(['Ongoing', 'Completed', 'Released'],
+          (s) => _filters.status == s.toLowerCase(), (s) {
+          final v = s.toLowerCase();
+          _applyFilter(_filters.copyWith(status: _filters.status == v ? null : v));
+        }),
+        const SizedBox(height: 12),
 
-  // ── Results ──────────────────────────────────────────────────────────────────
+        // ── Row 6: Free / Offline / Sort ─────────────────────────────────────
+        Row(children: [
+          // Free toggle
+          _toggleChip(
+            label: 'Free Only',
+            icon: Icons.local_offer_rounded,
+            active: _filters.isFree == true,
+            color: Colors.green,
+            onTap: () => _applyFilter(
+              _filters.copyWith(isFree: _filters.isFree == true ? null : true)),
+          ),
+          const SizedBox(width: 8),
+          // Premium toggle
+          _toggleChip(
+            label: 'Premium',
+            icon: Icons.workspace_premium_rounded,
+            active: _filters.isFree == false,
+            color: AppColors.accent,
+            onTap: () => _applyFilter(
+              _filters.copyWith(isFree: _filters.isFree == false ? null : false)),
+          ),
+          const SizedBox(width: 8),
+          // Offline toggle
+          _toggleChip(
+            label: 'Downloaded',
+            icon: Icons.download_done_rounded,
+            active: _filters.offlineOnly,
+            color: AppColors.primary,
+            onTap: () => _applyFilter(_filters.copyWith(offlineOnly: !_filters.offlineOnly)),
+          ),
+        ]),
+        const SizedBox(height: 12),
 
-  Widget _buildResults() {
-    final hasActiveFilter = _typeFilter != null || _genreFilter != null || _yearFilter != null;
-
-    if (_results!.isEmpty) {
-      return Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Container(width: 88, height: 88,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: t.surface,
-                border: Border.all(color: t.border, width: 1.5)),
-            child: Icon(Icons.search_off_rounded, color: t.textMuted, size: 40)),
-          SizedBox(height: 20),
-          RichText(text: TextSpan(
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: t.textPrimary),
-            children: [
-              const TextSpan(text: 'No results for '),
-              TextSpan(text: '"${_ctrl.text}"',
-                  style: TextStyle(color: AppColors.primary)),
-            ],
-          )),
-          SizedBox(height: 8),
-          Text('Try different keywords or clear filters.',
-              style: TextStyle(color: t.textMuted, fontSize: 13),
-              textAlign: TextAlign.center),
-          if (hasActiveFilter) ...[
-            const SizedBox(height: 20),
-            GestureDetector(
-              onTap: _clearFilters,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        // ── Sort ──────────────────────────────────────────────────────────────
+        _filterLabel('Sort By'),
+        const SizedBox(height: 6),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            ['relevance', 'Best Match', Icons.auto_awesome_rounded],
+            ['rating',    'Top Rated',  Icons.star_rounded],
+            ['year_desc', 'Newest',     Icons.new_releases_rounded],
+            ['year_asc',  'Oldest',     Icons.history_rounded],
+            ['title',     'A–Z',        Icons.sort_by_alpha_rounded],
+          ].map((s) {
+            final val   = s[0] as String;
+            final label = s[1] as String;
+            final icon  = s[2] as IconData;
+            final active = _filters.sortBy == val;
+            return GestureDetector(
+              onTap: () => _applyFilter(_filters.copyWith(sortBy: val)),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  gradient: active ? AppColors.primaryGradient : null,
+                  color: active ? null : t.bg,
                   borderRadius: BorderRadius.circular(AppRadius.round),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  border: Border.all(color: active ? Colors.transparent : t.border),
                 ),
-                child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.filter_alt_off_rounded, size: 15, color: AppColors.primary),
-                  SizedBox(width: 6),
-                  Text('Clear filters', style: TextStyle(color: AppColors.primary,
-                      fontSize: 13, fontWeight: FontWeight.w700)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(icon, size: 13, color: active ? Colors.white : t.textMuted),
+                  const SizedBox(width: 4),
+                  Text(label, style: TextStyle(
+                    fontSize: 12, color: active ? Colors.white : t.textMuted,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
                 ]),
               ),
-            ),
-          ],
-        ]).animate().fadeIn(duration: 300.ms),
-      );
-    }
+            );
+          }).toList()),
+        ),
+      ]),
+    ).animate().fadeIn(duration: 180.ms).slideY(begin: -0.05, end: 0, duration: 180.ms);
+  }
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+  // ── Active filter summary bar ──────────────────────────────────────────────
+
+  Widget _buildActiveFilterBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+      child: Row(children: [
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             child: Row(children: [
-              ShaderMask(
-                blendMode: BlendMode.srcIn,
-                shaderCallback: (b) => AppColors.primaryGradient.createShader(b),
-                child: Text('${_results!.length}',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800))),
-              Text(' result${_results!.length == 1 ? "" : "s"} for "${_ctrl.text}"',
-                  style: TextStyle(color: t.textMuted, fontSize: 13)),
-              if (hasActiveFilter) ...[
-                const Spacer(),
-                GestureDetector(
-                  onTap: _clearFilters,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(AppRadius.round),
-                      border: Border.all(color: AppColors.primary.withOpacity(0.3))),
-                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.filter_alt_off_rounded, size: 12, color: AppColors.primary),
-                      SizedBox(width: 4),
-                      Text('Clear', style: TextStyle(
-                          color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600)),
-                    ]),
-                  ),
-                ),
-              ],
+              if (_filters.type      != null) _activePill(_filters.type!),
+              if (_filters.genre     != null) _activePill(_filters.genre!),
+              if (_filters.language  != null) _activePill(_filters.language!),
+              if (_filters.year      != null) _activePill('${_filters.year}'),
+              if (_filters.minRating != null) _activePill('${_filters.minRating!.toInt()}+ ★'),
+              if (_filters.isFree == true)    _activePill('Free'),
+              if (_filters.isFree == false)   _activePill('Premium'),
+              if (_filters.status    != null) _activePill(_filters.status!),
+              if (_filters.offlineOnly)       _activePill('Downloaded'),
+              if (_filters.sortBy != 'relevance') _activePill('Sort: ${_filters.sortBy}'),
             ]),
           ),
         ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-          sliver: SliverGrid(
-            delegate: SliverChildBuilderDelegate(
-              (_, i) => ContentCard(item: _results![i])
-                  .animate(delay: (i * 25).ms).fadeIn(duration: 250.ms)
-                  .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1),
-                      duration: 250.ms, curve: AppCurves.standard),
-              childCount: _results!.length),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3, childAspectRatio: 2/3,
-                crossAxisSpacing: 10, mainAxisSpacing: 10),
+        GestureDetector(
+          onTap: _clearAll,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Text('Clear all',
+                style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
           ),
         ),
+      ]),
+    );
+  }
+
+  Widget _activePill(String label) => Container(
+    margin: const EdgeInsets.only(right: 6),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+    decoration: BoxDecoration(
+      color: AppColors.primary.withOpacity(0.12),
+      borderRadius: BorderRadius.circular(AppRadius.round),
+      border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+    ),
+    child: Text(label, style: TextStyle(
+        color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600)),
+  );
+
+  // ── Results ────────────────────────────────────────────────────────────────
+
+  Widget _buildResults() {
+    if (_loading && (_results == null)) {
+      return _buildShimmer();
+    }
+    final res = _results ?? [];
+    if (res.isEmpty && !_loading) {
+      return _buildEmpty();
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (res.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+          child: Text('${res.length} result${res.length == 1 ? "" : "s"}',
+              style: TextStyle(color: t.textMuted, fontSize: 12, fontWeight: FontWeight.w500)),
+        ),
+      Expanded(
+        child: ListView.builder(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+          itemCount: res.length,
+          itemBuilder: (_, i) => _SearchResultTile(result: res[i]),
+        ),
+      ),
+    ]);
+  }
+
+  Widget _buildEmpty() {
+    final hasQuery = _ctrl.text.isNotEmpty;
+    return Center(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(hasQuery ? Icons.search_off_rounded : Icons.filter_alt_off_rounded,
+            size: 52, color: t.textMuted.withOpacity(0.4)),
+        const SizedBox(height: 12),
+        Text(
+          hasQuery
+              ? 'No results for "${_ctrl.text}"'
+              : 'No titles match these filters',
+          style: TextStyle(color: t.textMuted, fontSize: 15, fontWeight: FontWeight.w500),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 6),
+        if (_filters.hasAny)
+          TextButton(
+            onPressed: _clearAll,
+            child: const Text('Clear filters', style: TextStyle(color: AppColors.primary)),
+          ),
+      ]),
+    );
+  }
+
+  // ── Discover (no query, no filter) ────────────────────────────────────────
+
+  Widget _buildDiscover(List<CatalogItem> allItems, List<CatalogItem> trending) {
+    final byGenre = _byGenre(allItems);
+
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 24),
+      children: [
+
+        // ── Search history ─────────────────────────────────────────────────
+        if (_history.isNotEmpty) ...[
+          _sectionHeader('Recent', trailing: TextButton(
+            onPressed: _clearHistory,
+            child: Text('Clear', style: TextStyle(color: t.textMuted, fontSize: 12)),
+          )),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Wrap(spacing: 8, runSpacing: 6, children: _history.map((h) {
+              return GestureDetector(
+                onLongPress: () => _removeFromHistory(h),
+                child: GestureDetector(
+                  onTap: () => _tapSuggestion(h),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: t.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.round),
+                      border: Border.all(color: t.border),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.history_rounded, size: 14, color: t.textMuted),
+                      const SizedBox(width: 5),
+                      Text(h, style: TextStyle(color: t.textSecondary, fontSize: 13)),
+                    ]),
+                  ),
+                ),
+              );
+            }).toList()),
+          ),
+          const SizedBox(height: 8),
+        ],
+
+        // ── Trending ───────────────────────────────────────────────────────
+        if (trending.isNotEmpty) ...[
+          _sectionHeader('Trending Now'),
+          SizedBox(
+            height: 200,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+              itemCount: trending.take(15).length,
+              itemBuilder: (_, i) => Padding(
+                padding: EdgeInsets.only(right: i < trending.length - 1 ? 10 : 0),
+                child: SizedBox(width: 110, child: ContentCard(item: trending[i])),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // ── Browse by genre ────────────────────────────────────────────────
+        if (byGenre.isNotEmpty) ...[
+          _sectionHeader('Browse by Genre'),
+          ...byGenre.entries.map((e) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                child: GestureDetector(
+                  onTap: () {
+                    _applyFilter(_filters.copyWith(genre: e.key));
+                    if (!_showFilters) setState(() => _showFilters = true);
+                  },
+                  child: Row(children: [
+                    Text(e.key, style: TextStyle(
+                        color: t.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
+                    const SizedBox(width: 4),
+                    Icon(Icons.arrow_forward_ios_rounded, size: 11, color: t.textMuted),
+                  ]),
+                ),
+              ),
+              SizedBox(
+                height: 175,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                  itemCount: e.value.take(10).length,
+                  itemBuilder: (_, i) => Padding(
+                    padding: EdgeInsets.only(right: i < e.value.length - 1 ? 10 : 0),
+                    child: SizedBox(width: 106, child: ContentCard(item: e.value[i])),
+                  ),
+                ),
+              ),
+            ],
+          )),
+        ],
       ],
     );
   }
 
-  // ── Discover ─────────────────────────────────────────────────────────────────
+  // ── Shimmer ────────────────────────────────────────────────────────────────
 
-  Widget _buildDiscover(List<CatalogItem> allItems, List<String> genres, List<CatalogItem> trendingItems) {
-    final discover = _discoverItems(allItems);
-    final byGenre  = _byGenre(discover, genres);
-
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-        // ── Recent searches ────────────────────────────────────────────────
-        if (_history.isNotEmpty) ...[
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Row(children: [
-              Container(width: 3, height: 16, margin: const EdgeInsets.only(right: 10),
-                  decoration: BoxDecoration(gradient: AppColors.primaryGradient,
-                      borderRadius: BorderRadius.circular(2))),
-              Icon(Icons.history_rounded, color: t.textMuted, size: 15),
-              SizedBox(width: 6),
-              Text('Recent', style: TextStyle(
-                  color: t.textPrimary, fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.2)),
-            ]),
-            GestureDetector(
-              onTap: _clearHistory,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: t.surface, borderRadius: BorderRadius.circular(AppRadius.round),
-                  border: Border.all(color: t.border),
-                ),
-                child: Text('Clear', style: TextStyle(color: t.textMuted, fontSize: 11, fontWeight: FontWeight.w600)),
-              ),
-            ),
-          ]),
-          SizedBox(height: 10),
-          Wrap(
-            spacing: 8, runSpacing: 8,
-            children: _history.map((h) => _HistoryPill(
-              text: h,
-              onTap: () => _tapSuggestion(h),
-              onDelete: () => _removeFromHistory(h),
-            )).toList()),
-          SizedBox(height: 28),
-        ],
-
-        // ── Trending ───────────────────────────────────────────────────────
-        Row(children: [
-          Container(width: 3, height: 18, margin: const EdgeInsets.only(right: 10),
-              decoration: BoxDecoration(gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(2))),
-          Icon(Icons.local_fire_department_rounded, color: AppColors.primary, size: 17),
-          SizedBox(width: 6),
-          Text('Trending Now', style: TextStyle(
-              color: t.textPrimary, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-        ]),
-        const SizedBox(height: 10),
-          Builder(builder: (context) {
-            // BUG-A15: _staticTrending showed hardcoded fake titles when catalog
-            // was empty. Now: prefer real trending items → real top-rated fallback
-            // → nothing (never show titles not in the library).
-            final displayItems = trendingItems.isNotEmpty
-                ? trendingItems
-                : (allItems.isNotEmpty
-                    ? (List<CatalogItem>.from(allItems)
-                        ..sort((a, b) => (b.rating ?? 0).compareTo(a.rating ?? 0)))
-                        .take(8).toList()
-                    : <CatalogItem>[]);
-            if (displayItems.isEmpty) return const SizedBox.shrink();
-            return SizedBox(
-              height: 185,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                itemCount: displayItems.length,
-                itemBuilder: (_, i) => Padding(
-                  padding: EdgeInsets.only(right: i < displayItems.length - 1 ? 10 : 0),
-                  child: SizedBox(
-                    width: 114,
-                    child: ContentCard(item: displayItems[i])
-                        .animate(delay: (i * 40).ms)
-                        .fadeIn(duration: 280.ms)
-                        .scale(begin: const Offset(0.92, 0.92), end: const Offset(1, 1),
-                            duration: 280.ms, curve: AppCurves.enter),
-                  ),
-                ),
-              ),
-            );
-          }),
-
-        // ── Browse by Genre ────────────────────────────────────────────────
-        if (byGenre.isNotEmpty) ...[
-          SizedBox(height: 28),
-          Row(children: [
-            Container(width: 3, height: 18, margin: const EdgeInsets.only(right: 10),
-                decoration: BoxDecoration(gradient: AppColors.primaryGradient,
-                    borderRadius: BorderRadius.circular(2))),
-            Icon(Icons.grid_view_rounded, color: AppColors.primary, size: 17),
-            SizedBox(width: 6),
-            Text(
-              _typeFilter != null ? 'Browse $_typeFilter' : 'Browse by Genre',
-              style: TextStyle(
-                  color: t.textPrimary, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-          ]),
-          SizedBox(height: 14),
-          ...byGenre.entries.toList().asMap().entries.map((outer) {
-            final entry = outer.value;
-            return _GenreRow(
-              genre: entry.key,
-              items: entry.value,
-              onTapSeeAll: () => _tapSuggestion(entry.key),
-            ).animate(delay: (outer.key * 60).ms).fadeIn(duration: 300.ms);
-          }),
-        ],
-
-        // Empty discover state (catalog still loading)
-        if (allItems.isEmpty) ...[
-          SizedBox(height: 48),
-          Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 80, height: 80,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: t.surface,
-                  border: Border.all(color: t.border, width: 1.5)),
-              child: Icon(Icons.search_rounded, color: t.textMuted, size: 36)),
-            SizedBox(height: 16),
-            Text('Start typing to search', style: TextStyle(
-                color: t.textMuted, fontSize: 14)),
-          ])),
-        ],
-      ]),
-    );
-  }
-}
-
-// ── History Pill ──────────────────────────────────────────────────────────────
-class _HistoryPill extends StatelessWidget {
-  final String text;
-  final VoidCallback onTap;
-  final VoidCallback onDelete;
-  const _HistoryPill({required this.text, required this.onTap, required this.onDelete});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: BorderRadius.circular(AppRadius.round),
-          border: Border.all(color: t.border),
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.history_rounded, size: 13, color: t.textMuted),
-          SizedBox(width: 6),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 140),
-            child: Text(text, overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: t.textSecondary, fontSize: 13))),
-          SizedBox(width: 6),
-          GestureDetector(
-            onTap: onDelete,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: EdgeInsets.all(2),
-              child: Icon(Icons.close_rounded, size: 13, color: t.textMuted))),
-        ]),
-      ),
-    );
-  }
-}
-
-// ── Trending Row ──────────────────────────────────────────────────────────────
-class _TrendingRow extends StatelessWidget {
-  final int rank;
-  final String label;
-  final VoidCallback onTap;
-  const _TrendingRow({required this.rank, required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(color: t.border),
-        ),
-        child: Row(children: [
-          SizedBox(
-            width: 26,
-            child: ShaderMask(
-              blendMode: BlendMode.srcIn,
-              shaderCallback: (b) => AppColors.primaryGradient.createShader(b),
-              child: Text('$rank', style: TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w900))),
-          ),
-          SizedBox(width: 12),
-          Expanded(child: Text(label,
-              style: TextStyle(color: t.textPrimary, fontSize: 14))),
-          Icon(Icons.north_east_rounded, color: t.textMuted, size: 16),
-        ]),
-      ),
-    );
-  }
-}
-
-// ── Genre Row ─────────────────────────────────────────────────────────────────
-class _GenreRow extends StatelessWidget {
-  final String genre;
-  final List<CatalogItem> items;
-  final VoidCallback onTapSeeAll;
-  const _GenreRow({required this.genre, required this.items, required this.onTapSeeAll});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Container(
-          width: 3, height: 16,
-          margin: const EdgeInsets.only(right: 8),
+  Widget _buildShimmer() {
+    return Shimmer.fromColors(
+      baseColor: t.surface,
+      highlightColor: t.border,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
+        itemCount: 8,
+        itemBuilder: (_, __) => Container(
+          height: 86,
+          margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(
-            gradient: AppColors.primaryGradient,
-            borderRadius: BorderRadius.circular(2)),
-        ),
-        Expanded(child: Text(genre, style: TextStyle(
-            color: t.textPrimary, fontSize: 15, fontWeight: FontWeight.w700))),
-        TextButton(
-          onPressed: onTapSeeAll,
-          style: TextButton.styleFrom(foregroundColor: AppColors.primary,
-              padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-          child: const Text('See all', style: TextStyle(fontSize: 12))),
-      ]),
-      const SizedBox(height: 10),
-      SizedBox(
-        height: 160,
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          itemCount: items.length,
-          itemBuilder: (_, i) => Padding(
-            padding: EdgeInsets.only(right: i < items.length - 1 ? 10 : 0),
-            child: SizedBox(width: 106, child: ContentCard(item: items[i]))),
+            color: t.surface,
+            borderRadius: BorderRadius.circular(AppRadius.md)),
         ),
       ),
-      const SizedBox(height: 20),
-    ]);
+    );
+  }
+
+  // ── Helper widgets ─────────────────────────────────────────────────────────
+
+  Widget _filterLabel(String label) => Text(label,
+      style: TextStyle(color: t.textMuted, fontSize: 11,
+          fontWeight: FontWeight.w700, letterSpacing: 0.6));
+
+  Widget _chipWrap(List<String> items, bool Function(String) isActive,
+      void Function(String) onTap, {bool capitalize = false}) {
+    return Wrap(spacing: 8, runSpacing: 6, children: items.map((item) {
+      final active = isActive(item);
+      final label  = capitalize
+          ? item.substring(0, 1).toUpperCase() + item.substring(1)
+          : item;
+      return GestureDetector(
+        onTap: () => onTap(item),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            gradient: active ? AppColors.primaryGradient : null,
+            color: active ? null : t.bg,
+            borderRadius: BorderRadius.circular(AppRadius.round),
+            border: Border.all(color: active ? Colors.transparent : t.border),
+            boxShadow: active ? [BoxShadow(
+                color: AppColors.primary.withOpacity(0.3), blurRadius: 8)] : null,
+          ),
+          child: Text(label, style: TextStyle(
+              color: active ? Colors.white : t.textMuted,
+              fontSize: 12, fontWeight: active ? FontWeight.w700 : FontWeight.w500)),
+        ),
+      );
+    }).toList());
+  }
+
+  Widget _toggleChip({
+    required String label,
+    required IconData icon,
+    required bool active,
+    required Color color,
+    required VoidCallback onTap,
+  }) => GestureDetector(
+    onTap: onTap,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: active ? color.withOpacity(0.15) : t.bg,
+        borderRadius: BorderRadius.circular(AppRadius.round),
+        border: Border.all(color: active ? color : t.border, width: active ? 1.5 : 1),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 13, color: active ? color : t.textMuted),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(
+          fontSize: 12, color: active ? color : t.textMuted,
+          fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
+      ]),
+    ),
+  );
+
+  Widget _sectionHeader(String title, {Widget? trailing}) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+    child: Row(children: [
+      Text(title, style: TextStyle(
+          color: t.textPrimary, fontSize: 15, fontWeight: FontWeight.w800)),
+      const Spacer(),
+      if (trailing != null) trailing,
+    ]),
+  );
+}
+
+// ── Search result tile with snippet ──────────────────────────────────────────
+
+class _SearchResultTile extends StatelessWidget {
+  final SearchResult result;
+  const _SearchResultTile({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    final t    = RaddTheme.of(context);
+    final item = result.item;
+
+    // Parse snippet: FTS5 marks matches with [ ] — we render them highlighted
+    final rawSnippet = result.snippet;
+    final hasSnippet = rawSnippet != null && rawSnippet.isNotEmpty;
+
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pushNamed(
+        AppRoutes.showDetail, arguments: item),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: t.border),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Poster
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            child: _buildPoster(item, t),
+          ),
+          const SizedBox(width: 10),
+          // Info
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(item.title,
+                  style: TextStyle(color: t.textPrimary, fontSize: 14,
+                      fontWeight: FontWeight.w700),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 3),
+              // Metadata row
+              Wrap(spacing: 6, runSpacing: 2, children: [
+                if (item.year != null)
+                  _metaTag('${item.year}', t, color: t.textMuted),
+                if (item.language != null && item.language!.isNotEmpty)
+                  _metaTag(item.language!.toUpperCase(), t,
+                      color: AppColors.accent, border: true),
+                if (item.rating != null && item.rating! > 0)
+                  _metaTag('★ ${item.rating!.toStringAsFixed(1)}', t,
+                      color: Colors.amber[700]!),
+                if (item.isFree)
+                  _metaTag('FREE', t, color: Colors.green, border: true),
+                _metaTag(item.isMovie ? 'Movie' : 'Show', t,
+                    color: t.textMuted),
+                if (item.statusLabel.isNotEmpty && item.statusLabel != 'Released')
+                  _metaTag(item.statusLabel, t,
+                      color: item.isOngoing == true ? Colors.blue : t.textMuted),
+              ]),
+              // Description snippet (highlighted matches)
+              if (hasSnippet) ...[
+                const SizedBox(height: 5),
+                _SnippetText(raw: rawSnippet!, textStyle: TextStyle(
+                    color: t.textMuted, fontSize: 12, height: 1.4)),
+              ] else if (item.description != null && item.description!.isNotEmpty) ...[
+                const SizedBox(height: 5),
+                Text(item.description!,
+                    style: TextStyle(color: t.textMuted, fontSize: 12, height: 1.4),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+              ],
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildPoster(CatalogItem item, RaddTheme t) {
+    const w = 64.0; const h = 90.0;
+    if (item.posterUrl != null && item.posterUrl!.isNotEmpty) {
+      return Image.network(item.posterUrl!, width: w, height: h, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _posterPlaceholder(item, t, w, h));
+    }
+    return _posterPlaceholder(item, t, w, h);
+  }
+
+  Widget _posterPlaceholder(CatalogItem item, RaddTheme t, double w, double h) =>
+      Container(
+        width: w, height: h,
+        color: t.bg,
+        child: Center(child: Icon(
+            item.isMovie ? Icons.movie_outlined : Icons.tv_outlined,
+            color: t.textMuted, size: 28)),
+      );
+
+  Widget _metaTag(String label, RaddTheme t, {Color? color, bool border = false}) =>
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        decoration: BoxDecoration(
+          color: (color ?? t.textMuted).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(4),
+          border: border ? Border.all(color: (color ?? t.textMuted).withOpacity(0.4)) : null,
+        ),
+        child: Text(label, style: TextStyle(
+            color: color ?? t.textMuted, fontSize: 10, fontWeight: FontWeight.w700)),
+      );
+}
+
+// ── Snippet renderer: [ and ] around matched tokens → highlighted ─────────────
+
+class _SnippetText extends StatelessWidget {
+  final String raw;
+  final TextStyle textStyle;
+  const _SnippetText({required this.raw, required this.textStyle});
+
+  @override
+  Widget build(BuildContext context) {
+    final spans = <TextSpan>[];
+    final re = RegExp(r'\[([^\]]*)\]');
+    int cursor = 0;
+    for (final m in re.allMatches(raw)) {
+      if (m.start > cursor) {
+        spans.add(TextSpan(text: raw.substring(cursor, m.start), style: textStyle));
+      }
+      spans.add(TextSpan(
+        text: m.group(1),
+        style: textStyle.copyWith(
+          color: AppColors.primary,
+          fontWeight: FontWeight.w700,
+          backgroundColor: AppColors.primary.withOpacity(0.12),
+        ),
+      ));
+      cursor = m.end;
+    }
+    if (cursor < raw.length) {
+      spans.add(TextSpan(text: raw.substring(cursor), style: textStyle));
+    }
+    return RichText(
+      text: TextSpan(children: spans),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
   }
 }

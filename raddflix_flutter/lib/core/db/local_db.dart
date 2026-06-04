@@ -448,6 +448,143 @@ class LocalDb {
 
   /// Rebuild the FTS5 catalog index from the current titles table.
   /// Call after a bulk sync so search reflects new/updated titles immediately.
+
+  /// Advanced search with full filter support: query (FTS5 title+description+genres),
+  /// genre, year, language, minRating, isFree, status (ongoing/completed/released),
+  /// offlineOnly (joined against downloads table), and sort order.
+  ///
+  /// All filters are optional. Empty query returns browse results (all matching filters).
+  /// Returns up to 200 results with a description snippet for matched items.
+  static Future<List<SearchResult>> searchAdvanced({
+    String query = '',
+    String? genre,
+    int? year,
+    String? language,
+    double? minRating,
+    bool? isFree,
+    String? status,          // 'ongoing' | 'completed' | 'released'
+    bool offlineOnly = false,
+    String sortBy = 'relevance', // 'relevance' | 'rating' | 'year_desc' | 'year_asc' | 'title'
+    int limit = 200,
+  }) async {
+    final db = await instance;
+
+    // Build WHERE clauses
+    final conditions = <String>[];
+    final args = <dynamic>[];
+
+    if (genre != null && genre.isNotEmpty) {
+      conditions.add("t.genres LIKE ?");
+      args.add('%$genre%');
+    }
+    if (year != null) {
+      conditions.add("t.year = ?");
+      args.add(year);
+    }
+    if (language != null && language.isNotEmpty) {
+      conditions.add("LOWER(t.language) = LOWER(?)");
+      args.add(language);
+    }
+    if (minRating != null) {
+      conditions.add("t.rating >= ?");
+      args.add(minRating);
+    }
+    if (isFree != null) {
+      conditions.add("t.is_free = ?");
+      args.add(isFree ? 1 : 0);
+    }
+    if (status != null && status.isNotEmpty) {
+      if (status == 'ongoing') {
+        conditions.add("(t.is_ongoing = 1 OR t.status = 'ongoing')");
+      } else {
+        conditions.add("t.status = ?");
+        args.add(status);
+      }
+    }
+
+    // Offline filter: join against downloads where status = 'completed'
+    final offlineJoin = offlineOnly
+        ? "INNER JOIN downloads dl ON dl.file_id = t.file_id AND dl.status = 'completed'"
+        : '';
+
+    // Sort clause
+    final orderClause = () {
+      switch (sortBy) {
+        case 'rating':     return 'ORDER BY t.rating DESC NULLS LAST, t.title ASC';
+        case 'year_desc':  return 'ORDER BY t.year DESC NULLS LAST, t.title ASC';
+        case 'year_asc':   return 'ORDER BY t.year ASC NULLS LAST, t.title ASC';
+        case 'title':      return 'ORDER BY t.title ASC';
+        default:           return ''; // relevance — handled by FTS rank
+      }
+    }();
+
+    List<Map<String, dynamic>> rows = [];
+    String? snippetQuery;
+
+    if (query.trim().isNotEmpty) {
+      // FTS5 search on title + description + genres (genres added to FTS in rebuildFtsIndex)
+      final terms = query.trim().split(RegExp(r'\s+'));
+      final ftsQuery = terms.map((w) => '"${w.replaceAll('"', '')}"*').join(' ');
+      snippetQuery = ftsQuery;
+
+      final whereStr = conditions.isNotEmpty ? 'AND ${conditions.join(" AND ")}' : '';
+      final ftsOrder = sortBy == 'relevance' ? 'ORDER BY rank, t.title ASC' : orderClause;
+
+      try {
+        rows = await db.rawQuery('''
+          SELECT t.*,
+                 snippet(catalog_fts, 1, '[', ']', '…', 8) AS _snippet
+          FROM titles t
+          $offlineJoin
+          INNER JOIN catalog_fts fts ON t.id = fts.rowid
+          WHERE catalog_fts MATCH ?
+          $whereStr
+          $ftsOrder
+          LIMIT $limit
+        ''', [ftsQuery, ...args]);
+      } catch (_) {
+        // FTS unavailable — fallback LIKE
+        final likeWhere = ['t.title LIKE ?', ...conditions].join(' AND ');
+        rows = await db.rawQuery('''
+          SELECT t.* FROM titles t $offlineJoin
+          WHERE $likeWhere $orderClause LIMIT $limit
+        ''', ['%$query%', ...args]);
+      }
+    } else {
+      // Browse mode — no text query, just filters
+      final whereStr = conditions.isNotEmpty ? 'WHERE ${conditions.join(" AND ")}' : '';
+      rows = await db.rawQuery('''
+        SELECT t.* FROM titles t $offlineJoin
+        $whereStr $orderClause LIMIT $limit
+      ''', args);
+    }
+
+    return rows.map((row) {
+      final item = _rowToItem(row);
+      final snippet = row['_snippet'] as String?;
+      return SearchResult(item: item, snippet: snippet);
+    }).toList();
+  }
+
+  /// Returns distinct non-empty language values from the titles table.
+  /// Used to populate the language filter chip list in search.
+  static Future<List<String>> getDistinctLanguages() async {
+    final db = await instance;
+    final rows = await db.rawQuery(
+      "SELECT DISTINCT language FROM titles WHERE language IS NOT NULL AND language != '' ORDER BY language ASC"
+    );
+    return rows.map((r) => r['language'] as String).toList();
+  }
+
+  /// Returns distinct non-empty year values descending.
+  static Future<List<int>> getDistinctYears() async {
+    final db = await instance;
+    final rows = await db.rawQuery(
+      "SELECT DISTINCT year FROM titles WHERE year IS NOT NULL ORDER BY year DESC"
+    );
+    return rows.map((r) => r['year'] as int).toList();
+  }
+
   static Future<void> rebuildFtsIndex() async {
     final db = await instance;
     try {
@@ -1207,4 +1344,14 @@ class LocalDb {
     final db = await instance;
     await db.delete('sync_meta', where: "key = 'guest_id'");
   }
+}
+
+
+/// Wraps a [CatalogItem] with an optional FTS5 description snippet showing
+/// why the item matched. Snippet uses "[" / "]" markers around matched tokens.
+class SearchResult {
+  final CatalogItem item;
+  final String? snippet; // null when no text query or FTS unavailable
+
+  const SearchResult({required this.item, this.snippet});
 }
