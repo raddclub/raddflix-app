@@ -9,6 +9,7 @@ import '../api/api_client.dart';
 
 class DownloadService {
   static final Dio _dio = Dio();
+  static final _cancelTokens = <String, CancelToken>{};
 
   static Future<void> _checkDownloadQuota() async {
     try {
@@ -82,10 +83,13 @@ class DownloadService {
       localPath: localPath,
     );
 
+    final cancelToken = CancelToken();
+    _cancelTokens[fileId] = cancelToken;
     try {
       await _dio.download(
         resolvedUrl,
         localPath,
+        cancelToken: cancelToken,
         onReceiveProgress: (received, total) {
           final progress = total > 0 ? received / total : 0.0;
           onProgress(progress);
@@ -102,10 +106,25 @@ class DownloadService {
       final fileSize = await file.exists() ? await file.length() : 0;
       await LocalDb.updateDownloadStatus(fileId, 'completed', 1.0, fileSize);
       onProgress(1.0);
+    } on DioException catch (e) {
+      if (CancelToken.isCancel(e)) {
+        await LocalDb.updateDownloadStatus(fileId, 'cancelled', 0.0, 0);
+        return; // cancelled by user — not an error
+      }
+      await LocalDb.updateDownloadStatus(fileId, 'failed', 0.0, 0);
+      rethrow;
     } catch (e) {
       await LocalDb.updateDownloadStatus(fileId, 'failed', 0.0, 0);
       rethrow;
+    } finally {
+      _cancelTokens.remove(fileId);
     }
+  }
+
+  /// Cancel an in-progress download. No-op if not downloading.
+  static void cancelDownload(String fileId) {
+    _cancelTokens[fileId]?.cancel('User cancelled');
+    _cancelTokens.remove(fileId);
   }
 
   static Future<void> deleteDownload(String fileId) async {
