@@ -99,3 +99,41 @@ Oracle's `/api/catalog/play` endpoint (added in a previous session, BUG-A35) gen
 ### State at end of session
 - All three critical bugs fixed in code; APK rebuild required
 - If Oracle's JazzDrive session is also invalid, the user must refresh JazzDrive account credentials on Oracle (re-login to JazzDrive admin panel)
+
+---
+
+## Session — June 04, 2026
+
+### What was done
+Removed Oracle server entirely from the video playback path in `player_screen.dart`.
+
+**Problem identified:** Previous session added Steps 2.5 and 3b which called Oracle's `/api/catalog/play` endpoint as a fallback during playback. This was architecturally wrong because:
+1. The local SQLite DB already stores the `share_url` for every title/episode (synced once at install/update)
+2. The `share_url` is a permanent JazzDrive folder/file share — it never expires
+3. JazzDrive APIs (`cloud.jazzdrive.com.pk`) are zero-rated for Jazz SIM users — no data cost
+4. Oracle's VPS is NOT zero-rated — calling it during playback costs the user data and requires a JWT
+5. If JazzDrive is down, Oracle cannot help (it also calls JazzDrive internally)
+
+**Fix applied to `raddflix_flutter/lib/screens/player_screen.dart`:**
+- Removed Step 2.5 (Oracle direct play when share_url missing from local DB)
+- Removed Step 3b (Oracle direct play when JazzDrive throws an error)
+- Removed Oracle `CatalogApi.getShareUrl()` fallback in Step 2 (share_url must come from local DB or inline route args only)
+- Updated error message: "Could not connect to JazzDrive. Make sure you are on a Jazz SIM."
+
+**Correct playback flow (post-fix):**
+1. Local file (downloaded)? → play immediately
+2. Get share_url from local DB or inline route args (passed by detail screen)
+3. Call JazzDrive directly (zero-rated) → get fresh CDN link → play
+4. If JazzDrive fails → show "Check Jazz SIM connection"
+
+### Files changed
+- `raddflix_flutter/lib/screens/player_screen.dart` — _openMedia method
+
+### Commits
+- GitHub: `7fc67a1` — fix: remove Oracle from playback path — pure JazzDrive zero-rated flow
+- Oracle: git pull confirmed, repo in sync
+
+### State at end of session
+- Playback path is now fully zero-rated, no Oracle dependency
+- APK rebuild required for changes to reach users
+- Oracle Flask server still needed for: initial catalog sync, user accounts, subscriptions
