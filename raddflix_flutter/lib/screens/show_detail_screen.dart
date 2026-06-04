@@ -789,7 +789,8 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                             final realIdx = ep['_realIndex'] as int;
                             final fileId = ep['file_id']?.toString() ?? '';
                             final progress = _watchProgress[fileId] ?? 0.0;
-                            final isFree = (ep['is_free'] as int? ?? 0) == 1;
+                            final isFree   = (ep['is_free'] as int? ?? 0) == 1;
+                            final quality  = ep['quality'] as String?;
                             final epShareUrl = ep['share_url'] as String? ?? '';
                             final dlState = ref.watch(downloadsProvider);
                             final isDownloading = dlState.isDownloading(fileId);
@@ -798,6 +799,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                               index: realIdx,
                               label: label,
                               isFree: isFree,
+                              quality: quality,
                               progress: progress,
                               isNowPlaying: realIdx == _nowPlayingIdx,
                               onTap: () => _playEpisode(realIdx),
@@ -863,6 +865,7 @@ class _EpisodeTile extends StatelessWidget {
   final int index;
   final String label;
   final bool isFree;
+  final String? quality;
   final double progress;
   final bool isNowPlaying;
   final VoidCallback onTap;
@@ -875,6 +878,7 @@ class _EpisodeTile extends StatelessWidget {
     required this.label,
     required this.isFree,
     required this.progress,
+    this.quality,
     required this.onTap,
     this.isNowPlaying = false,
     this.onDownload,
@@ -1014,6 +1018,20 @@ class _EpisodeTile extends StatelessWidget {
                                 ),
                                 child: Text('FREE', style: TextStyle(
                                   color: Colors.green, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5,
+                                )),
+                              ),
+                            if (quality != null && quality!.isNotEmpty && !isNowPlaying && !isDownloaded)
+                              Container(
+                                margin: const EdgeInsets.only(left: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1A1A2E),
+                                  borderRadius: BorderRadius.circular(5),
+                                  border: Border.all(color: AppColors.info.withOpacity(0.4)),
+                                ),
+                                child: Text(quality!.toUpperCase(), style: const TextStyle(
+                                  color: AppColors.info, fontSize: 8,
+                                  fontWeight: FontWeight.w800, letterSpacing: 0.5,
                                 )),
                               ),
                           ],

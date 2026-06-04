@@ -331,6 +331,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ]),
                   const SizedBox(height: 12),
                   // Watchlist & History
+                  // ── Watch Stats card ───────────────────────────────────────────
+                  _StatsCard(),
+                  const SizedBox(height: 12),
+
                   _Section(title: 'My Content', children: [
                     _SectionTile(
                       icon: Icons.bookmark_rounded,
@@ -592,6 +596,146 @@ class _Section extends StatelessWidget {
         child: Column(children: children),
       ),
     ]);
+  }
+}
+
+// ── Stats Card ───────────────────────────────────────────────────────────────
+class _StatsCard extends StatelessWidget {
+  const _StatsCard();
+
+  String _fmtTime(int ms) {
+    final h = ms ~/ 3600000;
+    final m = (ms % 3600000) ~/ 60000;
+    if (h > 0) return '${h}h ${m}m';
+    return '${m}m';
+  }
+
+  String _fmtBytes(int b) {
+    if (b >= 1073741824) return '${(b / 1073741824).toStringAsFixed(1)} GB';
+    if (b >= 1048576)    return '${(b / 1048576).toStringAsFixed(0)} MB';
+    if (b >= 1024)       return '${(b / 1024).toStringAsFixed(0)} KB';
+    return '${b} B';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return FutureBuilder<Map<String, dynamic>>(
+      future: LocalDb.getWatchStats(),
+      builder: (context, snap) {
+        final data     = snap.data;
+        final totalMs  = (data?['total_ms']  as int?) ?? 0;
+        final completed= (data?['completed'] as int?) ?? 0;
+        final dlCount  = (data?['dl_count']  as int?) ?? 0;
+        final dlBytes  = (data?['dl_bytes']  as int?) ?? 0;
+        final topGenre = data?['top_genre']  as String?;
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Row(children: [
+              Container(width: 12, height: 1.5, margin: const EdgeInsets.only(right: 6),
+                  color: AppColors.primary.withOpacity(0.6)),
+              Text('MY STATS', style: TextStyle(color: t.textMuted, fontSize: 10,
+                  fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+            ]),
+          ),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: t.surface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: t.border),
+            ),
+            child: snap.connectionState == ConnectionState.waiting
+                ? Center(child: SizedBox(height: 40, child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    valueColor: AlwaysStoppedAnimation(AppColors.primary))))
+                : Column(children: [
+                    Row(children: [
+                      _StatTile(
+                        icon: Icons.access_time_rounded,
+                        iconColor: AppColors.primary,
+                        label: 'Watch Time',
+                        value: totalMs > 0 ? _fmtTime(totalMs) : '—',
+                      ),
+                      _StatDivider(),
+                      _StatTile(
+                        icon: Icons.check_circle_outline_rounded,
+                        iconColor: const Color(0xFF22C55E),
+                        label: 'Completed',
+                        value: completed > 0 ? '$completed' : '—',
+                      ),
+                    ]),
+                    Divider(height: 1, color: t.border),
+                    Row(children: [
+                      _StatTile(
+                        icon: Icons.download_rounded,
+                        iconColor: const Color(0xFF3B82F6),
+                        label: 'Downloads',
+                        value: dlCount > 0 ? '$dlCount (${_fmtBytes(dlBytes)})' : '—',
+                      ),
+                      _StatDivider(),
+                      _StatTile(
+                        icon: Icons.local_fire_department_rounded,
+                        iconColor: AppColors.warning,
+                        label: 'Top Genre',
+                        value: topGenre ?? '—',
+                      ),
+                    ]),
+                  ]),
+          ),
+        ]);
+      },
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String value;
+  const _StatTile({required this.icon, required this.iconColor,
+      required this.label, required this.value});
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Row(children: [
+          Container(
+            width: 34, height: 34,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: iconColor.withOpacity(0.12),
+              border: Border.all(color: iconColor.withOpacity(0.2)),
+            ),
+            child: Icon(icon, size: 16, color: iconColor),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(value,
+                  style: TextStyle(color: t.textPrimary, fontSize: 13,
+                      fontWeight: FontWeight.w700),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(label,
+                  style: TextStyle(color: t.textMuted, fontSize: 10)),
+            ],
+          )),
+        ]),
+      ),
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Container(width: 1, height: 60, color: t.border);
   }
 }
 

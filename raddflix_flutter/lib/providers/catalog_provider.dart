@@ -18,6 +18,9 @@ class CatalogState {
   final List<CatalogItem> recentlyWatched;
   final List<CatalogItem> trending;
   final List<Map<String, dynamic>> recommendations;
+  final List<CatalogItem> freeContent;
+  final List<CatalogItem> ongoingShows;
+  final List<CatalogItem> newlyAdded;
   final String? error;
   final int totalCount;
 
@@ -28,6 +31,9 @@ class CatalogState {
     this.recentlyWatched = const [],
     this.trending = const [],
     this.recommendations = const [],
+    this.freeContent = const [],
+    this.ongoingShows = const [],
+    this.newlyAdded = const [],
     this.error,
     this.totalCount = 0,
   });
@@ -39,6 +45,9 @@ class CatalogState {
     List<CatalogItem>? recentlyWatched,
     List<CatalogItem>? trending,
     List<Map<String, dynamic>>? recommendations,
+    List<CatalogItem>? freeContent,
+    List<CatalogItem>? ongoingShows,
+    List<CatalogItem>? newlyAdded,
     String? error,
     int? totalCount,
   }) {
@@ -49,6 +58,9 @@ class CatalogState {
       recentlyWatched: recentlyWatched ?? this.recentlyWatched,
       trending: trending ?? this.trending,
       recommendations: recommendations ?? this.recommendations,
+      freeContent:     freeContent  ?? this.freeContent,
+      ongoingShows:    ongoingShows ?? this.ongoingShows,
+      newlyAdded:      newlyAdded   ?? this.newlyAdded,
       error: error,
       totalCount: totalCount ?? this.totalCount,
     );
@@ -146,6 +158,17 @@ class CatalogNotifier extends StateNotifier<CatalogState>
         trending: trending,
         totalCount: count,
       );
+      // Load supplemental home sections
+      final freeContent  = await LocalDb.getFreeContent();
+      final ongoingShows = await LocalDb.getOngoingShows();
+      final newlyAdded   = await LocalDb.getNewlyAdded();
+
+      state = state.copyWith(
+        freeContent:  freeContent,
+        ongoingShows: ongoingShows,
+        newlyAdded:   newlyAdded,
+      );
+
       // Background: rebuild FTS search index with freshest data (fire-and-forget)
       LocalDb.rebuildFtsIndex();
       // Background poster download — runs silently after UI renders

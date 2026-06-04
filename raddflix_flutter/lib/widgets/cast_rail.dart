@@ -8,14 +8,13 @@ import '../services/actor_service.dart';
 import '../screens/actor_screen.dart';
 
 /// Horizontal scrolling cast strip shown on the show detail screen.
-/// Hidden automatically when TMDB key is absent or cast is unavailable.
+/// Hidden automatically when cast data is unavailable or the actor list is empty.
 class CastRail extends StatelessWidget {
   final CatalogItem item;
   const CastRail({super.key, required this.item});
 
   @override
   Widget build(BuildContext context) {
-    if (!ActorService.hasKey) return const SizedBox.shrink();
     return FutureBuilder<List<CastMember>>(
       future: ActorService.getCastForTitle(item),
       builder: (context, snap) {

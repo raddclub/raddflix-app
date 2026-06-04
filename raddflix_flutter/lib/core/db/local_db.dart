@@ -1450,6 +1450,101 @@ class LocalDb {
     final db = await instance;
     await db.delete('sync_meta', where: "key = 'guest_id'");
   }
+
+  // ── Home-screen collections ──────────────────────────────────────────────
+
+  /// Top-rated free content for the "Free to Watch" home row.
+  static Future<List<CatalogItem>> getFreeContent({int limit = 20}) async {
+    final db = await instance;
+    final rows = await db.rawQuery(
+      'SELECT * FROM titles WHERE is_free = 1 ORDER BY rating DESC, title ASC LIMIT ?',
+      [limit],
+    );
+    return rows.map(_rowToItem).toList();
+  }
+
+  /// Ongoing shows for the "Ongoing" home row (status = ongoing OR is_ongoing = 1).
+  static Future<List<CatalogItem>> getOngoingShows({int limit = 20}) async {
+    final db = await instance;
+    final rows = await db.rawQuery('''
+      SELECT * FROM titles
+      WHERE (is_ongoing = 1 OR status = 'ongoing') AND media_type = 'show'
+      ORDER BY rating DESC, title ASC
+      LIMIT ?
+    ''', [limit]);
+    return rows.map(_rowToItem).toList();
+  }
+
+  /// Most recently added titles — ordered by db_version DESC (highest = newest sync batch).
+  static Future<List<CatalogItem>> getNewlyAdded({int limit = 20}) async {
+    final db = await instance;
+    final rows = await db.rawQuery(
+      'SELECT * FROM titles ORDER BY db_version DESC, id DESC LIMIT ?',
+      [limit],
+    );
+    return rows.map(_rowToItem).toList();
+  }
+
+  // ── Profile watch statistics ─────────────────────────────────────────────
+
+  /// Aggregate watch statistics for the profile stats card.
+  ///
+  /// Returns:
+  ///   total_ms   — sum of all saved playback positions (milliseconds)
+  ///   completed  — items where progress ≥ 95 %
+  ///   dl_count   — completed downloads
+  ///   dl_bytes   — total byte size of completed downloads
+  ///   top_genre  — most-watched genre (joined via episodes → titles)
+  static Future<Map<String, dynamic>> getWatchStats() async {
+    final db = await instance;
+
+    final timeRows = await db.rawQuery(
+      'SELECT COALESCE(SUM(position_ms), 0) AS total FROM watch_positions',
+    );
+    final totalMs = (timeRows.first['total'] as int?) ?? 0;
+
+    final completedRows = await db.rawQuery('''
+      SELECT COUNT(*) AS cnt FROM watch_positions
+      WHERE duration_ms > 0
+        AND CAST(position_ms AS REAL) / duration_ms >= 0.95
+    ''');
+    final completed = (completedRows.first['cnt'] as int?) ?? 0;
+
+    final dlRows = await db.rawQuery('''
+      SELECT COUNT(*) AS cnt,
+             COALESCE(SUM(file_size), 0) AS total_bytes
+      FROM downloads WHERE status = 'completed'
+    ''');
+    final dlCount = (dlRows.first['cnt'] as int?) ?? 0;
+    final dlBytes = (dlRows.first['total_bytes'] as int?) ?? 0;
+
+    String? topGenre;
+    try {
+      final genreRows = await db.rawQuery('''
+        SELECT t.genres, COUNT(*) AS cnt
+        FROM watch_positions wp
+        JOIN episodes e ON e.file_id  = wp.file_id
+        JOIN titles   t ON t.id       = e.title_id
+        WHERE t.genres IS NOT NULL AND t.genres != ''
+        GROUP BY t.genres ORDER BY cnt DESC LIMIT 1
+      ''');
+      if (genreRows.isNotEmpty) {
+        final raw = (genreRows.first['genres'] as String? ?? '')
+            .replaceAll('[', '').replaceAll(']', '')
+            .replaceAll('"', '').replaceAll("'", '');
+        final parts = raw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+        if (parts.isNotEmpty) topGenre = parts.first;
+      }
+    } catch (_) {}
+
+    return {
+      'total_ms':  totalMs,
+      'completed': completed,
+      'dl_count':  dlCount,
+      'dl_bytes':  dlBytes,
+      'top_genre': topGenre,
+    };
+  }
 }
 
 

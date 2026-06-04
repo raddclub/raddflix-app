@@ -219,6 +219,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onRemove: (item) => ref.read(catalogProvider.notifier).removeFromContinueWatching(item),
           )),
 
+        // New Episodes — shows with unread episodes (badge count > 0)
+        if (catalog.shows.any((s) => (s.newEpisodeCount ?? 0) > 0))
+          SliverToBoxAdapter(child: _ContentSection(
+            title: 'New Episodes',
+            titleIcon: Icons.fiber_new_rounded,
+            items: catalog.shows.where((s) => (s.newEpisodeCount ?? 0) > 0).toList(),
+          ).animate().fadeIn(duration: 400.ms)),
+
+        // Free to Watch
+        if (catalog.freeContent.isNotEmpty)
+          SliverToBoxAdapter(child: _ContentSection(
+            title: 'Free to Watch',
+            titleIcon: Icons.play_circle_outline_rounded,
+            items: catalog.freeContent,
+          ).animate().fadeIn(duration: 400.ms)),
+
+        // Ongoing Shows
+        if (catalog.ongoingShows.isNotEmpty)
+          SliverToBoxAdapter(child: _ContentSection(
+            title: 'Ongoing Shows',
+            titleIcon: Icons.live_tv_rounded,
+            items: catalog.ongoingShows,
+          ).animate().fadeIn(duration: 400.ms)),
+
         // Trending Now
         if (catalog.trending.isNotEmpty)
           SliverToBoxAdapter(child: _ContentSection(
@@ -246,6 +270,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               count: catalog.shows.length,
               items: catalog.shows,
             )),
+          // New Arrivals (highest db_version = most recently synced)
+          if (catalog.newlyAdded.isNotEmpty)
+            SliverToBoxAdapter(child: _ContentSection(
+              title: 'New Arrivals',
+              titleIcon: Icons.new_releases_rounded,
+              items: catalog.newlyAdded,
+            ).animate().fadeIn(duration: 400.ms)),
+
           if (catalog.movies.isEmpty && catalog.shows.isEmpty &&
               catalog.status != CatalogStatus.syncing)
             SliverToBoxAdapter(
@@ -527,11 +559,12 @@ class _HeroCard extends StatelessWidget {
 // ── Content Section ───────────────────────────────────────────────────────────
 class _ContentSection extends StatelessWidget {
   final String title;
+  final IconData? titleIcon;
   final int? count;
   final List<CatalogItem> items;
   final bool showProgress;
   final void Function(CatalogItem)? onRemove;
-  const _ContentSection({required this.title, this.count, required this.items,
+  const _ContentSection({required this.title, this.titleIcon, this.count, required this.items,
     this.showProgress = false, this.onRemove});
 
   @override
