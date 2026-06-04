@@ -14,6 +14,7 @@ import '../core/download/download_service.dart';
 import '../providers/downloads_provider.dart';
 import '../providers/watchlist_provider.dart';
 import 'subscription_screen.dart';
+import '../widgets/cast_rail.dart';
 
 class ShowDetailScreen extends ConsumerStatefulWidget {
   final CatalogItem item;
@@ -454,6 +455,10 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                     _ExpandableText(text: item.description!),
                     const SizedBox(height: 20),
                   ],
+
+                  // Cast & crew strip (TMDB — hidden when API key absent)
+                  CastRail(item: item),
+                  const SizedBox(height: 16),
 
                   // ── MOVIE: Play + Download buttons ─────────────────────────
                   if (isMovie) ...[

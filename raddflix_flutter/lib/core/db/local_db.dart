@@ -199,6 +199,25 @@ class LocalDb {
     ''');
     // Populate FTS index from existing titles data
     await db.execute("INSERT INTO catalog_fts(catalog_fts) VALUES('rebuild')");
+    // Phase 19 — Cast & crew tables (actor profiles + junction)
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS persons (
+        person_id     INTEGER PRIMARY KEY,
+        name          TEXT NOT NULL,
+        profile_url   TEXT,
+        profile_local TEXT,
+        fetched_at    INTEGER DEFAULT 0
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS cast_members (
+        person_id  INTEGER NOT NULL,
+        title_id   INTEGER NOT NULL,
+        character  TEXT,
+        order_idx  INTEGER DEFAULT 0,
+        PRIMARY KEY (person_id, title_id)
+      )
+    ''');
   }
 
   static Future<void> _migrate(Database db, int oldV, int newV) async {
@@ -366,6 +385,31 @@ class LocalDb {
         ''');
       } catch (_) {}
     }
+    if (oldV < 19) {
+      // Cast & crew tables
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS persons (
+            person_id     INTEGER PRIMARY KEY,
+            name          TEXT NOT NULL,
+            profile_url   TEXT,
+            profile_local TEXT,
+            fetched_at    INTEGER DEFAULT 0
+          )
+        ''');
+      } catch (_) {}
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS cast_members (
+            person_id  INTEGER NOT NULL,
+            title_id   INTEGER NOT NULL,
+            character  TEXT,
+            order_idx  INTEGER DEFAULT 0,
+            PRIMARY KEY (person_id, title_id)
+          )
+        ''');
+      } catch (_) {}
+    }
   }
 
   // ── Admin episode overrides ──────────────────────────────────────────────
@@ -403,6 +447,68 @@ class LocalDb {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
+  }
+
+  // ── Cast & crew (TMDB-sourced, SQLite-cached) ─────────────────────────────
+
+  static Future<void> saveCastRaw(
+      int titleId, List<Map<String, dynamic>> cast) async {
+    final db  = await instance;
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    for (final m in cast) {
+      await db.insert(
+        'persons',
+        {
+          'person_id':     m['person_id'],
+          'name':          m['name'],
+          'profile_url':   m['profile_url'],
+          'profile_local': m['profile_local'],
+          'fetched_at':    now,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      await db.insert(
+        'cast_members',
+        {
+          'person_id': m['person_id'],
+          'title_id':  titleId,
+          'character': m['character'],
+          'order_idx': m['order_idx'] ?? 0,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getCastRaw(int titleId) async {
+    final db   = await instance;
+    final rows = await db.rawQuery('''
+      SELECT p.person_id, p.name, p.profile_url, p.profile_local,
+             c.character, c.order_idx
+      FROM cast_members c
+      JOIN persons p ON p.person_id = c.person_id
+      WHERE c.title_id = ?
+      ORDER BY c.order_idx ASC
+    ''', [titleId]);
+    return rows.map((r) => Map<String, dynamic>.from(r)).toList();
+  }
+
+  static Future<void> updatePersonImagePath(
+      int personId, String localPath) async {
+    final db = await instance;
+    await db.update('persons', {'profile_local': localPath},
+        where: 'person_id = ?', whereArgs: [personId]);
+  }
+
+  static Future<List<CatalogItem>> getPersonTitles(int personId) async {
+    final db   = await instance;
+    final rows = await db.rawQuery('''
+      SELECT t.* FROM titles t
+      INNER JOIN cast_members c ON c.title_id = t.id
+      WHERE c.person_id = ?
+      ORDER BY t.year DESC NULLS LAST, t.title ASC
+    ''', [personId]);
+    return rows.map(_rowToItem).toList();
   }
 
   // ── Titles ────────────────────────────────────────────────────────────────
