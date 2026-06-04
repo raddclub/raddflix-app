@@ -182,6 +182,16 @@ class LocalDb {
         added_at    INTEGER DEFAULT 0
       )
     ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS episode_overrides (
+        show_id    INTEGER NOT NULL,
+        season     INTEGER NOT NULL,
+        episode    INTEGER NOT NULL,
+        status     TEXT NOT NULL DEFAULT 'coming_soon',
+        updated_at INTEGER DEFAULT 0,
+        PRIMARY KEY (show_id, season, episode)
+      )
+    ''');
         // Phase 12 — Full-text search (FTS5) for title + description
     await db.execute('''
       CREATE VIRTUAL TABLE IF NOT EXISTS catalog_fts
@@ -340,6 +350,58 @@ class LocalDb {
         await db.insert('sync_meta', {'key': 'force_resync', 'value': '1'},
             conflictAlgorithm: ConflictAlgorithm.replace);
       } catch (_) {}
+    }
+    if (oldV < 18) {
+      // Admin episode status overrides (local only, survives catalog syncs)
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS episode_overrides (
+            show_id    INTEGER NOT NULL,
+            season     INTEGER NOT NULL,
+            episode    INTEGER NOT NULL,
+            status     TEXT NOT NULL DEFAULT 'coming_soon',
+            updated_at INTEGER DEFAULT 0,
+            PRIMARY KEY (show_id, season, episode)
+          )
+        ''');
+      } catch (_) {}
+    }
+  }
+
+  // ── Admin episode overrides ──────────────────────────────────────────────
+
+  /// Returns a map keyed by 'season_episode' (e.g. '1_3') → status string.
+  /// Only entries the admin has explicitly set are returned.
+  static Future<Map<String, String>> getEpisodeOverrides(int showId) async {
+    final db = await instance;
+    final rows = await db.query('episode_overrides',
+        where: 'show_id = ?', whereArgs: [showId]);
+    final result = <String, String>{};
+    for (final r in rows) {
+      result['${r['season']}_${r['episode']}'] = r['status'] as String;
+    }
+    return result;
+  }
+
+  /// Set or clear an admin override for a missing episode.
+  /// [status] = null clears, 'coming_soon' or 'uploading' sets.
+  static Future<void> setEpisodeOverride(
+      int showId, int season, int episode, String? status) async {
+    final db = await instance;
+    if (status == null) {
+      await db.delete('episode_overrides',
+          where: 'show_id = ? AND season = ? AND episode = ?',
+          whereArgs: [showId, season, episode]);
+    } else {
+      await db.insert(
+        'episode_overrides',
+        {
+          'show_id': showId, 'season': season, 'episode': episode,
+          'status': status,
+          'updated_at': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
   }
 
