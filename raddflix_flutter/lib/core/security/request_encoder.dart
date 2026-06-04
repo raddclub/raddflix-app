@@ -66,7 +66,11 @@ class RequestEncoder {
   static String decode(String encodedBody, String sessionKey) {
     if (!enabled || encodedBody.isEmpty) return encodedBody;
     try {
-      final encodedBytes = base64Url.decode(encodedBody);
+      // Server strips base64 padding (rstrip '='); Dart's base64Url.decode requires valid padding.
+      // Re-add it before decoding to prevent FormatException that silently breaks all catalog syncs.
+      final paddingLen = (4 - encodedBody.length % 4) % 4;
+      final padded = encodedBody + ('=' * paddingLen);
+      final encodedBytes = base64Url.decode(padded);
       final keyBytes = utf8.encode(sessionKey);
       final decoded = List<int>.generate(
         encodedBytes.length,
