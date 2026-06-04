@@ -137,3 +137,41 @@ Removed Oracle server entirely from the video playback path in `player_screen.da
 - Playback path is now fully zero-rated, no Oracle dependency
 - APK rebuild required for changes to reach users
 - Oracle Flask server still needed for: initial catalog sync, user accounts, subscriptions
+
+---
+
+## Session — June 04, 2026 (cont.)
+
+### What was done
+
+#### 1. Beautiful StreamErrorOverlay widget
+Replaced hardcoded error overlay in `player_screen.dart` with `_StreamErrorOverlay`:
+- Dynamic error message uses `_streamError` (not hardcoded text)
+- Smart icon: Jazz SIM signal icon when error contains "Jazz", cloud_off otherwise
+- Smart title: "Jazz SIM Required" vs "Video Unavailable"
+- Glassmorphism card (BackdropFilter + blur + accent border)
+- Pulsing shimmer animation on error icon
+- "Retry clears the 3-hour cache" badge pill
+- Spinner + "Refreshing JazzDrive cache…" text shown during retry
+- `_isRetrying` state variable added for retry loading state
+- Retry calls `JazzDriveService.invalidate(fileId)` then `_openMedia` — cache-clear before fresh JazzDrive call
+
+#### 2. _openMedia try/finally safety fix
+Wrapped Steps 1–3 in `_openMedia` with `try/catch/finally`:
+- `finally` block guarantees `_isLinkLoading = false` even if LocalDb throws unexpectedly
+- Prevents infinite spinner on DB corruption or unexpected exceptions
+
+### Files changed
+- `raddflix_flutter/lib/screens/player_screen.dart`
+
+### Commits
+- `90f299c` — feat: beautiful StreamErrorOverlay with cache-clear Retry button
+- `ce127ea` — fix: wrap _openMedia in try/finally — _isLinkLoading always clears
+
+### APK build
+- GitHub Actions `Build RaddFlix APK` (workflow ID 282572869) triggered via workflow_dispatch
+- Build runs on push to main when raddflix_flutter/** changes (auto-triggered by ce127ea)
+
+### State at end of session
+- All playback changes confirmed on GitHub main and Oracle
+- APK build in progress on GitHub Actions
