@@ -44,7 +44,7 @@ class SharedBookmark {
 
   factory SharedBookmark.fromJson(Map<String, dynamic> j) => SharedBookmark(
     id: j['id'], contentId: j['contentId'],
-    position: Duration(milliseconds: j['posMs'] as int),
+    position: Duration(milliseconds: (j['posMs'] as num).toInt()),
     label: j['label'], isPublic: j['isPublic'],
     ownerName: j['ownerName'],
     createdAt: DateTime.parse(j['createdAt']),
