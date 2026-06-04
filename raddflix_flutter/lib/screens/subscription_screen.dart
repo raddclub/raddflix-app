@@ -301,7 +301,6 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                         fontWeight: FontWeight.w700)))))),
           ], // end guest payment block
           const SizedBox(height: 32),
-        ],
 
         // Feature table
         const _FeatureTable(),
