@@ -248,6 +248,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       (widget.localPath != null && widget.localPath!.isNotEmpty) ||
       _isLocalPath(widget.fileId);
 
+  // BUG-P01 FIX: track last checkpoint to avoid 50+ saves per 10s boundary
+  int _lastSaveCheckpoint = -1;
+
   // JazzDrive XML auto-retry
   int _jazzRetryCount = 0;
   Timer? _jazzRetryTimer;
@@ -410,6 +413,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Init binge guard + ambilight from prefs
     _initBingeGuard();
     _initAmbilight();
+    // BUG-P04 FIX: create SmartVolumeController here, after user prefs are
+    // loaded, so targetLevel/mode reflect saved settings (not constructor defaults).
+    _svc?.dispose();
+    _svc = _SmartVolumeController(
+      player: _player, np: _np,
+      targetLevel: loaded.smartVolumeTarget,
+      mode:        loaded.smartVolumeMode,
+    );
+    if (loaded.smartVolumeLevelingEnabled) _svc!.start();
   }
 
   Future<void> _initAudioSession() async {
@@ -1561,13 +1573,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     }
     _loadSkipSegments(); // Phase P: load custom skip segments
-    // Phase SVL: Smart Volume Leveling controller
-    _svc = _SmartVolumeController(
-      player: _player, np: _np,
-      targetLevel: _prefs.smartVolumeTarget,
-      mode:        _prefs.smartVolumeMode,
-    );
-    if (_prefs.smartVolumeLevelingEnabled) _svc!.start();
+    // Phase SVL: SmartVolumeController is created in _loadPrefs() (after prefs
+    // are loaded) so it always uses the user's saved settings — not defaults.
+    // BUG-P04 FIX: do NOT create _svc here; _loadPrefs handles it.
 
     _player.stream.position.listen((p) {
       if (!mounted) return;
@@ -1582,8 +1590,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final seekBack = _abLoop.maybeSeekBack(p);
       if (seekBack != null) _player.seek(seekBack);
       // Only save for Oracle file IDs (not vault/local/Open-With URIs).
+      // BUG-P01 FIX: use checkpoint index instead of modulo so we save exactly
+      // once per 10s boundary regardless of how many stream events fire per second.
+      final _saveCheckpoint = p.inSeconds ~/ 10;
       if (widget.fileId.isNotEmpty && !_isLocalPath(widget.fileId) &&
-          p.inSeconds % 10 == 0 && _duration.inMilliseconds > 0) {
+          _saveCheckpoint != _lastSaveCheckpoint && _duration.inMilliseconds > 0) {
+        _lastSaveCheckpoint = _saveCheckpoint;
         LocalDb.saveWatchPosition(
             fileId: widget.fileId,
             positionMs: p.inMilliseconds,
@@ -2250,7 +2262,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _logWatchSession(); // log partial session on exit
     // Only persist for Oracle file IDs — skip vault (fileId=''),
     // Open-With content:// URIs, and raw device file paths.
-    if (_position.inMilliseconds > 0 && _duration.inMilliseconds > 0 &&
+    // BUG-P02 FIX: skip save when video completed — position == duration would
+    // cause the next open to resume from the very end (triggers instant next-ep
+    // countdown or frozen end frame).
+    if (!_ended && _position.inMilliseconds > 0 && _duration.inMilliseconds > 0 &&
         widget.fileId.isNotEmpty && !_isLocalPath(widget.fileId)) {
       LocalDb.saveWatchPosition(
           fileId: widget.fileId,
@@ -2298,6 +2313,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           !_showVideoEnhance &&
           !_showMorePanel &&
           !_showVideoDisplay &&
+          !_showJumpPanel &&        // BUG-P05 FIX: was missing — JumpTo panel left floating
           !_showTransparentSlider) {
         setState(() => _showControls = false);
       }
@@ -2816,7 +2832,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           if (_showCountdown)
             CountdownNextOverlay(
               accentColor: _prefs.accentColor,
-              nextTitle: widget.title,
+              // BUG-P03 FIX: was widget.title (current ep) — must be next ep label
+              nextTitle: _nextEpLabel,
               onDone: () {
                 setState(() => _showCountdown = false);
                 _handleVideoEnd();
@@ -3292,7 +3309,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   });
                 },
                 selectedQuality: _qualityFromRes,
-                onQualityChanged: (_) {},
+                // BUG-P06 FIX: was silently no-op — now informs user
+                onQualityChanged: (_) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Quality selection coming soon'),
+                      duration: Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ));
+                },
               ),
             ),
 
