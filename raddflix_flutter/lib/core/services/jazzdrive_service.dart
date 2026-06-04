@@ -105,7 +105,7 @@ class JazzDriveService {
     if (dbRow != null) {
       final expiresAt = dbRow['expires_at'] as int? ?? 0;
       if (expiresAt > DateTime.now().millisecondsSinceEpoch ~/ 1000) {
-        final streamUrl = dbRow['stream_url'] as String;
+        final streamUrl = dbRow['stream_url'] as String? ?? '';
         final posterUrl = dbRow['poster_url'] as String?;
         DebugLogger.log('JAZZDRIVE', 'Cache hit (DB) for file $fileId');
         _inMemory[fileId] = _CacheEntry(
