@@ -101,6 +101,15 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
 
   void clearQuotaError() => state = state.copyWith(clearQuotaError: true);
 
+  /// Cancel an in-progress download. Stops the HTTP stream and removes from
+  /// the active progress map so the UI reflects cancellation instantly.
+  void cancelDownload(String fileId) {
+    DownloadService.cancelDownload(fileId);
+    final updated = Map<String, double>.from(state.activeProgress);
+    updated.remove(fileId);
+    state = state.copyWith(activeProgress: updated);
+  }
+
   Future<void> deleteDownload(String fileId) async {
     cancelDownload(fileId); // stop HTTP stream if still active
     await DownloadService.deleteDownload(fileId);
