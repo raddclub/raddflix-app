@@ -41,6 +41,9 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   bool _adminMode = false;
   int _adminTapCount = 0;
 
+  // Sort
+  bool _sortAscending = true;
+
   @override
   void initState() {
     super.initState();
@@ -111,8 +114,23 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     }
   }
 
-  List<Map<String, dynamic>> get _currentEpisodes =>
-      _episodes.where((e) => (e['season'] as int? ?? 1) == _selectedSeason).toList();
+  List<Map<String, dynamic>> get _currentEpisodes {
+    final eps = _episodes
+        .where((e) => (e['season'] as int? ?? 1) == _selectedSeason)
+        .toList();
+    return _sortAscending ? eps : eps.reversed.toList();
+  }
+
+  int _totalCountForSeason(int s) =>
+      _episodes.where((e) => (e['season'] as int? ?? 1) == s).length;
+
+  int _watchedCountForSeason(int s) => _episodes
+      .where((e) => (e['season'] as int? ?? 1) == s)
+      .where((e) {
+        final fid = e['file_id']?.toString() ?? '';
+        return (_watchProgress[fid] ?? 0.0) >= 0.95;
+      })
+      .length;
 
   List<Map<String, dynamic>> get _currentEpisodesWithGaps {
     final eps = _currentEpisodes;
@@ -265,9 +283,13 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
 
     return Scaffold(
       backgroundColor: null,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
+      body: RefreshIndicator(
+        onRefresh: _loadEpisodes,
+        color: AppColors.primary,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics()),
+          slivers: [
           // ── Hero Poster SliverAppBar ──────────────────────────────────────
           SliverAppBar(
             expandedHeight: 340,
@@ -645,11 +667,33 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                           ),
                         ),
                         const Spacer(),
-                        if (!_loading)
+                        if (!_loading) ...[
                           Text(
-                            '${_currentEpisodes.length} episodes',
+                            '${_currentEpisodes.length} eps',
                             style: TextStyle(color: t.textSecondary, fontSize: 13),
                           ),
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: () => setState(
+                                () => _sortAscending = !_sortAscending),
+                            child: Tooltip(
+                              message: _sortAscending
+                                  ? 'Show newest first'
+                                  : 'Show oldest first',
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: Icon(
+                                  _sortAscending
+                                      ? Icons.arrow_downward_rounded
+                                      : Icons.arrow_upward_rounded,
+                                  key: ValueKey(_sortAscending),
+                                  size: 18,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ).animate().fadeIn(delay: 150.ms),
                     const SizedBox(height: 12),
@@ -681,7 +725,9 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                   ),
                                 ),
                                 child: Text(
-                                  'Season $s',
+                                  _totalCountForSeason(s) > 0
+                                      ? 'S$s · ${_watchedCountForSeason(s)}/${_totalCountForSeason(s)}'
+                                      : 'Season $s',
                                   style: TextStyle(
                                     color: selected ? Colors.white : t.textSecondary,
                                     fontSize: 13, fontWeight: FontWeight.w600,
@@ -779,6 +825,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
 
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],
+        ),
       ),
     );
   }
@@ -1264,7 +1311,36 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
             ),
           ),
           Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.clear_all_rounded, size: 18),
+                label: const Text('Clear all statuses'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.orange,
+                  side: const BorderSide(color: Colors.orange),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () async {
+                  for (final ep in widget.gaps) {
+                    await LocalDb.setEpisodeOverride(
+                        widget.showId, widget.season, ep['episode'] as int, null);
+                  }
+                  final cleared = Map<String, String>.from(_local);
+                  for (final ep in widget.gaps) {
+                    cleared.remove('${widget.season}_${ep['episode']}');
+                  }
+                  setState(() => _local = cleared);
+                  widget.onChanged(cleared);
+                },
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16,
                 16 + MediaQuery.of(context).viewInsets.bottom),
             child: SizedBox(
               width: double.infinity,
