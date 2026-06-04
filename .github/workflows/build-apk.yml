@@ -151,7 +151,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'RaddFlix_2024_Store' }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'raddflix' }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'RaddFlix_2024_Key' }}
-        run: flutter build apk --release --obfuscate --split-debug-info=build/debug-info
+        run: flutter build apk --release --obfuscate --split-debug-info=build/debug-info --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
 
       - name: Rename APK with version
         id: apk
