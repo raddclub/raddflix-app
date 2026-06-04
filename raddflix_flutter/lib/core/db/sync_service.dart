@@ -308,7 +308,7 @@ class SyncService {
     // Pick first record (delta.json is the only file in the share folder)
     final rec = records.first as Map<String, dynamic>;
     final rawUrl = rec['downloadUrl'] ?? rec['download_url'] ?? rec['url'] ?? '';
-    if ((rawUrl as String).isEmpty) throw Exception('JazzDrive share: no download URL in record');
+    if (rawUrl is! String || rawUrl.isEmpty) throw Exception('JazzDrive share: no download URL in record');
 
     return rawUrl.startsWith('/') ? '$cloudBase$rawUrl' : rawUrl;
   }
