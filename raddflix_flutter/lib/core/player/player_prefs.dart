@@ -303,6 +303,22 @@ class PlayerPrefs {
   // ── Phase A-B Loop setting ───────────────────────────────────────────────────
   final bool abLoopEnabled;
 
+  // ── Center Button Customization ──────────────────────────────────────────
+  /// Scale multiplier for all center buttons (play, seek, prev, next, skip). 0.6–2.0.
+  final double centerBtnScale;
+  /// Vertical offset in logical pixels. Negative = up, positive = down. -150 to 150.
+  final double centerBtnVerticalOffset;
+  /// When true, seek/next/prev buttons show icon only with no background container.
+  final bool   centerBtnIconOnly;
+  /// Background opacity for seek, next, prev, and skip buttons. 0.0 (transparent) – 1.0.
+  final double centerBtnBgOpacity;
+  /// Show a Prev Episode button in the center row.
+  final bool   showCenterPrev;
+  /// Show Skip Intro button inline in the center row.
+  final bool   showCenterSkip;
+  /// Show Next Episode button in the center row (requires hasNext to be true).
+  final bool   showCenterNext;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -462,6 +478,13 @@ class PlayerPrefs {
     this.moodTagsData              = '[]',
     this.channelBalance            = 0.0,
     this.abLoopEnabled             = false,
+    this.centerBtnScale              = 1.0,
+    this.centerBtnVerticalOffset     = 0.0,
+    this.centerBtnIconOnly           = false,
+    this.centerBtnBgOpacity          = 0.3,
+    this.showCenterPrev              = false,
+    this.showCenterSkip              = false,
+    this.showCenterNext              = true,
   });
 
   PlayerPrefs copyWith({
@@ -557,6 +580,13 @@ class PlayerPrefs {
     int?    wakeLockTimeoutMinutes,
     double? channelBalance,
     bool?   abLoopEnabled,
+    double? centerBtnScale,
+    double? centerBtnVerticalOffset,
+    bool?   centerBtnIconOnly,
+    double? centerBtnBgOpacity,
+    bool?   showCenterPrev,
+    bool?   showCenterSkip,
+    bool?   showCenterNext,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -710,6 +740,13 @@ class PlayerPrefs {
       moodTagsData:                moodTagsData                 ?? this.moodTagsData,
       channelBalance:              channelBalance               ?? this.channelBalance,
       abLoopEnabled:               abLoopEnabled                ?? this.abLoopEnabled,
+      centerBtnScale:              centerBtnScale              ?? this.centerBtnScale,
+      centerBtnVerticalOffset:     centerBtnVerticalOffset     ?? this.centerBtnVerticalOffset,
+      centerBtnIconOnly:           centerBtnIconOnly           ?? this.centerBtnIconOnly,
+      centerBtnBgOpacity:          centerBtnBgOpacity          ?? this.centerBtnBgOpacity,
+      showCenterPrev:              showCenterPrev              ?? this.showCenterPrev,
+      showCenterSkip:              showCenterSkip              ?? this.showCenterSkip,
+      showCenterNext:              showCenterNext              ?? this.showCenterNext,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -881,6 +918,13 @@ class PlayerPrefs {
       moodTagsData:                s.getString('${_p}mood_tags_data')            ?? '[]',
       channelBalance:              s.getDouble('${_p}channel_balance')           ?? 0.0,
       abLoopEnabled:               s.getBool('${_p}ab_loop_enabled')             ?? false,
+      centerBtnScale:              s.getDouble('${_p}center_btn_scale')          ?? 1.0,
+      centerBtnVerticalOffset:     s.getDouble('${_p}center_btn_v_offset')       ?? 0.0,
+      centerBtnIconOnly:           s.getBool('${_p}center_btn_icon_only')        ?? false,
+      centerBtnBgOpacity:          s.getDouble('${_p}center_btn_bg_opacity')     ?? 0.3,
+      showCenterPrev:              s.getBool('${_p}center_show_prev')            ?? false,
+      showCenterSkip:              s.getBool('${_p}center_show_skip')            ?? false,
+      showCenterNext:              s.getBool('${_p}center_show_next')            ?? true,
     );
   }
 
@@ -1048,6 +1092,13 @@ class PlayerPrefs {
       s.setString('${_p}mood_tags_data',               moodTagsData),
       s.setDouble('${_p}channel_balance',            channelBalance),
       s.setBool('${_p}ab_loop_enabled',              abLoopEnabled),
+      s.setDouble('${_p}center_btn_scale',           centerBtnScale),
+      s.setDouble('${_p}center_btn_v_offset',        centerBtnVerticalOffset),
+      s.setBool('${_p}center_btn_icon_only',         centerBtnIconOnly),
+      s.setDouble('${_p}center_btn_bg_opacity',      centerBtnBgOpacity),
+      s.setBool('${_p}center_show_prev',             showCenterPrev),
+      s.setBool('${_p}center_show_skip',             showCenterSkip),
+      s.setBool('${_p}center_show_next',             showCenterNext),
     ]);
   }
 }
