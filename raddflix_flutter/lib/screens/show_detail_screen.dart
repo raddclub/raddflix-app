@@ -728,7 +728,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                             if (ep['_placeholder'] == true) {
                               return _EpisodeUnavailableTile(
                                 label: label,
-                                override: ep['_override'] as String?,
+                                statusOverride: ep['_override'] as String?,
                                 onLongPress: _adminMode
                                     ? () => _showAdminSheet(epNum, season)
                                     : null,
@@ -1050,15 +1050,15 @@ class _EpisodeShimmer extends StatelessWidget {
 class _EpisodeUnavailableTile extends StatelessWidget {
   final String label;
   /// null='not available'  |  'coming_soon'=amber  |  'uploading'=blue
-  final String? override;
+  final String? statusOverride;
   final VoidCallback? onLongPress;
-  const _EpisodeUnavailableTile({required this.label, this.override, this.onLongPress});
+  const _EpisodeUnavailableTile({required this.label, this.statusOverride, this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final isComingSoon = override == 'coming_soon';
-    final isUploading  = override == 'uploading';
+    final isComingSoon = statusOverride == 'coming_soon';
+    final isUploading  = statusOverride == 'uploading';
     final hasOverride  = isComingSoon || isUploading;
     final accent = isUploading
         ? const Color(0xFF3B82F6)
