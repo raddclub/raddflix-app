@@ -153,6 +153,9 @@ class DebugLogger {
           ? _memBuffer.join('\n')
           : _memBuffer.sublist(_memBuffer.length - n).join('\n');
 
+  /// Clears the in-memory log buffer (does not delete the log file).
+  static void clearBuffer() => _memBuffer.clear();
+
   static Future<void> shareLogs() async {
     try {
       final path = _logFile?.path;
