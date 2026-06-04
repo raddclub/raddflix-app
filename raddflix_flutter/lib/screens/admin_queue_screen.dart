@@ -91,7 +91,7 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
 
   String _relativeTime(dynamic ts) {
     if (ts == null) return '';
-    final t  = DateTime.fromMillisecondsSinceEpoch((ts as int) * 1000);
+    final t  = DateTime.fromMillisecondsSinceEpoch(((ts as num?) ?? 0).toInt() * 1000);
     final d  = DateTime.now().difference(t);
     if (d.inSeconds < 60) return '${d.inSeconds}s ago';
     if (d.inMinutes < 60) return '${d.inMinutes}m ago';
