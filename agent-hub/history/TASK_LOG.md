@@ -542,3 +542,61 @@ Sort -> rank/rating/year/title ORDER BY
 - Oracle pulled successfully (fast-forward to a7b4bb4)
 - Cast feature now works out of the box with zero configuration
 - OMDb key can optionally be added at build time for slightly richer cast lists
+
+
+## Session 2026-06-04 — Wire all DB-possible features (stats, home rows, quality badge, cast fix)
+
+### What was done
+Implemented every feature derivable from the existing SQLite schema that was not yet wired
+into the UI. Six files changed in one atomic commit (6c0e1ee).
+
+### Features added
+
+#### 1. Profile → My Stats card (new)
+- Source: `watch_positions`, `downloads`, `episodes`→`titles` JOIN
+- Shows: Watch Time (h/m), Completed (count), Downloads (count + size), Top Genre
+- `LocalDb.getWatchStats()` — single-call aggregate using COALESCE/JOIN
+- `_StatsCard` widget with 2×2 grid of `_StatTile` cells + shimmer while loading
+- Renders at top of Profile screen, before "My Content" section
+
+#### 2. Home screen — 4 new content rows
+| Row | Source column | DB method |
+|-----|--------------|-----------|
+| New Episodes | `show_ep_seen` vs live episode count | existing `getNewEpisodeCounts()` |
+| Free to Watch | `titles.is_free = 1` | new `getFreeContent()` |
+| Ongoing Shows | `titles.is_ongoing = 1 OR status = 'ongoing'` | new `getOngoingShows()` |
+| New Arrivals | `titles.db_version DESC` | new `getNewlyAdded()` |
+
+Each row is conditional (hidden when empty), animated fadeIn, has a distinct icon.
+Three new lists added to `CatalogState` (`freeContent`, `ongoingShows`, `newlyAdded`).
+`_loadFromDb()` now calls the three new LocalDb methods concurrently with existing loads.
+
+#### 3. Episode quality badge (new)
+- Source: `episodes.quality` column (existed but was never shown)
+- Displayed as a small "HD" / "4K" / "FHD" badge on episode tiles in ShowDetailScreen
+- Only shown when quality is non-null and the episode is not "NOW PLAYING" or "OFFLINE"
+- Style: dark background, `AppColors.info` border, uppercase 8px text
+
+#### 4. Cast rail — hasKey gate removed (critical bug fix)
+- After the TMDB→IMDB migration, `ActorService.hasKey` no longer existed
+- `cast_rail.dart` referenced it → would have caused a compile error and hidden cast for all users
+- Fixed: removed the `if (!ActorService.hasKey) return SizedBox.shrink()` guard entirely
+- Cast now always attempts to load; returns empty gracefully when unavailable
+
+### New LocalDb methods
+- `getFreeContent({int limit})` — is_free = 1, ordered by rating DESC
+- `getOngoingShows({int limit})` — is_ongoing = 1 OR status = 'ongoing', shows only
+- `getNewlyAdded({int limit})` — ORDER BY db_version DESC, id DESC
+- `getWatchStats()` — aggregate: SUM(position_ms), completed ≥ 95%, downloads count/bytes, top genre
+
+### Files changed
+- `raddflix_flutter/lib/widgets/cast_rail.dart`
+- `raddflix_flutter/lib/core/db/local_db.dart`
+- `raddflix_flutter/lib/providers/catalog_provider.dart`
+- `raddflix_flutter/lib/screens/home_screen.dart`
+- `raddflix_flutter/lib/screens/profile_screen.dart`
+- `raddflix_flutter/lib/screens/show_detail_screen.dart`
+
+### Commits
+- `6c0e1ee` — feat: wire all DB-possible features
+- follow-up: fix titleIcon rendering in _ContentSection

@@ -583,6 +583,10 @@ class _ContentSection extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
+          if (titleIcon != null) ...[
+            Icon(titleIcon!, color: AppColors.primary, size: 17),
+            const SizedBox(width: 6),
+          ],
           Text(title, style: TextStyle(color: t.textPrimary,
               fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
           if (count != null) ...[
