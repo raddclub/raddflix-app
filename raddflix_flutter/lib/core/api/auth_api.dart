@@ -140,10 +140,11 @@ class LoginResult {
   });
 
   factory LoginResult.fromJson(Map<String, dynamic> json) {
-    final user = json['user'] as Map<String, dynamic>? ?? {};
+    final rawUser = json['user'];
+    final user = rawUser is Map<String, dynamic> ? rawUser : <String, dynamic>{};
     return LoginResult(
-      accessToken: json['access_token'] as String,
-      refreshToken: json['refresh_token'] as String,
+      accessToken: (json['access_token'] ?? '') as String,
+      refreshToken: (json['refresh_token'] ?? '') as String,
       userId: json['user_id'] as int? ?? user['id'] as int? ?? 0,
       phone: json['phone'] as String? ?? user['phone'] as String? ?? '',
     );
