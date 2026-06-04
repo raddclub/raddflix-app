@@ -1725,47 +1725,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final _routeArgs = ModalRoute.of(context)?.settings.arguments as Map?;
     final _inlineShareUrl = _routeArgs?['stream_url'] as String?;
 
-    // Step 1: Get share_url + filename from local DB (fast, works offline on Jazz SIM)
     String? shareUrl;
-    String? targetFilename;
-    if (fileId.isNotEmpty) {
-      final shareInfo = await LocalDb.getShareInfo(fileId);
-      shareUrl      = shareInfo['share_url'];
-      targetFilename = shareInfo['filename'];
-    }
-
-    // Step 2: If not in local DB, try inline shareUrl passed from detail screen.
-    // AUDIT-17: CatalogItem.shareUrl (set by _rowToItem) stores the RF1:xxx
-    // scrambled value from SQLite.  Decode it before handing to JazzDrive.
-    if (shareUrl == null || shareUrl.isEmpty) {
-      if (_inlineShareUrl != null && _inlineShareUrl.isNotEmpty) {
-        // Caller passed shareUrl directly (handles movies without file_id in catalog)
-        shareUrl = await LocalDb.decodeShareUrl(_inlineShareUrl);
-        DebugLogger.log('PLAYER', 'Using inline share_url for ${fileId.isEmpty ? "direct-share" : fileId}');
+    try {
+      // Step 1: Get share_url + filename from local DB (fast, works offline on Jazz SIM)
+      String? targetFilename;
+      if (fileId.isNotEmpty) {
+        final shareInfo = await LocalDb.getShareInfo(fileId);
+        shareUrl      = shareInfo['share_url'];
+        targetFilename = shareInfo['filename'];
       }
-    }
 
-    // Step 3: Generate direct CDN stream URL via JazzDrive (zero-rated on Jazz SIM).
-    // The share_url is a permanent JazzDrive share — it never expires.
-    // Only the final CDN URL expires (3h cache). Calling JazzDrive again with the
-    // same share_url always gives a fresh CDN link. No Oracle needed here.
-    if (shareUrl != null && shareUrl.isNotEmpty) {
-      final cacheKey = fileId.isNotEmpty ? fileId : 'share_${shareUrl.hashCode}';
-      try {
+      // Step 2: If not in local DB, use inline shareUrl passed from detail screen.
+      // AUDIT-17: CatalogItem.shareUrl (set by _rowToItem) stores the RF1:xxx
+      // scrambled value from SQLite.  Decode it before handing to JazzDrive.
+      if (shareUrl == null || shareUrl.isEmpty) {
+        if (_inlineShareUrl != null && _inlineShareUrl.isNotEmpty) {
+          shareUrl = await LocalDb.decodeShareUrl(_inlineShareUrl);
+          DebugLogger.log('PLAYER', 'Using inline share_url for ${fileId.isEmpty ? "direct-share" : fileId}');
+        }
+      }
+
+      // Step 3: Generate direct CDN stream URL via JazzDrive (zero-rated on Jazz SIM).
+      // The share_url is a permanent JazzDrive share — it never expires.
+      // Only the final CDN URL expires (3h cache). Calling JazzDrive again with the
+      // same share_url always gives a fresh CDN link. No Oracle needed here.
+      if (shareUrl != null && shareUrl.isNotEmpty) {
+        final cacheKey = fileId.isNotEmpty ? fileId : 'share_${shareUrl.hashCode}';
         final link = await JazzDriveService.getStreamLink(cacheKey, shareUrl, targetFilename: targetFilename);
         _currentPlaybackUrl = link.streamUrl;
         await _player.open(Media(link.streamUrl));
         if (mounted) setState(() { _ended = false; _position = Duration.zero; _isLinkLoading = false; });
         return;
-      } catch (e) {
-        DebugLogger.logError('PLAYER', 'JazzDrive stream link failed for $cacheKey', e);
       }
+    } catch (e) {
+      DebugLogger.logError('PLAYER', 'Stream resolution failed for $fileId', e);
+    } finally {
+      // Always clear the loading spinner — even if an unexpected exception is thrown
+      if (mounted && _isLinkLoading) setState(() => _isLinkLoading = false);
     }
 
     // All methods failed — show user-friendly guidance
     if (mounted) {
       setState(() {
-        _isLinkLoading = false;
         _streamError = (shareUrl == null || shareUrl.isEmpty)
             ? 'No stream link found. Please sync your library in Settings → Sync.'
             : 'Could not connect to JazzDrive. Make sure you are on a Jazz SIM.';
