@@ -168,14 +168,19 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
       );
       return;
     }
+    // Prefer locally-downloaded file: plays offline, no JazzDrive needed.
+    final dlState = ref.read(downloadsProvider);
+    final localPath = (fileId != null && fileId.isNotEmpty)
+        ? dlState.getLocalPath(fileId)
+        : null;
     Navigator.pushNamed(
       context,
       AppRoutes.player,
       arguments: {
         'file_id': fileId ?? '',
         'title': widget.item.title,
-        'local_path': null,
-        'stream_url': shareUrl,
+        'local_path': localPath,
+        'stream_url': localPath != null ? null : shareUrl,
         'episodes': <Map<String, dynamic>>[],
         'episode_index': 0,
         'content_type': 'movie',
