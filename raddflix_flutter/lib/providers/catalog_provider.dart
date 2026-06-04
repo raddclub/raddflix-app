@@ -319,8 +319,10 @@ class CatalogNotifier extends StateNotifier<CatalogState>
       // instantly without manual re-login.
       _ref.read(authProvider.notifier).silentRefresh().ignore();
     } else {
+      // Even on sync failure, reload DB so any stale catalog from a previous session is shown.
+      // Without this, a temporary network failure shows a blank screen instead of cached content.
+      await _loadFromDb();
       state = state.copyWith(
-        status: CatalogStatus.ready,
         error: result.itemsSynced == 0 ? result.message : null,
       );
     }
