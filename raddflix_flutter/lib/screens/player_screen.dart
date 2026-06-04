@@ -1546,7 +1546,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _initPlayer() async {
     _player = Player();
-    _videoCtrl = VideoController(_player);
+    _videoCtrl = VideoController(_player, configuration: const VideoControllerConfiguration(androidAttachSurfaceAfterVideoParameters: false));
     await _openMedia(widget.fileId, localPath: widget.localPath);
     // Auto-load external subtitle (sidecar .srt/.ass/.vtt from local folder or "Open With" intent)
     final _extSubPath = widget.subtitlePath;
@@ -1751,6 +1751,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     }
 
+    // Step 2.5: shareUrl still missing but fileId known — try Oracle's direct play
+    // endpoint. Oracle holds its own JazzDrive session + stream-link cache, so it can
+    // serve a CDN URL even when the user-facing share tokens have expired.
+    if ((shareUrl == null || shareUrl.isEmpty) && fileId.isNotEmpty) {
+      try {
+        final directUrl = await CatalogApi.getDirectPlayUrl(fileId);
+        if (directUrl != null && directUrl.isNotEmpty) {
+          _currentPlaybackUrl = directUrl;
+          await _player.open(Media(directUrl));
+          if (mounted) setState(() { _ended = false; _position = Duration.zero; _isLinkLoading = false; });
+          return;
+        }
+      } catch (e) {
+        DebugLogger.logError('PLAYER', 'Oracle direct play (step 2.5) failed for $fileId', e);
+      }
+    }
+
     // Step 3: Generate direct CDN stream URL via JazzDrive (zero-rated on Jazz SIM)
     if (shareUrl != null && shareUrl.isNotEmpty) {
       final cacheKey = fileId.isNotEmpty ? fileId : 'share_\${shareUrl.hashCode}';
@@ -1762,20 +1779,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         return;
       } catch (e) {
         DebugLogger.logError('PLAYER', 'JazzDrive stream link failed for \$cacheKey', e);
-        // Step 3b: shareUrl may be stale/expired — force-refresh from Oracle and retry once
+        // Step 3b: JazzDrive share token expired — ask Oracle to generate a fresh
+        // CDN link using its own JazzDrive session (bypasses expired user share tokens).
         if (fileId.isNotEmpty) {
           try {
-            final freshUrl = await CatalogApi.getShareUrl(fileId);
-            if (freshUrl != null && freshUrl.isNotEmpty) {
-              await JazzDriveService.invalidate(fileId);
-              final link2 = await JazzDriveService.getStreamLink(fileId, freshUrl, targetFilename: targetFilename);
-              _currentPlaybackUrl = link2.streamUrl;
-              await _player.open(Media(link2.streamUrl));
+            final directUrl = await CatalogApi.getDirectPlayUrl(fileId);
+            if (directUrl != null && directUrl.isNotEmpty) {
+              _currentPlaybackUrl = directUrl;
+              await _player.open(Media(directUrl));
               if (mounted) setState(() { _ended = false; _position = Duration.zero; _isLinkLoading = false; });
               return;
             }
           } catch (e2) {
-            DebugLogger.logError('PLAYER', 'Oracle+JazzDrive retry failed for \$fileId', e2);
+            DebugLogger.logError('PLAYER', 'Oracle direct play (step 3b) failed for \$fileId', e2);
           }
         }
       }

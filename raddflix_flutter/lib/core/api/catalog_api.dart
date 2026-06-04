@@ -99,6 +99,23 @@ class CatalogApi {
   }
 }
 
+  /// Get a direct CDN streaming URL from Oracle, bypassing JazzDrive on the client.
+  /// Oracle uses its own JazzDrive session and maintains a stream-link cache.
+  /// Called when JazzDrive fails (expired share tokens) or when no shareUrl exists.
+  /// Returns null if Oracle is unreachable, file not found, or not authenticated.
+  static Future<String?> getDirectPlayUrl(String fileId) async {
+    try {
+      final response = await _client.get(ApiPaths.directPlayUrl(fileId));
+      final data = response.data as Map<String, dynamic>;
+      if (data['ok'] == true) {
+        return data['direct_url'] as String?;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
 class CatalogVersion {
   final int version;
   final int count;

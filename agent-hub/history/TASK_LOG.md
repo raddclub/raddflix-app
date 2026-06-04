@@ -66,3 +66,36 @@
 ### State at end of session
 - Bug list complete, no fixes applied yet
 - All bugs documented in handoff notes
+
+---
+
+## Session 2026-06-04 (second session)
+
+**Agent:** Replit Agent (main branch)
+**Objective:** Fix three major bugs in new APK — movies unplayable, episodes "link expired", black screen after 2-5s
+
+### Root causes diagnosed
+
+- **Bug 1 (movies no play):** `_playMovie()` correctly shows "Video not available yet" for movies with no file in Oracle `files` table (data gap, not code bug). For movies WITH files, failure falls through to Bug 2 path.
+- **Bug 2 (stream link expired):** JazzDrive share tokens in Oracle `files.share_url` expired. All `stream_links` in Oracle DB expired 2 days ago (8h TTL, generated June 2). Flutter was calling JazzDrive API directly with these expired tokens → 401 Unauthorized → "Stream link expired" snackbar.
+- **Bug 3 (black screen 2-5s):** `VideoController(_player)` created with no config, defaulting to `androidAttachSurfaceAfterVideoParameters: true` — causes surface detach/reattach cycle → blank screen on Android.
+
+### Fixes applied
+
+- **Bug 2 → Step 3b replacement** (`player_screen.dart`): Old code retried JazzDrive with a fresh `share_url` from Oracle (which was also expired). New code calls Oracle's `/api/catalog/play?file_id=<id>` endpoint instead — Oracle has its own JazzDrive session and generates a fresh CDN URL server-side.
+- **Bug 1 → Step 2.5 added** (`player_screen.dart`): If shareUrl is null after local DB + inline + Oracle `share_url` checks, now tries Oracle direct play endpoint. Handles movies where `share_url` is missing but Oracle can generate a CDN link.
+- **Bug 3** (`player_screen.dart`): `VideoController(_player, configuration: const VideoControllerConfiguration(androidAttachSurfaceAfterVideoParameters: false))` — prevents surface detach causing black screen.
+- **`catalog_api.dart`**: Added `CatalogApi.getDirectPlayUrl(fileId)` — calls `/api/catalog/play?file_id=$id`, returns `direct_url` from Oracle response.
+- **`constants.dart`**: Added `ApiPaths.directPlayUrl(fileId)` → `/api/catalog/play?file_id=$fileId`.
+
+### Files changed
+- `raddflix_flutter/lib/screens/player_screen.dart`
+- `raddflix_flutter/lib/core/api/catalog_api.dart`
+- `raddflix_flutter/lib/core/constants.dart`
+
+### Architecture note
+Oracle's `/api/catalog/play` endpoint (added in a previous session, BUG-A35) generates CDN stream links via Oracle's own JazzDrive admin credentials. This is the correct architecture: Oracle holds JazzDrive credentials centrally, Flutter app just fetches CDN URLs from Oracle. No JazzDrive API calls from the client needed.
+
+### State at end of session
+- All three critical bugs fixed in code; APK rebuild required
+- If Oracle's JazzDrive session is also invalid, the user must refresh JazzDrive account credentials on Oracle (re-login to JazzDrive admin panel)
