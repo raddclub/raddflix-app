@@ -321,6 +321,7 @@ class JazzDriveService {
     if (records.isEmpty) {
       throw Exception('JazzDrive: no video records found in share');
     }
+    DebugLogger.log('JAZZDRIVE', 'Records (${records.length}): ${records.map((r) { final m = r as Map<String,dynamic>; return (m["name"] ?? m["filename"] ?? "?") as String; }).toList()}');
 
     // 3-pass filename match so folder-shares (e.g. Off Campus) pick the right episode.
     // Falls back to records.first for single-file shares.
@@ -346,7 +347,10 @@ class JazzDriveService {
       if (rec == null) {
         final em = RegExp(r's(\d{1,2})e(\d{1,2})', caseSensitive: false).firstMatch(tgt);
         if (em != null) {
-          final code = 's\${em.group(1)!.padLeft(2, "0")}e\${em.group(2)!.padLeft(2, "0")}';
+          final s = em.group(1)!.padLeft(2, '0');
+          final e = em.group(2)!.padLeft(2, '0');
+          final code = 's' + s + 'e' + e;
+          DebugLogger.log('JAZZDRIVE', 'Pass3 code: $code');
           for (final r in records) {
             if (_rname(r).toLowerCase().contains(code)) { rec = r as Map<String, dynamic>; break; }
           }
