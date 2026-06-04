@@ -2,12 +2,13 @@
 
 Complete A-to-Z tests for every API, user flow, and logic path in the RaddFlix app.
 
-## Two Files — Two Purposes
+## Three Files — Three Purposes
 
 | File | What it tests | How to run |
 |---|---|---|
 | `run_tests.js` | Every server API, JazzDrive zero-rating, user scenarios | `node test_suite/run_tests.js` |
 | `logic_tests.dart` | All business logic (no device needed) | `dart run test_suite/logic_tests.dart` |
+| `jazzdrive_logic_test.js` | JazzDrive URL parsing, 3-pass match, stream/poster URLs | `node test_suite/jazzdrive_logic_test.js` |
 
 ---
 
@@ -59,6 +60,39 @@ No packages. Pure `dart:core` only — runs anywhere Dart is installed.
 
 ---
 
+---
+
+## `jazzdrive_logic_test.js` — 27 Tests (Node.js, no Jazz SIM needed)
+
+Tests every JazzDrive logic function that mirrors the Dart `jazzdrive_service.dart` implementation.
+No packages required — pure Node.js built-ins only.
+
+| Section | What is tested | Count |
+|---|---|---|
+| URL parsing | `_extractShareKey` — all valid formats, malformed inputs | 7 |
+| 3-pass filename match | Pass1 substring, Pass2 normalised, Pass3 episode code, fallbacks | 6 |
+| `_buildStreamUrl` | Relative URL prefix, filename param, double-param guard, absolute URL | 5 |
+| `_buildPosterUrl` | Relative prefix, absolute unchanged, null/empty -> null | 4 |
+| `_getMedia` response shapes | All 5 JazzDrive API response shapes (data.list, data[], root.videos, etc.) | 5 |
+
+### Run (logic only — works anywhere)
+```bash
+node raddflix_flutter/test_suite/jazzdrive_logic_test.js
+```
+
+### Run (full network test — Jazz SIM device required)
+```bash
+node raddflix_flutter/test_suite/jazzdrive_logic_test.js --live \
+  "https://cloud.jazzdrive.com.pk/share/f/yourShareKey..." \
+  "All Of Us Are Dead S01E01.mkv"
+```
+
+**MED-1011 note:** Share key validation returns MED-1011 from non-Jazz IPs.
+Full live test requires a Jazz SIM connection.
+
+---
+
+## Key things verified
 ## Key things verified
 
 - **JazzDrive CRITICAL rule**: `validationkey` must NEVER appear in the final stream URL — checked in both test files
