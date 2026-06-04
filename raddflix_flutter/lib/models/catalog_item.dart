@@ -35,6 +35,9 @@ class CatalogItem {
   /// Number of episodes added since user last viewed this show.
   /// null = not computed. 0 = nothing new. >0 = badge shown.
   final int? newEpisodeCount;
+  /// Total episode count from Oracle catalog (may exceed locally-available count).
+  /// Used to show "Coming Soon" banner when episodes haven't been uploaded yet.
+  final int? episodeCount;
 
   const CatalogItem({
     required this.id,
@@ -58,6 +61,7 @@ class CatalogItem {
     this.status,
     this.isOngoing,
     this.newEpisodeCount,
+    this.episodeCount,
   });
 
   bool get isMovie      => mediaType == 'movie';
@@ -102,6 +106,7 @@ class CatalogItem {
       isUploading: json['is_uploading'] as bool?,
       status:      json['status'] as String?,
       isOngoing:   (json['is_ongoing'] == 1 || json['is_ongoing'] == true || json['status'] == 'ongoing'),
+      episodeCount: json['episode_count'] as int?,
     );
   }
 
@@ -138,5 +143,6 @@ class CatalogItem {
     status: status,
     isOngoing: isOngoing,
     newEpisodeCount: newEpisodeCount,
+    episodeCount: episodeCount,
   );
 }
