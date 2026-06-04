@@ -1,48 +1,80 @@
-# RaddFlix — Pakistan ka Entertainment, Data-Free
+# RaddFlix
 
-**RaddFlix** is a Pakistani streaming platform built for Jazz SIM users. Content is streamed via JazzDrive CDN (`cloud.jazzdrive.com.pk`) which Jazz zero-rates at the network level — no data bundle needed.
+Pakistan ka entertainment, data-free — a Flutter streaming app zero-rated on Jazz SIM.
 
-## What's in this repo
+## Stack
 
-| Folder | What it is |
-|--------|-----------|
-| `radd-hub/` | Flask admin panel — content management, user management, subscriptions, analytics |
-| `raddflix_flutter/` | Flutter mobile app — the user-facing Android streaming app |
-| `agent-hub/` | Core architecture & feature specs (streaming, player, security, zero-rating) |
-| `scripts/` | Post-merge and workspace utility scripts |
+- Flutter 3.x · Dart 3 · Riverpod (state management)
+- SQLite encrypted via SQLCipher (sqflite_sqlcipher **3.1.0+1** — pinned, never upgrade)
+- media_kit ^1.1.10 + media_kit_video ^1.2.4 for video playback
+- Dio for HTTP · flutter_secure_storage (Android Keystore) for tokens
+- Oracle server: Flask + XOR WSGI middleware at `http://92.4.95.252`
 
-## Live Infrastructure
+## Architecture
 
-| Component | Details |
-|-----------|---------|
-| Oracle Ubuntu Server | `ubuntu@92.4.95.252` |
-| Radd Hub (admin + API) | nginx port 80 → Flask port 5000 |
-| Supervisor service | `raddflix_radd` |
-| GitHub repo | `raddclub/raddflix-app` (main branch) |
-| CI / APK build | GitHub Actions → `.github/workflows/build-apk.yml` |
+### XOR Encoding
+Every `/api/*` request adds `X-Encoded:1` + `X-Device-Id` headers.  
+The server XOR-encodes all responses and sets `Content-Type: application/octet-stream`.  
+Key = SHA-256(`raddflix_xor_v1:deviceId:UTCday:UTCgour`)[:32].  
+**Critical**: server strips base64 padding (`rstrip(b"=")`). Client must re-add before decoding.  
+Auth paths (`/api/auth/login`, `/register`, `/refresh`, `/guest`) are excluded from XOR.
 
-## Key scripts
+### Authentication & Session Persistence
+- Tokens stored in Android Keystore via `flutter_secure_storage` (encrypted)
+- Access token: 7-day JWT · Refresh token: 90-day JWT (auto-refreshed transparently)
+- `checkAuth()` restores session instantly from `SharedPreferences` cache (offline-safe)
+- User plan/phone cached in SharedPrefs; only updated after successful `AuthApi.getMe()`
+
+### Local Database
+- SQLCipher-encrypted SQLite, key generated once on install (never leaves the device)
+- Tables: `titles`, `episodes`, `sync_meta`, `watch_positions`, `downloads`, `stream_cache`, `usage_log`, `quota_cache`, `show_ep_seen`
+- DB version: 17 (schema in `LocalDb._createAll()`, migrations in `LocalDb._migrate()`)
+- Catalog sync: every 6 hours or on app resume
+
+### Content Delivery
+- Video files hosted on JazzDrive (zero-rated CDN for Jazz users)
+- Stream links generated on-demand via Oracle, cached 180 min in `stream_cache`
+- Poster images served from JazzDrive `poster_share_url` (permanent, zero-rated)
+
+## Bugs Fixed
+
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| Catalog always empty | XOR decode: server strips base64 `=` padding; Dart `base64Url.decode` throws without it | Re-add padding before decode in `RequestEncoder.decode()` |
+| Login always shows "Login failed" | `AuthApi.getMe()` after login used XOR — same padding bug — threw TypeError | Same padding fix |
+| Premium shows as free | `_saveUserCache()` never ran because `getMe()` always threw | Same padding fix |
+| App requires login every restart | `checkAuth()` had no cached user (never written) — fell through to unauthenticated | Same padding fix |
+| Plans screen empty | `/api/subscription/plans` is XOR-encoded — same bug | Same padding fix |
+| Player black screen 3-5s | `androidAttachSurfaceAfterVideoParameters:true` causes surface re-attach failure on Android | Removed from `VideoController` config |
+
+**All 5 catalog/auth/plans bugs had one root cause: 2 missing `=` padding characters.**
+
+## Build & Run
 
 ```bash
-bash push_to_github.sh          # commit & push to GitHub
-bash push_to_oracle.sh          # git pull + restart on Oracle
+# Debug APK (includes diagnostic screen — shows internal stats)
+flutter build apk --debug
+
+# Release APK (diagnostic screen stripped completely — for public)
+flutter build apk --release --obfuscate --split-debug-info=build/debug-info
 ```
 
-## Agent quick-start
+## Security
 
-1. Add secrets: `GITHUB_TOKEN` and `ORACLE_SSH_KEY`
-2. Restore SSH key and verify Oracle:
-   ```bash
-   node -e "const raw=process.env.ORACLE_SSH_KEY;const m=raw.match(/(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)/s);if(m)require('fs').writeFileSync('/tmp/oracle_key',m[1].trim()+'\n'+m[2].trim().replace(/ /g,'\n')+'\n'+m[3].trim()+'\n',{mode:0o600})"
-   ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 "curl -s http://localhost:5000/api/app/version"
-   ```
-3. Read architecture: `agent-hub/STREAMING_ARCHITECTURE.md`
-4. Read product context: `agent-hub/PRODUCT_CONTEXT.md`
+- Tamper detection: Frida port 27042 check active; signature check placeholder (disabled)
+- XOR encoding over HTTPS adds obfuscation layer for API traffic
+- Debug diagnostic screen is gated behind `kDebugMode` — physically absent from release APK
+- DB key tied to device install — uninstalling makes encrypted DB unreadable
 
-## Architecture (one-liner)
+## Where Things Live
 
-```
-Phone → Oracle (auth/catalog/subs) + JazzDrive CDN (video, zero-rated)
-```
-
-Oracle never proxies video. JazzDrive API calls go phone→CDN directly (zero-rated).
+| Purpose | File |
+|---------|------|
+| XOR encode/decode | `lib/core/security/request_encoder.dart` |
+| HTTP client + interceptors | `lib/core/api/api_client.dart` |
+| Auth state + session restore | `lib/providers/auth_provider.dart` |
+| DB schema + CRUD | `lib/core/db/local_db.dart` |
+| Catalog sync | `lib/core/db/sync_service.dart` |
+| Video player | `lib/screens/player_screen.dart` |
+| Subscription plans screen | `lib/screens/subscription_screen.dart` |
+| Debug diagnostics (debug only) | `lib/screens/debug_diagnostics_screen.dart` |
