@@ -175,3 +175,78 @@ Wrapped Steps 1–3 in `_openMedia` with `try/catch/finally`:
 ### State at end of session
 - All playback changes confirmed on GitHub main and Oracle
 - APK build in progress on GitHub Actions
+
+---
+## Session: 2026-06-04 (continued) — Bug fixes, UI features, JazzDrive repair
+
+**Agent:** Replit Agent (main branch)
+
+### Bug fixes committed (6808fc1)
+
+**BUG #3 FIXED — Black flash before first video frame** (`player_screen.dart`)
+  Root cause: Video widget was visible at opacity 1.0 before the first frame decoded,
+  causing a brief black flash on every local video open.
+  Fix: Wrapped Video widget in `AnimatedOpacity` starting at 0.0, fades to 1.0 at
+  400ms once `_playing` becomes true. Invisible while buffering, smooth fade-in on play.
+
+**BUG #4 FIXED — planExpired redirect fires during local file playback** (`player_screen.dart`)
+  Root cause: `_checkQuota()` called `sub_expires_at` checks for ALL playback paths,
+  including local folder files where `widget.fileId` is an empty string.
+  A stale quota cache entry fired `pushReplacementNamed(planExpired)` 1–3 seconds in,
+  killing the player mid-playback for local files.
+  Fix: Added guard `&& widget.fileId.isNotEmpty` — local files bypass quota entirely.
+
+### UI Features added
+
+**Episode gap placeholders** (`show_detail_screen.dart`, commit b412d47)
+  Added `_currentEpisodesWithGaps` getter: compares consecutive episode numbers and
+  inserts `_EpisodeGap` sentinel objects for missing entries (e.g. if E03–E05 are absent
+  from DB while E02 and E06 exist). Renders as greyed-out `_EpisodeUnavailableTile`
+  so users see the full season structure with "Not available" placeholders.
+
+**CatalogItem.episodeCount field** (`catalog_item.dart`, commit a96f134)
+  Added `final int? episodeCount` parsed from Oracle's `episode_count` column.
+  Used by the Coming Soon banner to show accurate episode count ("has 12 episodes").
+
+**Coming Soon banner** (`show_detail_screen.dart`, commit 0a52945)
+  Replaced plain "No episodes in Season N" empty state with branded `_ComingSoonBanner`:
+  gradient card, `upcoming_rounded` icon, message adapts:
+  - If `episodeCount` known: "Season 1 has 12 episodes — uploading now. Check back soon!"
+  - Generic fallback: "Episodes for Season 1 are on their way."
+
+### JazzDrive repair
+
+**JazzDrive Pass3 interpolation bug FIXED** (`jazzdrive_service.dart`, commit 778b33e)
+  Root cause: In Dart non-raw strings, `\$` is an escaped literal dollar sign, NOT
+  string interpolation. Pass 3 of the 3-pass filename match was building the literal
+  string `s${em.group(1)!.padLeft(2,"0")}e...` instead of e.g. `s01e04`.
+  This silently killed all folder-share episode matching — Pass 3 always returned null,
+  fell back to `records[0]` (first file in share), so every episode played the same file.
+  Fix: Replaced interpolation with explicit concatenation `'s' + s + 'e' + e`.
+  Also added `DebugLogger.log` output of all record names and the computed code for
+  live Jazz SIM debugging.
+
+  Root of root cause: The bug was introduced when a Node.js script generated Dart source
+  code and escaped `$` to prevent shell variable substitution. The escape survived into
+  the committed Dart file. Rule: always use concatenation in generated Dart strings.
+
+**JazzDrive test suite** (`test_suite/jazzdrive_logic_test.js`, commit 527f0b7)
+  New 27-test Node.js suite — runs anywhere without Jazz SIM, no packages needed.
+  Covers: URL parsing (7), 3-pass match incl. Pass3 (6), stream URL building (5),
+  poster URL building (4), response shape parsing (5).
+  Run: `node raddflix_flutter/test_suite/jazzdrive_logic_test.js`
+  Full network test (Jazz SIM device): add `--live <shareUrl> [targetFilename]`
+
+### Files changed
+- `raddflix_flutter/lib/screens/player_screen.dart` — BUG #3 (AnimatedOpacity), BUG #4 (fileId guard)
+- `raddflix_flutter/lib/screens/show_detail_screen.dart` — gap placeholders, Coming Soon banner
+- `raddflix_flutter/lib/models/catalog_item.dart` — episodeCount field
+- `raddflix_flutter/lib/core/services/jazzdrive_service.dart` — Pass3 fix + DebugLogger
+- `raddflix_flutter/test_suite/jazzdrive_logic_test.js` — new: 27-test JazzDrive logic suite
+
+### State at end of session
+- All bugs fixed and committed to GitHub main
+- APK rebuild triggered via GitHub Actions build-apk.yml
+- .agents/memory/ updated with JazzDrive Pass3 lesson (topic file: jazzdrive-pass3-bug.md)
+- Known open data gap: BUG #2 — All Of Us Are Dead E03/E04/E05/E09 not in Oracle DB
+  (need to upload those episodes to JazzDrive and sync)
