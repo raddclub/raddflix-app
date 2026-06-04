@@ -438,7 +438,9 @@ class LocalDb {
   /// SQLite 3.24+ and crashes Android 8 (BUG-A04).
   static Future<void> mergeDeltaTitle(Map<String, dynamic> row) async {
     final db = await instance;
-    final id = row['id'] as int?;
+    // Safe int parse: server may send id as String or int depending on JSON encoder
+    final rawId = row['id'];
+    final id = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
     if (id == null) return;
     final title          = row['title']            as String? ?? '';
     final year           = row['year'];
