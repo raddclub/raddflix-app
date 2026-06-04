@@ -106,6 +106,28 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   List<Map<String, dynamic>> get _currentEpisodes =>
       _episodes.where((e) => (e['season'] as int? ?? 1) == _selectedSeason).toList();
 
+  List<Map<String, dynamic>> get _currentEpisodesWithGaps {
+    final eps = _currentEpisodes;
+    if (eps.isEmpty) return eps;
+    final result = <Map<String, dynamic>>[];
+    for (int i = 0; i < eps.length; i++) {
+      if (i > 0) {
+        final prevNum = eps[i - 1]['episode'] as int? ?? 0;
+        final thisNum = eps[i]['episode'] as int? ?? 0;
+        for (int g = prevNum + 1; g < thisNum; g++) {
+          result.add({
+            '_placeholder': true,
+            'episode': g,
+            'season': eps[i]['season'] ?? _selectedSeason,
+            'label': 'S${_selectedSeason.toString().padLeft(2, '0')}E${g.toString().padLeft(2, '0')}',
+          });
+        }
+      }
+      result.add({...eps[i], '_realIndex': i});
+    }
+    return result;
+  }
+
   Future<void> _playEpisode(int episodeIndex) async {
     final allEps = _currentEpisodes;
     if (episodeIndex >= allEps.length) return;
@@ -643,26 +665,32 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                     : SliverList(
                         delegate: SliverChildBuilderDelegate(
                           (_, i) {
-                            final ep = _currentEpisodes[i];
-                            final fileId = ep['file_id']?.toString() ?? '';
-                            final progress = _watchProgress[fileId] ?? 0.0;
+                            final withGaps = _currentEpisodesWithGaps;
+                            final ep = withGaps[i];
                             final epNum = ep['episode'] as int? ?? (i + 1);
                             final season = ep['season'] as int? ?? _selectedSeason;
                             final label = ep['label'] as String? ??
                                 'S${season.toString().padLeft(2, '0')}E${epNum.toString().padLeft(2, '0')}';
+                            if (ep['_placeholder'] == true) {
+                              return _EpisodeUnavailableTile(label: label)
+                                  .animate()
+                                  .fadeIn(delay: Duration(milliseconds: 50 + i * 40));
+                            }
+                            final realIdx = ep['_realIndex'] as int;
+                            final fileId = ep['file_id']?.toString() ?? '';
+                            final progress = _watchProgress[fileId] ?? 0.0;
                             final isFree = (ep['is_free'] as int? ?? 0) == 1;
-
                             final epShareUrl = ep['share_url'] as String? ?? '';
                             final dlState = ref.watch(downloadsProvider);
                             final isDownloading = dlState.isDownloading(fileId);
                             final isDownloaded  = dlState.isDownloaded(fileId);
                             return _EpisodeTile(
-                              index: i,
+                              index: realIdx,
                               label: label,
                               isFree: isFree,
                               progress: progress,
-                              isNowPlaying: i == _nowPlayingIdx,
-                              onTap: () => _playEpisode(i),
+                              isNowPlaying: realIdx == _nowPlayingIdx,
+                              onTap: () => _playEpisode(realIdx),
                               isDownloading: isDownloading,
                               isDownloaded: isDownloaded,
                               onDownload: fileId.isEmpty || isDownloaded ? null : () async {
@@ -686,7 +714,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                               delay: Duration(milliseconds: 50 + i * 40),
                             );
                           },
-                          childCount: _currentEpisodes.length,
+                          childCount: _currentEpisodesWithGaps.length,
                         ),
                       ),
 
@@ -952,6 +980,73 @@ class _EpisodeShimmer extends StatelessWidget {
           decoration: BoxDecoration(
             color: t.surface,
             borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Unavailable episode placeholder ──────────────────────────────────────────
+class _EpisodeUnavailableTile extends StatelessWidget {
+  final String label;
+  const _EpisodeUnavailableTile({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Opacity(
+        opacity: 0.38,
+        child: Container(
+          height: 68,
+          decoration: BoxDecoration(
+            color: t.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: t.border),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(
+                    color: t.border,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(
+                    child: Icon(Icons.block_rounded,
+                        color: t.textSecondary, size: 18),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: t.textPrimary,
+                          fontWeight: FontWeight.w600, fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Not available',
+                        style: TextStyle(color: t.textSecondary, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.cloud_off_rounded,
+                    color: t.textSecondary, size: 18),
+                const SizedBox(width: 4),
+              ],
+            ),
           ),
         ),
       ),
