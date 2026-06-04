@@ -415,3 +415,54 @@ Wrapped Steps 1–3 in `_openMedia` with `try/catch/finally`:
 
 ### APK build
 - Build triggered after commit d39af21
+
+---
+
+## Session 2026-06-04 — Full codebase bug audit (5 bugs fixed)
+
+**Agent:** Replit Agent (main branch)
+**Objective:** Full line-by-line audit of all Flutter source files — find and fix all bugs
+
+### Files audited
+- `core/security/request_encoder.dart`
+- `core/api/api_client.dart`
+- `core/api/auth_api.dart`
+- `core/api/catalog_api.dart`
+- `core/db/local_db.dart`
+- `core/db/sync_service.dart`
+- `core/services/jazzdrive_service.dart`
+- `core/constants.dart`
+- `models/catalog_item.dart`
+- `providers/auth_provider.dart`
+- `providers/catalog_provider.dart`
+- `providers/subscription_provider.dart`
+- `providers/watchlist_provider.dart`
+- `screens/player_screen.dart`
+- `screens/show_detail_screen.dart`
+
+### Bugs found and fixed
+
+| ID | Severity | File | Description |
+|----|----------|------|-------------|
+| BUG-N01 | 🔴 High | `core/constants.dart` | `ApiPaths.fileShareUrl` used `\$fileId` (literal `$`) — Oracle always received `file_id=$fileId` instead of real value. `CatalogApi.getShareUrl()` calls this in production — share URL lookup always returned null. Fixed: changed to `${fileId}` |
+| BUG-N02 | 🔴 High | `core/db/local_db.dart` | `mergeDeltaTitle` INSERT branch missing `file_id` — fresh JazzDrive delta installs had no `file_id` in DB → movies unplayable. Fixed: added `if (fileId.isNotEmpty) 'file_id': fileId` |
+| BUG-N03 | 🟡 Medium | `models/catalog_item.dart` | `CatalogItem.copyWith()` silently dropped `episodeCount` field — Coming Soon banner lost episode count whenever badge was applied. Fixed: added `episodeCount: episodeCount` |
+| BUG-N04 | 🟡 Medium | `screens/player_screen.dart` | `_VideoDisplaySheet` Loop button had `onTap: (_) {}` (no-op) — toggle showed active state but did nothing. Fixed: added `onLoop` callback parameter and wired to AB panel (consistent with `loopActive: _abLoop.isActive` state) |
+| BUG-N05 | 🟡 Medium | `core/api/auth_api.dart` | `getMe()` used unsafe `response.data as Map<String, dynamic>` — throws `TypeError` if XOR decode produces String. Fixed: added type guard with `jsonDecode` fallback |
+
+### Files changed
+- `raddflix_flutter/lib/core/constants.dart` — commit `2dfbf37`
+- `raddflix_flutter/lib/core/db/local_db.dart` — commit `2dfbf37`
+- `raddflix_flutter/lib/models/catalog_item.dart` — commit `2dfbf37`
+- `raddflix_flutter/lib/screens/player_screen.dart` — commit `2dfbf37`
+- `raddflix_flutter/lib/core/api/auth_api.dart` — commit `2dfbf37`
+
+### APK build
+- Build #990 triggered after commit 2dfbf37 — in progress
+
+### State at end of session
+- All 5 bugs fixed in one atomic commit (2dfbf37)
+- Oracle pulled successfully (5 files changed)
+- No Python files changed — Flask restart not needed
+- BUG-N01 + BUG-N02 together fix playback on fresh JazzDrive delta-only installs
+- All prior bugs remain fixed
