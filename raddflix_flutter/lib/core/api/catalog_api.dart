@@ -50,6 +50,7 @@ class CatalogApi {
     for (final ep in episodes) {
       final m = ep as Map<String, dynamic>;
       final tid = m['title_id'] as int? ?? 0;
+      if (tid == 0) continue; // skip orphaned episodes with no parent title
       epsByTitle.putIfAbsent(tid, () => []).add(m);
     }
     return titles.map((e) {
