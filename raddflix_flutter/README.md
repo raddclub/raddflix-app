@@ -51,6 +51,22 @@ android/
 - **Migration param:** must be `oldV` (not `oldVersion`) — compile error if wrong
 - **XOR encoding:** all API requests/responses are XOR-encrypted — both sides must stay in sync
 - **Android 8 compat:** no raw SQL `ON CONFLICT DO UPDATE` — use `ConflictAlgorithm.replace`
+- **VideoController:** NEVER add `androidAttachSurfaceAfterVideoParameters: true` (3-5s black screen)
+- **JazzDrive Pass3:** Dart backslash-dollar in non-raw strings = literal $, not interpolation — use concatenation
+- **Local file quota:** `_checkQuota()` has `&& widget.fileId.isNotEmpty` guard — do not remove
+
+## Test Suite
+
+```bash
+# JazzDrive logic (27 tests, no Jazz SIM needed)
+node test_suite/jazzdrive_logic_test.js
+
+# Full server integration tests
+node test_suite/run_tests.js
+
+# Business logic (pure Dart)
+dart run test_suite/logic_tests.dart
+```
 
 ## Architecture docs
 
