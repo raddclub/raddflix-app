@@ -104,7 +104,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       return;
     }
     setState(() => _loading = true);
-    _debounce = Timer(const Duration(milliseconds: 320), () => _doSearch(q));
+    _debounce = Timer(const Duration(milliseconds: 200), () => _doSearch(q));
   }
 
   Future<void> _doSearch(String q) async {
