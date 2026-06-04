@@ -31,15 +31,18 @@ class SceneBookmark {
     'created_at':  createdAt.millisecondsSinceEpoch,
   };
 
-  factory SceneBookmark.fromMap(Map<String, dynamic> m) => SceneBookmark(
-    id:          m['id'] as int,
-    contentId:   m['content_id'] as String,
-    episodeId:   m['episode_id'] as String?,
-    positionMs:  m['position_ms'] as int,
-    emoji:       m['emoji'] as String,
-    note:        m['note'] as String?,
-    createdAt:   DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
-  );
+  factory SceneBookmark.fromMap(Map<String, dynamic> m) {
+    int _i(dynamic v) => v is int ? v : (v as num).toInt();
+    return SceneBookmark(
+      id:          _i(m['id']),
+      contentId:   m['content_id'] as String,
+      episodeId:   m['episode_id'] as String?,
+      positionMs:  _i(m['position_ms']),
+      emoji:       m['emoji'] as String,
+      note:        m['note'] as String?,
+      createdAt:   DateTime.fromMillisecondsSinceEpoch(_i(m['created_at'])),
+    );
+  }
 }
 
 class SceneBookmarkStore {
