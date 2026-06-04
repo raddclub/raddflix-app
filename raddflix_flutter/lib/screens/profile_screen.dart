@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -17,6 +18,7 @@ import '../widgets/loading_overlay.dart';
 import '../core/player/scene_bookmark_store.dart';  // BUG-A23
 import '../core/player/player_prefs.dart';          // BUG-A21
 import '../core/db/local_db.dart';                  // BUG-A22
+import 'debug_diagnostics_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -31,6 +33,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String _appVersion = 'v1.0.0';
   int? _daysLeft;
   bool _subExpiring = false;
+  int _versionTapCount = 0;
   String? _remotePlan;
   late final _connectivitySub = Connectivity().onConnectivityChanged.listen(_onConnectivityChange);
 
@@ -450,15 +453,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       borderRadius: BorderRadius.circular(AppRadius.round),
                       border: Border.all(color: t.border),
                     ),
-                    child: RichText(
-                      textAlign: TextAlign.center,
-                      text: TextSpan(
-                        style: TextStyle(color: t.textMuted, fontSize: 11),
-                        children: [
-                          TextSpan(text: 'Radd', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
-                          const TextSpan(text: 'Flix', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
-                          TextSpan(text: ' $_appVersion · Pakistan ka entertainment, data-free'),
-                        ],
+                    child: GestureDetector(
+                      onTap: () {
+                        if (!kDebugMode) return;
+                        setState(() => _versionTapCount++);
+                        if (_versionTapCount >= 7) {
+                          setState(() => _versionTapCount = 0);
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => const DebugDiagnosticsScreen()));
+                        }
+                      },
+                      child: RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          style: TextStyle(color: t.textMuted, fontSize: 11),
+                          children: [
+                            TextSpan(text: 'Radd', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+                            const TextSpan(text: 'Flix', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
+                            TextSpan(text: ' $_appVersion · Pakistan ka entertainment, data-free'),
+                          ],
+                        ),
                       ),
                     ),
                   ),
