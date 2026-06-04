@@ -647,19 +647,9 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                   )
                 : _currentEpisodes.isEmpty
                     ? SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.all(40),
-                          child: Center(
-                            child: Column(
-                              children: [
-                                Icon(Icons.video_library_outlined,
-                                    size: 48, color: t.textSecondary),
-                                SizedBox(height: 12),
-                                Text('No episodes in Season $_selectedSeason',
-                                    style: TextStyle(color: t.textSecondary)),
-                              ],
-                            ),
-                          ),
+                        child: _ComingSoonBanner(
+                          episodeCount: widget.item.episodeCount,
+                          season: _selectedSeason,
                         ),
                       )
                     : SliverList(
@@ -1048,6 +1038,79 @@ class _EpisodeUnavailableTile extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Coming Soon banner ───────────────────────────────────────────────────────
+class _ComingSoonBanner extends StatelessWidget {
+  final int? episodeCount;
+  final int season;
+  const _ComingSoonBanner({this.episodeCount, required this.season});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final hasCount = episodeCount != null && episodeCount! > 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primary.withOpacity(0.06),
+              AppColors.primary.withOpacity(0.02),
+            ],
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+              ),
+              child: const Center(
+                child: Icon(Icons.upcoming_rounded,
+                    color: AppColors.primary, size: 30),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Coming Soon',
+              style: TextStyle(
+                color: t.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hasCount
+                  ? 'Season $season has $episodeCount episode${episodeCount == 1 ? "" : "s"} — '
+                    'uploading now. Check back soon!'
+                  : 'Episodes for Season $season are on their way. Check back soon!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: t.textSecondary,
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+          ],
         ),
       ),
     );
