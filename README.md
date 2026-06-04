@@ -42,6 +42,17 @@ is 2 lines in `request_encoder.dart`.
 
 See [AGENT_HANDOFF.md](AGENT_HANDOFF.md) for full details.
 
+## Current State (2026-06-04)
+
+All critical code bugs fixed. APK auto-built on every push to main via GitHub Actions.
+
+Recent fixes: JazzDrive Pass3 episode matching (Dart backslash-dollar escape bug),
+black flash on first frame (AnimatedOpacity), planExpired redirect for local files
+(fileId guard), episode gap placeholders, Coming Soon banner, JazzDrive 27-test suite.
+
+Open data gap: DATA-01 — All Of Us Are Dead missing E03/E04/E05/E09 in Oracle DB.
+
+---
 ## Security Notes
 
 - Tokens in Android Keystore (flutter_secure_storage)
