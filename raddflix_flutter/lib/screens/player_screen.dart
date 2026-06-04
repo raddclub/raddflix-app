@@ -3507,6 +3507,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 onAudioEffect: () {
                   setState(() { _showVideoDisplay = false; _showEqPanel = true; });
                 },
+                onLoop: () {
+                  setState(() { _showVideoDisplay = false; _showAbPanel = !_showAbPanel; });
+                },
                 onAbRepeat: () {
                   setState(() { _showVideoDisplay = false; _showAbPanel = !_showAbPanel; });
                 },
@@ -5028,6 +5031,7 @@ class _VideoDisplaySheet extends StatelessWidget {
   final VoidCallback onNightMode;
   final VoidCallback onSpeed;
   final VoidCallback onAudioEffect;
+  final VoidCallback onLoop;
   final VoidCallback onAbRepeat;
   final VoidCallback onDone;
 
@@ -5049,6 +5053,7 @@ class _VideoDisplaySheet extends StatelessWidget {
     required this.onNightMode,
     required this.onSpeed,
     required this.onAudioEffect,
+    required this.onLoop,
     required this.onAbRepeat,
     required this.onDone,
   });
@@ -5073,7 +5078,7 @@ class _VideoDisplaySheet extends StatelessWidget {
     ];
     final row2 = [
       _VDSBtn(icon: Icons.speed_rounded,                 label: 'Playback\nSpeed',    active: speed != 1.0,       onTap: (_) => onSpeed()),
-      _VDSBtn(icon: Icons.loop_rounded,                  label: 'Loop',               active: loopActive,         onTap: (_) {}, isToggle: true),
+      _VDSBtn(icon: Icons.loop_rounded,                  label: 'Loop',               active: loopActive,         onTap: (_) => onLoop(),   isToggle: true),
       _VDSBtn(icon: Icons.shuffle_rounded,               label: 'Shuffle',            active: false,              onTap: (_) {}),
       _VDSBtn(icon: Icons.graphic_eq_rounded,            label: 'Audio\nEffect',      active: false,              onTap: (_) => onAudioEffect()),
       _VDSBtn(icon: Icons.repeat_one_rounded,            label: 'A-B\nRepeat',        active: abRepeatActive,     onTap: (_) => onAbRepeat()),

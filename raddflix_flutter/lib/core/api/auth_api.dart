@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../constants.dart';
 import 'api_client.dart';
@@ -54,7 +55,11 @@ class AuthApi {
   /// Get the currently logged-in user's profile + subscription info.
   static Future<AppUser> getMe() async {
     final response = await _client.get(ApiPaths.me);
-    return AppUser.fromJson(response.data as Map<String, dynamic>);
+    final raw = response.data;
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : jsonDecode(raw as String) as Map<String, dynamic>;
+    return AppUser.fromJson(data);
   }
 
   /// Logout — invalidates the refresh token on the server.

@@ -130,6 +130,7 @@ class CatalogItem {
     status: status ?? this.status,
     isOngoing: isOngoing ?? this.isOngoing,
     newEpisodeCount: newEpisodeCount ?? this.newEpisodeCount,
+    episodeCount: episodeCount,
   );
 
   CatalogItem copyWithEpisodes(List<Map<String, dynamic>> eps) => CatalogItem(

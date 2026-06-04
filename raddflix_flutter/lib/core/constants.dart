@@ -319,7 +319,7 @@ class ApiPaths {
   static const String historyBase       = '/api/history';
   static String saveHistory(String fileId) => '/api/history/$fileId';
   static String playUrl(String fileId)    => '/watch/api/play/$fileId';
-  static String fileShareUrl(String fileId) => '/api/catalog/share_url?file_id=\$fileId';
+  static String fileShareUrl(String fileId) => '/api/catalog/share_url?file_id=${fileId}';
   static const String adminQueue         = '/api/queue/status';
   static const String publicMethods      = '/api/payment-methods';
 

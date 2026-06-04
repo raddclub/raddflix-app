@@ -564,6 +564,7 @@ class LocalDb {
         'status':      status,
         'is_ongoing':  isOngoing,
         'share_url':   await _encodeUrl(shareUrl),
+        if (fileId.isNotEmpty) 'file_id': fileId,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
 
