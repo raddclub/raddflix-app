@@ -15,7 +15,8 @@ def page():
     return render_template("scan.html",
         accounts=db.list_accounts(),
         stats=db.count_library(),
-        flix_msisdn=flix_msisdn)
+        flix_msisdn=flix_msisdn,
+        scan_enabled=(db.setting("SCAN_ENABLED", "1") == "1"))
 
 
 @bp.route("/api/accounts", methods=["GET"])
@@ -86,6 +87,8 @@ def refresh_session(aid):
 @bp.route("/api/accounts/<int:aid>/scan", methods=["POST"])
 @auth.login_required
 def scan(aid):
+    if db.setting("SCAN_ENABLED", "1") != "1":
+        return jsonify({"ok": False, "error": "Scan is currently disabled — enable it in Settings → Services."}), 503
     return jsonify(scan_mod.start_scan(aid))
 
 
@@ -305,6 +308,8 @@ def sapi_activate_url(aid):
 @auth.login_required
 def scan_all():
     """Start a scan on every linked 'scan' account that isn't already running."""
+    if db.setting("SCAN_ENABLED", "1") != "1":
+        return jsonify({"ok": False, "error": "Scan is currently disabled — enable it in Settings → Services."}), 503
     accounts = db.list_accounts(role="scan")
     started, skipped, errors = [], [], []
     for a in accounts:
