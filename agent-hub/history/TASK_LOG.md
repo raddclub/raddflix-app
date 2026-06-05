@@ -663,3 +663,47 @@ Replaced the hard-coded individual DELETEs with a loop over all reset tables, ea
 - Oracle pulled to `31f5436`
 - Flask restarted — fix is live
 - Reset Local Tables button now works correctly
+
+
+## Session 2026-06-05 — JazzDrive Services on/off toggles in Settings
+
+### Task
+Complete the Upload/Scan service enable/disable system. Last agent had wired the backend
+and page banners but never added the actual toggle UI to the Settings page.
+
+### Audit of Previous Work
+- `upload.py` — UPLOAD_ENABLED flag check ✅ (already done)
+- `scan.py` — SCAN_ENABLED flag check ✅ (already done)
+- `settings.py` — `/settings/api/services` GET/POST route ✅ (already done)
+- `upload.html` — "Upload paused" banner + disabled Rescan button ✅ (already done)
+- `scan.html` — "Scan paused" banner + disabled Scan All button ✅ (already done)
+- `settings.html` — NO toggle UI existed ❌ → FIXED this session
+
+### What Was Done
+Added a new "JazzDrive Services" card to `settings.html` with:
+- **Upload Service** toggle button — green "⏸ Pause" when active, red "▶ Enable" when paused
+  - Description: enable 1–2× per day when uploading, disable otherwise
+- **Scan Service** toggle button — same green/red toggle pattern
+  - Description: enable weekly/monthly/yearly for scans, disable between runs
+- Both buttons call `window.toggleService(type)` which:
+  1. Fetches current state from `GET /settings/api/services`
+  2. Flips the requested flag and POSTs back
+  3. Updates button appearance and shows toast + status message
+- State is loaded on page init via `initServiceToggles()` IIFE
+
+### Files Changed
+- `radd-hub/hub/templates/settings.html` — new JazzDrive Services card + JS toggles
+
+### Commits
+- `a8d815d` — feat: JazzDrive Services on/off toggles in Settings — upload pause (1-2x/day) + scan pause (weekly/monthly/yearly)
+
+### Oracle Status
+- Pulled to `a8d815d` — live immediately (template change, no Flask restart needed)
+- Oracle health: `{"ok":true,"version":"3.0.0"}` ✅
+
+### State at End of Session
+- Full on/off system is now complete end-to-end:
+  - Settings page: toggle buttons with live state
+  - Upload page: paused banner when off
+  - Scan page: paused banner when off
+  - Backend: all endpoints check the flags before processing
