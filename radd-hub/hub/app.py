@@ -246,6 +246,13 @@ def create_app() -> Flask:
         self_heal.register_thread("mirror-retry", mirror.retry_loop,
                                   (_BG_STOP,), _BG_STOP)
 
+    # ── Proxy pool startup (auto-rotating SAPI proxies) ──────────────────────
+    try:
+        from . import proxy_pool as _proxy_pool
+        _proxy_pool.pool.start()
+    except Exception as _pp_err:
+        pass  # non-fatal
+
     if config.get_env_bool("ENABLE_UPLOAD_WATCHER", True):
         threading.Thread(target=uploader.watcher_loop,
                          args=(_BG_STOP,), daemon=True,

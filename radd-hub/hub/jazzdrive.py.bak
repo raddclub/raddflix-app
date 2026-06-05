@@ -197,29 +197,18 @@ def _is_replit() -> bool:
     return bool(os.environ.get("REPL_ID") or os.environ.get("REPLIT_DEPLOYMENT"))
 
 def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
-    """Return a requests-compatible proxies dict.
+    """Return a requests-compatible proxies dict if enabled in settings.
 
-    purpose='sapi' — uses the SAPI proxy POOL (auto-rotating, health-checked).
-                     Falls back to JAZZDRIVE_SAPI_PROXY setting if pool empty.
+    purpose='sapi' — checks JAZZDRIVE_SAPI_PROXY first (dedicated slot for
+                     cloud.jazzdrive.com.pk SAPI calls that may be geo-blocked).
     purpose='otp'  — uses the general JAZZDRIVE_PROXY slot (OTP / refresh_token).
     Always returns None on Replit because proxy traffic violates ToS."""
     if _is_replit():
         return None
     if purpose == 'sapi':
-        # Try the pool first (auto-rotating, health-checked)
-        try:
-            from . import proxy_pool as _pp
-            px = _pp.pool.get_best()
-            if px:
-                return px
-        except Exception:
-            pass
-        # Fallback to single-proxy setting
         sapi_url = (db.setting("JAZZDRIVE_SAPI_PROXY") or "").strip()
         if sapi_url:
-            return {"http": sapi_url, "https": sapi_url, "_url": sapi_url}
-        return None
-    # OTP / general proxy
+            return {"http": sapi_url, "https": sapi_url}
     if db.setting("JAZZDRIVE_PROXY_ENABLED") != "1":
         return None
     url = (db.setting("JAZZDRIVE_PROXY") or "").strip()
@@ -647,7 +636,7 @@ def sapi_request(endpoint: str, action: str,
         return {"error": {"code": "AUTH-ERR", "message": "Max retries exceeded"}}
 
     # Resolve Proxy
-    proxies = resolve_proxies(purpose="sapi")
+    proxies = resolve_proxies()
 
     # 1. Resolve tokens
     if not tokens:
@@ -699,27 +688,12 @@ def sapi_request(endpoint: str, action: str,
         req_headers.update(headers)
 
     # 3. Execute request
-    _proxy_url = (proxies or {}).get("_url") or (proxies or {}).get("https")
-    # Strip private key before passing to requests
-    _req_proxies = {k: v for k, v in (proxies or {}).items() if k in ("http", "https")} if proxies else None
-    _t0_sapi = _time_time() if _proxy_url else None
     try:
-        r = _req.request(method, url, params=req_params, json=json_data, data=data, headers=req_headers, timeout=timeout, proxies=_req_proxies)
+        r = _req.request(method, url, params=req_params, json=json_data, data=data, headers=req_headers, timeout=timeout, proxies=proxies)
 
         # 3b. Capture any fresh JSESSIONID issued by the server on SUCCESSFUL responses.
         # Only save on 2xx — a 401 response may carry a guest/unauthenticated JSESSIONID
         # which would break subsequent authenticated calls if saved.
-        # Mark proxy success/fail
-        if _proxy_url:
-            try:
-                _elapsed_ms = int((_time_time() - _t0_sapi) * 1000) if _t0_sapi else None
-                from . import proxy_pool as _pp
-                if r.status_code in (200, 400, 401, 403, 500):
-                    _pp.pool.mark_success(_proxy_url, _elapsed_ms)
-                else:
-                    _pp.pool.mark_fail(_proxy_url)
-            except Exception:
-                pass
         if 200 <= r.status_code < 300:
             new_jid_from_cookie = r.cookies.get("JSESSIONID")
             new_vk_from_header = r.headers.get("X-Funambol-ValidationKey")
@@ -814,12 +788,6 @@ def sapi_request(endpoint: str, action: str,
 
     except Exception as e:
         log.error("sapi_request exception: %s", e)
-        if _proxy_url:
-            try:
-                from . import proxy_pool as _pp
-                _pp.pool.mark_fail(_proxy_url)
-            except Exception:
-                pass
         return {"error": {"code": "EXC", "message": str(e)}}
 
 
@@ -2001,7 +1969,7 @@ def generate_folder_image_link(folder_share_url: str, filename_hint: str = "post
         return {"ok": False, "error": "Invalid folder share URL"}
 
     share_key = m.group(1)
-    proxies = resolve_proxies(purpose="sapi")
+    proxies = resolve_proxies()
     base_headers = {
         "Accept": "application/json, text/plain, */*",
         "Origin": CLOUD_BASE,
@@ -2106,7 +2074,7 @@ def generate_direct_link(share_url: str, target_filename: str = "") -> dict:
         return {"ok": False, "error": "Invalid share URL"}
     
     share_key = m.group(1)
-    proxies = resolve_proxies(purpose="sapi")
+    proxies = resolve_proxies()
     
     base_headers = {
         "Accept": "application/json, text/plain, */*",

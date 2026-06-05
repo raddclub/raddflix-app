@@ -1,0 +1,131 @@
+{# SAPI Proxy Pool Management Panel — included by settings.html #}
+<div class="section">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <h3 style="margin:0">🔀 SAPI Proxy Pool</h3>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span id="pp-status" class="muted" style="font-size:12px">Loading…</span>
+      <button class="btn-sm" onclick="ppDiscover()">🔍 Discover New</button>
+      <button class="btn-sm" onclick="ppHealthCheck()">❤️ Health Check</button>
+    </div>
+  </div>
+
+  <p class="muted" style="font-size:12px;margin-bottom:12px">
+    Auto-rotating pool of Pakistani proxies for SAPI (cloud.jazzdrive.com.pk).
+    Dead proxies are demoted automatically. Discovery runs every 30 min.
+  </p>
+
+  {# Add proxy row #}
+  <div style="display:flex;gap:8px;margin-bottom:16px">
+    <input id="pp-new-url" class="inp" placeholder="socks5://1.2.3.4:1080 or http://…" style="flex:1">
+    <label style="display:flex;align-items:center;gap:4px;font-size:13px">
+      <input type="checkbox" id="pp-test-on-add" checked> Test on add
+    </label>
+    <button class="btn-sm btn-primary" onclick="ppAdd()">+ Add</button>
+  </div>
+
+  {# Pool table #}
+  <table id="pp-table" style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead>
+      <tr style="color:var(--muted);border-bottom:1px solid var(--surface2)">
+        <th style="text-align:left;padding:4px 8px">URL</th>
+        <th style="text-align:center;padding:4px 8px">Status</th>
+        <th style="text-align:center;padding:4px 8px">Ping</th>
+        <th style="text-align:center;padding:4px 8px">OK</th>
+        <th style="text-align:center;padding:4px 8px">Fails</th>
+        <th style="text-align:center;padding:4px 8px">Source</th>
+        <th style="text-align:center;padding:4px 8px">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td colspan="7" class="empty">Loading…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+async function ppLoad() {
+  try {
+    const r = await api('/settings/api/pool/list');
+    const { proxies = [], status = {} } = r;
+    const healthy = status.healthy || 0, total = status.total || 0;
+    document.getElementById('pp-status').textContent =
+      total + ' proxies • ' + healthy + ' healthy';
+    document.getElementById('pp-status').style.color =
+      healthy === 0 ? 'var(--err)' : healthy < 3 ? '#f59e0b' : '#22c55e';
+
+    const tbody = document.querySelector('#pp-table tbody');
+    if (!proxies.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">Pool empty — click Discover to auto-add Pakistani proxies</td></tr>';
+      return;
+    }
+    tbody.innerHTML = proxies.map(p => {
+      const ok = p.is_enabled && p.fail_count < 5;
+      const badge = ok
+        ? '<span class="badge b-ok" style="font-size:10px">alive</span>'
+        : (p.is_enabled
+          ? '<span class="badge b-warn" style="font-size:10px">degraded</span>'
+          : '<span class="badge b-err" style="font-size:10px">disabled</span>');
+      const ping = p.avg_ms ? p.avg_ms + 'ms' : '—';
+      const urlShort = (p.url || '').replace(/^.*\/\//, '').slice(0, 32);
+      return '<tr style="border-bottom:1px solid var(--surface2)">'
+        + '<td style="padding:5px 8px;font-family:monospace;font-size:11px" title="' + (p.url||'') + '">' + urlShort + '</td>'
+        + '<td style="text-align:center;padding:5px 8px">' + badge + '</td>'
+        + '<td style="text-align:center;padding:5px 8px;color:var(--muted)">' + ping + '</td>'
+        + '<td style="text-align:center;padding:5px 8px;color:#22c55e">' + (p.ok_count||0) + '</td>'
+        + '<td style="text-align:center;padding:5px 8px;color:' + (p.fail_count>0?'var(--err)':'var(--muted)') + '">' + (p.fail_count||0) + '</td>'
+        + '<td style="text-align:center;padding:5px 8px;color:var(--muted)">' + (p.source||'') + '</td>'
+        + '<td style="text-align:center;padding:5px 8px">'
+        + (!p.is_enabled ? '<button class="ghost" style="font-size:10px" onclick="ppEnable(' + p.id + ',true)">Enable</button> ' : '')
+        + (p.is_enabled && p.fail_count > 0 ? '<button class="ghost" style="font-size:10px" onclick="ppEnable(' + p.id + ',true)">Reset</button> ' : '')
+        + '<button class="ghost" style="font-size:10px;color:var(--err)" onclick="ppRemove(' + p.id + ')">✕</button>'
+        + '</td>'
+        + '</tr>';
+    }).join('');
+  } catch(e) { console.error('ppLoad', e); }
+}
+
+async function ppAdd() {
+  const url = document.getElementById('pp-new-url').value.trim();
+  const test = document.getElementById('pp-test-on-add').checked;
+  if (!url) return;
+  toast('Adding proxy…');
+  try {
+    const r = await api('/settings/api/pool/add', 'POST', { url, test });
+    if (r.ok) {
+      toast(test ? (r.alive ? '✓ Proxy alive — added!' : '⚠ Added (not alive)') : '✓ Added');
+      document.getElementById('pp-new-url').value = '';
+      ppLoad();
+    } else {
+      toast('Error: ' + (r.error || 'unknown'));
+    }
+  } catch(e) { toast('Error: ' + e); }
+}
+
+async function ppRemove(id) {
+  if (!confirm('Remove this proxy?')) return;
+  await api('/settings/api/pool/remove/' + id, 'DELETE');
+  ppLoad();
+}
+
+async function ppEnable(id, enabled) {
+  await api('/settings/api/pool/enable/' + id, 'POST', { enabled });
+  ppLoad();
+}
+
+async function ppHealthCheck() {
+  toast('Health check started…');
+  await api('/settings/api/pool/healthcheck', 'POST');
+  toast('Health check running in background');
+  setTimeout(ppLoad, 15000);
+}
+
+async function ppDiscover() {
+  toast('Discovery started…');
+  await api('/settings/api/pool/discover', 'POST');
+  toast('Discovering Pakistani proxies in background');
+  setTimeout(ppLoad, 20000);
+}
+
+ppLoad();
+setInterval(ppLoad, 30000);
+</script>

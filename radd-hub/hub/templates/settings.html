@@ -511,7 +511,111 @@ window.gsCloseProgress=function(){
 </div>
 
 <div class="card">
-  <h3>Upload Configuration</h3>
+  
+<div class="section" id="sapi-pool-section">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <h3 style="margin:0">🔀 SAPI Proxy Pool</h3>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span id="pp-status" class="muted" style="font-size:12px">Loading…</span>
+      <button class="btn-sm" onclick="ppDiscover()">🔍 Discover</button>
+      <button class="btn-sm" onclick="ppHealthCheck()">❤️ Health Check</button>
+    </div>
+  </div>
+  <p class="muted" style="font-size:12px;margin-bottom:12px">
+    Auto-rotating Pakistani proxy pool for cloud.jazzdrive.com.pk SAPI calls.
+    Dead proxies auto-demoted. Discovery runs every 30 min.
+  </p>
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+    <input id="pp-new-url" class="inp" placeholder="socks5://host:port  or  http://host:port" style="flex:1">
+    <label style="display:flex;align-items:center;gap:4px;font-size:13px">
+      <input type="checkbox" id="pp-test-on-add" checked> Test
+    </label>
+    <button class="btn-sm btn-primary" onclick="ppAdd()">+ Add</button>
+  </div>
+  <table id="pp-table" style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="color:var(--muted);border-bottom:1px solid var(--surface2)">
+      <th style="text-align:left;padding:4px 8px">URL</th>
+      <th style="text-align:center">Status</th>
+      <th style="text-align:center">Ping</th>
+      <th style="text-align:center">OK</th>
+      <th style="text-align:center">Fails</th>
+      <th style="text-align:center">Source</th>
+      <th style="text-align:center">Actions</th>
+    </tr></thead>
+    <tbody><tr><td colspan="7" class="empty">Loading pool…</td></tr></tbody>
+  </table>
+</div>
+
+<script>
+async function ppLoad() {
+  try {
+    const r = await api('/settings/api/pool/list');
+    const proxies = r.proxies || [], status = r.status || {};
+    const h = status.healthy || 0, t = status.total || 0;
+    const el = document.getElementById('pp-status');
+    if (el) {
+      el.textContent = t + ' proxies · ' + h + ' healthy';
+      el.style.color = h===0?'var(--err)':h<3?'#f59e0b':'#22c55e';
+    }
+    const tbody = document.querySelector('#pp-table tbody');
+    if (!tbody) return;
+    if (!proxies.length) {
+      tbody.innerHTML='<tr><td colspan="7" class="empty">Pool empty — click Discover</td></tr>';return;
+    }
+    tbody.innerHTML = proxies.map(p => {
+      const ok = p.is_enabled && p.fail_count < 5;
+      const badge = ok ? '<span class="badge b-ok" style="font-size:10px">alive</span>'
+        : (p.is_enabled ? '<span class="badge b-warn" style="font-size:10px">degraded</span>'
+        : '<span class="badge b-err" style="font-size:10px">dead</span>');
+      const urlShort = (p.url||'').replace(/.*\/\//, '').slice(0,36);
+      const acts = (!p.is_enabled?'<button class="ghost" style="font-size:10px" onclick="ppEnable('+p.id+',true)">Enable</button> ':'')
+        + (p.fail_count>0&&p.is_enabled?'<button class="ghost" style="font-size:10px" onclick="ppEnable('+p.id+',true)">Reset</button> ':'')
+        + '<button class="ghost" style="font-size:10px;color:var(--err)" onclick="ppRemove('+p.id+')">✕</button>';
+      return '<tr style="border-bottom:1px solid var(--surface2)">'
+        +'<td style="padding:5px 8px;font-family:monospace;font-size:11px" title="'+(p.url||'')+'">'+urlShort+'</td>'
+        +'<td style="text-align:center;padding:5px 4px">'+badge+'</td>'
+        +'<td style="text-align:center;padding:5px 4px;color:var(--muted)">'+( p.avg_ms?p.avg_ms+'ms':'—')+'</td>'
+        +'<td style="text-align:center;padding:5px 4px;color:#22c55e">'+(p.ok_count||0)+'</td>'
+        +'<td style="text-align:center;padding:5px 4px;color:'+(p.fail_count>0?'var(--err)':'var(--muted)')+'">'+(p.fail_count||0)+'</td>'
+        +'<td style="text-align:center;padding:5px 4px;color:var(--muted)">'+(p.source||'')+'</td>'
+        +'<td style="text-align:center;padding:5px 4px">'+acts+'</td>'
+        +'</tr>';
+    }).join('');
+  } catch(e) { console.error('ppLoad',e); }
+}
+async function ppAdd() {
+  const url = document.getElementById('pp-new-url').value.trim();
+  const test = document.getElementById('pp-test-on-add').checked;
+  if (!url) return;
+  toast('Adding proxy…');
+  const r = await api('/settings/api/pool/add','POST',{url,test});
+  toast(r.ok?(test?(r.alive?'✓ Alive! Added':'⚠ Added (not alive)'):'✓ Added'):'Error: '+(r.error||'?'));
+  document.getElementById('pp-new-url').value='';
+  ppLoad();
+}
+async function ppRemove(id) {
+  if(!confirm('Remove proxy?'))return;
+  await api('/settings/api/pool/remove/'+id,'DELETE');ppLoad();
+}
+async function ppEnable(id,en) {
+  await api('/settings/api/pool/enable/'+id,'POST',{enabled:en});ppLoad();
+}
+async function ppHealthCheck() {
+  toast('Health check started…');
+  await api('/settings/api/pool/healthcheck','POST');
+  setTimeout(ppLoad,15000);
+}
+async function ppDiscover() {
+  toast('Discovering Pakistani proxies…');
+  await api('/settings/api/pool/discover','POST');
+  toast('Discovery running in background (30–90s)');
+  setTimeout(ppLoad,30000);
+}
+ppLoad();
+setInterval(ppLoad,30000);
+</script>
+
+<h3>Upload Configuration</h3>
   <div class="muted" style="margin:-6px 0 12px">
     Streaming uploader settings (ported from v1.0). Changes take effect on the next upload.
   </div>

@@ -569,6 +569,92 @@ def api_sapi_proxy_find():
     })
 
 
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SAPI Proxy Pool API — /api/pool/*
+# ══════════════════════════════════════════════════════════════════════════════
+
+@bp.route("/api/pool/list")
+@auth.login_required
+def pool_list():
+    """List all SAPI proxies in the pool."""
+    try:
+        from .. import proxy_pool as _pp
+        proxies = _pp.pool.list_all()
+        status  = _pp.pool.current_pool_status()
+        return jsonify({"ok": True, "proxies": proxies, "status": status})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@bp.route("/api/pool/add", methods=["POST"])
+@auth.login_required
+def pool_add():
+    """Add a proxy URL to the pool (optionally test it)."""
+    from .. import proxy_pool as _pp
+    data = request.get_json(silent=True) or {}
+    url  = (data.get("url") or "").strip()
+    test = data.get("test", True)
+    if not url:
+        return jsonify({"ok": False, "error": "url required"}), 400
+    result = _pp.pool.add_proxy(url, test=test)
+    return jsonify(result)
+
+
+@bp.route("/api/pool/remove/<int:proxy_id>", methods=["DELETE"])
+@auth.login_required
+def pool_remove(proxy_id):
+    """Remove a proxy from the pool by DB id."""
+    from .. import proxy_pool as _pp
+    result = _pp.pool.remove_proxy(proxy_id)
+    return jsonify(result)
+
+
+@bp.route("/api/pool/enable/<int:proxy_id>", methods=["POST"])
+@auth.login_required
+def pool_enable(proxy_id):
+    """Re-enable a disabled proxy (resets fail count)."""
+    from .. import proxy_pool as _pp
+    data = request.get_json(silent=True) or {}
+    enabled = data.get("enabled", True)
+    result = _pp.pool.enable_proxy(proxy_id, enabled)
+    return jsonify(result)
+
+
+@bp.route("/api/pool/healthcheck", methods=["POST"])
+@auth.login_required
+def pool_healthcheck():
+    """Trigger an immediate health check of all pool proxies (async)."""
+    import threading
+    from .. import proxy_pool as _pp
+    threading.Thread(target=_pp.pool.run_health_check_now, daemon=True).start()
+    return jsonify({"ok": True, "message": "Health check started in background"})
+
+
+@bp.route("/api/pool/discover", methods=["POST"])
+@auth.login_required
+def pool_discover():
+    """Trigger an immediate discovery run — fetch + test new Pakistani proxies."""
+    import threading
+    from .. import proxy_pool as _pp
+    def _run():
+        try:
+            _pp.pool.discover_new()
+        except Exception:
+            pass
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"ok": True, "message": "Discovery started in background"})
+
+
+@bp.route("/api/pool/status")
+@auth.login_required
+def pool_status():
+    """Quick pool health snapshot."""
+    from .. import proxy_pool as _pp
+    status = _pp.pool.current_pool_status()
+    return jsonify({"ok": True, **status})
+
 @bp.route("/api/app-signatures/<int:sig_id>", methods=["DELETE"])
 @auth.login_required
 def delete_signature(sig_id):

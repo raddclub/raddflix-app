@@ -695,9 +695,7 @@ def _upload_file(sess, vk: str, jsid: str,
     prepped.headers["Content-Length"] = str(content_length)
 
     with _req2.Session() as _up_sess:
-        _sapi_px = jazzdrive.resolve_proxies(purpose='sapi')
-        raw_resp = _up_sess.send(prepped, timeout=_UPLOAD_TIMEOUT,
-                                 proxies=_sapi_px if _sapi_px else None)
+        raw_resp = _up_sess.send(prepped, timeout=_UPLOAD_TIMEOUT)
 
     if raw_resp.status_code == 401:
         log.warning("JD upload: 401 — session expired during upload")
@@ -966,44 +964,6 @@ def list_remote_media(vk: str, jsid: str, media_type: str = "", parent_id: int =
 _jobs_lock = threading.Lock()
 _manual_jobs: dict = {}  # job_id → job dict
 
-# ── Live stats for DB-queue uploads (keyed by file_id) ──
-_LIVE_STATS: dict = {}
-_LIVE_STATS_LOCK = threading.Lock()
-
-def _update_live_stat(file_id: int, bytes_done: int, total: int, proxy_url: str = ""):
-    import time as _t
-    now = _t.time()
-    with _LIVE_STATS_LOCK:
-        prev = _LIVE_STATS.get(file_id, {})
-        prev_bytes = prev.get("bytes_done", 0)
-        prev_time  = prev.get("updated_at", now)
-        dt = now - prev_time
-        db_bytes = bytes_done - prev_bytes
-        if dt > 0.5 and db_bytes > 0:
-            instant_bps = db_bytes / dt
-            old_bps = prev.get("speed_bps", 0)
-            speed = old_bps * 0.7 + instant_bps * 0.3 if old_bps else instant_bps
-        else:
-            speed = prev.get("speed_bps", 0)
-        remaining = max(0, total - bytes_done)
-        eta_s = int(remaining / speed) if speed > 100 else None
-        _LIVE_STATS[file_id] = {
-            "speed_bps": round(speed),
-            "eta_s":     eta_s,
-            "bytes_done": bytes_done,
-            "total":      total,
-            "proxy_url":  proxy_url or prev.get("proxy_url", ""),
-            "updated_at": now,
-        }
-
-def get_live_stat(file_id: int) -> dict:
-    with _LIVE_STATS_LOCK:
-        return dict(_LIVE_STATS.get(file_id, {}))
-
-def clear_live_stat(file_id: int):
-    with _LIVE_STATS_LOCK:
-        _LIVE_STATS.pop(file_id, None)
-
 
 def update_manual_job(job_id: str, **fields) -> None:
     with _jobs_lock:
@@ -1140,9 +1100,6 @@ def upload_to_jazzdrive(
                          "re-login via Settings → JazzDrive Scan → Send OTP."}
 
     sess = _requests.Session()
-    _sapi_px2 = jazzdrive.resolve_proxies(purpose='sapi')
-    if _sapi_px2:
-        sess.proxies.update(_sapi_px2)
 
     # Validate session
     _log(f"Checking JazzDrive session for account '{acct.get('label','?')}'…")
@@ -1644,9 +1601,6 @@ def _upload_pending() -> None:
             pass
 
     sess = _req.Session()
-    _sapi_px3 = jazzdrive.resolve_proxies(purpose='sapi')
-    if _sapi_px3:
-        sess.proxies.update(_sapi_px3)
     upload_cfg = _load_upload_cfg()
     try:
         from . import media_naming
@@ -1663,12 +1617,8 @@ def _upload_pending() -> None:
         
         folder_id = current_parent
 
-        # Get proxy URL for live stats tracking
-        _active_proxy = (sess.proxies or {}).get("https", "")
-        def _prog_cb(sent, total):
-            _update_live_stat(file_id, sent, total, _active_proxy)
         resp = _upload_file(sess, vk, jsid, file_path, parent_id=folder_id, account_id=acct["id"],
-                              override_name=plan.filename, progress_cb=_prog_cb)
+                              override_name=plan.filename)
         remote_id = resp.get("id")
 
         if remote_id is None:
@@ -1716,7 +1666,6 @@ def _upload_pending() -> None:
             if enriched.get("poster"):
                 assets.process_title_poster(title_id, enriched["poster"], acct["id"], folder_id=folder_id)
 
-        clear_live_stat(file_id)
         with db.conn() as c:
             c.execute(
                 "UPDATE files SET is_ready=1, title_id=?, remote_id=?, share_url=?, "

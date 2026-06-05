@@ -217,13 +217,25 @@ def api_jobs():
         elif is_ready == -2: state = "uploading"
         elif is_ready == -1: state = "failed"
 
+        fid_int = f["id"]
+        live = uploader.get_live_stat(fid_int) if state == "uploading" else {}
+        live_bytes = live.get("bytes_done", 0)
+        live_total = live.get("total") or f.get("size_bytes") or 0
+        pct = 0
+        if state == "done":
+            pct = 100
+        elif state == "uploading" and live_total > 0:
+            pct = min(99, round(live_bytes / live_total * 100))
         db_jobs.append({
-            "id":         f"db:{f['id']}",
+            "id":         f"db:{fid_int}",
             "path":       path,
             "state":      state,
-            "uploaded":   f.get("size_bytes") or 0 if state == "done" else 0,
-            "total":      f.get("size_bytes") or 0,
-            "percent":    100 if state == "done" else 0,
+            "uploaded":   f.get("size_bytes") or 0 if state == "done" else live_bytes,
+            "total":      live_total,
+            "percent":    pct,
+            "speed_bps":  live.get("speed_bps"),
+            "eta_s":      live.get("eta_s"),
+            "proxy_url":  live.get("proxy_url", ""),
             "error":      None,
             "started_at": f.get("uploaded_at") or 0,
             "share_url":  f.get("share_url"),

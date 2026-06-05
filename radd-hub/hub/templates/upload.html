@@ -747,14 +747,43 @@ async function loadJobs() {
           ? '<a href="' + j.share_url + '" target="_blank" style="font-size:12px">open</a>'
           + ' <button class="ghost" style="font-size:11px;padding:1px 6px" onclick="navigator.clipboard.writeText(\'' + j.share_url.replace(/'/g,"\\'") + '\');toast(\'Copied!\')">copy</button>'
           : '<span class="muted">—</span>';
-        const bar = '<div style="font-size:11px">' + pct + '% — ' + fmtBytes(j.uploaded) + ' / ' + fmtBytes(j.total) + '</div>'
+        // ── Live stats ──────────────────────────────────────────────────────────
+        const barColor = j.state==='failed'?'var(--err)':j.state==='done'?'#22c55e':'var(--accent)';
+        // Speed
+        let speedHtml = '';
+        if (j.state === 'uploading' && j.speed_bps > 0) {
+          const mbps = (j.speed_bps / 1048576).toFixed(2);
+          speedHtml = '<span style="color:var(--accent);font-size:10px;margin-left:6px">'
+            + '↑ ' + mbps + ' MB/s' + '</span>';
+        }
+        // ETA
+        let etaHtml = '';
+        if (j.state === 'uploading' && j.eta_s != null && j.eta_s > 0) {
+          const m = Math.floor(j.eta_s/60), s = j.eta_s%60;
+          etaHtml = '<span class="muted" style="font-size:10px;margin-left:6px">'
+            + (m > 0 ? m+'m ' : '') + s + 's left</span>';
+        }
+        // Proxy badge
+        let proxyHtml = '';
+        if (j.state === 'uploading' && j.proxy_url) {
+          const pHost = j.proxy_url.replace(/^.*\/\//, '').replace(/:\d+$/, '');
+          proxyHtml = '<div style="font-size:9px;color:#a78bfa;margin-top:2px" title="' + j.proxy_url + '">🔀 ' + pHost + '</div>';
+        }
+        // Progress row
+        const bar = '<div style="font-size:11px;display:flex;align-items:center">'
+          + '<span style="font-weight:600;min-width:30px">' + pct + '%</span>'
+          + '<span class="muted" style="font-size:10px;margin-left:4px">'
+          + fmtBytes(j.uploaded) + ' / ' + fmtBytes(j.total) + '</span>'
+          + speedHtml + etaHtml
+          + '</div>'
           + '<div style="height:5px;background:var(--surface2);border-radius:3px;margin-top:4px;overflow:hidden">'
-          + '<div style="width:' + pct + '%;height:100%;background:' + (j.state==='failed'?'var(--err)':j.state==='done'?'#22c55e':'var(--accent)') + ';transition:width .4s"></div></div>';
+          + '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';transition:width .5s"></div></div>'
+          + proxyHtml;
         return '<tr>'
           + '<td class="muted" style="font-size:11px">' + fmtTs(j.started_at) + '</td>'
           + '<td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (j.path||'') + '">' + name + '</td>'
           + '<td>' + badgeState(j.state) + (j.error ? '<div class="muted" style="font-size:10px;margin-top:2px">' + j.error.slice(0,60) + '</div>' : '') + '</td>'
-          + '<td style="min-width:160px">' + bar + '</td>'
+          + '<td style="min-width:200px">' + bar + '</td>'
           + '<td>' + share + '</td>'
           + '</tr>';
       }).join('');
