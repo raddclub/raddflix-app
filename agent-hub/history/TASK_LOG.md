@@ -600,3 +600,39 @@ Three new lists added to `CatalogState` (`freeContent`, `ongoingShows`, `newlyAd
 ### Commits
 - `6c0e1ee` — feat: wire all DB-possible features
 - follow-up: fix titleIcon rendering in _ContentSection
+
+
+## Session 2026-06-04 — Fix JazzDrive scan account login (Save tokens broken)
+
+### Problem
+Account `03286829827` had `raw_accesstoken` set (from OTP login) but `validation_key` and `jsessionid` were always NULL. The "Save tokens" button on the Scan page returned "Failed: internal error" every time.
+
+### Root Cause
+`pasteTokens()` in `scan.html` called `POST /api/jazzdrive/tokens` which calls `save_tokens_direct()`. That function resolves the account by MSISDN. When `pt-msisdn` field was empty it fell back to the `JAZZDRIVE_MSISDN` setting (`03029688227`) — a DIFFERENT number than the scan account (`03286829827`) — so the UPDATE never matched the right row. Additionally `getSapiActivateUrl()` never stored `_ptAccountId` after fetching the URL, meaning the account ID was lost between steps.
+
+### Fixes Applied
+
+#### 1. New per-account tokens route in `scan.py`
+`POST /scan/api/accounts/<aid>/tokens` — saves `validation_key` + `jsessionid` by account ID directly, bypassing MSISDN matching entirely.
+
+#### 2. `getSapiActivateUrl()` in `scan.html`
+After generating the URL, now stores `_ptAccountId = aid` and auto-fills the `pt-msisdn` field with `r.msisdn` from the API response.
+
+#### 3. `pasteTokens()` in `scan.html`
+When `_ptAccountId` is set, routes to `/scan/api/accounts/<id>/tokens` (reliable). Falls back to `/api/jazzdrive/tokens` only when account ID is unknown.
+
+#### 4. Direct DB fix for immediate recovery
+Set `validation_key` and `jsessionid` directly in `radd_hub.db` for account id=9 (msisdn=03286829827) using the tokens the user had already obtained from the SAPI phone activation.
+
+### Files Changed
+- `radd-hub/hub/routes/scan.py` — new `save_account_tokens` route
+- `radd-hub/hub/templates/scan.html` — `getSapiActivateUrl()` + `pasteTokens()` fixes
+
+### Commits
+- `8123847` — fix: scan page token save uses account ID not MSISDN
+
+### State at End of Session
+- Account 03286829827: `validation_key=SET`, `jsessionid=SET`, expires 2026-07-05
+- Flask restarted — new route live
+- Oracle pulled to commit `8123847`
+- Scan should now work for account 03286829827
