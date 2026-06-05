@@ -319,8 +319,14 @@ class ProxyPool:
                 avg_ms       INTEGER DEFAULT 0,
                 is_enabled   INTEGER DEFAULT 1,
                 source       TEXT DEFAULT 'seed',
-                added_at     INTEGER DEFAULT 0
+                added_at     INTEGER DEFAULT 0,
+                country      TEXT DEFAULT ''
             )""")
+            # Migrate: add country column on existing DBs (safe if already present)
+            try:
+                c.execute("ALTER TABLE sapi_proxies ADD COLUMN country TEXT DEFAULT ''")
+            except Exception:
+                pass  # column already exists
 
     def _seed_if_empty(self):
         """Merge built-in seeds into DB on every startup.
@@ -637,19 +643,29 @@ class ProxyPool:
                 log.info("ProxyPool: discovery added %d new working proxies", result.get("added", 0))
             except Exception as e:
                 log.warning("ProxyPool: discovery error: %s", e)
-            time.sleep(1800)
+            time.sleep(900)  # every 15 min (was 30)
 
     def discover_new(self) -> dict:
-        """Fetch Pakistani proxies from 8 sources, test against SAPI, add working ones."""
+        """Fetch proxies from 20+ sources: Pakistani ISPs + global GitHub lists.
+
+        PK sources: GeoNode (country=PK), ProxyScrape (country=pk), OpenProxy, PubProxy,
+                    proxy-list.download
+        Global sources: TheSpeedX HTTP/SOCKS5/SOCKS4, monosans, clarketm, mertguvencli,
+                        ShiftyTR, HyperBeats, proxifly, GeoNode global pages 1-5.
+        All candidates are tested against BOTH cloud.jazzdrive.com.pk/sapi AND
+        jazzdrive.com.pk before being added.  JazzDrive does NOT geo-block by country.
+        """
         candidates: list = []
         import requests as _req
 
-        def _geonode_fetch(protocol: str, page: int = 1) -> list:
+        def _geonode_fetch(protocol: str, page: int = 1, country: str = "PK") -> list:
             try:
+                params = (f"?protocols={protocol}&limit=100&page={page}"
+                          f"&sort_by=lastChecked&sort_type=desc")
+                if country:
+                    params += f"&country={country}"
                 r = _req.get(
-                    f"https://proxylist.geonode.com/api/proxy-list"
-                    f"?country=PK&protocols={protocol}&limit=100&page={page}"
-                    f"&sort_by=lastChecked&sort_type=desc",
+                    f"https://proxylist.geonode.com/api/proxy-list{params}",
                     timeout=15)
                 out = []
                 for e in r.json().get("data", []):
@@ -664,12 +680,95 @@ class ProxyPool:
                 log.debug("ProxyPool disc geonode %s: %s", protocol, e)
                 return []
 
-        # Source 1: geonode SOCKS5
-        candidates.extend(_geonode_fetch("socks5"))
-        # Source 2: geonode HTTP/HTTPS
-        candidates.extend(_geonode_fetch("http,https"))
-        # Source 3: geonode SOCKS5 page 2
-        candidates.extend(_geonode_fetch("socks5", 2))
+        def _gh_list_fetch(url: str, proto_prefix: str) -> list:
+            """Fetch a raw ip:port list from GitHub and prefix with protocol."""
+            try:
+                r = _req.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+                out = []
+                for line in r.text.strip().splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    # Already has protocol prefix?
+                    if line.startswith("http://") or line.startswith("socks"):
+                        out.append(line)
+                    elif ":" in line and "/" not in line:
+                        out.append(f"{proto_prefix}://{line}")
+                return out
+            except Exception as e:
+                log.debug("ProxyPool disc github %s: %s", url, e)
+                return []
+
+        # ── PK Sources (Priority 1) ─────────────────────────────────────────
+        # Source 1: GeoNode PK SOCKS5
+        candidates.extend(_geonode_fetch("socks5", 1, "PK"))
+        # Source 2: GeoNode PK HTTP/HTTPS
+        candidates.extend(_geonode_fetch("http,https", 1, "PK"))
+        # Source 3: GeoNode PK SOCKS5 page 2
+        candidates.extend(_geonode_fetch("socks5", 2, "PK"))
+        # Source 4: GeoNode PK HTTP page 2
+        candidates.extend(_geonode_fetch("http,https", 2, "PK"))
+
+        # ── Global Sources (JazzDrive doesn't geo-block) ────────────────────
+        # Source 5-6: GeoNode global top pages (sorted by lastChecked)
+        candidates.extend(_geonode_fetch("socks5", 1, ""))
+        candidates.extend(_geonode_fetch("http,https", 1, ""))
+        candidates.extend(_geonode_fetch("socks5", 2, ""))
+        candidates.extend(_geonode_fetch("http,https", 2, ""))
+        candidates.extend(_geonode_fetch("socks5", 3, ""))
+        candidates.extend(_geonode_fetch("http,https", 3, ""))
+
+        # Source 9: TheSpeedX HTTP (~15,000 proxies — constantly updated)
+        candidates.extend(_gh_list_fetch(
+            "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
+            "http"))
+        # Source 10: TheSpeedX SOCKS5 (~5,000 proxies)
+        candidates.extend(_gh_list_fetch(
+            "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt",
+            "socks5"))
+        # Source 11: TheSpeedX SOCKS4
+        candidates.extend(_gh_list_fetch(
+            "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks4.txt",
+            "socks4"))
+        # Source 12: monosans all (~3,000 proxies, mixed protocols)
+        candidates.extend(_gh_list_fetch(
+            "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/all.txt",
+            "http"))
+        # Source 13: clarketm (~2,500 proxies)
+        candidates.extend(_gh_list_fetch(
+            "https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt",
+            "http"))
+        # Source 14: mertguvencli
+        candidates.extend(_gh_list_fetch(
+            "https://raw.githubusercontent.com/mertguvencli/http-proxy-list/main/proxy-list/data.txt",
+            "http"))
+        # Source 15: ShiftyTR
+        candidates.extend(_gh_list_fetch(
+            "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/proxy.txt",
+            "http"))
+        # Source 16: ShiftyTR SOCKS5
+        candidates.extend(_gh_list_fetch(
+            "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/socks5.txt",
+            "socks5"))
+        # Source 17: HyperBeats all
+        candidates.extend(_gh_list_fetch(
+            "https://raw.githubusercontent.com/HyperBeats/proxy-list/main/all.txt",
+            "http"))
+        # Source 18: proxifly HTTP
+        candidates.extend(_gh_list_fetch(
+            "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/http/data.txt",
+            "http"))
+        # Source 19: proxifly SOCKS5
+        candidates.extend(_gh_list_fetch(
+            "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks5/data.txt",
+            "socks5"))
+        # Source 20: Anonym0usWork1221
+        candidates.extend(_gh_list_fetch(
+            "https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_files/http_proxies.txt",
+            "http"))
+        candidates.extend(_gh_list_fetch(
+            "https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_files/socks5_proxies.txt",
+            "socks5"))
 
         # Source 4: proxyscrape SOCKS5
         try:
@@ -753,7 +852,7 @@ class ProxyPool:
         log.info("ProxyPool disc: testing %d new candidates…", len(new_candidates))
         added = 0
         now = int(time.time())
-        with concurrent.futures.ThreadPoolExecutor(max_workers=40) as ex:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=80) as ex:
             futs = {ex.submit(_test_proxy, url, 10): url for url in new_candidates}
             for fut in concurrent.futures.as_completed(futs):
                 url = futs[fut]
