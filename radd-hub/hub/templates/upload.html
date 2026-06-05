@@ -839,6 +839,17 @@ async function modalVerifyOtp() {
         closeOtpModal();
         location.reload();
       }, 1000);
+    } else if (r.needs_paste_cookies) {
+      btn.disabled = false; btn.textContent = 'Verify & Connect';
+      msg.innerHTML = '<span style="color:var(--warn,#f90)">⚠ OTP accepted — scroll down to paste tokens</span>';
+      closeOtpModal();
+      const adv = document.getElementById('adv-tokens');
+      if (adv) adv.style.display = 'block';
+      const mEl = document.getElementById('pt-msisdn');
+      if (mEl && m) mEl.value = m;
+      const advCard = adv && adv.closest ? adv.closest('.card') : null;
+      if (advCard) advCard.scrollIntoView({behavior:'smooth', block:'center'});
+      toast('⚠ Paste your tokens in the section below', 5000);
     } else {
       btn.disabled = false; btn.textContent = 'Verify & Connect';
       msg.textContent = 'Error: ' + (r.error || 'Verification failed');
