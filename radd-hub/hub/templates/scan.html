@@ -193,6 +193,39 @@
                   onclick="resendOtpRow({{ a.id }})">Resend</button>
           <span id="otp-rmsg-{{ a.id }}" class="muted" style="font-size:12px"></span>
         </div>
+
+        {# ── Inline SAPI activation — shown when needs_paste_cookies ── #}
+        <div id="otp-sapi-{{ a.id }}" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+          <div style="color:var(--ok,#22c55e);font-weight:600;font-size:13px;margin-bottom:10px">
+            ✔ OTP accepted — one more step to activate the session from your Jazz phone
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+            <button id="otp-sapi-link-btn-{{ a.id }}" style="font-size:12px;padding:4px 12px"
+                    onclick="getSapiActivateUrlInline({{ a.id }})">🔗 Get Phone Activation Link</button>
+            <span id="otp-sapi-link-msg-{{ a.id }}" class="muted" style="font-size:12px"></span>
+          </div>
+          <div id="otp-sapi-link-box-{{ a.id }}" style="display:none;margin-bottom:10px">
+            <a id="otp-sapi-url-{{ a.id }}" href="#" target="_blank" rel="noopener"
+               style="color:var(--ok,#5cd66f);text-decoration:underline;word-break:break-all;font-size:11px"></a>
+          </div>
+
+          <div style="font-size:12px;color:var(--muted);margin-bottom:4px">
+            Paste the <strong>full JSON response</strong> from your phone (values extracted automatically):
+          </div>
+          <textarea id="otp-sapi-json-{{ a.id }}" rows="3"
+                    placeholder='{"data":{"validationkey":"...","jsessionid":"...","access_token":"..."}}'
+                    oninput="scanInlineAutoParseJson({{ a.id }}, this.value)"
+                    style="width:100%;font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box"></textarea>
+          <div id="otp-sapi-json-msg-{{ a.id }}" style="font-size:12px;margin-top:4px;min-height:14px"></div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+            <button id="otp-sapi-save-btn-{{ a.id }}" onclick="saveInlineOtpSapi({{ a.id }})" disabled
+                    style="font-size:12px;padding:4px 12px">Save &amp; Connect</button>
+            <span id="otp-sapi-save-msg-{{ a.id }}" class="muted" style="font-size:12px"></span>
+          </div>
+        </div>
+
       </div>
     </div>
     {% endfor %}
@@ -652,7 +685,7 @@ async function verifyOtpRow(id) {
   const msg = document.getElementById('otp-rmsg-' + id);
   const btn = document.getElementById('otp-vbtn-' + id);
   if (!otp) { msg.textContent = 'Enter the OTP code'; return; }
-  
+
   if (btn) btn.disabled = true;
   msg.textContent = 'Verifying…';
   try {
@@ -664,8 +697,8 @@ async function verifyOtpRow(id) {
       setTimeout(() => location.reload(), 1000);
     } else if (r.needs_paste_cookies) {
       if (btn) btn.disabled = false;
-      msg.innerHTML = '<span style="color:var(--warn,#f90)">⚠ OTP accepted — activate from Jazz phone below</span>';
-      _showPasteCookiesNeeded(r.msisdn, r.error, r.account_id || id);
+      msg.innerHTML = '<span style="color:var(--ok,#22c55e)">✔ OTP accepted — activate from Jazz phone ↓</span>';
+      showOtpSapiRow(id, r.msisdn);
     } else {
       if (btn) btn.disabled = false;
       msg.textContent = 'Failed: ' + (r.error || 'Invalid OTP');
@@ -673,6 +706,112 @@ async function verifyOtpRow(id) {
   } catch(e) {
     if (btn) btn.disabled = false;
     msg.textContent = 'Error: ' + e.message;
+  }
+}
+
+/* ── Per-account inline SAPI activation ─────────────────────────────────── */
+function showOtpSapiRow(id, msisdn) {
+  const row = document.getElementById('otp-sapi-' + id);
+  if (row) row.style.display = 'block';
+  getSapiActivateUrlInline(id);
+}
+
+async function getSapiActivateUrlInline(id) {
+  const btn    = document.getElementById('otp-sapi-link-btn-' + id);
+  const msgEl  = document.getElementById('otp-sapi-link-msg-' + id);
+  const box    = document.getElementById('otp-sapi-link-box-' + id);
+  const link   = document.getElementById('otp-sapi-url-' + id);
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  if (msgEl) msgEl.textContent = '';
+  if (box) box.style.display = 'none';
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/sapi-activate-url');
+    if (!r.ok) {
+      if (msgEl) { msgEl.textContent = 'Error: ' + (r.error || 'unknown'); msgEl.style.color = 'var(--err,#f55)'; }
+      return;
+    }
+    if (link) { link.href = r.sapi_url; link.textContent = r.sapi_url; }
+    if (box) box.style.display = 'block';
+    if (msgEl) { msgEl.textContent = '✔ Link ready — open on Jazz phone'; msgEl.style.color = 'var(--ok,#22c55e)'; }
+  } catch(e) {
+    if (msgEl) { msgEl.textContent = 'Error: ' + e.message; msgEl.style.color = 'var(--err,#f55)'; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔗 Get Phone Activation Link'; }
+  }
+}
+
+function scanInlineAutoParseJson(id, val) {
+  const msgEl   = document.getElementById('otp-sapi-json-msg-' + id);
+  const saveBtn = document.getElementById('otp-sapi-save-btn-' + id);
+  val = val.trim();
+  if (!val) {
+    if (saveBtn) saveBtn.disabled = true;
+    if (msgEl) msgEl.textContent = '';
+    return;
+  }
+  if (!val.startsWith('{')) {
+    if (saveBtn) saveBtn.disabled = true;
+    if (msgEl) { msgEl.textContent = '✗ Paste the full JSON response (starts with {)'; msgEl.style.color = 'var(--err,#f55)'; }
+    return;
+  }
+  let vk = '', jid = '', filled = 0;
+  try {
+    const d = JSON.parse(val);
+    const data = (d && d.data) ? d.data : d;
+    vk  = data.validationkey || data.validation_key || '';
+    jid = data.jsessionid    || data.JSESSIONID     || '';
+    if (vk)  filled++;
+    if (jid) filled++;
+  } catch(e) {
+    if (saveBtn) saveBtn.disabled = true;
+    if (msgEl) { msgEl.textContent = '✗ Invalid JSON — ' + e.message; msgEl.style.color = 'var(--err,#f55)'; }
+    return;
+  }
+  if (saveBtn) saveBtn.disabled = filled < 2;
+  if (msgEl) {
+    if (filled === 2) {
+      msgEl.textContent = '✔ validationkey + jsessionid found — click Save & Connect';
+      msgEl.style.color = 'var(--ok,#22c55e)';
+    } else if (filled === 1) {
+      msgEl.textContent = '⚠ Only ' + (vk ? 'validationkey' : 'jsessionid') + ' found — check the JSON';
+      msgEl.style.color = 'var(--warn,#f90)';
+    } else {
+      msgEl.textContent = '✗ Could not find validationkey or jsessionid';
+      msgEl.style.color = 'var(--err,#f55)';
+    }
+  }
+}
+
+async function saveInlineOtpSapi(id) {
+  const jsonStr = (document.getElementById('otp-sapi-json-' + id).value || '').trim();
+  const saveMsg = document.getElementById('otp-sapi-save-msg-' + id);
+  const btn     = document.getElementById('otp-sapi-save-btn-' + id);
+  let vk = '', jid = '';
+  try {
+    const d = JSON.parse(jsonStr);
+    const data = (d && d.data) ? d.data : d;
+    vk  = data.validationkey || data.validation_key || '';
+    jid = data.jsessionid    || data.JSESSIONID     || '';
+  } catch(e) {
+    if (saveMsg) saveMsg.textContent = 'Invalid JSON'; return;
+  }
+  if (!vk || !jid) { if (saveMsg) saveMsg.textContent = 'Missing validationkey or jsessionid'; return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  if (saveMsg) saveMsg.textContent = '';
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/tokens',
+                        {method:'POST', body:{validation_key:vk, jsessionid:jid}});
+    if (r.ok) {
+      if (saveMsg) saveMsg.innerHTML = '<span style="color:var(--ok,#22c55e)">✔ Session active! Reloading…</span>';
+      toast('✔ Account activated');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = 'Save & Connect'; }
+      if (saveMsg) saveMsg.innerHTML = '<span style="color:var(--err,#f55)">Failed: ' + (r.error || 'unknown') + '</span>';
+    }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save & Connect'; }
+    if (saveMsg) saveMsg.innerHTML = '<span style="color:var(--err,#f55)">Error: ' + e.message + '</span>';
   }
 }
 
