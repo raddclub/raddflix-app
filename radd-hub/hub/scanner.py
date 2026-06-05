@@ -78,7 +78,7 @@ def send_otp(account_id: int) -> dict:
         _chain.append(_primary)
         _seen.add(_primary.get("_url", ""))
     try:
-        for _p in _pp.pool.get_proxy_chain(n=4):
+        for _p in _pp.pool.get_proxy_chain(n=8):
             _p_url = _p.get("_url", "")
             if _p_url and _p_url not in _seen:
                 _seen.add(_p_url)
@@ -145,7 +145,7 @@ def resend_otp(account_id: int) -> dict:
         _chain.append(_primary)
         _seen.add(_primary.get("_url", ""))
     try:
-        for _p in _pp.pool.get_proxy_chain(n=4):
+        for _p in _pp.pool.get_proxy_chain(n=8):
             _p_url = _p.get("_url", "")
             if _p_url and _p_url not in _seen:
                 _seen.add(_p_url)
@@ -171,7 +171,7 @@ def resend_otp(account_id: int) -> dict:
                     "Content-Type": "application/x-www-form-urlencoded",
                     "Referer": verify_url,
                 },
-                timeout=30,
+                timeout=(5, 30),
                 proxies=proxies,
             )
             log.info("OTP resend triggered for acct %s (status=%d)", account_id, r.status_code)
@@ -219,7 +219,7 @@ def verify_otp(account_id: int, otp: str) -> dict:
         _chain.append(_primary)
         _seen.add(_primary.get("_url", ""))
     try:
-        for _p in _pp.pool.get_proxy_chain(n=4):
+        for _p in _pp.pool.get_proxy_chain(n=8):
             _p_url = _p.get("_url", "")
             if _p_url and _p_url not in _seen:
                 _seen.add(_p_url)
@@ -441,6 +441,20 @@ def verify_otp(account_id: int, otp: str) -> dict:
     )
     with _otp_lock:
         _otp_sessions.pop(account_id, None)
+
+    # ── Reset keepalive status immediately ────────────────────────────────────
+    # After a successful OTP login the in-memory keepalive _STATUS dict still
+    # holds the old consecutive_failures count and last_error string from before
+    # the login. That stale state makes the UI show "Offline / Re-login required"
+    # even though fresh tokens are now in the DB. Trigger an immediate background
+    # heartbeat so the probe resets consecutive_failures=0 and last_error=None.
+    try:
+        from . import keepalive as _ka
+        _ka.trigger_heartbeat(account_id)
+        log.info("verify_otp: keepalive heartbeat triggered for account %s", account_id)
+    except Exception as _kae:
+        log.debug("verify_otp: could not trigger keepalive heartbeat: %s", _kae)
+
     return {"ok": True}
 
 
