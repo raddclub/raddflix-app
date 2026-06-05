@@ -216,12 +216,27 @@
   <div id="pt-alert" style="display:none;background:rgba(255,160,0,.12);border:1px solid var(--warn,#f90);
        border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;line-height:1.5"></div>
 
+  <!-- Quick Paste: full JSON auto-parse -->
+  <div style="background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.3);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+    <div style="font-weight:600;margin-bottom:4px;font-size:13px">⚡ Quick Paste — paste the full JSON response</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5">
+      After phone activation, JazzDrive shows a JSON response. Paste the <strong>entire JSON</strong> here —
+      <code>validationkey</code> and <code>jsessionid</code> are extracted automatically.
+    </div>
+    <textarea id="pt-json-raw" rows="3"
+              placeholder='{"data":{"validationkey":"...","jsessionid":"...","access_token":"..."}}'
+              oninput="scanAutoParseJson(this.value)"
+              style="width:100%;font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box"></textarea>
+    <div id="pt-json-msg" style="font-size:12px;margin-top:4px;min-height:14px"></div>
+  </div>
+
   <!-- Phone Activate -->
   <div style="background:rgba(92,214,111,.07);border:1px solid rgba(92,214,111,.3);border-radius:8px;padding:12px 14px;margin-bottom:14px">
     <div style="font-weight:600;margin-bottom:6px;font-size:13px">📱 Phone Activate (no PC needed)</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
       Click the button to get a special link. Open it on your <strong>Jazz mobile phone</strong>
-      (connected to Jazz network). You will see a short JSON — copy the two values and paste below.
+      (connected to Jazz network). You will see a short JSON — paste it above for auto-fill,
+      or copy the two values and enter them manually below.
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
       <button id="btn-get-sapi-url" onclick="getSapiActivateUrl()">🔗 Get Phone Activation Link</button>
@@ -232,15 +247,15 @@
       <a id="sapi-url-link" href="#" target="_blank" rel="noopener"
          style="color:var(--ok,#5cd66f);text-decoration:underline;word-break:break-all;font-size:11px"></a>
       <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7">
-        The page shows JSON like: <code style="font-size:10px">{"data":{"validationkey":"abc...","jsessionid":"xyz..."}}</code><br>
-        Copy the value after <code>"validationkey":</code> → paste in <strong>validation_key</strong> below.<br>
-        Copy the value after <code>"jsessionid":</code> → paste in <strong>JSESSIONID</strong> below.
+        The page shows JSON — paste the <strong>full JSON</strong> in the box above for auto-fill.<br>
+        Or manually copy: <code>"validationkey"</code> → <strong>validation_key</strong> below &amp;
+        <code>"jsessionid"</code> → <strong>JSESSIONID</strong> below.
       </div>
     </div>
   </div>
 
   <!-- Manual input -->
-  <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Paste the two values:</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Values (auto-filled from JSON paste above, or enter manually):</div>
   <div style="display:flex;flex-direction:column;gap:8px;max-width:520px">
     <div class="form-row" style="margin:0">
       <label style="min-width:140px">MSISDN</label>
@@ -816,12 +831,42 @@ async function pollScan() {
   } catch(e) { console.warn('pollScan:', e); setTimeout(pollScan, 3000); }
 }
 
+function scanAutoParseJson(raw) {
+  const msgEl = document.getElementById('pt-json-msg');
+  const raw2 = raw.trim();
+  if (!raw2) { if (msgEl) msgEl.textContent = ''; return; }
+  let parsed;
+  try { parsed = JSON.parse(raw2); } catch(e) {
+    if (msgEl) { msgEl.textContent = '✗ Invalid JSON — paste the full response'; msgEl.style.color = 'var(--err,#f55)'; }
+    return;
+  }
+  /* Support both top-level and nested under .data */
+  const d = parsed.data || parsed;
+  const vk  = d.validationkey || d.validation_key || '';
+  const jid = d.jsessionid    || d.JSESSIONID      || '';
+  let filled = 0;
+  if (vk)  { document.getElementById('pt-vk').value  = vk;  filled++; }
+  if (jid) { document.getElementById('pt-jid').value = jid; filled++; }
+  if (msgEl) {
+    if (filled === 2) {
+      msgEl.textContent = '✔ validationkey + jsessionid extracted — click Save tokens';
+      msgEl.style.color = 'var(--ok,#22c55e)';
+    } else if (filled === 1) {
+      msgEl.textContent = '⚠ Only ' + (vk ? 'validationkey' : 'jsessionid') + ' found — check the JSON';
+      msgEl.style.color = 'var(--warn,#f90)';
+    } else {
+      msgEl.textContent = '✗ Could not find validationkey or jsessionid in this JSON';
+      msgEl.style.color = 'var(--err,#f55)';
+    }
+  }
+}
+
 async function pasteTokens() {
   const vk     = document.getElementById('pt-vk').value.trim();
   const jid    = document.getElementById('pt-jid').value.trim();
   const msisdn = document.getElementById('pt-msisdn').value.trim();
   const msg    = document.getElementById('pt-msg');
-  if (!vk || !jid) { msg.textContent = 'Enter both cookie values'; return; }
+  if (!vk || !jid) { msg.textContent = 'Enter both cookie values (or paste full JSON above)'; return; }
   msg.textContent = 'Saving…';
   try {
     let endpoint, body;
@@ -835,6 +880,13 @@ async function pasteTokens() {
     const r = await api(endpoint, {method: 'POST', body});
     if (!r.ok) { msg.textContent = 'Failed: ' + (r.error || 'unknown'); return; }
     msg.textContent = '✔ Tokens saved — reloading…';
+    /* Reset card styling on success */
+    const card  = document.getElementById('paste-cookies-card');
+    const badge = document.getElementById('pt-required-badge');
+    const alert = document.getElementById('pt-alert');
+    if (card)  card.style.borderColor = 'var(--border)';
+    if (badge) badge.style.display = 'none';
+    if (alert) alert.style.display = 'none';
     setTimeout(() => location.reload(), 1000);
   } catch(e) { msg.textContent = 'Error: ' + e.message; }
 }
