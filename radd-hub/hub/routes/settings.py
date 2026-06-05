@@ -664,3 +664,58 @@ def delete_signature(sig_id):
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ── NEW Pool endpoints — God-Level Edition ────────────────────────────────────
+
+@bp.route("/api/pool/stats")
+@auth.login_required
+def pool_stats():
+    """Detailed proxy pool statistics for dashboard."""
+    try:
+        from .. import proxy_pool as _pp
+        stats = _pp.pool.get_stats()
+        return jsonify({"ok": True, "stats": stats})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@bp.route("/api/pool/bulk-import", methods=["POST"])
+@auth.login_required
+def pool_bulk_import():
+    """Bulk import proxy URLs. Body: {urls: [str], test: bool}"""
+    from .. import proxy_pool as _pp
+    data = request.get_json(silent=True) or {}
+    urls = data.get("urls") or []
+    test = bool(data.get("test", True))
+    if not isinstance(urls, list) or not urls:
+        return jsonify({"ok": False, "error": "urls (list) required"}), 400
+    result = _pp.pool.bulk_import(urls, test=test)
+    return jsonify(result)
+
+
+@bp.route("/api/pool/test/<int:proxy_id>", methods=["POST"])
+@auth.login_required
+def pool_test_one(proxy_id):
+    """Test a single proxy by DB id and update its live stats."""
+    from .. import proxy_pool as _pp
+    result = _pp.pool.test_proxy_by_id(proxy_id)
+    return jsonify(result)
+
+
+@bp.route("/api/pool/reset-dead", methods=["POST"])
+@auth.login_required
+def pool_reset_dead():
+    """Re-enable all disabled proxies and queue for fast-recovery re-test."""
+    from .. import proxy_pool as _pp
+    result = _pp.pool.reset_dead()
+    return jsonify(result)
+
+
+@bp.route("/api/pool/export")
+@auth.login_required
+def pool_export():
+    """Export full proxy URL list as plain text list."""
+    from .. import proxy_pool as _pp
+    urls = _pp.pool.export_list()
+    return jsonify({"ok": True, "urls": urls, "count": len(urls)})
