@@ -101,11 +101,12 @@
           </div>
         </div>
         <div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:4px">2. Your phone shows JSON — paste it here:</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:4px">2. Your phone shows JSON — paste the <strong>full response</strong> here (values extracted automatically):</div>
           <textarea id="modal-sapi-json"
-                    placeholder='{"data":{"validationkey":"...","jsessionid":"..."}}'
+                    placeholder='{"data":{"validationkey":"...","jsessionid":"...","access_token":"..."}}'
                     style="width:100%;height:80px;font-size:11px;font-family:monospace;resize:vertical"
                     oninput="modalAutoSaveJson(this.value)"></textarea>
+          <div id="modal-sapi-parse-msg" style="font-size:12px;margin-top:4px;min-height:14px"></div>
         </div>
         <div style="display:flex;gap:8px">
           <button id="modal-sapi-save-btn" onclick="modalSaveFromJson()" disabled>Save &amp; Connect</button>
@@ -1112,17 +1113,45 @@ function modalCopySapiLink() {
 }
 
 function modalAutoSaveJson(val) {
-  const btn = document.getElementById('modal-sapi-save-btn');
+  const btn    = document.getElementById('modal-sapi-save-btn');
+  const msgEl  = document.getElementById('modal-sapi-parse-msg');
   val = val.trim();
-  let valid = false;
-  if (val.startsWith('{')) {
-    try {
-      const d = JSON.parse(val);
-      const data = (d && d.data) ? d.data : d;
-      valid = !!(data && (data.validationkey || data.validation_key) && (data.jsessionid || data.JSESSIONID));
-    } catch(_) {}
+  if (!val) {
+    btn.disabled = true;
+    if (msgEl) msgEl.textContent = '';
+    return;
   }
-  btn.disabled = !valid;
+  if (!val.startsWith('{')) {
+    btn.disabled = true;
+    if (msgEl) { msgEl.textContent = '✗ Paste the full JSON response (starts with {)'; msgEl.style.color = 'var(--err,#f44)'; }
+    return;
+  }
+  let vk = '', jid = '', filled = 0;
+  try {
+    const d = JSON.parse(val);
+    const data = (d && d.data) ? d.data : d;
+    vk  = data.validationkey  || data.validation_key  || '';
+    jid = data.jsessionid     || data.JSESSIONID       || '';
+    if (vk)  filled++;
+    if (jid) filled++;
+  } catch(e) {
+    btn.disabled = true;
+    if (msgEl) { msgEl.textContent = '✗ Invalid JSON — ' + e.message; msgEl.style.color = 'var(--err,#f44)'; }
+    return;
+  }
+  btn.disabled = filled < 2;
+  if (msgEl) {
+    if (filled === 2) {
+      msgEl.textContent = '✔ validationkey + jsessionid found — click Save & Connect';
+      msgEl.style.color = 'var(--ok,#22c55e)';
+    } else if (filled === 1) {
+      msgEl.textContent = '⚠ Only ' + (vk ? 'validationkey' : 'jsessionid') + ' found — check the JSON';
+      msgEl.style.color = 'var(--warn,#f90)';
+    } else {
+      msgEl.textContent = '✗ Could not find validationkey or jsessionid';
+      msgEl.style.color = 'var(--err,#f44)';
+    }
+  }
 }
 
 async function modalSaveFromJson() {
