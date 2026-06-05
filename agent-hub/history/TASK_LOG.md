@@ -749,3 +749,83 @@ Upgraded from a simple valid/invalid flag to full colour-coded feedback:
 
 ### Commits
 - `f3a9478` — feat: copy button for inline SAPI activation link in per-account OTP rows
+
+
+## Session 2026-06-05 — OTP Proxy Hardening (comprehensive audit + fix)
+
+### Task
+Continue from previous agent's planned work: audit all logical issues in the OTP
+proxy system and fix them. Previous agent identified the problems but was cut off
+before implementing.
+
+### What Was Done
+
+Full audit of `jazzdrive.py` + `proxy_pool.py`. Six distinct bugs found and fixed
+in a single atomic commit (`1887b63`).
+
+#### Fix 1 — `resolve_proxies(otp)` dead-proxy guard (`jazzdrive.py`)
+**Bug:** If `JAZZDRIVE_PROXY` pointed to a URL that `mark_fail` had disabled in
+the pool (fail_count ≥ 5), `resolve_proxies(otp)` still returned it. Every OTP
+attempt hammered the same dead host in a loop.
+**Fix:** Before returning the manual proxy, query `sapi_proxies.is_enabled` from
+the pool DB. If disabled, log a warning and fall through to pool fallback.
+
+#### Fix 2 — `mark_fail` auto-deselects `JAZZDRIVE_PROXY` (`proxy_pool.py`)
+**Bug:** When `mark_fail` disabled a proxy (fail_count ≥ 5), the DB setting
+`JAZZDRIVE_PROXY` was never cleared, so it would be returned again on the
+next OTP attempt before the dead-proxy guard could kick in.
+**Fix:** After disabling, check if `JAZZDRIVE_PROXY == url` and if so, clear
+both `JAZZDRIVE_PROXY` and `JAZZDRIVE_PROXY_ENABLED` in the DB.
+
+#### Fix 3 — `submit_otp` proxy chain retry (`jazzdrive.py`)
+**Bug (CRITICAL):** `trigger_otp_flow` and `resend_otp` both had proxy chain
+retry, but `submit_otp` used a single `proxies = resolve_proxies()` call with no
+fallback. A single proxy failure during OTP submission aborted the whole flow.
+**Fix:** Added the same proxy chain retry pattern — build chain (primary →
+pool fallbacks, URL-deduped), wrap entire submission in `for proxies in _sub_chain`,
+catch connection errors → `mark_fail` → `continue`, non-connection errors →
+return immediately.
+
+#### Fix 4 — `submit_otp` TTL extended 300s → 600s (`jazzdrive.py`)
+**Bug:** 5-minute TTL was too short — Jazz OTP SMS codes are valid for ~10 min.
+Users who received the SMS slowly (congested Jazz network) hit "OTP expired" even
+with a valid code in hand.
+**Fix:** Extended to 600s (10 min) to match Jazz's actual validity window.
+
+#### Fix 5 — URL-based proxy deduplication (`jazzdrive.py`)
+**Bug:** `trigger_otp_flow` and `resend_otp` deduplicated the proxy chain with
+`if p not in _proxies_chain` (dict equality). If the same proxy URL appeared
+with different dict instances from `resolve_proxies()` and `get_proxy_chain()`,
+it would be added twice and retried unnecessarily.
+**Fix:** Replaced with URL-based dedup using a `_seen_proxy_urls: set` for both
+functions, and applied same pattern to the new `submit_otp` chain.
+
+#### Fix 6 — `resend_otp` TTL guard + direct-connection warnings (`jazzdrive.py`)
+**Bug:** `resend_otp` would attempt to resend on an arbitrarily old OTP state
+(days old after server restart) because it never checked `created_at`.
+**Fix:** Added TTL check — state older than 600s returns error and cleans up
+the state file. Also added `log.warning` in all three OTP functions when falling
+back to direct connection (which always fails MED-1011 from Oracle's non-PK IP).
+
+### Files Changed
+- `radd-hub/hub/jazzdrive.py` — 5 fixes (resolve_proxies, submit_otp retry,
+  submit_otp TTL, URL dedup, resend TTL, direct-connection warnings)
+- `radd-hub/hub/proxy_pool.py` — 1 fix (mark_fail auto-deselect)
+
+### Commits
+- `1887b63` — fix: OTP proxy hardening — proxy retry in submit_otp, dead-proxy
+  guard in resolve_proxies, auto-deselect in mark_fail, URL dedup, TTL 600s,
+  MED-1011 warnings
+
+### Oracle Status
+- Pulled to `1887b63` ✅
+- Flask restarted (Python files changed) ✅
+
+### State at End of Session
+- OTP flow is now fully hardened end-to-end:
+  - All 3 OTP steps (trigger/resend/submit) have proxy chain retry
+  - Dead manual proxies are auto-detected and skipped
+  - Disabled proxies auto-deselect from the JAZZDRIVE_PROXY setting
+  - TTL aligned with Jazz's actual 10-min SMS validity window
+  - URL-based dedup prevents redundant proxy retries
+  - MED-1011 fallback scenario is explicitly logged

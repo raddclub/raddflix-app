@@ -302,10 +302,17 @@ to create script files, then run with `node /path/to/script.js`.
 
 ## Current State (2026-06-05, updated)
 
-All code bugs fixed. One data gap open (DATA-01 in BUG_TRACKER.md).
-Proxy pool upgraded to god-level (150+ PK seeds, weighted rotation, circuit breaker).
+All code bugs fixed. OTP proxy system fully hardened. One data gap open (DATA-01 in BUG_TRACKER.md).
 
 ### Recently completed
+- **OTP Proxy Hardening** (commit 1887b63): 6 bugs fixed in OTP proxy flow:
+  - `submit_otp` now has proxy chain retry (was the only OTP step missing it)
+  - `resolve_proxies(otp)` skips dead/disabled manual proxies (pool DB check)
+  - `mark_fail` auto-clears `JAZZDRIVE_PROXY` setting when proxy is disabled
+  - URL-based proxy dedup (not fragile dict equality) in all 3 OTP functions
+  - OTP TTL extended 300s → 600s to match Jazz's 10-min SMS validity window
+  - `resend_otp` TTL guard + MED-1011 direct-connection warnings everywhere
+- **OTP retry chain + dual-domain HC** (commit aa7e280): mark_fail on SOCKS/connection reset, retry next pool proxy; dual-domain health check (jazzdrive.com.pk)
 - **Proxy Pool God-Level Upgrade**: 150+ seeds, weighted rotation, circuit breaker fallback, 5-min fast recovery, 8-source discovery, bulk import, per-proxy test, export, reset-dead
 - **Settings UI**: old inline proxy panel replaced with god-level `_proxy_pool_panel.html` include (stat cards, filter, sort, score column, 10s refresh)
 - **BUG-P02**: Black flash before first video frame → AnimatedOpacity fade-in on play
