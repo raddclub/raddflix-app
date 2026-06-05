@@ -193,6 +193,86 @@ def change_role(aid):
     return jsonify({"ok": True, "role": new_role})
 
 
+@bp.route("/api/accounts/<int:aid>/tokens", methods=["POST"])
+@auth.login_required
+def save_account_tokens(aid):
+    """Save validation_key + jsessionid directly for a specific account by ID.
+
+    Bypasses MSISDN matching — looks up by account ID from the URL.
+    Body: { "validation_key": str, "jsessionid": str }
+    """
+    import time as _t
+    data = request.get_json(force=True, silent=True) or {}
+    vk  = (data.get("validation_key") or data.get("validationkey") or "").strip()
+    jid = (data.get("jsessionid") or data.get("JSESSIONID") or "").strip()
+    if not vk or not jid:
+        return jsonify({"ok": False, "error": "validation_key and jsessionid are required"}), 400
+    try:
+        with db.conn() as c:
+            row = c.execute("SELECT id, msisdn FROM accounts WHERE id=?", (aid,)).fetchone()
+            if not row:
+                return jsonify({"ok": False, "error": "Account not found"}), 404
+            c.execute(
+                "UPDATE accounts SET validation_key=?, jsessionid=?, "
+                "token_expires_at=?, last_scan_at=? WHERE id=?",
+                (vk, jid, int(_t.time() + 86400 * 30), int(_t.time()), aid)
+            )
+        return jsonify({"ok": True, "message": "Tokens saved", "msisdn": dict(row)["msisdn"]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@bp.route("/api/accounts/<int:aid>/sapi-activate-url", methods=["GET"])
+@auth.login_required
+def sapi_activate_url(aid):
+    """Generate a JazzDrive SAPI activation URL from the stored raw_accesstoken.
+
+    The returned URL can be opened in a phone browser on a Pakistani IP (Jazz network).
+    The phone browser will display JSON containing validationkey and jsessionid which
+    the user then pastes into the activation form — no PC/DevTools needed.
+    """
+    import json as _json
+    import base64 as _b64
+    import urllib.parse as _up
+
+    CLOUD_BASE = "https://cloud.jazzdrive.com.pk"
+
+    try:
+        with db.conn() as c:
+            row = c.execute(
+                "SELECT id, msisdn, raw_accesstoken FROM accounts WHERE id=?", (aid,)
+            ).fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "Account not found"}), 404
+
+        row = dict(row)
+        raw_at = row.get("raw_accesstoken") or ""
+
+        if not raw_at:
+            return jsonify({
+                "ok": False,
+                "error": (
+                    "No access token stored for account %s. "
+                    "Please send an OTP first." % aid
+                )
+            }), 400
+
+        at_json = _json.dumps({"data": {"accesstoken": raw_at}})
+        at_b64e = _up.quote(_b64.b64encode(at_json.encode()).decode(), safe="")
+
+        sapi_url = (
+            f"{CLOUD_BASE}/sapi/login/oauth"
+            f"?action=login&platform=Android&keytype=accesstoken&key={at_b64e}"
+        )
+
+        return jsonify({
+            "ok": True,
+            "sapi_url": sapi_url,
+            "msisdn": row.get("msisdn", ""),
+            "account_id": aid,
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 @bp.route("/api/scan-all", methods=["POST"])
 @auth.login_required
 def scan_all():

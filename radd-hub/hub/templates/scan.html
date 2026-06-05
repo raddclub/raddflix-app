@@ -194,16 +194,42 @@
 {# ── Paste cookies fallback ────────────────────────────────────────────── #}
 <div class="card" id="paste-cookies-card" style="border:2px solid var(--border);transition:border-color .3s">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-    <h3 style="margin:0">Paste cookies from browser DevTools</h3>
+    <h3 style="margin:0">Activate JazzDrive Session</h3>
     <span id="pt-required-badge" style="display:none;background:var(--warn,#f90);color:#000;
           font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px">ACTION REQUIRED</span>
   </div>
   <div id="pt-instructions" class="muted" style="margin:4px 0 12px;font-size:13px">
-    Alternative to OTP — log in to <strong>cloud.jazzdrive.com.pk</strong> in your browser, open
-    DevTools → Application → Cookies and paste the two values below.
+    OTP accepted — but this server IP is outside Pakistan so JazzDrive blocked the session.
+    Use your <strong>Jazz phone</strong> to complete activation (no PC or DevTools needed).
   </div>
   <div id="pt-alert" style="display:none;background:rgba(255,160,0,.12);border:1px solid var(--warn,#f90);
        border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;line-height:1.5"></div>
+
+  <!-- Phone Activate -->
+  <div style="background:rgba(92,214,111,.07);border:1px solid rgba(92,214,111,.3);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+    <div style="font-weight:600;margin-bottom:6px;font-size:13px">📱 Phone Activate (no PC needed)</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+      Click the button to get a special link. Open it on your <strong>Jazz mobile phone</strong>
+      (connected to Jazz network). You will see a short JSON — copy the two values and paste below.
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <button id="btn-get-sapi-url" onclick="getSapiActivateUrl()">🔗 Get Phone Activation Link</button>
+      <span id="sapi-url-msg" class="muted" style="font-size:12px"></span>
+    </div>
+    <div id="sapi-url-box" style="display:none;margin-top:6px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Open this link in your Jazz phone browser:</div>
+      <a id="sapi-url-link" href="#" target="_blank" rel="noopener"
+         style="color:var(--ok,#5cd66f);text-decoration:underline;word-break:break-all;font-size:11px"></a>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7">
+        The page shows JSON like: <code style="font-size:10px">{"data":{"validationkey":"abc...","jsessionid":"xyz..."}}</code><br>
+        Copy the value after <code>"validationkey":</code> → paste in <strong>validation_key</strong> below.<br>
+        Copy the value after <code>"jsessionid":</code> → paste in <strong>JSESSIONID</strong> below.
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual input -->
+  <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Paste the two values:</div>
   <div style="display:flex;flex-direction:column;gap:8px;max-width:520px">
     <div class="form-row" style="margin:0">
       <label style="min-width:140px">MSISDN</label>
@@ -211,11 +237,11 @@
     </div>
     <div class="form-row" style="margin:0">
       <label style="min-width:140px">validation_key</label>
-      <input id="pt-vk" placeholder="Paste validation_key cookie value">
+      <input id="pt-vk" placeholder="Paste validationkey value from JSON">
     </div>
     <div class="form-row" style="margin:0">
       <label style="min-width:140px">JSESSIONID</label>
-      <input id="pt-jid" placeholder="Paste JSESSIONID cookie value">
+      <input id="pt-jid" placeholder="Paste jsessionid value from JSON">
     </div>
   </div>
   <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -223,12 +249,11 @@
     <span id="pt-msg" class="muted" style="font-size:13px"></span>
   </div>
   <details style="margin-top:14px">
-    <summary style="cursor:pointer;font-size:12px;color:var(--muted)">How to get cookies (step-by-step)</summary>
+    <summary style="cursor:pointer;font-size:12px;color:var(--muted)">Alternative: get values from PC browser DevTools</summary>
     <ol style="font-size:12px;margin:8px 0 0 18px;line-height:1.8;color:var(--muted)">
-      <li>Open <strong>cloud.jazzdrive.com.pk</strong> in Chrome or Edge on your phone/PC.</li>
-      <li>Log in with your Jazz mobile number — you'll receive an SMS OTP.</li>
-      <li>After login, press <strong>F12</strong> (or right-click → Inspect).</li>
-      <li>Go to <strong>Application</strong> tab → <strong>Cookies</strong> → <code>https://cloud.jazzdrive.com.pk</code>.</li>
+      <li>Open <strong>cloud.jazzdrive.com.pk</strong> in Chrome or Edge on your PC.</li>
+      <li>Log in with your Jazz number — you will receive an SMS OTP.</li>
+      <li>After login press <strong>F12</strong> → <strong>Application</strong> → <strong>Cookies</strong>.</li>
       <li>Find <code>validation_key</code> and <code>JSESSIONID</code> — copy each value and paste above.</li>
     </ol>
   </details>
@@ -465,7 +490,9 @@ async function submitAddAcct() {
   }
 }
 
-function _showPasteCookiesNeeded(msisdn, message) {
+let _ptAccountId = null;
+
+function _showPasteCookiesNeeded(msisdn, message, accountId) {
   const card  = document.getElementById('paste-cookies-card');
   const badge = document.getElementById('pt-required-badge');
   const alert = document.getElementById('pt-alert');
@@ -476,7 +503,49 @@ function _showPasteCookiesNeeded(msisdn, message) {
     const inp = document.getElementById('pt-msisdn');
     if (inp && !inp.value) inp.value = msisdn;
   }
+  if (accountId) _ptAccountId = accountId;
   if (card) card.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+async function getSapiActivateUrl() {
+  const btn    = document.getElementById('btn-get-sapi-url');
+  const msgEl  = document.getElementById('sapi-url-msg');
+  const box    = document.getElementById('sapi-url-box');
+  const link   = document.getElementById('sapi-url-link');
+  const msisdn = (document.getElementById('pt-msisdn').value || '').trim();
+
+  // Resolve account ID: from stored value, wizard, or fetch by msisdn
+  let aid = _ptAccountId || _wizAcctId || null;
+  if (!aid && msisdn) {
+    try {
+      const accts = await api('/scan/api/accounts');
+      const list  = Array.isArray(accts) ? accts : (accts.accounts || []);
+      const match = list.find(a => a.msisdn === msisdn || a.msisdn === msisdn.replace(/^0/, '92'));
+      if (match) aid = match.id;
+    } catch(_) {}
+  }
+  if (!aid) { msgEl.textContent = 'Enter MSISDN first or re-send OTP'; return; }
+
+  btn.disabled = true; btn.textContent = 'Generating…';
+  msgEl.textContent = '';
+  box.style.display = 'none';
+  try {
+    const r = await api('/scan/api/accounts/' + aid + '/sapi-activate-url');
+    if (!r.ok) { msgEl.textContent = 'Error: ' + (r.error || 'unknown'); return; }
+    link.href        = r.sapi_url;
+    link.textContent = r.sapi_url;
+    box.style.display = 'block';
+    msgEl.textContent = '✔ Link ready — open on Jazz phone';
+    msgEl.style.color = 'var(--ok,#5cd66f)';
+    _ptAccountId = aid;
+    const mEl = document.getElementById('pt-msisdn');
+    if (mEl && r.msisdn) mEl.value = r.msisdn;
+  } catch(e) {
+    msgEl.textContent = 'Error: ' + e.message;
+    msgEl.style.color = 'var(--err,#f55)';
+  } finally {
+    btn.disabled = false; btn.textContent = '🔗 Get Phone Activation Link';
+  }
 }
 
 async function wizVerifyOtp() {
@@ -498,8 +567,8 @@ async function wizVerifyOtp() {
       setTimeout(() => location.reload(), 1000);
     } else if (r.needs_paste_cookies) {
       btn.disabled = false; btn.textContent = 'Verify & Link';
-      msgEl.innerHTML = '<span style="color:var(--warn,#f90)">⚠ OTP accepted — scroll down to paste browser cookies</span>';
-      _showPasteCookiesNeeded(r.msisdn, r.error);
+      msgEl.innerHTML = '<span style="color:var(--warn,#f90)">⚠ OTP accepted — scroll down to activate from Jazz phone</span>';
+      _showPasteCookiesNeeded(r.msisdn, r.error, r.account_id || _wizAcctId);
     } else {
       btn.disabled = false; btn.textContent = 'Verify & Link';
       msgEl.textContent = 'Failed: ' + (r.error || 'Invalid OTP');
@@ -569,8 +638,8 @@ async function verifyOtpRow(id) {
       setTimeout(() => location.reload(), 1000);
     } else if (r.needs_paste_cookies) {
       if (btn) btn.disabled = false;
-      msg.innerHTML = '<span style="color:var(--warn,#f90)">⚠ OTP accepted — paste browser cookies below</span>';
-      _showPasteCookiesNeeded(r.msisdn, r.error);
+      msg.innerHTML = '<span style="color:var(--warn,#f90)">⚠ OTP accepted — activate from Jazz phone below</span>';
+      _showPasteCookiesNeeded(r.msisdn, r.error, r.account_id || id);
     } else {
       if (btn) btn.disabled = false;
       msg.textContent = 'Failed: ' + (r.error || 'Invalid OTP');
@@ -744,8 +813,15 @@ async function pasteTokens() {
   if (!vk || !jid) { msg.textContent = 'Enter both cookie values'; return; }
   msg.textContent = 'Saving…';
   try {
-    const r = await api('/api/jazzdrive/tokens',
-      {method:'POST', body:{validation_key:vk, jsessionid:jid, msisdn:msisdn||undefined}});
+    let endpoint, body;
+    if (_ptAccountId) {
+      endpoint = '/scan/api/accounts/' + _ptAccountId + '/tokens';
+      body = {validation_key: vk, jsessionid: jid};
+    } else {
+      endpoint = '/api/jazzdrive/tokens';
+      body = {validation_key: vk, jsessionid: jid, msisdn: msisdn || undefined};
+    }
+    const r = await api(endpoint, {method: 'POST', body});
     if (!r.ok) { msg.textContent = 'Failed: ' + (r.error || 'unknown'); return; }
     msg.textContent = '✔ Tokens saved — reloading…';
     setTimeout(() => location.reload(), 1000);
