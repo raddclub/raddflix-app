@@ -635,12 +635,16 @@ def _upload_file(sess, vk: str, jsid: str,
                  progress_cb: Optional[Callable] = None,
                  cancel_event: Optional[threading.Event] = None,
                  account_id: Optional[int] = None,
-                 override_name: Optional[str] = None) -> dict:
+                 override_name: Optional[str] = None,
+                 forced_proxy: Optional[dict] = None) -> dict:
     """Upload a file using streaming multipart — never buffers the whole file.
 
     Uses _streaming_multipart() (ported from v1.0) so large files (multi-GB)
     don't exhaust RAM.  Also applies RFC 5987 filename encoding for non-ASCII
     filenames (emoji, Urdu, Arabic) to prevent JazzDrive HTTP 400 errors.
+
+    forced_proxy: if provided, uses this proxy dict instead of resolve_proxies().
+    Used by the retry loop to inject a fresh proxy from get_proxy_chain() on each attempt.
     """
     size = file_path.stat().st_size
     ext  = file_path.suffix.lower()
@@ -695,10 +699,35 @@ def _upload_file(sess, vk: str, jsid: str,
     prepped.headers["Content-Length"] = str(content_length)
 
     with _req2.Session() as _up_sess:
-        _sapi_px = jazzdrive.resolve_proxies(purpose='sapi')
-        raw_resp = _up_sess.send(prepped, timeout=_UPLOAD_TIMEOUT,
-                                 proxies=_sapi_px if _sapi_px else None)
+        # Use forced_proxy from retry chain if provided, else pick best from pool
+        _sapi_px = forced_proxy if forced_proxy is not None else jazzdrive.resolve_proxies(purpose='sapi')
+        _proxy_url_used = ""
+        if _sapi_px:
+            _proxy_url_used = _sapi_px.get("_url") or _sapi_px.get("https") or _sapi_px.get("http") or ""
+        try:
+            raw_resp = _up_sess.send(prepped, timeout=_UPLOAD_TIMEOUT,
+                                     proxies=_sapi_px if _sapi_px else None)
+        except Exception as _conn_err:
+            # Network-level failure — immediately demote this proxy so retries skip it
+            if _proxy_url_used:
+                try:
+                    from . import proxy_pool as _pp
+                    _pp.pool.mark_fail(_proxy_url_used)
+                    log.warning("JD upload: proxy %s connection failed (marked bad): %s",
+                                _proxy_url_used, _conn_err)
+                except Exception:
+                    pass
+            raise
 
+    if raw_resp.status_code == 407:
+        # Proxy authentication / unreachable — demote it
+        if _proxy_url_used:
+            try:
+                from . import proxy_pool as _pp
+                _pp.pool.mark_fail(_proxy_url_used)
+            except Exception:
+                pass
+        raise RuntimeError(f"JD upload HTTP 407: proxy error ({_proxy_url_used})")
     if raw_resp.status_code == 401:
         log.warning("JD upload: 401 — session expired during upload")
         raise RuntimeError("JD upload HTTP 401: session expired")
@@ -1283,24 +1312,46 @@ def upload_to_jazzdrive(
     _log(f"Uploading {target_filename} "
          f"({file_size / 1_048_576:.1f} MB) to JazzDrive…")
 
-    # Upload with retry
+    # Upload with proxy-chain retry
+    # On each attempt a DIFFERENT proxy from the pool is used — if a proxy dies
+    # mid-upload it is immediately marked bad and the next best proxy takes over.
     max_retries = max(1, int(upload_cfg.get("max_retries", 3)))
     retry_delay = float(upload_cfg.get("retry_base_delay", 2))
     last_err: Optional[Exception] = None
     up = None
-    
+
+    # Pre-fetch ordered proxy chain so each retry uses a fresh, ranked proxy
+    _proxy_chain: list = []
+    try:
+        from . import proxy_pool as _pp
+        _proxy_chain = _pp.pool.get_proxy_chain(n=max(max_retries + 2, 5))
+    except Exception:
+        pass  # No pool available — _upload_file will call resolve_proxies() itself
+
     for attempt in range(1, max_retries + 1):
+        # Inject a different proxy per attempt (None = let _upload_file pick from pool)
+        _forced_px = _proxy_chain[attempt - 1] if (attempt - 1) < len(_proxy_chain) else None
+        _px_label  = _forced_px.get("_url", "?") if _forced_px else "pool-default"
         try:
             up = _upload_file(sess, vk, jsid, file_path, parent_id=folder_id,
-                              max_bps=max_bps, account_id=aid, 
-                              override_name=target_filename)
+                              max_bps=max_bps, account_id=aid,
+                              override_name=target_filename,
+                              forced_proxy=_forced_px)
+            if attempt > 1:
+                _log(f"Upload succeeded on attempt {attempt}/{max_retries} "
+                     f"via proxy {_px_label}")
             break
         except Exception as e:
             last_err = e
             if attempt < max_retries:
-                _log(f"Upload attempt {attempt}/{max_retries} failed: {e} — retrying in {retry_delay}s…")
+                _log(f"Upload attempt {attempt}/{max_retries} failed "
+                     f"(proxy: {_px_label}): {e} — switching proxy, "
+                     f"retrying in {retry_delay}s…")
                 time.sleep(retry_delay)
-    
+            else:
+                _log(f"Upload attempt {attempt}/{max_retries} failed "
+                     f"(proxy: {_px_label}): {e} — no more retries.")
+
     if up is None:
         _unclaim()
         return {"ok": False, "error": f"Upload failed after {max_retries} attempt(s): {last_err}"}
