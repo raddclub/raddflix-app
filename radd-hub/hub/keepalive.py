@@ -292,6 +292,9 @@ def _run_heartbeat(acct: dict) -> None:
                 pass
 
         sess = _req.Session()
+        _sapi_px = jazzdrive.resolve_proxies(purpose='sapi')
+        if _sapi_px:
+            sess.proxies.update(_sapi_px)
 
         # 2. Ensure Radd-Heartbeat folder exists (kept permanently — do not delete)
         folder_id = _up._get_or_create_folder(sess, vk, jsid, "Radd-Heartbeat", parent_id=0, account_id=aid)

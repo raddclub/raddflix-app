@@ -216,7 +216,7 @@ def generate_delta_json(out_path: str | Path) -> dict:
             "SELECT MAX(updated_at) AS v FROM titles WHERE is_published=1"
         ).fetchone()
     titles_max = int(ver_row["v"] or 0)
-    forced_ts  = int(db.get_setting("catalog_forced_version") or 0)
+    forced_ts  = int(db.setting("catalog_forced_version") or 0)
     catalog_version = max(titles_max, forced_ts) or now_ts
 
     # ── 6. Write JSON ─────────────────────────────────────────────────────────

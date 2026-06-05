@@ -3,7 +3,7 @@ import logging
 import requests
 import tempfile
 from pathlib import Path
-from . import db, uploader, config
+from . import db, uploader, config, jazzdrive
 
 log = logging.getLogger("hub.assets")
 
@@ -52,6 +52,8 @@ def process_title_poster(title_id: int, poster_url: str, account_id: int, folder
             vk = acct.get("validation_key")
             jsid = acct.get("jsessionid")
             sess = requests.Session()
+            _px = jazzdrive.resolve_proxies(purpose='sapi')
+            if _px: sess.proxies.update(_px)
             folder_id = uploader._get_or_create_folder(sess, vk, jsid, title_label, parent_id=0, account_id=account_id)
 
         if not folder_id:
@@ -64,6 +66,8 @@ def process_title_poster(title_id: int, poster_url: str, account_id: int, folder
         vk = acct.get("validation_key")
         jsid = acct.get("jsessionid")
         sess = requests.Session()
+        _px2 = jazzdrive.resolve_proxies(purpose='sapi')
+        if _px2: sess.proxies.update(_px2)
         
         # Always upload as "poster.jpg" so the library route can find it
         # by name inside the shared folder via generate_direct_link.

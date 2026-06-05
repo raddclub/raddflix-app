@@ -695,7 +695,9 @@ def _upload_file(sess, vk: str, jsid: str,
     prepped.headers["Content-Length"] = str(content_length)
 
     with _req2.Session() as _up_sess:
-        raw_resp = _up_sess.send(prepped, timeout=_UPLOAD_TIMEOUT)
+        _sapi_px = jazzdrive.resolve_proxies(purpose='sapi')
+        raw_resp = _up_sess.send(prepped, timeout=_UPLOAD_TIMEOUT,
+                                 proxies=_sapi_px if _sapi_px else None)
 
     if raw_resp.status_code == 401:
         log.warning("JD upload: 401 — session expired during upload")
@@ -1100,6 +1102,9 @@ def upload_to_jazzdrive(
                          "re-login via Settings → JazzDrive Scan → Send OTP."}
 
     sess = _requests.Session()
+    _sapi_px2 = jazzdrive.resolve_proxies(purpose='sapi')
+    if _sapi_px2:
+        sess.proxies.update(_sapi_px2)
 
     # Validate session
     _log(f"Checking JazzDrive session for account '{acct.get('label','?')}'…")
@@ -1601,6 +1606,9 @@ def _upload_pending() -> None:
             pass
 
     sess = _req.Session()
+    _sapi_px3 = jazzdrive.resolve_proxies(purpose='sapi')
+    if _sapi_px3:
+        sess.proxies.update(_sapi_px3)
     upload_cfg = _load_upload_cfg()
     try:
         from . import media_naming

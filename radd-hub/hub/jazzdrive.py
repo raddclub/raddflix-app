@@ -636,7 +636,7 @@ def sapi_request(endpoint: str, action: str,
         return {"error": {"code": "AUTH-ERR", "message": "Max retries exceeded"}}
 
     # Resolve Proxy
-    proxies = resolve_proxies()
+    proxies = resolve_proxies(purpose="sapi")
 
     # 1. Resolve tokens
     if not tokens:
@@ -1969,7 +1969,7 @@ def generate_folder_image_link(folder_share_url: str, filename_hint: str = "post
         return {"ok": False, "error": "Invalid folder share URL"}
 
     share_key = m.group(1)
-    proxies = resolve_proxies()
+    proxies = resolve_proxies(purpose="sapi")
     base_headers = {
         "Accept": "application/json, text/plain, */*",
         "Origin": CLOUD_BASE,
@@ -2074,7 +2074,7 @@ def generate_direct_link(share_url: str, target_filename: str = "") -> dict:
         return {"ok": False, "error": "Invalid share URL"}
     
     share_key = m.group(1)
-    proxies = resolve_proxies()
+    proxies = resolve_proxies(purpose="sapi")
     
     base_headers = {
         "Accept": "application/json, text/plain, */*",
