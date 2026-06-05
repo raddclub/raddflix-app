@@ -512,6 +512,7 @@ class ProxyPool:
             return
         from . import db
         now = int(time.time())
+        _just_disabled = False
         try:
             with db.conn() as c:
                 c.execute(
@@ -522,9 +523,24 @@ class ProxyPool:
                 row = c.execute("SELECT fail_count FROM sapi_proxies WHERE url=?",
                                 (url,)).fetchone()
                 if row and row["fail_count"] >= 5:
-                    log.info("ProxyPool: disabled dead proxy %s (%d fails)", url, row["fail_count"])
+                    _just_disabled = True
+                    log.info("ProxyPool: disabled dead proxy %s (%d fails)",
+                             url, row["fail_count"])
         except Exception:
             pass
+        # Auto-deselect: if admin had this URL pinned as JAZZDRIVE_PROXY, clear it
+        # now so resolve_proxies(otp) stops returning the dead host on every attempt.
+        if _just_disabled:
+            try:
+                manual_url = (db.setting("JAZZDRIVE_PROXY") or "").strip()
+                if manual_url == url:
+                    db.set_setting("JAZZDRIVE_PROXY", "")
+                    db.set_setting("JAZZDRIVE_PROXY_ENABLED", "0")
+                    log.info(
+                        "ProxyPool: auto-cleared JAZZDRIVE_PROXY — "
+                        "was pointing to now-dead proxy %s", url)
+            except Exception:
+                pass
         self._maybe_reload_soon()
 
     def _maybe_reload_soon(self):

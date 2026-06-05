@@ -223,10 +223,26 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
     manual_enabled = db.setting("JAZZDRIVE_PROXY_ENABLED") == "1"
     url = (db.setting("JAZZDRIVE_PROXY") or "").strip()
     if manual_enabled and url:
-        return {"http": url, "https": url, "_url": url}
-    # No manual proxy configured — fall back to SAPI pool automatically.
-    # This ensures OTP requests always go through a Pakistani IP even if the
-    # admin hasn't set up the single-proxy slot manually.
+        # Dead-proxy guard: if this URL was disabled by mark_fail (>= 5 fails),
+        # skip it and fall through to the pool rather than hammering the same
+        # broken host on every OTP request.
+        _manual_alive = True
+        try:
+            with db.conn() as _rc:
+                _pr = _rc.execute(
+                    "SELECT is_enabled FROM sapi_proxies WHERE url=?", (url,)
+                ).fetchone()
+            if _pr is not None and not _pr["is_enabled"]:
+                _manual_alive = False
+                log.warning(
+                    "resolve_proxies(otp): JAZZDRIVE_PROXY '%s' is disabled "
+                    "(too many fails) — falling through to pool", url)
+        except Exception:
+            pass  # pool DB unavailable — trust the manual setting
+        if _manual_alive:
+            return {"http": url, "https": url, "_url": url}
+    # No live manual proxy — fall back to SAPI pool automatically.
+    # This ensures OTP always goes through a Pakistani IP.
     try:
         from . import proxy_pool as _pp
         px = _pp.pool.get_best()
@@ -980,21 +996,30 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     if not msisdn_local:
         return {"ok": False, "error": "No MSISDN provided or configured"}
 
-    # Build a proxy chain: configured proxy first, then pool fallbacks.
-    # This lets us retry automatically if the first proxy blocks jazzdrive.com.pk.
+    # Build proxy chain: configured proxy first, then pool fallbacks.
+    # Dedup by URL (not dict equality) — same URL can appear from both
+    # resolve_proxies() and get_proxy_chain() as different dict instances.
     _proxies_chain: list = []
+    _seen_proxy_urls: set = set()
     primary = resolve_proxies()
     if primary:
         _proxies_chain.append(primary)
+        _seen_proxy_urls.add(primary.get("_url", ""))
     try:
         from . import proxy_pool as _pp
         for p in _pp.pool.get_proxy_chain(n=4):
-            if p not in _proxies_chain:
+            _p_url = p.get("_url", "")
+            if _p_url and _p_url not in _seen_proxy_urls:
+                _seen_proxy_urls.add(_p_url)
                 _proxies_chain.append(p)
     except Exception:
         pass
     if not _proxies_chain:
-        _proxies_chain = [None]  # direct — last resort
+        # Direct from Oracle non-PK IP → jazzdrive.com.pk returns MED-1011.
+        # Only reaches here when pool is completely empty — add seeds in Settings.
+        log.warning("trigger_otp_flow: proxy chain empty — direct connection "
+                    "will likely fail (MED-1011 from non-PK IP)")
+        _proxies_chain = [None]
 
     last_err: Exception = Exception("No proxies available")
     for proxies in _proxies_chain:
@@ -1060,19 +1085,31 @@ def resend_otp() -> dict:
     except Exception:
         return {"ok": False, "error": "Corrupt OTP state"}
 
-    # Build proxy chain with fallbacks (same retry logic as trigger_otp_flow)
+    # TTL guard: resending on an expired session confuses Jazz and wastes SMS quota.
+    _resend_age = time.time() - state.get("created_at", 0)
+    if _resend_age > 600:
+        _OTP_STATE_FILE.unlink(missing_ok=True)
+        return {"ok": False, "error": "OTP session expired (>10 min) — trigger a new OTP first"}
+
+    # Build proxy chain — URL-based dedup, same pattern as trigger_otp_flow.
     _proxies_chain: list = []
+    _seen_proxy_urls: set = set()
     primary = resolve_proxies()
     if primary:
         _proxies_chain.append(primary)
+        _seen_proxy_urls.add(primary.get("_url", ""))
     try:
         from . import proxy_pool as _pp
         for p in _pp.pool.get_proxy_chain(n=4):
-            if p not in _proxies_chain:
+            _p_url = p.get("_url", "")
+            if _p_url and _p_url not in _seen_proxy_urls:
+                _seen_proxy_urls.add(_p_url)
                 _proxies_chain.append(p)
     except Exception:
         pass
     if not _proxies_chain:
+        log.warning("resend_otp: proxy chain empty — direct connection "
+                    "will likely fail (MED-1011 from non-PK IP)")
         _proxies_chain = [None]
 
     last_err: Exception = Exception("No proxies available")
@@ -1133,164 +1170,206 @@ def submit_otp(otp: str) -> dict:
     except Exception:
         return {"ok": False, "error": "Corrupt OTP state — request a new OTP"}
     age = time.time() - state.get("created_at", 0)
-    if age > 300:
+    if age > 600:
         _OTP_STATE_FILE.unlink(missing_ok=True)
-        return {"ok": False, "error": "OTP expired (>5 min) — request a new OTP"}
+        return {"ok": False, "error": "OTP expired (>10 min) — request a new OTP"}
 
-    # Resolve Proxy
-    proxies = resolve_proxies()
-
+    # Build proxy chain for submit_otp — this was the only OTP step that lacked
+    # proxy retry. A single proxy failure here aborted the whole flow even when
+    # pool fallbacks were available. Same retry pattern as trigger_otp_flow /
+    # resend_otp: build chain, try each proxy, mark_fail on connection error.
+    _sub_chain: list = []
+    _sub_seen: set = set()
+    _sub_primary = resolve_proxies()
+    if _sub_primary:
+        _sub_chain.append(_sub_primary)
+        _sub_seen.add(_sub_primary.get("_url", ""))
     try:
-        vk = jid = ""
-        tokens: dict = {}
-        import requests as _req
-        session: Optional[_req.Session] = None   # only set by web flow
+        from . import proxy_pool as _pp
+        for _subp in _pp.pool.get_proxy_chain(n=4):
+            _subp_url = _subp.get("_url", "")
+            if _subp_url and _subp_url not in _sub_seen:
+                _sub_seen.add(_subp_url)
+                _sub_chain.append(_subp)
+    except Exception:
+        pass
+    if not _sub_chain:
+        log.warning("submit_otp: proxy chain empty — direct connection "
+                    "will likely fail (MED-1011 from non-PK IP)")
+        _sub_chain = [None]
 
-        # ── Strategy 1: Android OAuth2 flow (client_id=fnbroot → long-lived refresh_token) ──
-        # Submits the OTP to the same verify.php page used by all flows, then exchanges
-        # the resulting auth code via keytype=oauth2code with embedded fnbroot credentials.
-        # The response includes a refresh_token usable with /oauth2/refresh_token.php
-        # for months without OTP — the same mechanism the Android app uses.
-        use_android = state.get("use_android", True)
-        _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-               "AppleWebKit/537.36 (KHTML, like Gecko) "
-               "Chrome/124.0.0.0 Safari/537.36")
-        session = _req.Session()
-        if proxies:
-            session.proxies = proxies
-        session.headers.update({"User-Agent": _UA})
-        session.cookies = pickle.loads(base64.b64decode(state["cookies"].encode()))
-        rf = _flix()
-        if rf:
-            try:
-                code = rf.verify_otp(session, state["verify_url"], otp.strip())
-                tokens = rf.exchange_code_for_tokens(session, code)
-                vk = tokens.get("validationkey") or tokens.get("validation_key") or ""
-                jid = tokens.get("jsessionid") or tokens.get("JSESSIONID") or ""
-                log.info("submit_otp: radd_flix OK vk=%s jid=%s", bool(vk), bool(jid))
-            except Exception as _rf_e:
-                log.info("submit_otp: radd_flix failed (%s) — falling back to scanner", _rf_e)
-
-        if not vk:
-            tokens = jazzdrive_verify_otp(
-                session, state["verify_url"], otp.strip(),
-                use_android=use_android,
-                msisdn=state.get("msisdn", ""),
-                proxies=proxies,
-            )
-
-            vk  = tokens.get("validation_key", "")
-            jid = tokens.get("jsessionid", "")
-            log.info("submit_otp: scanner verify_otp OK use_android=%s vk=%s rt=%s",
-                     use_android, bool(vk), bool(tokens.get("refresh_token")))
-
-        # ── Extract raw_accesstoken + refresh_token from verified-guide token dict ──
-        # jazzdrive_verify_otp (guide §4) returns raw_accesstoken directly (40-char hex).
-        # radd_flix may return access_token as base64-JSON or raw hex — handle both.
-        raw_at = tokens.get("raw_accesstoken") or ""
-        rt     = (tokens.get("refresh_token") or tokens.get("refreshtoken") or "")
-        # Fallback: try decoding access_token field if raw values weren't populated
-        if not raw_at or not rt:
-            at_b64_field = tokens.get("access_token") or ""
-            if at_b64_field:
-                # Case A: already raw 40-char hex (from /oauth2/token.php or refresh)
-                import re as _re
-                if _re.match(r'^[0-9a-f]{40}$', at_b64_field, _re.IGNORECASE):
-                    if not raw_at:
-                        raw_at = at_b64_field
-                        log.info("submit_otp: access_token is raw hex — used directly as raw_at")
-                else:
-                    # Case B: base64-JSON {"data":{"accesstoken":"...","refreshtoken":"..."}}
-                    try:
-                        # BUG FIX: correct padding — old code used "==" unconditionally for non-0
-                        # remainder which is wrong when remainder==1 (needs 3 pads) or 2 (needs 2).
-                        _padding = "=" * ((4 - len(at_b64_field) % 4) % 4)
-                        at_data = json.loads(
-                            base64.b64decode(at_b64_field + _padding).decode()
-                        ).get("data", {})
-                        if not raw_at:
-                            raw_at = at_data.get("accesstoken", "")
-                        if not rt:
-                            rt = at_data.get("refreshtoken", "")
-                        log.info("submit_otp: fallback decoded access_token — raw_at=%s rt=%s",
-                                 bool(raw_at), bool(rt))
-                    except Exception as _at_err:
-                        log.warning("submit_otp: access_token decode failed: %s", _at_err)
-        log.info("submit_otp: tokens — vk=%s jid=%s raw_at=%s rt=%s",
-                 bool(vk), bool(jid), bool(raw_at), bool(rt))
-
-        # Session lifetime: JSESSIONID expires after 3600 s idle. But refresh_token lasts
-        # months, so set a long expires_at when we have one — keepalive extends it anyway.
-        # BUG FIX: 3300s (55 min) was too short; when keepalive missed one cycle the token
-        # appeared expired and android_refresh failed, locking the user out.
-        expires_offset = 86400 * 30 if rt else 3300  # 30 days with RT, else 55 min
-
-        cookies_b64 = ""
-        if session is not None:
-            try:
-                cookies_b64 = base64.b64encode(pickle.dumps(session.cookies)).decode()
-            except Exception:
-                pass
-
-        save_data = {
-            "validationkey":   vk,
-            "jsessionid":      jid,
-            "refresh_token":   rt,
-            "raw_accesstoken": raw_at,
-            "msisdn":          state["msisdn"],
-            "created_at":      time.time(),
-            "expires_at":      time.time() + expires_offset,
-            "cookies":         cookies_b64,
-        }
-        _save_session(save_data)
-        _OTP_STATE_FILE.unlink(missing_ok=True)
-        # ── Sync tokens to the accounts DB table (used by uploader) ──────────
+    _sub_last_err: Exception = Exception("No proxies available")
+    for proxies in _sub_chain:
         try:
-            msisdn_display = state.get("msisdn_display") or state["msisdn"]
-            with _lock:
-                with db.conn() as _c:
-                    existing = _c.execute(
-                        "SELECT id FROM accounts WHERE msisdn=? OR msisdn=? LIMIT 1",
-                        (state["msisdn"], msisdn_display)
-                    ).fetchone()
-                    if existing:
-                        _c.execute(
-                            "UPDATE accounts SET validation_key=?, jsessionid=?, "
-                            "refresh_token=?, raw_accesstoken=?, "
-                            "token_expires_at=?, last_scan_at=? WHERE id=?",
-                            (vk, jid, rt or None, raw_at or None,
-                             int(time.time() + expires_offset),
-                             int(time.time()), existing["id"])
-                        )
-                        log.info("Updated accounts table for id=%s", existing["id"])
+            vk = jid = ""
+            tokens: dict = {}
+            import requests as _req
+            session: Optional[_req.Session] = None   # only set by web flow
+
+            # ── Strategy 1: Android OAuth2 flow (client_id=fnbroot → long-lived refresh_token) ──
+            # Submits the OTP to the same verify.php page used by all flows, then exchanges
+            # the resulting auth code via keytype=oauth2code with embedded fnbroot credentials.
+            # The response includes a refresh_token usable with /oauth2/refresh_token.php
+            # for months without OTP — the same mechanism the Android app uses.
+            use_android = state.get("use_android", True)
+            _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                   "AppleWebKit/537.36 (KHTML, like Gecko) "
+                   "Chrome/124.0.0.0 Safari/537.36")
+            session = _req.Session()
+            if proxies:
+                session.proxies = proxies
+            session.headers.update({"User-Agent": _UA})
+            session.cookies = pickle.loads(base64.b64decode(state["cookies"].encode()))
+            rf = _flix()
+            if rf:
+                try:
+                    code = rf.verify_otp(session, state["verify_url"], otp.strip())
+                    tokens = rf.exchange_code_for_tokens(session, code)
+                    vk = tokens.get("validationkey") or tokens.get("validation_key") or ""
+                    jid = tokens.get("jsessionid") or tokens.get("JSESSIONID") or ""
+                    log.info("submit_otp: radd_flix OK vk=%s jid=%s", bool(vk), bool(jid))
+                except Exception as _rf_e:
+                    log.info("submit_otp: radd_flix failed (%s) — falling back to scanner", _rf_e)
+
+            if not vk:
+                tokens = jazzdrive_verify_otp(
+                    session, state["verify_url"], otp.strip(),
+                    use_android=use_android,
+                    msisdn=state.get("msisdn", ""),
+                    proxies=proxies,
+                )
+
+                vk  = tokens.get("validation_key", "")
+                jid = tokens.get("jsessionid", "")
+                log.info("submit_otp: scanner verify_otp OK use_android=%s vk=%s rt=%s",
+                         use_android, bool(vk), bool(tokens.get("refresh_token")))
+
+            # ── Extract raw_accesstoken + refresh_token from verified-guide token dict ──
+            # jazzdrive_verify_otp (guide §4) returns raw_accesstoken directly (40-char hex).
+            # radd_flix may return access_token as base64-JSON or raw hex — handle both.
+            raw_at = tokens.get("raw_accesstoken") or ""
+            rt     = (tokens.get("refresh_token") or tokens.get("refreshtoken") or "")
+            # Fallback: try decoding access_token field if raw values weren't populated
+            if not raw_at or not rt:
+                at_b64_field = tokens.get("access_token") or ""
+                if at_b64_field:
+                    # Case A: already raw 40-char hex (from /oauth2/token.php or refresh)
+                    import re as _re
+                    if _re.match(r'^[0-9a-f]{40}$', at_b64_field, _re.IGNORECASE):
+                        if not raw_at:
+                            raw_at = at_b64_field
+                            log.info("submit_otp: access_token is raw hex — used directly as raw_at")
                     else:
-                        _c.execute(
-                            "INSERT INTO accounts (msisdn, label, validation_key, "
-                            "jsessionid, refresh_token, raw_accesstoken, "
-                            "token_expires_at, is_active, created_at) "
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)",
-                            (state["msisdn"], f"JazzDrive {msisdn_display}",
-                             vk, jid, rt or None, raw_at or None,
-                             int(time.time() + expires_offset), int(time.time()))
-                        )
-                        log.info("Inserted new account for %s", state["msisdn"])
-        except Exception as _dbe:
-            log.warning("submit_otp: DB accounts sync failed: %s", _dbe)
-        # ── Sync back to v2 config ────────────────────────────────────────────
-        if rf:
+                        # Case B: base64-JSON {"data":{"accesstoken":"...","refreshtoken":"..."}}
+                        try:
+                            # BUG FIX: correct padding — old code used "==" unconditionally for non-0
+                            # remainder which is wrong when remainder==1 (needs 3 pads) or 2 (needs 2).
+                            _padding = "=" * ((4 - len(at_b64_field) % 4) % 4)
+                            at_data = json.loads(
+                                base64.b64decode(at_b64_field + _padding).decode()
+                            ).get("data", {})
+                            if not raw_at:
+                                raw_at = at_data.get("accesstoken", "")
+                            if not rt:
+                                rt = at_data.get("refreshtoken", "")
+                            log.info("submit_otp: fallback decoded access_token — raw_at=%s rt=%s",
+                                     bool(raw_at), bool(rt))
+                        except Exception as _at_err:
+                            log.warning("submit_otp: access_token decode failed: %s", _at_err)
+            log.info("submit_otp: tokens — vk=%s jid=%s raw_at=%s rt=%s",
+                     bool(vk), bool(jid), bool(raw_at), bool(rt))
+
+            # Session lifetime: JSESSIONID expires after 3600 s idle. But refresh_token lasts
+            # months, so set a long expires_at when we have one — keepalive extends it anyway.
+            # BUG FIX: 3300s (55 min) was too short; when keepalive missed one cycle the token
+            # appeared expired and android_refresh failed, locking the user out.
+            expires_offset = 86400 * 30 if rt else 3300  # 30 days with RT, else 55 min
+
+            cookies_b64 = ""
+            if session is not None:
+                try:
+                    cookies_b64 = base64.b64encode(pickle.dumps(session.cookies)).decode()
+                except Exception:
+                    pass
+
+            save_data = {
+                "validationkey":   vk,
+                "jsessionid":      jid,
+                "refresh_token":   rt,
+                "raw_accesstoken": raw_at,
+                "msisdn":          state["msisdn"],
+                "created_at":      time.time(),
+                "expires_at":      time.time() + expires_offset,
+                "cookies":         cookies_b64,
+            }
+            _save_session(save_data)
+            _OTP_STATE_FILE.unlink(missing_ok=True)
+            # ── Sync tokens to the accounts DB table (used by uploader) ──────────
             try:
-                cfg = rf.load_config()
-                cfg["msisdn"] = state["msisdn"]
-                cfg["validationkey"] = vk
-                cfg["jsessionid"] = jid
-                rf.save_config(cfg)
-            except Exception:
-                pass
-        log.info("JazzDrive session established for %s", state["msisdn"])
-        return {"ok": True, "message": "JazzDrive connected successfully!"}
-    except Exception as e:
-        log.error("submit_otp error: %s", e)
-        return {"ok": False, "error": str(e)}
+                msisdn_display = state.get("msisdn_display") or state["msisdn"]
+                with _lock:
+                    with db.conn() as _c:
+                        existing = _c.execute(
+                            "SELECT id FROM accounts WHERE msisdn=? OR msisdn=? LIMIT 1",
+                            (state["msisdn"], msisdn_display)
+                        ).fetchone()
+                        if existing:
+                            _c.execute(
+                                "UPDATE accounts SET validation_key=?, jsessionid=?, "
+                                "refresh_token=?, raw_accesstoken=?, "
+                                "token_expires_at=?, last_scan_at=? WHERE id=?",
+                                (vk, jid, rt or None, raw_at or None,
+                                 int(time.time() + expires_offset),
+                                 int(time.time()), existing["id"])
+                            )
+                            log.info("Updated accounts table for id=%s", existing["id"])
+                        else:
+                            _c.execute(
+                                "INSERT INTO accounts (msisdn, label, validation_key, "
+                                "jsessionid, refresh_token, raw_accesstoken, "
+                                "token_expires_at, is_active, created_at) "
+                                "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)",
+                                (state["msisdn"], f"JazzDrive {msisdn_display}",
+                                 vk, jid, rt or None, raw_at or None,
+                                 int(time.time() + expires_offset), int(time.time()))
+                            )
+                            log.info("Inserted new account for %s", state["msisdn"])
+            except Exception as _dbe:
+                log.warning("submit_otp: DB accounts sync failed: %s", _dbe)
+            # ── Sync back to v2 config ────────────────────────────────────────────
+            if rf:
+                try:
+                    cfg = rf.load_config()
+                    cfg["msisdn"] = state["msisdn"]
+                    cfg["validationkey"] = vk
+                    cfg["jsessionid"] = jid
+                    rf.save_config(cfg)
+                except Exception:
+                    pass
+            log.info("JazzDrive session established for %s", state["msisdn"])
+            return {"ok": True, "message": "JazzDrive connected successfully!"}
+        except Exception as e:
+            _sub_last_err = e
+            _sub_err_s = str(e).lower()
+            _sub_is_conn = any(x in _sub_err_s for x in (
+                "connection", "timeout", "refused", "reset", "socks",
+                "proxy", "max retries", "newconnection", "failed to reach"))
+            if _sub_is_conn and proxies:
+                _sub_fail_url = proxies.get("_url") or proxies.get("https") or ""
+                try:
+                    from . import proxy_pool as _pp
+                    if _sub_fail_url:
+                        _pp.pool.mark_fail(_sub_fail_url)
+                        log.warning("submit_otp: proxy %s failed (%s), trying next",
+                                    _sub_fail_url, str(e)[:80])
+                except Exception:
+                    pass
+                continue  # retry with next proxy in chain
+            log.error("submit_otp error (non-connection): %s", e)
+            return {"ok": False, "error": str(e)}
+
+    log.error("submit_otp: all proxies exhausted: %s", _sub_last_err)
+    return {"ok": False, "error": str(_sub_last_err)}
 
 
 def save_tokens_direct(validation_key: str, jsessionid: str,
