@@ -1520,32 +1520,73 @@ def android_refresh_session(refresh_token: str,
 
     log.info("android_refresh_session: exchanging refresh_token (acct=%s)...", account_id)
 
-    # Resolve proxies: general proxy for jazzdrive.com.pk (OTP/OAuth2),
-    # SAPI-specific proxy for cloud.jazzdrive.com.pk (geo-restricted endpoint).
-    proxies      = resolve_proxies()
-    sapi_proxies = resolve_proxies(purpose='sapi')
-
     # ── Step 1: POST to /oauth2/refresh_token.php ─────────────────────────────
     # NOTE: jazzdrive.com.pk has an SSL hostname mismatch (cert issued for a
     # subdomain, not the bare domain). We suppress verification only for this
     # one internal call — all cloud.jazzdrive.com.pk calls remain verified.
+    #
+    # Build proxy chain (OTP/OAuth2 domain — jazzdrive.com.pk).
+    # Same retry pattern as trigger_otp_flow / submit_otp: primary first,
+    # then pool fallbacks, mark_fail on connection error and try the next.
+    _ar_chain: list = []
+    _ar_seen: set = set()
+    _ar_primary = resolve_proxies()
+    if _ar_primary:
+        _ar_chain.append(_ar_primary)
+        _ar_seen.add(_ar_primary.get("_url", ""))
     try:
-        import urllib3 as _urllib3
-        _urllib3.disable_warnings(_urllib3.exceptions.InsecureRequestWarning)
-        r = _req.post(
-            "https://jazzdrive.com.pk/oauth2/refresh_token.php",
-            data={
-                "grant_type":    "refresh_token",
-                "client_id":     ANDROID_CLIENT_ID,
-                "client_secret": ANDROID_CLIENT_SECRET,
-                "refresh_token": refresh_token,
-            },
-            timeout=25,
-            proxies=proxies,
-            verify=False,
-        )
-    except Exception as _e:
-        return {"ok": False, "error": f"Network error on OAuth2 refresh: {_e}"}
+        from . import proxy_pool as _pp
+        for _ar_p in _pp.pool.get_proxy_chain(n=4):
+            _ar_pu = _ar_p.get("_url", "")
+            if _ar_pu and _ar_pu not in _ar_seen:
+                _ar_seen.add(_ar_pu)
+                _ar_chain.append(_ar_p)
+    except Exception:
+        pass
+    if not _ar_chain:
+        log.warning("android_refresh_session: proxy chain empty — direct connection "
+                    "will likely fail (MED-1011 from non-PK IP)")
+        _ar_chain = [None]
+
+    # SAPI proxy for Step 2 (cloud.jazzdrive.com.pk — geo-restricted endpoint).
+    sapi_proxies = resolve_proxies(purpose='sapi')
+
+    import urllib3 as _urllib3
+    _urllib3.disable_warnings(_urllib3.exceptions.InsecureRequestWarning)
+
+    r = None
+    _ar_last_err: Exception = Exception("No proxies available")
+    for _ar_px in _ar_chain:
+        try:
+            r = _req.post(
+                "https://jazzdrive.com.pk/oauth2/refresh_token.php",
+                data={
+                    "grant_type":    "refresh_token",
+                    "client_id":     ANDROID_CLIENT_ID,
+                    "client_secret": ANDROID_CLIENT_SECRET,
+                    "refresh_token": refresh_token,
+                },
+                timeout=25,
+                proxies=_ar_px,
+                verify=False,
+            )
+            break  # connected — exit retry loop
+        except Exception as _ar_e:
+            _ar_last_err = _ar_e
+            _ar_fail_url = (_ar_px.get("_url", "") if _ar_px else "")
+            if _ar_fail_url:
+                try:
+                    from . import proxy_pool as _pp
+                    _pp.pool.mark_fail(_ar_fail_url)
+                    log.warning("android_refresh_session: proxy %s failed (%s), trying next",
+                                _ar_fail_url, str(_ar_e)[:80])
+                except Exception:
+                    pass
+            continue
+
+    if r is None:
+        return {"ok": False,
+                "error": f"Network error on OAuth2 refresh (all proxies exhausted): {_ar_last_err}"}
 
     if r.status_code != 200:
         err_body = r.text[:200]
@@ -1643,20 +1684,58 @@ def android_refresh_session(refresh_token: str,
         (f"{_CLOUD}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_2}", "Web-Flat"),
     ]
     
+    # Build SAPI proxy chain for Step 2 re-login.
+    # Inner loop: tries different URL formats with the same SAPI proxy.
+    # Outer loop: if ALL formats fail with connection errors → mark proxy dead,
+    # pick the next SAPI proxy from the pool, and retry all formats.
+    _s2_chain: list = []
+    _s2_seen: set = set()
+    if sapi_proxies:
+        _s2_chain.append(sapi_proxies)
+        _s2_seen.add(sapi_proxies.get("_url", ""))
+    try:
+        from . import proxy_pool as _pp
+        for _s2p in _pp.pool.get_proxy_chain(n=4):
+            _s2p_url = _s2p.get("_url", "")
+            if _s2p_url and _s2p_url not in _s2_seen:
+                _s2_seen.add(_s2p_url)
+                _s2_chain.append(_s2p)
+    except Exception:
+        pass
+    if not _s2_chain:
+        _s2_chain = [None]
+
     last_err = "No candidates tried"
     sr = None
-    for url, label in candidates:
-        try:
-            log.info("android_refresh_session: trying %s @ %s", label, url[:100])
-            sr = sess.get(url, timeout=30, proxies=sapi_proxies)
-            if sr.status_code == 200:
-                log.info("✓ %s candidate succeeded", label)
-                break
-            last_err = f"[{label}] HTTP {sr.status_code}: {sr.text[:200]}"
-            log.debug("android_refresh_session: %s candidate failed: %s", label, last_err)
-        except Exception as _se:
-            last_err = str(_se)
-            log.debug("android_refresh_session: %s network error: %s", label, last_err)
+    for _s2_px in _s2_chain:
+        _s2_conn_errs = 0
+        for url, label in candidates:
+            try:
+                log.info("android_refresh_session: trying %s @ %s", label, url[:100])
+                sr = sess.get(url, timeout=30, proxies=_s2_px)
+                if sr.status_code == 200:
+                    log.info("✓ %s candidate succeeded", label)
+                    break
+                last_err = f"[{label}] HTTP {sr.status_code}: {sr.text[:200]}"
+                log.debug("android_refresh_session: %s candidate failed: %s", label, last_err)
+            except Exception as _se:
+                last_err = str(_se)
+                _s2_conn_errs += 1
+                log.debug("android_refresh_session: %s network error: %s", label, last_err)
+        if sr and sr.status_code == 200:
+            break  # success — stop trying proxies
+        # If every format failed with a connection error, this SAPI proxy is dead
+        if _s2_conn_errs == len(candidates) and _s2_px:
+            _s2_fail_url = _s2_px.get("_url", "")
+            if _s2_fail_url:
+                try:
+                    from . import proxy_pool as _pp
+                    _pp.pool.mark_fail(_s2_fail_url)
+                    log.warning("android_refresh_session: SAPI proxy %s unreachable, trying next",
+                                _s2_fail_url)
+                except Exception:
+                    pass
+        sr = None  # reset for next proxy
 
     if not sr or sr.status_code != 200:
         return {"ok": False, "error": f"SAPI re-login failed: {last_err}"}
