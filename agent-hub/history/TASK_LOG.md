@@ -882,3 +882,51 @@ wrap in retry loop, `mark_fail` on connection errors, continue to next proxy.
 - Proxy pool recovered from 0 alive to 166 alive
 - Both bugs fixed and code deployed to Oracle
 
+## Session 2026-06-05 (3rd session) — OTP Verify Deep Fix
+
+### Bugs Found and Fixed
+
+| ID | Severity | Title |
+|----|---------|-------|
+| BUG-V01 | CRITICAL | verify_otp used `purpose='sapi'` → returns None when circuit open → zero proxy → RemoteDisconnected |
+| BUG-V02 | HIGH | Cascading session death: failed verify → no tokens saved → refresh_token expires → keepalive loops |
+
+### Root Cause
+`verify_otp` in `scanner.py` called `resolve_proxies(purpose='sapi')` but OTP verify hits
+`jazzdrive.com.pk/verify.php` — a web portal endpoint that needs a Pakistani proxy.
+`purpose='sapi'` has NO circuit-open fallback (designed for SAPI uploads where direct is acceptable).
+`purpose='otp'` has a circuit-open least-dead-proxy fallback (added last session).
+With `None` proxies, both the standard flow and all 4 mobile_direct candidates ran from
+Oracle's non-PK IP → Jazz closed connections → `RemoteDisconnected` → `all 4 candidates failed`.
+
+### Fix Applied
+Replaced single `resolve_proxies(purpose='sapi')` call in `verify_otp` with full retry chain:
+- `resolve_proxies(purpose='otp')` as primary (has circuit-open fallback)
+- `get_proxy_chain(n=4)` for additional candidates (URL-deduped)
+- Per-proxy `mark_fail` on connection errors in standard flow
+- Mobile direct fallback also retries up to 3 proxies with `mark_fail`
+- Same resilience pattern now consistent across all 3 OTP steps
+
+### Additional Context from Logs
+- Account 03286829827 is now in fully dead state: `invalid_grant` on refresh_token, 401 on access_token
+- This is BUG-V02 cascading from BUG-V01 — the failed verify never saved fresh tokens
+- Account needs one fresh OTP login after this fix to restore valid tokens
+- Keepalive will continue failing until then (expected — not a new bug)
+
+### Files Changed
+- `radd-hub/hub/scanner.py` — verify_otp: full proxy retry chain, purpose='otp', mark_fail, mobile_direct multi-proxy retry
+
+### Commits
+- `bd037a7` — fix: verify_otp — proxy retry chain + mark_fail + purpose=otp (was sapi, caused RemoteDisconnected on circuit-open)
+
+### Oracle Status
+- Pulled to `bd037a7` ✅
+- Flask restarted (Python files changed) ✅
+- healthz: `{"ok":true,"version":"3.0.0"}` ✅
+
+### State at End of Session
+- All 3 OTP steps (send/resend/verify) now have identical proxy retry resilience
+- verify_otp will never again silently use direct Oracle IP when proxy pool circuit is open
+- Account 03286829827 session is dead (invalid_grant) — needs one fresh OTP login to recover
+- Future verify failures will try up to 5 proxies before giving up (vs 1 before this fix)
+

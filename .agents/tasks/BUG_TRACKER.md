@@ -223,3 +223,37 @@ Two independent bugs both cause OTP to silently use direct connection from Oracl
 
 Commit: `696890f`
 
+---
+
+## Session 2026-06-05 (3rd session) — OTP Verify Proxy Bug
+
+| ID | Severity | Title | Root Cause | Fix Applied | File |
+|----|---------|-------|-----------|-------------|------|
+| BUG-V01 | CRITICAL | OTP verify always fails — "Connection aborted, RemoteDisconnected" | `verify_otp` used `resolve_proxies(purpose='sapi')` which returns `None` when pool circuit is open. Both standard flow AND mobile_direct fallback ran with zero proxy → direct Oracle IP → Jazz drops connection on verify.php | Changed to `purpose='otp'` + full retry chain with `mark_fail` (same pattern as send_otp/resend_otp). Both flows now retry up to 5 proxies before giving up. | `hub/scanner.py` |
+| BUG-V02 | HIGH | Cascading session death after failed OTP verify | When verify_otp fails, no new tokens are saved. Old refresh_token eventually hits `invalid_grant`. Access token expires too. Keepalive cannot recover → account stuck needing OTP re-login | Fixed by BUG-V01 (verify succeeds → tokens saved → keepalive has valid tokens to refresh) | `hub/scanner.py` |
+
+### Root Cause Detail — BUG-V01
+
+`verify_otp` is an OTP web-portal flow (hits `jazzdrive.com.pk/verify.php`).
+It must use `purpose='otp'` which has a circuit-open fallback to the least-dead proxy.
+It was incorrectly using `purpose='sapi'` which has NO circuit-open fallback — returns `None`
+when >80% of pool is dead. With `None` proxies, Jazz drops the connection immediately from
+Oracle's non-PK IP. The mobile_direct fallback received the same `None` proxies and also failed.
+
+**Pattern now unified across all OTP steps:**
+- `send_otp` → `resolve_proxies('otp')` + chain(4) + mark_fail ✅ (fixed 2nd session)
+- `resend_otp` → `resolve_proxies('otp')` + chain(4) + mark_fail ✅ (fixed 2nd session)
+- `verify_otp` → `resolve_proxies('otp')` + chain(4) + mark_fail + mobile_direct retries ✅ (fixed 3rd session)
+
+### Cascading Failure Chain (BUG-V02 observed in logs)
+```
+verify_otp fails (no proxy) → no tokens saved
+→ old refresh_token expires → invalid_grant (HTTP 400)
+→ old raw_accesstoken expires → 401 Unauthorized
+→ keepalive heartbeat fails repeatedly
+→ account needs fresh OTP re-login
+→ verify_otp fails again (same bug) → loop
+```
+After BUG-V01 fix this loop is broken. Account 03286829827 needs one fresh OTP login to restore tokens.
+
+Commit: `bd037a7`
