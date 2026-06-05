@@ -402,6 +402,150 @@ def add_signature():
         return jsonify({"error": str(e)}), 500
 
 
+@bp.route("/api/sapi-proxy", methods=["GET", "POST"])
+@auth.login_required
+def api_sapi_proxy():
+    """GET: return current SAPI proxy URL.
+    POST {url}: save a new SAPI proxy URL (empty string to clear)."""
+    if request.method == "GET":
+        return jsonify({"ok": True, "url": db.setting("JAZZDRIVE_SAPI_PROXY", "")})
+    data = request.get_json(force=True, silent=True) or {}
+    url  = data.get("url", "").strip()
+    db.set_setting("JAZZDRIVE_SAPI_PROXY", url)
+    return jsonify({"ok": True, "url": url})
+
+
+@bp.route("/api/sapi-proxy/test", methods=["POST"])
+@auth.login_required
+def api_sapi_proxy_test():
+    """Test a proxy URL specifically against the SAPI endpoint (cloud.jazzdrive.com.pk).
+    Body: {url?: str}  — omit to test the currently saved SAPI proxy.
+    Returns: {ok, ip, sapi_status, message}
+    A 401 from SAPI means the proxy CAN reach the endpoint (key is fake — that's expected).
+    A timeout/connection error means the proxy is blocked or dead."""
+    import time, json as _json, base64 as _b64, urllib.parse as _up
+    data = request.get_json(force=True, silent=True) or {}
+    url  = data.get("url", "").strip() or db.setting("JAZZDRIVE_SAPI_PROXY", "")
+    if not url:
+        return jsonify({"ok": False, "message": "No proxy URL — save one first"}), 400
+    proxies = {"http": url, "https": url}
+    try:
+        import requests as _req
+        # 1. Detect external IP through proxy
+        ip = "unknown"
+        try:
+            ip_r = _req.get("https://api.ipify.org?format=json", proxies=proxies, timeout=8)
+            ip   = ip_r.json().get("ip", "?")
+        except Exception:
+            pass
+        # 2. Hit the SAPI endpoint with a fake 40-char hex token.
+        #    Expected result: 401 (proxy reached the server, but fake key rejected).
+        #    Any 2xx/4xx/5xx from JazzDrive = proxy IS reaching the server = good.
+        #    Connection error / timeout = proxy is dead or blocked.
+        fake_at  = "a" * 40
+        at_json  = _json.dumps({"data": {"accesstoken": fake_at}})
+        at_b64e  = _up.quote(_b64.b64encode(at_json.encode()).decode(), safe="")
+        sapi_url = (
+            f"https://cloud.jazzdrive.com.pk/sapi/login/oauth"
+            f"?action=login&platform=Android&keytype=accesstoken&key={at_b64e}"
+        )
+        t0 = time.time()
+        r  = _req.get(sapi_url, proxies=proxies, timeout=15, headers={
+            "User-Agent":       "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)",
+            "X-Requested-With": "com.jazz.drive",
+            "Accept":           "application/json",
+        })
+        elapsed = round((time.time() - t0) * 1000)
+        reachable = r.status_code in (200, 400, 401, 403, 500)
+        return jsonify({
+            "ok":          reachable,
+            "ip":          ip,
+            "sapi_status": r.status_code,
+            "ping_ms":     elapsed,
+            "message": (
+                f"✔ Proxy reaches SAPI — IP={ip}, HTTP {r.status_code} ({elapsed} ms)"
+                if reachable else
+                f"✗ SAPI returned unexpected status {r.status_code}"
+            ),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "ip": None, "sapi_status": None,
+                        "message": f"✗ {e}"})
+
+
+@bp.route("/api/sapi-proxy/find", methods=["POST"])
+@auth.login_required
+def api_sapi_proxy_find():
+    """Fetch fresh Pakistani proxies from proxylist.geonode.com API and
+    test each one specifically against cloud.jazzdrive.com.pk/sapi.
+    Returns the working ones sorted by ping time."""
+    import concurrent.futures, json as _json, base64 as _b64, urllib.parse as _up, time
+    import requests as _req
+
+    fake_at  = "a" * 40
+    at_json  = _json.dumps({"data": {"accesstoken": fake_at}})
+    at_b64e  = _up.quote(_b64.b64encode(at_json.encode()).decode(), safe="")
+    sapi_test_url = (
+        f"https://cloud.jazzdrive.com.pk/sapi/login/oauth"
+        f"?action=login&platform=Android&keytype=accesstoken&key={at_b64e}"
+    )
+    ua_hdr = {
+        "User-Agent":       "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)",
+        "X-Requested-With": "com.jazz.drive",
+        "Accept":           "application/json",
+    }
+
+    # Fetch fresh PK proxy list from geonode
+    try:
+        resp = _req.get(
+            "https://proxylist.geonode.com/api/proxy-list"
+            "?country=PK&limit=50&page=1&sort_by=lastChecked&sort_type=desc"
+            "&protocols=http,https",
+            timeout=15,
+        )
+        proxy_entries = resp.json().get("data", [])
+    except Exception as fe:
+        return jsonify({"ok": False, "error": f"Failed to fetch proxy list: {fe}"})
+
+    if not proxy_entries:
+        return jsonify({"ok": False, "error": "No Pakistani proxies returned by geonode"})
+
+    def test_one(entry):
+        host  = (entry.get("ip") or entry.get("host") or "").strip()
+        port  = str(entry.get("port") or "")
+        protos = entry.get("protocols") or ["http"]
+        proto = protos[0] if protos else "http"
+        url   = f"{proto}://{host}:{port}"
+        p     = {"http": url, "https": url}
+        try:
+            ip = "?"
+            try:
+                ip_r = _req.get("https://api.ipify.org?format=json", proxies=p, timeout=6)
+                ip   = ip_r.json().get("ip", "?")
+            except Exception:
+                pass
+            t0 = time.time()
+            r  = _req.get(sapi_test_url, proxies=p, timeout=10, headers=ua_hdr)
+            ms = round((time.time() - t0) * 1000)
+            ok = r.status_code in (200, 400, 401, 403, 500)
+            return {"url": url, "ip": ip, "sapi_status": r.status_code,
+                    "ping_ms": ms, "ok": ok}
+        except Exception as e:
+            return {"url": url, "ok": False, "error": str(e)[:80]}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
+        results = list(ex.map(test_one, proxy_entries[:40]))
+
+    working = sorted([r for r in results if r.get("ok")], key=lambda x: x.get("ping_ms", 9999))
+    return jsonify({
+        "ok":     True,
+        "tested": len(results),
+        "found":  len(working),
+        "working": working,
+        "all":    results,
+    })
+
+
 @bp.route("/api/app-signatures/<int:sig_id>", methods=["DELETE"])
 @auth.login_required
 def delete_signature(sig_id):
