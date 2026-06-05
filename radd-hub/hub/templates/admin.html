@@ -620,6 +620,7 @@ ssetLoad();
       </div>
     </div>
   </div>
+  <div id="db-danger-msg" style="font-size:13px;min-height:18px;margin-top:12px"></div>
 </div>
 {% endblock %}
 
@@ -800,22 +801,27 @@ function _dbMsg(msg, isErr){
   const el=document.getElementById('db-mgmt-msg');
   if(el){ el.textContent=msg; el.style.color=isErr?'var(--err)':'var(--ok)'; }
 }
+function _dangerMsg(msg, isErr){
+  const el=document.getElementById('db-danger-msg');
+  if(el){ el.textContent=msg; el.style.color=isErr?'var(--err,#f44)':'var(--ok,#22c55e)'; el.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+  toast(msg, isErr ? 5000 : 3000);
+}
 
 async function dbReset(){
   const chk = document.getElementById('chk-db-reset');
   if(!chk || !chk.checked){ toast('Please check the confirmation box first'); return; }
   if(!confirm('ARE YOU SURE? All local titles, files, and scan logs will be DELETED.')) return;
   
-  _dbMsg('Resetting…');
+  _dangerMsg('Resetting…');
   try{
     const r = await api('/admin/api/db/reset',{method:'POST'});
     if(r.ok){
-      _dbMsg('✔ Local database cleared');
+      _dangerMsg('✔ Local database cleared');
       chk.checked = false;
     } else {
-      _dbMsg('Error: '+(r.error||'?'), true);
+      _dangerMsg('Error: '+(r.error||'?'), true);
     }
-  }catch(e){ _dbMsg('Error: '+e.message, true); }
+  }catch(e){ _dangerMsg('Error: '+e.message, true); }
 }
 
 async function dbFullWipe(){
@@ -823,16 +829,16 @@ async function dbFullWipe(){
   if(!chk || !chk.checked){ toast('Please check the confirmation box first'); return; }
   if(!confirm('CRITICAL WARNING: This will delete the entire database file including all accounts and settings. You will be logged out. Continue?')) return;
   
-  _dbMsg('Wiping entire database…');
+  _dangerMsg('Wiping entire database…');
   try{
     const r = await api('/admin/api/db/full-delete',{method:'POST'});
     if(r.ok){
       alert('Database wiped successfully. The system will now reload.');
       location.href = '/';
     } else {
-      _dbMsg('Error: '+(r.error||'?'), true);
+      _dangerMsg('Error: '+(r.error||'?'), true);
     }
-  }catch(e){ _dbMsg('Error: '+e.message, true); }
+  }catch(e){ _dangerMsg('Error: '+e.message, true); }
 }
 
 async function dbPull(){
@@ -856,21 +862,21 @@ async function dbSync(mode){
 async function dbClearGithub(){
   if(!confirm('DANGER: This will wipe your GitHub JSON database file. Are you sure?')) return;
   if(!confirm('FINAL CONFIRMATION: Are you absolutely sure? This cannot be undone.')) return;
-  _dbMsg('Clearing GitHub…');
+  _dangerMsg('Clearing GitHub…');
   try{
     const r=await api('/admin/api/db/clear-github',{method:'POST'});
-    _dbMsg(r.ok?'✔ GitHub DB cleared':'Error: '+(r.error||'?'), !r.ok);
-  }catch(e){ _dbMsg('Error: '+e.message, true); }
+    _dangerMsg(r.ok?'✔ GitHub DB cleared':'Error: '+(r.error||'?'), !r.ok);
+  }catch(e){ _dangerMsg('Error: '+e.message, true); }
 }
 
 async function dbClearSheets(){
   if(!confirm('DANGER: This will delete all rows from your Google Sheet. Are you sure?')) return;
   if(!confirm('FINAL CONFIRMATION: Are you absolutely sure? This cannot be undone.')) return;
-  _dbMsg('Clearing Google Sheets…');
+  _dangerMsg('Clearing Google Sheets…');
   try{
     const r=await api('/admin/api/db/clear-gsheets',{method:'POST'});
-    _dbMsg(r.ok?'✔ Google Sheets cleared':'Error: '+(r.error||'?'), !r.ok);
-  }catch(e){ _dbMsg('Error: '+e.message, true); }
+    _dangerMsg(r.ok?'✔ Google Sheets cleared':'Error: '+(r.error||'?'), !r.ok);
+  }catch(e){ _dangerMsg('Error: '+e.message, true); }
 }
 
 async function loadQuotaLeaderboard(){
