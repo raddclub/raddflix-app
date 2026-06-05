@@ -203,20 +203,43 @@ _SAPI_TEST_HEADERS = {
 _SAPI_GOOD_STATUS = {200, 400, 401, 403, 500}
 
 
+# OTP domain check — jazzdrive.com.pk hosts the OAuth2/OTP endpoints.
+# Proxies that can reach SAPI but block this host are useless for OTP.
+_OTP_TEST_URL     = "https://jazzdrive.com.pk/"
+_OTP_GOOD_STATUS  = {200, 301, 302, 303, 304, 400, 401, 403, 404, 500}
+
+
 def _test_proxy(url: str, timeout: int = 12) -> dict:
-    """Test proxy against cloud.jazzdrive.com.pk/sapi.
-    Any 2xx/4xx/5xx from JazzDrive = proxy alive + Pakistani routing."""
+    """Test proxy against BOTH cloud.jazzdrive.com.pk/sapi AND jazzdrive.com.pk.
+
+    A proxy must reach both hosts to be marked alive.  This prevents the common
+    failure where a proxy passes the SAPI check but blocks the OTP/OAuth domain
+    (different host, different routing policy on many PK proxies).
+    """
     import requests as _req
     p = {"http": url, "https": url}
     t0 = time.time()
+    # ── 1. SAPI check ────────────────────────────────────────────────────────
     try:
         r = _req.get(_SAPI_TEST_URL, proxies=p, timeout=timeout,
                      headers=_SAPI_TEST_HEADERS, verify=True)
         ms = round((time.time() - t0) * 1000)
-        ok = r.status_code in _SAPI_GOOD_STATUS
-        return {"ok": ok, "ping_ms": ms, "sapi_status": r.status_code, "error": None}
+        if r.status_code not in _SAPI_GOOD_STATUS:
+            return {"ok": False, "ping_ms": ms, "sapi_status": r.status_code,
+                    "error": f"SAPI bad status {r.status_code}"}
     except Exception as e:
         return {"ok": False, "ping_ms": None, "sapi_status": None, "error": str(e)[:120]}
+    # ── 2. OTP domain check (jazzdrive.com.pk) ───────────────────────────────
+    try:
+        r2 = _req.head(_OTP_TEST_URL, proxies=p, timeout=8,
+                       allow_redirects=True, verify=False)
+        if r2.status_code not in _OTP_GOOD_STATUS:
+            return {"ok": False, "ping_ms": ms, "sapi_status": r.status_code,
+                    "error": f"OTP domain unreachable (status {r2.status_code})"}
+    except Exception as e2:
+        return {"ok": False, "ping_ms": ms, "sapi_status": r.status_code,
+                "error": f"OTP domain blocked: {str(e2)[:80]}"}
+    return {"ok": True, "ping_ms": ms, "sapi_status": r.status_code, "error": None}
 
 
 def _score(proxy: dict) -> float:

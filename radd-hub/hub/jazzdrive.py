@@ -980,45 +980,75 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     if not msisdn_local:
         return {"ok": False, "error": "No MSISDN provided or configured"}
 
-    # Resolve Proxy
-    proxies = resolve_proxies()
-
+    # Build a proxy chain: configured proxy first, then pool fallbacks.
+    # This lets us retry automatically if the first proxy blocks jazzdrive.com.pk.
+    _proxies_chain: list = []
+    primary = resolve_proxies()
+    if primary:
+        _proxies_chain.append(primary)
     try:
-        # jazzdrive_login returns (session, verify_url) or raises
-        import requests as _req
-        session = _req.Session()
-        if proxies:
-            session.proxies = proxies
-        session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,*/*",
-        })
-        # Use v2 radd_flix if available (richer implementation)
-        rf = _flix()
-        use_android = True  # always try Android flow to get long-lived refresh_token
-        if rf:
-            verify_url = rf.trigger_otp(session, msisdn_local)
-        else:
-            _result = jazzdrive_login(msisdn_local, use_android=use_android, proxies=proxies)
-            session  = _result["session"]
-            verify_url = _result["verify_url"]
-            use_android = _result.get("use_android", True)
+        from . import proxy_pool as _pp
+        for p in _pp.pool.get_proxy_chain(n=4):
+            if p not in _proxies_chain:
+                _proxies_chain.append(p)
+    except Exception:
+        pass
+    if not _proxies_chain:
+        _proxies_chain = [None]  # direct — last resort
 
-        state = {
-            "verify_url":  verify_url,
-            "msisdn":      msisdn_local,
-            "msisdn_display": msisdn,
-            "cookies":     base64.b64encode(pickle.dumps(session.cookies)).decode(),
-            "created_at":  time.time(),
-            "use_android": use_android,
-        }
-        _OTP_STATE_FILE.write_text(json.dumps(state))
-        db.set_setting("JAZZDRIVE_MSISDN", msisdn)
-        log.info("OTP triggered for %s", msisdn)
-        return {"ok": True, "msisdn": msisdn, "message": f"OTP sent to {msisdn}. Check SMS then submit below."}
-    except Exception as e:
-        log.error("trigger_otp error: %s", e)
-        return {"ok": False, "error": str(e)}
+    last_err: Exception = Exception("No proxies available")
+    for proxies in _proxies_chain:
+        try:
+            # jazzdrive_login returns (session, verify_url) or raises
+            import requests as _req
+            session = _req.Session()
+            if proxies:
+                session.proxies = proxies
+            session.headers.update({
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,*/*",
+            })
+            # Use v2 radd_flix if available (richer implementation)
+            rf = _flix()
+            use_android = True  # always try Android flow to get long-lived refresh_token
+            if rf:
+                verify_url = rf.trigger_otp(session, msisdn_local)
+            else:
+                _result = jazzdrive_login(msisdn_local, use_android=use_android, proxies=proxies)
+                session    = _result["session"]
+                verify_url = _result["verify_url"]
+                use_android = _result.get("use_android", True)
+
+            state = {
+                "verify_url":  verify_url,
+                "msisdn":      msisdn_local,
+                "msisdn_display": msisdn,
+                "cookies":     base64.b64encode(pickle.dumps(session.cookies)).decode(),
+                "created_at":  time.time(),
+                "use_android": use_android,
+            }
+            _OTP_STATE_FILE.write_text(json.dumps(state))
+            db.set_setting("JAZZDRIVE_MSISDN", msisdn)
+            log.info("OTP triggered for %s via %s", msisdn, proxies.get("_url") if proxies else "direct")
+            return {"ok": True, "msisdn": msisdn, "message": f"OTP sent to {msisdn}. Check SMS then submit below."}
+        except Exception as e:
+            last_err = e
+            err_s = str(e).lower()
+            is_conn = any(x in err_s for x in ('connection', 'timeout', 'refused', 'reset', 'socks', 'proxy', 'max retries', 'newconnection'))
+            if is_conn and proxies:
+                url = proxies.get("_url") or proxies.get("https") or ""
+                try:
+                    from . import proxy_pool as _pp
+                    if url:
+                        _pp.pool.mark_fail(url)
+                        log.warning("OTP: proxy %s failed (%s), trying next in chain", url, str(e)[:80])
+                except Exception:
+                    pass
+                continue  # try next proxy in chain
+            break  # non-connection error — don't retry with different proxy
+
+    log.error("trigger_otp error (all proxies exhausted): %s", last_err)
+    return {"ok": False, "error": str(last_err)}
 
 
 def resend_otp() -> dict:
@@ -1030,38 +1060,68 @@ def resend_otp() -> dict:
     except Exception:
         return {"ok": False, "error": "Corrupt OTP state"}
 
-    # Resolve Proxy
-    proxies = resolve_proxies()
-
+    # Build proxy chain with fallbacks (same retry logic as trigger_otp_flow)
+    _proxies_chain: list = []
+    primary = resolve_proxies()
+    if primary:
+        _proxies_chain.append(primary)
     try:
-        import requests as _req
-        session = _req.Session()
-        if proxies:
-            session.proxies = proxies
-        session.headers.update({
-            "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                            "AppleWebKit/537.36 (KHTML, like Gecko) "
-                            "Chrome/124.0.0.0 Safari/537.36"),
-        })
-        session.cookies = pickle.loads(base64.b64decode(state["cookies"].encode()))
+        from . import proxy_pool as _pp
+        for p in _pp.pool.get_proxy_chain(n=4):
+            if p not in _proxies_chain:
+                _proxies_chain.append(p)
+    except Exception:
+        pass
+    if not _proxies_chain:
+        _proxies_chain = [None]
 
-        # Official trick: POST to verify_url with resendpin= (empty)
-        # This triggers a new SMS without invalidating the current session.
-        r = session.post(
-            state["verify_url"],
-            data={"resendpin": ""},
-            headers={
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Referer": state["verify_url"],
-            },
-            timeout=30,
-            proxies=proxies,
-        )
-        log.info("OTP resend triggered for %s (status=%d)", state.get("msisdn"), r.status_code)
-        return {"ok": True, "message": "OTP resend request sent. Please check your SMS."}
-    except Exception as e:
-        log.error("resend_otp error: %s", e)
-        return {"ok": False, "error": str(e)}
+    last_err: Exception = Exception("No proxies available")
+    for proxies in _proxies_chain:
+        try:
+            import requests as _req
+            session = _req.Session()
+            if proxies:
+                session.proxies = proxies
+            session.headers.update({
+                "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                "Chrome/124.0.0.0 Safari/537.36"),
+            })
+            session.cookies = pickle.loads(base64.b64decode(state["cookies"].encode()))
+
+            # Official trick: POST to verify_url with resendpin= (empty)
+            # This triggers a new SMS without invalidating the current session.
+            r = session.post(
+                state["verify_url"],
+                data={"resendpin": ""},
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Referer": state["verify_url"],
+                },
+                timeout=30,
+                proxies=proxies,
+            )
+            log.info("OTP resend triggered for %s via %s (status=%d)",
+                     state.get("msisdn"), proxies.get("_url") if proxies else "direct", r.status_code)
+            return {"ok": True, "message": "OTP resend request sent. Please check your SMS."}
+        except Exception as e:
+            last_err = e
+            err_s = str(e).lower()
+            is_conn = any(x in err_s for x in ('connection', 'timeout', 'refused', 'reset', 'socks', 'proxy', 'max retries', 'newconnection'))
+            if is_conn and proxies:
+                url = proxies.get("_url") or proxies.get("https") or ""
+                try:
+                    from . import proxy_pool as _pp
+                    if url:
+                        _pp.pool.mark_fail(url)
+                        log.warning("OTP resend: proxy %s failed, trying next", url)
+                except Exception:
+                    pass
+                continue
+            break
+
+    log.error("resend_otp error (all proxies exhausted): %s", last_err)
+    return {"ok": False, "error": str(last_err)}
 
 
 def submit_otp(otp: str) -> dict:
