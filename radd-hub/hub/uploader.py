@@ -1733,14 +1733,8 @@ def _upload_pending() -> None:
         if confirmed_remote_id and confirmed_remote_id != 0:
             _set_file_folder(vk, jsid, confirmed_remote_id, folder_id, account_id=acct["id"])
 
-        # Defense in depth: explicitly rename to clean name on JazzDrive.
-        # Matches upload_to_jazzdrive path — ensures both upload paths produce clean JD names.
-        if confirmed_remote_id and confirmed_remote_id != 0 and plan.filename:
-            try:
-                jazzdrive.rename_video(acct["id"], confirmed_remote_id, plan.filename, folder_id=folder_id)
-                log.info("upload_pending: JD rename OK → %s", plan.filename)
-            except Exception as _rn_err:
-                log.warning("upload_pending: JD rename failed (non-fatal): %s", _rn_err)
+        # DB is source of truth — JD file name does not matter.
+        # Canonical title lives in the titles table; no rename API call needed.
 
         share_url = _create_share_link(sess, vk, jsid, confirmed_remote_id or 0, folder_id=folder_id)
 
