@@ -416,16 +416,15 @@ def admin_cmd():
 @auth.login_required
 def db_reset():
     """Clear files, titles, mirror_log, scan_log, queue from local DB."""
-    import sqlite3
+    RESET_TABLES = ["files", "titles", "mirror_log", "scan_log", "queue", "bot_status_index"]
     try:
         with db.conn() as c:
-            c.execute("DELETE FROM files")
-            c.execute("DELETE FROM titles")
-            c.execute("DELETE FROM mirror_log")
-            c.execute("DELETE FROM scan_log")
-            c.execute("DELETE FROM queue")
-            c.execute("DELETE FROM bot_status_index")
-            for tbl in ["files","titles","mirror_log","scan_log","queue","bot_status_index"]:
+            for tbl in RESET_TABLES:
+                try:
+                    c.execute(f"DELETE FROM {tbl}")
+                except Exception:
+                    pass
+            for tbl in RESET_TABLES:
                 try:
                     c.execute("DELETE FROM sqlite_sequence WHERE name=?", (tbl,))
                 except Exception:
