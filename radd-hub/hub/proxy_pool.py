@@ -378,8 +378,8 @@ class ProxyPool:
             for url in _BUILTIN_SEEDS:
                 try:
                     rows = c.execute(
-                        "INSERT OR IGNORE INTO sapi_proxies(url,source,added_at) VALUES(?,?,?)",
-                        (url, 'seed', now)).rowcount
+                        "INSERT OR IGNORE INTO sapi_proxies(url,source,added_at,country) VALUES(?,?,?,?)",
+                        (url, 'seed', now, 'PK')).rowcount
                     added += rows
                 except Exception:
                     pass
@@ -896,8 +896,8 @@ class ProxyPool:
         now = int(time.time())
         try:
             with db.conn() as c:
-                c.execute("INSERT OR IGNORE INTO sapi_proxies(url,source,added_at) VALUES(?,?,?)",
-                          (url, 'manual', now))
+                c.execute("INSERT OR IGNORE INTO sapi_proxies(url,source,added_at,country) VALUES(?,?,?,?)",
+                          (url, 'manual', now, _detect_country(url)))
         except Exception as e:
             return {"ok": False, "error": str(e)}
         if test:
