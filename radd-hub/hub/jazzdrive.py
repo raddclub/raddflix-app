@@ -196,19 +196,25 @@ def _save_session(data: dict):
 def _is_replit() -> bool:
     return bool(os.environ.get("REPL_ID") or os.environ.get("REPLIT_DEPLOYMENT"))
 
-def resolve_proxies() -> Optional[dict]:
+def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
     """Return a requests-compatible proxies dict if enabled in settings.
 
+    purpose='sapi' — checks JAZZDRIVE_SAPI_PROXY first (dedicated slot for
+                     cloud.jazzdrive.com.pk SAPI calls that may be geo-blocked).
+    purpose='otp'  — uses the general JAZZDRIVE_PROXY slot (OTP / refresh_token).
     Always returns None on Replit because proxy traffic violates ToS."""
     if _is_replit():
         return None
+    if purpose == 'sapi':
+        sapi_url = (db.setting("JAZZDRIVE_SAPI_PROXY") or "").strip()
+        if sapi_url:
+            return {"http": sapi_url, "https": sapi_url}
     if db.setting("JAZZDRIVE_PROXY_ENABLED") != "1":
         return None
-    url = db.setting("JAZZDRIVE_PROXY")
-    if not url or not url.strip():
+    url = (db.setting("JAZZDRIVE_PROXY") or "").strip()
+    if not url:
         return None
-    u = url.strip()
-    return {"http": u, "https": u}
+    return {"http": url, "https": url}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -246,8 +252,8 @@ def refresh_jsessionid(validation_key: str,
     import urllib.parse as _up
     import base64 as _b64
 
-    # Resolve Proxy
-    proxies = resolve_proxies()
+    # Resolve Proxy — SAPI endpoint may be geo-restricted; use dedicated SAPI proxy slot
+    proxies = resolve_proxies(purpose='sapi')
 
     CLOUD_BASE = "https://cloud.jazzdrive.com.pk"
     msisdn = str(db.setting('JAZZDRIVE_MSISDN') or "")
@@ -1334,8 +1340,10 @@ def android_refresh_session(refresh_token: str,
 
     log.info("android_refresh_session: exchanging refresh_token (acct=%s)...", account_id)
 
-    # Resolve Proxy
-    proxies = resolve_proxies()
+    # Resolve proxies: general proxy for jazzdrive.com.pk (OTP/OAuth2),
+    # SAPI-specific proxy for cloud.jazzdrive.com.pk (geo-restricted endpoint).
+    proxies      = resolve_proxies()
+    sapi_proxies = resolve_proxies(purpose='sapi')
 
     # ── Step 1: POST to /oauth2/refresh_token.php ─────────────────────────────
     # NOTE: jazzdrive.com.pk has an SSL hostname mismatch (cert issued for a
@@ -1460,7 +1468,7 @@ def android_refresh_session(refresh_token: str,
     for url, label in candidates:
         try:
             log.info("android_refresh_session: trying %s @ %s", label, url[:100])
-            sr = sess.get(url, timeout=30, proxies=proxies)
+            sr = sess.get(url, timeout=30, proxies=sapi_proxies)
             if sr.status_code == 200:
                 log.info("✓ %s candidate succeeded", label)
                 break
@@ -1642,8 +1650,8 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
 
     log.info("Refreshing JazzDrive session for %s via raw_accesstoken ...", acct.get("msisdn"))
 
-    # Resolve Proxy
-    proxies = resolve_proxies()
+    # Resolve Proxy — SAPI endpoint; use dedicated SAPI proxy slot
+    proxies = resolve_proxies(purpose='sapi')
 
     at_json_1  = json.dumps({"data": {"accesstoken": raw_at}})
     at_json_2  = json.dumps({"accesstoken": raw_at})
