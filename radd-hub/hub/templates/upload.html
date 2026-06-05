@@ -2,18 +2,36 @@
 {% set active="upload" %}
 {% block content %}
 
+{% if not upload_enabled %}
+<div style="display:flex;align-items:center;gap:10px;background:rgba(244,67,54,.1);border:1px solid rgba(244,67,54,.4);border-radius:8px;padding:10px 16px;margin-bottom:14px;flex-wrap:wrap">
+  <span style="font-size:18px">⏸</span>
+  <div style="flex:1">
+    <strong style="color:var(--err,#f44336)">Upload service is paused</strong>
+    <span class="muted" style="font-size:13px;margin-left:8px">The watch folder is not being processed and no heartbeat requests are sent to JazzDrive.</span>
+  </div>
+  <a href="/settings" style="font-size:13px;color:var(--accent);text-decoration:none;white-space:nowrap">Enable in Settings →</a>
+</div>
+{% endif %}
+
 <div class="h-row">
   <div>
     <h2>Flix</h2>
     <div class="muted" style="font-size:13px;margin-top:2px">Upload files to JazzDrive — auto-mirror to GitHub and Google Sheets.</div>
   </div>
   <div style="display:flex;gap:8px;align-items:center">
+    {% if upload_enabled %}
     <span id="bg-indicator" title="Background upload worker is always running — uploads continue even if you close this page"
           style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">
       <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;animation:pulse 2s infinite"></span>
       Worker active
     </span>
-    <button onclick="scanNow()">Rescan folder</button>
+    {% else %}
+    <span style="font-size:12px;color:var(--err,#f44336);display:flex;align-items:center;gap:5px">
+      <span style="width:8px;height:8px;border-radius:50%;background:var(--err,#f44336);display:inline-block"></span>
+      Worker paused
+    </span>
+    {% endif %}
+    <button onclick="scanNow()" {% if not upload_enabled %}disabled title="Upload is paused — enable in Settings"{% endif %}>Rescan folder</button>
   </div>
 </div>
 <style>
