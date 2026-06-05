@@ -402,6 +402,29 @@ def add_signature():
         return jsonify({"error": str(e)}), 500
 
 
+@bp.route("/api/services", methods=["GET", "POST"])
+@auth.login_required
+def api_services():
+    """GET: return current SCAN_ENABLED / UPLOAD_ENABLED flags.
+    POST {scan?: bool, upload?: bool}: toggle one or both services."""
+    if request.method == "GET":
+        return jsonify({
+            "ok": True,
+            "scan_enabled":   db.setting("SCAN_ENABLED",   "1") == "1",
+            "upload_enabled": db.setting("UPLOAD_ENABLED", "1") == "1",
+        })
+    data = request.get_json(force=True, silent=True) or {}
+    if "scan" in data:
+        db.set_setting("SCAN_ENABLED",   "1" if data["scan"]   else "0")
+    if "upload" in data:
+        db.set_setting("UPLOAD_ENABLED", "1" if data["upload"] else "0")
+    return jsonify({
+        "ok": True,
+        "scan_enabled":   db.setting("SCAN_ENABLED",   "1") == "1",
+        "upload_enabled": db.setting("UPLOAD_ENABLED", "1") == "1",
+    })
+
+
 @bp.route("/api/sapi-proxy", methods=["GET", "POST"])
 @auth.login_required
 def api_sapi_proxy():
