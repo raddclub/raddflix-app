@@ -229,7 +229,12 @@ def save_account_tokens(aid):
             import logging
             logging.getLogger("hub.scan").debug("trigger_heartbeat failed: %s", _hb_err)
 
-        # Clear any OTP backoff so uploads resume immediately after re-activation.
+        # Clear all OTP backoffs so uploads/links resume immediately after re-activation.
+        try:
+            from .. import jazzdrive as _jd
+            _jd.clear_sapi_backoff(aid)
+        except Exception:
+            pass
         try:
             from .. import uploader as _up
             _up.clear_refresh_backoff(aid)

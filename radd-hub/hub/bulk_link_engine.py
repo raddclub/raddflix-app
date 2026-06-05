@@ -70,10 +70,21 @@ class BulkLinkEngine:
         log.info(f"Identified {len(targets)} files for link generation.")
         
         success_count = 0
+        consecutive_failures = 0
         for row in targets:
             if self._stop_event.is_set():
                 break
-                
+
+            # Abort the entire batch if JazzDrive keeps rejecting us — avoids
+            # spamming 200 "Failed to generate link" warnings when session is dead.
+            if consecutive_failures >= 3:
+                log.warning(
+                    "Bulk link refresh aborted after %d consecutive failures "
+                    "(JazzDrive session likely needs OTP re-login). "
+                    "Will retry in 2 hours.", consecutive_failures
+                )
+                break
+
             file_id = row['id']
             filename = row['filename']
             # Prefer direct file share_url, fallback to folder_share_url
@@ -82,6 +93,7 @@ class BulkLinkEngine:
             
             if not share_url:
                 log.debug(f"Skipping {filename} (ID: {file_id}): No share URL available.")
+                consecutive_failures = 0  # reset — this isn't an auth failure
                 continue
                 
             try:
@@ -93,11 +105,18 @@ class BulkLinkEngine:
                     db.save_stream_link(file_id, res['direct_link'], 
                                         expires_in=28800, account_id=account_id)
                     success_count += 1
+                    consecutive_failures = 0
                     log.debug(f"✓ Generated link for {filename}")
                 else:
-                    log.warning(f"× Failed to generate link for {filename}: {res.get('error')}")
+                    err = res.get('error', '')
+                    log.warning(f"× Failed to generate link for {filename}: {err}")
+                    if '401' in str(err) or 'login' in str(err).lower() or 'unauthorized' in str(err).lower():
+                        consecutive_failures += 1
+                    else:
+                        consecutive_failures = 0
             except Exception as e:
                 log.error(f"Error generating link for {filename}: {e}")
+                consecutive_failures += 1
                 
             # Anti-throttle delay (2s per file = ~7 min for 200 files)
             time.sleep(2)

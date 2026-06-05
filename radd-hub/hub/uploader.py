@@ -1550,7 +1550,15 @@ def _upload_pending() -> None:
 
     if not verify_jd_session(vk, jsid, account_id=acct["id"]):
         aid_for_backoff = acct["id"]
-        if _is_refresh_backed_off(aid_for_backoff):
+        # Check both the uploader-level backoff AND jazzdrive's sapi_request backoff.
+        # sapi_request marks _SAPI_BACKOFF when verify_jd_session's internal call gets
+        # 401 — so we can short-circuit here without another 8-call refresh attempt.
+        _jd_backed_off = False
+        try:
+            _jd_backed_off = jazzdrive._is_sapi_backed_off(aid_for_backoff)
+        except Exception:
+            pass
+        if _is_refresh_backed_off(aid_for_backoff) or _jd_backed_off:
             log.debug("upload_pending: account %s in OTP backoff — skipping refresh", aid_for_backoff)
             _release_pending(file_id)
             return

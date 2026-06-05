@@ -100,6 +100,54 @@ ANDROID_CLIENT_SECRET = "f&rW23"
 _OTP_STATE_FILE = config.TEMP_DIR / "radd_jd_otp_state.json"
 _lock = threading.Lock()
 
+# ── SAPI 401 backoff registry ─────────────────────────────────────────────────
+# When all auto-refresh strategies fail (OTP re-login required), we record the
+# failure time and skip *all* sapi_request auto-refresh attempts for 30 min.
+# This one dict covers every caller: uploader, bulk_links, keepalive, etc.
+_SAPI_BACKOFF: "dict[int, float]" = {}
+_SAPI_BACKOFF_LOCK = threading.Lock()
+_SAPI_BACKOFF_SECS = 1800  # 30 minutes
+
+
+def clear_sapi_backoff(account_id: int) -> None:
+    """Clear the SAPI backoff for an account (call after new tokens are saved)."""
+    with _SAPI_BACKOFF_LOCK:
+        removed = _SAPI_BACKOFF.pop(account_id, None)
+    if removed is not None:
+        log.info("SAPI backoff cleared for account %s — auto-refresh re-enabled", account_id)
+
+
+def _is_sapi_backed_off(account_id: Optional[int]) -> bool:
+    """Return True if this account is suppressing auto-refresh (OTP backoff)."""
+    if not account_id:
+        return False
+    with _SAPI_BACKOFF_LOCK:
+        fail_at = _SAPI_BACKOFF.get(account_id)
+    if fail_at is None:
+        return False
+    elapsed = time.time() - fail_at
+    if elapsed >= _SAPI_BACKOFF_SECS:
+        with _SAPI_BACKOFF_LOCK:
+            _SAPI_BACKOFF.pop(account_id, None)
+        return False
+    remaining_min = int((_SAPI_BACKOFF_SECS - elapsed) / 60)
+    log.debug("account %s SAPI backoff active — %dm remaining", account_id, remaining_min)
+    return True
+
+
+def _mark_sapi_backed_off(account_id: Optional[int]) -> None:
+    """Suppress SAPI auto-refresh for this account for 30 min (OTP required)."""
+    if not account_id:
+        return
+    with _SAPI_BACKOFF_LOCK:
+        _SAPI_BACKOFF[account_id] = time.time()
+    log.warning(
+        "account %s: SAPI auto-refresh suppressed for 30 min — OTP re-login required. "
+        "Open Scan/Upload page and re-activate session via phone.",
+        account_id
+    )
+
+
 
 # ---------------------------------------------------------------------------
 # v2 radd_flix module loader (for upload primitives)
@@ -664,40 +712,49 @@ def sapi_request(endpoint: str, action: str,
         # Strategy B: validationKey → fresh JSESSIONID via web re-login endpoint
         if r.status_code == 401 and vk:
             log.info("SAPI 401 — Attempting session recovery...")
-            # Strategy A: use refresh_token (Android approach)
-            try:
-                refresh_result = refresh_session(account_id)
-                if refresh_result.get("ok"):
-                    log.info("✓ Session refreshed via refresh_token. Retrying...")
-                    new_tokens = tokens.copy()
-                    if account_id:
-                        try:
-                            with db.conn() as _rc:
-                                row = _rc.execute(
-                                    "SELECT * FROM accounts WHERE id=?", (account_id,)
-                                ).fetchone()
-                                if row:
-                                    new_tokens = {
-                                        "validationkey": row["validation_key"],
-                                        "jsessionid":    row["jsessionid"],
-                                        "refresh_token": row["refresh_token"],
-                                    }
-                        except Exception:
-                            pass
-                    return sapi_request(endpoint, action, method, params, json_data, data,
-                                        headers, account_id, new_tokens, timeout, _retry_count + 1)
-            except Exception as _re:
-                log.debug("refresh_session fallback failed: %s", _re)
 
-            # Strategy B: validationKey → fresh JSESSIONID (web re-login, no OTP needed)
-            new_jid_b, _ = refresh_jsessionid(vk, raw_accesstoken=tokens.get("raw_accesstoken", ""))
-            if new_jid_b:
-                log.info("✓ Fresh JSESSIONID obtained via validationKey. Retrying...")
-                tokens["jsessionid"] = new_jid_b
-                _update_token_storage(account_id, tokens)
-                return sapi_request(endpoint, action, method, params, json_data, data, headers, account_id, tokens, timeout, _retry_count + 1)
+            # Skip costly refresh attempts if account is already in OTP backoff.
+            # This prevents uploader/bulk_links/keepalive from hammering JazzDrive
+            # with 8 failed API calls every 40 s when the session is dead.
+            if _is_sapi_backed_off(account_id):
+                log.debug("SAPI 401 — account %s in OTP backoff, skipping refresh", account_id)
+                log.warning("SAPI 401 — both strategies failed. OTP re-login required.")
+            else:
+                # Strategy A: use refresh_token (Android approach)
+                try:
+                    refresh_result = refresh_session(account_id)
+                    if refresh_result.get("ok"):
+                        log.info("✓ Session refreshed via refresh_token. Retrying...")
+                        new_tokens = tokens.copy()
+                        if account_id:
+                            try:
+                                with db.conn() as _rc:
+                                    row = _rc.execute(
+                                        "SELECT * FROM accounts WHERE id=?", (account_id,)
+                                    ).fetchone()
+                                    if row:
+                                        new_tokens = {
+                                            "validationkey": row["validation_key"],
+                                            "jsessionid":    row["jsessionid"],
+                                            "refresh_token": row["refresh_token"],
+                                        }
+                            except Exception:
+                                pass
+                        return sapi_request(endpoint, action, method, params, json_data, data,
+                                            headers, account_id, new_tokens, timeout, _retry_count + 1)
+                except Exception as _re:
+                    log.debug("refresh_session fallback failed: %s", _re)
 
-            log.warning("SAPI 401 — both strategies failed. OTP re-login required.")
+                # Strategy B: validationKey → fresh JSESSIONID (web re-login, no OTP needed)
+                new_jid_b, _ = refresh_jsessionid(vk, raw_accesstoken=tokens.get("raw_accesstoken", ""))
+                if new_jid_b:
+                    log.info("✓ Fresh JSESSIONID obtained via validationKey. Retrying...")
+                    tokens["jsessionid"] = new_jid_b
+                    _update_token_storage(account_id, tokens)
+                    return sapi_request(endpoint, action, method, params, json_data, data, headers, account_id, tokens, timeout, _retry_count + 1)
+
+                log.warning("SAPI 401 — both strategies failed. OTP re-login required.")
+                _mark_sapi_backed_off(account_id)
 
         # 5. Handle JSON responses
         try:
