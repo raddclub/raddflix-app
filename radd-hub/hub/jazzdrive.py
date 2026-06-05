@@ -118,6 +118,12 @@ _SAPI_BACKOFF_SECS = 1800  # 30 minutes
 # has already changed and returns early without making a second network call.
 _refresh_locks: "dict[int, threading.Lock]" = {}
 _refresh_locks_mutex = threading.Lock()
+# Cooldown: after a successful refresh, suppress all further exchange attempts
+# for this many seconds. Prevents sapi_request's internal retry loop from
+# burning through the refresh-token chain (token A -> B -> C -> invalid_grant).
+_REFRESH_COOLDOWN_S = 180  # 3 minutes
+_last_refresh_success: "dict[int, float]" = {}   # account_id -> epoch seconds
+_last_refresh_lock = threading.Lock()
 
 
 def _get_refresh_lock(account_id: int) -> "threading.Lock":
@@ -1582,6 +1588,39 @@ def android_refresh_session(refresh_token: str,
         except Exception as _pre_err:
             log.debug("android_refresh_session: pre-check DB read failed: %s", _pre_err)
 
+    # ── Cooldown guard ──────────────────────────────────────────────────────
+    # If a successful refresh happened within _REFRESH_COOLDOWN_S seconds ago,
+    # skip the exchange entirely and return the current DB tokens.  This stops
+    # sapi_request's internal retry loop from burning token A→B→C→invalid_grant.
+    if account_id is not None:
+        with _last_refresh_lock:
+            _last_ok = _last_refresh_success.get(account_id, 0.0)
+        _age = _time_time() - _last_ok
+        if _age < _REFRESH_COOLDOWN_S:
+            log.info(
+                "android_refresh_session: acct=%s cooldown active (%.0fs ago) "
+                "— returning current DB tokens without exchange",
+                account_id, _age,
+            )
+            if _acct_lock is not None:
+                _acct_lock.release()
+            try:
+                with db.conn() as _cd:
+                    _cr = _cd.execute(
+                        "SELECT validation_key, jsessionid FROM accounts WHERE id=?",
+                        (account_id,)
+                    ).fetchone()
+                if _cr:
+                    return {
+                        "ok":             True,
+                        "validation_key": (_cr["validation_key"] or ""),
+                        "jsessionid":     (_cr["jsessionid"] or ""),
+                        "message":        "Cooldown active — no exchange needed",
+                    }
+            except Exception:
+                pass
+            return {"ok": True, "message": "Cooldown active — no exchange needed"}
+
     try:
         return _android_refresh_session_inner(
             refresh_token=refresh_token,
@@ -1874,6 +1913,12 @@ def _android_refresh_session_inner(refresh_token: str,
                 )
         log.info("android_refresh_session: DB updated account id=%s rt_rotated=%s",
                  acct["id"], new_rt != refresh_token)
+    # Record successful refresh — cooldown window starts now
+    if account_id is not None:
+        with _last_refresh_lock:
+            _last_refresh_success[account_id] = _time_time()
+        log.info("android_refresh_session: acct=%s cooldown started (%ds)",
+                 account_id, _REFRESH_COOLDOWN_S)
 
     old_sess = _load_session()
     old_sess.update({
