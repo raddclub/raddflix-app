@@ -930,3 +930,58 @@ Replaced single `resolve_proxies(purpose='sapi')` call in `verify_otp` with full
 - Account 03286829827 session is dead (invalid_grant) — needs one fresh OTP login to recover
 - Future verify failures will try up to 5 proxies before giving up (vs 1 before this fix)
 
+
+## Session 2026-06-05 (4th session) — Per-account refresh-token lock
+
+### Task
+Add a per-account lock in `android_refresh_session` / `_try_refresh` to prevent
+the concurrent refresh-token rotation race that causes a spurious `invalid_grant`
+on every Flask restart.
+
+### Root Cause
+JazzDrive rotates the refresh_token on every `/oauth2/refresh_token.php` call.
+On Flask restart, the keepalive loop fires for all accounts near-simultaneously.
+If two threads called `android_refresh_session` for the same account concurrently
+(keepalive tick + trigger_heartbeat, or two rapid heartbeat retries), both:
+1. Read the same `refresh_token` from DB
+2. Both POST to `/oauth2/refresh_token.php` with that token
+3. First succeeds → Jazz rotates the token
+4. Second sends the now-invalid old token → `invalid_grant`
+
+This explained the spurious `invalid_grant` seen after every Flask restart without
+any real session expiry.
+
+### Fix Applied
+
+**New module-level state in `jazzdrive.py`:**
+- `_refresh_locks: dict[int, threading.Lock]` — one Lock per account_id
+- `_refresh_locks_mutex: threading.Lock` — protects the dict itself
+- `_get_refresh_lock(account_id)` — returns (creating if needed) the per-account Lock
+
+**Refactored `android_refresh_session`:**
+- Acquires per-account lock before any network I/O
+- After acquiring, re-reads refresh_token from DB — if another thread already
+  rotated it while waiting, returns cached tokens immediately (no network call)
+- Delegates to new `_android_refresh_session_inner()` via `try/finally` so the
+  lock is always released (even on exception or early return)
+
+**Result:** Second concurrent caller for the same account now waits on the lock,
+then detects the DB token has already changed and short-circuits without making
+a second OAuth2 call → no double-consumption → no spurious `invalid_grant`.
+
+### Files Changed
+- `radd-hub/hub/jazzdrive.py` — per-account lock dict + helper + refactored `android_refresh_session` → `_android_refresh_session_inner`
+
+### Commits
+- `238a39a` — fix: per-account lock in android_refresh_session to prevent concurrent refresh-token rotation race (invalid_grant on Flask restart)
+
+### Oracle Status
+- Pulled to `238a39a` ✅
+- Flask restarted (Python file changed) ✅
+- healthz: `{"ok":true,"version":"3.0.0"}` ✅
+
+### State at End of Session
+- Concurrent `android_refresh_session` calls for the same account are now serialised
+- Second caller reuses the fresh tokens from DB instead of re-exchanging
+- No more spurious `invalid_grant` from Flask restart race conditions
+- All existing OTP/proxy fixes from previous sessions remain intact
