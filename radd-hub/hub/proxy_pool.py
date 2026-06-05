@@ -700,12 +700,13 @@ class ProxyPool:
         All candidates are tested against BOTH cloud.jazzdrive.com.pk/sapi AND
         jazzdrive.com.pk before being added.  JazzDrive does NOT geo-block by country.
         """
-        candidates: list = []
+        candidates: dict = {}   # url -> country_code (ISO-3166 or '')
         import requests as _req
 
         def _geonode_fetch(protocol: str, page: int = 1, country: str = "PK") -> list:
+            """Returns list of (url, country_code) tuples."""
             try:
-                params = (f"?protocols={protocol}&limit=100&page={page}"
+                params = (f"?protocols={protocol}&limit=500&page={page}"
                           f"&sort_by=lastChecked&sort_type=desc")
                 if country:
                     params += f"&country={country}"
@@ -718,15 +719,16 @@ class ProxyPool:
                     port = str(e.get("port") or "")
                     protos = e.get("protocols") or [protocol.split(",")[0]]
                     proto = protos[0] if protos else "http"
+                    cc = (e.get("country") or e.get("countryCode") or country or "").upper()
                     if host and port:
-                        out.append(f"{proto}://{host}:{port}")
+                        out.append((f"{proto}://{host}:{port}", cc))
                 return out
             except Exception as e:
                 log.debug("ProxyPool disc geonode %s: %s", protocol, e)
                 return []
 
-        def _gh_list_fetch(url: str, proto_prefix: str) -> list:
-            """Fetch a raw ip:port list from GitHub and prefix with protocol."""
+        def _gh_list_fetch(url: str, proto_prefix: str, force_cc: str = "") -> list:
+            """Fetch raw ip:port list. Returns (url, country_code) tuples."""
             try:
                 r = _req.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
                 out = []
@@ -734,86 +736,48 @@ class ProxyPool:
                     line = line.strip()
                     if not line or line.startswith("#"):
                         continue
-                    # Already has protocol prefix?
                     if line.startswith("http://") or line.startswith("socks"):
-                        out.append(line)
+                        full = line
                     elif ":" in line and "/" not in line:
-                        out.append(f"{proto_prefix}://{line}")
+                        full = f"{proto_prefix}://{line}"
+                    else:
+                        continue
+                    out.append((full, force_cc or _detect_country(full)))
                 return out
             except Exception as e:
                 log.debug("ProxyPool disc github %s: %s", url, e)
                 return []
 
-        # ── PK Sources (Priority 1) ─────────────────────────────────────────
-        # Source 1: GeoNode PK SOCKS5
-        candidates.extend(_geonode_fetch("socks5", 1, "PK"))
-        # Source 2: GeoNode PK HTTP/HTTPS
-        candidates.extend(_geonode_fetch("http,https", 1, "PK"))
-        # Source 3: GeoNode PK SOCKS5 page 2
-        candidates.extend(_geonode_fetch("socks5", 2, "PK"))
-        # Source 4: GeoNode PK HTTP page 2
-        candidates.extend(_geonode_fetch("http,https", 2, "PK"))
+        def _add(items):
+            for url, cc in items:
+                candidates.setdefault(url, cc)
 
-        # ── Global Sources (JazzDrive doesn't geo-block) ────────────────────
-        # Source 5-6: GeoNode global top pages (sorted by lastChecked)
-        candidates.extend(_geonode_fetch("socks5", 1, ""))
-        candidates.extend(_geonode_fetch("http,https", 1, ""))
-        candidates.extend(_geonode_fetch("socks5", 2, ""))
-        candidates.extend(_geonode_fetch("http,https", 2, ""))
-        candidates.extend(_geonode_fetch("socks5", 3, ""))
-        candidates.extend(_geonode_fetch("http,https", 3, ""))
+        # ── PK Sources (Priority 1 — +10 score bonus) ──────────────────────
+        for _page in range(1, 6):
+            _add(_geonode_fetch("socks5",     _page, "PK"))
+            _add(_geonode_fetch("http,https", _page, "PK"))
 
-        # Source 9: TheSpeedX HTTP (~15,000 proxies — constantly updated)
-        candidates.extend(_gh_list_fetch(
-            "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
-            "http"))
-        # Source 10: TheSpeedX SOCKS5 (~5,000 proxies)
-        candidates.extend(_gh_list_fetch(
-            "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt",
-            "socks5"))
-        # Source 11: TheSpeedX SOCKS4
-        candidates.extend(_gh_list_fetch(
-            "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks4.txt",
-            "socks4"))
-        # Source 12: monosans all (~3,000 proxies, mixed protocols)
-        candidates.extend(_gh_list_fetch(
-            "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/all.txt",
-            "http"))
-        # Source 13: clarketm (~2,500 proxies)
-        candidates.extend(_gh_list_fetch(
-            "https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt",
-            "http"))
-        # Source 14: mertguvencli
-        candidates.extend(_gh_list_fetch(
-            "https://raw.githubusercontent.com/mertguvencli/http-proxy-list/main/proxy-list/data.txt",
-            "http"))
-        # Source 15: ShiftyTR
-        candidates.extend(_gh_list_fetch(
-            "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/proxy.txt",
-            "http"))
-        # Source 16: ShiftyTR SOCKS5
-        candidates.extend(_gh_list_fetch(
-            "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/socks5.txt",
-            "socks5"))
-        # Source 17: HyperBeats all
-        candidates.extend(_gh_list_fetch(
-            "https://raw.githubusercontent.com/HyperBeats/proxy-list/main/all.txt",
-            "http"))
-        # Source 18: proxifly HTTP
-        candidates.extend(_gh_list_fetch(
-            "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/http/data.txt",
-            "http"))
-        # Source 19: proxifly SOCKS5
-        candidates.extend(_gh_list_fetch(
-            "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks5/data.txt",
-            "socks5"))
-        # Source 20: Anonym0usWork1221
-        candidates.extend(_gh_list_fetch(
-            "https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_files/http_proxies.txt",
-            "http"))
-        candidates.extend(_gh_list_fetch(
-            "https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_files/socks5_proxies.txt",
-            "socks5"))
+        # ── Global Sources (JazzDrive does NOT geo-block) ───────────────────
+        for _page in range(1, 5):
+            _add(_geonode_fetch("socks5",     _page, ""))
+            _add(_geonode_fetch("http,https", _page, ""))
+
+        # GitHub proxy lists — combined 25,000+ candidates per run
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",   "http"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt", "socks5"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks4.txt", "socks4"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/all.txt", "http"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt", "http"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/mertguvencli/http-proxy-list/main/proxy-list/data.txt", "http"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/proxy.txt",   "http"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/socks5.txt", "socks5"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/HyperBeats/proxy-list/main/all.txt",    "http"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/http/data.txt",   "http"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks5/data.txt", "socks5"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_files/http_proxies.txt",   "http"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_files/socks5_proxies.txt", "socks5"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS_RAW.txt",  "http"))
+        _add(_gh_list_fetch("https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS5_RAW.txt", "socks5"))
 
         # ProxyScrape — PK + global
         for _ps_url, _ps_proto, _ps_cc in [
@@ -965,8 +929,8 @@ class ProxyPool:
                     continue
             try:
                 with db.conn() as c:
-                    rows = c.execute("INSERT OR IGNORE INTO sapi_proxies(url,source,added_at) VALUES(?,?,?)",
-                                     (url, 'bulk_import', now)).rowcount
+                    rows = c.execute("INSERT OR IGNORE INTO sapi_proxies(url,source,added_at,country) VALUES(?,?,?,?)",
+                                     (url, 'bulk_import', now, _detect_country(url))).rowcount
                 if rows:
                     added += 1
                 else:
