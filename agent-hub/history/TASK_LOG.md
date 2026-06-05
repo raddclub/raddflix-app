@@ -709,40 +709,34 @@ Added a new "JazzDrive Services" card to `settings.html` with:
   - Backend: all endpoints check the flags before processing
 
 
-## Session 2026-06-05 — Scan page: Quick Paste JSON auto-parse added
+## Session 2026-06-05 — OTP modal SAPI textarea: real-time JSON parse feedback
 
 ### Task
-Mirror the upload page's full JSON auto-parse box onto the scan page's paste-cookies card.
+Add the same real-time colour-coded JSON parse feedback to the OTP login modal's
+SAPI textarea (step 2 in the modal) — it was silently enabling/disabling the button
+with no visual feedback on what was or wasn't found in the JSON.
 
 ### What Was Done
 
-#### scan.html — HTML
-- Added **⚡ Quick Paste** textarea (indigo box) between the `pt-alert` div and the Phone Activate section
-- Textarea calls `scanAutoParseJson(this.value)` on every keypress
-- Updated Phone Activate description to say "paste it above for auto-fill"
-- Updated manual inputs label: "Values (auto-filled from JSON paste above, or enter manually)"
+#### upload.html — HTML
+- Updated step 2 label: "paste the full response here (values extracted automatically)"
+- Updated textarea placeholder to include `access_token` in example JSON
+- Added `<div id="modal-sapi-parse-msg">` status line below the textarea
 
-#### scan.html — JS
-- Added `scanAutoParseJson(raw)` function — identical logic to upload page:
-  parses full JazzDrive JSON, extracts `validationkey` + `jsessionid` (handles `.data` wrapper),
-  fills `pt-vk` and `pt-jid` inputs, shows colour-coded status message
-- Updated `pasteTokens()` error hint to mention "or paste full JSON above"
-- Updated `pasteTokens()` success path: resets card border to `var(--border)`, hides ACTION REQUIRED
-  badge and alert box (previously the card stayed orange after a successful save)
+#### upload.html — JS: modalAutoSaveJson()
+Upgraded from a simple valid/invalid flag to full colour-coded feedback:
+- Empty input → clears message, button disabled
+- Doesn't start with `{` → red "Paste the full JSON response (starts with {)"
+- Invalid JSON → red "Invalid JSON — <parse error>"
+- Parsed but both missing → red "Could not find validationkey or jsessionid"
+- One found → orange "Only validationkey/jsessionid found — check the JSON"
+- Both found → green "✔ validationkey + jsessionid found — click Save & Connect", button enabled
 
 ### Files Changed
-- `radd-hub/hub/templates/scan.html`
+- `radd-hub/hub/templates/upload.html`
 
 ### Commits
-- `d074935` — feat: scan page paste-cookies card — Quick Paste full JSON auto-parse + card border reset on success
+- `dac9063` — feat: OTP modal SAPI textarea — real-time colour-coded JSON parse feedback
 
 ### Oracle Status
-- Pulled to `d074935` — live (template only, no Flask restart needed)
-
-### State at End of Session
-Both scan and upload pages now have identical "Activate JazzDrive Session" cards:
-- ⚡ Quick Paste box — paste full JSON → auto-fills fields
-- 📱 Phone Activate — get link, open on Jazz phone, paste JSON response
-- Manual MSISDN/validation_key/JSESSIONID fields
-- ACTION REQUIRED badge + alert auto-shown on session failure
-- Card border resets to normal on successful token save
+- Pulled to `dac9063` — live
