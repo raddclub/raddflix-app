@@ -242,18 +242,52 @@ def _test_proxy(url: str, timeout: int = 12) -> dict:
     return {"ok": True, "ping_ms": ms, "sapi_status": r.status_code, "error": None}
 
 
+# ── Pakistani IP range detection ────────────────────────────────────────────
+_PK_OCT1 = frozenset({39, 58, 110, 111, 115, 119, 180, 182})
+_PK_202  = frozenset({59, 142})
+_PK_203  = frozenset({82, 128})
+_PK_103  = frozenset({25, 26, 47, 88, 94, 97, 106, 121, 141, 149, 211, 248, 255})
+
+
+def _detect_country(url: str) -> str:
+    """Detect country from proxy URL IP address. Returns ISO-3166 code or ''."""
+    try:
+        host = url.split("://")[1].split(":")[0]
+        parts = host.split(".")
+        if len(parts) < 2:
+            return ""
+        o1, o2 = int(parts[0]), int(parts[1])
+        if o1 in _PK_OCT1:
+            return "PK"
+        if o1 == 103 and o2 in _PK_103:
+            return "PK"
+        if o1 == 202 and o2 in _PK_202:
+            return "PK"
+        if o1 == 203 and o2 in _PK_203:
+            return "PK"
+    except Exception:
+        pass
+    return ""
+
+
 def _score(proxy: dict) -> float:
-    """Weighted score: 0–100 based on reliability + speed.
-    Higher is better. Used for rotation priority ordering."""
-    ok  = proxy.get("ok_count", 0)
+    """Weighted score: 0–100 based on reliability + speed + PK-priority bonus.
+    Higher is better. Used for rotation priority ordering.
+    Pakistani proxies (country='PK') get +10 priority — served first among equals."""
+    ok   = proxy.get("ok_count", 0)
     fail = proxy.get("fail_count", 0)
     total = ok + fail
     if total == 0:
-        return 50.0  # untested — middle priority
-    reliability = ok / total  # 0.0 – 1.0
-    ms = proxy.get("avg_ms") or 5000
-    speed_bonus = max(0.0, 1.0 - ms / 5000.0)  # 0=slow, 1=fast
-    return reliability * 80.0 + speed_bonus * 20.0
+        base = 50.0  # untested — middle priority
+    else:
+        reliability = ok / total  # 0.0 – 1.0
+        ms = proxy.get("avg_ms") or 5000
+        speed_bonus = max(0.0, 1.0 - ms / 5000.0)  # 0=slow, 1=fast
+        base = reliability * 80.0 + speed_bonus * 20.0
+    # PK gets +10 — ensures Pakistani proxies rotate first among equal-scoring entries
+    if proxy.get("country", "") == "PK":
+        base = min(100.0, base + 10.0)
+    return base
 
 
 class CircuitBreaker:
@@ -339,6 +373,8 @@ class ProxyPool:
         now = int(time.time())
         added = 0
         with db.conn() as c:
+            # Tag all existing seeds as PK (idempotent on every startup)
+            c.execute("UPDATE sapi_proxies SET country='PK' WHERE source='seed' AND (country='' OR country IS NULL)")
             for url in _BUILTIN_SEEDS:
                 try:
                     rows = c.execute(
@@ -476,13 +512,22 @@ class ProxyPool:
                 best_ping = c.execute(
                     "SELECT MIN(avg_ms) FROM sapi_proxies WHERE is_enabled=1 AND avg_ms > 0"
                 ).fetchone()[0]
+            by_country = {r[0] or 'unknown': r[1] for r in c.execute(
+                "SELECT COALESCE(NULLIF(country,''), '🌐') AS cc, COUNT(*) FROM sapi_proxies "
+                "WHERE is_enabled=1 GROUP BY cc ORDER BY COUNT(*) DESC LIMIT 20"
+            ).fetchall()}
+            pk_alive = c.execute(
+                "SELECT COUNT(*) FROM sapi_proxies WHERE is_enabled=1 AND country='PK' AND fail_count<3"
+            ).fetchone()[0]
             return {
-                "total":   total,
-                "enabled": enabled,
-                "alive":   alive,
-                "disabled": disabled,
-                "dead":    enabled - alive,
-                "by_source": by_source,
+                "total":      total,
+                "enabled":    enabled,
+                "alive":      alive,
+                "disabled":   disabled,
+                "dead":       enabled - alive,
+                "by_source":  by_source,
+                "by_country": by_country,
+                "pk_alive":   pk_alive,
                 "avg_ping_ms":  round(avg_ping or 0),
                 "best_ping_ms": round(best_ping or 0),
                 "circuit_open": self._circuit.is_open,
@@ -770,33 +815,24 @@ class ProxyPool:
             "https://raw.githubusercontent.com/Anonym0usWork1221/Free-Proxies/main/proxy_files/socks5_proxies.txt",
             "socks5"))
 
-        # Source 4: proxyscrape SOCKS5
-        try:
-            r = _req.get(
-                "https://api.proxyscrape.com/v3/free-proxy-list/get"
-                "?request=displayproxies&country=pk&protocol=socks5&format=text",
-                timeout=15)
-            for line in r.text.strip().splitlines():
-                line = line.strip()
-                if ":" in line:
-                    candidates.append(f"socks5://{line}")
-        except Exception as e:
-            log.debug("ProxyPool disc proxyscrape SOCKS5: %s", e)
+        # ProxyScrape — PK + global
+        for _ps_url, _ps_proto, _ps_cc in [
+            ("https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&country=pk&protocol=socks5&format=text", "socks5", "PK"),
+            ("https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&country=pk&protocol=http&format=text",   "http",   "PK"),
+            ("https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=socks5&timeout=5000&format=text", "socks5", ""),
+            ("https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&protocol=http&timeout=5000&format=text",   "http",   ""),
+        ]:
+            try:
+                r = _req.get(_ps_url, timeout=15)
+                for line in r.text.strip().splitlines():
+                    line = line.strip()
+                    if ":" in line:
+                        full = f"{_ps_proto}://{line}"
+                        candidates.setdefault(full, _ps_cc or _detect_country(full))
+            except Exception as e:
+                log.debug("ProxyPool disc proxyscrape %s: %s", _ps_url[:50], e)
 
-        # Source 5: proxyscrape HTTP
-        try:
-            r = _req.get(
-                "https://api.proxyscrape.com/v3/free-proxy-list/get"
-                "?request=displayproxies&country=pk&protocol=http&format=text",
-                timeout=15)
-            for line in r.text.strip().splitlines():
-                line = line.strip()
-                if ":" in line:
-                    candidates.append(f"http://{line}")
-        except Exception as e:
-            log.debug("ProxyPool disc proxyscrape HTTP: %s", e)
-
-        # Source 6: openproxy.space SOCKS5
+        # openproxy.space — all countries
         try:
             r = _req.get("https://openproxy.space/list/socks5", timeout=15,
                          headers={"Accept": "application/json"})
@@ -805,36 +841,32 @@ class ProxyPool:
             for item in items:
                 ip = item.get("ip", "")
                 port = str(item.get("port", ""))
-                country = (item.get("country") or item.get("countryCode") or "").upper()
-                if ip and port and country in ("PK", "PAKISTAN", "PAK"):
-                    candidates.append(f"socks5://{ip}:{port}")
+                cc = (item.get("country") or item.get("countryCode") or "").upper()
+                if ip and port:
+                    candidates.setdefault(f"socks5://{ip}:{port}", cc)
         except Exception as e:
             log.debug("ProxyPool disc openproxy: %s", e)
 
-        # Source 7: pubproxy.com
+        # pubproxy.com PK
         try:
             for proto in ("socks5", "http"):
-                r = _req.get(
-                    f"http://pubproxy.com/api/proxy?country=PK&type={proto}&format=txt&limit=20",
-                    timeout=12)
+                r = _req.get(f"http://pubproxy.com/api/proxy?country=PK&type={proto}&format=txt&limit=20", timeout=12)
                 for line in r.text.strip().splitlines():
                     line = line.strip()
                     if ":" in line and not line.startswith("#"):
-                        candidates.append(f"{proto}://{line}")
+                        candidates.setdefault(f"{proto}://{line}", "PK")
         except Exception as e:
             log.debug("ProxyPool disc pubproxy: %s", e)
 
-        # Source 8: proxy-list.download
+        # proxy-list.download PK
         try:
             for ftype in ("HTTP", "SOCKS5"):
-                r = _req.get(
-                    f"https://www.proxy-list.download/api/v1/get?type={ftype}&country=PK",
-                    timeout=12)
+                r = _req.get(f"https://www.proxy-list.download/api/v1/get?type={ftype}&country=PK", timeout=12)
                 proto = "http" if ftype == "HTTP" else "socks5"
                 for line in r.text.strip().splitlines():
                     line = line.strip()
                     if ":" in line:
-                        candidates.append(f"{proto}://{line}")
+                        candidates.setdefault(f"{proto}://{line}", "PK")
         except Exception as e:
             log.debug("ProxyPool disc proxy-list.download: %s", e)
 
@@ -845,17 +877,18 @@ class ProxyPool:
         from . import db
         with db.conn() as c:
             existing = {r["url"] for r in c.execute("SELECT url FROM sapi_proxies").fetchall()}
-        new_candidates = [u for u in dict.fromkeys(candidates) if u not in existing]
+        new_candidates = {url: cc for url, cc in candidates.items() if url not in existing}
         if not new_candidates:
             return {"candidates": len(candidates), "added": 0}
 
-        log.info("ProxyPool disc: testing %d new candidates…", len(new_candidates))
+        log.info("ProxyPool disc: testing %d new candidates (total pool: %d)…",
+                 len(new_candidates), len(candidates))
         added = 0
         now = int(time.time())
         with concurrent.futures.ThreadPoolExecutor(max_workers=80) as ex:
-            futs = {ex.submit(_test_proxy, url, 10): url for url in new_candidates}
+            futs = {ex.submit(_test_proxy, url, 10): (url, cc) for url, cc in new_candidates.items()}
             for fut in concurrent.futures.as_completed(futs):
-                url = futs[fut]
+                url, cc = futs[fut]
                 try:
                     res = fut.result()
                     if res["ok"]:
@@ -863,9 +896,9 @@ class ProxyPool:
                             with db.conn() as c:
                                 c.execute(
                                     "INSERT OR IGNORE INTO sapi_proxies"
-                                    "(url,fail_count,ok_count,last_ok_at,avg_ms,is_enabled,source,added_at)"
-                                    " VALUES(?,0,1,?,?,1,'discovered',?)",
-                                    (url, now, res.get("ping_ms") or 0, now))
+                                    "(url,fail_count,ok_count,last_ok_at,avg_ms,is_enabled,source,added_at,country)"
+                                    " VALUES(?,0,1,?,?,1,'discovered',?,?)",
+                                    (url, now, res.get("ping_ms") or 0, now, cc))
                             added += 1
                         except Exception:
                             pass
