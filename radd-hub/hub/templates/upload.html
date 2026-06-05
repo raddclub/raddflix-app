@@ -65,6 +65,36 @@
       <div id="modal-replace-row" style="display:none;margin-top:4px">
         <button class="danger" style="font-size:12px;padding:4px 12px" onclick="modalDeleteFlixAndRetry()">Delete existing account &amp; retry</button>
       </div>
+      {# ── SAPI activation panel — shown after OTP succeeds but SAPI is blocked ── #}
+      <div id="modal-sapi-row" style="display:none;flex-direction:column;gap:12px;margin-top:8px;border-top:1px solid var(--border);padding-top:14px">
+        <div>
+          <span style="color:var(--ok,#22c55e);font-weight:600">✔ OTP accepted by JazzDrive</span>
+          <div class="muted" style="font-size:12px;margin-top:4px">One more step — the session must be activated from your Jazz phone.</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">1. Tap this link on your Jazz phone (must be on Jazz mobile data):</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <a id="modal-sapi-link" href="#" target="_blank" rel="noopener"
+               style="font-size:12px;word-break:break-all;color:var(--accent);flex:1;pointer-events:none;opacity:.5">
+              Generating link…
+            </a>
+            <button id="modal-sapi-copy-btn" class="ghost" onclick="modalCopySapiLink()"
+                    style="font-size:11px;padding:3px 10px;white-space:nowrap;display:none">Copy</button>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:4px">2. Your phone shows JSON — paste it here:</div>
+          <textarea id="modal-sapi-json"
+                    placeholder='{"data":{"validationkey":"...","jsessionid":"..."}}'
+                    style="width:100%;height:80px;font-size:11px;font-family:monospace;resize:vertical"
+                    oninput="modalAutoSaveJson(this.value)"></textarea>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="modal-sapi-save-btn" onclick="modalSaveFromJson()" disabled>Save &amp; Connect</button>
+          <button class="ghost" style="font-size:12px" onclick="modalRefreshSapiLink()">↻ Refresh link</button>
+        </div>
+        <div id="modal-sapi-msg" style="font-size:12px;min-height:14px"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -767,6 +797,13 @@ function showOtpModal() {
   document.getElementById('modal-replace-row').style.display = 'none';
   document.getElementById('modal-otp-row').style.display = 'none';
   document.getElementById('modal-otp').value = '';
+  const sapiRow = document.getElementById('modal-sapi-row');
+  if (sapiRow) sapiRow.style.display = 'none';
+  const sapiJson = document.getElementById('modal-sapi-json');
+  if (sapiJson) sapiJson.value = '';
+  window._modalSapiMsisdn = null;
+  window._modalSapiAccountId = null;
+  window._modalSapiUrl = null;
 }
 function closeOtpModal() { document.getElementById('otp-modal-overlay').style.display = 'none'; }
 
@@ -841,15 +878,13 @@ async function modalVerifyOtp() {
       }, 1000);
     } else if (r.needs_paste_cookies) {
       btn.disabled = false; btn.textContent = 'Verify & Connect';
-      msg.innerHTML = '<span style="color:var(--warn,#f90)">⚠ OTP accepted — scroll down to paste tokens</span>';
-      closeOtpModal();
-      const adv = document.getElementById('adv-tokens');
-      if (adv) adv.style.display = 'block';
-      const mEl = document.getElementById('pt-msisdn');
-      if (mEl && m) mEl.value = m;
-      const advCard = adv && adv.closest ? adv.closest('.card') : null;
-      if (advCard) advCard.scrollIntoView({behavior:'smooth', block:'center'});
-      toast('⚠ Paste your tokens in the section below', 5000);
+      msg.innerHTML = '<span style="color:var(--ok,#22c55e)">✔ OTP accepted — activate below</span>';
+      document.getElementById('modal-otp-row').style.display = 'none';
+      const sapiRow = document.getElementById('modal-sapi-row');
+      sapiRow.style.display = 'flex';
+      window._modalSapiMsisdn = m;
+      window._modalSapiAccountId = r.account_id || null;
+      modalFetchSapiLink(m, r.account_id);
     } else {
       btn.disabled = false; btn.textContent = 'Verify & Connect';
       msg.textContent = 'Error: ' + (r.error || 'Verification failed');
@@ -859,6 +894,100 @@ async function modalVerifyOtp() {
     msg.textContent = 'Error: ' + e.message;
   }
 }
+
+/* ── SAPI phone-activation helpers ── */
+async function modalFetchSapiLink(msisdn, accountId) {
+  const link    = document.getElementById('modal-sapi-link');
+  const copyBtn = document.getElementById('modal-sapi-copy-btn');
+  const sapiMsg = document.getElementById('modal-sapi-msg');
+  link.textContent   = 'Generating link…';
+  link.style.pointerEvents = 'none';
+  link.style.opacity = '.5';
+  copyBtn.style.display = 'none';
+  try {
+    const body = accountId ? {account_id: accountId} : {msisdn};
+    const r = await api('/upload/api/sapi-activate-url', {method:'POST', body});
+    if (r.ok && r.sapi_url) {
+      link.href = r.sapi_url;
+      link.textContent = 'Tap here to open on your Jazz phone →';
+      link.style.pointerEvents = '';
+      link.style.opacity = '1';
+      copyBtn.style.display = '';
+      window._modalSapiUrl = r.sapi_url;
+      sapiMsg.textContent = '';
+    } else {
+      sapiMsg.textContent = 'Could not generate link: ' + (r.error || 'unknown');
+    }
+  } catch(e) {
+    sapiMsg.textContent = 'Error: ' + e.message;
+  }
+}
+
+function modalRefreshSapiLink() {
+  modalFetchSapiLink(window._modalSapiMsisdn, window._modalSapiAccountId);
+}
+
+function modalCopySapiLink() {
+  const url = window._modalSapiUrl || document.getElementById('modal-sapi-link').href;
+  if (!url || url === '#') return;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.getElementById('modal-sapi-copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  });
+}
+
+function modalAutoSaveJson(val) {
+  const btn = document.getElementById('modal-sapi-save-btn');
+  val = val.trim();
+  let valid = false;
+  if (val.startsWith('{')) {
+    try {
+      const d = JSON.parse(val);
+      const data = (d && d.data) ? d.data : d;
+      valid = !!(data && (data.validationkey || data.validation_key) && (data.jsessionid || data.JSESSIONID));
+    } catch(_) {}
+  }
+  btn.disabled = !valid;
+}
+
+async function modalSaveFromJson() {
+  const jsonStr = (document.getElementById('modal-sapi-json').value || '').trim();
+  const sapiMsg = document.getElementById('modal-sapi-msg');
+  const btn     = document.getElementById('modal-sapi-save-btn');
+  const msisdn  = window._modalSapiMsisdn || document.getElementById('modal-msisdn').value.trim();
+  let vk = '', jid = '';
+  try {
+    const d = JSON.parse(jsonStr);
+    const data = (d && d.data) ? d.data : d;
+    vk  = data.validationkey  || data.validation_key  || data.ValidationKey  || '';
+    jid = data.jsessionid     || data.JSESSIONID       || '';
+  } catch(e) {
+    sapiMsg.innerHTML = '<span style="color:var(--err,#f44)">Invalid JSON — ' + e.message + '</span>';
+    return;
+  }
+  if (!vk || !jid) {
+    sapiMsg.innerHTML = '<span style="color:var(--err,#f44)">Missing validationkey or jsessionid in JSON</span>';
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  sapiMsg.textContent = '';
+  try {
+    const r = await api('/upload/api/jazzdrive/tokens', {method:'POST', body:{msisdn, validation_key: vk, jsessionid: jid}});
+    if (r.ok) {
+      sapiMsg.innerHTML = '<span style="color:var(--ok,#22c55e)">✔ Session active! Reloading…</span>';
+      toast('✔ JazzDrive session activated');
+      setTimeout(() => { closeOtpModal(); location.reload(); }, 1200);
+    } else {
+      btn.disabled = false; btn.textContent = 'Save & Connect';
+      sapiMsg.innerHTML = '<span style="color:var(--err,#f44)">Save failed: ' + (r.error || 'unknown') + '</span>';
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Save & Connect';
+    sapiMsg.innerHTML = '<span style="color:var(--err,#f44)">Error: ' + e.message + '</span>';
+  }
+}
+
 
 /* ── boot ── */
 startAutoRefresh();

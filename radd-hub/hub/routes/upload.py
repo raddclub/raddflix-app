@@ -396,6 +396,42 @@ def login_verify_otp():
         return jsonify({"ok": False, "error": f"Verification system error: {e}"}), 500
 
 
+@bp.route("/api/sapi-activate-url", methods=["POST"])
+@auth.login_required
+def upload_sapi_activate_url():
+    """Generate a JazzDrive SAPI phone-activation URL for the flix account.
+    Body: {msisdn: str}  OR  {account_id: int}
+    Returns the same URL as the scan page's sapi-activate-url — independent system.
+    """
+    import json as _json, base64 as _b64, urllib.parse as _up
+    CLOUD_BASE = "https://cloud.jazzdrive.com.pk"
+    data = request.get_json(force=True, silent=True) or {}
+    msisdn = db.normalize_msisdn(data.get("msisdn") or "")
+    aid    = data.get("account_id")
+    try:
+        with db.conn() as c:
+            if aid:
+                row = c.execute("SELECT id, msisdn, raw_accesstoken FROM accounts WHERE id=?", (aid,)).fetchone()
+            elif msisdn:
+                row = c.execute("SELECT id, msisdn, raw_accesstoken FROM accounts WHERE msisdn=? LIMIT 1", (msisdn,)).fetchone()
+            else:
+                return jsonify({"ok": False, "error": "msisdn or account_id required"}), 400
+        if not row:
+            return jsonify({"ok": False, "error": "Account not found"}), 404
+        row = dict(row)
+        raw_at = row.get("raw_accesstoken") or ""
+        if not raw_at:
+            return jsonify({"ok": False, "error": "No access token stored — send OTP first"}), 400
+        at_json  = _json.dumps({"data": {"accesstoken": raw_at}})
+        at_b64e  = _up.quote(_b64.b64encode(at_json.encode()).decode(), safe="")
+        sapi_url = (f"{CLOUD_BASE}/sapi/login/oauth"
+                    f"?action=login&platform=Android&keytype=accesstoken&key={at_b64e}")
+        return jsonify({"ok": True, "sapi_url": sapi_url,
+                        "msisdn": row.get("msisdn", ""), "account_id": row["id"]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @bp.route("/api/upload-file", methods=["POST"])
 @auth.login_required
 def api_upload_file():

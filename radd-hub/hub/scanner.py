@@ -203,12 +203,11 @@ def verify_otp(account_id: int, otp: str) -> dict:
             "ok": False,
             "needs_paste_cookies": True,
             "msisdn": msisdn_hint,
+            "account_id": account_id,
             "error": (
                 "OTP accepted — JazzDrive confirmed your login. "
-                "However, the server cannot initialize the session from this IP (geo-block). "
-                "Scroll down to the 'Paste tokens manually' section, enter your Jazz number, "
-                "then click 'Get Phone Activation Link' and open it on your Jazz phone. "
-                "Copy the validationkey and jsessionid values from the JSON and paste them below."
+                "However, the server cannot initialize the session from this IP. "
+                "Open the activation link on your Jazz phone and paste the JSON below."
             ),
         }
 
