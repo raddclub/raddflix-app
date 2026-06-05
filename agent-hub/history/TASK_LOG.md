@@ -709,49 +709,40 @@ Added a new "JazzDrive Services" card to `settings.html` with:
   - Backend: all endpoints check the flags before processing
 
 
-## Session 2026-06-05 — Upgrade upload page "Activate JazzDrive Session" card
+## Session 2026-06-05 — Scan page: Quick Paste JSON auto-parse added
 
 ### Task
-Match the upload page's paste-tokens section to the scan page's full cookies card,
-plus add full JSON auto-parse so user can paste the entire JazzDrive response in one go.
+Mirror the upload page's full JSON auto-parse box onto the scan page's paste-cookies card.
 
 ### What Was Done
 
-#### 1. Full card replacing collapsed "Advanced" section (upload.html)
-Old: hidden `<div>` collapsed under a clickable heading — 3 bare inputs + one button.
-New: prominent `#paste-cookies-card` matching scan page, with:
-- **ACTION REQUIRED** badge (shown automatically on session failure)
-- Alert box for error messages from the server
-- **⚡ Quick Paste box** — textarea where user pastes the full JSON response;
-  `uploadAutoParseJson()` parses it immediately, extracts `validationkey` + `jsessionid`
-  (handles both top-level and nested under `.data`), fills the inputs, shows colour-coded status
-- **📱 Get Phone Activation Link** button → calls `/upload/api/sapi-activate-url` (already existed)
-- SAPI URL display box with instructions
-- MSISDN + validation_key + JSESSIONID fields (auto-filled from JSON paste)
-- "Save tokens" button with success/error feedback + border reset on success
-- DevTools fallback `<details>` accordion for PC users
+#### scan.html — HTML
+- Added **⚡ Quick Paste** textarea (indigo box) between the `pt-alert` div and the Phone Activate section
+- Textarea calls `scanAutoParseJson(this.value)` on every keypress
+- Updated Phone Activate description to say "paste it above for auto-fill"
+- Updated manual inputs label: "Values (auto-filled from JSON paste above, or enter manually)"
 
-#### 2. New JS functions added
-- `uploadAutoParseJson(raw)` — real-time JSON parse on textarea input; supports full response format
-  `{"data":{"validationkey":"...","jsessionid":"...","access_token":"..."}, "responsetime":...}`
-- `uploadGetSapiActivateUrl()` — calls `/upload/api/sapi-activate-url`, displays link, stores account ID
-- `_showUploadPasteCookiesNeeded(msisdn, message, accountId)` — auto-shows + highlights the card,
-  switches to Settings tab, scrolls card into view
-
-#### 3. Upgraded pasteTokens()
-- Clears card orange border + hides badge on success
-- Reloads page after save
-
-#### 4. OTP modal wiring
-When OTP verify returns `needs_paste_cookies`, the modal now also calls
-`_showUploadPasteCookiesNeeded()` — so if user closes the modal, the Settings card
-is already highlighted with ACTION REQUIRED waiting for them.
+#### scan.html — JS
+- Added `scanAutoParseJson(raw)` function — identical logic to upload page:
+  parses full JazzDrive JSON, extracts `validationkey` + `jsessionid` (handles `.data` wrapper),
+  fills `pt-vk` and `pt-jid` inputs, shows colour-coded status message
+- Updated `pasteTokens()` error hint to mention "or paste full JSON above"
+- Updated `pasteTokens()` success path: resets card border to `var(--border)`, hides ACTION REQUIRED
+  badge and alert box (previously the card stayed orange after a successful save)
 
 ### Files Changed
-- `radd-hub/hub/templates/upload.html` — full card + 4 new JS functions + OTP wiring
+- `radd-hub/hub/templates/scan.html`
 
 ### Commits
-- `a3340e1` — feat: upgrade upload page session card — full cookies box with auto-parse JSON, SAPI phone link, ACTION REQUIRED badge, auto-show on OTP failure
+- `d074935` — feat: scan page paste-cookies card — Quick Paste full JSON auto-parse + card border reset on success
 
 ### Oracle Status
-- Pulled to `a3340e1` — live (template only, no Flask restart needed)
+- Pulled to `d074935` — live (template only, no Flask restart needed)
+
+### State at End of Session
+Both scan and upload pages now have identical "Activate JazzDrive Session" cards:
+- ⚡ Quick Paste box — paste full JSON → auto-fills fields
+- 📱 Phone Activate — get link, open on Jazz phone, paste JSON response
+- Manual MSISDN/validation_key/JSESSIONID fields
+- ACTION REQUIRED badge + alert auto-shown on session failure
+- Card border resets to normal on successful token save
