@@ -205,32 +205,99 @@ def verify_otp(account_id: int, otp: str) -> dict:
         return {"ok": False, "error": "OTP session expired, request again"}
 
     from .jazzdrive import resolve_proxies
-    proxies = resolve_proxies(purpose='sapi')
+    from . import proxy_pool as _pp
+
+    # ── Build proxy chain for OTP verify ─────────────────────────────────────
+    # verify_otp hits jazzdrive.com.pk/verify.php — same geo restriction as
+    # send_otp. Must use purpose='otp' (has circuit-open least-dead fallback).
+    # purpose='sapi' returns None when circuit is open — causing direct Oracle
+    # IP connection which Jazz always rejects with RemoteDisconnected/MED-1011.
+    _chain: list = []
+    _seen: set = set()
+    _primary = resolve_proxies(purpose='otp')
+    if _primary:
+        _chain.append(_primary)
+        _seen.add(_primary.get("_url", ""))
+    try:
+        for _p in _pp.pool.get_proxy_chain(n=4):
+            _p_url = _p.get("_url", "")
+            if _p_url and _p_url not in _seen:
+                _seen.add(_p_url)
+                _chain.append(_p)
+    except Exception:
+        pass
+    if not _chain:
+        log.warning("verify_otp: proxy chain empty — direct connection will likely fail (MED-1011)")
+        _chain = [None]
 
     # ── Android OAuth2 code exchange ──────────────────────────────────────────
     # jazzdrive_verify_otp always uses client_id=fnbroot (Android credentials).
     # The server returns a refresh_token valid for ~90 days; future re-logins
     # exchange it via POST /oauth2/refresh_token.php — no OTP needed.
-    try:
-        # 1. Try standard redirect-based flow (most stable for refresh_token)
-        tokens = _scanner.jazzdrive_verify_otp(
-            sess["session"], sess["verify_url"], otp,
-            msisdn=sess.get("msisdn", ""),
-            proxies=proxies,
-        )
-    except Exception as e:
-        log.warning("verify_otp: standard flow failed: %s. Trying mobile direct fallback...", e)
+    # Try each proxy in the chain — mark_fail on connection errors, keep going.
+    tokens = None
+    _last_std_err: Exception = Exception("standard flow not attempted")
+    _last_mobile_err: Exception = Exception("mobile direct not attempted")
+
+    for _vproxy in _chain:
         try:
-            # 2. Fallback to direct SAPI OTP verification
-            tokens = _scanner.mobile_direct_verify_otp(
-                sess.get("msisdn", ""),
-                otp,
-                proxies=proxies
+            tokens = _scanner.jazzdrive_verify_otp(
+                sess["session"], sess["verify_url"], otp,
+                msisdn=sess.get("msisdn", ""),
+                proxies=_vproxy,
             )
-            log.info("verify_otp: mobile direct fallback SUCCEEDED for %s", account_id)
-        except Exception as e2:
-            log.error("verify_otp: all flows failed for %s: %s", account_id, e2)
-            return {"ok": False, "error": f"Verification failed. Primary error: {e}. Fallback error: {e2}"}
+            log.info("verify_otp: standard flow succeeded (proxy=%s)",
+                     (_vproxy or {}).get("_url", "direct")[:60] if _vproxy else "direct")
+            break
+        except Exception as _ve:
+            _last_std_err = _ve
+            _err_s = str(_ve).lower()
+            _is_conn = any(x in _err_s for x in (
+                'connection', 'timeout', 'refused', 'reset', 'aborted',
+                'remote', 'socks', 'proxy', 'max retries', 'newconnection'))
+            _fail_url = (_vproxy or {}).get("_url", "")
+            if _is_conn and _fail_url:
+                try:
+                    _pp.pool.mark_fail(_fail_url)
+                    log.warning("verify_otp: proxy %s failed (%s), trying next",
+                                _fail_url[:60], str(_ve)[:80])
+                except Exception:
+                    pass
+                continue
+            log.debug("verify_otp: standard flow non-conn error (proxy=%s): %s",
+                      _fail_url[:40] if _fail_url else "direct", _ve)
+            break
+
+    if tokens is None:
+        log.warning("verify_otp: all standard flows failed (%s). Trying mobile direct fallback...",
+                    _last_std_err)
+        for _vproxy in _chain[:3]:
+            try:
+                tokens = _scanner.mobile_direct_verify_otp(
+                    sess.get("msisdn", ""),
+                    otp,
+                    proxies=_vproxy,
+                )
+                log.info("verify_otp: mobile direct fallback SUCCEEDED (proxy=%s)",
+                         (_vproxy or {}).get("_url", "direct")[:60] if _vproxy else "direct")
+                break
+            except Exception as _me:
+                _last_mobile_err = _me
+                _err_s = str(_me).lower()
+                _fail_url = (_vproxy or {}).get("_url", "")
+                if any(x in _err_s for x in ('connection', 'timeout', 'refused', 'reset', 'aborted')) and _fail_url:
+                    try:
+                        _pp.pool.mark_fail(_fail_url)
+                    except Exception:
+                        pass
+                log.debug("verify_otp: mobile direct failed (proxy=%s): %s",
+                          _fail_url[:40] if _fail_url else "direct", _me)
+                continue
+
+    if tokens is None:
+        log.error("verify_otp: all flows failed for %s: std=%s mobile=%s",
+                  account_id, _last_std_err, _last_mobile_err)
+        return {"ok": False, "error": f"Verification failed. Primary error: {_last_std_err}. Fallback error: {_last_mobile_err}"}
 
     # ── Handle SAPI-blocked partial result ────────────────────────────────────
     # jazzdrive_verify_otp returns _sapi_blocked=True when the SAPI silent-login
