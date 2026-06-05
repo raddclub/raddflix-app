@@ -707,3 +707,51 @@ Added a new "JazzDrive Services" card to `settings.html` with:
   - Upload page: paused banner when off
   - Scan page: paused banner when off
   - Backend: all endpoints check the flags before processing
+
+
+## Session 2026-06-05 — Upgrade upload page "Activate JazzDrive Session" card
+
+### Task
+Match the upload page's paste-tokens section to the scan page's full cookies card,
+plus add full JSON auto-parse so user can paste the entire JazzDrive response in one go.
+
+### What Was Done
+
+#### 1. Full card replacing collapsed "Advanced" section (upload.html)
+Old: hidden `<div>` collapsed under a clickable heading — 3 bare inputs + one button.
+New: prominent `#paste-cookies-card` matching scan page, with:
+- **ACTION REQUIRED** badge (shown automatically on session failure)
+- Alert box for error messages from the server
+- **⚡ Quick Paste box** — textarea where user pastes the full JSON response;
+  `uploadAutoParseJson()` parses it immediately, extracts `validationkey` + `jsessionid`
+  (handles both top-level and nested under `.data`), fills the inputs, shows colour-coded status
+- **📱 Get Phone Activation Link** button → calls `/upload/api/sapi-activate-url` (already existed)
+- SAPI URL display box with instructions
+- MSISDN + validation_key + JSESSIONID fields (auto-filled from JSON paste)
+- "Save tokens" button with success/error feedback + border reset on success
+- DevTools fallback `<details>` accordion for PC users
+
+#### 2. New JS functions added
+- `uploadAutoParseJson(raw)` — real-time JSON parse on textarea input; supports full response format
+  `{"data":{"validationkey":"...","jsessionid":"...","access_token":"..."}, "responsetime":...}`
+- `uploadGetSapiActivateUrl()` — calls `/upload/api/sapi-activate-url`, displays link, stores account ID
+- `_showUploadPasteCookiesNeeded(msisdn, message, accountId)` — auto-shows + highlights the card,
+  switches to Settings tab, scrolls card into view
+
+#### 3. Upgraded pasteTokens()
+- Clears card orange border + hides badge on success
+- Reloads page after save
+
+#### 4. OTP modal wiring
+When OTP verify returns `needs_paste_cookies`, the modal now also calls
+`_showUploadPasteCookiesNeeded()` — so if user closes the modal, the Settings card
+is already highlighted with ACTION REQUIRED waiting for them.
+
+### Files Changed
+- `radd-hub/hub/templates/upload.html` — full card + 4 new JS functions + OTP wiring
+
+### Commits
+- `a3340e1` — feat: upgrade upload page session card — full cookies box with auto-parse JSON, SAPI phone link, ACTION REQUIRED badge, auto-show on OTP failure
+
+### Oracle Status
+- Pulled to `a3340e1` — live (template only, no Flask restart needed)
