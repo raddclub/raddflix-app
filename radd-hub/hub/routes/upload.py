@@ -14,7 +14,8 @@ def page():
     return render_template("upload.html",
         media_dir=str(config.MEDIA_DIR),
         stats=db.count_library(),
-        recent=files)
+        recent=files,
+        upload_enabled=(db.setting("UPLOAD_ENABLED", "1") == "1"))
 
 
 # ---------------------------------------------------------------------------
@@ -24,6 +25,8 @@ def page():
 @bp.route("/api/scan-now", methods=["POST"])
 @auth.login_required
 def scan_now():
+    if db.setting("UPLOAD_ENABLED", "1") != "1":
+        return jsonify({"ok": False, "error": "Upload service is disabled — enable it in Settings → Services."}), 503
     n = uploader.trigger_scan_now()
     return jsonify({"ok": True, "queued": n})
 
@@ -178,6 +181,8 @@ def manual_upload():
     """Queue a manual upload by absolute file path.
     Body: {path: str, parent_id: int}
     """
+    if db.setting("UPLOAD_ENABLED", "1") != "1":
+        return jsonify({"ok": False, "error": "Upload service is disabled — enable it in Settings → Services."}), 503
     data      = request.get_json(force=True, silent=True) or {}
     file_path = (data.get("path") or "").strip()
     parent_id = int(data.get("parent_id") or 0)
