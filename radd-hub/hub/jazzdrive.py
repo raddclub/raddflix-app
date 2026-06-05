@@ -108,6 +108,25 @@ _SAPI_BACKOFF: "dict[int, float]" = {}
 _SAPI_BACKOFF_LOCK = threading.Lock()
 _SAPI_BACKOFF_SECS = 1800  # 30 minutes
 
+# ── Per-account refresh-token lock ────────────────────────────────────────────
+# JazzDrive rotates the refresh_token on every /oauth2/refresh_token.php call.
+# If two threads call android_refresh_session for the same account concurrently
+# (e.g., keepalive tick + trigger_heartbeat firing together after Flask restart),
+# both read the same token, both POST to OAuth2, and the second one gets
+# invalid_grant because the first already consumed it.
+# Fix: one Lock per account — second caller waits, then detects the DB token
+# has already changed and returns early without making a second network call.
+_refresh_locks: "dict[int, threading.Lock]" = {}
+_refresh_locks_mutex = threading.Lock()
+
+
+def _get_refresh_lock(account_id: int) -> "threading.Lock":
+    """Return (creating if needed) the per-account refresh serialisation lock."""
+    with _refresh_locks_mutex:
+        if account_id not in _refresh_locks:
+            _refresh_locks[account_id] = threading.Lock()
+        return _refresh_locks[account_id]
+
 
 def clear_sapi_backoff(account_id: int) -> None:
     """Clear the SAPI backoff for an account (call after new tokens are saved)."""
@@ -1518,12 +1537,66 @@ def android_refresh_session(refresh_token: str,
 
     Returns {"ok": True, ...} on success, {"ok": False, "error": ...} otherwise.
     """
+    if not refresh_token:
+        return {"ok": False, "error": "No Android refresh_token provided"}
+
+    # ── Per-account serialisation lock ────────────────────────────────────────
+    # Acquire before any network I/O so a second concurrent caller for the same
+    # account waits here instead of racing to POST the same refresh_token twice.
+    _acct_lock = _get_refresh_lock(account_id) if account_id is not None else None
+    if _acct_lock is not None:
+        log.debug("android_refresh_session: acquiring per-account lock acct=%s", account_id)
+        _acct_lock.acquire()
+        log.debug("android_refresh_session: lock acquired acct=%s", account_id)
+        # Re-read the stored refresh_token.  If another thread already completed
+        # a refresh while we were waiting, the DB token will differ from the one
+        # our caller read before queuing — short-circuit without a second exchange.
+        try:
+            with db.conn() as _pre:
+                _prow = _pre.execute(
+                    "SELECT refresh_token, raw_accesstoken, validation_key, jsessionid "
+                    "FROM accounts WHERE id=?",
+                    (account_id,),
+                ).fetchone()
+            if (
+                _prow
+                and (_prow["refresh_token"] or "").strip()
+                and (_prow["refresh_token"] or "").strip() != refresh_token.strip()
+            ):
+                log.info(
+                    "android_refresh_session: acct=%s token already rotated by a "
+                    "concurrent refresh — returning cached tokens (no network call)",
+                    account_id,
+                )
+                _acct_lock.release()
+                return {
+                    "ok":             True,
+                    "validation_key": (_prow["validation_key"] or ""),
+                    "jsessionid":     (_prow["jsessionid"] or ""),
+                    "message":        "Session already refreshed by concurrent request (no-op)",
+                }
+        except Exception as _pre_err:
+            log.debug("android_refresh_session: pre-check DB read failed: %s", _pre_err)
+
+    try:
+        return _android_refresh_session_inner(
+            refresh_token=refresh_token,
+            account_id=account_id,
+            acct=acct,
+        )
+    finally:
+        if _acct_lock is not None:
+            _acct_lock.release()
+            log.debug("android_refresh_session: lock released acct=%s", account_id)
+
+
+def _android_refresh_session_inner(refresh_token: str,
+                                    account_id: Optional[int],
+                                    acct: Optional[dict]) -> dict:
+    """Inner implementation — called only while the per-account lock is held."""
     import requests as _req
     import base64 as _b64
     import urllib.parse as _up
-
-    if not refresh_token:
-        return {"ok": False, "error": "No Android refresh_token provided"}
 
     log.info("android_refresh_session: exchanging refresh_token (acct=%s)...", account_id)
 
