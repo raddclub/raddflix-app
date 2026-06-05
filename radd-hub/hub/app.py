@@ -68,6 +68,10 @@ def create_app() -> Flask:
     app.config["SECRET_KEY"] = _flask_secret
     app.config["JSON_SORT_KEYS"] = False
     app.config["MAX_CONTENT_LENGTH"] = 50 * 1024**3  # 50GB
+    from datetime import timedelta
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
+    app.config["SESSION_COOKIE_HTTPONLY"]    = True
+    app.config["SESSION_COOKIE_SAMESITE"]   = "Lax"
 
     # ----- blueprints --------------------------------------------------
     from .routes import home, settings as settings_route, library, scan, upload, \

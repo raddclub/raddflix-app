@@ -1,6 +1,7 @@
 """Simple admin login (single user from env or vault)."""
 from __future__ import annotations
 import os
+import time
 from functools import wraps
 from flask import session, request, redirect, url_for, jsonify, render_template_string
 
@@ -10,8 +11,17 @@ def admin_creds() -> tuple[str, str]:
             os.environ.get("RADD_ADMIN_PASS", ""))
 
 
+ADMIN_SESSION_TTL = 8 * 3600  # 8 hours idle timeout — enforced on every request
+
 def is_logged_in() -> bool:
-    return bool(session.get("admin"))
+    if not session.get("admin"):
+        return False
+    last = session.get("admin_last", 0)
+    if time.time() - last > ADMIN_SESSION_TTL:
+        session.clear()
+        return False
+    session["admin_last"] = time.time()
+    return True
 
 
 import logging
@@ -34,8 +44,6 @@ def _bot_key_ok() -> bool:
         return True
     return False
 
-
-ADMIN_SESSION_TTL = 3600  # 1 hour idle timeout
 
 def login_required(fn):
     @wraps(fn)
@@ -151,7 +159,9 @@ def login():
         p_ok = _hmac.compare_digest(p, ap) if ap else False
         if u_ok and p_ok:
             login._fail_store.pop(_lock_key, None)
+            session.clear()
             session["admin"] = u
+            session["admin_last"] = time.time()
             session.permanent = True
             return redirect(request.args.get("next") or "/")
         # Record failure
@@ -164,5 +174,5 @@ def login():
 
 @bp.route("/logout")
 def logout():
-    session.pop("admin", None)
+    session.clear()
     return redirect(url_for("auth.login"))
