@@ -206,8 +206,13 @@
             <span id="otp-sapi-link-msg-{{ a.id }}" class="muted" style="font-size:12px"></span>
           </div>
           <div id="otp-sapi-link-box-{{ a.id }}" style="display:none;margin-bottom:10px">
-            <a id="otp-sapi-url-{{ a.id }}" href="#" target="_blank" rel="noopener"
-               style="color:var(--ok,#5cd66f);text-decoration:underline;word-break:break-all;font-size:11px"></a>
+            <div style="display:flex;gap:6px;align-items:flex-start">
+              <a id="otp-sapi-url-{{ a.id }}" href="#" target="_blank" rel="noopener"
+                 style="color:var(--ok,#5cd66f);text-decoration:underline;word-break:break-all;font-size:11px;flex:1"></a>
+              <button id="otp-sapi-copy-btn-{{ a.id }}" class="ghost"
+                      onclick="copyInlineSapiLink({{ a.id }})"
+                      style="font-size:11px;padding:2px 8px;white-space:nowrap;flex-shrink:0">Copy</button>
+            </div>
           </div>
 
           <div style="font-size:12px;color:var(--muted);margin-bottom:4px">
@@ -738,6 +743,18 @@ async function getSapiActivateUrlInline(id) {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '🔗 Get Phone Activation Link'; }
   }
+}
+
+function copyInlineSapiLink(id) {
+  const link = document.getElementById('otp-sapi-url-' + id);
+  const btn  = document.getElementById('otp-sapi-copy-btn-' + id);
+  const url  = link ? link.href : '';
+  if (!url || url === '#') return;
+  navigator.clipboard.writeText(url).then(() => {
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000); }
+  }).catch(() => {
+    if (btn) { btn.textContent = 'Copy'; }
+  });
 }
 
 function scanInlineAutoParseJson(id, val) {
