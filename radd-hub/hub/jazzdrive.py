@@ -189,7 +189,7 @@ def _save_session(data: dict):
         log.error("save_session error: %s", e)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ────────────────────────��────────────────────────────────────────────────────
 # Proxy Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -248,6 +248,13 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
         px = _pp.pool.get_best()
         if px:
             return px
+        # Circuit open (>80% dead) but OTP MUST use a proxy.
+        # Direct connection from Oracle's non-PK IP always returns MED-1011.
+        # Use the least-dead proxy from the chain as a last resort.
+        chain = _pp.pool.get_proxy_chain(n=1)
+        if chain:
+            log.warning("resolve_proxies(otp): circuit open — using least-dead proxy as OTP fallback")
+            return chain[0]
     except Exception:
         pass
     return None

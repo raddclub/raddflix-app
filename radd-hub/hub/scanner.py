@@ -67,13 +67,54 @@ def send_otp(account_id: int) -> dict:
     msisdn = acct["msisdn"]
 
     from .jazzdrive import resolve_proxies
-    proxies = resolve_proxies()
+    from . import proxy_pool as _pp
 
+    # Build proxy chain: primary first, then pool fallbacks.
+    # Same pattern as trigger_otp_flow — retry on connection errors, mark_fail bad proxies.
+    _chain: list = []
+    _seen: set = set()
+    _primary = resolve_proxies()
+    if _primary:
+        _chain.append(_primary)
+        _seen.add(_primary.get("_url", ""))
     try:
-        # Always use Android OAuth2 flow — gives months-long refresh_token sessions
-        result = _scanner.jazzdrive_login(msisdn, use_android=True, proxies=proxies)
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+        for _p in _pp.pool.get_proxy_chain(n=4):
+            _p_url = _p.get("_url", "")
+            if _p_url and _p_url not in _seen:
+                _seen.add(_p_url)
+                _chain.append(_p)
+    except Exception:
+        pass
+    if not _chain:
+        log.warning("send_otp: proxy chain empty — direct connection will likely fail (MED-1011)")
+        _chain = [None]
+
+    _last_err: Exception = Exception("No proxies available")
+    result = None
+    for proxies in _chain:
+        try:
+            # Always use Android OAuth2 flow — gives months-long refresh_token sessions
+            result = _scanner.jazzdrive_login(msisdn, use_android=True, proxies=proxies)
+            break  # success
+        except Exception as _so_e:
+            _last_err = _so_e
+            _err_s = str(_so_e).lower()
+            _is_conn = any(x in _err_s for x in ('connection', 'timeout', 'refused', 'reset', 'socks', 'proxy', 'max retries', 'newconnection'))
+            if _is_conn and proxies:
+                _fail_url = proxies.get("_url") or ""
+                try:
+                    if _fail_url:
+                        _pp.pool.mark_fail(_fail_url)
+                        log.warning("send_otp: proxy %s failed (%s), trying next", _fail_url, str(_so_e)[:80])
+                except Exception:
+                    pass
+                continue
+            break  # non-connection error — don't retry with different proxy
+
+    if result is None:
+        log.error("send_otp: all proxies exhausted: %s", _last_err)
+        return {"ok": False, "error": str(_last_err)}
+
     with _otp_lock:
         _otp_sessions[account_id] = {
             "verify_url":  result.get("verify_url"),
@@ -94,32 +135,65 @@ def resend_otp(account_id: int) -> dict:
         return {"ok": False, "error": "no pending OTP for account"}
 
     from .jazzdrive import resolve_proxies
-    proxies = resolve_proxies()
+    from . import proxy_pool as _pp
 
+    # Build proxy chain for resend — same pattern as send_otp / trigger_otp_flow.
+    _chain: list = []
+    _seen: set = set()
+    _primary = resolve_proxies()
+    if _primary:
+        _chain.append(_primary)
+        _seen.add(_primary.get("_url", ""))
     try:
-        import requests as _req
-        session = sess["session"]
-        if proxies:
-            session.proxies = proxies
-        verify_url = sess["verify_url"]
+        for _p in _pp.pool.get_proxy_chain(n=4):
+            _p_url = _p.get("_url", "")
+            if _p_url and _p_url not in _seen:
+                _seen.add(_p_url)
+                _chain.append(_p)
+    except Exception:
+        pass
+    if not _chain:
+        _chain = [None]
 
-        # Use the official resendpin trick
-        r = session.post(
-            verify_url,
-            data={"resendpin": ""},
-            headers={
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Referer": verify_url,
-            },
-            timeout=30,
-            proxies=proxies,
-        )
-        log.info("OTP resend triggered for acct %s (status=%d)", account_id, r.status_code)
-        db.append_scan_log(account_id, "otp", "OTP resend requested")
-        return {"ok": True, "message": "OTP resend request sent."}
-    except Exception as e:
-        log.error("resend_otp error: %s", e)
-        return {"ok": False, "error": str(e)}
+    import requests as _req
+    session = sess["session"]
+    verify_url = sess["verify_url"]
+
+    _last_err: Exception = Exception("No proxies available")
+    for proxies in _chain:
+        try:
+            if proxies:
+                session.proxies = proxies
+            r = session.post(
+                verify_url,
+                data={"resendpin": ""},
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Referer": verify_url,
+                },
+                timeout=30,
+                proxies=proxies,
+            )
+            log.info("OTP resend triggered for acct %s (status=%d)", account_id, r.status_code)
+            db.append_scan_log(account_id, "otp", "OTP resend requested")
+            return {"ok": True, "message": "OTP resend request sent."}
+        except Exception as _rr_e:
+            _last_err = _rr_e
+            _err_s = str(_rr_e).lower()
+            _is_conn = any(x in _err_s for x in ('connection', 'timeout', 'refused', 'reset', 'socks', 'proxy', 'max retries', 'newconnection'))
+            if _is_conn and proxies:
+                _fail_url = proxies.get("_url") or ""
+                try:
+                    if _fail_url:
+                        _pp.pool.mark_fail(_fail_url)
+                        log.warning("resend_otp: proxy %s failed (%s), trying next", _fail_url, str(_rr_e)[:80])
+                except Exception:
+                    pass
+                continue
+            break  # non-connection error — don't retry
+
+    log.error("resend_otp: all proxies exhausted: %s", _last_err)
+    return {"ok": False, "error": str(_last_err)}
 
 
 def verify_otp(account_id: int, otp: str) -> dict:
