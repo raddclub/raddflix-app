@@ -131,7 +131,7 @@ def verify_otp(account_id: int, otp: str) -> dict:
         return {"ok": False, "error": "OTP session expired, request again"}
 
     from .jazzdrive import resolve_proxies
-    proxies = resolve_proxies()
+    proxies = resolve_proxies(purpose='sapi')
 
     # ── Android OAuth2 code exchange ──────────────────────────────────────────
     # jazzdrive_verify_otp always uses client_id=fnbroot (Android credentials).
