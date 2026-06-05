@@ -217,7 +217,30 @@ def save_account_tokens(aid):
                 "token_expires_at=?, last_scan_at=? WHERE id=?",
                 (vk, jid, int(_t.time() + 86400 * 30), int(_t.time()), aid)
             )
-        return jsonify({"ok": True, "message": "Tokens saved", "msisdn": dict(row)["msisdn"]})
+        msisdn = dict(row)["msisdn"]
+
+        # Immediately verify the new JSESSIONID is alive + start keepalive coverage.
+        # Without this, the 60-min idle timeout can kill the session before the
+        # 15-min keepalive loop first touches this account.
+        try:
+            from .. import keepalive as _ka
+            _ka.trigger_heartbeat(aid)
+        except Exception as _hb_err:
+            import logging
+            logging.getLogger("hub.scan").debug("trigger_heartbeat failed: %s", _hb_err)
+
+        # Clear any OTP backoff so uploads resume immediately after re-activation.
+        try:
+            from .. import uploader as _up
+            _up.clear_refresh_backoff(aid)
+        except Exception:
+            pass
+
+        return jsonify({
+            "ok": True,
+            "message": "Tokens saved — session verification triggered in background",
+            "msisdn": msisdn,
+        })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 

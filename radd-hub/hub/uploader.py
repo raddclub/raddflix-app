@@ -51,6 +51,53 @@ _LOG_RING: "collections.deque[dict]" = _collections.deque(maxlen=500)
 _LOG_RING_LOCK = threading.Lock()
 _LOG_SEQ = 0
 
+# ── Refresh backoff registry ──────────────────────────────────────────────────
+# When OTP re-login is required (all auto-refresh strategies fail), we record
+# the failure time and skip further refresh attempts for 30 minutes.  This
+# prevents hammering JazzDrive with hundreds of failed calls per hour while
+# the session is waiting for a phone re-activation.
+_REFRESH_BACKOFF: "dict[int, float]" = {}
+_REFRESH_BACKOFF_LOCK = threading.Lock()
+_REFRESH_BACKOFF_SECS = 1800  # 30 minutes
+
+
+def clear_refresh_backoff(account_id: int) -> None:
+    """Clear the refresh backoff for an account.
+    Call this immediately after new tokens are saved via phone activation
+    so uploads resume without waiting 30 min.
+    """
+    with _REFRESH_BACKOFF_LOCK:
+        _REFRESH_BACKOFF.pop(account_id, None)
+    log.info("Refresh backoff cleared for account %s — resuming uploads", account_id)
+
+
+def _is_refresh_backed_off(account_id: int) -> bool:
+    """Return True if this account is in OTP backoff (suppress retry)."""
+    with _REFRESH_BACKOFF_LOCK:
+        fail_at = _REFRESH_BACKOFF.get(account_id)
+    if fail_at is None:
+        return False
+    elapsed = time.time() - fail_at
+    if elapsed >= _REFRESH_BACKOFF_SECS:
+        with _REFRESH_BACKOFF_LOCK:
+            _REFRESH_BACKOFF.pop(account_id, None)
+        return False
+    remaining_min = int((_REFRESH_BACKOFF_SECS - elapsed) / 60)
+    log.debug("account %s OTP-backoff active — %dm remaining", account_id, remaining_min)
+    return True
+
+
+def _mark_refresh_backed_off(account_id: int) -> None:
+    """Record that OTP is required — suppress refresh retries for 30 min."""
+    with _REFRESH_BACKOFF_LOCK:
+        _REFRESH_BACKOFF[account_id] = time.time()
+    log.warning(
+        "account %s: OTP re-login required — all auto-refresh strategies failed. "
+        "Suppressing retries for 30 min. Open Scan page and re-activate via phone.",
+        account_id
+    )
+
+
 
 class _RingHandler(logging.Handler):
     """Appends formatted log records to the shared ring buffer."""
@@ -1502,6 +1549,11 @@ def _upload_pending() -> None:
     jsid = acct.get("jsessionid", "")
 
     if not verify_jd_session(vk, jsid, account_id=acct["id"]):
+        aid_for_backoff = acct["id"]
+        if _is_refresh_backed_off(aid_for_backoff):
+            log.debug("upload_pending: account %s in OTP backoff — skipping refresh", aid_for_backoff)
+            _release_pending(file_id)
+            return
         log.info("upload_pending: JD session expired — attempting silent refresh...")
         try:
             result = jazzdrive.refresh_session(account_id=acct["id"])
@@ -1519,7 +1571,10 @@ def _upload_pending() -> None:
                     _release_pending(file_id)
                     return
             else:
-                log.warning("upload_pending: refresh failed (%s) — releasing", result.get("error"))
+                err_msg = result.get("error", "")
+                log.warning("upload_pending: refresh failed (%s) — releasing", err_msg)
+                if "otp" in err_msg.lower() or "401" in err_msg or "unauthorized" in err_msg.lower():
+                    _mark_refresh_backed_off(aid_for_backoff)
                 _release_pending(file_id)
                 return
         except Exception as _re:
