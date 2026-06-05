@@ -300,21 +300,29 @@ class ProxyPool:
             )""")
 
     def _seed_if_empty(self):
+        """Merge built-in seeds into DB on every startup.
+
+        Uses INSERT OR IGNORE so existing entries are never overwritten, but NEW
+        seeds added to _BUILTIN_SEEDS automatically appear in the DB the next time
+        the service starts — no manual bulk-import required.
+        """
         from . import db
+        now = int(time.time())
+        added = 0
         with db.conn() as c:
-            n = c.execute("SELECT COUNT(*) AS n FROM sapi_proxies").fetchone()["n"]
-        if n == 0:
-            log.info("ProxyPool: seeding %d built-in proxies", len(_BUILTIN_SEEDS))
-            now = int(time.time())
-            with db.conn() as c:
-                for url in _BUILTIN_SEEDS:
-                    try:
-                        c.execute(
-                            "INSERT OR IGNORE INTO sapi_proxies(url,source,added_at) VALUES(?,?,?)",
-                            (url, 'seed', now))
-                    except Exception:
-                        pass
+            for url in _BUILTIN_SEEDS:
+                try:
+                    rows = c.execute(
+                        "INSERT OR IGNORE INTO sapi_proxies(url,source,added_at) VALUES(?,?,?)",
+                        (url, 'seed', now)).rowcount
+                    added += rows
+                except Exception:
+                    pass
+        if added:
+            log.info("ProxyPool: merged %d new built-in seeds into DB", added)
             threading.Thread(target=self._test_seeds_bg, daemon=True).start()
+        else:
+            log.debug("ProxyPool: all %d built-in seeds already in DB", len(_BUILTIN_SEEDS))
 
     def _test_seeds_bg(self):
         time.sleep(5)
