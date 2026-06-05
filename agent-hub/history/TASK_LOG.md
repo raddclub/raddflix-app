@@ -829,3 +829,56 @@ back to direct connection (which always fails MED-1011 from Oracle's non-PK IP).
   - TTL aligned with Jazz's actual 10-min SMS validity window
   - URL-based dedup prevents redundant proxy retries
   - MED-1011 fallback scenario is explicitly logged
+
+## Session 2026-06-05 (2nd session) — OTP not received from upload page
+
+### Bug Investigation
+User reported OTP not being received when triggered from the upload page.
+JazzDrive website OTP worked fine, confirming issue is server-side.
+
+### Root Causes Found
+
+#### Bug 1 (Primary — affects all OTP paths): `resolve_proxies(purpose='otp')` circuit-break passthrough
+**File:** `radd-hub/hub/jazzdrive.py`
+**Root cause:** When the proxy pool circuit breaker opens (>80% dead — confirmed 0/165 alive
+in live logs), `pool.get_best()` returns `None`. This design is correct for SAPI uploads
+(where direct connection is a valid fallback), but OTP **must** route through a Pakistani
+proxy — Oracle's non-PK IP always gets MED-1011 from jazzdrive.com.pk.
+**Fix:** After `get_best()` returns `None`, fall back to `get_proxy_chain(n=1)` to return
+the least-dead available proxy instead of `None`. `get_proxy_chain` bypasses the circuit
+breaker and returns even degraded proxies as a last resort.
+
+#### Bug 2 (Upload page specific): `scanner.send_otp()` / `scanner.resend_otp()` had no retry chain
+**File:** `radd-hub/hub/scanner.py`
+**Root cause:** The upload page OTP path calls `scanner.send_otp(account_id)`, NOT the
+`trigger_otp_flow()` used by the Settings page. `scanner.send_otp()` called `resolve_proxies()`
+once and used that single proxy — no retry loop. If the proxy failed: immediate exception,
+no fallback, OTP not sent.
+**Fix:** Updated both `send_otp()` and `resend_otp()` with the full proxy chain retry
+pattern matching `trigger_otp_flow()`: build chain (primary → pool fallbacks, URL-deduped),
+wrap in retry loop, `mark_fail` on connection errors, continue to next proxy.
+
+### Operational Fix
+- Live log confirmed proxy pool was 0/165 alive (full health-check failure)
+- Triggered `discover_new()` on Oracle: +1 new proxy found
+- Reset all 160 disabled proxies in DB (fail_count=0, is_enabled=1)
+- Pool restored to 166/166 alive; circuit closed
+
+### Files Changed
+- `radd-hub/hub/jazzdrive.py` — resolve_proxies(otp): circuit-open fallback to least-dead proxy
+- `radd-hub/hub/scanner.py` — send_otp + resend_otp: full proxy retry chain added
+
+### Commits
+- `696890f` — fix: OTP proxy fallback — circuit-open least-dead proxy + retry chain in scanner send/resend_otp
+
+### Oracle Status
+- Pulled to `696890f` ✅
+- Flask restarted (Python files changed) ✅
+- Proxy pool reset (160 re-enabled, 166/166 alive, circuit closed) ✅
+
+### State at End of Session
+- OTP from upload page now has same retry resilience as Settings page OTP
+- resolve_proxies(otp) will never silently return None when circuit is open — uses least-dead proxy
+- Proxy pool recovered from 0 alive to 166 alive
+- Both bugs fixed and code deployed to Oracle
+

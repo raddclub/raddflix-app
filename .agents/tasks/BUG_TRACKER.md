@@ -206,3 +206,20 @@ No new bugs found in app logs. App running cleanly (raddflix_radd via supervisor
 | ID | Title | Status | Notes |
 |----|-------|--------|-------|
 | DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB. Need JazzDrive upload + sync. |
+
+---
+
+## Session 2026-06-05 (2nd session) — OTP Upload Page Investigation
+
+| ID | Severity | Title | Root Cause | Fix Applied | File |
+|----|---------|-------|-----------|-------------|------|
+| BUG-O01 | CRITICAL | OTP not received from upload page | `scanner.send_otp()` called `resolve_proxies()` once with no retry; `resolve_proxies(otp)` returned `None` when circuit open → direct connection → MED-1011 | Added proxy retry chain to `send_otp()` and `resend_otp()` (same pattern as `trigger_otp_flow`) | `hub/scanner.py` |
+| BUG-O02 | HIGH | OTP always fails when proxy pool circuit is open | `resolve_proxies(purpose='otp')` called `pool.get_best()` which returns `None` when circuit open — designed for SAPI, wrong for OTP (direct = MED-1011) | Added fallback to `get_proxy_chain(n=1)` when `get_best()` returns `None`, so OTP always gets a proxy | `hub/jazzdrive.py` |
+
+### Root Cause Summary
+Two independent bugs both cause OTP to silently use direct connection from Oracle's non-PK IP:
+1. Circuit breaker passthrough in `resolve_proxies(otp)` — designed for SAPI but affects OTP
+2. No retry chain in `scanner.send_otp()` — Settings OTP path had retry, upload page path did not
+
+Commit: `696890f`
+
