@@ -548,6 +548,35 @@ async function ssetSaveFlag(key) {
 ssetLoad();
 </script>
 
+<!-- Services on/off -->
+<div class="card">
+  <h3 style="margin-bottom:6px">Services</h3>
+  <div class="muted" style="font-size:12px;margin-bottom:14px">
+    Enable or pause the Scan and Upload services independently. When paused, no periodic heartbeat requests are sent to JazzDrive — reduces API traffic to near-zero between active sessions.
+  </div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+
+    <div style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div>
+        <div style="font-weight:600;font-size:14px">📂 Scan</div>
+        <div class="muted" style="font-size:12px;margin-top:2px">JD Indexer — run monthly or weekly</div>
+        <span id="svc-scan-status" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(34,197,94,.15);color:var(--ok,#22c55e);display:inline-block;margin-top:5px">Enabled</span>
+      </div>
+      <button id="svc-scan-btn" class="ghost" onclick="svcToggle('scan')" style="white-space:nowrap">⏸ Disable</button>
+    </div>
+
+    <div style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div>
+        <div style="font-weight:600;font-size:14px">☁ Upload (Flix)</div>
+        <div class="muted" style="font-size:12px;margin-top:2px">Watch folder + JazzDrive push — 1–2× daily</div>
+        <span id="svc-upload-status" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(34,197,94,.15);color:var(--ok,#22c55e);display:inline-block;margin-top:5px">Enabled</span>
+      </div>
+      <button id="svc-upload-btn" class="ghost" onclick="svcToggle('upload')" style="white-space:nowrap">⏸ Disable</button>
+    </div>
+
+  </div>
+</div>
+
 <!-- Database management -->
 <div class="card">
   <h3>Database Management</h3>
@@ -825,6 +854,45 @@ async function admSendBroadcast(){
   } catch(e){ if(st) st.textContent='Error: '+e.message; toast('Failed: '+e.message); }
 }
 
+/* ── Services on/off ────────────────────────────────────────────────────── */
+async function servicesLoad() {
+  try {
+    const r = await api('/settings/api/services');
+    _svcRender(r);
+  } catch(_) {}
+}
+function _svcRender(r) {
+  _svcBtn('svc-scan-btn',   r.scan_enabled);
+  _svcBtn('svc-upload-btn', r.upload_enabled);
+  _svcStatus('svc-scan-status',   r.scan_enabled);
+  _svcStatus('svc-upload-status', r.upload_enabled);
+}
+function _svcBtn(id, on) {
+  const b = document.getElementById(id);
+  if (!b) return;
+  b.textContent = on ? '⏸ Disable' : '▶ Enable';
+  b.className   = on ? 'ghost' : '';
+  b.style.borderColor = on ? '' : 'var(--ok,#22c55e)';
+  b.style.color       = on ? '' : 'var(--ok,#22c55e)';
+}
+function _svcStatus(id, on) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent   = on ? 'Enabled' : 'Paused';
+  el.style.background = on ? 'rgba(34,197,94,.15)' : 'rgba(244,67,54,.12)';
+  el.style.color      = on ? 'var(--ok,#22c55e)'   : 'var(--err,#f44336)';
+}
+async function svcToggle(svc) {
+  try {
+    const cur = await api('/settings/api/services');
+    const was = svc === 'scan' ? cur.scan_enabled : cur.upload_enabled;
+    const body = svc === 'scan' ? {scan: !was} : {upload: !was};
+    const r = await api('/settings/api/services', {method:'POST', body});
+    _svcRender(r);
+    toast((svc === 'scan' ? 'Scan' : 'Upload') + ' ' + (!was ? 'enabled ✔' : 'paused ⏸'));
+  } catch(e) { toast('Error: '+e.message); }
+}
+
 /* ── SAPI Proxy ─────────────────────────────────────────────────────────── */
 async function sapiProxyLoad() {
   try {
@@ -1022,6 +1090,7 @@ loadUserRoles();
 loadJdAccounts();
 loadQuotaLeaderboard();
 sapiProxyLoad();
+servicesLoad();
 
 /* ── Domain Doctor ─────────────────────────────────────────────────────── */
 function _ddMsg(msg, isErr){
