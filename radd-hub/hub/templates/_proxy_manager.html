@@ -12,9 +12,10 @@
     </div>
 
     <div id="proxy-list-container" style="display:none">
-      <div class="muted" style="font-size:12px; margin-bottom:12px">
+      <div class="muted" style="font-size:12px; margin-bottom:8px">
         Proxy is recommended if you're not receiving OTP. Use Pakistani proxies for best results.
       </div>
+      <button class="ghost" onclick="loadFromPool()" style="font-size:11px;padding:3px 10px;margin-bottom:10px">🔄 Load from Proxy Pool</button>
       
       <div id="proxy-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px">
         <!-- Proxies will be injected here -->
@@ -67,7 +68,10 @@ function renderProxyList() {
   if (!list) return;
   
   if (_allProxies.length === 0) {
-    list.innerHTML = '<div class="muted" style="font-size:12px; text-align:center; padding:8px">No proxies added yet.</div>';
+    list.innerHTML = `<div style="text-align:center;padding:12px 8px">
+      <div class="muted" style="font-size:12px;margin-bottom:10px">No proxies configured yet.</div>
+      <button class="ghost" onclick="loadFromPool()" style="font-size:12px;padding:4px 12px">🔄 Load from Proxy Pool</button>
+    </div>`;
     return;
   }
   
@@ -164,6 +168,42 @@ async function testProxyItem(idx) {
     msg.style.color = 'var(--err)';
     await saveProxies();
     renderProxyList();
+  }
+}
+
+async function loadFromPool() {
+  const msg = document.getElementById('proxy-status-msg');
+  if (msg) { msg.textContent = 'Loading proxies from pool…'; msg.style.color = ''; }
+  try {
+    const d = await api('/settings/api/pool/list');
+    const alive = (d.proxies || []).filter(p => p.is_enabled && (p.score || 0) > 0 || p.is_enabled);
+    const top = alive.slice(0, 8);
+    if (!top.length) {
+      if (msg) { msg.textContent = 'No alive proxies in pool yet — run Health Check first.'; msg.style.color = 'var(--err)'; }
+      return;
+    }
+    // Add pool proxies not already in our list
+    let added = 0;
+    for (const p of top) {
+      const url = p.url || '';
+      if (url && !_allProxies.some(x => x.url === url)) {
+        _allProxies.push({ url, status: 'working', ping: p.avg_ms || null });
+        added++;
+      }
+    }
+    if (added > 0) {
+      await saveProxies();
+      renderProxyList();
+      // Auto-select first if none selected
+      if (!_activeProxyUrl && _allProxies.length > 0) {
+        await selectProxy(_allProxies[0].url);
+      }
+      if (msg) { msg.textContent = `✓ Loaded ${added} proxies from pool.`; msg.style.color = 'var(--ok)'; }
+    } else {
+      if (msg) { msg.textContent = 'All pool proxies already in list.'; msg.style.color = ''; }
+    }
+  } catch(e) {
+    if (msg) { msg.textContent = 'Error loading pool: ' + e.message; msg.style.color = 'var(--err)'; }
   }
 }
 

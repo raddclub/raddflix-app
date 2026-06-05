@@ -233,22 +233,37 @@ def api_settings_save():
 def api_proxies_get():
     """Return the list of proxies and current selection status."""
     proxies_json = db.setting("JAZZDRIVE_PROXIES")
+    proxies = []
     if proxies_json:
         try:
             proxies = json.loads(proxies_json)
-        except:
+        except Exception:
             proxies = []
-    else:
-        # Seed default Pakistani proxies
-        proxies = [
-            {"url": "http://103.141.144.116:8080", "status": "untested"},
-            {"url": "http://202.141.240.26:8080", "status": "untested"},
-            {"url": "http://111.119.160.18:8080", "status": "untested"},
-            {"url": "http://103.255.5.110:8080", "status": "untested"},
-            {"url": "http://111.119.178.131:8080", "status": "untested"},
-        ]
+
+    # Auto-seed from SAPI pool when list is empty (first open or cleared).
+    # This means the OTP proxy modal is never empty on a configured server.
+    if not proxies:
+        try:
+            from .. import proxy_pool as _pp
+            chain = _pp.pool.get_proxy_chain(n=8)
+            proxies = [
+                {"url": (px.get("_url") or px.get("https") or px.get("http", "")), "status": "working"}
+                for px in chain
+                if (px.get("_url") or px.get("https") or px.get("http", ""))
+            ]
+        except Exception:
+            pass
+        if not proxies:
+            # Hard fallback if pool is also empty
+            proxies = [
+                {"url": "socks5://103.121.120.242:1080", "status": "untested"},
+                {"url": "socks5://103.236.134.210:1080", "status": "untested"},
+                {"url": "http://103.141.144.116:8080",   "status": "untested"},
+                {"url": "http://202.141.240.26:8080",    "status": "untested"},
+                {"url": "http://111.119.160.18:8080",    "status": "untested"},
+            ]
         db.set_setting("JAZZDRIVE_PROXIES", json.dumps(proxies))
-    
+
     return jsonify({
         "proxies": proxies,
         "enabled": db.setting("JAZZDRIVE_PROXY_ENABLED", "0") == "1",

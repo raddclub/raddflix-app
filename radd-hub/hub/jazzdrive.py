@@ -219,13 +219,22 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
         if sapi_url:
             return {"http": sapi_url, "https": sapi_url, "_url": sapi_url}
         return None
-    # OTP / general proxy
-    if db.setting("JAZZDRIVE_PROXY_ENABLED") != "1":
-        return None
+    # OTP / general proxy — manual setting takes priority
+    manual_enabled = db.setting("JAZZDRIVE_PROXY_ENABLED") == "1"
     url = (db.setting("JAZZDRIVE_PROXY") or "").strip()
-    if not url:
-        return None
-    return {"http": url, "https": url}
+    if manual_enabled and url:
+        return {"http": url, "https": url, "_url": url}
+    # No manual proxy configured — fall back to SAPI pool automatically.
+    # This ensures OTP requests always go through a Pakistani IP even if the
+    # admin hasn't set up the single-proxy slot manually.
+    try:
+        from . import proxy_pool as _pp
+        px = _pp.pool.get_best()
+        if px:
+            return px
+    except Exception:
+        pass
+    return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
