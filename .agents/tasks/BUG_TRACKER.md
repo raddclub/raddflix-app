@@ -177,3 +177,32 @@ Two characters (`==`) caused 5 critical bugs.
 |----|-------|--------|-------|
 | DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | OPEN | Episodes not in Oracle DB episodes table. Need upload to JazzDrive + sync. |
 
+
+---
+
+## Session 2026-06-05 — Proxy Pool God-Level Upgrade
+
+No new bugs found in app logs. App running cleanly (raddflix_radd via supervisorctl).
+
+### Changes made (not bugs — improvements)
+
+| ID | Type | Title | Action | File |
+|----|------|-------|--------|------|
+| IMP-P01 | IMPROVEMENT | Proxy pool had only 65 seeds with basic round-robin | Upgraded to 150+ seeds, weighted scoring, circuit breaker, 5-min fast recovery | `hub/proxy_pool.py` |
+| IMP-P02 | IMPROVEMENT | Dead proxy recovery only ran every 10 min | Added fast recovery thread: re-tests disabled proxies every 5 min | `hub/proxy_pool.py` |
+| IMP-P03 | IMPROVEMENT | If all proxies dead, upload would fail | CircuitBreaker: >80% dead → auto-fallback to direct connection | `hub/proxy_pool.py` |
+| IMP-U01 | IMPROVEMENT | Settings proxy panel was old inline code (basic table, no stats, no sort, 30s refresh) | Replaced with god-level `_proxy_pool_panel.html` include (stat cards, filter, sort, score, bulk import, export, per-proxy test, 10s refresh) | `hub/templates/settings.html` |
+| IMP-U02 | IMPROVEMENT | No bulk import for proxies | Added bulk import panel: paste 100+ proxy URLs, auto-detect format | `hub/templates/_proxy_pool_panel.html` |
+| IMP-A01 | IMPROVEMENT | Only 3 pool API endpoints (list, add, remove) | Added 5 new endpoints: stats, bulk-import, test-one, reset-dead, export | `hub/routes/settings.py` |
+
+### Log analysis (last 30 min as of 2026-06-05 13:47 UTC)
+- **No errors** in app logs
+- App shows clean startup banner (Radd Hub v3.0 on port 5000)
+- `raddflix_radd` uptime at log check: 22 min (was restarted cleanly ~13:24 UTC)
+- No proxy failures, upload errors, or exception traces observed
+
+### Open bugs (unchanged)
+
+| ID | Title | Status | Notes |
+|----|-------|--------|-------|
+| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB. Need JazzDrive upload + sync. |

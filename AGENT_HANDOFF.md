@@ -1,6 +1,6 @@
 # AGENT_HANDOFF.md
 > **Read this file first — every session, every agent, no exceptions.**
-> Last updated: 2026-06-04
+> Last updated: 2026-06-05
 
 ---
 
@@ -258,13 +258,58 @@ to create script files, then run with `node /path/to/script.js`.
 
 ---
 
-## Current State (2026-06-04, updated)
+## SAPI Proxy Pool Architecture
+
+> Critical for uploads to cloud.jazzdrive.com.pk
+
+### Two proxy paths (never mix them)
+| Path | Function | Purpose |
+|------|---------|---------|
+| `resolve_proxies(purpose='sapi')` | Uses `proxy_pool.py` pool | All JazzDrive SAPI/upload calls |
+| `resolve_proxies(purpose='otp')` | Uses old single `JAZZDRIVE_PROXIES` setting | OTP/auth/refresh only |
+
+### Pool guarantees
+- **150+ Pakistani proxy seeds** across 6 ASNs (PTCL AS9541, StormFiber AS131275, Nayatel AS38193, Wateen AS45595, WorldCall AS17762, Micronet AS24499)
+- **Weighted scoring rotation**: score = (reliability × 80) + (speed × 20) — best proxies serve first
+- **CircuitBreaker**: if >80% of pool is dead, auto-fallback to direct connection — upload/login NEVER breaks
+- **Fast recovery thread**: re-tests disabled proxies every 5 min (in addition to 10-min health check)
+- **`get_proxy_chain(n=3)`**: returns ordered retry chain for upload loop resilience
+- **8-source auto-discovery**: geonode (3 pages), proxyscrape (2), openproxy.space, pubproxy.com, proxy-list.download, manual seed list
+
+### Pool management API (Settings page)
+| Endpoint | Method | Purpose |
+|---------|--------|---------|
+| `/settings/api/pool/list` | GET | Full proxy list with scores |
+| `/settings/api/pool/stats` | GET | Stats dashboard (total/alive/dead/avg_ping/circuit) |
+| `/settings/api/pool/add` | POST | Add single proxy |
+| `/settings/api/pool/remove/<id>` | DELETE | Remove proxy |
+| `/settings/api/pool/enable/<id>` | POST | Enable/disable proxy |
+| `/settings/api/pool/healthcheck` | POST | Run health check now |
+| `/settings/api/pool/discover` | POST | Run 8-source discovery now |
+| `/settings/api/pool/bulk-import` | POST | Add 100+ proxies at once |
+| `/settings/api/pool/test/<id>` | POST | Per-proxy live SAPI test |
+| `/settings/api/pool/reset-dead` | POST | Re-enable all disabled proxies |
+| `/settings/api/pool/export` | GET | Download proxy list as .txt |
+
+### UI Panel (`settings.html` → `_proxy_pool_panel.html`)
+- Stat cards: Total / Alive / Dead / Avg Ping / Circuit Status
+- Filter bar: All / Alive / Dead / SOCKS5 / HTTP
+- Sortable table columns: URL, Status, Score, Ping, OK, Fails
+- Score bars (color-coded), per-proxy ⚡ Test button, bulk import panel, export, reset-dead
+- Auto-refresh every 10s
+
+---
+
+## Current State (2026-06-05, updated)
 
 All code bugs fixed. One data gap open (DATA-01 in BUG_TRACKER.md).
+Proxy pool upgraded to god-level (150+ PK seeds, weighted rotation, circuit breaker).
 
-### Recently fixed
-- **BUG-P02**: Black flash before first video frame -> AnimatedOpacity fade-in on play
-- **BUG-P03**: planExpired redirect fires for local files -> fileId guard in _checkQuota
+### Recently completed
+- **Proxy Pool God-Level Upgrade**: 150+ seeds, weighted rotation, circuit breaker fallback, 5-min fast recovery, 8-source discovery, bulk import, per-proxy test, export, reset-dead
+- **Settings UI**: old inline proxy panel replaced with god-level `_proxy_pool_panel.html` include (stat cards, filter, sort, score column, 10s refresh)
+- **BUG-P02**: Black flash before first video frame → AnimatedOpacity fade-in on play
+- **BUG-P03**: planExpired redirect fires for local files → fileId guard in _checkQuota
 - **BUG-J01 (CRITICAL)**: JazzDrive Pass 3 episode match broken by Dart backslash-dollar
   escape — all folder shares played records[0]. Fixed with string concatenation.
 - **Episode gap placeholders**: _EpisodeUnavailableTile for missing episode numbers
