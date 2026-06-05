@@ -224,6 +224,10 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
     Always returns None on Replit because proxy traffic violates ToS."""
     if _is_replit():
         return None
+    # Global proxy bypass — when JAZZDRIVE_PROXY_BYPASS=1 all traffic goes direct.
+    # Enable this when Oracle IP is not geo-blocked; proxies only slow things down.
+    if db.setting('JAZZDRIVE_PROXY_BYPASS') == '1':
+        return None
     if purpose == 'sapi':
         # Try the pool first (auto-rotating, health-checked)
         try:
