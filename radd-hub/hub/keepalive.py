@@ -155,8 +155,18 @@ def loop(stop_event: threading.Event, interval_min: int = 15) -> None:
             for acct in accounts:
                 if not acct.get("is_active"):
                     continue
-                # Heartbeat and refresh all active accounts (flix and scan)
-                # to ensure they stay logged in for months via refresh_tokens.
+                # Respect per-service on/off toggles — if a service is disabled
+                # we stop sending periodic heartbeats so JazzDrive doesn't see
+                # constant traffic from an account that isn't in active use.
+                role = acct.get("role", "")
+                if role == "scan" and db.setting("SCAN_ENABLED", "1") != "1":
+                    log.debug("keepalive: skipping scan account %s (SCAN_ENABLED=0)",
+                              acct.get("msisdn"))
+                    continue
+                if role == "flix" and db.setting("UPLOAD_ENABLED", "1") != "1":
+                    log.debug("keepalive: skipping flix account %s (UPLOAD_ENABLED=0)",
+                              acct.get("msisdn"))
+                    continue
                 _run_heartbeat(acct)
         except Exception as e:
             log.warning("keepalive_loop error: %s", e)
