@@ -636,3 +636,30 @@ Set `validation_key` and `jsessionid` directly in `radd_hub.db` for account id=9
 - Flask restarted — new route live
 - Oracle pulled to commit `8123847`
 - Scan should now work for account 03286829827
+
+
+## Session 2026-06-05 — Fix "Reset Local Tables" button broken in Admin Panel
+
+### Problem
+The "Reset Local Tables" button in the Admin Panel danger zone was silently failing. Clicking it (with checkbox checked) would show no success — the reset did nothing.
+
+### Root Cause
+In `db_reset()` (admin.py), the line:
+```python
+c.execute("DELETE FROM bot_status_index")
+```
+was NOT wrapped in a try/except. If `bot_status_index` table doesn't exist in the DB (which it doesn't on this instance), SQLite throws `no such table: bot_status_index` — this is caught by the outer `except` block and returns `{"ok": false}` to the browser, aborting the entire reset before any titles/files are deleted.
+
+### Fix Applied
+Replaced the hard-coded individual DELETEs with a loop over all reset tables, each wrapped in its own try/except — so a missing optional table never blocks deletion of the core ones (titles, files, logs, queue).
+
+### Files Changed
+- `radd-hub/hub/routes/admin.py` — `db_reset()` function
+
+### Commits
+- `31f5436` — fix: db_reset wraps all table deletes in try/except — bot_status_index missing table no longer breaks reset
+
+### State at End of Session
+- Oracle pulled to `31f5436`
+- Flask restarted — fix is live
+- Reset Local Tables button now works correctly
