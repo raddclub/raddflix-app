@@ -335,6 +335,45 @@ window.gsCloseProgress=function(){
   </div>
 </div>
 
+<div class="card">
+  <h3>JazzDrive Services</h3>
+  <div class="muted" style="margin:-6px 0 14px">
+    Pause services when they are not needed to avoid unnecessary requests to JazzDrive.
+    JazzDrive rate-limits and blocks accounts that send too many requests.
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+
+    <div style="display:flex;align-items:flex-start;gap:14px;padding:14px;background:var(--bg2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:8px">
+      <button id="svc-upload-btn" onclick="toggleService('upload')"
+              style="min-width:80px;flex-shrink:0;transition:background .2s">…</button>
+      <div style="flex:1">
+        <div style="font-weight:600;margin-bottom:3px">Upload Service</div>
+        <div class="muted" style="font-size:12px">
+          Controls whether the background worker sends files to JazzDrive and sends keepalive heartbeats.
+          Enable only when you need to upload — typically <strong>1–2 times per day</strong> at most.
+          Disable when not uploading to eliminate all JazzDrive traffic.
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:flex-start;gap:14px;padding:14px;background:var(--bg2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:8px">
+      <button id="svc-scan-btn" onclick="toggleService('scan')"
+              style="min-width:80px;flex-shrink:0;transition:background .2s">…</button>
+      <div style="flex:1">
+        <div style="font-weight:600;margin-bottom:3px">Scan Service</div>
+        <div class="muted" style="font-size:12px">
+          Controls whether the system scans JazzDrive accounts for new files.
+          Scans are <strong>very infrequent</strong> — once a week, month, or even once a year is enough.
+          Disable between scan runs to send zero requests to JazzDrive accounts.
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div id="svc-status" class="muted" style="font-size:12px;margin-top:10px;min-height:16px"></div>
+</div>
+
 {% if jd_bot_grouped.whatsapp %}
 <div class="card" id="wa-settings-card" style="position:relative">
   <div id="wa-settings-lock" style="display:none;position:absolute;inset:0;background:rgba(10,12,18,.82);
@@ -830,6 +869,53 @@ window._delSig=function(id){
   api('/settings/api/app-signatures/'+id,{method:'DELETE'}).then(function(){toast('Removed');loadAV();}).catch(function(e){toast('Failed: '+e.message);});
 };
 loadAV();
+})();
+
+// ── JazzDrive service toggles (Upload & Scan) ────────────────────────────
+(async function initServiceToggles(){
+  function applyState(uploadEnabled, scanEnabled){
+    const uploadBtn = document.getElementById('svc-upload-btn');
+    const scanBtn   = document.getElementById('svc-scan-btn');
+    if(uploadBtn){
+      uploadBtn.textContent  = uploadEnabled ? '⏸ Pause' : '▶ Enable';
+      uploadBtn.style.background = uploadEnabled ? 'rgba(34,197,94,.15)' : 'rgba(244,67,54,.15)';
+      uploadBtn.style.borderColor = uploadEnabled ? '#22c55e' : '#f44336';
+      uploadBtn.style.color = uploadEnabled ? '#22c55e' : '#f44336';
+    }
+    if(scanBtn){
+      scanBtn.textContent  = scanEnabled ? '⏸ Pause' : '▶ Enable';
+      scanBtn.style.background = scanEnabled ? 'rgba(34,197,94,.15)' : 'rgba(244,67,54,.15)';
+      scanBtn.style.borderColor = scanEnabled ? '#22c55e' : '#f44336';
+      scanBtn.style.color = scanEnabled ? '#22c55e' : '#f44336';
+    }
+  }
+  try{
+    const d = await api('/settings/api/services');
+    applyState(d.upload_enabled, d.scan_enabled);
+  }catch(e){ console.warn('service toggle load failed', e); }
+
+  window.toggleService = async function(type){
+    const st = document.getElementById('svc-status');
+    if(st) st.textContent = 'Saving…';
+    try{
+      const current = await api('/settings/api/services');
+      const newUpload = type === 'upload' ? !current.upload_enabled : current.upload_enabled;
+      const newScan   = type === 'scan'   ? !current.scan_enabled   : current.scan_enabled;
+      const d = await api('/settings/api/services', {
+        method:'POST',
+        body:{ upload: newUpload, scan: newScan }
+      });
+      applyState(d.upload_enabled, d.scan_enabled);
+      const label = type === 'upload' ? 'Upload' : 'Scan';
+      const state = (type === 'upload' ? d.upload_enabled : d.scan_enabled) ? 'enabled' : 'paused';
+      if(st) st.textContent = label + ' service ' + state + ' ✓';
+      toast(label + ' service ' + state);
+      setTimeout(()=>{ if(st) st.textContent=''; }, 4000);
+    }catch(e){
+      if(st) st.textContent = 'Failed: ' + e.message;
+      toast('Failed: ' + e.message);
+    }
+  };
 })();
 
 // ── Bot settings lock overlay ─────────────────────────────────────────────
