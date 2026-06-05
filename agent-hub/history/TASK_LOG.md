@@ -742,53 +742,10 @@ Upgraded from a simple valid/invalid flag to full colour-coded feedback:
 - Pulled to `dac9063` — live
 
 
-## Session 2026-06-05 — Scan page per-account inline SAPI activation
-
-### Task
-Add a full inline SAPI activation section to each per-account OTP row in scan.html —
-so when `needs_paste_cookies` fires, the user never has to scroll to the bottom card.
-The SAPI section appears right under the account's Verify button.
-
-### What Was Done
-
-#### scan.html — HTML (inside `otp-row-{{ a.id }}`)
-Added `otp-sapi-{{ a.id }}` section (hidden by default) containing:
-- Green "✔ OTP accepted" header
-- 🔗 Get Phone Activation Link button → `getSapiActivateUrlInline(id)`
-- SAPI URL display link (shown after generation)
-- Full JSON textarea → `scanInlineAutoParseJson(id, val)` on every keystroke
-- Real-time colour-coded parse feedback (`otp-sapi-json-msg-{{ a.id }}`)
-- Save & Connect button (disabled until both keys found) → `saveInlineOtpSapi(id)`
-- Save status message
-
-All IDs are per-account (`-{{ a.id }}` suffix), so multiple accounts work independently.
-
-#### scan.html — JS: new functions
-- `showOtpSapiRow(id, msisdn)` — shows the inline section + auto-fetches the activation link
-- `getSapiActivateUrlInline(id)` — calls `/scan/api/accounts/<id>/sapi-activate-url`,
-  displays link, shows green confirmation
-- `scanInlineAutoParseJson(id, val)` — same parse logic as other pages:
-  handles `{"data":{...}}` wrapper, colour-coded green/orange/red feedback, enables Save button
-- `saveInlineOtpSapi(id)` — POSTs to `/scan/api/accounts/<id>/tokens`,
-  reloads on success, shows error in red
-
-#### scan.html — JS: verifyOtpRow() updated
-`needs_paste_cookies` branch now calls `showOtpSapiRow(id, r.msisdn)` (inline, no scroll)
-instead of `_showPasteCookiesNeeded()` (which sent user to the bottom card).
-Status message changed from orange warning to green "✔ OTP accepted — activate from Jazz phone ↓".
+## Session 2026-06-05 — Copy button for inline SAPI link in per-account rows
 
 ### Files Changed
-- `radd-hub/hub/templates/scan.html`
+- `radd-hub/hub/templates/scan.html` — added Copy button + `copyInlineSapiLink(id)` JS
 
 ### Commits
-- `a071f1f` — feat: scan page per-account inline SAPI activation — JSON textarea + auto-parse + auto-fetch link on needs_paste_cookies
-
-### Oracle Status
-- Pulled to `a071f1f` — live (template only, no Flask restart needed)
-
-### State at End of Session
-Full SAPI + JSON auto-parse flow is now consistent across all entry points:
-1. OTP modal (upload page) — textarea with real-time feedback in modal step 2
-2. Upload Settings tab — Quick Paste box in the "Activate JazzDrive Session" card
-3. Scan page global card — Quick Paste box in the "Activate JazzDrive Session" card
-4. Scan page per-account inline rows — full inline section, no scrolling needed ← NEW
+- `f3a9478` — feat: copy button for inline SAPI activation link in per-account OTP rows
