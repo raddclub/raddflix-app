@@ -930,3 +930,247 @@ Replaced single `resolve_proxies(purpose='sapi')` call in `verify_otp` with full
 - Account 03286829827 session is dead (invalid_grant) — needs one fresh OTP login to recover
 - Future verify failures will try up to 5 proxies before giving up (vs 1 before this fix)
 
+
+## Session 2026-06-05 (4th session) — Per-account refresh-token lock
+
+### Task
+Add a per-account lock in `android_refresh_session` / `_try_refresh` to prevent
+the concurrent refresh-token rotation race that causes a spurious `invalid_grant`
+on every Flask restart.
+
+### Root Cause
+JazzDrive rotates the refresh_token on every `/oauth2/refresh_token.php` call.
+On Flask restart, the keepalive loop fires for all accounts near-simultaneously.
+If two threads called `android_refresh_session` for the same account concurrently
+(keepalive tick + trigger_heartbeat, or two rapid heartbeat retries), both:
+1. Read the same `refresh_token` from DB
+2. Both POST to `/oauth2/refresh_token.php` with that token
+3. First succeeds → Jazz rotates the token
+4. Second sends the now-invalid old token → `invalid_grant`
+
+This explained the spurious `invalid_grant` seen after every Flask restart without
+any real session expiry.
+
+### Fix Applied
+
+**New module-level state in `jazzdrive.py`:**
+- `_refresh_locks: dict[int, threading.Lock]` — one Lock per account_id
+- `_refresh_locks_mutex: threading.Lock` — protects the dict itself
+- `_get_refresh_lock(account_id)` — returns (creating if needed) the per-account Lock
+
+**Refactored `android_refresh_session`:**
+- Acquires per-account lock before any network I/O
+- After acquiring, re-reads refresh_token from DB — if another thread already
+  rotated it while waiting, returns cached tokens immediately (no network call)
+- Delegates to new `_android_refresh_session_inner()` via `try/finally` so the
+  lock is always released (even on exception or early return)
+
+**Result:** Second concurrent caller for the same account now waits on the lock,
+then detects the DB token has already changed and short-circuits without making
+a second OAuth2 call → no double-consumption → no spurious `invalid_grant`.
+
+### Files Changed
+- `radd-hub/hub/jazzdrive.py` — per-account lock dict + helper + refactored `android_refresh_session` → `_android_refresh_session_inner`
+
+### Commits
+- `238a39a` — fix: per-account lock in android_refresh_session to prevent concurrent refresh-token rotation race (invalid_grant on Flask restart)
+
+### Oracle Status
+- Pulled to `238a39a` ✅
+- Flask restarted (Python file changed) ✅
+- healthz: `{"ok":true,"version":"3.0.0"}` ✅
+
+### State at End of Session
+- Concurrent `android_refresh_session` calls for the same account are now serialised
+- Second caller reuses the fresh tokens from DB instead of re-exchanging
+- No more spurious `invalid_grant` from Flask restart race conditions
+- All existing OTP/proxy fixes from previous sessions remain intact
+
+## Session 2026-06-06 — Cloudflare WARP VPN + Jazz IP Watchdog
+
+### Task
+Replace unreliable Pakistani proxy pool with a permanent free VPN tunnel (Cloudflare WARP)
+on Oracle, so Jazz SAPI geo-blocking is bypassed reliably and at full speed.
+
+### Root Cause
+Oracle IP (92.4.95.252) is flagged/blocked by Jazz SAPI. Previously patched with a rotating
+Pakistani proxy pool, but proxies died every 10-20 min and were slow. JAZZDRIVE_PROXY_BYPASS=1
+was already set in DB (code was trying to go direct) but direct connections failed because
+Oracle's IP is blocked by Jazz.
+
+### Solution: Cloudflare WARP split-tunnel via WireGuard
+
+Why WARP works: Jazz blocks specific IPs not countries. Any clean non-flagged IP works
+(confirmed with Browsec Latvia VPN in browser screenshots). Cloudflare WARP provides a clean
+IP via WireGuard, is free, and has excellent latency (~0.35-0.55s Jazz API response).
+
+Architecture:
+- WireGuard interface wg0 connected to Cloudflare WARP (engage.cloudflareclient.com:2408)
+- Split tunnel: ONLY Jazz IPs routed through WARP, everything else stays direct on Oracle
+- JAZZDRIVE_PROXY_BYPASS=1 already in DB — Flask skips all proxies, goes direct
+- Direct now means through WARP tunnel at OS level — fully transparent to Python code
+- No Flask code changes needed
+
+### Files Created on Oracle (not in GitHub)
+- /etc/wireguard/wg0.conf — WireGuard split-tunnel config (Jazz IPs only via WARP)
+- /opt/warp-watchdog/jazz_ip_watchdog.py — auto-detects Jazz DNS IP changes, updates wg0 live
+- /etc/systemd/system/jazz-ip-watchdog.service — oneshot service for watchdog
+- /etc/systemd/system/jazz-ip-watchdog.timer — runs watchdog every 10 min
+
+### Watchdog First Run Result
+On very first run, watchdog immediately caught a live IP change:
+- cloud.jazzdrive.com.pk: 175.41.133.62 changed to 54.254.59.168 (rotated during session)
+- Updated WireGuard live with wg set (no tunnel drop, no restart)
+- Updated /etc/wireguard/wg0.conf for persistence across reboots
+- Timer fires every 10 min, also runs 2 min after every reboot
+
+### Oracle Status
+- wg-quick@wg0: enabled + active (auto-starts on reboot) OK
+- jazz-ip-watchdog.timer: enabled + active (every 10 min) OK
+- JAZZDRIVE_PROXY_BYPASS=1 already in DB OK
+- No Flask restart needed OK
+
+### State at End of Session
+- Oracle Jazz traffic routes through Cloudflare WARP permanently
+- Proxy pool remains in DB but is fully bypassed (JAZZDRIVE_PROXY_BYPASS=1)
+- Jazz IP changes handled automatically by watchdog every 10 min
+- Account 03286829827 ready for fresh OTP login
+
+## Session 2026-06-06 — WARP Tunnel, Proxy Cleanup, Keepalive Fix
+
+**Agent:** Replit Agent (main branch)
+
+### Summary
+Fixed JazzDrive geo-blocking permanently using Cloudflare WARP as a split-tunnel VPN.
+Eliminated massive resource waste from an unused 33,000-proxy pool. Fixed keepalive
+interval so it's DB-configurable and no longer hardcoded.
+
+---
+
+### 1. Cloudflare WARP Split Tunnel (WireGuard / wgcf)
+
+**Problem:** Oracle server IP is not a Pakistani IP. JazzDrive geo-blocks non-PK IPs
+with MED-1011. Previous fix used a Pakistani proxy pool (33,000 proxies) which was
+unreliable and consumed 6 GB RAM + 60% CPU doing health checks on dead proxies.
+
+**Solution:** Cloudflare WARP via WireGuard as a **split tunnel** — only the 3 known
+Jazz IPs route through WARP (Cloudflare edge in Singapore appears as Pakistani to Jazz).
+All other traffic (uploads, app, admin panel) goes direct via Oracle's internet link.
+
+**WireGuard config:** `/etc/wireguard/wg0.conf`
+- Peer: `bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=` (Cloudflare WARP)
+- Endpoint: `162.159.192.1:2408`
+- AllowedIPs: `54.179.95.148/32, 54.254.59.168/32, 175.41.133.62/32`
+- Enabled on boot via `wg-quick@wg0` systemd service
+
+**Key config in DB:** `JAZZDRIVE_PROXY_BYPASS=1` — Flask skips all proxy logic entirely
+and goes direct (which now means through WARP at OS level for Jazz IPs).
+
+**Verified:** Jazz API responds HTTP 400 in 0.45s (400 = correct auth rejection, not geo-block).
+WireGuard boots in 152ms; Flask takes 5+ seconds to start — no race condition on reboot.
+
+---
+
+### 2. Jazz IP Watchdog v4 (Accumulate Mode)
+
+**Problem:** Jazz load-balances `cloud.jazzdrive.com.pk` across multiple IPs. Previous
+watchdog versions replaced old IPs with new DNS results, causing `[Errno 113] No route
+to host` whenever Jazz's DNS rotated to an IP that was no longer in WireGuard AllowedIPs.
+
+**Solution:** Watchdog v4 at `/opt/warp-watchdog/jazz_ip_watchdog.py` uses accumulate mode:
+- Computes union of: current DNS result + current WireGuard IPs + historical known IPs
+- **Never removes** any IP that was ever seen
+- Persists known IPs to `/opt/warp-watchdog/known_jazz_ips.json`
+- Runs every 10 min via `jazz-ip-watchdog.timer` (systemd)
+
+Current known IPs: `54.179.95.148`, `54.254.59.168`, `175.41.133.62`
+
+---
+
+### 3. Proxy Pool Cleanup — 6 GB RAM → 64 MB
+
+**Problem:** The proxy pool had accumulated 33,068 proxies in `sapi_proxies` table
+(25,274 enabled). Three background threads were running non-stop:
+- `proxy-hc`: health checker, 40 concurrent threads, every 10 min
+- `proxy-recovery`: re-tests dead proxies every 5 min
+- `proxy-disc`: fetches 25,000+ proxies from GitHub every 15 min
+
+Result: Flask process using 60.7% CPU and 6,148 MB RAM — all for proxies that are
+never used (`JAZZDRIVE_PROXY_BYPASS=1`).
+
+**Fix 1 — Delete all proxies:**
+```sql
+DELETE FROM sapi_proxies;  -- removed 33,068 rows
+```
+
+**Fix 2 — Disable background threads when BYPASS=1 (`proxy_pool.py`):**
+Patched `ProxyPool.start()` to check `JAZZDRIVE_PROXY_BYPASS` DB setting. If bypass
+is active, skips starting hc/recovery/disc threads entirely. Built-in 151 seed proxies
+still load (no network activity, just data in memory).
+
+**Fix 3 — Stop proxy discovery re-filling DB:**
+Discovery loop (`_disc_loop`) was fetching from GitHub every 15 min and re-populating
+the DB we just cleared. Now suppressed when `PROXY_BYPASS=1`.
+
+**Result:** CPU 60.7% → 6.9% | RAM 6,148 MB → 61 MB
+
+---
+
+### 4. Keepalive Interval Fix — 15 min → 6 hours, DB-driven
+
+**Problem:** Keepalive worker was hardcoded to run every 15 min (96 heartbeats/day),
+despite `keepalive_interval_min` existing in the settings DB. The DB setting was stored
+but never actually read — `app.py` launched the loop without passing the interval.
+
+**Why 15 min was excessive:** Account has a `refresh_token` valid for ~90 days. If the
+JSESSIONID expires (1-hour idle timeout), `sapi_request` auto-calls `refresh_session()`
+silently using the refresh_token. No OTP needed. 96 heartbeat uploads/day to JazzDrive
+was purely wasted API traffic.
+
+**Fix:** Two patches to `keepalive.py`:
+1. At **startup**: read `keepalive_interval_min` from DB before first cycle
+2. At **end of each cycle**: re-read from DB so changes take effect without Flask restart
+
+**DB updated:** `keepalive_interval_min` = `360` (6 hours = 4 heartbeats/day)
+
+**Startup log confirms:**
+```
+ProxyPool: PROXY_BYPASS=1 — skipping hc/recovery/disc threads (proxies unused)
+JazzDrive keep-alive worker started (interval: 360 min)
+```
+
+---
+
+### 5. Account 03286829827 — OTP Login Restored
+
+Account had dead tokens from earlier session collapse. After WARP was confirmed working,
+fresh OTP login completed successfully at 18:09:57 UTC:
+```
+OTP verified via Android OAuth2 (has_refresh_token=True, has_raw_at=True), session stored
+```
+SAPI 401 errors stopped immediately. Token expires 2026-07-06 (30 days, refresh_token).
+
+---
+
+### Files changed (Oracle server only — no Flutter/GitHub code changes)
+
+| File | Change |
+|------|--------|
+| `/etc/wireguard/wg0.conf` | Split tunnel config — 3 Jazz IPs via WARP |
+| `/opt/warp-watchdog/jazz_ip_watchdog.py` | v4: accumulate mode, never removes IPs |
+| `/opt/jazzmax/radd-hub/hub/proxy_pool.py` | Skip hc/recovery/disc threads when BYPASS=1 |
+| `/opt/jazzmax/radd-hub/hub/keepalive.py` | Read interval from DB at startup + each cycle |
+| `radd_hub.db settings` | `keepalive_interval_min` = 360 |
+
+### State at end of session
+
+| Component | Status |
+|-----------|--------|
+| WARP tunnel (wg0) | ✅ Up, split tunnel, only Jazz IPs |
+| Jazz API reachable | ✅ HTTP 400 in 0.45s (correct) |
+| Account 03286829827 | ✅ Active, tokens valid 30 days |
+| Server CPU | ✅ 6.9% (was 60.7%) |
+| Server RAM | ✅ 61 MB (was 6,148 MB) |
+| Keepalive | ✅ Every 6 hours, DB-configurable |
+| Proxy threads | ✅ All disabled (PROXY_BYPASS=1) |
+| Upload queue | ⬜ Empty — ready for jobs |

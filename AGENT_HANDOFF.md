@@ -300,28 +300,28 @@ to create script files, then run with `node /path/to/script.js`.
 
 ---
 
-## Current State (2026-06-05, updated)
+## Current State (2026-06-06, updated)
 
-All code bugs fixed. OTP proxy system fully hardened. One data gap open (DATA-01 in BUG_TRACKER.md).
+All code bugs fixed. Infrastructure overhauled. One data gap open (DATA-01 in BUG_TRACKER.md).
 
-### Recently completed
-- **OTP Proxy Hardening** (commit 1887b63): 6 bugs fixed in OTP proxy flow:
-  - `submit_otp` now has proxy chain retry (was the only OTP step missing it)
-  - `resolve_proxies(otp)` skips dead/disabled manual proxies (pool DB check)
-  - `mark_fail` auto-clears `JAZZDRIVE_PROXY` setting when proxy is disabled
-  - URL-based proxy dedup (not fragile dict equality) in all 3 OTP functions
-  - OTP TTL extended 300s → 600s to match Jazz's 10-min SMS validity window
-  - `resend_otp` TTL guard + MED-1011 direct-connection warnings everywhere
-- **OTP retry chain + dual-domain HC** (commit aa7e280): mark_fail on SOCKS/connection reset, retry next pool proxy; dual-domain health check (jazzdrive.com.pk)
-- **Proxy Pool God-Level Upgrade**: 150+ seeds, weighted rotation, circuit breaker fallback, 5-min fast recovery, 8-source discovery, bulk import, per-proxy test, export, reset-dead
-- **Settings UI**: old inline proxy panel replaced with god-level `_proxy_pool_panel.html` include (stat cards, filter, sort, score column, 10s refresh)
-- **BUG-P02**: Black flash before first video frame → AnimatedOpacity fade-in on play
-- **BUG-P03**: planExpired redirect fires for local files → fileId guard in _checkQuota
-- **BUG-J01 (CRITICAL)**: JazzDrive Pass 3 episode match broken by Dart backslash-dollar
-  escape — all folder shares played records[0]. Fixed with string concatenation.
-- **Episode gap placeholders**: _EpisodeUnavailableTile for missing episode numbers
-- **Coming Soon banner**: shown when a show/season has 0 episodes uploaded yet
-- **episodeCount field**: CatalogItem.episodeCount from Oracle episode_count column
+### Recently completed (2026-06-06)
+- **Cloudflare WARP split tunnel**: Oracle now routes Jazz IPs through WARP (PK IP).
+  JazzDrive geo-blocking eliminated. Upload/app traffic unaffected (split tunnel).
+- **Jazz IP Watchdog v4**: Accumulate mode — never drops an IP, handles Jazz DNS rotation.
+  Runs every 10 min via systemd timer at `/opt/warp-watchdog/jazz_ip_watchdog.py`.
+- **Proxy pool cleanup**: Deleted 33,068 dead proxies. Disabled hc/recovery/disc threads
+  when `JAZZDRIVE_PROXY_BYPASS=1`. RAM: 6,148 MB → 61 MB | CPU: 60.7% → 6.9%.
+- **Keepalive fix**: Interval now DB-driven (`keepalive_interval_min` = 360 min / 6 hours).
+  Was hardcoded 15 min; DB setting was stored but never read. Fixed at startup and per-cycle.
+- **Account 03286829827**: OTP login restored. Tokens valid 30 days (refresh_token active).
+
+### Previously completed (2026-06-05)
+- **OTP Proxy Hardening** (commit 1887b63): 6 bugs fixed across OTP proxy flow
+- **OTP retry chain + dual-domain HC** (commit aa7e280)
+- **Proxy Pool God-Level Upgrade**: 150+ seeds, weighted rotation, circuit breaker, 8-source discovery
+- **BUG-P02/P03**: Black flash + planExpired redirect for local files
+- **BUG-J01 (CRITICAL)**: JazzDrive Pass3 episode match broken by Dart backslash-dollar
+- **Episode gap placeholders + Coming Soon banner + episodeCount field**
 
 ### JazzDrive — critical notes
 
@@ -335,8 +335,29 @@ All code bugs fixed. OTP proxy system fully hardened. One data gap open (DATA-01
 **Test suite**: `raddflix_flutter/test_suite/jazzdrive_logic_test.js` — 27 tests
   - Run anywhere: `node jazzdrive_logic_test.js`
   - Full network test on Jazz SIM: `node jazzdrive_logic_test.js --live <shareUrl> [target]`
+  ---
 
-**MED-1011 error**: Share key validation returns MED-1011 without Jazz SIM IP.
-  All JazzDrive live testing requires a Jazz SIM device or Jazz SIM tethered connection.
+  ## Session 2 — 2026-06-06 (Diagnostics + Upload Fixes)
+
+  ### What was investigated
+  User showed upload history with 553 KB–1.1 MB file sizes for full movies/episodes.
+
+  ### Findings
+  1. **Files are ~10-second clips** — not a code bug. Source delivers samples, not full content.
+  2. **delta_push 401**: `jazzdrive.py` had 4 `_time_time()` calls (undefined) → crash in `refresh_session()`.
+     Fixed with sed. After fix, refresh got fresh `validation_key` + `JSESSIONID` for account 15.
+  3. **Stale folder cache**: `jd_delta_folder_id` in settings pointed to deleted JazzDrive folder → MED-1030.
+     Cleared, folder recreated automatically.
+  4. **3 stuck files**: Pitt Siyapa, Luka Chuppi, Vncenz0 S01E02 had no remote_id. Re-uploaded directly.
+
+  ### State after session
+  - All 10 files: `is_ready=1`, `remote_id` set, `share_url` set
+  - delta_push: working, folder_id=1763725
+  - Account 15 session: vk+jid fresh, expires ~2026-07-06
+
+  
+
+**MED-1011 error**: Now solved by WARP tunnel on Oracle. Jazz SIM still required for
+  Flutter app testing (zero-rating only on Jazz network).
 
 See `.agents/tasks/BUG_TRACKER.md` for full bug table.

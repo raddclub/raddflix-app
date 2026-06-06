@@ -66,28 +66,30 @@ def send_otp(account_id: int) -> dict:
         return {"ok": False, "error": "no msisdn on account"}
     msisdn = acct["msisdn"]
 
-    from .jazzdrive import resolve_proxies
+    from .jazzdrive import resolve_proxies, is_proxy_bypass
     from . import proxy_pool as _pp
 
-    # Build proxy chain: primary first, then pool fallbacks.
-    # Same pattern as trigger_otp_flow — retry on connection errors, mark_fail bad proxies.
+    # Build proxy chain — bypass check first.
     _chain: list = []
     _seen: set = set()
-    _primary = resolve_proxies()
-    if _primary:
-        _chain.append(_primary)
-        _seen.add(_primary.get("_url", ""))
-    try:
-        for _p in _pp.pool.get_proxy_chain(n=8):
-            _p_url = _p.get("_url", "")
-            if _p_url and _p_url not in _seen:
-                _seen.add(_p_url)
-                _chain.append(_p)
-    except Exception:
-        pass
-    if not _chain:
-        log.warning("send_otp: proxy chain empty — direct connection will likely fail (MED-1011)")
-        _chain = [None]
+    if is_proxy_bypass():
+        _chain = [None]  # direct — Oracle IP is not geo-blocked
+    else:
+        _primary = resolve_proxies()
+        if _primary:
+            _chain.append(_primary)
+            _seen.add(_primary.get("_url", ""))
+        try:
+            for _p in _pp.pool.get_proxy_chain(n=8):
+                _p_url = _p.get("_url", "")
+                if _p_url and _p_url not in _seen:
+                    _seen.add(_p_url)
+                    _chain.append(_p)
+        except Exception:
+            pass
+        if not _chain:
+            log.warning("send_otp: proxy chain empty — direct connection will likely fail (MED-1011)")
+            _chain = [None]
 
     _last_err: Exception = Exception("No proxies available")
     result = None
@@ -134,26 +136,29 @@ def resend_otp(account_id: int) -> dict:
     if not sess:
         return {"ok": False, "error": "no pending OTP for account"}
 
-    from .jazzdrive import resolve_proxies
+    from .jazzdrive import resolve_proxies, is_proxy_bypass
     from . import proxy_pool as _pp
 
-    # Build proxy chain for resend — same pattern as send_otp / trigger_otp_flow.
+    # Build proxy chain — bypass check first.
     _chain: list = []
     _seen: set = set()
-    _primary = resolve_proxies()
-    if _primary:
-        _chain.append(_primary)
-        _seen.add(_primary.get("_url", ""))
-    try:
-        for _p in _pp.pool.get_proxy_chain(n=8):
-            _p_url = _p.get("_url", "")
-            if _p_url and _p_url not in _seen:
-                _seen.add(_p_url)
-                _chain.append(_p)
-    except Exception:
-        pass
-    if not _chain:
-        _chain = [None]
+    if is_proxy_bypass():
+        _chain = [None]  # direct — Oracle IP is not geo-blocked
+    else:
+        _primary = resolve_proxies()
+        if _primary:
+            _chain.append(_primary)
+            _seen.add(_primary.get("_url", ""))
+        try:
+            for _p in _pp.pool.get_proxy_chain(n=8):
+                _p_url = _p.get("_url", "")
+                if _p_url and _p_url not in _seen:
+                    _seen.add(_p_url)
+                    _chain.append(_p)
+        except Exception:
+            pass
+        if not _chain:
+            _chain = [None]
 
     import requests as _req
     session = sess["session"]
@@ -204,31 +209,30 @@ def verify_otp(account_id: int, otp: str) -> dict:
     if time.time() - sess["ts"] > 600:
         return {"ok": False, "error": "OTP session expired, request again"}
 
-    from .jazzdrive import resolve_proxies
+    from .jazzdrive import resolve_proxies, is_proxy_bypass
     from . import proxy_pool as _pp
 
-    # ── Build proxy chain for OTP verify ─────────────────────────────────────
-    # verify_otp hits jazzdrive.com.pk/verify.php — same geo restriction as
-    # send_otp. Must use purpose='otp' (has circuit-open least-dead fallback).
-    # purpose='sapi' returns None when circuit is open — causing direct Oracle
-    # IP connection which Jazz always rejects with RemoteDisconnected/MED-1011.
+    # ── Build proxy chain — bypass check first ───────────────────────────────
     _chain: list = []
     _seen: set = set()
-    _primary = resolve_proxies(purpose='otp')
-    if _primary:
-        _chain.append(_primary)
-        _seen.add(_primary.get("_url", ""))
-    try:
-        for _p in _pp.pool.get_proxy_chain(n=8):
-            _p_url = _p.get("_url", "")
-            if _p_url and _p_url not in _seen:
-                _seen.add(_p_url)
-                _chain.append(_p)
-    except Exception:
-        pass
-    if not _chain:
-        log.warning("verify_otp: proxy chain empty — direct connection will likely fail (MED-1011)")
-        _chain = [None]
+    if is_proxy_bypass():
+        _chain = [None]  # direct — Oracle IP is not geo-blocked
+    else:
+        _primary = resolve_proxies(purpose='otp')
+        if _primary:
+            _chain.append(_primary)
+            _seen.add(_primary.get("_url", ""))
+        try:
+            for _p in _pp.pool.get_proxy_chain(n=8):
+                _p_url = _p.get("_url", "")
+                if _p_url and _p_url not in _seen:
+                    _seen.add(_p_url)
+                    _chain.append(_p)
+        except Exception:
+            pass
+        if not _chain:
+            log.warning("verify_otp: proxy chain empty — direct connection will likely fail (MED-1011)")
+            _chain = [None]
 
     # ── Android OAuth2 code exchange ──────────────────────────────────────────
     # jazzdrive_verify_otp always uses client_id=fnbroot (Android credentials).
