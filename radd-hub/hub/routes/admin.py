@@ -571,3 +571,87 @@ def scheduler_run():
 
     _threading.Thread(target=_run, daemon=True, name="scheduler-ondemand").start()
     return jsonify({"ok": True, "message": "Ongoing series rescan started"})
+
+
+# ---------------------------------------------------------------------------
+# Re-import -- patch files.filename for an account without a full re-scan
+# ---------------------------------------------------------------------------
+
+_reimport_jobs: dict = {}  # job_id -> {status, files_updated, error, started_at, finished_at}
+
+
+@bp.route("/api/admin/reimport", methods=["POST"])
+@auth.login_required
+def admin_reimport_start():
+    """Trigger _import_legacy_into_v3_for_account() for one account.
+    Re-runs the TMDB-clean filename logic on every file row without
+    touching JazzDrive or doing a new network scan.
+    Body: {"account_id": <int>}
+    Returns: {"ok": true, "job_id": "..."}  poll GET /api/admin/reimport/<job_id>
+    """
+    import threading as _threading
+    import uuid as _uuid_mod
+    import time as _time
+
+    body = request.get_json(force=True, silent=True) or {}
+    account_id = body.get("account_id")
+    if not account_id:
+        return jsonify({"ok": False, "error": "account_id required"}), 400
+    try:
+        account_id = int(account_id)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "account_id must be an integer"}), 400
+
+    acct = db.get_account(account_id)
+    if not acct:
+        return jsonify({"ok": False, "error": f"account {account_id} not found"}), 404
+
+    job_id = _uuid_mod.uuid4().hex[:12]
+    _reimport_jobs[job_id] = {
+        "status": "running",
+        "account_id": account_id,
+        "msisdn": acct.get("msisdn", ""),
+        "files_updated": 0,
+        "error": None,
+        "started_at": int(_time.time()),
+        "finished_at": None,
+    }
+
+    def _run():
+        import time as _t
+        try:
+            from ..scanner import _ensure_legacy_account, _import_legacy_into_v3_for_account
+            legacy_id = _ensure_legacy_account(account_id)
+            n = _import_legacy_into_v3_for_account(legacy_id, account_id)
+            _reimport_jobs[job_id].update({
+                "status": "done",
+                "files_updated": n,
+                "finished_at": int(_t.time()),
+            })
+            log.info("reimport job %s done -- %d files updated for account %d", job_id, n, account_id)
+        except Exception as exc:
+            _reimport_jobs[job_id].update({
+                "status": "error",
+                "error": str(exc),
+                "finished_at": int(_t.time()),
+            })
+            log.warning("reimport job %s failed for account %d: %s", job_id, account_id, exc)
+
+    _threading.Thread(target=_run, daemon=True, name=f"reimport-{job_id}").start()
+    return jsonify({
+        "ok": True,
+        "job_id": job_id,
+        "account_id": account_id,
+        "msisdn": acct.get("msisdn", ""),
+        "message": f"Re-import started for account {account_id}. Poll GET /api/admin/reimport/{job_id} for result.",
+    })
+
+
+@bp.route("/api/admin/reimport/<job_id>", methods=["GET"])
+@auth.login_required
+def admin_reimport_status(job_id: str):
+    """Poll the result of a reimport job started by POST /api/admin/reimport."""
+    job = _reimport_jobs.get(job_id)
+    if not job:
+        return jsonify({"ok": False, "error": f"job {job_id} not found (expires on server restart)"}), 404
+    return jsonify({"ok": True, **job})
