@@ -1246,3 +1246,42 @@ SAPI 401 errors stopped immediately. Token expires 2026-07-06 (30 days, refresh_
 - New endpoints: loaded and auth-protected
 - GitHub: in sync (7da7345)
 - Oracle local: has direct edit (identical to GitHub -- git pull blocked by sandbox policy)
+
+## Session 2026-06-06 (Agent 3 cont.) -- IMDbAPI.dev URL fix
+
+### What was investigated
+User pointed to https://imdbapi.dev/ + swagger YAML.
+Full audit of how imdbapi.dev is used across all 3 server files.
+
+### Root cause found
+Two files were calling a dead URL from the old v1 API:
+  metadata_lookup.py: https://imdbapi.dev/api/v1/titles/search?q=...
+  poster_proxy.py:    https://imdbapi.dev/api/v1/titles/search?q=...
+Both return the Next.js HTML frontend, not JSON -- silently failing for all lookups.
+
+The correct API (from Swagger + live testing):
+  host: api.imdbapi.dev (different subdomain)
+  search: GET /search/titles?query=... (not /titles/search?q=)
+  response: {"titles": [...]} (not a plain list, not using "results" key)
+  rating: nested {aggregateRating, voteCount} (not flat averageRating)
+
+metadata.py (newest file) was already using the correct URL and logic -- no change needed.
+
+### Live verified
+  Vincenzo (tvSeries, 2021): id=tt13433812, rating=8.4 -- found correctly
+  Mehrunisa V Lub U (Pakistani movie, 2017): id=tt7063130, rating=5.2 -- found correctly
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| radd-hub/hub/metadata_lookup.py | Fixed _imdbapi_search(): URL, param, response shape, rating, poster | 7a7cf2f |
+| radd-hub/hub/routes/poster_proxy.py | Fixed _search_imdbapi(): base URL, path, param, response parsing | 7a7cf2f |
+
+### APK build
+No Flutter changes -- no build triggered.
+
+### State at end of session
+- Oracle Flask: RUNNING (pid 961937)
+- imdbapi.dev: fully working from Oracle IP with Radd-Hub/4.0 User-Agent
+- metadata_lookup.py + poster_proxy.py: both patched and syntax-verified
+- GitHub: in sync (7a7cf2f)
