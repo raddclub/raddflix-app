@@ -794,6 +794,9 @@ def _import_legacy_into_v3_for_account(legacy_id: int, v3_account_id: int) -> in
     """Copy newly-scanned titles+files from legacy schema into v3 db."""
     n = 0
     title_map: dict[int, int] = {}
+    # Stash TMDB-enriched title+year per legacy title_id so we can build clean
+    # filenames without re-parsing from the dirty JazzDrive filename.
+    legacy_title_meta: dict[int, dict] = {}
 
     # Get the account's MSISDN so we can stamp titles with account_number
     acct = db.get_account(v3_account_id)
@@ -839,6 +842,10 @@ def _import_legacy_into_v3_for_account(legacy_id: int, v3_account_id: int) -> in
                 new_id = db.upsert_title(meta)
                 if new_id:
                     title_map[t["id"]] = new_id
+                    legacy_title_meta[t["id"]] = {
+                        "title": t.get("title") or "",
+                        "year":  str(t.get("year") or "").strip(),
+                    }
 
             # Import files, tracking folder share info per title
             title_folder_share: dict[int, str] = {}   # title_id → share_url
@@ -879,6 +886,37 @@ def _import_legacy_into_v3_for_account(legacy_id: int, v3_account_id: int) -> in
                             file_episode = _plan.episode
                 except Exception as _pe:
                     log.debug("derive_media_plan failed for %r: %s", raw_filename, _pe)
+
+                # ── TMDB title override ───────────────────────────────────────
+                # The raw JD filename title (e.g. "Vncenz0") is unreliable.
+                # We already have the TMDB-enriched title in legacy_title_meta.
+                # Build a synthetic clean filename from that title + the S/E
+                # numbers already detected above, then run it through
+                # derive_media_plan() to get a properly sanitized result.
+                # This ensures files.filename stores "Vincenzo S01E02.mkv",
+                # not "Vncenz0 S01E02.mkv" — making Passes 1-3 reliable even
+                # when remote_id is 0 (e.g. very old scan rows).
+                _tmdb_meta = legacy_title_meta.get(f.get("title_id"))
+                if _tmdb_meta and _tmdb_meta.get("title") and raw_filename:
+                    try:
+                        import os as _os
+                        from .media_naming import derive_media_plan as _derive
+                        _ext = _os.path.splitext(raw_filename)[1]
+                        _tt  = _tmdb_meta["title"]
+                        _yr  = _tmdb_meta.get("year") or ""
+                        if file_season is not None and file_episode is not None:
+                            _synth = f"{_tt}.S{file_season:02d}E{file_episode:02d}{_ext}"
+                        elif _yr:
+                            _synth = f"{_tt}.{_yr}{_ext}"
+                        else:
+                            _synth = f"{_tt}{_ext}"
+                        _plan2 = _derive(_synth)
+                        clean_filename = _plan2.filename
+                        if _plan2.folder_str:
+                            clean_folder = _plan2.folder_str
+                    except Exception as _te:
+                        log.debug("TMDB filename override failed for %r: %s",
+                                  raw_filename, _te)
 
                 fid = db.upsert_file({
                     "fingerprint":     "scan:" + (f.get("fingerprint") or str(f.get("id"))),
