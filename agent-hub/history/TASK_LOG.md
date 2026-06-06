@@ -1211,3 +1211,40 @@ User taps episode
        Passes 1-3: filename fallback (kept for legacy/migration)
   → CDN URL — Oracle never touched at play time ✅
 ```
+
+---
+
+## Session: 2026-06-06 (part 2) — remote_id: Fill remaining 4 gaps
+
+**Commit:** `b011e24`
+**Status:** ✅ Pushed
+
+### Root cause discovered (critical)
+
+`upsertEpisode` uses `ConflictAlgorithm.replace` — it overwrites the **entire row**.
+Without `remote_id` in the insert map, every sync silently reset `remote_id → 0`,
+undoing whatever was written by any previous path. This was the key bug.
+
+### What changed
+
+| Gap | File | Change |
+|-----|------|--------|
+| 1 | `sync_service.dart` `_persistItems()` | Add `remote_id` to Oracle sync episode upsert |
+| 2 | `sync_service.dart` `_syncFromJazzDriveDelta()` | Add `remote_id` to JD delta episode upsert |
+| 3 | `download_service.dart` `downloadFile()` | Add `remoteId` param → passed to both `getStreamLink` calls |
+| 4 | `downloads_provider.dart` `startDownload()` | Thread `remoteId` param through to `downloadFile` |
+| 5 | `show_detail_screen.dart` download button | Pass `ep['remote_id'] as int? ?? 0` to `startDownload` |
+
+### remote_id chain — now complete
+
+```
+Oracle DB files.remote_id
+  → all 4 sync endpoints (sync/db_update/delta + JD delta)
+  → local SQLite episodes.remote_id  (ConflictAlgorithm.replace now safe)
+  → getShareInfo() → remoteId
+  → getStreamLink(remoteId: N) → Pass 0 (stream AND download)
+  → CDN URL — Oracle never involved at play/download time
+```
+
+All sync paths (Oracle full, Oracle delta, JD delta) and all consumer
+paths (streaming via player, downloading via download service) now use Pass 0.
