@@ -1219,18 +1219,21 @@ def submit_otp(otp: str) -> dict:
         _OTP_STATE_FILE.unlink(missing_ok=True)
         return {"ok": False, "error": "OTP expired (>10 min) — request a new OTP"}
 
-    # Build proxy chain for submit_otp — this was the only OTP step that lacked
-    # proxy retry. A single proxy failure here aborted the whole flow even when
-    # pool fallbacks were available. Same retry pattern as trigger_otp_flow /
-    # resend_otp: build chain, try each proxy, mark_fail on connection error.
+    # Build proxy chain for submit_otp.
+    # IMPORTANT: submit_otp calls the geo-restricted SAPI verify endpoint
+    # (cloud.jazzdrive.com.pk/sapi/login/oauth?keytype=oauth2code).
+    # This is the same geo-restriction as _s2_chain — must use pool.get_best()
+    # directly so PROXY_BYPASS=1 does NOT skip the Pakistani proxy here.
+    # resolve_proxies() returns None with PROXY_BYPASS=1 and cannot be used.
+    # (BUG-A03d fix — mirrors _s2_chain pattern in _android_refresh_session_inner)
     _sub_chain: list = []
     _sub_seen: set = set()
-    _sub_primary = resolve_proxies()
-    if _sub_primary:
-        _sub_chain.append(_sub_primary)
-        _sub_seen.add(_sub_primary.get("_url", ""))
     try:
         from . import proxy_pool as _pp
+        _sub_primary = _pp.pool.get_best()
+        if _sub_primary:
+            _sub_chain.append(_sub_primary)
+            _sub_seen.add(_sub_primary.get("_url", ""))
         for _subp in _pp.pool.get_proxy_chain(n=4):
             _subp_url = _subp.get("_url", "")
             if _subp_url and _subp_url not in _sub_seen:
@@ -1240,7 +1243,7 @@ def submit_otp(otp: str) -> dict:
         pass
     if not _sub_chain:
         log.warning("submit_otp: proxy chain empty — direct connection "
-                    "will likely fail (MED-1011 from non-PK IP)")
+                    "will likely fail (geo-restricted SAPI endpoint, non-PK IP)")
         _sub_chain = [None]
 
     _sub_last_err: Exception = Exception("No proxies available")

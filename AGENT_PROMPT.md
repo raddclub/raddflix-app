@@ -33,9 +33,12 @@ Expected: `{"ok":true,"version":"3.0.0"}`
 
 ```bash
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/AGENT_HANDOFF.md"
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/TASKS.md"
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/history/TASK_LOG.md" | tail -80
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/.agents/tasks/BUG_TRACKER.md"
 ```
+
+**Always read `agent-hub/TASKS.md` first** — it lists open/in-progress tasks. Continue any OPEN tasks before starting new work.
 
 ---
 
@@ -78,13 +81,6 @@ async function pushFile(filePath, localPath, message) {
   if (!result.commit) throw new Error(result.message || 'push failed');
   console.log('✅', filePath, '→', result.commit.sha.slice(0,7));
 }
-
-// Replace with your actual file path and local path:
-pushFile(
-  'radd-hub/hub/routes/admin.py',
-  '/home/runner/workspace/radd-hub/hub/routes/admin.py',
-  'fix: description of change'
-).catch(console.error);
 ```
 
 **For 3+ files in one atomic commit** (avoids SHA race conditions):
@@ -153,6 +149,11 @@ Build takes ~8 min first run, ~5 min with cache. APK artifact (~56 MB) appears u
 
 ## Non-Negotiable Rules
 
+**Rule 0 (NEW): Task tracking is mandatory.**
+Before starting ANY change/fix/feature: add a row to `agent-hub/TASKS.md` marked ⏳ IN PROGRESS.
+Mark ✅ DONE when complete + pushed. This is the handoff bridge between agents.
+If your session ends with open tasks, the next agent picks up from TASKS.md.
+
 1. **No git shell commands** — GitHub API only (Contents or Trees API)
 2. **No bash heredoc** for Node scripts — use Replit `write` tool instead
 3. **Never upgrade** `sqflite_sqlcipher` past `3.1.0+1`
@@ -166,8 +167,10 @@ Build takes ~8 min first run, ~5 min with cache. APK artifact (~56 MB) appears u
 10. **Debug code** must be gated behind `kDebugMode` — stripped from release APK
 11. **Use `db.setting(k)` not `db.get_setting(k)`** — `get_setting` does not exist in `db.py`
 12. **For bulk DELETEs** use direct `sqlite3.connect()` + `BEGIN IMMEDIATE`, NOT `db.conn()` — WAL mode background threads silently block shared-wrapper writes
+13. **`_s2_chain` and `_sub_chain` MUST use `proxy_pool.pool.get_best()` directly** — SAPI login + OTP verify are geo-restricted to Pakistani IPs. `resolve_proxies()` returns None with PROXY_BYPASS=1 and cannot be used for these steps.
+14. **When SAPI 401 body starts with `<!DOCTYPE HTML`** = geo-block (Apache), not API error. Add a Pakistani proxy to `sapi_proxies` table.
 
-Full rules: `https://raw.githubusercontent.com/raddclub/raddflix-app/main/.agents/PROJECT_RULES.md`
+Full rules: `agent-hub/RULES.md`
 
 ---
 
@@ -192,6 +195,9 @@ Oracle logs: /opt/jazzmax/radd-hub/data/logs/raddhub.log
 
 Coordination (GitHub main):
   AGENT_HANDOFF.md                     Full architecture — read for deep dives
+  agent-hub/CONTEXT.md                 System context + proxy architecture (quick reference)
+  agent-hub/RULES.md                   Full rules list
+  agent-hub/TASKS.md                   Task tracker — READ THIS FIRST every session
   .agents/tasks/BUG_TRACKER.md         All known bugs + fix status
   agent-hub/history/TASK_LOG.md        Session history (append when done)
   AGENT_PROMPT.md                      This file — update at end of session
@@ -199,45 +205,41 @@ Coordination (GitHub main):
 
 ---
 
-## Known Open Issues (as of 2026-06-06)
+## Known Open Issues (as of 2026-06-07)
 
 | Issue | Detail | Action needed |
 |-------|--------|---------------|
-| Account 03286829827 session expired | Keepalive failing, uploads stuck, delta_push 401 every few minutes | OTP re-login via Upload page |
-| 2 files stuck in data/media/ | `Pitt_Siyapa_2026.mp4` and `Vncenz0 S01E02` — will auto-upload+delete once session restored | Wait for OTP re-login |
 | DATA-01 | All Of Us Are Dead missing E03/E04/E05/E09 | Upload missing episodes to JazzDrive + sync |
-| Catalog at 0 titles | User cleared catalog via admin Reset Tables on 2026-06-06 | Re-scan/re-import content |
+| OPS-02 | PK proxy auto-refresh | Auto-discover + test PK SOCKS5 proxies weekly so pool stays healthy |
+
+*OPS-01 (session expired) → ✅ RESOLVED 2026-06-07. Session auto-recovers on every Flask restart via Android OAuth2 + PK proxy. No OTP needed.*
 
 ---
 
 ## End of session checklist
 
 1. Fix all errors found
-2. Append session summary to `agent-hub/history/TASK_LOG.md` via `pushFile`
-3. Update `BUG_TRACKER.md` with any new bugs found or fixed
-4. Update `AGENT_HANDOFF.md` current state section
-5. Update this file (`AGENT_PROMPT.md`) with any new rules or findings
+2. Mark completed tasks ✅ DONE in `agent-hub/TASKS.md`
+3. Append session summary to `agent-hub/history/TASK_LOG.md`
+4. Update `BUG_TRACKER.md` with any new bugs found or fixed
+5. Update `AGENT_HANDOFF.md` current state section
+6. Update this file (`AGENT_PROMPT.md`) with any new rules or findings
+7. Push ALL doc changes to GitHub before ending
 
 Session log template:
 ```markdown
-## Session YYYY-MM-DD (Agent N) — brief title
+## Session YYYY-MM-DD — brief title
 
-### What was done
-- ...
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
 
 ### Files changed
 | File | Change | Commit |
 |------|--------|--------|
 
-### APK build
-- ...
-
 ### State at end of session
 - Oracle Flask: RUNNING/STOPPED
-- Catalog: N titles, N files
-- Open issues: ...
+- Account: ACTIVE/EXPIRED
+- Open tasks: see agent-hub/TASKS.md
 ```
-
----
-
-**My task for you today:**
