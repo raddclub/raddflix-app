@@ -1416,10 +1416,10 @@ def upload_to_jazzdrive(
                 _dc.execute(
                     "UPDATE files SET is_ready=1, title_id=?, remote_id=?, share_url=?, "
                     "account_id=?, remote_folder_id=?, uploaded_at=?, "
-                    "fingerprint=?, size_bytes=? WHERE id=?",
+                    "fingerprint=?, size_bytes=?, season=?, episode=? WHERE id=?",
                     (title_id, str(remote_id), share_url or "", aid, folder_id,
                      int(time.time()), fingerprint_key_claim,
-                     file_path.stat().st_size, _claimed_file_id),
+                     file_path.stat().st_size, _plan.season, _plan.episode, _claimed_file_id),
                 )
             _log(f"DB files record updated — id={file_db_id}")
         else:
@@ -1733,14 +1733,8 @@ def _upload_pending() -> None:
         if confirmed_remote_id and confirmed_remote_id != 0:
             _set_file_folder(vk, jsid, confirmed_remote_id, folder_id, account_id=acct["id"])
 
-        # Defense in depth: explicitly rename to clean name on JazzDrive.
-        # Matches upload_to_jazzdrive path — ensures both upload paths produce clean JD names.
-        if confirmed_remote_id and confirmed_remote_id != 0 and plan.filename:
-            try:
-                jazzdrive.rename_video(acct["id"], confirmed_remote_id, plan.filename, folder_id=folder_id)
-                log.info("upload_pending: JD rename OK → %s", plan.filename)
-            except Exception as _rn_err:
-                log.warning("upload_pending: JD rename failed (non-fatal): %s", _rn_err)
+        # DB is source of truth — JD file name does not matter.
+        # Canonical title lives in the titles table; no rename API call needed.
 
         share_url = _create_share_link(sess, vk, jsid, confirmed_remote_id or 0, folder_id=folder_id)
 
@@ -1769,12 +1763,33 @@ def _upload_pending() -> None:
 
         clear_live_stat(file_id)
         with db.conn() as c:
+            # Inherit share_url from sibling file in same folder if creation failed
+            if not share_url and folder_id:
+                try:
+                    with db.conn() as _inh:
+                        _irow = _inh.execute(
+                            "SELECT share_url FROM files WHERE remote_folder_id=? AND share_url IS NOT NULL AND share_url != '' LIMIT 1",
+                            (folder_id,)).fetchone()
+                        if _irow:
+                            share_url = _irow["share_url"]
+                            log.info("upload_pending: inherited share_url from sibling in folder %s", folder_id)
+                except Exception as _ie2:
+                    log.debug("upload_pending: share inherit failed: %s", _ie2)
             c.execute(
                 "UPDATE files SET is_ready=1, title_id=?, remote_id=?, share_url=?, "
-                "account_id=?, remote_folder_id=?, uploaded_at=? WHERE id=?",
+                "account_id=?, remote_folder_id=?, uploaded_at=?, season=?, episode=? WHERE id=?",
                 (title_id, str(confirmed_remote_id), share_url or "", acct["id"], folder_id,
-                 int(time.time()), file_id),
+                 int(time.time()), plan.season, plan.episode, file_id),
             )
+            # Propagate share_url to any sibling files in same folder missing one
+            if share_url and folder_id:
+                try:
+                    with db.conn() as _prop:
+                        _prop.execute(
+                            "UPDATE files SET share_url=? WHERE remote_folder_id=? AND (share_url IS NULL OR share_url='')",
+                            (share_url, folder_id))
+                except Exception as _pe2:
+                    log.debug("upload_pending: share propagate failed: %s", _pe2)
 
         # Ensure the file is added to the Canonical Media Index
         try:

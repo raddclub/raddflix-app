@@ -648,7 +648,9 @@ def enrich_title(meta: dict, *,
             if k.startswith("_"):
                 continue
             existing = result.get(k)
-            if existing is None or existing == "" or existing == "[]" or existing == 0:
+            # title/original_title from IMDb/TMDB always win over dirty filename-derived values.
+            _always_overwrite = k in ("title", "original_title")
+            if _always_overwrite or existing is None or existing == "" or existing == "[]" or existing == 0:
                 result[k] = v
 
     # Auto-tag industry based on country or language if missing

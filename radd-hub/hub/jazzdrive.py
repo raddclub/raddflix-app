@@ -118,6 +118,12 @@ _SAPI_BACKOFF_SECS = 1800  # 30 minutes
 # has already changed and returns early without making a second network call.
 _refresh_locks: "dict[int, threading.Lock]" = {}
 _refresh_locks_mutex = threading.Lock()
+# Cooldown: after a successful refresh, suppress all further exchange attempts
+# for this many seconds. Prevents sapi_request's internal retry loop from
+# burning through the refresh-token chain (token A -> B -> C -> invalid_grant).
+_REFRESH_COOLDOWN_S = 180  # 3 minutes
+_last_refresh_success: "dict[int, float]" = {}   # account_id -> epoch seconds
+_last_refresh_lock = threading.Lock()
 
 
 def _get_refresh_lock(account_id: int) -> "threading.Lock":
@@ -224,6 +230,10 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
     Always returns None on Replit because proxy traffic violates ToS."""
     if _is_replit():
         return None
+    # Global proxy bypass — when JAZZDRIVE_PROXY_BYPASS=1 all traffic goes direct.
+    # Enable this when Oracle IP is not geo-blocked; proxies only slow things down.
+    if db.setting('JAZZDRIVE_PROXY_BYPASS') == '1':
+        return None
     if purpose == 'sapi':
         # Try the pool first (auto-rotating, health-checked)
         try:
@@ -278,6 +288,11 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
         pass
     return None
 
+
+
+def is_proxy_bypass() -> bool:
+    """Return True when JAZZDRIVE_PROXY_BYPASS=1 — all calls go direct, skip pool."""
+    return db.setting("JAZZDRIVE_PROXY_BYPASS") == "1"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Auth Helpers
@@ -753,7 +768,7 @@ def sapi_request(endpoint: str, action: str,
     _proxy_url = (proxies or {}).get("_url") or (proxies or {}).get("https")
     # Strip private key before passing to requests
     _req_proxies = {k: v for k, v in (proxies or {}).items() if k in ("http", "https")} if proxies else None
-    _t0_sapi = _time_time() if _proxy_url else None
+    _t0_sapi = time.time() if _proxy_url else None
     try:
         r = _req.request(method, url, params=req_params, json=json_data, data=data, headers=req_headers, timeout=timeout, proxies=_req_proxies)
 
@@ -763,7 +778,7 @@ def sapi_request(endpoint: str, action: str,
         # Mark proxy success/fail
         if _proxy_url:
             try:
-                _elapsed_ms = int((_time_time() - _t0_sapi) * 1000) if _t0_sapi else None
+                _elapsed_ms = int((time.time() - _t0_sapi) * 1000) if _t0_sapi else None
                 from . import proxy_pool as _pp
                 if r.status_code in (200, 400, 401, 403, 500):
                     _pp.pool.mark_success(_proxy_url, _elapsed_ms)
@@ -1022,30 +1037,29 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     if not msisdn_local:
         return {"ok": False, "error": "No MSISDN provided or configured"}
 
-    # Build proxy chain: configured proxy first, then pool fallbacks.
-    # Dedup by URL (not dict equality) — same URL can appear from both
-    # resolve_proxies() and get_proxy_chain() as different dict instances.
+    # Build proxy chain — bypass check first.
     _proxies_chain: list = []
     _seen_proxy_urls: set = set()
-    primary = resolve_proxies()
-    if primary:
-        _proxies_chain.append(primary)
-        _seen_proxy_urls.add(primary.get("_url", ""))
-    try:
-        from . import proxy_pool as _pp
-        for p in _pp.pool.get_proxy_chain(n=4):
-            _p_url = p.get("_url", "")
-            if _p_url and _p_url not in _seen_proxy_urls:
-                _seen_proxy_urls.add(_p_url)
-                _proxies_chain.append(p)
-    except Exception:
-        pass
-    if not _proxies_chain:
-        # Direct from Oracle non-PK IP → jazzdrive.com.pk returns MED-1011.
-        # Only reaches here when pool is completely empty — add seeds in Settings.
-        log.warning("trigger_otp_flow: proxy chain empty — direct connection "
-                    "will likely fail (MED-1011 from non-PK IP)")
-        _proxies_chain = [None]
+    if is_proxy_bypass():
+        _proxies_chain = [None]  # direct — Oracle IP is not geo-blocked
+    else:
+        primary = resolve_proxies()
+        if primary:
+            _proxies_chain.append(primary)
+            _seen_proxy_urls.add(primary.get("_url", ""))
+        try:
+            from . import proxy_pool as _pp
+            for p in _pp.pool.get_proxy_chain(n=4):
+                _p_url = p.get("_url", "")
+                if _p_url and _p_url not in _seen_proxy_urls:
+                    _seen_proxy_urls.add(_p_url)
+                    _proxies_chain.append(p)
+        except Exception:
+            pass
+        if not _proxies_chain:
+            log.warning("trigger_otp_flow: proxy chain empty — direct connection "
+                        "will likely fail (MED-1011 from non-PK IP)")
+            _proxies_chain = [None]
 
     last_err: Exception = Exception("No proxies available")
     for proxies in _proxies_chain:
@@ -1117,26 +1131,29 @@ def resend_otp() -> dict:
         _OTP_STATE_FILE.unlink(missing_ok=True)
         return {"ok": False, "error": "OTP session expired (>10 min) — trigger a new OTP first"}
 
-    # Build proxy chain — URL-based dedup, same pattern as trigger_otp_flow.
+    # Build proxy chain — bypass check first.
     _proxies_chain: list = []
     _seen_proxy_urls: set = set()
-    primary = resolve_proxies()
-    if primary:
-        _proxies_chain.append(primary)
-        _seen_proxy_urls.add(primary.get("_url", ""))
-    try:
-        from . import proxy_pool as _pp
-        for p in _pp.pool.get_proxy_chain(n=4):
-            _p_url = p.get("_url", "")
-            if _p_url and _p_url not in _seen_proxy_urls:
-                _seen_proxy_urls.add(_p_url)
-                _proxies_chain.append(p)
-    except Exception:
-        pass
-    if not _proxies_chain:
-        log.warning("resend_otp: proxy chain empty — direct connection "
-                    "will likely fail (MED-1011 from non-PK IP)")
-        _proxies_chain = [None]
+    if is_proxy_bypass():
+        _proxies_chain = [None]  # direct — Oracle IP is not geo-blocked
+    else:
+        primary = resolve_proxies()
+        if primary:
+            _proxies_chain.append(primary)
+            _seen_proxy_urls.add(primary.get("_url", ""))
+        try:
+            from . import proxy_pool as _pp
+            for p in _pp.pool.get_proxy_chain(n=4):
+                _p_url = p.get("_url", "")
+                if _p_url and _p_url not in _seen_proxy_urls:
+                    _seen_proxy_urls.add(_p_url)
+                    _proxies_chain.append(p)
+        except Exception:
+            pass
+        if not _proxies_chain:
+            log.warning("resend_otp: proxy chain empty — direct connection "
+                        "will likely fail (MED-1011 from non-PK IP)")
+            _proxies_chain = [None]
 
     last_err: Exception = Exception("No proxies available")
     for proxies in _proxies_chain:
@@ -1578,6 +1595,39 @@ def android_refresh_session(refresh_token: str,
         except Exception as _pre_err:
             log.debug("android_refresh_session: pre-check DB read failed: %s", _pre_err)
 
+    # ── Cooldown guard ──────────────────────────────────────────────────────
+    # If a successful refresh happened within _REFRESH_COOLDOWN_S seconds ago,
+    # skip the exchange entirely and return the current DB tokens.  This stops
+    # sapi_request's internal retry loop from burning token A→B→C→invalid_grant.
+    if account_id is not None:
+        with _last_refresh_lock:
+            _last_ok = _last_refresh_success.get(account_id, 0.0)
+        _age = time.time() - _last_ok
+        if _age < _REFRESH_COOLDOWN_S:
+            log.info(
+                "android_refresh_session: acct=%s cooldown active (%.0fs ago) "
+                "— returning current DB tokens without exchange",
+                account_id, _age,
+            )
+            if _acct_lock is not None:
+                _acct_lock.release()
+            try:
+                with db.conn() as _cd:
+                    _cr = _cd.execute(
+                        "SELECT validation_key, jsessionid FROM accounts WHERE id=?",
+                        (account_id,)
+                    ).fetchone()
+                if _cr:
+                    return {
+                        "ok":             True,
+                        "validation_key": (_cr["validation_key"] or ""),
+                        "jsessionid":     (_cr["jsessionid"] or ""),
+                        "message":        "Cooldown active — no exchange needed",
+                    }
+            except Exception:
+                pass
+            return {"ok": True, "message": "Cooldown active — no exchange needed"}
+
     try:
         return _android_refresh_session_inner(
             refresh_token=refresh_token,
@@ -1870,6 +1920,12 @@ def _android_refresh_session_inner(refresh_token: str,
                 )
         log.info("android_refresh_session: DB updated account id=%s rt_rotated=%s",
                  acct["id"], new_rt != refresh_token)
+    # Record successful refresh — cooldown window starts now
+    if account_id is not None:
+        with _last_refresh_lock:
+            _last_refresh_success[account_id] = time.time()
+        log.info("android_refresh_session: acct=%s cooldown started (%ds)",
+                 account_id, _REFRESH_COOLDOWN_S)
 
     old_sess = _load_session()
     old_sess.update({
@@ -2399,7 +2455,7 @@ def generate_folder_image_link(folder_share_url: str, filename_hint: str = "post
         return {"ok": False, "error": str(e)}
 
 
-def generate_direct_link(share_url: str, target_filename: str = "") -> dict:
+def generate_direct_link(share_url: str, target_filename: str = "", remote_id: int = 0) -> dict:
     """Port of bots/whatsapp/direct_link_generator.js to Python.
     Generates a time-limited direct download/stream URL from a share URL.
     """
@@ -2461,10 +2517,19 @@ def generate_direct_link(share_url: str, target_filename: str = "") -> dict:
             return {"ok": False, "error": "No videos found in share"}
         
         # 4. Find the best match
-        # If target_filename provided, match it; else take first.
-        # Three-pass approach handles both clean and dirty (scene-release) JazzDrive filenames.
+        # Pass 0: match by remote_id (JazzDrive file ID) — most reliable, filename-independent.
+        # Pass 1-3: filename-based fallback (kept for legacy callers without remote_id).
         match = None
-        if target_filename:
+        if remote_id:
+            for _r in records:
+                _rid = _r.get("id") or _r.get("fileId") or _r.get("file_id") or 0
+                try:
+                    if int(_rid) == int(remote_id):
+                        match = _r
+                        break
+                except (ValueError, TypeError):
+                    pass
+        if not match and target_filename:
             import re as _re2
 
             def _norm_fn(s: str) -> str:

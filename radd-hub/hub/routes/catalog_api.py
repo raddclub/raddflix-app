@@ -413,7 +413,7 @@ def _do_play(file_id: int):
         with db.conn() as c:
             row = c.execute(
                 "SELECT f.id, f.filename, f.share_url, f.account_id, "
-                "       f.season, f.episode, t.title "
+                "       f.season, f.episode, f.remote_id, t.title "
                 "FROM files f JOIN titles t ON f.title_id = t.id "
                 "WHERE f.id=? AND t.is_published=1",
                 (file_id,)
@@ -425,7 +425,8 @@ def _do_play(file_id: int):
             return jsonify({"error": "no share_url for this file"}), 404
 
         from hub import jazzdrive
-        res = jazzdrive.generate_direct_link(row["share_url"], row["filename"])
+        _remote_id = int(row["remote_id"]) if row["remote_id"] else 0
+        res = jazzdrive.generate_direct_link(row["share_url"], row["filename"], remote_id=_remote_id)
         if not res.get("ok"):
             return jsonify({"error": res.get("error") or "failed to generate link"}), 502
 

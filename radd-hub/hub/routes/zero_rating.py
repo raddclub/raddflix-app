@@ -103,12 +103,11 @@ def generate_delta_payload() -> dict:
             with db.conn() as c:
                 ep_rows = c.execute(f"""
                     SELECT f.id, f.title_id, f.season, f.episode,
-                           f.share_url, f.quality, f.is_ready
+                           f.share_url, f.filename, f.quality, f.is_ready
                     FROM files f
                     WHERE f.title_id IN ({ph})
-                      AND f.season IS NOT NULL AND f.season > 0
                       AND f.is_ready = 1
-                    ORDER BY f.title_id, f.season, f.episode
+                    ORDER BY f.title_id, COALESCE(f.season, 1), COALESCE(f.episode, 0)
                 """, title_ids).fetchall()
 
             ep_map: dict = {}
@@ -119,8 +118,9 @@ def generate_delta_payload() -> dict:
                     "file_id":         str(ep["id"]),
                     "season":          ep["season"],
                     "episode":         ep["episode"],
-                    "label":           "S{:02d}E{:02d}".format(ep["season"] or 0, ep["episode"] or 0),
+                    "label":           "S{:02d}E{:02d}".format(ep["season"] or 1, ep["episode"] or 0),
                     "quality":         ep["quality"],
+                    "filename":        ep["filename"] or "",
                     "share_url":       ep["share_url"] or "",
                     "folder_share_url": "",
                 })

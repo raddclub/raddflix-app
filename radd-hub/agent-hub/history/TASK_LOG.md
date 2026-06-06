@@ -92,3 +92,82 @@ See BUG_TRACKER.md for the complete bug table.
 ### Open items
 - DATA-01: All Of Us Are Dead — E03/E04/E05/E09 not in Oracle DB (need JazzDrive upload + sync)
 - Account 03286829827: OAuth refresh_token expired (invalid_grant) — needs manual OTP re-login via Settings → JazzDrive Scan
+
+---
+
+## Session 2026-06-06 — Episode Playback Pipeline: All Bugs Fixed + Live-Tested
+
+### Summary
+
+Fixed all 5 bugs blocking episode playback and confirmed via live test that every episode
+(including one with JazzDrive auto-renamed filename) returns a valid direct stream link.
+
+### Bugs Fixed
+
+**1. metadata.py — IMDb title always wins**
+Before: title slug was overwritten by dirty filename after IMDb fetch.
+Fix:    IMDb title locked in before slug generation, never overwritten.
+
+**2. uploader.py — season/episode not saved on both paths**
+Before: upload_pending path did not write season/episode; left NULL.
+Fix:    Both the new-upload path AND upload_pending path now write season/episode.
+
+**3. uploader.py — upload_pending did not propagate share_url**
+Before: siblings in same folder were missing share_url after upload_pending.
+Fix:    share_url propagated to all sibling files within same folder.
+
+**4. zero_rating.py — bad episode filter**
+Before: query had "WHERE season IS NOT NULL" — hid TV episodes.
+Fix:    Removed that filter; TV episodes now visible in zero-rating flow.
+
+**5. DB backfill**
+- season/episode backfilled for 4 TV files
+- Spider Noir S01E02 share_url propagated
+- Vincenzo title slug corrected
+
+### New Feature: remote_id as Pass 0
+
+generate_direct_link(share_url, target_filename="", remote_id=0) in hub/jazzdrive.py
+Pass 0: if remote_id > 0, iterate folder file list, match file.id == remote_id.
+Returns direct link with zero filename logic — completely filename-independent.
+
+_do_play() in hub/routes/catalog_api.py now SELECTs f.remote_id and passes it to generate_direct_link.
+
+### Key Discovery: JazzDrive share key format
+
+Full key:  hoIyg7SgSFiDPHltBZOl8zc1MjIwNTczNTg3NzFfMjYyMTAwMA  -> 200 OK
+Short key: hoIyg7SgSFiDPHltBZOl8                              -> 400
+
+The suffix (zc1MjIwNTczNTg3NzFfMjYyMTAwMA) is IDENTICAL across all share URLs.
+It encodes the JazzDrive account/tenant context. Never truncate share keys.
+
+No proxies needed for JazzDrive share-link login from Oracle — direct connection works.
+
+### Live Test Results
+
+Test script: /tmp/test_direct_link2.py on Oracle server
+
+| Episode                             | Match    | Matched JD filename        | HTTP   |
+|-------------------------------------|----------|----------------------------|--------|
+| Spider-Noir S01E02 (rid=242518530)  | remote_id| Spider Noir S01E02.mp4     | 200 OK |
+| Spider-Noir S01E01 (rid=242518443)  | remote_id| Spider Noir S01E01.mp4     | 200 OK |
+| Vincenzo S01E02 (rid=242527574)     | remote_id| Vncenz0 S01E02 (1).mp4     | 200 OK |
+| Vincenzo S01E01 (rid=242518574)     | remote_id| Vncenz0 S01E01.mp4         | 200 OK |
+| Spider-Noir S01E02 (no remote_id)   | filename | Spider Noir S01E02.mp4     | 200 OK |
+
+Vincenzo S01E02 was auto-renamed by JazzDrive — remote_id found it; filename matching would have failed.
+
+### Files Changed
+
+- hub/metadata.py
+- hub/uploader.py
+- hub/routes/zero_rating.py
+- hub/routes/catalog_api.py
+- hub/jazzdrive.py
+- data/radd_hub.db (backfill, share_url propagation, slug fix)
+
+### Open Items Going Into Next Session
+
+- NEXT-01: Regenerate + push delta.json to JazzDrive (Flutter catalog sync)
+- DATA-01: All Of Us Are Dead missing episodes need upload
+- OAUTH-01: Account 03286829827 needs manual OTP re-login
