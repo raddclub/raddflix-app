@@ -103,7 +103,7 @@ def generate_delta_payload() -> dict:
             with db.conn() as c:
                 ep_rows = c.execute(f"""
                     SELECT f.id, f.title_id, f.season, f.episode,
-                           f.share_url, f.filename, f.quality, f.is_ready
+                           f.share_url, f.filename, f.quality, f.is_ready, f.remote_id
                     FROM files f
                     WHERE f.title_id IN ({ph})
                       AND f.is_ready = 1
@@ -114,14 +114,15 @@ def generate_delta_payload() -> dict:
             for ep in ep_rows:
                 tid = ep["title_id"]
                 ep_map.setdefault(tid, []).append({
-                    "id":              ep["id"],
-                    "file_id":         str(ep["id"]),
-                    "season":          ep["season"],
-                    "episode":         ep["episode"],
-                    "label":           "S{:02d}E{:02d}".format(ep["season"] or 1, ep["episode"] or 0),
-                    "quality":         ep["quality"],
-                    "filename":        ep["filename"] or "",
-                    "share_url":       ep["share_url"] or "",
+                    "id":               ep["id"],
+                    "file_id":          str(ep["id"]),
+                    "season":           ep["season"],
+                    "episode":          ep["episode"],
+                    "label":            "S{:02d}E{:02d}".format(ep["season"] or 1, ep["episode"] or 0),
+                    "quality":          ep["quality"],
+                    "filename":         ep["filename"] or "",
+                    "share_url":        ep["share_url"] or "",
+                    "remote_id":        int(ep["remote_id"] or 0),
                     "folder_share_url": "",
                 })
 

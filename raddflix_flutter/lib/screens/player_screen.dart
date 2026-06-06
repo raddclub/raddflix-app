@@ -1738,13 +1738,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final _inlineShareUrl = _routeArgs?['stream_url'] as String?;
 
     String? shareUrl;
+    int remoteId = 0;
     try {
       // Step 1: Get share_url + filename from local DB (fast, works offline on Jazz SIM)
       String? targetFilename;
       if (fileId.isNotEmpty) {
         final shareInfo = await LocalDb.getShareInfo(fileId);
-        shareUrl      = shareInfo['share_url'];
-        targetFilename = shareInfo['filename'];
+        shareUrl       = shareInfo['share_url'] as String?;
+        targetFilename = shareInfo['filename']  as String?;
+        remoteId       = shareInfo['remote_id'] as int? ?? 0;
       }
 
       // Step 2: If not in local DB, use inline shareUrl passed from detail screen.
@@ -1763,7 +1765,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // same share_url always gives a fresh CDN link. No Oracle needed here.
       if (shareUrl != null && shareUrl.isNotEmpty) {
         final cacheKey = fileId.isNotEmpty ? fileId : 'share_${shareUrl.hashCode}';
-        final link = await JazzDriveService.getStreamLink(cacheKey, shareUrl, targetFilename: targetFilename);
+        final link = await JazzDriveService.getStreamLink(cacheKey, shareUrl, targetFilename: targetFilename, remoteId: remoteId);
         _currentPlaybackUrl = link.streamUrl;
         await _player.open(Media(link.streamUrl));
         if (mounted) setState(() { _ended = false; _position = Duration.zero; _isLinkLoading = false; });

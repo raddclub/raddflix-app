@@ -301,7 +301,7 @@ def sync():
         placeholders = ",".join("?" * len(title_ids))
         with db.conn() as c:
             ep_rows = c.execute(
-                "SELECT id, title_id, filename, season, episode, share_url "
+                "SELECT id, title_id, filename, season, episode, share_url, remote_id "
                 "FROM files "
                 "WHERE title_id IN (" + placeholders + ") "
                 "AND season IS NOT NULL AND season > 0 "
@@ -310,15 +310,16 @@ def sync():
             ).fetchall()
         for r in ep_rows:
             episodes.append({
-                "id":       r["id"],
-                "title_id": r["title_id"],
-                "file_id":  str(r["id"]),
-                "season":   r["season"],
-                "episode":  r["episode"],
-                "label":    "S{:02d}E{:02d}".format(r["season"] or 0, r["episode"] or 0),
+                "id":        r["id"],
+                "title_id":  r["title_id"],
+                "file_id":   str(r["id"]),
+                "season":    r["season"],
+                "episode":   r["episode"],
+                "label":     "S{:02d}E{:02d}".format(r["season"] or 0, r["episode"] or 0),
                 "share_url": r["share_url"] or "",
                 "filename":  r["filename"] or "",
-                "is_free":  0,
+                "remote_id": int(r["remote_id"] or 0),
+                "is_free":   0,
             })
 
     return jsonify({"version": _catalog_version(), "titles": titles,
@@ -551,7 +552,7 @@ def db_update(_user_id=None, _phone=None):
         placeholders = ",".join("?" * len(title_ids))
         with db.conn() as c:
             ep_rows = c.execute(
-                "SELECT id, title_id, filename, season, episode, share_url "
+                "SELECT id, title_id, filename, season, episode, share_url, remote_id "
                 "FROM files WHERE title_id IN (" + placeholders + ") "
                 "AND season IS NOT NULL AND season > 0 "
                 "ORDER BY title_id, season, episode",
@@ -559,16 +560,17 @@ def db_update(_user_id=None, _phone=None):
             ).fetchall()
         for r in ep_rows:
             episodes_out.append({
-                "id":       r["id"],
-                "title_id": r["title_id"],
-                "file_id":  str(r["id"]),
-                "season":   r["season"],
-                "episode":  r["episode"],
-                "label":    "S{:02d}E{:02d}".format(r["season"] or 0, r["episode"] or 0),
+                "id":        r["id"],
+                "title_id":  r["title_id"],
+                "file_id":   str(r["id"]),
+                "season":    r["season"],
+                "episode":   r["episode"],
+                "label":     "S{:02d}E{:02d}".format(r["season"] or 0, r["episode"] or 0),
                 "share_url": r["share_url"] or "",
                 "filename":  r["filename"] or "",
-                "quality":  None,
-                "is_free":  0,
+                "remote_id": int(r["remote_id"] or 0),
+                "quality":   None,
+                "is_free":   0,
             })
 
     catalog_version = _catalog_version() or now
@@ -615,7 +617,7 @@ def delta(_user_id=None, _phone=None):
         placeholders = ",".join("?" * len(title_ids))
         with db.conn() as c:
             ep_rows = c.execute(
-                "SELECT id, title_id, filename, season, episode, share_url, quality "
+                "SELECT id, title_id, filename, season, episode, share_url, quality, remote_id "
                 "FROM files WHERE title_id IN (" + placeholders + ") "
                 "AND season IS NOT NULL AND season > 0 "
                 "ORDER BY title_id, season, episode",
@@ -623,15 +625,16 @@ def delta(_user_id=None, _phone=None):
             ).fetchall()
         for r in ep_rows:
             eps_by_title.setdefault(r["title_id"], []).append({
-                "id":       r["id"],
-                "file_id":  str(r["id"]),
-                "season":   r["season"],
-                "episode":  r["episode"],
-                "label":    "S{:02d}E{:02d}".format(r["season"] or 0, r["episode"] or 0),
-                "quality":  r["quality"] or None,
-                "is_free":  0,
+                "id":        r["id"],
+                "file_id":   str(r["id"]),
+                "season":    r["season"],
+                "episode":   r["episode"],
+                "label":     "S{:02d}E{:02d}".format(r["season"] or 0, r["episode"] or 0),
+                "quality":   r["quality"] or None,
+                "is_free":   0,
                 "share_url": r["share_url"] or "",
                 "filename":  r["filename"] or "",
+                "remote_id": int(r["remote_id"] or 0),
             })
 
     titles_out = []

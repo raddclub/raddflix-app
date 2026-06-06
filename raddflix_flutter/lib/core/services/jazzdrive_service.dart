@@ -88,6 +88,7 @@ class JazzDriveService {
     String shareUrl, {
     int? titleId,
     String? targetFilename,
+    int remoteId = 0,
   }) async {
     // 1. Check in-memory cache
     final mem = _inMemory[fileId];
@@ -123,7 +124,7 @@ class JazzDriveService {
 
     // 3. Generate fresh link via JazzDrive API (zero-rated)
     DebugLogger.log('JAZZDRIVE', 'Generating fresh link for file $fileId');
-    final link = await _generateLink(shareUrl, targetFilename: targetFilename);
+    final link = await _generateLink(shareUrl, targetFilename: targetFilename, remoteId: remoteId);
 
     // 4. Cache result
     final expiresAt = DateTime.now().add(_cacheTtl);
@@ -205,7 +206,7 @@ class JazzDriveService {
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
-  static Future<JazzDriveLink> _generateLink(String shareUrl, {String? targetFilename}) async {
+  static Future<JazzDriveLink> _generateLink(String shareUrl, {String? targetFilename, int remoteId = 0}) async {
     // Extract share key from URL
     final shareKey = _extractShareKey(shareUrl);
     if (shareKey == null) {
@@ -216,7 +217,7 @@ class JazzDriveService {
     final session = await _loginShare(shareKey);
 
     // Step 2: Get video media list → get CDN URL + poster
-    final record = await _getMedia(shareKey, session.validationKey, session.cookie, targetFilename: targetFilename);
+    final record = await _getMedia(shareKey, session.validationKey, session.cookie, targetFilename: targetFilename, remoteId: remoteId);
 
     // Step 3: Build final URL (DO NOT add validationkey — k= token is self-signing)
     final streamUrl = _buildStreamUrl(record.rawUrl, record.filename);
@@ -278,6 +279,7 @@ class JazzDriveService {
     String validationKey,
     String cookie, {
     String? targetFilename,
+    int remoteId = 0,
   }) async {
     final mediaUrl = '$_cloudBase/sapi/media/video'
         '?action=get&shared=true'
@@ -323,12 +325,26 @@ class JazzDriveService {
     }
     DebugLogger.log('JAZZDRIVE', 'Records (${records.length}): ${records.map((r) { final m = r as Map<String,dynamic>; return (m["name"] ?? m["filename"] ?? "?") as String; }).toList()}');
 
-    // 3-pass filename match so folder-shares (e.g. Off Campus) pick the right episode.
-    // Falls back to records.first for single-file shares.
+    // Pass 0: match by JazzDrive remote_id — permanent file ID assigned at upload.
+    // Completely filename-independent — exact match in O(n).
+    // Only runs when remoteId > 0 (i.e. stored in local SQLite from sync/delta).
     String _rname(dynamic r) =>
         ((r as Map<String, dynamic>)['name'] ?? r['filename'] ?? '') as String;
     Map<String, dynamic>? rec;
-    if (targetFilename != null && targetFilename.isNotEmpty) {
+    if (remoteId > 0) {
+      for (final r in records) {
+        final m = r as Map<String, dynamic>;
+        final rid = (m['id'] ?? m['fileId'] ?? m['file_id'] ?? 0);
+        final ridInt = rid is int ? rid : int.tryParse(rid.toString()) ?? 0;
+        if (ridInt == remoteId) {
+          rec = m;
+          DebugLogger.log('JAZZDRIVE', 'Pass0 match by remote_id=$remoteId → ${_rname(m)}');
+          break;
+        }
+      }
+    }
+    // Passes 1-3: filename-based fallback when remote_id not available or not matched.
+    if (rec == null && targetFilename != null && targetFilename.isNotEmpty) {
       final tgt = targetFilename.toLowerCase();
       // Pass 1: exact case-insensitive substring
       for (final r in records) {

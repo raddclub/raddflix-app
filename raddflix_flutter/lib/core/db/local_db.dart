@@ -95,6 +95,7 @@ class LocalDb {
         is_free   INTEGER DEFAULT 0,
         share_url TEXT,
         filename  TEXT,
+        remote_id INTEGER DEFAULT 0,
         FOREIGN KEY (title_id) REFERENCES titles(id)
       )
     ''');
@@ -409,6 +410,12 @@ class LocalDb {
           )
         ''');
       } catch (_) {}
+    }
+    if (oldV < 20) {
+      // Add remote_id to episodes — JazzDrive's permanent internal file ID.
+      // Used as Pass 0 in JazzDriveService._getMedia() to match the exact file
+      // without any filename guessing. Assigned once at upload time, never changes.
+      try { await db.execute('ALTER TABLE episodes ADD COLUMN remote_id INTEGER DEFAULT 0'); } catch (_) {}
     }
   }
 
@@ -866,23 +873,24 @@ class LocalDb {
 
   /// Get both share_url and filename for a file_id in one DB query.
   /// Used by player to pass the correct filename to JazzDriveService for folder shares.
-  static Future<Map<String, String?>> getShareInfo(String fileId) async {
+  static Future<Map<String, dynamic>> getShareInfo(String fileId) async {
     final db = await instance;
     final epRows = await db.query('episodes',
         where: 'file_id = ?', whereArgs: [fileId], limit: 1);
     if (epRows.isNotEmpty) {
-      final rawUrl  = epRows.first['share_url'] as String?;
+      final rawUrl   = epRows.first['share_url'] as String?;
       final filename = epRows.first['filename']  as String?;
+      final remoteId = epRows.first['remote_id'] as int? ?? 0;
       final url = (rawUrl != null && rawUrl.isNotEmpty) ? await _decodeUrl(rawUrl) : null;
-      return {'share_url': url, 'filename': filename};
+      return {'share_url': url, 'filename': filename, 'remote_id': remoteId};
     }
     final titleRows = await db.rawQuery(
         'SELECT share_url FROM titles WHERE file_id = ? LIMIT 1', [fileId]);
     if (titleRows.isNotEmpty) {
       final rawUrl = titleRows.first['share_url'] as String?;
-      return {'share_url': rawUrl != null ? await _decodeUrl(rawUrl) : null, 'filename': null};
+      return {'share_url': rawUrl != null ? await _decodeUrl(rawUrl) : null, 'filename': null, 'remote_id': 0};
     }
-    return {'share_url': null, 'filename': null};
+    return {'share_url': null, 'filename': null, 'remote_id': 0};
   }
 
   /// Save the local poster path for a title (after permanent download).
