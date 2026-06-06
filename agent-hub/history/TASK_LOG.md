@@ -1220,3 +1220,29 @@ SAPI 401 errors stopped immediately. Token expires 2026-07-06 (30 days, refresh_
 | Keepalive | ✅ Every 6 hours, DB-configurable |
 | Proxy threads | ✅ All disabled (PROXY_BYPASS=1) |
 | Upload queue | ⬜ Empty — ready for jobs |
+
+## Session 2026-06-06 (Agent 3) — Reimport endpoint + TMDB vs IMDB analysis
+
+### What was done
+- Investigated last agent's final GitHub commit (a9c62d4): scanner.py TMDB filename fix
+- Answered user question on TMDB vs IMDB: IMDB has no free public API; TMDB is free,
+  has full REST API, images, descriptions, and strong South Asian (PK/IN) coverage
+- Added POST /api/admin/reimport endpoint to radd-hub/hub/routes/admin.py
+- Added GET /api/admin/reimport/<job_id> status polling endpoint
+- Both endpoints run _import_legacy_into_v3_for_account() in a background thread
+  so filenames get patched without triggering a new JazzDrive scan
+- Flask restarted on Oracle, syntax verified, endpoints confirmed loaded
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| radd-hub/hub/routes/admin.py | Added POST /api/admin/reimport + GET /api/admin/reimport/<job_id> | 7da7345 |
+
+### APK build
+- No Flutter changes this session -- no APK build triggered
+
+### State at end of session
+- Oracle Flask: RUNNING (pid 961015)
+- New endpoints: loaded and auth-protected
+- GitHub: in sync (7da7345)
+- Oracle local: has direct edit (identical to GitHub -- git pull blocked by sandbox policy)
