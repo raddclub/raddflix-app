@@ -985,3 +985,53 @@ a second OAuth2 call → no double-consumption → no spurious `invalid_grant`.
 - Second caller reuses the fresh tokens from DB instead of re-exchanging
 - No more spurious `invalid_grant` from Flask restart race conditions
 - All existing OTP/proxy fixes from previous sessions remain intact
+
+## Session 2026-06-06 — Cloudflare WARP VPN + Jazz IP Watchdog
+
+### Task
+Replace unreliable Pakistani proxy pool with a permanent free VPN tunnel (Cloudflare WARP)
+on Oracle, so Jazz SAPI geo-blocking is bypassed reliably and at full speed.
+
+### Root Cause
+Oracle IP (92.4.95.252) is flagged/blocked by Jazz SAPI. Previously patched with a rotating
+Pakistani proxy pool, but proxies died every 10-20 min and were slow. JAZZDRIVE_PROXY_BYPASS=1
+was already set in DB (code was trying to go direct) but direct connections failed because
+Oracle's IP is blocked by Jazz.
+
+### Solution: Cloudflare WARP split-tunnel via WireGuard
+
+Why WARP works: Jazz blocks specific IPs not countries. Any clean non-flagged IP works
+(confirmed with Browsec Latvia VPN in browser screenshots). Cloudflare WARP provides a clean
+IP via WireGuard, is free, and has excellent latency (~0.35-0.55s Jazz API response).
+
+Architecture:
+- WireGuard interface wg0 connected to Cloudflare WARP (engage.cloudflareclient.com:2408)
+- Split tunnel: ONLY Jazz IPs routed through WARP, everything else stays direct on Oracle
+- JAZZDRIVE_PROXY_BYPASS=1 already in DB — Flask skips all proxies, goes direct
+- Direct now means through WARP tunnel at OS level — fully transparent to Python code
+- No Flask code changes needed
+
+### Files Created on Oracle (not in GitHub)
+- /etc/wireguard/wg0.conf — WireGuard split-tunnel config (Jazz IPs only via WARP)
+- /opt/warp-watchdog/jazz_ip_watchdog.py — auto-detects Jazz DNS IP changes, updates wg0 live
+- /etc/systemd/system/jazz-ip-watchdog.service — oneshot service for watchdog
+- /etc/systemd/system/jazz-ip-watchdog.timer — runs watchdog every 10 min
+
+### Watchdog First Run Result
+On very first run, watchdog immediately caught a live IP change:
+- cloud.jazzdrive.com.pk: 175.41.133.62 changed to 54.254.59.168 (rotated during session)
+- Updated WireGuard live with wg set (no tunnel drop, no restart)
+- Updated /etc/wireguard/wg0.conf for persistence across reboots
+- Timer fires every 10 min, also runs 2 min after every reboot
+
+### Oracle Status
+- wg-quick@wg0: enabled + active (auto-starts on reboot) OK
+- jazz-ip-watchdog.timer: enabled + active (every 10 min) OK
+- JAZZDRIVE_PROXY_BYPASS=1 already in DB OK
+- No Flask restart needed OK
+
+### State at End of Session
+- Oracle Jazz traffic routes through Cloudflare WARP permanently
+- Proxy pool remains in DB but is fully bypassed (JAZZDRIVE_PROXY_BYPASS=1)
+- Jazz IP changes handled automatically by watchdog every 10 min
+- Account 03286829827 ready for fresh OTP login
