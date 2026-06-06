@@ -92,3 +92,62 @@ See BUG_TRACKER.md for the complete bug table.
 ### Open items
 - DATA-01: All Of Us Are Dead — E03/E04/E05/E09 not in Oracle DB (need JazzDrive upload + sync)
 - Account 03286829827: OAuth refresh_token expired (invalid_grant) — needs manual OTP re-login via Settings → JazzDrive Scan
+
+  ---
+
+  ## Session 2026-06-06 (Session 2)
+
+  ### Summary
+  Investigated tiny upload file sizes (553 KB–1.1 MB), diagnosed three distinct bugs,
+  fixed two of them, and re-uploaded 3 stuck files.
+
+  ### Findings
+
+  **Issue 1 — Tiny files (~10-second clips) — USER SOURCE PROBLEM**
+  - Verified with ffprobe: every uploaded file is ~10 seconds long (e.g. Luka_Chuppi → 10.17 s, 698 KB)
+  - Valid MP4 containers but genuinely short — source is delivering sample/preview clips, not full movies
+  - Upload pipeline itself is working correctly — it faithfully uploads what it receives
+  - Action required: user must verify their download source
+
+  **Issue 2 — delta_push always failing with 401 — FIXED**
+  - Root cause A: `jazzdrive.py` had 4 uses of `_time_time()` (undefined) — crashed `refresh_session()` before
+    it could rotate tokens. Fixed: `sed -i 's/_time_time()/time.time()/g' hub/jazzdrive.py`
+  - Root cause B: Account 15 had no `validation_key` (vk). After the bug fix, `refresh_session(account_id=15)`
+    succeeded — account now has fresh vk (32 chars) + new JSESSIONID.
+  - Root cause C: Stale `jd_delta_folder_id` in settings pointed to deleted JazzDrive folder → MED-1030.
+    Fix: `DELETE FROM settings WHERE k IN ('jd_delta_folder_id','jd_delta_file_id')`.
+    `run_full_pipeline()` recreated the folder automatically.
+  - Result: delta_push now uploads catalog JSON successfully.
+
+  **Issue 3 — 3 stuck files never uploaded to JazzDrive — FIXED**
+  - Pitt_Siyapa_2026, Luka_Chuppi_2019, Vncenz0.S01E02 had no remote_id/share_url
+  - Root cause: previous session expired, queue consumed jobs but JazzDrive upload failed silently
+  - Fix: cleared stale files-table entries, called `upload_to_jazzdrive()` directly (blocking, not daemon)
+  - All 3 uploaded successfully — remote_ids: 242527570, 242527572, 242527574
+
+  ### Files changed
+  - `radd-hub/hub/jazzdrive.py`: fixed 4x `_time_time()` → `time.time()`
+  - DB settings: cleared stale `jd_delta_folder_id` + `jd_delta_file_id`
+  - DB files table: cleaned up partial entries, all 10 files now `is_ready=1`
+
+  ### Verification results
+
+  | Test | Result |
+  |------|--------|
+  | Python syntax: jazzdrive.py | ✅ 0 remaining `_time_time` |
+  | Session refresh (account 15) | ✅ vk=32 chars, jid=38 chars obtained |
+  | Live session test | ✅ HTTP 200 from SAPI with new vk+jid |
+  | delta_push | ✅ share_url set, folder_id=1763725 |
+  | Pitt Siyapa upload | ✅ remote_id=242527570 |
+  | Luka Chuppi upload | ✅ remote_id=242527572 |
+  | Vncenz0 S01E02 upload | ✅ remote_id=242527574 |
+  | All files is_ready | ✅ 10/10 = 1 |
+
+  ### Key lessons for next agent
+  - `validation_key` is required for ALL JazzDrive SAPI calls alongside JSESSIONID — jsessionid alone returns 401
+  - Run `refresh_session(account_id=15)` to get vk; requires valid refresh_token (expires ~2026-07-06)
+  - If refresh_token shows `invalid_grant`, do OTP login once from Settings page
+  - `queue_manual_upload()` uses daemon threads — call `upload_to_jazzdrive()` directly in scripts
+  - `jd_delta_folder_id` in settings goes stale if JazzDrive folder is deleted — clear and re-run
+  - See `.agents/memory/jazzdrive-session-vk.md` for full detail
+  
