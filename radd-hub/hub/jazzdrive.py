@@ -289,6 +289,11 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
     return None
 
 
+
+def is_proxy_bypass() -> bool:
+    """Return True when JAZZDRIVE_PROXY_BYPASS=1 — all calls go direct, skip pool."""
+    return db.setting("JAZZDRIVE_PROXY_BYPASS") == "1"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Auth Helpers
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1032,30 +1037,29 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     if not msisdn_local:
         return {"ok": False, "error": "No MSISDN provided or configured"}
 
-    # Build proxy chain: configured proxy first, then pool fallbacks.
-    # Dedup by URL (not dict equality) — same URL can appear from both
-    # resolve_proxies() and get_proxy_chain() as different dict instances.
+    # Build proxy chain — bypass check first.
     _proxies_chain: list = []
     _seen_proxy_urls: set = set()
-    primary = resolve_proxies()
-    if primary:
-        _proxies_chain.append(primary)
-        _seen_proxy_urls.add(primary.get("_url", ""))
-    try:
-        from . import proxy_pool as _pp
-        for p in _pp.pool.get_proxy_chain(n=4):
-            _p_url = p.get("_url", "")
-            if _p_url and _p_url not in _seen_proxy_urls:
-                _seen_proxy_urls.add(_p_url)
-                _proxies_chain.append(p)
-    except Exception:
-        pass
-    if not _proxies_chain:
-        # Direct from Oracle non-PK IP → jazzdrive.com.pk returns MED-1011.
-        # Only reaches here when pool is completely empty — add seeds in Settings.
-        log.warning("trigger_otp_flow: proxy chain empty — direct connection "
-                    "will likely fail (MED-1011 from non-PK IP)")
-        _proxies_chain = [None]
+    if is_proxy_bypass():
+        _proxies_chain = [None]  # direct — Oracle IP is not geo-blocked
+    else:
+        primary = resolve_proxies()
+        if primary:
+            _proxies_chain.append(primary)
+            _seen_proxy_urls.add(primary.get("_url", ""))
+        try:
+            from . import proxy_pool as _pp
+            for p in _pp.pool.get_proxy_chain(n=4):
+                _p_url = p.get("_url", "")
+                if _p_url and _p_url not in _seen_proxy_urls:
+                    _seen_proxy_urls.add(_p_url)
+                    _proxies_chain.append(p)
+        except Exception:
+            pass
+        if not _proxies_chain:
+            log.warning("trigger_otp_flow: proxy chain empty — direct connection "
+                        "will likely fail (MED-1011 from non-PK IP)")
+            _proxies_chain = [None]
 
     last_err: Exception = Exception("No proxies available")
     for proxies in _proxies_chain:
@@ -1127,26 +1131,29 @@ def resend_otp() -> dict:
         _OTP_STATE_FILE.unlink(missing_ok=True)
         return {"ok": False, "error": "OTP session expired (>10 min) — trigger a new OTP first"}
 
-    # Build proxy chain — URL-based dedup, same pattern as trigger_otp_flow.
+    # Build proxy chain — bypass check first.
     _proxies_chain: list = []
     _seen_proxy_urls: set = set()
-    primary = resolve_proxies()
-    if primary:
-        _proxies_chain.append(primary)
-        _seen_proxy_urls.add(primary.get("_url", ""))
-    try:
-        from . import proxy_pool as _pp
-        for p in _pp.pool.get_proxy_chain(n=4):
-            _p_url = p.get("_url", "")
-            if _p_url and _p_url not in _seen_proxy_urls:
-                _seen_proxy_urls.add(_p_url)
-                _proxies_chain.append(p)
-    except Exception:
-        pass
-    if not _proxies_chain:
-        log.warning("resend_otp: proxy chain empty — direct connection "
-                    "will likely fail (MED-1011 from non-PK IP)")
-        _proxies_chain = [None]
+    if is_proxy_bypass():
+        _proxies_chain = [None]  # direct — Oracle IP is not geo-blocked
+    else:
+        primary = resolve_proxies()
+        if primary:
+            _proxies_chain.append(primary)
+            _seen_proxy_urls.add(primary.get("_url", ""))
+        try:
+            from . import proxy_pool as _pp
+            for p in _pp.pool.get_proxy_chain(n=4):
+                _p_url = p.get("_url", "")
+                if _p_url and _p_url not in _seen_proxy_urls:
+                    _seen_proxy_urls.add(_p_url)
+                    _proxies_chain.append(p)
+        except Exception:
+            pass
+        if not _proxies_chain:
+            log.warning("resend_otp: proxy chain empty — direct connection "
+                        "will likely fail (MED-1011 from non-PK IP)")
+            _proxies_chain = [None]
 
     last_err: Exception = Exception("No proxies available")
     for proxies in _proxies_chain:
