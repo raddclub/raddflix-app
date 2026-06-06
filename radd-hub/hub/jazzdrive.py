@@ -232,7 +232,9 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
         return None
     # Global proxy bypass — when JAZZDRIVE_PROXY_BYPASS=1 all traffic goes direct.
     # Enable this when Oracle IP is not geo-blocked; proxies only slow things down.
-    if db.setting('JAZZDRIVE_PROXY_BYPASS') == '1':
+    # EXCEPTION: purpose='sapi' is NEVER bypassed — cloud.jazzdrive.com.pk is
+    # geo-restricted to Pakistani IPs regardless of the global bypass flag.
+    if db.setting('JAZZDRIVE_PROXY_BYPASS') == '1' and purpose != 'sapi':
         return None
     if purpose == 'sapi':
         # Try the pool first (auto-rotating, health-checked)
@@ -1660,23 +1662,28 @@ def _android_refresh_session_inner(refresh_token: str,
     # then pool fallbacks, mark_fail on connection error and try the next.
     _ar_chain: list = []
     _ar_seen: set = set()
-    _ar_primary = resolve_proxies()
-    if _ar_primary:
-        _ar_chain.append(_ar_primary)
-        _ar_seen.add(_ar_primary.get("_url", ""))
-    try:
-        from . import proxy_pool as _pp
-        for _ar_p in _pp.pool.get_proxy_chain(n=4):
-            _ar_pu = _ar_p.get("_url", "")
-            if _ar_pu and _ar_pu not in _ar_seen:
-                _ar_seen.add(_ar_pu)
-                _ar_chain.append(_ar_p)
-    except Exception:
-        pass
-    if not _ar_chain:
-        log.warning("android_refresh_session: proxy chain empty — direct connection "
-                    "will likely fail (MED-1011 from non-PK IP)")
+    if is_proxy_bypass():
+        # VPN/direct mode — wg0 already routes jazzdrive.com.pk (54.179.95.148)
+        # at OS level. No proxy needed; pool proxies are dead and waste 4×25 s.
         _ar_chain = [None]
+    else:
+        _ar_primary = resolve_proxies()
+        if _ar_primary:
+            _ar_chain.append(_ar_primary)
+            _ar_seen.add(_ar_primary.get("_url", ""))
+        try:
+            from . import proxy_pool as _pp
+            for _ar_p in _pp.pool.get_proxy_chain(n=4):
+                _ar_pu = _ar_p.get("_url", "")
+                if _ar_pu and _ar_pu not in _ar_seen:
+                    _ar_seen.add(_ar_pu)
+                    _ar_chain.append(_ar_p)
+        except Exception:
+            pass
+        if not _ar_chain:
+            log.warning("android_refresh_session: proxy chain empty — direct connection "
+                        "will likely fail (MED-1011 from non-PK IP)")
+            _ar_chain = [None]
 
     # SAPI proxy for Step 2 (cloud.jazzdrive.com.pk — geo-restricted endpoint).
     sapi_proxies = resolve_proxies(purpose='sapi')
@@ -1820,6 +1827,9 @@ def _android_refresh_session_inner(refresh_token: str,
     # pick the next SAPI proxy from the pool, and retry all formats.
     _s2_chain: list = []
     _s2_seen: set = set()
+    # NOTE: SAPI login (cloud.jazzdrive.com.pk) is geo-restricted to Pakistani IPs.
+    # We NEVER skip SAPI proxies for this step — even when PROXY_BYPASS=1.
+    # resolve_proxies(purpose='sapi') is already immune to the bypass flag (see above).
     if sapi_proxies:
         _s2_chain.append(sapi_proxies)
         _s2_seen.add(sapi_proxies.get("_url", ""))
