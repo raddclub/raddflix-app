@@ -294,6 +294,20 @@ def api_proxies_toggle():
     return jsonify({"ok": True, "enabled": enabled})
 
 
+
+
+@bp.route("/api/proxies/bypass", methods=["GET", "POST"])
+@auth.login_required
+def api_proxies_bypass():
+    """GET: bypass state. POST {bypass:bool}: set JAZZDRIVE_PROXY_BYPASS."""
+    if request.method == "GET":
+        return jsonify({"ok": True, "bypass": db.setting("JAZZDRIVE_PROXY_BYPASS", "0") == "1"})
+    data = request.get_json(force=True, silent=True) or {}
+    bypass = bool(data.get("bypass", False))
+    db.set_setting("JAZZDRIVE_PROXY_BYPASS", "1" if bypass else "0")
+    import logging; logging.getLogger("hub.jazzdrive").info("PROXY_BYPASS -> %s via UI", "DIRECT" if bypass else "PROXY")
+    return jsonify({"ok": True, "bypass": bypass})
+
 @bp.route("/api/proxies/select", methods=["POST"])
 @auth.login_required
 def api_proxies_select():
