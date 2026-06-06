@@ -5,6 +5,52 @@
 
 ---
 
+## Session 2026-06-06
+
+**Agent:** Replit Agent (main branch)
+**Objective:** Complete server-side pipeline audit; fix last remaining bug where JD filenames leaked into Oracle `files.filename`
+
+### Audit findings (no additional bugs beyond previously identified)
+
+- **titles.title** in Oracle: always TMDB-sourced ("Vincenzo" not "Vncenz0") — confirmed ✅
+- **Episode labels** in all 3 sync endpoints (`/sync`, `/db_update`, `/delta`): always `"S{:02d}E{:02d}"` format — NEVER derived from any filename — confirmed ✅
+- **`remote_id`**: JD permanent numeric file ID — stored in Oracle `files.remote_id`, selected and returned by all 3 catalog endpoints, stashed in Flutter SQLite, used by Pass 0 — confirmed ✅ (all fixed in previous session `b011e24`)
+- **`share_url`**: folder-level share link — not filename-dependent — confirmed ✅
+- **`_clean_filename()` in enricher.py**: strips junk tokens before TMDB lookup — garbled names like "Vncenz0" still match TMDB "Vincenzo" (SequenceMatcher ratio ~0.6 >> 0.35 threshold) — confirmed ✅
+- **`enrich_and_save()` in `_legacy/scanner.py`**: groups by folder, calls TMDB on sample filename, stores TMDB-correct title in legacy `titles.title` — confirmed ✅
+
+### Bug fixed: `files.filename` used garbled JD title, not TMDB title
+
+**Root cause**: `_import_legacy_into_v3_for_account()` in `scanner.py` (~line 871) called `derive_media_plan(raw_filename)` without a TMDB lookup, so `files.filename` stored in Oracle reflected the dirty JD filename title (e.g. `"Vncenz0 S01E02.mkv"`) instead of the TMDB-correct one (`"Vincenzo S01E02.mkv"`).
+
+**Impact**: The `filename` field is sent to Flutter and used by Passes 1-3 (filename-based CDN matching) when `remote_id=0`. Pass 0 (remote_id numeric match, primary path post-`b011e24`) was unaffected.
+
+**Fix** (commit `a9c62d44`):
+1. In the titles loop, stash TMDB-enriched title+year into `legacy_title_meta[legacy_title_id]`
+2. After `_derive(raw_filename)` extracts S/E numbers, build a synthetic clean filename using the TMDB title + detected S/E, then run it back through `derive_media_plan()` for proper sanitisation
+   - TV episode: `"{tmdb_title}.S{s:02d}E{e:02d}{ext}"` → `derive_media_plan()` → `"Vincenzo S01E02.mkv"`
+   - Movie: `"{tmdb_title}.{year}{ext}"` → `derive_media_plan()` → `"Dune Part Two (2024).mkv"`
+3. Override `clean_filename` (and `clean_folder` if plan provides it) with the result
+
+### Audit conclusion
+
+JD filenames now have **zero influence** on any user-visible data path:
+
+| Data | Source |
+|------|--------|
+| `titles.title` | TMDB (always was) |
+| `files.filename` | TMDB title + S/E (this fix) |
+| Episode label shown in app | `"S{02d}E{02d}"` from `catalog_api.py` |
+| `remote_id` | JD numeric file ID (filename-independent) |
+| `share_url` | JD folder share link (filename-independent) |
+
+### State at end of session
+- One bug fixed (`a9c62d44`) — last server-side pipeline issue
+- Full audit complete: no further bugs found
+- `remote_id` end-to-end: complete (all layers confirmed in previous session)
+
+---
+
 ## Session 2026-06-04
 
 **Agent:** Replit Agent (main branch)
@@ -1174,77 +1220,3 @@ SAPI 401 errors stopped immediately. Token expires 2026-07-06 (30 days, refresh_
 | Keepalive | ✅ Every 6 hours, DB-configurable |
 | Proxy threads | ✅ All disabled (PROXY_BYPASS=1) |
 | Upload queue | ⬜ Empty — ready for jobs |
-
----
-
-## Session: 2026-06-06 — remote_id Pass 0: Full Sync Chain (Server + Flutter)
-
-**Commit:** `0bf9626`
-**Status:** ✅ Pushed
-
-### What changed
-
-Filled all 5 gaps so `remote_id` (JazzDrive's permanent internal file ID) flows from Oracle DB → sync/delta payloads → Flutter local SQLite → JazzDriveService → Pass 0 file match.
-
-| Gap | File | Change |
-|-----|------|--------|
-| 1 | `catalog_api.py` /sync | Add `remote_id` to episode SELECT + JSON response |
-| 2 | `catalog_api.py` /db_update | Add `remote_id` to episode SELECT + JSON response |
-| 3 | `catalog_api.py` /delta | Add `remote_id` to episode SELECT + JSON response |
-| 4 | `zero_rating.py` | Add `remote_id` to `generate_delta_payload()` episode SELECT + dict |
-| 5 | `constants.dart` | Bump `catalogDbVersion` 19 → 20 |
-| 5 | `local_db.dart` | `remote_id INTEGER DEFAULT 0` in episodes CREATE TABLE + v20 migration |
-| 5 | `local_db.dart` | `getShareInfo()` return type → `Map<String,dynamic>`, includes `remote_id` |
-| 5 | `jazzdrive_service.dart` | `getStreamLink/generateLink/_getMedia` accept `remoteId` param; Pass 0 by JD file ID before Passes 1-3 |
-| 5 | `player_screen.dart` | Reads `remote_id` from `getShareInfo()`, passes as `remoteId` to `getStreamLink()` |
-
-### Architecture after this commit
-
-```
-Oracle sync (once/day) or JazzDrive delta (zero-rated fallback)
-  → remote_id + share_url saved in local SQLite episodes table
-
-User taps episode
-  → getShareInfo(fileId) — local SQLite only, no network
-  → JazzDriveService.getStreamLink(shareUrl, remoteId: N)
-       Pass 0: match by JD file ID → exact file, no filename guessing ✅
-       Passes 1-3: filename fallback (kept for legacy/migration)
-  → CDN URL — Oracle never touched at play time ✅
-```
-
----
-
-## Session: 2026-06-06 (part 2) — remote_id: Fill remaining 4 gaps
-
-**Commit:** `b011e24`
-**Status:** ✅ Pushed
-
-### Root cause discovered (critical)
-
-`upsertEpisode` uses `ConflictAlgorithm.replace` — it overwrites the **entire row**.
-Without `remote_id` in the insert map, every sync silently reset `remote_id → 0`,
-undoing whatever was written by any previous path. This was the key bug.
-
-### What changed
-
-| Gap | File | Change |
-|-----|------|--------|
-| 1 | `sync_service.dart` `_persistItems()` | Add `remote_id` to Oracle sync episode upsert |
-| 2 | `sync_service.dart` `_syncFromJazzDriveDelta()` | Add `remote_id` to JD delta episode upsert |
-| 3 | `download_service.dart` `downloadFile()` | Add `remoteId` param → passed to both `getStreamLink` calls |
-| 4 | `downloads_provider.dart` `startDownload()` | Thread `remoteId` param through to `downloadFile` |
-| 5 | `show_detail_screen.dart` download button | Pass `ep['remote_id'] as int? ?? 0` to `startDownload` |
-
-### remote_id chain — now complete
-
-```
-Oracle DB files.remote_id
-  → all 4 sync endpoints (sync/db_update/delta + JD delta)
-  → local SQLite episodes.remote_id  (ConflictAlgorithm.replace now safe)
-  → getShareInfo() → remoteId
-  → getStreamLink(remoteId: N) → Pass 0 (stream AND download)
-  → CDN URL — Oracle never involved at play/download time
-```
-
-All sync paths (Oracle full, Oracle delta, JD delta) and all consumer
-paths (streaming via player, downloading via download service) now use Pass 0.
