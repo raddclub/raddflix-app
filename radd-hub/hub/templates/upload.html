@@ -138,11 +138,7 @@
     <div id="stat-storage" style="font-size:1.35rem;font-weight:700">—</div>
     <div id="stat-storage-sub" class="muted" style="font-size:11px;margin-top:3px"></div>
   </div>
-  <div class="card" style="padding:14px;text-align:center">
-    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Library</div>
-    <div id="stat-library" style="font-size:1.35rem;font-weight:700">{{ stats.files or 0 }}</div>
-    <div class="muted" style="font-size:11px;margin-top:3px">tracked uploads</div>
-  </div>
+
   <div class="card" style="padding:14px;text-align:center">
     <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Pending</div>
     <div id="stat-pending" style="font-size:1.35rem;font-weight:700">—</div>
@@ -153,7 +149,6 @@
 {# ── Tab navigation ── #}
 <div style="display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap">
   <button class="tab-btn active" onclick="switchTab('upload', this)"   style="background:transparent;border:none;border-bottom:2px solid var(--accent);padding:9px 16px;color:var(--text);font-weight:500;border-radius:0;cursor:pointer">Uploads</button>
-  <button class="tab-btn"        onclick="switchTab('library', this)"  style="background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 16px;color:var(--muted);font-weight:500;border-radius:0;cursor:pointer">Library</button>
   <button class="tab-btn"        onclick="switchTab('flixcfg', this)"  style="background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 16px;color:var(--muted);font-weight:500;border-radius:0;cursor:pointer">Settings</button>
   <button class="tab-btn"        onclick="switchTab('logs', this)"     style="background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 16px;color:var(--muted);font-weight:500;border-radius:0;cursor:pointer">Logs</button>
 </div>
@@ -199,34 +194,6 @@
     </div>
   </div>
 
-</div>
-
-{# ══ TAB: Library ══ #}
-<div class="tab-content" data-tab="library">
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-      <h3 style="margin:0">Uploaded Library</h3>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <input id="lib-q" placeholder="Search title, filename…" style="width:220px" onkeydown="if(event.key==='Enter')loadLibrary()">
-        <button onclick="loadLibrary()">Search</button>
-        <button class="ghost" onclick="document.getElementById('lib-q').value='';loadLibrary()">Clear</button>
-      </div>
-    </div>
-    <div class="table-wrap">
-    <table id="lib-table" style="min-width:620px">
-      <thead><tr>
-        <th style="width:44px"></th>
-        <th>Title / File</th>
-        <th style="width:80px">Kind</th>
-        <th style="width:80px">Size</th>
-        <th style="width:130px">Uploaded</th>
-        <th>Share URL</th>
-        <th style="width:80px"></th>
-      </tr></thead>
-      <tbody><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
-    </table>
-    </div>
-  </div>
 </div>
 
 {# ══ TAB: Settings ══ #}
@@ -457,7 +424,6 @@ function switchTab(tab, btn) {
   const target = document.querySelector('.tab-content[data-tab="' + tab + '"]');
   if (target) target.classList.add('active');
 
-  if (tab === 'library')   loadLibrary();
   if (tab === 'upload')    loadJobs();
   if (tab === 'flixcfg')   { loadConfig(); loadAccountsList(); }
   if (tab === 'logs')      startLogStream();
@@ -792,38 +758,6 @@ async function loadJobs() {
   } catch {}
 }
 
-async function loadLibrary() {
-  const q = document.getElementById('lib-q').value.trim();
-  const url = '/upload/api/library?limit=200' + (q ? '&q=' + encodeURIComponent(q) : '');
-  const tbl = document.querySelector('#lib-table tbody');
-  if (!tbl) return;
-  tbl.innerHTML = '<tr><td colspan="7" class="empty">Loading…</td></tr>';
-  try {
-    const r = await api(url);
-    if (!r.items || !r.items.length) { tbl.innerHTML = '<tr><td colspan="7" class="empty">No items yet.</td></tr>'; return; }
-    tbl.innerHTML = r.items.map(it => {
-      const poster = it.poster ? '<img src="' + it.poster + '" style="width:36px;height:54px;object-fit:cover;border-radius:3px">' : '<div style="width:36px;height:54px;background:var(--surface2);border-radius:3px"></div>';
-      const shareLink = it.share_url ? '<a href="' + it.share_url + '" target="_blank" style="font-size:12px;word-break:break-all">' + it.share_url.slice(0,50) + '…</a>' : '<span class="muted">—</span>';
-      return '<tr>'
-        + '<td>' + poster + '</td>'
-        + '<td><div style="font-weight:600">' + (it.title || '—') + '</div><div class="muted" style="font-size:11px">' + (it.name || '') + '</div></td>'
-        + '<td class="muted">' + (it.kind||'?') + (it.year ? ' · ' + it.year : '') + '</td>'
-        + '<td class="muted">' + fmtBytes(it.size_bytes) + '</td>'
-        + '<td class="muted" style="font-size:11px">' + fmtTs(it.uploaded_at) + '</td>'
-        + '<td>' + shareLink + '</td>'
-        + '<td><div style="display:flex;gap:4px"><button class="danger" style="font-size:11px;padding:2px 8px" onclick="deleteLib(\'' + (it.fingerprint||'').replace(/'/g,"\\'") + '\')">Del</button></div></td>'
-        + '</tr>';
-    }).join('');
-  } catch(e) { tbl.innerHTML = '<tr><td colspan="7" class="empty">Error: ' + e.message + '</td></tr>'; }
-}
-
-async function deleteLib(fp) {
-  if (!confirm('Delete this entry?')) return;
-  try {
-    await api('/upload/api/library/' + encodeURIComponent(fp), {method:'DELETE'});
-    toast('Deleted'); loadLibrary();
-  } catch(e) { toast('Error: ' + e.message); }
-}
 
 /* ── logs ── */
 function appendLogEntries(entries) {
