@@ -1450,3 +1450,61 @@ No further geo-restriction bugs found after full audit.
 - Keepalive: Heartbeat OK
 - All proxy chains audited and correct
 - GitHub: commit bdea6d2
+
+## Session 2026-06-07 (Part 3) — CORRECTION: geo-restriction diagnosis was wrong
+
+### What was wrong
+BUG-A03b and BUG-A03d were based on a false diagnosis: "JazzDrive SAPI login is
+geo-restricted to Pakistani IPs." This was incorrect.
+
+JazzDrive is globally accessible from any IP. The Apache 401 HTML body observed
+in the previous session came from a **dead proxy returning its own error page**,
+not from JazzDrive rejecting our IP.
+
+The result of BUG-A03b+d fixes was:
+- _s2_chain forced pool.get_best() even with PROXY_BYPASS=1
+- _sub_chain forced pool.get_best() even with PROXY_BYPASS=1
+- Pool proxies are dead/untested with PROXY_BYPASS=1
+- Each dead proxy attempt: 20-30s timeout
+- Session restore took 60+ seconds instead of ~3-5s
+
+### Root cause (confirmed from logs)
+```
+03:18:09 - trying Android-Nested (via dead proxy socks5://182.184.119.180:1080)
+03:18:29 - trying Web-Nested       <- 20s gap = proxy timeout
+03:18:31 - trying Android-Flat
+03:18:33 - trying Web-Flat
+03:18:34 - WARNING: SAPI proxy socks5://182.184.119.180:1080 unreachable, trying next
+...
+03:19:12 - ✓ Web-Nested candidate succeeded  <- ~64s after first attempt
+```
+After dead proxy was exhausted, fell through to [None] (direct) → succeeded instantly.
+
+### Fix applied: BUG-A03e (commit fe65116)
+- `sapi_proxies` block now wrapped in `if not is_proxy_bypass()` — no pool lookup with BYPASS=1
+- `_s2_chain` builder now has `is_proxy_bypass()` guard → `[None]` direct (matches _ar_chain pattern)
+- `_sub_chain` builder in submit_otp now has `is_proxy_bypass()` guard → `[None]` direct
+
+With PROXY_BYPASS=1, session restore is now ~3-5s (direct via wg0).
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-008 | Fix BUG-A03e: _s2_chain + _sub_chain respect PROXY_BYPASS=1 | ✅ DONE |
+| TASK-009 | Correct all MD docs — remove wrong geo-restriction claims | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| radd-hub/hub/jazzdrive.py | _s2_chain + _sub_chain bypass guard | fe65116 |
+| AGENT_PROMPT.md | Rule 1: JazzDrive global, no geo-restriction | fe65116 |
+| agent-hub/CONTEXT.md | Corrected proxy architecture table | fe65116 |
+| agent-hub/RULES.md | Rules 4-6: bypass=1 → direct, no pool | fe65116 |
+| agent-hub/TASKS.md | TASK-008/009 marked done | fe65116 |
+| .agents/tasks/BUG_TRACKER.md | BUG-A03b/d corrected; BUG-A03e added | (this) |
+
+### End state
+- Oracle Flask: RUNNING, healthz OK
+- Session restore: ~3-5s (direct via wg0, no proxy delay)
+- Account 03286829827: ACTIVE, auto-refreshes cleanly
+- GitHub: fe65116
