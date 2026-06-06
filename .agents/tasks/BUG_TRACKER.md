@@ -1,5 +1,5 @@
 # BUG_TRACKER.md
-Last updated: 2026-06-04
+Last updated: 2026-06-06
 
 ## Status Key
 - ✅ FIXED — committed and verified on live server
@@ -49,6 +49,7 @@ Two characters (`==`) caused 5 critical bugs.
 ## Open Bugs
 
 See DATA-01 below — all code bugs are fixed.
+
 ---
 
 ## Session 2026-06-04 (continued) — Additional bugs found and fixed
@@ -67,107 +68,11 @@ It never matched anything. All episode folder shares silently fell back to
 `records[0]` (first file in the share), so every episode played the same video.
 
 The bug was introduced when a Node.js automation script generated Dart source code
-and escaped `# BUG_TRACKER.md
-Last updated: 2026-06-04
-
-## Status Key
-- ✅ FIXED — committed and verified on live server
-- 🔄 IN PROGRESS
-- ❌ OPEN
-- 🚫 WONT FIX / INTENTIONAL
-
----
-
-## Session 2026-06-04 — All bugs fixed
-
-| ID | Severity | Title | Root Cause | Fix Applied | File |
-|----|---------|-------|-----------|-------------|------|
-| BUG-C01 | CRITICAL | Catalog always empty after fresh install | XOR decode: server strips base64 `=` padding; Dart `base64Url.decode` throws `FormatException` without it | Re-add padding: `b64 += '=' * ((4 - b64.length % 4) % 4)` before decode | `core/security/request_encoder.dart` |
-| BUG-C02 | CRITICAL | Login always fails — "Login failed" toast on every attempt | `AuthApi.getMe()` called post-login on XOR path — same padding bug threw `TypeError` before response was parsed | Same padding fix | `core/security/request_encoder.dart` |
-| BUG-C03 | CRITICAL | Premium plan shows as FREE after subscription | `_saveUserCache()` in auth_provider never executed (always threw before reaching it) | Same padding fix unblocked the call chain | `core/security/request_encoder.dart` |
-| BUG-C04 | CRITICAL | App requires full login every restart — session not persisting | `checkAuth()` found no cached user (write to SharedPrefs never reached due to C02 exception) | Same padding fix | `core/security/request_encoder.dart` |
-| BUG-C05 | HIGH | Plans/pricing screen completely empty | `GET /api/subscription/plans` is XOR-encoded — same padding bug silently dropped the response | Same padding fix | `core/security/request_encoder.dart` |
-| BUG-P01 | HIGH | Black screen for 3–5 seconds before video plays | `androidAttachSurfaceAfterVideoParameters: true` causes surface re-attach failure on Android | Removed from `VideoController` config | `screens/player_screen.dart` |
-| BUG-D01 | MEDIUM | TypeError in api_client: `response.data` not always a Map | XOR interceptor returns decoded JSON string; code assumed `Map` type without checking | Added type guard: `data is String ? jsonDecode(data) : data` | `core/api/api_client.dart` |
-| BUG-S01 | MEDIUM | Catalog shows blank after sync fails (no internet) | `catalog_provider.dart` propagated sync exception without falling back to local DB | Added `await loadFromDb()` in the sync catch block | `providers/catalog_provider.dart` |
-
----
-
-## Root Cause Summary
-
-**5 of 8 bugs (BUG-C01 through BUG-C05) had a single root cause:**
-Python's `base64.urlsafe_b64encode().rstrip(b"=")` strips 1–2 padding characters.
-Dart's `base64Url.decode()` requires correct padding. Without the fix, every XOR decode
-threw a `FormatException` that propagated silently up the call chain, making the entire
-catalog, auth, and subscription systems appear broken.
-
-Two characters (`==`) caused 5 critical bugs.
-
----
-
-## Non-Bugs (intentional behavior)
-
-| Item | Notes |
-|------|-------|
-| Frida tamper check (port 27042) | Correct security behavior — do not remove |
-| sqflite_sqlcipher pinned at 3.1.0+1 | Must stay pinned — SQLCipher Dart API changed |
-| No catalog on first cold start | Expected — sync takes a few seconds on first launch |
-
----
-
- to prevent shell variable substitution. The escape survived into
+and escaped `$` to prevent shell variable substitution. The escape survived into
 the committed Dart file undetected because the fallback always returned a playable URL.
 
 **Rule:** Any Dart string built in a generator script must use concatenation for dynamic
-parts, never `\# BUG_TRACKER.md
-Last updated: 2026-06-04
-
-## Status Key
-- ✅ FIXED — committed and verified on live server
-- 🔄 IN PROGRESS
-- ❌ OPEN
-- 🚫 WONT FIX / INTENTIONAL
-
----
-
-## Session 2026-06-04 — All bugs fixed
-
-| ID | Severity | Title | Root Cause | Fix Applied | File |
-|----|---------|-------|-----------|-------------|------|
-| BUG-C01 | CRITICAL | Catalog always empty after fresh install | XOR decode: server strips base64 `=` padding; Dart `base64Url.decode` throws `FormatException` without it | Re-add padding: `b64 += '=' * ((4 - b64.length % 4) % 4)` before decode | `core/security/request_encoder.dart` |
-| BUG-C02 | CRITICAL | Login always fails — "Login failed" toast on every attempt | `AuthApi.getMe()` called post-login on XOR path — same padding bug threw `TypeError` before response was parsed | Same padding fix | `core/security/request_encoder.dart` |
-| BUG-C03 | CRITICAL | Premium plan shows as FREE after subscription | `_saveUserCache()` in auth_provider never executed (always threw before reaching it) | Same padding fix unblocked the call chain | `core/security/request_encoder.dart` |
-| BUG-C04 | CRITICAL | App requires full login every restart — session not persisting | `checkAuth()` found no cached user (write to SharedPrefs never reached due to C02 exception) | Same padding fix | `core/security/request_encoder.dart` |
-| BUG-C05 | HIGH | Plans/pricing screen completely empty | `GET /api/subscription/plans` is XOR-encoded — same padding bug silently dropped the response | Same padding fix | `core/security/request_encoder.dart` |
-| BUG-P01 | HIGH | Black screen for 3–5 seconds before video plays | `androidAttachSurfaceAfterVideoParameters: true` causes surface re-attach failure on Android | Removed from `VideoController` config | `screens/player_screen.dart` |
-| BUG-D01 | MEDIUM | TypeError in api_client: `response.data` not always a Map | XOR interceptor returns decoded JSON string; code assumed `Map` type without checking | Added type guard: `data is String ? jsonDecode(data) : data` | `core/api/api_client.dart` |
-| BUG-S01 | MEDIUM | Catalog shows blank after sync fails (no internet) | `catalog_provider.dart` propagated sync exception without falling back to local DB | Added `await loadFromDb()` in the sync catch block | `providers/catalog_provider.dart` |
-
----
-
-## Root Cause Summary
-
-**5 of 8 bugs (BUG-C01 through BUG-C05) had a single root cause:**
-Python's `base64.urlsafe_b64encode().rstrip(b"=")` strips 1–2 padding characters.
-Dart's `base64Url.decode()` requires correct padding. Without the fix, every XOR decode
-threw a `FormatException` that propagated silently up the call chain, making the entire
-catalog, auth, and subscription systems appear broken.
-
-Two characters (`==`) caused 5 critical bugs.
-
----
-
-## Non-Bugs (intentional behavior)
-
-| Item | Notes |
-|------|-------|
-| Frida tamper check (port 27042) | Correct security behavior — do not remove |
-| sqflite_sqlcipher pinned at 3.1.0+1 | Must stay pinned — SQLCipher Dart API changed |
-| No catalog on first cold start | Expected — sync takes a few seconds on first launch |
-
----
-
- — or use raw strings (`r'...'`).
+parts, never `\$` — or use raw strings (`r'...'`).
 
 ---
 
@@ -175,8 +80,7 @@ Two characters (`==`) caused 5 critical bugs.
 
 | ID | Title | Status | Notes |
 |----|-------|--------|-------|
-| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | OPEN | Episodes not in Oracle DB episodes table. Need upload to JazzDrive + sync. |
-
+| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB episodes table. Need upload to JazzDrive + sync. |
 
 ---
 
@@ -191,21 +95,9 @@ No new bugs found in app logs. App running cleanly (raddflix_radd via supervisor
 | IMP-P01 | IMPROVEMENT | Proxy pool had only 65 seeds with basic round-robin | Upgraded to 150+ seeds, weighted scoring, circuit breaker, 5-min fast recovery | `hub/proxy_pool.py` |
 | IMP-P02 | IMPROVEMENT | Dead proxy recovery only ran every 10 min | Added fast recovery thread: re-tests disabled proxies every 5 min | `hub/proxy_pool.py` |
 | IMP-P03 | IMPROVEMENT | If all proxies dead, upload would fail | CircuitBreaker: >80% dead → auto-fallback to direct connection | `hub/proxy_pool.py` |
-| IMP-U01 | IMPROVEMENT | Settings proxy panel was old inline code (basic table, no stats, no sort, 30s refresh) | Replaced with god-level `_proxy_pool_panel.html` include (stat cards, filter, sort, score, bulk import, export, per-proxy test, 10s refresh) | `hub/templates/settings.html` |
+| IMP-U01 | IMPROVEMENT | Settings proxy panel was old inline code | Replaced with `_proxy_pool_panel.html` include (stat cards, filter, sort, score, bulk import, export, per-proxy test, 10s refresh) | `hub/templates/settings.html` |
 | IMP-U02 | IMPROVEMENT | No bulk import for proxies | Added bulk import panel: paste 100+ proxy URLs, auto-detect format | `hub/templates/_proxy_pool_panel.html` |
-| IMP-A01 | IMPROVEMENT | Only 3 pool API endpoints (list, add, remove) | Added 5 new endpoints: stats, bulk-import, test-one, reset-dead, export | `hub/routes/settings.py` |
-
-### Log analysis (last 30 min as of 2026-06-05 13:47 UTC)
-- **No errors** in app logs
-- App shows clean startup banner (Radd Hub v3.0 on port 5000)
-- `raddflix_radd` uptime at log check: 22 min (was restarted cleanly ~13:24 UTC)
-- No proxy failures, upload errors, or exception traces observed
-
-### Open bugs (unchanged)
-
-| ID | Title | Status | Notes |
-|----|-------|--------|-------|
-| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB. Need JazzDrive upload + sync. |
+| IMP-A01 | IMPROVEMENT | Only 3 pool API endpoints | Added 5 new endpoints: stats, bulk-import, test-one, reset-dead, export | `hub/routes/settings.py` |
 
 ---
 
@@ -213,13 +105,8 @@ No new bugs found in app logs. App running cleanly (raddflix_radd via supervisor
 
 | ID | Severity | Title | Root Cause | Fix Applied | File |
 |----|---------|-------|-----------|-------------|------|
-| BUG-O01 | CRITICAL | OTP not received from upload page | `scanner.send_otp()` called `resolve_proxies()` once with no retry; `resolve_proxies(otp)` returned `None` when circuit open → direct connection → MED-1011 | Added proxy retry chain to `send_otp()` and `resend_otp()` (same pattern as `trigger_otp_flow`) | `hub/scanner.py` |
-| BUG-O02 | HIGH | OTP always fails when proxy pool circuit is open | `resolve_proxies(purpose='otp')` called `pool.get_best()` which returns `None` when circuit open — designed for SAPI, wrong for OTP (direct = MED-1011) | Added fallback to `get_proxy_chain(n=1)` when `get_best()` returns `None`, so OTP always gets a proxy | `hub/jazzdrive.py` |
-
-### Root Cause Summary
-Two independent bugs both cause OTP to silently use direct connection from Oracle's non-PK IP:
-1. Circuit breaker passthrough in `resolve_proxies(otp)` — designed for SAPI but affects OTP
-2. No retry chain in `scanner.send_otp()` — Settings OTP path had retry, upload page path did not
+| BUG-O01 | CRITICAL | OTP not received from upload page | `scanner.send_otp()` called `resolve_proxies()` once with no retry; circuit open → direct → MED-1011 | Added proxy retry chain to `send_otp()` and `resend_otp()` | `hub/scanner.py` |
+| BUG-O02 | HIGH | OTP always fails when proxy pool circuit is open | `resolve_proxies(purpose='otp')` returned `None` when circuit open | Added fallback to `get_proxy_chain(n=1)` | `hub/jazzdrive.py` |
 
 Commit: `696890f`
 
@@ -229,31 +116,55 @@ Commit: `696890f`
 
 | ID | Severity | Title | Root Cause | Fix Applied | File |
 |----|---------|-------|-----------|-------------|------|
-| BUG-V01 | CRITICAL | OTP verify always fails — "Connection aborted, RemoteDisconnected" | `verify_otp` used `resolve_proxies(purpose='sapi')` which returns `None` when pool circuit is open. Both standard flow AND mobile_direct fallback ran with zero proxy → direct Oracle IP → Jazz drops connection on verify.php | Changed to `purpose='otp'` + full retry chain with `mark_fail` (same pattern as send_otp/resend_otp). Both flows now retry up to 5 proxies before giving up. | `hub/scanner.py` |
-| BUG-V02 | HIGH | Cascading session death after failed OTP verify | When verify_otp fails, no new tokens are saved. Old refresh_token eventually hits `invalid_grant`. Access token expires too. Keepalive cannot recover → account stuck needing OTP re-login | Fixed by BUG-V01 (verify succeeds → tokens saved → keepalive has valid tokens to refresh) | `hub/scanner.py` |
+| BUG-V01 | CRITICAL | OTP verify always fails — "Connection aborted, RemoteDisconnected" | `verify_otp` used `resolve_proxies(purpose='sapi')` which returns `None` when circuit open → direct Oracle IP → Jazz drops connection | Changed to `purpose='otp'` + retry chain with `mark_fail` | `hub/scanner.py` |
+| BUG-V02 | HIGH | Cascading session death after failed OTP verify | verify_otp failure → no tokens saved → keepalive can't recover | Fixed by BUG-V01 | `hub/scanner.py` |
 
-### Root Cause Detail — BUG-V01
+Commit: `bd037a7`
 
-`verify_otp` is an OTP web-portal flow (hits `jazzdrive.com.pk/verify.php`).
-It must use `purpose='otp'` which has a circuit-open fallback to the least-dead proxy.
-It was incorrectly using `purpose='sapi'` which has NO circuit-open fallback — returns `None`
-when >80% of pool is dead. With `None` proxies, Jazz drops the connection immediately from
-Oracle's non-PK IP. The mobile_direct fallback received the same `None` proxies and also failed.
-
-**Pattern now unified across all OTP steps:**
-- `send_otp` → `resolve_proxies('otp')` + chain(4) + mark_fail ✅ (fixed 2nd session)
-- `resend_otp` → `resolve_proxies('otp')` + chain(4) + mark_fail ✅ (fixed 2nd session)
-- `verify_otp` → `resolve_proxies('otp')` + chain(4) + mark_fail + mobile_direct retries ✅ (fixed 3rd session)
-
-### Cascading Failure Chain (BUG-V02 observed in logs)
+### Cascading Failure Chain (BUG-V02)
 ```
 verify_otp fails (no proxy) → no tokens saved
 → old refresh_token expires → invalid_grant (HTTP 400)
 → old raw_accesstoken expires → 401 Unauthorized
 → keepalive heartbeat fails repeatedly
-→ account needs fresh OTP re-login
-→ verify_otp fails again (same bug) → loop
+→ account needs fresh OTP re-login → loop
 ```
-After BUG-V01 fix this loop is broken. Account 03286829827 needs one fresh OTP login to restore tokens.
 
-Commit: `bd037a7`
+---
+
+## Session 2026-06-06 — Admin Panel db/reset Fix + db.get_setting Fix
+
+| ID | Severity | Title | Root Cause | Fix Applied | File | Commit |
+|----|---------|-------|-----------|-------------|------|--------|
+| BUG-A01 | HIGH | Admin "Reset Tables" button shows success but nothing deleted | `db_reset()` used `db.conn()` shared wrapper; WAL-mode read locks from background threads silently blocked DELETE; inner `try/except: pass` swallowed all errors, always returned `ok:True` | Replaced with direct `sqlite3.connect()` + `BEGIN IMMEDIATE` (exclusive lock) + `PRAGMA wal_checkpoint(TRUNCATE)` after commit | `hub/routes/admin.py` | `f8affe1` |
+| BUG-A02 | HIGH | `/api/app/config` crashes with `AttributeError` every ~2 min | `mobile_api.py` called `db.get_setting()` which does not exist; correct function name is `db.setting()` | Changed both occurrences to `db.setting("api_base_url", "")` | `hub/routes/mobile_api.py` | (this session) |
+
+### Root Cause Details
+
+**BUG-A01:** SQLite WAL mode allows concurrent readers but requires an exclusive write lock
+for writes. Python's `sqlite3` via the shared `db.conn()` wrapper can silently fail to obtain
+`BEGIN IMMEDIATE` when background threads hold open read transactions. The fix uses a fresh
+direct connection which always succeeds in WAL mode.
+
+**BUG-A02:** `db.py` exposes `setting(k, default)` and `set_setting(k, v)` — there is no
+`get_setting()`. This caused an `AttributeError` on every call to `GET /api/app/config`,
+returning an HTTP 500 instead of the app config. Flutter app fell back to hardcoded defaults.
+The error appeared in logs every ~2 minutes (Flutter app polls this endpoint on cold start).
+
+### Also investigated this session (not bugs — findings)
+
+| Finding | Detail |
+|---------|--------|
+| Uploads use NO proxy/VPN | `JAZZDRIVE_PROXY_BYPASS=1` → all JazzDrive traffic goes direct from Oracle IP. WARP only routes 3 Jazz SAPI IPs for zero-rating; JazzDrive upload host is NOT in WARP tunnel. |
+| Auto-delete is configured correctly | `upload_auto_delete=true` in DB settings. Delete only triggers if `share_url OR remote_id` exists after upload. Files stuck because account session expired → uploads fail → no share_url → no delete. |
+| Leftover files in /data/media | `Pitt_Siyapa_2026.mp4` (682KB) and `Vncenz0.S01E02...mp4` (707KB) stuck since Jun 5. Empty folder `Off_Campus_S01/` also present. Root cause: account session expired, needs OTP re-login. |
+| Account 03286829827 session | EXPIRED — needs fresh OTP re-login via Upload page. All keepalive heartbeats failing. |
+
+---
+
+## Open Issues (requires user action, not code fixes)
+
+| ID | Title | Status | Notes |
+|----|-------|--------|-------|
+| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB. Need JazzDrive upload + sync. |
+| OPS-01 | Account 03286829827 session expired | ❌ OPEN | Needs OTP re-login via Upload page. Until fixed: uploads fail, keepalive fails, delta_push 401s. |

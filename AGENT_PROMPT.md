@@ -6,9 +6,10 @@ Secrets `ORACLE_SSH_KEY` and `GITHUB_TOKEN` are already in Replit Secrets.
 
 ## Step 1 — Set up SSH key (always first, every session)
 
-Write this to `/tmp/setup_ssh.js` using the Replit `write` tool, then run `node /tmp/setup_ssh.js`:
+Run this in the bash tool:
 
-```javascript
+```bash
+node -e "
 const raw = process.env.ORACLE_SSH_KEY || '';
 const m = raw.match(/(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)/s);
 if (!m) { console.error('ORACLE_SSH_KEY missing'); process.exit(1); }
@@ -16,6 +17,7 @@ require('fs').writeFileSync('/tmp/oracle_key',
   m[1].trim()+'\n'+m[2].trim().replace(/ /g,'\n')+'\n'+m[3].trim()+'\n',
   { mode: 0o600 });
 console.log('SSH key ready');
+"
 ```
 
 Verify Oracle is alive:
@@ -79,13 +81,13 @@ async function pushFile(filePath, localPath, message) {
 
 // Replace with your actual file path and local path:
 pushFile(
-  'raddflix_flutter/lib/screens/player_screen.dart',
-  '/home/runner/workspace/raddflix-app/raddflix_flutter/lib/screens/player_screen.dart',
+  'radd-hub/hub/routes/admin.py',
+  '/home/runner/workspace/radd-hub/hub/routes/admin.py',
   'fix: description of change'
 ).catch(console.error);
 ```
 
-**For 3+ files in one atomic commit** (avoids SHA race conditions) — add `pushTree` to the same script:
+**For 3+ files in one atomic commit** (avoids SHA race conditions):
 
 ```javascript
 async function pushTree(files, commitMsg) {
@@ -107,28 +109,21 @@ async function pushTree(files, commitMsg) {
   await api('PATCH', 'git/refs/heads/main', { sha: nc.sha, force: false });
   console.log('✅ Committed:', nc.sha.slice(0,7), '—', commitMsg);
 }
-
-// Example usage:
-pushTree([
-  { path: 'raddflix_flutter/lib/screens/player_screen.dart',
-    local: '/home/runner/workspace/raddflix-app/raddflix_flutter/lib/screens/player_screen.dart' },
-  { path: 'raddflix_flutter/lib/core/constants.dart',
-    local: '/home/runner/workspace/raddflix-app/raddflix_flutter/lib/core/constants.dart' }
-], 'feat: your commit message here').catch(console.error);
 ```
 
 ---
 
-## Step 4 — After editing, pull to Oracle
+## Step 4 — After editing Oracle Python files, restart Flask
 
 ```bash
 ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
-  "cd /opt/jazzmax && git pull 2>&1 | tail -4 && git log --oneline -2"
+  "sudo supervisorctl restart raddflix_radd && sleep 3 && curl -s http://localhost:5000/healthz"
 ```
 
-Flask restart only needed if you changed Python files:
+Oracle pull from GitHub (if needed):
 ```bash
-ssh -i /tmp/oracle_key ubuntu@92.4.95.252 "supervisorctl restart raddflix_radd"
+ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
+  "cd /opt/jazzmax/radd-hub && git pull 2>&1 | tail -4"
 ```
 
 ---
@@ -154,22 +149,6 @@ curl -s -H "Authorization: token $GITHUB_TOKEN" \
 
 Build takes ~8 min first run, ~5 min with cache. APK artifact (~56 MB) appears under run → Artifacts on GitHub Actions.
 
-If build fails, get error logs:
-```bash
-# Get job ID then logs
-RUN_ID=12345678
-curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/raddclub/raddflix-app/actions/runs/${RUN_ID}/jobs" | \
-  node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
-    const job=JSON.parse(d).jobs[0]; console.log('JobID:',job.id,'|',job.conclusion);
-  });"
-
-JOB_ID=79530614883
-curl -sL -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/raddclub/raddflix-app/actions/jobs/${JOB_ID}/logs" | \
-  grep -i "error\|Error\|FAILED" | grep -v "AGP\|will fail\|error_prone" | tail -20
-```
-
 ---
 
 ## Non-Negotiable Rules
@@ -184,7 +163,9 @@ curl -sL -H "Authorization: token $GITHUB_TOKEN" \
 7. **No Oracle destructive changes** without explicit user approval
 8. **Append session summary** to `agent-hub/history/TASK_LOG.md` when done
 9. **Always fetch fresh SHA** right before `pushFile` (or use `pushTree` for multi-file)
-10. Debug code must be gated behind `kDebugMode` — stripped from release APK
+10. **Debug code** must be gated behind `kDebugMode` — stripped from release APK
+11. **Use `db.setting(k)` not `db.get_setting(k)`** — `get_setting` does not exist in `db.py`
+12. **For bulk DELETEs** use direct `sqlite3.connect()` + `BEGIN IMMEDIATE`, NOT `db.conn()` — WAL mode background threads silently block shared-wrapper writes
 
 Full rules: `https://raw.githubusercontent.com/raddclub/raddflix-app/main/.agents/PROJECT_RULES.md`
 
@@ -203,26 +184,58 @@ Flutter:  raddflix_flutter/lib/
 Oracle:   /opt/jazzmax/radd-hub/hub/
   request_encoding.py                  XOR WSGI hook
   routes/catalog_api.py                /api/catalog/*
-  routes/mobile_api.py                 /api/auth/*, usage, history
+  routes/mobile_api.py                 /api/auth/*, usage, history, /api/app/config
+  routes/admin.py                      Admin panel API (db/reset, db/full-delete, etc.)
+
+Oracle DB: /opt/jazzmax/radd-hub/data/radd_hub.db   ← THE real DB (not /opt/jazzmax/radd_hub.db)
+Oracle logs: /opt/jazzmax/radd-hub/data/logs/raddhub.log
 
 Coordination (GitHub main):
   AGENT_HANDOFF.md                     Full architecture — read for deep dives
   .agents/tasks/BUG_TRACKER.md         All known bugs + fix status
   agent-hub/history/TASK_LOG.md        Session history (append when done)
+  AGENT_PROMPT.md                      This file — update at end of session
 ```
 
 ---
 
-## End of session
+## Known Open Issues (as of 2026-06-06)
 
-Append this to `agent-hub/history/TASK_LOG.md` via `pushFile`:
+| Issue | Detail | Action needed |
+|-------|--------|---------------|
+| Account 03286829827 session expired | Keepalive failing, uploads stuck, delta_push 401 every few minutes | OTP re-login via Upload page |
+| 2 files stuck in data/media/ | `Pitt_Siyapa_2026.mp4` and `Vncenz0 S01E02` — will auto-upload+delete once session restored | Wait for OTP re-login |
+| DATA-01 | All Of Us Are Dead missing E03/E04/E05/E09 | Upload missing episodes to JazzDrive + sync |
+| Catalog at 0 titles | User cleared catalog via admin Reset Tables on 2026-06-06 | Re-scan/re-import content |
 
+---
+
+## End of session checklist
+
+1. Fix all errors found
+2. Append session summary to `agent-hub/history/TASK_LOG.md` via `pushFile`
+3. Update `BUG_TRACKER.md` with any new bugs found or fixed
+4. Update `AGENT_HANDOFF.md` current state section
+5. Update this file (`AGENT_PROMPT.md`) with any new rules or findings
+
+Session log template:
 ```markdown
-## Session YYYY-MM-DD
-- What was done
-- Files changed + commit SHAs
-- APK build result (run# + success/failure)
-- State at end of session
+## Session YYYY-MM-DD (Agent N) — brief title
+
+### What was done
+- ...
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+
+### APK build
+- ...
+
+### State at end of session
+- Oracle Flask: RUNNING/STOPPED
+- Catalog: N titles, N files
+- Open issues: ...
 ```
 
 ---

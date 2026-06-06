@@ -1325,3 +1325,44 @@ No Flutter changes — no build triggered.
 - Catalog DB: 0 titles, 0 files (cleared)
 - db/reset endpoint: fixed and verified working
 - GitHub: in sync (f8affe1)
+
+## Session 2026-06-06 (Agent 4 cont.) — Error scan + db.get_setting fix + all MD docs updated
+
+### What was done
+- Scanned all server logs for real errors
+- Found and fixed BUG-A02: `mobile_api.py` called `db.get_setting()` which does not exist.
+  Correct function is `db.setting()`. Caused HTTP 500 on every `/api/app/config` call (~every 2 min).
+  Flutter app silently fell back to hardcoded defaults. Fixed with sed on Oracle, Flask restarted.
+- Confirmed BUG-A01 (db/reset WAL fix from earlier) still holding — catalog at 0 titles
+- Investigated proxy/WARP architecture: confirmed uploads go DIRECT (PROXY_BYPASS=1),
+  WARP only routes 3 Jazz SAPI IPs, not JazzDrive upload host
+- Investigated auto-delete: code is correct, files stuck only because account session expired
+- Updated AGENT_HANDOFF.md with current state, DB path warning, db.py API docs
+- Updated BUG_TRACKER.md with BUG-A01, BUG-A02, proxy/delete findings
+- Updated AGENT_PROMPT.md with new rules (#11 db.setting, #12 WAL mode), open issues table,
+  correct log path, end-of-session checklist
+
+### Known errors NOT fixed (require user action)
+- Account 03286829827 session expired — keepalive failing, delta_push 401 every few min.
+  Fix: OTP re-login via Upload page on the admin panel.
+- delta_push 401: consequence of expired session, not a code bug.
+
+### Files changed
+| File | Change | Location | Commit |
+|------|--------|----------|--------|
+| radd-hub/hub/routes/mobile_api.py | Fixed `db.get_setting()` → `db.setting()` (2 occurrences in app_config) | Oracle + GitHub | this session |
+| AGENT_HANDOFF.md | Updated current state, added DB path warning, db.py API section, upload/auto-delete section | GitHub | this session |
+| .agents/tasks/BUG_TRACKER.md | Added BUG-A01 (db/reset WAL fix), BUG-A02 (get_setting), proxy/delete findings | GitHub | this session |
+| AGENT_PROMPT.md | Added rules #11/#12, open issues table, correct file paths, session checklist | GitHub | this session |
+
+### APK build
+No Flutter changes — no build triggered.
+
+### State at end of session
+- Oracle Flask: RUNNING, healthz OK
+- `/api/app/config`: now returns proper JSON (was 500 before fix)
+- `/admin/api/db/reset`: fixed (WAL-safe), tested and verified
+- Catalog: 0 titles, 0 files (user cleared)
+- Account 03286829827: EXPIRED — needs OTP re-login
+- Uploads: 2 files stuck in data/media (will auto-process after OTP re-login)
+- GitHub: all docs updated

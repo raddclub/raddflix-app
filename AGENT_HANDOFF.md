@@ -1,6 +1,6 @@
 # AGENT_HANDOFF.md
 > **Read this file first — every session, every agent, no exceptions.**
-> Last updated: 2026-06-05
+> Last updated: 2026-06-06
 
 ---
 
@@ -39,7 +39,7 @@ console.log('SSH key written to /tmp/oracle_key');
 # Verify Oracle is alive (use localhost via SSH — port 5000 NOT publicly exposed)
 ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
   "curl -s http://localhost:5000/healthz"
-# Expected: {"status":"ok","version":"3.0.0",...}
+# Expected: {"ok":true,"version":"3.0.0"}
 
 # Read current state
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/AGENT_HANDOFF.md"
@@ -115,27 +115,49 @@ ubuntu@92.4.95.252
     db.py                    — SQLite schema + migrations
     routes/
       catalog_api.py         — GET /api/catalog/version|titles|episodes
-      mobile_api.py          — POST /api/auth/*, GET /api/usage/*, history
+      mobile_api.py          — POST /api/auth/*, GET /api/usage/*, history, /api/app/config
+      admin.py               — Admin panel API (db/reset, db/full-delete, users, etc.)
       subscriptions.py       — GET /api/subscription/plans|status
       library.py             — Admin panel, trending, WhatsApp blast
   run.py                     — Entry point, binds to localhost:5000
+  data/
+    radd_hub.db              — THE real database (DATA_DIR/radd_hub.db)
+    media/                   — Staging area for files waiting to upload to JazzDrive
+    backups/                 — Rolling SQLite backups (every 5 min via self_heal)
+    logs/raddhub.log         — Main application log
 
 Supervisor: /etc/supervisor/conf.d/raddflix.conf
 Process name: raddflix_radd
-Log: /var/log/supervisor/raddflix_radd.log
+Restart: sudo supervisorctl restart raddflix_radd
 ```
+
+**⚠️ DB path warning:** There are many `.db` files scattered around `/opt/jazzmax/`.
+The REAL database is always at `config.DB_PATH` = `/opt/jazzmax/radd-hub/data/radd_hub.db`.
+Do NOT touch `/opt/jazzmax/radd_hub.db` or any hub-level `.db` files — those are stale copies.
 
 **Server management commands (run via SSH):**
 ```bash
 # Check status
-ssh -i /tmp/oracle_key ubuntu@92.4.95.252 "supervisorctl status"
+ssh -i /tmp/oracle_key ubuntu@92.4.95.252 "sudo supervisorctl status"
 
-# View last 100 log lines
-ssh -i /tmp/oracle_key ubuntu@92.4.95.252 "tail -100 /var/log/supervisor/raddflix_radd.log"
+# View logs
+ssh -i /tmp/oracle_key ubuntu@92.4.95.252 "tail -100 /opt/jazzmax/radd-hub/data/logs/raddhub.log"
 
-# Deploy server changes (safe — stash, pull, pop, restart)
-ssh -i /tmp/oracle_key ubuntu@92.4.95.252 \
-  "cd /opt/jazzmax && git stash && git pull origin main && git stash pop && supervisorctl restart raddflix_radd"
+# Restart Flask
+ssh -i /tmp/oracle_key ubuntu@92.4.95.252 "sudo supervisorctl restart raddflix_radd"
+```
+
+---
+
+## db.py API — Important Function Names
+
+```python
+db.setting(k, default=None)    # READ a setting — NOT db.get_setting() (does not exist)
+db.set_setting(k, v)           # WRITE a setting
+db.conn()                      # Context manager — use for normal queries
+                               # WARNING: do NOT use db.conn() for bulk DELETEs in WAL mode
+                               # (background threads can silently block the write)
+                               # Use direct sqlite3.connect() + BEGIN IMMEDIATE instead
 ```
 
 ---
@@ -210,7 +232,7 @@ async function putFile(path, content, message, sha) {
   const body = JSON.stringify({
     message,
     content: Buffer.from(content, 'utf8').toString('base64'),
-    ...(sha ? { sha } : {}),   // omit sha entirely for new files
+    ...(sha ? { sha } : {}),
   });
   return new Promise((resolve, reject) => {
     const opts = {
@@ -234,11 +256,9 @@ async function putFile(path, content, message, sha) {
 }
 ```
 
-**Important:** Always fetch fresh SHA before each push. A stale SHA (from a previous
-session or commit) causes a 422 "is at X but expected Y" error.
+**Important:** Always fetch fresh SHA before each push. A stale SHA causes a 422 error.
 
-**Do NOT use heredoc (`cat > file << 'END'`) to write scripts** — the bash tool scans
-heredoc content for git commands and may block it. Instead use the Replit `write` tool
+**Do NOT use heredoc (`cat > file << 'END'`) to write scripts** — use the Replit `write` tool
 to create script files, then run with `node /path/to/script.js`.
 
 ---
@@ -255,6 +275,7 @@ to create script files, then run with `node /path/to/script.js`.
 8. Always append to `agent-hub/history/TASK_LOG.md` after your session
 9. Always fetch fresh SHA before pushing any file
 10. Test Oracle via SSH tunnel, not direct IP
+11. **Use `db.setting(k)` not `db.get_setting(k)`** — `get_setting` does not exist in db.py
 
 ---
 
@@ -268,60 +289,68 @@ to create script files, then run with `node /path/to/script.js`.
 | `resolve_proxies(purpose='sapi')` | Uses `proxy_pool.py` pool | All JazzDrive SAPI/upload calls |
 | `resolve_proxies(purpose='otp')` | Uses old single `JAZZDRIVE_PROXIES` setting | OTP/auth/refresh only |
 
-### Pool guarantees
-- **150+ Pakistani proxy seeds** across 6 ASNs (PTCL AS9541, StormFiber AS131275, Nayatel AS38193, Wateen AS45595, WorldCall AS17762, Micronet AS24499)
-- **Weighted scoring rotation**: score = (reliability × 80) + (speed × 20) — best proxies serve first
-- **CircuitBreaker**: if >80% of pool is dead, auto-fallback to direct connection — upload/login NEVER breaks
-- **Fast recovery thread**: re-tests disabled proxies every 5 min (in addition to 10-min health check)
-- **`get_proxy_chain(n=3)`**: returns ordered retry chain for upload loop resilience
-- **8-source auto-discovery**: geonode (3 pages), proxyscrape (2), openproxy.space, pubproxy.com, proxy-list.download, manual seed list
+### Current proxy state (as of 2026-06-06)
+- `JAZZDRIVE_PROXY_BYPASS=1` — **all JazzDrive traffic goes DIRECT** (no proxy pool used)
+- `JAZZDRIVE_PROXY_ENABLED=0` — manual proxy disabled
+- WARP (`wg0`) is UP with split tunnel routing only 3 Jazz SAPI IPs (NOT JazzDrive upload host)
+- Uploads go direct from Oracle IP `92.4.95.252`
 
 ### Pool management API (Settings page)
 | Endpoint | Method | Purpose |
 |---------|--------|---------|
 | `/settings/api/pool/list` | GET | Full proxy list with scores |
-| `/settings/api/pool/stats` | GET | Stats dashboard (total/alive/dead/avg_ping/circuit) |
-| `/settings/api/pool/add` | POST | Add single proxy |
-| `/settings/api/pool/remove/<id>` | DELETE | Remove proxy |
-| `/settings/api/pool/enable/<id>` | POST | Enable/disable proxy |
-| `/settings/api/pool/healthcheck` | POST | Run health check now |
-| `/settings/api/pool/discover` | POST | Run 8-source discovery now |
+| `/settings/api/pool/stats` | GET | Stats dashboard |
 | `/settings/api/pool/bulk-import` | POST | Add 100+ proxies at once |
 | `/settings/api/pool/test/<id>` | POST | Per-proxy live SAPI test |
 | `/settings/api/pool/reset-dead` | POST | Re-enable all disabled proxies |
 | `/settings/api/pool/export` | GET | Download proxy list as .txt |
 
-### UI Panel (`settings.html` → `_proxy_pool_panel.html`)
-- Stat cards: Total / Alive / Dead / Avg Ping / Circuit Status
-- Filter bar: All / Alive / Dead / SOCKS5 / HTTP
-- Sortable table columns: URL, Status, Score, Ping, OK, Fails
-- Score bars (color-coded), per-proxy ⚡ Test button, bulk import panel, export, reset-dead
-- Auto-refresh every 10s
+---
+
+## Upload / Auto-Delete System
+
+- Upload watcher thread runs every 30s, scans `config.MEDIA_DIR` (`data/media/`)
+- Files placed in `data/media/` are auto-queued for JazzDrive upload
+- `upload_auto_delete=true` — local file deleted ONLY after successful upload with `share_url OR remote_id`
+- If account session is expired → uploads fail → no share_url → files NEVER auto-deleted
+- **Current state:** 2 test files stuck in `data/media/` (Pitt_Siyapa_2026.mp4, Vncenz0 S01E02) — waiting on OTP re-login for account 03286829827
 
 ---
 
-## Current State (2026-06-06, updated)
+## Current State (2026-06-06)
 
-All code bugs fixed. Infrastructure overhauled. One data gap open (DATA-01 in BUG_TRACKER.md).
+All code bugs fixed. One open ops issue (expired JazzDrive session).
 
-### Recently completed (2026-06-06)
-- **Cloudflare WARP split tunnel**: Oracle now routes Jazz IPs through WARP (PK IP).
-  JazzDrive geo-blocking eliminated. Upload/app traffic unaffected (split tunnel).
-- **Jazz IP Watchdog v4**: Accumulate mode — never drops an IP, handles Jazz DNS rotation.
-  Runs every 10 min via systemd timer at `/opt/warp-watchdog/jazz_ip_watchdog.py`.
-- **Proxy pool cleanup**: Deleted 33,068 dead proxies. Disabled hc/recovery/disc threads
-  when `JAZZDRIVE_PROXY_BYPASS=1`. RAM: 6,148 MB → 61 MB | CPU: 60.7% → 6.9%.
-- **Keepalive fix**: Interval now DB-driven (`keepalive_interval_min` = 360 min / 6 hours).
-  Was hardcoded 15 min; DB setting was stored but never read. Fixed at startup and per-cycle.
-- **Account 03286829827**: OTP login restored. Tokens valid 30 days (refresh_token active).
+### Completed this session (2026-06-06, Agent 4)
+- **BUG-A01 FIXED**: Admin "Reset Tables" was silently failing due to WAL mode lock.
+  Replaced `db.conn()` with direct `sqlite3.connect()` + `BEGIN IMMEDIATE` + `wal_checkpoint(TRUNCATE)`.
+  Commit: `f8affe1`
+- **BUG-A02 FIXED**: `mobile_api.py` called `db.get_setting()` which does not exist.
+  Fixed to `db.setting()`. This was crashing `/api/app/config` every ~2 min (HTTP 500).
+  Flutter app fell back to hardcoded defaults silently.
+- **Catalog cleared**: User ran Reset Tables. DB now at 0 titles, 0 files.
+- **Proxy/WARP audit**: Confirmed uploads go DIRECT (PROXY_BYPASS=1). WARP only routes Jazz SAPI IPs.
+- **Auto-delete audit**: Working correctly in code; stuck files due to expired JazzDrive session.
+
+### Previously completed (2026-06-06)
+- **IMDbAPI URL fix** (commit `7a7cf2f`): Fixed dead v1 API URL in `metadata_lookup.py` and `poster_proxy.py`
+- **Admin reimport endpoint** (commit `7da7345`): `POST /api/admin/reimport`, `GET /api/admin/reimport/<job_id>`
+- **Cloudflare WARP split tunnel**: Oracle routes Jazz IPs through WARP for zero-rating
+- **Jazz IP Watchdog v4**: Accumulate mode, never drops IPs
+- **Proxy pool cleanup**: RAM 6,148MB → 61MB, CPU 60.7% → 6.9%
+- **Keepalive fix**: Interval DB-driven (6 hours)
 
 ### Previously completed (2026-06-05)
-- **OTP Proxy Hardening** (commit 1887b63): 6 bugs fixed across OTP proxy flow
-- **OTP retry chain + dual-domain HC** (commit aa7e280)
-- **Proxy Pool God-Level Upgrade**: 150+ seeds, weighted rotation, circuit breaker, 8-source discovery
+- **OTP Proxy Hardening** (commit `1887b63`): 6 bugs fixed across OTP proxy flow
+- **Proxy Pool God-Level Upgrade**: 150+ seeds, weighted rotation, circuit breaker
 - **BUG-P02/P03**: Black flash + planExpired redirect for local files
 - **BUG-J01 (CRITICAL)**: JazzDrive Pass3 episode match broken by Dart backslash-dollar
 - **Episode gap placeholders + Coming Soon banner + episodeCount field**
+
+### Open (requires user action)
+- **Account 03286829827 session EXPIRED** — needs OTP re-login via Upload page.
+  Until fixed: uploads fail, keepalive fails, delta_push 401 errors every few minutes.
+- **DATA-01**: All Of Us Are Dead missing E03/E04/E05/E09 — need JazzDrive upload + sync.
 
 ### JazzDrive — critical notes
 
@@ -335,29 +364,7 @@ All code bugs fixed. Infrastructure overhauled. One data gap open (DATA-01 in BU
 **Test suite**: `raddflix_flutter/test_suite/jazzdrive_logic_test.js` — 27 tests
   - Run anywhere: `node jazzdrive_logic_test.js`
   - Full network test on Jazz SIM: `node jazzdrive_logic_test.js --live <shareUrl> [target]`
-  ---
 
-  ## Session 2 — 2026-06-06 (Diagnostics + Upload Fixes)
-
-  ### What was investigated
-  User showed upload history with 553 KB–1.1 MB file sizes for full movies/episodes.
-
-  ### Findings
-  1. **Files are ~10-second clips** — not a code bug. Source delivers samples, not full content.
-  2. **delta_push 401**: `jazzdrive.py` had 4 `_time_time()` calls (undefined) → crash in `refresh_session()`.
-     Fixed with sed. After fix, refresh got fresh `validation_key` + `JSESSIONID` for account 15.
-  3. **Stale folder cache**: `jd_delta_folder_id` in settings pointed to deleted JazzDrive folder → MED-1030.
-     Cleared, folder recreated automatically.
-  4. **3 stuck files**: Pitt Siyapa, Luka Chuppi, Vncenz0 S01E02 had no remote_id. Re-uploaded directly.
-
-  ### State after session
-  - All 10 files: `is_ready=1`, `remote_id` set, `share_url` set
-  - delta_push: working, folder_id=1763725
-  - Account 15 session: vk+jid fresh, expires ~2026-07-06
-
-  
-
-**MED-1011 error**: Now solved by WARP tunnel on Oracle. Jazz SIM still required for
-  Flutter app testing (zero-rating only on Jazz network).
+**MED-1011 error**: Solved by WARP tunnel on Oracle. Jazz SIM still required for Flutter app testing (zero-rating only on Jazz network).
 
 See `.agents/tasks/BUG_TRACKER.md` for full bug table.

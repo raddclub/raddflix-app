@@ -1160,7 +1160,7 @@ def app_config():
 
         return jsonify({
             "ok":               True,
-            "api_base_url":     db.get_setting("api_base_url") or "http://92.4.95.252",
+            "api_base_url":     db.setting("api_base_url", "") or "http://92.4.95.252",
             "jd_delta_url":     jd_delta_url,
             "support_whatsapp": support_whatsapp,
             "current_version":  current_version,
@@ -1175,7 +1175,7 @@ def app_config():
         log.warning("app_config error: %s", _e)
         return jsonify({
             "ok":               True,
-            "api_base_url":     db.get_setting("api_base_url") or "http://92.4.95.252",
+            "api_base_url":     db.setting("api_base_url", "") or "http://92.4.95.252",
             "jd_delta_url":     "",
             "support_whatsapp": "923257719165",
             "current_version":  "1.0.0",
