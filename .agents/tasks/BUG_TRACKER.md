@@ -162,9 +162,54 @@ The error appeared in logs every ~2 minutes (Flutter app polls this endpoint on 
 
 ---
 
+
+## Session 2026-06-07 — BUG-A03: JazzDrive Geo-Restriction Root Cause
+
+### Root Cause Summary
+Session appeared "expired" (SAPI 401 on every restart) but raw_accesstoken was valid.
+Our wg0 VPN exits through Cloudflare (162.159.192.1) — NOT a Pakistani IP.
+JazzDrive /sapi/login/oauth is geo-restricted: Apache web server returns 401 HTML from
+non-PK IPs before the request even reaches the SAPI application layer.
+Normal SAPI calls (with JSESSIONID cookie) are NOT geo-restricted — these work fine direct.
+
+### Bugs Fixed
+
+| ID | Severity | Title | Root Cause | Fix | Commit |
+|----|---------|-------|-----------|-----|--------|
+| BUG-A03a | HIGH | _ar_chain in android_refresh_session tried dead proxy pool with PROXY_BYPASS=1 | Chain builder always queried pool (dead) even with bypass=1, wasting 4×25s timeouts before failing OAuth2 step | Added is_proxy_bypass() guard at top of _ar_chain builder | 54f2434 |
+| BUG-A03b | CRITICAL | SAPI login blocked by geo-restriction (Cloudflare exit = non-PK IP) | wg0 exits via Cloudflare → Apache 401 HTML on /sapi/login/oauth | _s2_chain fetches proxy via proxy_pool.pool.get_best() directly, bypassing resolve_proxies() entirely — PK proxy used for login regardless of PROXY_BYPASS flag | 54f2434 |
+| BUG-A03c | MEDIUM | Over-broad bypass fix routed ALL SAPI calls through PK proxy | Added purpose!='sapi' exception to resolve_proxies() bypass guard → all SAPI calls (keepalive, uploads) went through PK proxy, timing out | Reverted resolve_proxies() to original; scoped to _s2_chain direct pool access only | 54f2434 |
+
+### SAPI Call Architecture (CRITICAL — memorise this)
+```
+CALL TYPE                  | EXIT IP              | GEO-RESTRICTED?
+---------------------------|----------------------|----------------
+Keepalive (JSESSIONID)     | wg0 → Cloudflare     | NO  ✅
+Upload (JSESSIONID)        | wg0 → Cloudflare     | NO  ✅
+OAuth2 /oauth2/refresh     | wg0 → Cloudflare     | NO  ✅
+SAPI login /sapi/login     | Pakistani SOCKS proxy| YES ⚠️
+```
+PROXY_BYPASS=1 skips proxies in resolve_proxies() for all callers.
+_s2_chain bypasses resolve_proxies() and reads pool directly — PK proxy always used for login.
+
+### Verified Pakistani Proxies Added to sapi_proxies Table
+| Proxy | Result |
+|-------|--------|
+| socks5://182.184.119.180:1080 | ✅ HTTP 200 from SAPI — primary |
+| http://221.120.218.66:8080    | ⚠️ partial — fail_count=3 |
+
+### Session State After Fix
+```
+✓ Heartbeat OK for 03286829827 (session alive, expiry rolled +30d)
+startup_refresh: session restored — Android OAuth2 session refreshed (no OTP required)
+```
+OTP re-login no longer needed on Flask restart. Session auto-recovers via Android OAuth2 + PK proxy.
+
+---
+
 ## Open Issues (requires user action, not code fixes)
 
 | ID | Title | Status | Notes |
 |----|-------|--------|-------|
 | DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB. Need JazzDrive upload + sync. |
-| OPS-01 | Account 03286829827 session expired | ❌ OPEN | Needs OTP re-login via Upload page. Until fixed: uploads fail, keepalive fails, delta_push 401s. |
+| OPS-01 | Account 03286829827 session | ✅ RESOLVED 2026-06-07 | BUG-A03 fixed. Session auto-recovers via Android OAuth2 + PK proxy. No OTP needed. |
