@@ -1035,3 +1035,142 @@ On very first run, watchdog immediately caught a live IP change:
 - Proxy pool remains in DB but is fully bypassed (JAZZDRIVE_PROXY_BYPASS=1)
 - Jazz IP changes handled automatically by watchdog every 10 min
 - Account 03286829827 ready for fresh OTP login
+
+## Session 2026-06-06 — WARP Tunnel, Proxy Cleanup, Keepalive Fix
+
+**Agent:** Replit Agent (main branch)
+
+### Summary
+Fixed JazzDrive geo-blocking permanently using Cloudflare WARP as a split-tunnel VPN.
+Eliminated massive resource waste from an unused 33,000-proxy pool. Fixed keepalive
+interval so it's DB-configurable and no longer hardcoded.
+
+---
+
+### 1. Cloudflare WARP Split Tunnel (WireGuard / wgcf)
+
+**Problem:** Oracle server IP is not a Pakistani IP. JazzDrive geo-blocks non-PK IPs
+with MED-1011. Previous fix used a Pakistani proxy pool (33,000 proxies) which was
+unreliable and consumed 6 GB RAM + 60% CPU doing health checks on dead proxies.
+
+**Solution:** Cloudflare WARP via WireGuard as a **split tunnel** — only the 3 known
+Jazz IPs route through WARP (Cloudflare edge in Singapore appears as Pakistani to Jazz).
+All other traffic (uploads, app, admin panel) goes direct via Oracle's internet link.
+
+**WireGuard config:** `/etc/wireguard/wg0.conf`
+- Peer: `bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=` (Cloudflare WARP)
+- Endpoint: `162.159.192.1:2408`
+- AllowedIPs: `54.179.95.148/32, 54.254.59.168/32, 175.41.133.62/32`
+- Enabled on boot via `wg-quick@wg0` systemd service
+
+**Key config in DB:** `JAZZDRIVE_PROXY_BYPASS=1` — Flask skips all proxy logic entirely
+and goes direct (which now means through WARP at OS level for Jazz IPs).
+
+**Verified:** Jazz API responds HTTP 400 in 0.45s (400 = correct auth rejection, not geo-block).
+WireGuard boots in 152ms; Flask takes 5+ seconds to start — no race condition on reboot.
+
+---
+
+### 2. Jazz IP Watchdog v4 (Accumulate Mode)
+
+**Problem:** Jazz load-balances `cloud.jazzdrive.com.pk` across multiple IPs. Previous
+watchdog versions replaced old IPs with new DNS results, causing `[Errno 113] No route
+to host` whenever Jazz's DNS rotated to an IP that was no longer in WireGuard AllowedIPs.
+
+**Solution:** Watchdog v4 at `/opt/warp-watchdog/jazz_ip_watchdog.py` uses accumulate mode:
+- Computes union of: current DNS result + current WireGuard IPs + historical known IPs
+- **Never removes** any IP that was ever seen
+- Persists known IPs to `/opt/warp-watchdog/known_jazz_ips.json`
+- Runs every 10 min via `jazz-ip-watchdog.timer` (systemd)
+
+Current known IPs: `54.179.95.148`, `54.254.59.168`, `175.41.133.62`
+
+---
+
+### 3. Proxy Pool Cleanup — 6 GB RAM → 64 MB
+
+**Problem:** The proxy pool had accumulated 33,068 proxies in `sapi_proxies` table
+(25,274 enabled). Three background threads were running non-stop:
+- `proxy-hc`: health checker, 40 concurrent threads, every 10 min
+- `proxy-recovery`: re-tests dead proxies every 5 min
+- `proxy-disc`: fetches 25,000+ proxies from GitHub every 15 min
+
+Result: Flask process using 60.7% CPU and 6,148 MB RAM — all for proxies that are
+never used (`JAZZDRIVE_PROXY_BYPASS=1`).
+
+**Fix 1 — Delete all proxies:**
+```sql
+DELETE FROM sapi_proxies;  -- removed 33,068 rows
+```
+
+**Fix 2 — Disable background threads when BYPASS=1 (`proxy_pool.py`):**
+Patched `ProxyPool.start()` to check `JAZZDRIVE_PROXY_BYPASS` DB setting. If bypass
+is active, skips starting hc/recovery/disc threads entirely. Built-in 151 seed proxies
+still load (no network activity, just data in memory).
+
+**Fix 3 — Stop proxy discovery re-filling DB:**
+Discovery loop (`_disc_loop`) was fetching from GitHub every 15 min and re-populating
+the DB we just cleared. Now suppressed when `PROXY_BYPASS=1`.
+
+**Result:** CPU 60.7% → 6.9% | RAM 6,148 MB → 61 MB
+
+---
+
+### 4. Keepalive Interval Fix — 15 min → 6 hours, DB-driven
+
+**Problem:** Keepalive worker was hardcoded to run every 15 min (96 heartbeats/day),
+despite `keepalive_interval_min` existing in the settings DB. The DB setting was stored
+but never actually read — `app.py` launched the loop without passing the interval.
+
+**Why 15 min was excessive:** Account has a `refresh_token` valid for ~90 days. If the
+JSESSIONID expires (1-hour idle timeout), `sapi_request` auto-calls `refresh_session()`
+silently using the refresh_token. No OTP needed. 96 heartbeat uploads/day to JazzDrive
+was purely wasted API traffic.
+
+**Fix:** Two patches to `keepalive.py`:
+1. At **startup**: read `keepalive_interval_min` from DB before first cycle
+2. At **end of each cycle**: re-read from DB so changes take effect without Flask restart
+
+**DB updated:** `keepalive_interval_min` = `360` (6 hours = 4 heartbeats/day)
+
+**Startup log confirms:**
+```
+ProxyPool: PROXY_BYPASS=1 — skipping hc/recovery/disc threads (proxies unused)
+JazzDrive keep-alive worker started (interval: 360 min)
+```
+
+---
+
+### 5. Account 03286829827 — OTP Login Restored
+
+Account had dead tokens from earlier session collapse. After WARP was confirmed working,
+fresh OTP login completed successfully at 18:09:57 UTC:
+```
+OTP verified via Android OAuth2 (has_refresh_token=True, has_raw_at=True), session stored
+```
+SAPI 401 errors stopped immediately. Token expires 2026-07-06 (30 days, refresh_token).
+
+---
+
+### Files changed (Oracle server only — no Flutter/GitHub code changes)
+
+| File | Change |
+|------|--------|
+| `/etc/wireguard/wg0.conf` | Split tunnel config — 3 Jazz IPs via WARP |
+| `/opt/warp-watchdog/jazz_ip_watchdog.py` | v4: accumulate mode, never removes IPs |
+| `/opt/jazzmax/radd-hub/hub/proxy_pool.py` | Skip hc/recovery/disc threads when BYPASS=1 |
+| `/opt/jazzmax/radd-hub/hub/keepalive.py` | Read interval from DB at startup + each cycle |
+| `radd_hub.db settings` | `keepalive_interval_min` = 360 |
+
+### State at end of session
+
+| Component | Status |
+|-----------|--------|
+| WARP tunnel (wg0) | ✅ Up, split tunnel, only Jazz IPs |
+| Jazz API reachable | ✅ HTTP 400 in 0.45s (correct) |
+| Account 03286829827 | ✅ Active, tokens valid 30 days |
+| Server CPU | ✅ 6.9% (was 60.7%) |
+| Server RAM | ✅ 61 MB (was 6,148 MB) |
+| Keepalive | ✅ Every 6 hours, DB-configurable |
+| Proxy threads | ✅ All disabled (PROXY_BYPASS=1) |
+| Upload queue | ⬜ Empty — ready for jobs |
