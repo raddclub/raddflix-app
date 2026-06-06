@@ -1403,3 +1403,50 @@ startup_refresh: session restored — Android OAuth2 session refreshed (no OTP r
 | Upload queue | ✅ ready |
 | GitHub | ✅ in sync (54f2434) |
 
+
+## Session 2026-06-07 (Part 2) — Full proxy audit + BUG-A03d + agent-hub docs
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-004 | Fix BUG-A03d: submit_otp _sub_chain geo-restriction fix | ✅ DONE |
+| TASK-005 | Create agent-hub/CONTEXT.md, RULES.md, TASKS.md (were missing) | ✅ DONE |
+| TASK-006 | Update AGENT_PROMPT.md — Rule 0 task tracking, rules 13-14 | ✅ DONE |
+| TASK-007 | Push all changes to GitHub, pull to Oracle, restart Flask | ✅ DONE |
+
+### Code fix: jazzdrive.py `submit_otp._sub_chain` (commit bdea6d2)
+submit_otp calls cloud.jazzdrive.com.pk/sapi/login/oauth?keytype=oauth2code — same
+geo-restricted endpoint as _s2_chain. It was using resolve_proxies() which returns
+None with PROXY_BYPASS=1, leaving _sub_chain empty → direct via Cloudflare → 401.
+Fix: use proxy_pool.pool.get_best() directly (exact same pattern as _s2_chain).
+
+### Full proxy chain audit — all files reviewed
+| File | Chain | Pattern | Verdict |
+|------|-------|---------|---------|
+| jazzdrive.py | _ar_chain | is_proxy_bypass() → [None] direct | ✅ |
+| jazzdrive.py | _s2_chain | pool.get_best() direct | ✅ |
+| jazzdrive.py | _sub_chain | pool.get_best() direct (BUG-A03d fixed) | ✅ |
+| jazzdrive.py | trigger_otp_flow | is_proxy_bypass() guard | ✅ |
+| jazzdrive.py | resend_otp | is_proxy_bypass() guard | ✅ |
+| keepalive.py | sapi_px | resolve_proxies('sapi') — JSESSIONID, not geo-restricted | ✅ |
+| uploader.py | sapi_px | resolve_proxies('sapi') — JSESSIONID, not geo-restricted | ✅ |
+| assets.py | _px | resolve_proxies('sapi') — asset fetch, not geo-restricted | ✅ |
+| scanner.py | all chains | is_proxy_bypass() guards | ✅ |
+
+No further geo-restriction bugs found after full audit.
+
+### Docs created/updated (commit bdea6d2)
+| File | Action |
+|------|--------|
+| agent-hub/CONTEXT.md | CREATED |
+| agent-hub/RULES.md | CREATED |
+| agent-hub/TASKS.md | CREATED |
+| AGENT_PROMPT.md | UPDATED — Rule 0, rules 13-14, known issues fixed |
+| .agents/tasks/BUG_TRACKER.md | BUG-A03d added |
+
+### End state
+- Oracle Flask: RUNNING, healthz OK
+- Account 03286829827: ACTIVE, auto-refreshes on restart, no OTP needed
+- Keepalive: Heartbeat OK
+- All proxy chains audited and correct
+- GitHub: commit bdea6d2
