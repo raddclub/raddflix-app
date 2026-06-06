@@ -1285,3 +1285,43 @@ No Flutter changes -- no build triggered.
 - imdbapi.dev: fully working from Oracle IP with Radd-Hub/4.0 User-Agent
 - metadata_lookup.py + poster_proxy.py: both patched and syntax-verified
 - GitHub: in sync (7a7cf2f)
+
+## Session 2026-06-06 (Agent 4) — db/reset bug fix
+
+### What was investigated
+User reported "Reset Local Tables" button in admin panel returned success but nothing was deleted.
+
+### Root cause found
+`db_reset()` in `routes/admin.py` was using `db.conn()` — the app's shared connection wrapper.
+In WAL mode, background Flask threads (keepalive, uploader, mirror-retry) hold open read connections.
+These don't block writes in WAL mode per se, but `db.conn()` wraps Python's sqlite3 which can
+silently fail to acquire a write lock when another connection holds an open transaction.
+The inner `try/except: pass` swallowed all errors and still returned `{"ok": True}`.
+
+Result: admin panel shows "✔ Local database cleared" but DB is unchanged.
+
+### Fix applied
+Replaced `db.conn()` in `db_reset()` with a direct `sqlite3.connect()` using:
+- `BEGIN IMMEDIATE` (exclusive write lock from the start)
+- `PRAGMA foreign_keys = OFF` (prevent FK constraint issues)
+- `PRAGMA wal_checkpoint(TRUNCATE)` after commit (flush WAL immediately)
+
+Tested: inserted 1 test title → ran fix → 0 titles after. All 9 tables cleared.
+
+### Also done
+- Manually cleared catalog via sqlite3 CLI (user's catalog was stuck at 8 titles)
+- Catalog is now at 0 titles, 0 files
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| radd-hub/hub/routes/admin.py | Fixed db_reset(): direct sqlite3 + BEGIN IMMEDIATE + WAL checkpoint | f8affe1 |
+
+### APK build
+No Flutter changes — no build triggered.
+
+### State at end of session
+- Oracle Flask: RUNNING (pid restarted)
+- Catalog DB: 0 titles, 0 files (cleared)
+- db/reset endpoint: fixed and verified working
+- GitHub: in sync (f8affe1)
