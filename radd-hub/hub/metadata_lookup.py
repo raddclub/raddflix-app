@@ -257,56 +257,81 @@ def _imdbapi_search(title: str, year: int | None, media_type: str = "movie") -> 
     """Search IMDbAPI.dev — free, no API key needed.
     Excellent for Pakistani/Punjabi/South-Asian content absent from TMDB+OMDB.
     Returns same field structure as _tmdb_search / _omdb_search.
+
+    API: api.imdbapi.dev  (v2.7+)
+    Search endpoint: GET /search/titles?query=...&limit=5
     """
     if not title:
         return None
     try:
-        kinds = ["movie"]
-        if media_type in ("tv", "drama", "anime", "series"):
-            kinds = ["tvSeries", "tvMiniSeries", "movie"]
-        for kind in kinds:
-            params = urllib.parse.urlencode({"q": title, "type": kind})
-            if year:
-                params += f"&year={year}"
-            url = f"https://imdbapi.dev/api/v1/titles/search?{params}"
-            data = _http_get_json(url, timeout=10)
-            if isinstance(data, dict):
-                data = data.get("results") or []
-            if not data or not isinstance(data, list):
+        _BASE = "https://api.imdbapi.dev"
+        params = urllib.parse.urlencode({"query": title, "limit": "5"})
+        url = f"{_BASE}/search/titles?{params}"
+        data = _http_get_json(url, timeout=12)
+        # Response shape: {"titles": [...]}
+        items = []
+        if isinstance(data, dict):
+            items = data.get("titles") or data.get("results") or []
+        elif isinstance(data, list):
+            items = data
+        if not items:
+            return None
+
+        # Pick best match — prefer matching year and/or media type
+        is_tv  = media_type in ("tv", "drama", "anime", "series", "show")
+        year_s = str(year) if year else ""
+        best   = None
+        for item in items:
+            itype = (item.get("type") or "").lower()
+            iyear = str(item.get("startYear") or "")
+            if media_type == "movie" and "series" in itype:
                 continue
-            item   = data[0]
-            img    = item.get("primaryImage") or {}
-            poster = img.get("url") or item.get("poster") or ""
-            genres = item.get("genres") or []
-            genres_csv = ", ".join(
-                (g.get("text") if isinstance(g, dict) else str(g)) for g in genres
-            )
-            cast = []
-            for c in (item.get("cast") or [])[:8]:
-                n = c.get("name") or (c.get("fullName") or {}).get("text") or ""
-                if n:
-                    cast.append({"name": n})
-            yr_raw = item.get("startYear")
-            yr_int = int(yr_raw) if str(yr_raw).isdigit() else year
-            return {
-                "source":         "imdbapi",
-                "title":          item.get("primaryTitle") or item.get("title") or title,
-                "original_title": item.get("originalTitle") or item.get("primaryTitle") or title,
-                "year":           yr_int,
-                "original_lang":  "",
-                "lang_hint":      None,
-                "imdb_id":        item.get("id") or item.get("tconst") or "",
-                "tmdb_id":        None,
-                "media_type":     "tv" if "Series" in kind else "movie",
-                "release_date":   f"{yr_int or ''}-01-01",
-                "overview":       item.get("plot") or item.get("description") or "",
-                "genres_csv":     genres_csv,
-                "cast_names":     ", ".join(c["name"] for c in cast),
-                "director":       "",
-                "rating":         float(item["averageRating"]) if item.get("averageRating") else None,
-                "poster":         poster,
-                "alt_titles":     [],
-            }
+            if is_tv and itype == "movie":
+                continue
+            if year_s and iyear == year_s:
+                best = item
+                break
+        if best is None:
+            best = items[0]
+
+        itype  = (best.get("type") or "").lower()
+        img    = best.get("primaryImage") or {}
+        poster = img.get("url") if isinstance(img, dict) else ""
+        poster = poster or ""
+
+        # Genres — list of strings in v2 API
+        genres_raw = best.get("genres") or []
+        genres_csv = ", ".join(
+            (g.get("text") if isinstance(g, dict) else str(g))
+            for g in genres_raw if g
+        )
+
+        # Rating — {"aggregateRating": 8.4, "voteCount": ...}
+        rat_obj = best.get("rating") or {}
+        rating  = float(rat_obj["aggregateRating"]) if isinstance(rat_obj, dict) and rat_obj.get("aggregateRating") else None
+
+        yr_raw = best.get("startYear")
+        yr_int = int(yr_raw) if str(yr_raw or "").isdigit() else year
+
+        return {
+            "source":         "imdbapi",
+            "title":          best.get("primaryTitle") or best.get("title") or title,
+            "original_title": best.get("originalTitle") or best.get("primaryTitle") or title,
+            "year":           yr_int,
+            "original_lang":  "",
+            "lang_hint":      None,
+            "imdb_id":        best.get("id") or "",
+            "tmdb_id":        None,
+            "media_type":     "tv" if "series" in itype else "movie",
+            "release_date":   f"{yr_int or ''}-01-01",
+            "overview":       best.get("plot") or best.get("description") or "",
+            "genres_csv":     genres_csv,
+            "cast_names":     "",
+            "director":       "",
+            "rating":         rating,
+            "poster":         poster,
+            "alt_titles":     [],
+        }
     except Exception:
         pass
     return None

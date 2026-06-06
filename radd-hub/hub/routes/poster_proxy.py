@@ -273,7 +273,7 @@ def _search_omdb(title: str, year: int) -> str | None:
 
 # ── IMDbAPI.dev search (free, no key, great for Pakistani/South Asian content) ─
 
-_IMDBAPI_BASE = "https://imdbapi.dev/api/v1"
+_IMDBAPI_BASE = "https://api.imdbapi.dev"
 
 def _search_imdbapi(title: str, year: int, media_type: str) -> str | None:
     """Search IMDbAPI.dev — free API, no key needed. Best for Pakistani/Punjabi content."""
@@ -284,30 +284,38 @@ def _search_imdbapi(title: str, year: int, media_type: str) -> str | None:
     if media_type in ("drama", "series", "tv", "show", "anime"):
         kinds = ["tvSeries", "tvMiniSeries", "movie"]
     
-    for kind in kinds:
-        try:
-            params = {"q": title, "type": kind}
-            if year:
-                params["year"] = str(year)
-            r = req.get(f"{_IMDBAPI_BASE}/titles/search",
-                       params=params, timeout=10,
-                       headers={"User-Agent": "RaddFlix/1.5"})
-            if r.status_code != 200:
+    try:
+        params = {"query": title, "limit": "5"}
+        if year:
+            params["startYear"] = str(year)
+            params["endYear"] = str(year)
+        r = req.get(f"{_IMDBAPI_BASE}/search/titles",
+                   params=params, timeout=12,
+                   headers={"User-Agent": "RaddFlix/2.0"})
+        if r.status_code != 200:
+            log.debug("IMDbAPI.dev HTTP %s for %r", r.status_code, title)
+            return None
+        # Response: {"titles": [...]}
+        data = r.json() or {}
+        items = data.get("titles") or data.get("results") or []
+        if not isinstance(items, list):
+            items = []
+
+        # Filter by media type from results
+        is_tv = media_type in ("tv", "drama", "series", "show", "anime")
+        for item in items[:5]:
+            itype = (item.get("type") or "").lower()
+            if media_type == "movie" and "series" in itype:
                 continue
-            results = r.json()
-            if not isinstance(results, list):
-                results = (results or {}).get("results") or []
-            for item in results[:3]:
-                img = item.get("primaryImage") or {}
-                url = img.get("url") or ""
-                # Also check top-level poster field
-                if not url:
-                    url = item.get("poster") or item.get("image") or ""
-                if url and url.startswith("http"):
-                    log.info("IMDbAPI hit for %r: %s", title, url[:60])
-                    return url
-        except Exception as e:
-            log.debug("IMDbAPI.dev failed for %r: %s", title, e)
+            if is_tv and itype == "movie":
+                continue
+            img = item.get("primaryImage") or {}
+            url = img.get("url") if isinstance(img, dict) else ""
+            if url and url.startswith("http"):
+                log.info("IMDbAPI hit for %r: %s", title, url[:60])
+                return url
+    except Exception as e:
+        log.debug("IMDbAPI.dev failed for %r: %s", title, e)
     return None
 
 
