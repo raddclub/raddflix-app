@@ -179,6 +179,7 @@ Normal SAPI calls (with JSESSIONID cookie) are NOT geo-restricted — these work
 | BUG-A03a | HIGH | _ar_chain in android_refresh_session tried dead proxy pool with PROXY_BYPASS=1 | Chain builder always queried pool (dead) even with bypass=1, wasting 4×25s timeouts before failing OAuth2 step | Added is_proxy_bypass() guard at top of _ar_chain builder | 54f2434 |
 | BUG-A03b | CRITICAL | SAPI login blocked by geo-restriction (Cloudflare exit = non-PK IP) | wg0 exits via Cloudflare → Apache 401 HTML on /sapi/login/oauth | _s2_chain fetches proxy via proxy_pool.pool.get_best() directly, bypassing resolve_proxies() entirely — PK proxy used for login regardless of PROXY_BYPASS flag | 54f2434 |
 | BUG-A03c | MEDIUM | Over-broad bypass fix routed ALL SAPI calls through PK proxy | Added purpose!='sapi' exception to resolve_proxies() bypass guard → all SAPI calls (keepalive, uploads) went through PK proxy, timing out | Reverted resolve_proxies() to original; scoped to _s2_chain direct pool access only | 54f2434 |
+| BUG-A03d | MEDIUM | submit_otp _sub_chain: no PK proxy for geo-restricted OTP verify endpoint | cloud.jazzdrive.com.pk OTP verify is geo-restricted. _sub_chain used resolve_proxies() which returns None with PROXY_BYPASS=1 → Cloudflare exit → Apache 401 | _sub_chain now uses proxy_pool.pool.get_best() directly (mirrors _s2_chain fix). No is_proxy_bypass() short-circuit — this step MUST have PK proxy | bdea6d2 |
 
 ### SAPI Call Architecture (CRITICAL — memorise this)
 ```
