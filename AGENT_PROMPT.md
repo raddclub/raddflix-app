@@ -32,19 +32,19 @@ Expected: `{"ok":true,"version":"3.0.0"}`
 ## Step 2 — Read current project state
 
 ```bash
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/AGENT_HANDOFF.md"
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/TASKS.md"
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/AGENT_HANDOFF.md"
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/history/TASK_LOG.md" | tail -80
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/.agents/tasks/BUG_TRACKER.md"
 ```
 
-**Always read `agent-hub/TASKS.md` first** — it lists open/in-progress tasks. Continue any OPEN tasks before starting new work.
+**Read `agent-hub/TASKS.md` first** — it lists open/in-progress tasks. Continue any OPEN tasks before starting new work.
 
 ---
 
 ## Step 3 — GitHub file push (the ONLY way — no git shell ever)
 
-**For 1–2 files** — write to `/tmp/push.js` using Replit `write` tool, then run `node /tmp/push.js`:
+**For 1–2 files** — write to `/tmp/push.js` using Replit `write` tool, then `node /tmp/push.js`:
 
 ```javascript
 const https = require('https'), fs = require('fs');
@@ -119,7 +119,7 @@ ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
 Oracle pull from GitHub (if needed):
 ```bash
 ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
-  "cd /opt/jazzmax/radd-hub && git pull 2>&1 | tail -4"
+  "cd /opt/jazzmax/radd-hub && git stash && git pull && git stash pop"
 ```
 
 ---
@@ -127,14 +127,12 @@ ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
 ## Step 5 — Trigger and monitor APK build
 
 ```bash
-# Trigger manually (push to raddflix_flutter/** also auto-triggers)
 curl -s -X POST \
   -H "Authorization: token $GITHUB_TOKEN" \
   -H "Content-Type: application/json" \
   "https://api.github.com/repos/raddclub/raddflix-app/actions/workflows/build-apk.yml/dispatches" \
   -d '{"ref":"main"}'
 
-# Monitor builds
 curl -s -H "Authorization: token $GITHUB_TOKEN" \
   "https://api.github.com/repos/raddclub/raddflix-app/actions/runs?per_page=5" | \
   node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
@@ -143,34 +141,35 @@ curl -s -H "Authorization: token $GITHUB_TOKEN" \
   });"
 ```
 
-Build takes ~8 min first run, ~5 min with cache. APK artifact (~56 MB) appears under run → Artifacts on GitHub Actions.
-
 ---
 
 ## Non-Negotiable Rules
 
-**Rule 0 (NEW): Task tracking is mandatory.**
+**Rule 0 (CRITICAL): Task tracking is mandatory.**
 Before starting ANY change/fix/feature: add a row to `agent-hub/TASKS.md` marked ⏳ IN PROGRESS.
 Mark ✅ DONE when complete + pushed. This is the handoff bridge between agents.
-If your session ends with open tasks, the next agent picks up from TASKS.md.
 
-1. **No git shell commands** — GitHub API only (Contents or Trees API)
-2. **No bash heredoc** for Node scripts — use Replit `write` tool instead
-3. **Never upgrade** `sqflite_sqlcipher` past `3.1.0+1`
-4. **Never add** `androidAttachSurfaceAfterVideoParameters: true` to VideoController (causes black screen)
-5. **Oracle port 5000 is not public** — test Flask APIs via SSH tunnel only
-6. **XOR padding fix** must always stay in `core/security/request_encoder.dart`:
+1. **JazzDrive is globally accessible — NO geo-restriction of any kind.**
+   wg0 WireGuard works for ALL JazzDrive calls. With PROXY_BYPASS=1, every proxy chain
+   (`_ar_chain`, `_s2_chain`, `_sub_chain`, etc.) must use `is_proxy_bypass()` guard → `[None]` direct.
+   Never call `pool.get_best()` or `pool.get_proxy_chain()` when bypass=1 — pool is dead/untested.
+2. **SAPI 401 with `<!DOCTYPE HTML` body** = dead proxy returning its own error, not JazzDrive.
+3. **No git shell commands** — GitHub API only (Contents or Trees API)
+4. **No bash heredoc** for Node scripts — use Replit `write` tool instead
+5. **Never upgrade** `sqflite_sqlcipher` past `3.1.0+1`
+6. **Never add** `androidAttachSurfaceAfterVideoParameters: true` to VideoController (causes black screen)
+7. **Oracle port 5000 is not public** — test Flask APIs via SSH tunnel only
+8. **XOR padding fix** must always stay in `core/security/request_encoder.dart`:
    `final pad = (4 - b64.length % 4) % 4; b64 += '=' * pad;` — never remove
-7. **No Oracle destructive changes** without explicit user approval
-8. **Append session summary** to `agent-hub/history/TASK_LOG.md` when done
-9. **Always fetch fresh SHA** right before `pushFile` (or use `pushTree` for multi-file)
-10. **Debug code** must be gated behind `kDebugMode` — stripped from release APK
-11. **Use `db.setting(k)` not `db.get_setting(k)`** — `get_setting` does not exist in `db.py`
-12. **For bulk DELETEs** use direct `sqlite3.connect()` + `BEGIN IMMEDIATE`, NOT `db.conn()` — WAL mode background threads silently block shared-wrapper writes
-13. **`_s2_chain` and `_sub_chain` MUST use `proxy_pool.pool.get_best()` directly** — SAPI login + OTP verify are geo-restricted to Pakistani IPs. `resolve_proxies()` returns None with PROXY_BYPASS=1 and cannot be used for these steps.
-14. **When SAPI 401 body starts with `<!DOCTYPE HTML`** = geo-block (Apache), not API error. Add a Pakistani proxy to `sapi_proxies` table.
+9. **No Oracle destructive changes** without explicit user approval
+10. **Append session summary** to `agent-hub/history/TASK_LOG.md` when done
+11. **Always fetch fresh SHA** right before `pushFile` (or use `pushTree` for multi-file)
+12. **Debug code** must be gated behind `kDebugMode` — stripped from release APK
+13. **Use `db.setting(k)` not `db.get_setting(k)`** — `get_setting` does not exist in `db.py`
+14. **For bulk DELETEs** use direct `sqlite3.connect()` + `BEGIN IMMEDIATE`, NOT `db.conn()`
+15. **Oracle git pull**: always `git stash && git pull && git stash pop` — Oracle has local uncommitted files
 
-Full rules: `agent-hub/RULES.md`
+Full rules: `agent-hub/RULES.md` | Architecture: `agent-hub/CONTEXT.md`
 
 ---
 
@@ -185,22 +184,24 @@ Flutter:  raddflix_flutter/lib/
   providers/auth_provider.dart         Auth state + session restore
 
 Oracle:   /opt/jazzmax/radd-hub/hub/
-  request_encoding.py                  XOR WSGI hook
+  jazzdrive.py                         JazzDrive session, OTP, upload, keepalive
+  proxy_pool.py                        Proxy pool management
+  keepalive.py                         Heartbeat upload scheduler
   routes/catalog_api.py                /api/catalog/*
   routes/mobile_api.py                 /api/auth/*, usage, history, /api/app/config
-  routes/admin.py                      Admin panel API (db/reset, db/full-delete, etc.)
+  routes/admin.py                      Admin panel API
 
-Oracle DB: /opt/jazzmax/radd-hub/data/radd_hub.db   ← THE real DB (not /opt/jazzmax/radd_hub.db)
+Oracle DB: /opt/jazzmax/radd-hub/data/radd_hub.db
 Oracle logs: /opt/jazzmax/radd-hub/data/logs/raddhub.log
 
 Coordination (GitHub main):
-  AGENT_HANDOFF.md                     Full architecture — read for deep dives
-  agent-hub/CONTEXT.md                 System context + proxy architecture (quick reference)
+  agent-hub/TASKS.md                   ← READ FIRST every session
+  agent-hub/CONTEXT.md                 System context + proxy architecture
   agent-hub/RULES.md                   Full rules list
-  agent-hub/TASKS.md                   Task tracker — READ THIS FIRST every session
+  AGENT_HANDOFF.md                     Full architecture
   .agents/tasks/BUG_TRACKER.md         All known bugs + fix status
   agent-hub/history/TASK_LOG.md        Session history (append when done)
-  AGENT_PROMPT.md                      This file — update at end of session
+  AGENT_PROMPT.md                      This file
 ```
 
 ---
@@ -210,21 +211,19 @@ Coordination (GitHub main):
 | Issue | Detail | Action needed |
 |-------|--------|---------------|
 | DATA-01 | All Of Us Are Dead missing E03/E04/E05/E09 | Upload missing episodes to JazzDrive + sync |
-| OPS-02 | PK proxy auto-refresh | Auto-discover + test PK SOCKS5 proxies weekly so pool stays healthy |
 
-*OPS-01 (session expired) → ✅ RESOLVED 2026-06-07. Session auto-recovers on every Flask restart via Android OAuth2 + PK proxy. No OTP needed.*
+*OPS-01 (session expired) → ✅ RESOLVED 2026-06-07. Session auto-recovers on every Flask restart (~3-5s) via Android OAuth2 direct via wg0. No OTP needed.*
 
 ---
 
 ## End of session checklist
 
-1. Fix all errors found
-2. Mark completed tasks ✅ DONE in `agent-hub/TASKS.md`
-3. Append session summary to `agent-hub/history/TASK_LOG.md`
-4. Update `BUG_TRACKER.md` with any new bugs found or fixed
-5. Update `AGENT_HANDOFF.md` current state section
-6. Update this file (`AGENT_PROMPT.md`) with any new rules or findings
-7. Push ALL doc changes to GitHub before ending
+1. Mark completed tasks ✅ DONE in `agent-hub/TASKS.md`
+2. Append session summary to `agent-hub/history/TASK_LOG.md`
+3. Update `BUG_TRACKER.md` with any new bugs found or fixed
+4. Update `AGENT_HANDOFF.md` current state section
+5. Update this file with any new rules or findings
+6. Push ALL doc changes to GitHub before ending
 
 Session log template:
 ```markdown

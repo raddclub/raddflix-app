@@ -14,7 +14,7 @@ Users install the APK, log in, and stream content. All content lives on JazzDriv
 - Logs: `/opt/jazzmax/radd-hub/data/logs/raddhub.log`
 - Restart: `sudo supervisorctl restart raddflix_radd`
 - WireGuard: wg0 — split tunnel routing JazzDrive IPs through VPN
-  - VPN exit IP: Cloudflare anycast (162.159.192.1) — NOT a Pakistani IP
+  - Works correctly for ALL JazzDrive traffic — JazzDrive is globally accessible
 
 ### GitHub Repo: raddclub/raddflix-app
 - Flutter app: `raddflix_flutter/`
@@ -24,34 +24,39 @@ Users install the APK, log in, and stream content. All content lives on JazzDriv
 
 ---
 
-## JazzDrive Proxy Architecture (MEMORISE THIS)
+## JazzDrive Proxy Architecture
 
-### Geo-restriction rule
-`/sapi/login/oauth` (cloud.jazzdrive.com.pk) is geo-restricted to Pakistani IPs only.
-Our Oracle server's wg0 exit is Cloudflare (non-PK IP) → Apache 401 HTML on non-PK.
+### Key fact: JazzDrive is globally accessible — NO geo-restriction
+JazzDrive (jazzdrive.com.pk, cloud.jazzdrive.com.pk) works from any IP worldwide.
+wg0 WireGuard routes all JazzDrive IPs and works correctly for all call types.
+**Do NOT force proxies for JazzDrive calls.**
 
-### Which calls need PK proxy?
+### PROXY_BYPASS=1 (normal production state)
+When `PROXY_BYPASS=1` is set in DB settings:
+- `is_proxy_bypass()` returns True
+- `resolve_proxies()` returns None for all call types
+- All proxy chains (`_ar_chain`, `_s2_chain`, `_sub_chain`, all others) go to `[None]` (direct via wg0)
+- Pool health-check and recovery threads are skipped
+- This is CORRECT — direct via wg0 is the intended path
+
+### What causes 401/errors on JazzDrive calls?
+If you see SAPI 401 with an HTML body like `<!DOCTYPE HTML`:
+- This comes from a **dead proxy** returning its own error page, not from JazzDrive
+- Fix: ensure `is_proxy_bypass()` guard is in place so dead proxies are skipped
+- NOT a geo-restriction — JazzDrive works globally
+
+### Call type summary
 ```
-CALL TYPE                         | EXIT IP              | GEO-RESTRICTED?
-----------------------------------|----------------------|----------------
-Keepalive heartbeat (JSESSIONID)  | wg0 → Cloudflare     | NO  ✅
-Upload (JSESSIONID)               | wg0 → Cloudflare     | NO  ✅
-OAuth2 /oauth2/refresh_token.php  | wg0 → Cloudflare     | NO  ✅
-SAPI login /sapi/login/oauth      | Pakistani SOCKS proxy| YES ⚠️
-OTP verify /sapi/login/oauth      | Pakistani SOCKS proxy| YES ⚠️
+CALL TYPE                         | WITH PROXY_BYPASS=1  | CORRECT?
+----------------------------------|----------------------|----------
+_ar_chain (OAuth2 refresh)        | [None] direct wg0    | ✅
+_s2_chain (SAPI login)            | [None] direct wg0    | ✅
+_sub_chain (OTP verify)           | [None] direct wg0    | ✅
+trigger_otp_flow                  | [None] direct wg0    | ✅
+resend_otp                        | [None] direct wg0    | ✅
+keepalive heartbeat (JSESSIONID)  | [None] direct wg0    | ✅
+upload (JSESSIONID)               | [None] direct wg0    | ✅
 ```
-
-### How the proxy bypass system works
-- `PROXY_BYPASS=1` in DB settings → `is_proxy_bypass()` returns True
-- `resolve_proxies(purpose)` returns `None` when bypass=1 (direct via wg0)
-- BUT `_s2_chain` and `_sub_chain` use `proxy_pool.pool.get_best()` DIRECTLY
-  → PK proxy always used for geo-restricted login/OTP steps regardless of bypass flag
-
-### Working PK proxies in `sapi_proxies` table (as of 2026-06-07)
-| Proxy | Status |
-|-------|--------|
-| socks5://182.184.119.180:1080 | ✅ ok_count=6, primary |
-| http://221.120.218.66:8080    | ⚠️ fail_count=3 |
 
 ---
 
@@ -69,16 +74,15 @@ DB settings table columns: `k` / `v` (NOT `key` / `value`).
 
 ---
 
-## Session Lifecycle
+## Session Lifecycle (with PROXY_BYPASS=1)
 ```
 Flask restart
   → startup_refresh()
   → android_refresh_session()
-      → _ar_chain: OAuth2 /oauth2/refresh_token.php (NOT geo-restricted → direct)
-      → _s2_chain: SAPI /sapi/login/oauth (GEO-RESTRICTED → PK proxy)
-  → session restored, keepalive armed
-  → keepalive every 360 min: upload heartbeat file to Radd-Heartbeat/ folder
-      → uses JSESSIONID (NOT geo-restricted → direct via wg0)
+      → _ar_chain: OAuth2 /oauth2/refresh_token.php — direct via wg0 (~1s)
+      → _s2_chain: SAPI /sapi/login/oauth — direct via wg0 (~2s)
+  → session restored in ~3-5 seconds total
+  → keepalive every 360 min: upload heartbeat file to Radd-Heartbeat/ folder (direct)
 ```
 No OTP needed on restart IF `refresh_token` is stored in DB.
 
@@ -87,9 +91,9 @@ No OTP needed on restart IF `refresh_token` is stored in DB.
 ## OTP Flow (manual, when refresh_token expired or missing)
 ```
 Admin page → Trigger OTP
-  → trigger_otp_flow(): sends OTP SMS to MSISDN (geo-restricted — needs PK proxy)
+  → trigger_otp_flow(): sends OTP SMS (direct via wg0 with PROXY_BYPASS=1)
   → User enters OTP in admin
-  → submit_otp(): verifies code at SAPI (geo-restricted — needs PK proxy via pool.get_best())
+  → submit_otp(): verifies code, saves session (direct via wg0 with PROXY_BYPASS=1)
   → Session saved, refresh_token stored
 ```
 

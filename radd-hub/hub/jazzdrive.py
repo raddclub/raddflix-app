@@ -1220,31 +1220,32 @@ def submit_otp(otp: str) -> dict:
         return {"ok": False, "error": "OTP expired (>10 min) — request a new OTP"}
 
     # Build proxy chain for submit_otp.
-    # IMPORTANT: submit_otp calls the geo-restricted SAPI verify endpoint
-    # (cloud.jazzdrive.com.pk/sapi/login/oauth?keytype=oauth2code).
-    # This is the same geo-restriction as _s2_chain — must use pool.get_best()
-    # directly so PROXY_BYPASS=1 does NOT skip the Pakistani proxy here.
-    # resolve_proxies() returns None with PROXY_BYPASS=1 and cannot be used.
-    # (BUG-A03d fix — mirrors _s2_chain pattern in _android_refresh_session_inner)
+    # JazzDrive is globally accessible — no geo-restriction.
+    # With PROXY_BYPASS=1, wg0 routes cloud.jazzdrive.com.pk directly; go direct.
+    # Only use proxy pool in non-bypass environments.
     _sub_chain: list = []
     _sub_seen: set = set()
-    try:
-        from . import proxy_pool as _pp
-        _sub_primary = _pp.pool.get_best()
+    if is_proxy_bypass():
+        # PROXY_BYPASS=1 — wg0 routes cloud.jazzdrive.com.pk directly.
+        # Skip pool entirely — proxies are unused/dead in bypass mode.
+        _sub_chain = [None]
+    else:
+        _sub_primary = resolve_proxies()
         if _sub_primary:
             _sub_chain.append(_sub_primary)
             _sub_seen.add(_sub_primary.get("_url", ""))
-        for _subp in _pp.pool.get_proxy_chain(n=4):
-            _subp_url = _subp.get("_url", "")
-            if _subp_url and _subp_url not in _sub_seen:
-                _sub_seen.add(_subp_url)
-                _sub_chain.append(_subp)
-    except Exception:
-        pass
-    if not _sub_chain:
-        log.warning("submit_otp: proxy chain empty — direct connection "
-                    "will likely fail (geo-restricted SAPI endpoint, non-PK IP)")
-        _sub_chain = [None]
+        try:
+            from . import proxy_pool as _pp
+            for _subp in _pp.pool.get_proxy_chain(n=4):
+                _subp_url = _subp.get("_url", "")
+                if _subp_url and _subp_url not in _sub_seen:
+                    _sub_seen.add(_subp_url)
+                    _sub_chain.append(_subp)
+        except Exception:
+            pass
+        if not _sub_chain:
+            log.warning("submit_otp: proxy chain empty — using direct connection")
+            _sub_chain = [None]
 
     _sub_last_err: Exception = Exception("No proxies available")
     for proxies in _sub_chain:
@@ -1688,23 +1689,21 @@ def _android_refresh_session_inner(refresh_token: str,
                         "will likely fail (MED-1011 from non-PK IP)")
             _ar_chain = [None]
 
-    # SAPI proxy for Step 2 (cloud.jazzdrive.com.pk — geo-restricted endpoint).
-    # IMPORTANT: we bypass resolve_proxies() entirely here so that
-    # JAZZDRIVE_PROXY_BYPASS=1 does NOT skip the Pakistani SAPI login proxy.
-    # The global bypass flag is correct for all other SAPI calls (they use a
-    # JSESSIONID cookie and are not geo-restricted), but the LOGIN endpoint
-    # rejects non-Pakistani IPs regardless.  Direct pool access is the only way
-    # to honour bypass=1 for normal SAPI while still getting a PK proxy here.
+    # SAPI proxy for Step 2 (cloud.jazzdrive.com.pk).
+    # JazzDrive is globally accessible — no geo-restriction.
+    # With PROXY_BYPASS=1, wg0 routes cloud.jazzdrive.com.pk directly; no proxy needed.
+    # Only build sapi_proxies when bypass is NOT set (non-VPN environments).
     sapi_proxies = None
-    try:
-        from . import proxy_pool as _pp
-        sapi_proxies = _pp.pool.get_best()
-    except Exception:
-        pass
-    if sapi_proxies is None:
-        _sapi_setting = (db.setting("JAZZDRIVE_SAPI_PROXY") or "").strip()
-        if _sapi_setting:
-            sapi_proxies = {"http": _sapi_setting, "https": _sapi_setting, "_url": _sapi_setting}
+    if not is_proxy_bypass():
+        try:
+            from . import proxy_pool as _pp
+            sapi_proxies = _pp.pool.get_best()
+        except Exception:
+            pass
+        if sapi_proxies is None:
+            _sapi_setting = (db.setting("JAZZDRIVE_SAPI_PROXY") or "").strip()
+            if _sapi_setting:
+                sapi_proxies = {"http": _sapi_setting, "https": _sapi_setting, "_url": _sapi_setting}
 
     import urllib3 as _urllib3
     _urllib3.disable_warnings(_urllib3.exceptions.InsecureRequestWarning)
@@ -1845,22 +1844,25 @@ def _android_refresh_session_inner(refresh_token: str,
     # pick the next SAPI proxy from the pool, and retry all formats.
     _s2_chain: list = []
     _s2_seen: set = set()
-    # NOTE: sapi_proxies was populated via direct pool access (see above) so it
-    # correctly carries a Pakistani proxy even when PROXY_BYPASS=1.
-    if sapi_proxies:
-        _s2_chain.append(sapi_proxies)
-        _s2_seen.add(sapi_proxies.get("_url", ""))
-    try:
-        from . import proxy_pool as _pp
-        for _s2p in _pp.pool.get_proxy_chain(n=4):
-            _s2p_url = _s2p.get("_url", "")
-            if _s2p_url and _s2p_url not in _s2_seen:
-                _s2_seen.add(_s2p_url)
-                _s2_chain.append(_s2p)
-    except Exception:
-        pass
-    if not _s2_chain:
+    if is_proxy_bypass():
+        # PROXY_BYPASS=1 — wg0 routes cloud.jazzdrive.com.pk directly.
+        # JazzDrive is globally accessible; no proxy needed. Skip pool entirely.
         _s2_chain = [None]
+    else:
+        if sapi_proxies:
+            _s2_chain.append(sapi_proxies)
+            _s2_seen.add(sapi_proxies.get("_url", ""))
+        try:
+            from . import proxy_pool as _pp
+            for _s2p in _pp.pool.get_proxy_chain(n=4):
+                _s2p_url = _s2p.get("_url", "")
+                if _s2p_url and _s2p_url not in _s2_seen:
+                    _s2_seen.add(_s2p_url)
+                    _s2_chain.append(_s2p)
+        except Exception:
+            pass
+        if not _s2_chain:
+            _s2_chain = [None]
 
     last_err = "No candidates tried"
     sr = None
