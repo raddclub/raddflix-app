@@ -64,12 +64,15 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
   /// [targetFilename] — pass the episode filename (from ep['filename']) for
   ///   folder-share episodes so the JazzDrive 3-pass matcher picks the correct
   ///   file instead of blindly returning records.first.
+  /// [remoteId] — JazzDrive permanent numeric file ID (remote_id from SQLite).
+  ///   Enables Pass 0 exact match; pass 0 if not available.
   Future<void> startDownload({
     required String fileId,
     required String titleText,
     required String streamUrl,
     String? posterUrl,
     String? targetFilename,
+    int remoteId = 0,
   }) async {
     final progress = Map<String, double>.from(state.activeProgress);
     progress[fileId] = 0.0;
@@ -82,6 +85,7 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
         streamUrl: streamUrl,
         posterUrl: posterUrl,
         targetFilename: targetFilename,
+        remoteId: remoteId,
         onProgress: (p) {
           final updated = Map<String, double>.from(state.activeProgress);
           updated[fileId] = p;

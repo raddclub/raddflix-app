@@ -817,6 +817,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                     streamUrl: epShareUrl,
                                     posterUrl: widget.item.posterUrl,
                                     targetFilename: ep['filename'] as String?,
+                                    remoteId: ep['remote_id'] as int? ?? 0,
                                   );
                                 } on DownloadQuotaException catch (e) {
                                   if (context.mounted) _showQuotaError(context, e.userMessage);

@@ -201,6 +201,7 @@ class SyncService {
             'is_free':         (epRow['is_free'] == true || epRow['is_free'] == 1) ? 1 : 0,
             'share_url':       epRow['share_url'] ?? '',
             'filename':        epRow['filename']  ?? '',
+            'remote_id':       epRow['remote_id'] as int? ?? 0,
           });
         }
       }
@@ -332,6 +333,7 @@ class SyncService {
           'is_free':   (ep['is_free'] == true || ep['is_free'] == 1) ? 1 : 0,
           'share_url': ep['share_url'] as String?,
           'filename':  ep['filename']  as String?,
+          'remote_id': ep['remote_id'] as int? ?? 0,
         });
       }
     }

@@ -33,6 +33,9 @@ class DownloadService {
   ///   For folder-share episodes, this is passed to [JazzDriveService.getStreamLink]
   ///   so the 3-pass filename matcher picks the correct episode instead of
   ///   blindly returning records.first.
+  /// [remoteId] — JazzDrive's permanent numeric file ID (from Oracle remote_id).
+  ///   Enables Pass 0 exact matching — completely filename-independent.
+  ///   Pass 0 when not available; the service falls through to Passes 1-3.
   static Future<void> downloadFile({
     required String fileId,
     required String titleText,
@@ -40,6 +43,7 @@ class DownloadService {
     String? posterUrl,
     String? shareUrl,
     String? targetFilename,
+    int remoteId = 0,
     required void Function(double progress) onProgress,
   }) async {
     await _checkDownloadQuota();
@@ -51,6 +55,7 @@ class DownloadService {
           fileId,
           shareUrl,
           targetFilename: targetFilename,
+          remoteId: remoteId,
         );
         resolvedUrl = link.streamUrl;
         DebugLogger.log('DOWNLOAD', 'Using JazzDrive URL for $fileId');
@@ -65,6 +70,7 @@ class DownloadService {
             fileId,
             dbShareUrl,
             targetFilename: targetFilename,
+            remoteId: remoteId,
           );
           resolvedUrl = link.streamUrl;
           DebugLogger.log('DOWNLOAD', 'Using DB JazzDrive URL for $fileId');
