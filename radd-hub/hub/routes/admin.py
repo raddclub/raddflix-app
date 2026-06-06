@@ -415,21 +415,50 @@ def admin_cmd():
 @bp.route("/api/db/reset", methods=["POST"])
 @auth.login_required
 def db_reset():
-    """Clear files, titles, mirror_log, scan_log, queue from local DB."""
-    RESET_TABLES = ["files", "titles", "mirror_log", "scan_log", "queue", "bot_status_index"]
+    """Clear catalog tables and bump version so Flutter devices re-sync.
+
+    Uses a direct sqlite3 connection (not db.conn()) so that WAL-mode read
+    locks held by Flask background threads cannot silently block the DELETE.
+    A wal_checkpoint(TRUNCATE) is issued after commit so the WAL is flushed
+    immediately and the change is visible to every new connection.
+    """
+    import time as _time
+    import sqlite3 as _sqlite3
+    RESET_TABLES = [
+        "files", "titles", "mirror_log", "scan_log", "queue",
+        "bot_status_index", "turbo_cache", "recommendation_cache", "media_index",
+    ]
+    cleared, skipped = [], []
     try:
-        with db.conn() as c:
+        db_path = str(config.DB_PATH)
+        con = _sqlite3.connect(db_path, timeout=30, check_same_thread=False)
+        try:
+            con.execute("PRAGMA foreign_keys = OFF")
+            con.execute("BEGIN IMMEDIATE")
             for tbl in RESET_TABLES:
                 try:
-                    c.execute(f"DELETE FROM {tbl}")
+                    con.execute(f"DELETE FROM {tbl}")
+                    cleared.append(tbl)
                 except Exception:
-                    pass
+                    skipped.append(tbl)
             for tbl in RESET_TABLES:
                 try:
-                    c.execute("DELETE FROM sqlite_sequence WHERE name=?", (tbl,))
+                    con.execute("DELETE FROM sqlite_sequence WHERE name=?", (tbl,))
                 except Exception:
                     pass
-        return jsonify({"ok": True, "message": "Local database cleared"})
+            con.commit()
+            con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        finally:
+            con.execute("PRAGMA foreign_keys = ON")
+            con.close()
+        # Bump catalog version so every Flutter device re-syncs on next launch
+        db.set_setting("catalog_forced_version", str(int(_time.time())))
+        return jsonify({
+            "ok": True,
+            "message": f"Catalog cleared. Devices will re-sync on next launch.",
+            "cleared": cleared,
+            "skipped": skipped,
+        })
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
 
