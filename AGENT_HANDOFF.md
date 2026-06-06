@@ -335,6 +335,27 @@ All code bugs fixed. Infrastructure overhauled. One data gap open (DATA-01 in BU
 **Test suite**: `raddflix_flutter/test_suite/jazzdrive_logic_test.js` — 27 tests
   - Run anywhere: `node jazzdrive_logic_test.js`
   - Full network test on Jazz SIM: `node jazzdrive_logic_test.js --live <shareUrl> [target]`
+  ---
+
+  ## Session 2 — 2026-06-06 (Diagnostics + Upload Fixes)
+
+  ### What was investigated
+  User showed upload history with 553 KB–1.1 MB file sizes for full movies/episodes.
+
+  ### Findings
+  1. **Files are ~10-second clips** — not a code bug. Source delivers samples, not full content.
+  2. **delta_push 401**: `jazzdrive.py` had 4 `_time_time()` calls (undefined) → crash in `refresh_session()`.
+     Fixed with sed. After fix, refresh got fresh `validation_key` + `JSESSIONID` for account 15.
+  3. **Stale folder cache**: `jd_delta_folder_id` in settings pointed to deleted JazzDrive folder → MED-1030.
+     Cleared, folder recreated automatically.
+  4. **3 stuck files**: Pitt Siyapa, Luka Chuppi, Vncenz0 S01E02 had no remote_id. Re-uploaded directly.
+
+  ### State after session
+  - All 10 files: `is_ready=1`, `remote_id` set, `share_url` set
+  - delta_push: working, folder_id=1763725
+  - Account 15 session: vk+jid fresh, expires ~2026-07-06
+
+  
 
 **MED-1011 error**: Now solved by WARP tunnel on Oracle. Jazz SIM still required for
   Flutter app testing (zero-rating only on Jazz network).
