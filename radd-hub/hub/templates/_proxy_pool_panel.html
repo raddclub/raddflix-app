@@ -1,3 +1,17 @@
+<div id="bypass-banner" class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 16px;margin-bottom:16px;border:2px solid var(--accent);background:rgba(99,102,241,.07);border-radius:10px">
+  <div style="display:flex;align-items:center;gap:12px">
+    <span id="bypass-icon" style="font-size:1.8rem;line-height:1">?</span>
+    <div>
+      <div style="font-weight:700;font-size:15px" id="bypass-label">Checking connection mode...</div>
+      <div class="muted" style="font-size:12px;margin-top:2px" id="bypass-sub">Loading...</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button id="bypass-btn-direct" class="btn-sm btn-primary" style="min-width:160px;font-weight:600;font-size:13px" onclick="setBypass(true)">Direct (No Proxy)</button>
+    <button id="bypass-btn-proxy"  class="btn-sm ghost"       style="min-width:160px;font-size:13px"               onclick="setBypass(false)">Use Proxy Pool</button>
+  </div>
+</div>
+
 {# SAPI Proxy Pool Management Panel — God-Level Edition #}
 <div class="section" id="proxy-pool-section">
 
@@ -353,6 +367,49 @@
       toast(`Exported ${r.urls.length} proxies`);
     } catch(e) { toast('Export error: '+e); }
   };
+
+
+  async function loadBypassState() {
+    try {
+      const r = await api("/settings/api/proxies/bypass");
+      const bypass = r.bypass;
+      const icon  = document.getElementById("bypass-icon");
+      const label = document.getElementById("bypass-label");
+      const sub   = document.getElementById("bypass-sub");
+      const banner = document.getElementById("bypass-banner");
+      const btnD  = document.getElementById("bypass-btn-direct");
+      const btnP  = document.getElementById("bypass-btn-proxy");
+      if (bypass) {
+        if (icon)  icon.textContent  = "⚡";
+        if (label) label.textContent = "Direct Connection — Proxies OFF";
+        if (sub)   sub.textContent   = "All JazzDrive calls go direct. Fast uploads, no proxy overhead.";
+        if (banner) banner.style.borderColor = "#22c55e";
+        if (btnD) { btnD.style.opacity="0.5"; btnD.disabled=true; }
+        if (btnP) { btnP.style.opacity="1";   btnP.disabled=false; }
+      } else {
+        if (icon)  icon.textContent  = "🔀";
+        if (label) label.textContent = "Proxy Pool Active";
+        if (sub)   sub.textContent   = "JazzDrive calls route through the proxy pool below.";
+        if (banner) banner.style.borderColor = "var(--accent)";
+        if (btnD) { btnD.style.opacity="1";   btnD.disabled=false; }
+        if (btnP) { btnP.style.opacity="0.5"; btnP.disabled=true; }
+      }
+    } catch(e) { console.error("loadBypassState", e); }
+  }
+
+  window.setBypass = async function(bypass) {
+    try {
+      const r = await api("/settings/api/proxies/bypass", "POST", {bypass});
+      if (r.ok) {
+        toast(bypass ? "Direct connection enabled — proxies bypassed" : "Proxy pool re-enabled");
+        loadBypassState();
+      } else {
+        toast("Error saving bypass setting");
+      }
+    } catch(e) { toast("Error: " + e.message); }
+  };
+
+  loadBypassState();
 
   // Auto-refresh every 10 seconds
   ppLoad();
