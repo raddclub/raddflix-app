@@ -1366,3 +1366,40 @@ No Flutter changes — no build triggered.
 - Account 03286829827: EXPIRED — needs OTP re-login
 - Uploads: 2 files stuck in data/media (will auto-process after OTP re-login)
 - GitHub: all docs updated
+
+## Session 2026-06-07 — BUG-A03: JazzDrive Geo-Restriction Root Cause + Fix
+
+### Investigation Trail
+1. Logs showed SAPI 401 with body `<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">` — Apache HTML, not JazzDrive API error
+2. Two proxies confirmed alive: tested raw_accesstoken via PK proxy → HTTP 200! Token valid.
+3. Root cause: wg0 exits Cloudflare (non-PK IP). /sapi/login/oauth geo-blocked at web server.
+4. Normal SAPI calls (JSESSIONID) work direct — not geo-restricted.
+
+### Bugs Fixed in jazzdrive.py (commit 54f2434)
+- **BUG-A03a**: _ar_chain now respects is_proxy_bypass() — direct via wg0 for OAuth2 (not geo-restricted)
+- **BUG-A03b**: _s2_chain reads proxy_pool.pool.get_best() directly — PK proxy for SAPI login always
+- **BUG-A03c**: Reverted over-broad resolve_proxies() bypass exception that broke all SAPI calls
+
+### Proxy Pool Updates
+- Added socks5://182.184.119.180:1080 (ok=6, primary PK proxy)
+- Added http://221.120.218.66:8080 (fail_count=3, secondary)
+- Disabled 28 dead entries (ok_count=0, fail_count>=3)
+
+### Verified Result
+```
+✓ Heartbeat OK for 03286829827 (session alive, expiry rolled +30d)
+startup_refresh: session restored — Android OAuth2 session refreshed (no OTP required)
+```
+
+### Commits
+- 54f2434 — fix(BUG-A03-v3): scope SAPI PK proxy to login only; restore direct SAPI calls
+
+### State at End of Session
+| Component | Status |
+|-----------|--------|
+| Oracle Flask | ✅ RUNNING, healthz OK |
+| Account 03286829827 | ✅ ACTIVE, auto-refreshes, no OTP needed |
+| Keepalive | ✅ every 360 min, Heartbeat OK |
+| Upload queue | ✅ ready |
+| GitHub | ✅ in sync (54f2434) |
+
