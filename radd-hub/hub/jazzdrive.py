@@ -232,9 +232,9 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
         return None
     # Global proxy bypass — when JAZZDRIVE_PROXY_BYPASS=1 all traffic goes direct.
     # Enable this when Oracle IP is not geo-blocked; proxies only slow things down.
-    # EXCEPTION: purpose='sapi' is NEVER bypassed — cloud.jazzdrive.com.pk is
-    # geo-restricted to Pakistani IPs regardless of the global bypass flag.
-    if db.setting('JAZZDRIVE_PROXY_BYPASS') == '1' and purpose != 'sapi':
+    # NOTE: SAPI LOGIN (geo-restricted) bypasses this via direct pool access in
+    # _android_refresh_session_inner._s2_chain — NOT via resolve_proxies('sapi').
+    if db.setting('JAZZDRIVE_PROXY_BYPASS') == '1':
         return None
     if purpose == 'sapi':
         # Try the pool first (auto-rotating, health-checked)
@@ -1686,7 +1686,22 @@ def _android_refresh_session_inner(refresh_token: str,
             _ar_chain = [None]
 
     # SAPI proxy for Step 2 (cloud.jazzdrive.com.pk — geo-restricted endpoint).
-    sapi_proxies = resolve_proxies(purpose='sapi')
+    # IMPORTANT: we bypass resolve_proxies() entirely here so that
+    # JAZZDRIVE_PROXY_BYPASS=1 does NOT skip the Pakistani SAPI login proxy.
+    # The global bypass flag is correct for all other SAPI calls (they use a
+    # JSESSIONID cookie and are not geo-restricted), but the LOGIN endpoint
+    # rejects non-Pakistani IPs regardless.  Direct pool access is the only way
+    # to honour bypass=1 for normal SAPI while still getting a PK proxy here.
+    sapi_proxies = None
+    try:
+        from . import proxy_pool as _pp
+        sapi_proxies = _pp.pool.get_best()
+    except Exception:
+        pass
+    if sapi_proxies is None:
+        _sapi_setting = (db.setting("JAZZDRIVE_SAPI_PROXY") or "").strip()
+        if _sapi_setting:
+            sapi_proxies = {"http": _sapi_setting, "https": _sapi_setting, "_url": _sapi_setting}
 
     import urllib3 as _urllib3
     _urllib3.disable_warnings(_urllib3.exceptions.InsecureRequestWarning)
@@ -1827,9 +1842,8 @@ def _android_refresh_session_inner(refresh_token: str,
     # pick the next SAPI proxy from the pool, and retry all formats.
     _s2_chain: list = []
     _s2_seen: set = set()
-    # NOTE: SAPI login (cloud.jazzdrive.com.pk) is geo-restricted to Pakistani IPs.
-    # We NEVER skip SAPI proxies for this step — even when PROXY_BYPASS=1.
-    # resolve_proxies(purpose='sapi') is already immune to the bypass flag (see above).
+    # NOTE: sapi_proxies was populated via direct pool access (see above) so it
+    # correctly carries a Pakistani proxy even when PROXY_BYPASS=1.
     if sapi_proxies:
         _s2_chain.append(sapi_proxies)
         _s2_seen.add(sapi_proxies.get("_url", ""))
