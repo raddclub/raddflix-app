@@ -1174,3 +1174,40 @@ SAPI 401 errors stopped immediately. Token expires 2026-07-06 (30 days, refresh_
 | Keepalive | ✅ Every 6 hours, DB-configurable |
 | Proxy threads | ✅ All disabled (PROXY_BYPASS=1) |
 | Upload queue | ⬜ Empty — ready for jobs |
+
+---
+
+## Session: 2026-06-06 — remote_id Pass 0: Full Sync Chain (Server + Flutter)
+
+**Commit:** `0bf9626`
+**Status:** ✅ Pushed
+
+### What changed
+
+Filled all 5 gaps so `remote_id` (JazzDrive's permanent internal file ID) flows from Oracle DB → sync/delta payloads → Flutter local SQLite → JazzDriveService → Pass 0 file match.
+
+| Gap | File | Change |
+|-----|------|--------|
+| 1 | `catalog_api.py` /sync | Add `remote_id` to episode SELECT + JSON response |
+| 2 | `catalog_api.py` /db_update | Add `remote_id` to episode SELECT + JSON response |
+| 3 | `catalog_api.py` /delta | Add `remote_id` to episode SELECT + JSON response |
+| 4 | `zero_rating.py` | Add `remote_id` to `generate_delta_payload()` episode SELECT + dict |
+| 5 | `constants.dart` | Bump `catalogDbVersion` 19 → 20 |
+| 5 | `local_db.dart` | `remote_id INTEGER DEFAULT 0` in episodes CREATE TABLE + v20 migration |
+| 5 | `local_db.dart` | `getShareInfo()` return type → `Map<String,dynamic>`, includes `remote_id` |
+| 5 | `jazzdrive_service.dart` | `getStreamLink/generateLink/_getMedia` accept `remoteId` param; Pass 0 by JD file ID before Passes 1-3 |
+| 5 | `player_screen.dart` | Reads `remote_id` from `getShareInfo()`, passes as `remoteId` to `getStreamLink()` |
+
+### Architecture after this commit
+
+```
+Oracle sync (once/day) or JazzDrive delta (zero-rated fallback)
+  → remote_id + share_url saved in local SQLite episodes table
+
+User taps episode
+  → getShareInfo(fileId) — local SQLite only, no network
+  → JazzDriveService.getStreamLink(shareUrl, remoteId: N)
+       Pass 0: match by JD file ID → exact file, no filename guessing ✅
+       Passes 1-3: filename fallback (kept for legacy/migration)
+  → CDN URL — Oracle never touched at play time ✅
+```
