@@ -5,6 +5,48 @@
 
 ---
 
+## Session 2026-06-07 (TASK-028 — player_prefs.dart schema audit)
+
+**Agent:** Replit Agent (main branch)
+**Task:** Full audit of `player_prefs.dart` for schema inconsistencies — missing fields, key collisions, default mismatches, duplicate fields. Also resolve BACKLOG-01 (`cinematicOpacity`).
+**Commit:** `1b9b2e8f`
+
+### Bugs found and fixed
+
+| ID | Severity | Bug | Fix |
+|----|----------|-----|-----|
+| P01 | 🔴 HIGH | `endAction` and `endOfVideoAction` both saved/loaded from key `player_end_action` — `Future.wait()` runs saves concurrently so one field's value silently overwrites the other | Gave `endAction` its own isolated key `player_end_action_v2` in both `load()` and `save()` |
+| P03 | 🟠 MED | `reactionsEnabled` default mismatch: constructor = `false`, `load()` = `true` — fresh install gets `true` but `const PlayerPrefs()` gives `false` | Changed `load()` fallback to `false` |
+| P04 / BACKLOG-01 | 🟠 MED | `cinematicOpacity` was a local `_State` variable resetting to `0.5` on every launch — user's cinematic overlay setting was never persisted | Added `final double cinematicOpacity` to `PlayerPrefs` (key `player_cinematic_opacity`, default `0.5`) across all 5 sections (field, constructor, copyWith, load, save). Wired `player_screen.dart` to restore from prefs in `_loadPrefs()` and persist on slider change via `copyWith(cinematicOpacity: v) + save()` |
+
+### False positive (audit script bug)
+
+| ID | Original assessment | Reality |
+|----|---------------------|---------|
+| P02 | `transparentModeFrosted` missing from `save()` | Was already present in `save()` (line 1058); the audit script's regex missed it due to whitespace variation |
+
+### Duplicate-field schema debt documented (no fix — no key collisions, need widget-coverage audit first)
+
+| Pair | Fields | Status |
+|------|--------|--------|
+| D01 | `endOfVideoAction` vs `endAction` | Keys now different (P01 fixed); conceptually duplicate |
+| D02 | `dualSubtitleEnabled` vs `dualSubtitlesEnabled` | Different keys; `dualSubtitleEnabled` confirmed used in player_screen.dart |
+| D03 | `wakeTimeoutMins` vs `wakeLockTimeoutMinutes` | Different keys; both default 0 |
+| D04 | `pictureProfile` ('natural') vs `pictureProfileId` ('standard') | Different keys AND different defaults — most dangerous |
+| D05 | `gestureActionMapJson` vs `gestureMapData` | Different keys; `gestureActionMapJson` used in player_screen.dart |
+| D06 | `customSpeedPresetsJson` (empty/JSON) vs `speedPresets` (CSV) | Different keys AND different formats |
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `raddflix_flutter/lib/core/player/player_prefs.dart` | P01 key fix, P03 default fix, P04 cinematicOpacity field added |
+| `raddflix_flutter/lib/screens/player_screen.dart` | BACKLOG-01: restore + persist `cinematicOpacity` in `_loadPrefs` and `_showCinematicSettings` |
+| `agent-hub/TASKS.md` | TASK-028 added to archive; BACKLOG-01 cleared |
+| `agent-hub/history/TASK_LOG.md` | This session appended |
+
+---
+
 ## Session 2026-06-07 (Pass 4 — full re-audit)
 
 **Agent:** Replit Agent (main branch)

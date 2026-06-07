@@ -21,7 +21,6 @@ This file is the handoff bridge — the next agent reads this first.
 
 | ID | Task | Status | Date | Notes |
 |----|------|--------|------|-------|
-| BACKLOG-01 | L-10: persist cinematicOpacity — needs PlayerPrefs.cinematicOpacity field added to player_prefs.dart | ❌ OPEN | 2026-06-07 | Deferred from TASK-026; low severity |
 
 ---
 
@@ -56,3 +55,4 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-025 | Player screen — Pass 4 full re-audit (BUG-P-NEW-06 + 07) | 2026-06-07 | ✅ |
 | TASK-026 | Player screen — Pass 5 comprehensive 29-bug audit (2C+8H+9M+10L) | 2026-06-07 | ✅ 26 fixes applied; L-03/07/09/10 deferred (L-10 in BACKLOG-01) |
 | TASK-027 | Player screen — Pass 6 full line-by-line audit (12 bugs fixed: N01–N12) | 2026-06-07 | ✅ All 12 fixed in one atomic commit |
+| TASK-028 | player_prefs.dart full schema audit (P01–P04 + BACKLOG-01) | 2026-06-07 | ✅ 3 critical bugs fixed; BACKLOG-01 resolved; 5 duplicate-field pairs documented |
