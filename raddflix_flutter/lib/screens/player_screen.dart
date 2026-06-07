@@ -3867,7 +3867,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               onClose: () => setState(() => _showHudSettings = false),
               onOpenFullSettings: () {
                 setState(() => _showHudSettings = false);
-                _openSettings();
+                _openPlayerSettings();
               },
             ),
 
