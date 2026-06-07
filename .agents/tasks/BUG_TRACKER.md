@@ -1,5 +1,5 @@
 # BUG_TRACKER.md
-Last updated: 2026-06-06
+Last updated: 2026-06-07
 
 ## Status Key
 - ✅ FIXED — committed and verified on live server
@@ -78,155 +78,38 @@ parts, never `\$` — or use raw strings (`r'...'`).
 
 ## Data Gap (not a code bug)
 
-| ID | Title | Status | Notes |
-|----|-------|--------|-------|
-| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB episodes table. Need upload to JazzDrive + sync. |
-
 ---
 
-## Session 2026-06-05 — Proxy Pool God-Level Upgrade
-
-No new bugs found in app logs. App running cleanly (raddflix_radd via supervisorctl).
-
-### Changes made (not bugs — improvements)
-
-| ID | Type | Title | Action | File |
-|----|------|-------|--------|------|
-| IMP-P01 | IMPROVEMENT | Proxy pool had only 65 seeds with basic round-robin | Upgraded to 150+ seeds, weighted scoring, circuit breaker, 5-min fast recovery | `hub/proxy_pool.py` |
-| IMP-P02 | IMPROVEMENT | Dead proxy recovery only ran every 10 min | Added fast recovery thread: re-tests disabled proxies every 5 min | `hub/proxy_pool.py` |
-| IMP-P03 | IMPROVEMENT | If all proxies dead, upload would fail | CircuitBreaker: >80% dead → auto-fallback to direct connection | `hub/proxy_pool.py` |
-| IMP-U01 | IMPROVEMENT | Settings proxy panel was old inline code | Replaced with `_proxy_pool_panel.html` include (stat cards, filter, sort, score, bulk import, export, per-proxy test, 10s refresh) | `hub/templates/settings.html` |
-| IMP-U02 | IMPROVEMENT | No bulk import for proxies | Added bulk import panel: paste 100+ proxy URLs, auto-detect format | `hub/templates/_proxy_pool_panel.html` |
-| IMP-A01 | IMPROVEMENT | Only 3 pool API endpoints | Added 5 new endpoints: stats, bulk-import, test-one, reset-dead, export | `hub/routes/settings.py` |
-
----
-
-## Session 2026-06-05 (2nd session) — OTP Upload Page Investigation
+## Session 2026-06-07 — Player Screen Pass 2 (BUG-P-NEW-01 through BUG-P-NEW-04)
 
 | ID | Severity | Title | Root Cause | Fix Applied | File |
 |----|---------|-------|-----------|-------------|------|
-| BUG-O01 | CRITICAL | OTP not received from upload page | `scanner.send_otp()` called `resolve_proxies()` once with no retry; circuit open → direct → MED-1011 | Added proxy retry chain to `send_otp()` and `resend_otp()` | `hub/scanner.py` |
-| BUG-O02 | HIGH | OTP always fails when proxy pool circuit is open | `resolve_proxies(purpose='otp')` returned `None` when circuit open | Added fallback to `get_proxy_chain(n=1)` | `hub/jazzdrive.py` |
-
-Commit: `696890f`
+| BUG-P-NEW-01 | HIGH | Background-play toggle triggers duplicate audio session listeners | `_audioSessionInitialized` flag never set to `true` in `initState()` — every BG-play toggle re-ran `_initAudioSession()` and stacked listeners | Set `_audioSessionInitialized = true` immediately after `_initAudioSession()` call in `initState()` | `screens/player_screen.dart` |
+| BUG-P-NEW-02 | MEDIUM | Night Mode tile in More sheet always shows as inactive | `_MxMoreSheet` `active` state used `cinematicMode` instead of `_prefs.nightMode` | Added `nightModeActive` field; pass `_prefs.nightMode` at call site | `screens/player_screen.dart` |
+| BUG-P-NEW-03 | HIGH | Mid-stream errors silently swallowed → infinite buffering with no feedback | Blanket `return` in error handler dropped all errors after 3s of playback (CDN expiry / network drop) | Show "Connection lost — reconnecting…" SnackBar + soft `_jazzAutoRetry` | `screens/player_screen.dart` |
+| BUG-P-NEW-04 | CRITICAL | Cast button crashes app before first URL loads | `_currentPlaybackUrl.isNotEmpty` called on nullable `String?` — NPE when cast opened before URL resolved | Null-safe check: `_currentPlaybackUrl != null && _currentPlaybackUrl!.isNotEmpty` | `screens/player_screen.dart` |
 
 ---
 
-## Session 2026-06-05 (3rd session) — OTP Verify Proxy Bug
+## Session 2026-06-07 — Player Screen Pass 3 (BUG-P-NEW-05)
 
 | ID | Severity | Title | Root Cause | Fix Applied | File |
 |----|---------|-------|-----------|-------------|------|
-| BUG-V01 | CRITICAL | OTP verify always fails — "Connection aborted, RemoteDisconnected" | `verify_otp` used `resolve_proxies(purpose='sapi')` which returns `None` when circuit open → direct Oracle IP → Jazz drops connection | Changed to `purpose='otp'` + retry chain with `mark_fail` | `hub/scanner.py` |
-| BUG-V02 | HIGH | Cascading session death after failed OTP verify | verify_otp failure → no tokens saved → keepalive can't recover | Fixed by BUG-V01 | `hub/scanner.py` |
-
-Commit: `bd037a7`
-
-### Cascading Failure Chain (BUG-V02)
-```
-verify_otp fails (no proxy) → no tokens saved
-→ old refresh_token expires → invalid_grant (HTTP 400)
-→ old raw_accesstoken expires → 401 Unauthorized
-→ keepalive heartbeat fails repeatedly
-→ account needs fresh OTP re-login → loop
-```
+| BUG-P-NEW-05 | HIGH | ClipTrimmer A-B points don't enforce loop or show on seek bar | `onTrimChanged` only set `_abLoopStart`/`_abLoopEnd` state vars but never called `_abLoop.setA()`/`_abLoop.setB()` — so `maybeSeekBack()` had no data and seek bar markers never rendered | Added `_abLoop.setA(trim.start)` and `_abLoop.setB(trim.end)` after setState in `onTrimChanged` | `screens/player_screen.dart` |
 
 ---
 
-## Session 2026-06-06 — Admin Panel db/reset Fix + db.get_setting Fix
-
-| ID | Severity | Title | Root Cause | Fix Applied | File | Commit |
-|----|---------|-------|-----------|-------------|------|--------|
-| BUG-A01 | HIGH | Admin "Reset Tables" button shows success but nothing deleted | `db_reset()` used `db.conn()` shared wrapper; WAL-mode read locks from background threads silently blocked DELETE; inner `try/except: pass` swallowed all errors, always returned `ok:True` | Replaced with direct `sqlite3.connect()` + `BEGIN IMMEDIATE` (exclusive lock) + `PRAGMA wal_checkpoint(TRUNCATE)` after commit | `hub/routes/admin.py` | `f8affe1` |
-| BUG-A02 | HIGH | `/api/app/config` crashes with `AttributeError` every ~2 min | `mobile_api.py` called `db.get_setting()` which does not exist; correct function name is `db.setting()` | Changed both occurrences to `db.setting("api_base_url", "")` | `hub/routes/mobile_api.py` | (this session) |
-
-### Root Cause Details
-
-**BUG-A01:** SQLite WAL mode allows concurrent readers but requires an exclusive write lock
-for writes. Python's `sqlite3` via the shared `db.conn()` wrapper can silently fail to obtain
-`BEGIN IMMEDIATE` when background threads hold open read transactions. The fix uses a fresh
-direct connection which always succeeds in WAL mode.
-
-**BUG-A02:** `db.py` exposes `setting(k, default)` and `set_setting(k, v)` — there is no
-`get_setting()`. This caused an `AttributeError` on every call to `GET /api/app/config`,
-returning an HTTP 500 instead of the app config. Flutter app fell back to hardcoded defaults.
-The error appeared in logs every ~2 minutes (Flutter app polls this endpoint on cold start).
-
-### Also investigated this session (not bugs — findings)
-
-| Finding | Detail |
-|---------|--------|
-| Uploads use NO proxy/VPN | `JAZZDRIVE_PROXY_BYPASS=1` → all JazzDrive traffic goes direct from Oracle IP. WARP only routes 3 Jazz SAPI IPs for zero-rating; JazzDrive upload host is NOT in WARP tunnel. |
-| Auto-delete is configured correctly | `upload_auto_delete=true` in DB settings. Delete only triggers if `share_url OR remote_id` exists after upload. Files stuck because account session expired → uploads fail → no share_url → no delete. |
-| Leftover files in /data/media | `Pitt_Siyapa_2026.mp4` (682KB) and `Vncenz0.S01E02...mp4` (707KB) stuck since Jun 5. Empty folder `Off_Campus_S01/` also present. Root cause: account session expired, needs OTP re-login. |
-| Account 03286829827 session | EXPIRED — needs fresh OTP re-login via Upload page. All keepalive heartbeats failing. |
-
----
-
-
-## Session 2026-06-07 — BUG-A03: JazzDrive Geo-Restriction Root Cause
-
-### Root Cause Summary
-Session appeared "expired" (SAPI 401 on every restart) but raw_accesstoken was valid.
-Our wg0 VPN exits through Cloudflare (162.159.192.1) — NOT a Pakistani IP.
-JazzDrive /sapi/login/oauth is geo-restricted: Apache web server returns 401 HTML from
-non-PK IPs before the request even reaches the SAPI application layer.
-Normal SAPI calls (with JSESSIONID cookie) are NOT geo-restricted — these work fine direct.
-
-### Bugs Fixed
-
-| ID | Severity | Title | Root Cause | Fix | Commit |
-|----|---------|-------|-----------|-----|--------|
-| BUG-A03a | HIGH | _ar_chain in android_refresh_session tried dead proxy pool with PROXY_BYPASS=1 | Chain builder always queried pool (dead) even with bypass=1, wasting 4×25s timeouts before failing OAuth2 step | Added is_proxy_bypass() guard at top of _ar_chain builder | 54f2434 |
-| BUG-A03b | CRITICAL | SAPI login blocked by geo-restriction (Cloudflare exit = non-PK IP) | wg0 exits via Cloudflare → Apache 401 HTML on /sapi/login/oauth | _s2_chain fetches proxy via proxy_pool.pool.get_best() directly, bypassing resolve_proxies() entirely — PK proxy used for login regardless of PROXY_BYPASS flag | 54f2434 |
-| BUG-A03c | MEDIUM | Over-broad bypass fix routed ALL SAPI calls through PK proxy | Added purpose!='sapi' exception to resolve_proxies() bypass guard → all SAPI calls (keepalive, uploads) went through PK proxy, timing out | Reverted resolve_proxies() to original; scoped to _s2_chain direct pool access only | 54f2434 |
-| BUG-A03d | FIXED-WRONG | ~~submit_otp forced pool.get_best() for geo-restriction~~ — INCORRECT DIAGNOSIS | Same wrong root cause as BUG-A03b. Dead proxy returned Apache HTML, not JazzDrive. JazzDrive needs no proxy. | REVERTED in BUG-A03e. | bdea6d2 → reverted fe65116 |
-| BUG-A03e | HIGH | _s2_chain and _sub_chain forced pool.get_best() with PROXY_BYPASS=1 — caused 60s startup delay | Wrong diagnosis: BUG-A03b/d forced proxy pool (dead entries) even with BYPASS=1. Each dead proxy timed out at 20-30s before falling through to direct. Root cause was always dead proxies, never geo-restriction. JazzDrive is globally accessible. | Both chains now use is_proxy_bypass() guard → [None] direct (same as _ar_chain). sapi_proxies block only runs when !is_proxy_bypass(). | fe65116 |
-
-### SAPI Call Architecture (CRITICAL — memorise this)
-```
-CALL TYPE                  | EXIT IP              | GEO-RESTRICTED?
----------------------------|----------------------|----------------
-Keepalive (JSESSIONID)     | wg0 → Cloudflare     | NO  ✅
-Upload (JSESSIONID)        | wg0 → Cloudflare     | NO  ✅
-OAuth2 /oauth2/refresh     | wg0 → Cloudflare     | NO  ✅
-SAPI login /sapi/login     | Pakistani SOCKS proxy| YES ⚠️
-```
-PROXY_BYPASS=1 skips proxies in resolve_proxies() for all callers.
-_s2_chain bypasses resolve_proxies() and reads pool directly — PK proxy always used for login.
-
-### Verified Pakistani Proxies Added to sapi_proxies Table
-| Proxy | Result |
-|-------|--------|
-| socks5://182.184.119.180:1080 | ✅ HTTP 200 from SAPI — primary |
-| http://221.120.218.66:8080    | ⚠️ partial — fail_count=3 |
-
-### Session State After Fix
-```
-✓ Heartbeat OK for 03286829827 (session alive, expiry rolled +30d)
-startup_refresh: session restored — Android OAuth2 session refreshed (no OTP required)
-```
-OTP re-login no longer needed on Flask restart. Session auto-recovers via Android OAuth2 + PK proxy.
-
----
-
-## Open Issues (requires user action, not code fixes)
-
-| ID | Title | Status | Notes |
-|----|-------|--------|-------|
-| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB. Need JazzDrive upload + sync. |
-| OPS-01 | Account 03286829827 session | ✅ RESOLVED 2026-06-07 | BUG-A03 fixed. Session auto-recovers via Android OAuth2 + PK proxy. No OTP needed. |
-
----
-
-## Session 2026-06-07 — Player Screen Pass 2 Deep Audit (TASK-023)
-
-Full 6226-line read of player_screen.dart. 4 new bugs found that were NOT in the prior tracker.
+## Session 2026-06-07 — Player Screen Pass 4 full re-audit (BUG-P-NEW-06 + BUG-P-NEW-07)
 
 | ID | Severity | Title | Root Cause | Fix Applied | File |
 |----|---------|-------|-----------|-------------|------|
-| BUG-P-NEW-01 | HIGH | `_audioSessionInitialized` never set to `true` in `initState()` — BUG-02 guard broken | `initState()` calls `_initAudioSession()` but never sets `_audioSessionInitialized = true`. The BG-play guard in `_VideoDisplaySheet` (`if (v && !_audioSessionInitialized)`) always passes → second `_initAudioSession()` call on BG play toggle → duplicate `interruptionEventStream` + `becomingNoisyEventStream` listeners accumulate per toggle | Added `_audioSessionInitialized = true;` in `initState()` immediately after `_initAudioSession()` call | `screens/player_screen.dart` |
-| BUG-P-NEW-02 | MEDIUM | Night Mode grid button in `_MxMoreSheet` highlights `cinematicMode` state not `_prefs.nightMode` | `_MxMoreSheet` items list: `'active': cinematicMode` for the Night Mode tile. `cinematicMode` is the controls-dimming overlay (separate feature). After TASK-022 UX-01 fix, `onNight` correctly toggles `_prefs.nightMode`, but the tile highlight/color still reflects `cinematicMode` — Night Mode appears OFF even when enabled | Added `final bool nightModeActive` field + `required this.nightModeActive` to `_MxMoreSheet` constructor; changed Night Mode tile `'active': cinematicMode` → `'active': nightModeActive`; pass `nightModeActive: _prefs.nightMode` at call site | `screens/player_screen.dart` |
-| BUG-P-NEW-03 | HIGH | Mid-stream network errors (after 3s of playback) silently swallowed — infinite buffering | `_player.stream.error.listen`: `if (_playing && _position.inSeconds > 3) return;` — blanket early-return means CDN URL expiry, network drops, or DNS failures mid-stream are logged but user sees nothing and player buffers forever with no retry | Replaced blanket `return` with mid-stream handler: shows "Connection lost — reconnecting…" SnackBar, sets `_isRetrying = true`, calls `_jazzAutoRetry(err)`, clears `_isRetrying` after 5s | `screens/player_screen.dart` |
-| BUG-P-NEW-04 | CRITICAL | `_enterCast()` null dereference crash — `_currentPlaybackUrl.isNotEmpty` on `String?` | `_currentPlaybackUrl` declared `String? _currentPlaybackUrl` (nullable). Code: `_currentPlaybackUrl.isNotEmpty ? ...` — calling `.isNotEmpty` on a null value throws `Null check operator used on a null value` crash whenever user opens cast before the first URL is loaded | Changed to null-safe check: `(_currentPlaybackUrl != null && _currentPlaybackUrl!.isNotEmpty) ? _currentPlaybackUrl! : fallback` | `screens/player_screen.dart` |
+| BUG-P-NEW-06 | MEDIUM | Cinematic mode can only be toggled ON via VideoEnhanceSuite sheet, never OFF | `_openVideoEnhanceSuite` `onChanged` handler checked `map['cinematicMode'] == true` and called `_toggleCinematic()` — but never called it when the value was `false`. So once cinematic was enabled through the sheet, it could never be disabled via that path. | Compare new value against `_cinematicMode` and call `_toggleCinematic()` only when they differ: `if ((map['cinematicMode'] as bool? ?? _cinematicMode) != _cinematicMode) _toggleCinematic();` | `screens/player_screen.dart` |
+| BUG-P-NEW-07 | HIGH | Quick Bar "Night Mode" button toggles cinematic mode instead of night mode | `_QuickShortcutBar`'s `onNightMode` was wired to `onToggleCinematic` in `_ControlsOverlay`'s build method — a copy-paste error. Tapping "Night" in the Quick Bar silently toggled cinematic instead of applying the night-mode video filter. The Video Display Sheet had the correct implementation; the Quick Bar did not. | Added `onToggleNightMode` callback to `_ControlsOverlay`; wired it from `_buildPlayerBody` to the same correct lambda used by the Video Display Sheet (`_prefs.copyWith(nightMode: !_prefs.nightMode)` + save + `_applyVideoFilters()`); changed `onNightMode: onToggleCinematic` to `onNightMode: onToggleNightMode`. | `screens/player_screen.dart` |
 
-| BUG-P-NEW-05 | HIGH | ClipTrimmer `onTrimChanged` doesn't sync to `_abLoop` controller — A-B loop never enforced, seek bar markers never shown when set via trimmer | `ClipTrimmer.onTrimChanged` only sets `_abLoopStart`/`_abLoopEnd` state vars. `_abLoop.maybeSeekBack(p)` (called every position tick) and the seek bar marker painter both use `_abLoop.pointA`/`_abLoop.pointB` directly. These are never set from ClipTrimmer, so the loop runs forever without enforcing bounds and no A/B markers appear on the progress bar | Added `_abLoop.setA(trim.start)` and `_abLoop.setB(trim.end)` after the `setState(...)` call in `onTrimChanged` | `screens/player_screen.dart` |
+### Pass 4 audit completeness note
+All 6,252 lines of `player_screen.dart` were read in full across 4 passes.
+No additional functional bugs found beyond BUG-P-NEW-06 and BUG-P-NEW-07.
+Items confirmed NOT bugs:
+- `_applyRotation` double-`copyWith` (cosmetically wasteful, functionally correct — setState runs callback synchronously so second copyWith is a no-op on the already-updated prefs)
+- Quick Bar "Night Mode" label wired to cinematic in `_QuickShortcutBar.onNightMode` (NOW FIXED as BUG-P-NEW-07)
+- Dead state vars (`_abLoopActive`, `_castScanning`, `_castDevices`, `_connectedCastDevice`, `_watchPartyRoom`, `_audioTracks`, `_selectedAudioTrack`) — declared but unused; not bugs, just stale scaffolding

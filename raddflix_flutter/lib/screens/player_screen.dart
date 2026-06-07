@@ -1169,7 +1169,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           );
           setState(() => _prefs = next);
           _applyVideoFilters(next);
-          if (map['cinematicMode'] as bool? ?? false) {
+          // BUG-P-NEW-06 FIX: compare against current state; toggle only when value differs
+          // so user can turn cinematic OFF via VideoEnhanceSuite sheet (not just ON).
+          final _newCinematic = map['cinematicMode'] as bool? ?? _cinematicMode;
+          if (_newCinematic != _cinematicMode) {
             _toggleCinematic();
           }
           next.save();
@@ -3078,6 +3081,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               fmtDur: _fmtDur,
               cinematicMode: _cinematicMode,
               onToggleCinematic: _toggleCinematic,
+              onToggleNightMode: () {
+                // BUG-P-NEW-07 FIX: Quick Bar "Night Mode" must toggle nightMode pref,
+                // NOT cinematic mode (which is a separate feature).
+                final np = _prefs.copyWith(nightMode: !_prefs.nightMode);
+                setState(() => _prefs = np);
+                np.save();
+                _applyVideoFilters(np);
+              },
               activeAudioIdx: _activeAudioIdx,
               activeSubIdx: _activeSubIdx,
               audioLabels: _buildAudioLabels(_player.state.tracks.audio),
@@ -3718,6 +3729,7 @@ class _ControlsOverlay extends StatelessWidget {
   // Extended params
   final bool cinematicMode;
   final VoidCallback onToggleCinematic;
+  final VoidCallback onToggleNightMode; // BUG-P-NEW-07 FIX
   final int activeAudioIdx;
   final int activeSubIdx;
   final List<String> audioLabels;
@@ -3796,6 +3808,7 @@ class _ControlsOverlay extends StatelessWidget {
     required this.fmtDur,
     this.cinematicMode = false,
     required this.onToggleCinematic,
+    required this.onToggleNightMode,  // BUG-P-NEW-07 FIX
     this.activeAudioIdx = 0,
     this.activeSubIdx = 0,
     this.audioLabels = const [],
@@ -4278,7 +4291,7 @@ class _ControlsOverlay extends StatelessWidget {
                       onSpeed:        onSpeed,
                       onSubtitle:     onSubtitleTracks,
                       onLock:         onLock,
-                      onNightMode:    onToggleCinematic,
+                      onNightMode:    onToggleNightMode,  // BUG-P-NEW-07 FIX
                     ),
                   // ── Seek row: position | slider | duration ──────────────────
                   Row(

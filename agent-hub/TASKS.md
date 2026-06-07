@@ -52,3 +52,4 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-022 | Player screen — Pass 1 critical bugs (13 fixes: BUG-01→14, LAYOUT-01/02, UX-01×3) | 2026-06-07 | ✅ player_screen.dart patched; all 13 targeted fixes confirmed |
 | TASK-023 | Player screen — Pass 2 deep audit (4 NEW bugs: BUG-P-NEW-01→04) | 2026-06-07 | ✅ All 4 fixed in player_screen.dart: audioSession guard, night mode highlight, mid-stream error silence, _enterCast NPE |
 | TASK-024 | Player screen — Pass 3 verification (BUG-P-NEW-05: ClipTrimmer A-B loop not synced to controller) | 2026-06-07 | ✅ onTrimChanged now calls _abLoop.setA()/setB() so loop enforcement + seek bar markers work |
+| TASK-025 | Player screen — Pass 4 full re-audit (BUG-P-NEW-06 + BUG-P-NEW-07) | 2026-06-07 | ✅ Both fixed: cinematic toggle bidirectional; Quick Bar night mode wired to actual night mode pref |
