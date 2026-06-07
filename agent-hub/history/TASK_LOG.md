@@ -426,3 +426,36 @@ storage — invisible to other apps by design on Android. The `.nomedia` file pr
 app's own media scanner from indexing it. The new `deleteMediaFiles` channel ensures that
 ORIGINAL files (before the move to vault) are also removed from the system MediaStore so
 they disappear from gallery apps, file managers, and all third-party media players.
+
+---
+## Session — 2026-06-07 (continued) — Build Fixes (TASK-035)
+
+### Context
+Following TASK-034 (vault 6-bug fix, commit f14eac5), APK builds at sha f14eac5 were
+failing in the `Build release APK` Gradle step with Dart kernel_snapshot errors.
+These were pre-existing compile errors unrelated to vault work.
+
+### Bugs Fixed
+
+**BUG-BUILD-01** (`player_screen.dart:3870`)
+- Error: `The method '_openSettings' isn't defined for the class '_PlayerScreenState'`
+- Fix: Replaced `_openSettings()` call with existing `_openPlayerSettings()` in the
+  `onOpenFullSettings` callback of `PlayerHudSettingsSheet`. The alias was never defined;
+  `_openPlayerSettings` (line 1213) is the correct method that pushes `PlayerSettingsScreen`.
+- Commit: b6f39e2
+
+**BUG-BUILD-02** (`player_hud_settings_sheet.dart` lines 595, 759, 1125)
+- Error: `Member not found: 'white87'` — `Colors.white87` is not a valid Flutter color
+- Fix: Replaced all 3 occurrences with `Color(0xDEFFFFFF)` (DE hex = 222 = 87.06% of 255),
+  which is const-compatible and exactly equivalent to the intended 87% opacity white.
+- Commit: 4f25d18
+
+### Result
+- APK build `27099266309` at sha `4f25d18`: **completed success**
+- Artifact: `RaddFlix-1.0.0+1-build1021.apk` (56.7 MB, artifact ID 7466276246)
+
+### Files Changed
+| File | Change | Commit |
+|------|--------|--------|
+| lib/screens/player_screen.dart | _openSettings → _openPlayerSettings | b6f39e2 |
+| lib/widgets/player/player_hud_settings_sheet.dart | Colors.white87 → Color(0xDEFFFFFF) (×3) | 4f25d18 |
