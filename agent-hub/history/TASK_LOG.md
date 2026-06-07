@@ -251,3 +251,41 @@
 | pubspec.yaml | +archive: ^3.4.0 |
 | agent-hub/TASKS.md | TASK-029 added |
 | agent-hub/history/TASK_LOG.md | This entry |
+
+---
+
+## TASK-030 — PlayerHudSettingsSheet (HUD Layout & Controls Settings Overlay)
+
+**Date:** 2026-06-07
+**Status:** ✅ Complete
+**Commit:** `cd8bcd83327e752d0d256ae6bb918740c7835af1`
+
+### Summary
+Created a comprehensive, live-preview, semi-transparent settings overlay panel
+that renders inside the player Stack so the video is always visible behind it.
+
+### Behavior
+| Mode | Position | Size | Effect |
+|------|----------|------|--------|
+| Portrait | Slides up from bottom | Full width × 72% height | 72% dark + blur → video visible above |
+| Landscape | Slides in from right | 52% width × full height | Video visible on left 48% |
+
+- **Animation:** 300ms easeOutCubic slide in / easeInCubic slide out
+- **Background:** `Color(0xB8080810)` + `BackdropFilter(blur: 10)` — live video shows through
+- **Live changes:** every toggle → `onPrefsChanged` callback → `setState` + `prefs.save()` in player_screen — no Save button
+- **Dismiss:** X button or tap on backdrop outside panel
+
+### Sections (5 organized groups)
+1. **⚡ Quick Bar** — master show/hide toggle + 8 shortcut item chips (pip, bgplay, fit, screenshot, speed, subtitle, lock, nightmode) — tap chip to add/remove from bar
+2. **🎮 Center Buttons** — 3-way position selector (Center / Bottom / Hidden) + Prev/Next episode + Skip Intro toggles
+3. **📺 Info Overlays** — 7 individual toggles: Episode info, Network speed, Playback info, Decoder info, Active track badge, Track count badge, Frame counter
+4. **🎬 Seek Bar** — 10 style chips (classic/bold/gradient/wave/neon/dots/thin/glow/retro/minimal) + buffer bar toggle
+5. **⚙️ Controls Behavior** — auto-hide delay slider (2–15s) + controls opacity slider (30–100%)
+
+### Files changed
+| File | Change |
+|------|--------|
+| lib/widgets/player/player_hud_settings_sheet.dart | NEW (758 lines) — full overlay widget |
+| lib/screens/player_screen.dart | +import, `_showHudSettings` state, `_openHudSettings()`, HudSettingsSheet overlay in Stack, `_MxMoreSheet.onLayoutSettings` field+ctor+call, new "Layout & HUD" button in More grid |
+| agent-hub/TASKS.md | TASK-030 added |
+| agent-hub/history/TASK_LOG.md | This entry |
