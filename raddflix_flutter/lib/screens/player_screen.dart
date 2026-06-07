@@ -415,7 +415,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _loadPrefs() async {
     final loaded = await PlayerPrefs.load();
     if (!mounted) return;
-    setState(() => _prefs = loaded);
+    setState(() {
+      _prefs = loaded;
+      _cinematicOpacity = loaded.cinematicOpacity; // BACKLOG-01: restore persisted opacity
+    });
     // Apply rotation mode from prefs
     _applyRotation(loaded.rotationMode);
     // Apply volume boost from prefs
@@ -799,7 +802,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       builder: (_) => CinematicSettingsSheet(
         initialOpacity: _cinematicOpacity,
         // Live callback: slider in sheet immediately dims controls
-        onOpacityChanged: (v) => setState(() => _cinematicOpacity = v),
+        onOpacityChanged: (v) {
+          setState(() {
+            _cinematicOpacity = v;
+            _prefs = _prefs.copyWith(cinematicOpacity: v); // BACKLOG-01: persist
+          });
+          _prefs.save();
+        },
       ),
     );
   }

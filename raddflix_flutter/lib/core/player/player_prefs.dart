@@ -124,6 +124,8 @@ class PlayerPrefs {
   final bool   cinematicModeOnLock;
   final bool   gesturesInCinematic;
   final String cinematicTapBehavior;
+  // BACKLOG-01: cinematicOpacity was a local state variable that reset every session
+  final double cinematicOpacity;
 
   // ── TRANSPARENT (extra) ───────────────────────────────────────────────────
   final bool transparentModeFrosted;
@@ -422,6 +424,7 @@ class PlayerPrefs {
     this.cinematicModeOnLock = false,
     this.gesturesInCinematic = true,
     this.cinematicTapBehavior = 'pause_resume',
+    this.cinematicOpacity = 0.5,
     this.transparentModeFrosted = false,
     this.accentColorValue = 0xFFE8002D,
     this.seekBarStyle = 'classic',
@@ -535,7 +538,7 @@ class PlayerPrefs {
     bool? showNetworkSpeed, bool? showDecoderInfo, bool? showPlaybackInfo,
     bool? showEpisodeInfo, bool? vibrateOnGesture, double? uiFontSize,
     bool? bookmarkVibrate, bool? cinematicModeOnLock, bool? gesturesInCinematic,
-    String? cinematicTapBehavior, bool? transparentModeFrosted,
+    String? cinematicTapBehavior, double? cinematicOpacity, bool? transparentModeFrosted,
     int? accentColorValue, String? seekBarStyle, String? playerTheme,
     String? buttonShape, String? iconPack, String? controlsBgStyle,
     String? gestureActionMapJson, String? pictureProfile,
@@ -690,6 +693,7 @@ class PlayerPrefs {
     cinematicModeOnLock: cinematicModeOnLock ?? this.cinematicModeOnLock,
     gesturesInCinematic: gesturesInCinematic ?? this.gesturesInCinematic,
     cinematicTapBehavior: cinematicTapBehavior ?? this.cinematicTapBehavior,
+    cinematicOpacity: cinematicOpacity ?? this.cinematicOpacity,
     transparentModeFrosted: transparentModeFrosted ?? this.transparentModeFrosted,
     accentColorValue: accentColorValue ?? this.accentColorValue,
     seekBarStyle: seekBarStyle ?? this.seekBarStyle,
@@ -871,6 +875,7 @@ class PlayerPrefs {
       cinematicModeOnLock:    s.getBool('${_p}cinematic_on_lock') ?? false,
       gesturesInCinematic:    s.getBool('${_p}gestures_cinematic') ?? true,
       cinematicTapBehavior:   s.getString('${_p}cinematic_tap')   ?? 'pause_resume',
+      cinematicOpacity:       s.getDouble('${_p}cinematic_opacity') ?? 0.5, // BACKLOG-01
       transparentModeFrosted: s.getBool('${_p}transparent_frosted') ?? false,
       accentColorValue:       s.getInt('${_p}accent_color')       ?? 0xFFE8002D,
       seekBarStyle:           s.getString('${_p}seek_bar_style')  ?? 'classic',
@@ -909,13 +914,13 @@ class PlayerPrefs {
       colorLook:                   s.getString('${_p}color_look')             ?? 'none',
       filmGrainLevel:              s.getString('${_p}film_grain')              ?? 'none',
       hapticLevel:                 s.getString('${_p}haptic_level')           ?? 'heavy',
-      reactionsEnabled:            s.getBool('${_p}reactions_enabled')        ?? true,
+      reactionsEnabled:            s.getBool('${_p}reactions_enabled')        ?? false, // P03: was true, mismatched constructor default
       historyPinEnabled:           s.getBool('${_p}history_pin_enabled')      ?? false,
       motorImpairmentMode:         s.getBool('${_p}motor_impairment')         ?? false,
       screenshotWatermark:         s.getBool('${_p}screenshot_watermark')     ?? true,
       focusModeEnabled:            s.getBool('${_p}focus_mode_enabled')       ?? false,
       speedPresets:                s.getString('${_p}speed_presets')           ?? '0.25,0.5,0.75,1.0,1.25,1.5,1.75,2.0,2.5,3.0',
-      endAction:                   s.getString('${_p}end_action')              ?? 'play_next',
+      endAction:                   s.getString('${_p}end_action_v2')           ?? 'play_next', // P01: was sharing key with endOfVideoAction
       smartSkipConfig:             s.getString('${_p}smart_skip_config')       ?? '0,0,90,0,120',
       audioLabConfig:              s.getString('${_p}audio_lab_config')         ?? 'off|off|0|0',
       voiceCommandsEnabled:        s.getBool('${_p}voice_commands_enabled')    ?? false,
@@ -1048,6 +1053,7 @@ class PlayerPrefs {
       s.setBool('${_p}cinematic_on_lock',  cinematicModeOnLock),
       s.setBool('${_p}gestures_cinematic', gesturesInCinematic),
       s.setString('${_p}cinematic_tap',    cinematicTapBehavior),
+      s.setDouble('${_p}cinematic_opacity', cinematicOpacity), // BACKLOG-01
       s.setBool('${_p}transparent_frosted',transparentModeFrosted),
       s.setInt('${_p}accent_color',        accentColorValue),
       s.setString('${_p}seek_bar_style',   seekBarStyle),
@@ -1092,7 +1098,7 @@ class PlayerPrefs {
       s.setBool('${_p}screenshot_watermark',       screenshotWatermark),
       s.setBool('${_p}focus_mode_enabled',         focusModeEnabled),
       s.setString('${_p}speed_presets',            speedPresets),
-      s.setString('${_p}end_action',               endAction),
+      s.setString('${_p}end_action_v2',             endAction), // P01: was sharing key with endOfVideoAction
       s.setString('${_p}smart_skip_config',        smartSkipConfig),
       s.setString('${_p}audio_lab_config',           audioLabConfig),
       s.setBool('${_p}voice_commands_enabled',        voiceCommandsEnabled),
