@@ -138,7 +138,7 @@ class VaultService {
   /// Infinix / MediaTek phones where [canCheckBiometrics] incorrectly returns
   /// false but [isDeviceSupported] returns true are handled correctly.
   ///
-  /// FIX-VAULT-03: [biometricOnly: true] — only an enrolled biometric is
+  /// FIX-VAULT-01: biometricOnly changed to false — biometricOnly:true throws a silent
   /// accepted. The device screen-lock PIN/pattern can no longer bypass the
   /// vault PIN (they are separate credentials).
   static Future<bool> authenticateBiometric(BuildContext context) async {
@@ -154,7 +154,7 @@ class VaultService {
       final ok = await _auth.authenticate(
         localizedReason: 'Unlock your private vault',
         options: const AuthenticationOptions(
-          biometricOnly: true,   // strict: no device PIN/pattern fallback
+          biometricOnly: false,  // FIX-VAULT-01: biometricOnly:true throws PlatformException on Infinix/MediaTek (no Class 3); swallowed by catch(_){return false}
           stickyAuth: true,
         ),
       );
