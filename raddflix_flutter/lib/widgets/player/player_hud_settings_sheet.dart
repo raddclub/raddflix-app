@@ -592,7 +592,7 @@ class _ToggleRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: const TextStyle(color: Colors.white87, fontSize: 13, fontWeight: FontWeight.w500)),
+          Text(label, style: const TextStyle(color: Color(0xDEFFFFFF), fontSize: 13, fontWeight: FontWeight.w500)),
           if (subtitle != null)
             Text(subtitle!, style: const TextStyle(color: Colors.white38, fontSize: 11)),
           if (warnText != null)
@@ -756,7 +756,7 @@ class _QuickBarSectionState extends State<_QuickBarSection> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(reg.$3, style: const TextStyle(
-                          color: Colors.white87, fontSize: 12, fontWeight: FontWeight.w600)),
+                          color: Color(0xDEFFFFFF), fontSize: 12, fontWeight: FontWeight.w600)),
                       if (isDup)
                         const Text('Also in Top Bar — may feel redundant',
                           style: TextStyle(color: Colors.amber, fontSize: 9)),
@@ -1122,7 +1122,7 @@ class _SliderRow extends StatelessWidget {
     children: [
       Row(children: [
         Expanded(child: Text(label,
-          style: const TextStyle(color: Colors.white87, fontSize: 13, fontWeight: FontWeight.w500))),
+          style: const TextStyle(color: Color(0xDEFFFFFF), fontSize: 13, fontWeight: FontWeight.w500))),
         Text(valueTxt, style: TextStyle(color: accent, fontSize: 12, fontWeight: FontWeight.w700)),
       ]),
       SliderTheme(
