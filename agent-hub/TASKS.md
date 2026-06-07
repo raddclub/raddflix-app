@@ -59,3 +59,4 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-028 | player_prefs.dart full schema audit (P01–P04 + BACKLOG-01) | 2026-06-07 | ✅ 3 critical bugs fixed; BACKLOG-01 resolved; 5 duplicate-field pairs documented |
 | TASK-030 | PlayerHudSettingsSheet — live-preview transparent layout & controls settings overlay | 2026-06-07 | ✅ |
 | TASK-031 | HUD v2 — presets, orientation tabs, drag-reorder Quick Bar, button shapes, MX-style auto-rotation, dedup guard | 2026-06-07 | ✅ |
+| TASK-032 | Smart Enhance — MX-style AI video enhancement suite (8 presets, master toggle, intensity, before/after compare) | 2026-06-07 | ✅ |

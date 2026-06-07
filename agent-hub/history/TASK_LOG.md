@@ -320,3 +320,53 @@ that renders inside the player Stack so the video is always visible behind it.
 | lib/screens/player_screen.dart | +_lastLandscapeSide, +didChangeMetrics override, MX rotation snap |
 | agent-hub/TASKS.md | TASK-031 added |
 | agent-hub/history/TASK_LOG.md | This entry |
+
+---
+
+## TASK-032 — Smart Enhance (MX-style AI Video Enhancement Suite)
+
+**Date:** 2026-06-07
+**Status:** ✅ Complete
+**Commit:** `034938fbbc43aadd38b75565190387d571a85ebf`
+
+### New Files
+
+#### lib/core/player/smart_enhance.dart (96 lines)
+- `SmartEnhancePreset` data class — brightness/contrast/saturation/hue deltas + sharpness + noiseReduce + colorHex
+- `kSmartEnhancePresets` — 8 content modes:
+
+| Mode | Key Enhancement |
+|------|----------------|
+| Standard | Subtle all-round boost |
+| Movie | Cinematic warmth, rich shadows (hue +4°) |
+| Sports | Vivid colors (+32%), razor sharpness (+0.38) |
+| Anime | Bold palette (+42% sat), clean linework |
+| Low Light | Brightness lift (+15%), hqdn3d noise reduction |
+| AMOLED | Deep blacks (−10% bright), vivid punch |
+| Drama | Warm amber tones (hue +7°), mood contrast |
+| Documentary | Natural, neutral, highly detailed |
+
+#### lib/widgets/player/smart_enhance_sheet.dart (655 lines)
+- Transparent overlay panel — slides from bottom (portrait) / right (landscape), blurred glass
+- `_MasterToggle` — animated ON/OFF switch with green glow ring; shows "Smart Enhance Active" status
+- `_ModeGrid` — 3-column card grid, 8 modes with emoji + label + accent underbar; selecting a mode auto-enables
+- `_WhatApplied` — info card showing contrast/color/brightness/sharpness/warmth/noise badge chips with actual percentage values
+- `_IntensitySlider` — Subtle → Max (0.5×–1.5× multiplier on preset deltas, labels: Subtle/Soft/Default/Strong/Max)
+- `_BeforeAfterBtn` — hold to temporarily bypass enhance and see original video live; release to restore (same as MX Player compare mode)
+
+### Modified Files
+
+#### player_prefs.dart
+- Added `smartEnhanceEnabled` (bool, default: false)
+- Added `smartEnhanceMode` (String, default: 'standard')
+- Wired in: field decls, constructor defaults, copyWith params + body, load(), save()
+- SharedPrefs keys: `${_p}smart_enhance_enabled`, `${_p}smart_enhance_mode`
+
+#### player_screen.dart
+- `_buildVfString` extended: Smart Enhance merges preset deltas with user eq values
+  - brightness/contrast/saturation/hue stacked + clamped (−1..+1, −2..+2, −3..+3)
+  - sharpness = (user + se delta) clamped 0–1.5
+  - `hqdn3d` noise filter appended when `preset.noiseReduce == true` (Low Light mode)
+- `_showSmartEnhance` state bool + `_openSmartEnhance()` method
+- `SmartEnhanceSheet` overlay added to player Stack
+- "Smart Enhance" button (violet, `auto_awesome` icon) added to `_MxMoreSheet` grid
