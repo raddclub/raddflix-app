@@ -58,3 +58,4 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-027 | Player screen — Pass 6 full line-by-line audit (12 bugs fixed: N01–N12) | 2026-06-07 | ✅ All 12 fixed in one atomic commit |
 | TASK-028 | player_prefs.dart full schema audit (P01–P04 + BACKLOG-01) | 2026-06-07 | ✅ 3 critical bugs fixed; BACKLOG-01 resolved; 5 duplicate-field pairs documented |
 | TASK-030 | PlayerHudSettingsSheet — live-preview transparent layout & controls settings overlay | 2026-06-07 | ✅ |
+| TASK-031 | HUD v2 — presets, orientation tabs, drag-reorder Quick Bar, button shapes, MX-style auto-rotation, dedup guard | 2026-06-07 | ✅ |

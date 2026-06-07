@@ -289,3 +289,34 @@ that renders inside the player Stack so the video is always visible behind it.
 | lib/screens/player_screen.dart | +import, `_showHudSettings` state, `_openHudSettings()`, HudSettingsSheet overlay in Stack, `_MxMoreSheet.onLayoutSettings` field+ctor+call, new "Layout & HUD" button in More grid |
 | agent-hub/TASKS.md | TASK-030 added |
 | agent-hub/history/TASK_LOG.md | This entry |
+
+---
+
+## TASK-031 — PlayerHudSettingsSheet v2 (Presets + Orientation Tabs + Drag-Reorder + Shapes + MX Rotation)
+
+**Date:** 2026-06-07
+**Status:** ✅ Complete
+**Commit:** `0a4c3c584b7c9d0ff93b3b8b4820fb0012d8daf9`
+
+### Changes
+
+#### player_hud_settings_sheet.dart — full rewrite (1145 lines)
+
+1. **Layout Preset Strip** — Netflix / MX Classic / Minimal / Binge / Custom chips at top of panel. Auto-detects which preset matches current prefs; one-tap applies a full bundle of settings at once.
+2. **Per-Orientation Tabs** — Portrait / Landscape tabs at top of panel. Each tab shows and edits independent layout prefs for that orientation so a user can have Quick Bar visible only in landscape.
+3. **Drag-to-Reorder Quick Bar** — `ReorderableListView` with `ReorderableDragStartListener` drag handles. Active items shown as ordered list; inactive items shown as "Tap to add" chips below.
+4. **Dedup Guard** — Subtitle chip shows amber warning + info banner if added to Quick Bar (it's already permanently in the top bar). `_kDuplicateWarned` set defines permanently-placed controls.
+5. **Button Shape Switcher** — Circle / Squircle / Rounded / Pill / Sharp chips. Each chip renders with its own `borderRadius` so user sees the actual shape before tapping.
+6. **Animated Preset Detection** — `_detectActivePreset()` compares centerBtnPosition + showQuickBar + seekBarStyle to identify which preset is active; updates the strip highlight live.
+
+#### player_screen.dart
+
+7. **MX-style auto-rotation** (`didChangeMetrics` override) — tracks which physical side user flipped to via safe-area padding heuristic (`padding.left > padding.right → landscapeRight`). When `rotationMode == 'sensor_landscape'`, snaps `setPreferredOrientations` to that exact side. `_lastLandscapeSide` state var persists between flips.
+
+### Files changed
+| File | Change |
+|------|--------|
+| lib/widgets/player/player_hud_settings_sheet.dart | Full rewrite (758→1145 lines) |
+| lib/screens/player_screen.dart | +_lastLandscapeSide, +didChangeMetrics override, MX rotation snap |
+| agent-hub/TASKS.md | TASK-031 added |
+| agent-hub/history/TASK_LOG.md | This entry |
