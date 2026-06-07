@@ -987,7 +987,9 @@ async function dbReset(){
   try{
     const r = await api('/admin/api/db/reset',{method:'POST'});
     if(r.ok){
-      _dangerMsg('✔ Local database cleared');
+      const t = r.row_counts ? r.row_counts.titles||0 : '?';
+      const f = r.row_counts ? r.row_counts.files||0  : '?';
+      _dangerMsg('✔ Cleared '+t+' title(s) and '+f+' file(s). Re-sync on next app launch.');
       chk.checked = false;
     } else {
       _dangerMsg('Error: '+(r.error||'?'), true);

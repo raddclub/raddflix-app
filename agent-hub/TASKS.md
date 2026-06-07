@@ -23,6 +23,8 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-007 | Push all docs to GitHub (part 1) | ✅ DONE | 2026-06-07 | |
 | TASK-008 | Fix BUG-A03e: _s2_chain and _sub_chain must respect PROXY_BYPASS=1 (was forcing dead proxies) | ✅ DONE | 2026-06-07 | JazzDrive global, no geo-restriction. Both chains now use is_proxy_bypass() guard → [None] direct |
 | TASK-009 | Update all MD docs: correct wrong geo-restriction diagnosis | ✅ DONE | 2026-06-07 | |
+| TASK-010 | Remove DATA-01 from AGENT_PROMPT.md (user confirmed complete) | ✅ DONE | 2026-06-07 | |
+| TASK-011 | Fix admin db/reset: isolation_level=None + FTS rebuild + row counts | ✅ DONE | 2026-06-07 | Root cause: Python sqlite3 implicit txn conflict + orphaned FTS tombstones |
 
 ---
 
@@ -30,7 +32,7 @@ This file is the handoff bridge — the next agent reads this first.
 
 | ID | Task | Status | Date | Notes |
 |----|------|--------|------|-------|
-| DATA-01 | Upload missing All Of Us Are Dead E03/E04/E05/E09 to JazzDrive | ❌ OPEN | - | Need content files, then run upload queue |
+
 
 ---
 
@@ -47,3 +49,5 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-007 | Push docs part 1 | 2026-06-07 | ✅ |
 | TASK-008 | BUG-A03e: correct both chain builders — bypass → direct | 2026-06-07 | ✅ |
 | TASK-009 | Docs corrected (geo-restriction diagnosis was wrong) | 2026-06-07 | ✅ |
+| TASK-010 | Remove DATA-01 from AGENT_PROMPT.md | 2026-06-07 | ✅ |
+| TASK-011 | Fix admin db/reset — isolation_level=None + FTS rebuild + row_counts | 2026-06-07 | ✅ |

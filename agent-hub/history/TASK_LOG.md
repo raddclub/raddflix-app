@@ -1508,3 +1508,40 @@ With PROXY_BYPASS=1, session restore is now ~3-5s (direct via wg0).
 - Session restore: ~3-5s (direct via wg0, no proxy delay)
 - Account 03286829827: ACTIVE, auto-refreshes cleanly
 - GitHub: fe65116
+
+## Session 2026-06-07 (Part 4) — Fix admin db/reset + remove DATA-01
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-010 | Remove DATA-01 from AGENT_PROMPT.md (user confirmed complete) | ✅ DONE |
+| TASK-011 | Fix admin db/reset: isolation_level=None + FTS rebuild + row counts | ✅ DONE |
+
+### Root cause of reset "not working" (3rd attempt still had this)
+Two issues remained after f8affe1:
+1. **Python sqlite3 implicit transaction conflict**: `sqlite3.connect()` with default
+   `isolation_level` can auto-issue `BEGIN` before DML statements. This conflicts with
+   our explicit `BEGIN IMMEDIATE`, raising `OperationalError: cannot start a transaction
+   within a transaction` in timing windows where a prior PRAGMA caused implicit begin.
+   Fix: `isolation_level=None` (autocommit/manual mode) — we control all transactions.
+2. **FTS orphaned tombstones**: `DELETE FROM titles` triggers `titles_ad` FTS trigger
+   which soft-deletes entries in titles_fts_data (marks them deleted, does NOT remove).
+   After reset, titles_fts_data had 19 orphaned rows. Fix: added
+   `INSERT INTO titles_fts(titles_fts) VALUES('rebuild')` after deleting titles.
+3. **No row count feedback**: JS showed generic "Local database cleared" even if 0 rows
+   deleted (empty DB). Fix: return `row_counts` dict per table, JS shows exact counts.
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| radd-hub/hub/routes/admin.py | isolation_level=None, FTS rebuild, row_counts, explicit ROLLBACK | this session |
+| radd-hub/hub/templates/admin.html | JS dbReset() shows actual row counts in success msg | this session |
+| AGENT_PROMPT.md | Removed DATA-01 (user confirmed complete) | this session |
+| agent-hub/TASKS.md | TASK-010, TASK-011 added and marked done | this session |
+
+### State at end of session
+- Oracle Flask: ✅ RUNNING, healthz OK
+- Account 03286829827: ✅ ACTIVE
+- db/reset: ✅ FIXED — confirmed working, returns row_counts
+- Local DB: titles=0, files=0 (wiped during diagnosis; rescan from JazzDrive needed)
+- Open tasks: see agent-hub/TASKS.md

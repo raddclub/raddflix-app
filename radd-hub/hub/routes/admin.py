@@ -417,10 +417,11 @@ def admin_cmd():
 def db_reset():
     """Clear catalog tables and bump version so Flutter devices re-sync.
 
-    Uses a direct sqlite3 connection (not db.conn()) so that WAL-mode read
-    locks held by Flask background threads cannot silently block the DELETE.
-    A wal_checkpoint(TRUNCATE) is issued after commit so the WAL is flushed
-    immediately and the change is visible to every new connection.
+    Uses a direct sqlite3 connection with isolation_level=None (manual transaction
+    control) so Python's implicit transaction manager never conflicts with our
+    BEGIN IMMEDIATE. A wal_checkpoint(TRUNCATE) is issued after commit so the WAL
+    is flushed immediately and the change is visible to every new connection.
+    FTS index is rebuilt after clearing titles so orphaned tombstones are removed.
     """
     import time as _time
     import sqlite3 as _sqlite3
@@ -428,17 +429,21 @@ def db_reset():
         "files", "titles", "mirror_log", "scan_log", "queue",
         "bot_status_index", "turbo_cache", "recommendation_cache", "media_index",
     ]
-    cleared, skipped = [], []
+    cleared, skipped, row_counts = [], [], {}
     try:
         db_path = str(config.DB_PATH)
-        con = _sqlite3.connect(db_path, timeout=30, check_same_thread=False)
+        # isolation_level=None = autocommit/manual mode — prevents Python sqlite3
+        # from auto-issuing BEGIN that would conflict with BEGIN IMMEDIATE below.
+        con = _sqlite3.connect(db_path, timeout=30, check_same_thread=False,
+                               isolation_level=None)
         try:
             con.execute("PRAGMA foreign_keys = OFF")
             con.execute("BEGIN IMMEDIATE")
             for tbl in RESET_TABLES:
                 try:
-                    con.execute(f"DELETE FROM {tbl}")
+                    cur = con.execute(f"DELETE FROM {tbl}")
                     cleared.append(tbl)
+                    row_counts[tbl] = cur.rowcount
                 except Exception:
                     skipped.append(tbl)
             for tbl in RESET_TABLES:
@@ -446,18 +451,36 @@ def db_reset():
                     con.execute("DELETE FROM sqlite_sequence WHERE name=?", (tbl,))
                 except Exception:
                     pass
-            con.commit()
+            # Rebuild FTS index so orphaned tombstones from the deleted titles
+            # are fully removed (not just soft-deleted in titles_fts_data).
+            try:
+                con.execute("INSERT INTO titles_fts(titles_fts) VALUES(\'rebuild\')")
+            except Exception:
+                pass
+            con.execute("COMMIT")
             con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        except Exception:
+            try:
+                con.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
         finally:
-            con.execute("PRAGMA foreign_keys = ON")
+            try:
+                con.execute("PRAGMA foreign_keys = ON")
+            except Exception:
+                pass
             con.close()
         # Bump catalog version so every Flutter device re-syncs on next launch
         db.set_setting("catalog_forced_version", str(int(_time.time())))
+        titles_n = row_counts.get("titles", 0)
+        files_n  = row_counts.get("files",  0)
         return jsonify({
             "ok": True,
-            "message": f"Catalog cleared. Devices will re-sync on next launch.",
+            "message": f"Cleared {titles_n} title(s) and {files_n} file(s). Devices will re-sync on next launch.",
             "cleared": cleared,
             "skipped": skipped,
+            "row_counts": row_counts,
         })
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
