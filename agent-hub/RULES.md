@@ -52,15 +52,26 @@ Last updated: 2026-06-07
 
 ---
 
+## Scan & Metadata Rules
+18. **TV show IMDb search** — always strip the episode suffix (`S01E02`, etc.) from the
+    clean filename before passing to any title search API. "Spider Noir S01E02" finds nothing;
+    "Spider Noir" finds tt30460310. Already done in `_legacy/scanner.py` prefer='tv' path.
+19. **Metadata lookup order** — IMDbAPI.dev first, then OMDB, then TMDB, then AI/YouTube/KG.
+    Pakistani/Urdu content is on IMDb long before TMDB. Never revert to TMDB-first.
+20. **IMDbAPI.dev is free and keyless** — use it aggressively as a first/fallback source.
+    Endpoint: `https://imdbapi.dev/api/v1/search?q=<title>&type=<movie|tv>`
+
+---
+
 ## Debug Rules
-18. **Debug code** must be gated behind `kDebugMode` — stripped from release APK
+21. **Debug code** must be gated behind `kDebugMode` — stripped from release APK
 
 ---
 
 ## End of Session (every session, no exceptions)
-19. Mark all completed tasks ✅ DONE in `agent-hub/TASKS.md`
-20. Append session summary to `agent-hub/history/TASK_LOG.md`
-21. Update `BUG_TRACKER.md` with any new bugs found or fixed
-22. Update `AGENT_HANDOFF.md` current state section
-23. Update `AGENT_PROMPT.md` known issues table + any new rules
-24. Push ALL doc changes to GitHub before ending session
+22. Mark all completed tasks ✅ DONE in `agent-hub/TASKS.md`
+23. Append session summary to `agent-hub/history/TASK_LOG.md`
+24. Update `BUG_TRACKER.md` with any new bugs found or fixed
+25. Update `AGENT_HANDOFF.md` current state section
+26. Update `AGENT_PROMPT.md` known issues table + any new rules
+27. Push ALL doc changes to GitHub before ending session

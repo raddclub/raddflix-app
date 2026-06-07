@@ -1545,3 +1545,60 @@ Two issues remained after f8affe1:
 - db/reset: ✅ FIXED — confirmed working, returns row_counts
 - Local DB: titles=0, files=0 (wiped during diagnosis; rescan from JazzDrive needed)
 - Open tasks: see agent-hub/TASKS.md
+
+
+---
+
+## Session 2026-06-07 (Part 5) — Scan pipeline fixes + TV seasons/episodes
+
+### What was investigated
+Full audit of how TV seasons/episodes work in the scan pipeline:
+- `_parse_episode_info()` in `_legacy/scanner.py` correctly parses S01E02 / Season X Episode Y / NxNN
+- `files` table stores `season INTEGER` + `episode INTEGER` per file
+- Deduplication key for TV: `(account_id, title_id, season, episode)`
+- TV is detected per-folder: any file with SxxExx pattern → `prefer='tv'`
+
+### Bug found and fixed: TV IMDbAPI search was broken
+When TMDB missed a TV show (e.g. Spider Noir — too new, not yet on TMDB), the IMDbAPI.dev
+fallback searched for the full episode string `"Spider Noir S01E02"` instead of just the show
+name `"Spider Noir"`. IMDb couldn't match the episode suffix → returned nothing → `title_id=NULL`.
+
+Spider Noir (tt30460310, Nicolas Cage) IS on IMDbAPI.dev. The fix: strip `SxxExx` from `_clean_name`
+before passing to `fetch_imdbapi()` when `prefer='tv'`:
+```python
+_search_name = re.sub(r'\s*[Ss]\d{1,2}[Ee]\d{1,3}.*$', '', _clean_name).strip()
+```
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-012 | Add Restore Catalog admin button | ✅ DONE |
+| TASK-013 | Fix metadata lookup order (IMDb-first) | ✅ DONE |
+| TASK-014 | Improve scan log readability | ✅ DONE |
+| TASK-015 | Fix TV show IMDbAPI search: strip SxxExx from query | ✅ DONE |
+| TASK-016 | Document TV system + update all agent-hub .md files | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| radd-hub/hub/_legacy/scanner.py | Strip SxxExx from IMDbAPI search query when prefer=tv | this session |
+| agent-hub/TASKS.md | Added TASK-012 through TASK-016, all marked done | this session |
+| agent-hub/CONTEXT.md | Added full Scan & Metadata Pipeline section + Flask key files | this session |
+| agent-hub/RULES.md | Added Rule 16: TV show IMDb search — strip SxxExx | this session |
+| agent-hub/history/TASK_LOG.md | This entry | this session |
+| AGENT_PROMPT.md | Added Rule 16, TV seasons/episodes section, updated key files | this session |
+
+### Confirmed working (live scan results)
+- Bhooth Bangla (2026) → tt29540862 ✅ (was failing before IMDb-first fix)
+- Pitt Siyapa (2026) → tt39387317 ✅ (was failing before IMDb-first fix)
+- Spider Noir S01E01/S01E02 → season=1 episode=1/2 correctly parsed ✅
+- Spider Noir title lookup now searches "Spider Noir" not "Spider Noir S01E02" ✅
+
+### State at end of session
+- Oracle Flask: ✅ RUNNING, healthz OK
+- Account 03286829827: ✅ ACTIVE
+- TV season/episode: ✅ parsing + dedup + IMDb search all correct
+- Metadata lookup order: ✅ IMDb-first
+- Scan log: ✅ human-readable
+- Admin panel: ✅ db/reset fixed, Restore Catalog added
+- Open tasks: none — see agent-hub/TASKS.md

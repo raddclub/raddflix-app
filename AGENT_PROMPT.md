@@ -168,6 +168,9 @@ Mark ✅ DONE when complete + pushed. This is the handoff bridge between agents.
 13. **Use `db.setting(k)` not `db.get_setting(k)`** — `get_setting` does not exist in `db.py`
 14. **For bulk DELETEs** use direct `sqlite3.connect()` + `BEGIN IMMEDIATE`, NOT `db.conn()`
 15. **Oracle git pull**: always `git stash && git pull && git stash pop` — Oracle has local uncommitted files
+16. **TV show IMDb search**: strip `SxxExx` from the clean name before searching IMDbAPI — the episode
+    suffix is already stripped in `_legacy/scanner.py` (prefer='tv' path). Never pass "Show S01E02"
+    to a title search API; strip to "Show" first.
 
 Full rules: `agent-hub/RULES.md` | Architecture: `agent-hub/CONTEXT.md`
 
@@ -189,14 +192,21 @@ Oracle:   /opt/jazzmax/radd-hub/hub/
   keepalive.py                         Heartbeat upload scheduler
   routes/catalog_api.py                /api/catalog/*
   routes/mobile_api.py                 /api/auth/*, usage, history, /api/app/config
-  routes/admin.py                      Admin panel API
+  routes/admin.py                      Admin panel API (db/reset + db/restore)
+  _legacy/scanner.py                   Legacy scanner: TV detection, episode parsing, IMDb fallback
+  media_naming.py                      _detect_season_episode, _plan_tv, MediaPlan
+  metadata_lookup.py                   enrich() — IMDb-first lookup chain
+  metadata.py                          fetch_imdbapi(), enrich_title()
+  _legacy/enricher.py                  TMDB fetch_full_metadata(), _clean_filename()
+  templates/scan.html                  Scan log UI — human-readable messages
+  templates/admin.html                 Admin panel — Restore Catalog + Danger Zone
 
 Oracle DB: /opt/jazzmax/radd-hub/data/radd_hub.db
 Oracle logs: /opt/jazzmax/radd-hub/data/logs/raddhub.log
 
 Coordination (GitHub main):
   agent-hub/TASKS.md                   ← READ FIRST every session
-  agent-hub/CONTEXT.md                 System context + proxy architecture
+  agent-hub/CONTEXT.md                 System context + proxy + scan pipeline
   agent-hub/RULES.md                   Full rules list
   AGENT_HANDOFF.md                     Full architecture
   .agents/tasks/BUG_TRACKER.md         All known bugs + fix status
@@ -206,14 +216,41 @@ Coordination (GitHub main):
 
 ---
 
+## TV Seasons/Episodes — How It Works
+
+### Detection
+A folder is treated as TV if ANY file in it matches `[Ss]\d{1,2}[Ee]\d{1,3}` or has `season` set.
+`prefer='tv'` is passed to the metadata lookup chain.
+
+### Episode number parsing (`_parse_episode_info`)
+Three patterns (tried in order):
+1. `S01E02` → season=1, episode=2
+2. `Season 1 Episode 2` → season=1, episode=2
+3. `1x02` → season=1, episode=2
+
+### Storage
+`files.season` (INTEGER) + `files.episode` (INTEGER).
+Dedup key: `(account_id, title_id, season, episode)` — one row per unique episode.
+
+### Metadata search for TV
+When searching IMDbAPI for a TV show, the episode suffix is stripped first:
+`"Spider Noir S01E02"` → search for `"Spider Noir"` → finds `tt30460310` ✅
+
+### Known edge cases
+- Files in wrong folders (e.g. episode loose in root) — `media_naming.py` detects and re-plans
+- Two filenames for same episode (clean + dirty upload) — dedup removes the duplicate
+- No TMDB/IMDb match yet (e.g. brand-new show) — file saved with `title_id=NULL`, picked up by `_enrich_low_confidence_titles` on next scan
+
+---
+
 ## Known Open Issues (as of 2026-06-07)
 
 | Issue | Detail | Action needed |
 |-------|--------|---------------|
 | — | No open issues | — |
 
-*DATA-01 (All Of Us Are Dead missing episodes) → ✅ RESOLVED 2026-06-07. User confirmed all episodes uploaded.*
-*OPS-01 (session expired) → ✅ RESOLVED 2026-06-07. Session auto-recovers on every Flask restart (~3-5s) via Android OAuth2 direct via wg0. No OTP needed.*
+*DATA-01 (All Of Us Are Dead missing episodes) → ✅ RESOLVED 2026-06-07.*
+*OPS-01 (session expired) → ✅ RESOLVED 2026-06-07. Session auto-recovers (~3-5s) via wg0.*
 
 ---
 

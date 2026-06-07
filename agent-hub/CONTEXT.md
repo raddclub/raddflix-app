@@ -99,6 +99,72 @@ Admin page → Trigger OTP
 
 ---
 
+## Scan & Metadata Pipeline
+
+### Overview
+JazzDrive scan reads the user's JazzDrive folders, matches files to movie/TV metadata,
+and writes results to SQLite. The Flutter app syncs from there.
+
+### File detection
+`_legacy/scanner.py` → `scan_account()` → lists all video files from JazzDrive.
+Each file record has: `filename`, `remote_id`, `folder_path`, `size_bytes`, `season`, `episode`.
+
+### TV vs Movie detection
+TV is detected if **any file in the folder** matches either:
+- `[Ss]\d{1,2}[Ee]\d{1,3}` pattern in filename (e.g. `S01E02`)
+- `season` field already set on the file record
+
+If TV is detected, `prefer='tv'` is passed to the metadata lookup chain.
+
+### Episode parsing — `_parse_episode_info(filename)`
+Three patterns tried in order:
+1. `SxxExx` — `Spider Noir S01E02.mp4` → season=1, episode=2
+2. `Season X Episode Y` — `Season 1 Episode 3.mp4` → season=1, episode=3
+3. `NxNN` — `1x03.mp4` → season=1, episode=3
+
+Returns `(None, None)` if none match — treated as a movie file.
+
+### Season/episode stored in DB
+`files` table has `season INTEGER` and `episode INTEGER` columns.
+Deduplication key for episodes: `(account_id, title_id, season, episode)` — prevents the
+same episode being stored twice if uploaded with two filenames (clean + dirty).
+
+### Metadata lookup chain (in order)
+For each folder group, the scanner tries:
+1. **TMDB** (via `enricher.fetch_full_metadata()`) — best structured data, great for Hollywood
+2. **IMDbAPI.dev** fallback — free, no API key, real IMDb data — best for Pakistani/Urdu/new content
+
+#### TV-specific search fix (critical)
+When prefer='tv', the `_clean_name` from `_clean_filename()` still contains the episode suffix
+(e.g. `"Spider Noir S01E02"`). Before passing to IMDbAPI, the scanner strips it:
+```python
+_search_name = re.sub(r'\s*[Ss]\d{1,2}[Ee]\d{1,3}.*$', '', _clean_name).strip()
+```
+This ensures IMDbAPI searches for `"Spider Noir"` not `"Spider Noir S01E02"`.
+
+### Metadata source priority (metadata_lookup.py)
+For general lookups outside the legacy scanner:
+`IMDbAPI.dev → OMDB → TMDB → AI → YouTube → Google KG`
+IMDb-first because Pakistani/Urdu content is on IMDb long before TMDB.
+
+### Scan log kinds
+| Kind | Meaning |
+|------|---------|
+| `scan_start` | Scan began for account |
+| `folder` | A folder was found with N files |
+| `progress` | Running total of files found |
+| `scan_done` | File discovery complete |
+| `tmdb` | Metadata lookup started for a title |
+| `tmdb_ok` | Title matched (TMDB or IMDb fallback) |
+| `tmdb_miss` | No match after all sources tried |
+
+### Media naming (`media_naming.py`)
+`MediaPlan` struct: `{ title, year, folder_label, filename, season, episode, ... }`
+TV files get filename: `"Show Name S01E02.ext"`
+TV season folders: `"Show Season 1 (2024)"` or `"Show Season 1"` (no year)
+
+---
+
 ## Flutter App Key Files
 ```
 raddflix_flutter/lib/
@@ -116,13 +182,21 @@ radd-hub/hub/
   proxy_pool.py          SOCKS/HTTP proxy pool management
   keepalive.py           Heartbeat upload scheduler
   uploader.py            JazzDrive upload queue
-  scanner.py             Content scanner
+  scanner.py             v3 scanner (_scan_worker, _enrich_low_confidence_titles)
+  _legacy/scanner.py     Legacy scanner with enrich_and_save, TV detection, IMDb fallback
+  media_naming.py        _detect_season_episode, _plan_tv, MediaPlan struct
+  metadata_lookup.py     enrich() — IMDb-first lookup chain
+  metadata.py            fetch_imdbapi(), enrich_title()
+  _legacy/enricher.py    TMDB fetch_full_metadata(), _clean_filename()
   db.py                  DB helpers — only exports setting() and set_setting()
   routes/
-    admin.py             Admin panel API
+    admin.py             Admin panel API (db/reset, db/restore)
     catalog_api.py       /api/catalog/*
     mobile_api.py        /api/auth/*, usage, history, /api/app/config
     settings.py          Proxy pool admin
+  templates/
+    scan.html            Scan log UI — human-readable, suppresses internal chatter
+    admin.html           Admin panel — Restore Catalog + Danger Zone
 ```
 
 ---
