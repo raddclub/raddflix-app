@@ -52,7 +52,47 @@ jobs:
           path: /tmp/test_output.txt
           retention-days: 14
 
-  # ── Job 2: Flutter static analysis (blocks build on errors) ─────────────
+  # ── Job 2: JazzDrive Dart integration (real HTTP calls, real share URLs) ──
+  jazzdrive-dart:
+    name: "JazzDrive Dart Integration"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Run JazzDrive Dart integration tests
+        run: |
+          dart run raddflix_flutter/test_suite/jazzdrive_dart_test.dart 2>&1 | tee /tmp/dart_out.txt
+          EXIT=${PIPESTATUS[0]}
+          echo "## JazzDrive Dart Integration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "$EXIT" -eq 0 ]; then
+            echo "All JazzDrive link generation tests passed." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "One or more JazzDrive tests FAILED." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details><summary>Full output</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/dart_out.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          exit $EXIT
+
+      - name: Upload Dart test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: "jazzdrive-dart-results-${{ github.run_number }}"
+          path: /tmp/dart_out.txt
+          retention-days: 14
+
+  # ── Job 3: Flutter static analysis (blocks build on errors) ─────────────
   flutter-analyze:
     name: "Flutter Analyze"
     runs-on: ubuntu-latest
@@ -87,7 +127,7 @@ jobs:
             echo "</details>" >> $GITHUB_STEP_SUMMARY
           fi
 
-  # ── Job 3: Build APK (push to main only, waits for analyze to pass) ─────
+  # ── Job 4: Build APK (waits for analyze to pass) ─────────────────────────
   build-apk:
     name: "Build Release APK"
     runs-on: ubuntu-latest
@@ -164,7 +204,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ── Job 4: Deploy to Oracle server ───────────────────────────────────────
+  # ── Job 5: Deploy to Oracle server ───────────────────────────────────────
   deploy:
     name: "Deploy to Oracle"
     continue-on-error: true
@@ -184,7 +224,6 @@ jobs:
             exit 0
           fi
           mkdir -p ~/.ssh
-          # Reconstruct PEM newlines: key may be stored with spaces instead of \n
           echo "$ORACLE_SSH_KEY" \
             | sed 's|-----BEGIN OPENSSH PRIVATE KEY----- |-----BEGIN OPENSSH PRIVATE KEY-----\n|g' \
             | sed 's| -----END OPENSSH PRIVATE KEY-----|\n-----END OPENSSH PRIVATE KEY-----|g' \
