@@ -60,4 +60,5 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-030 | PlayerHudSettingsSheet — live-preview transparent layout & controls settings overlay | 2026-06-07 | ✅ |
 | TASK-031 | HUD v2 — presets, orientation tabs, drag-reorder Quick Bar, button shapes, MX-style auto-rotation, dedup guard | 2026-06-07 | ✅ |
 | TASK-032 | Smart Enhance — MX-style AI video enhancement suite (8 presets, master toggle, intensity, before/after compare) | 2026-06-07 | ✅ |
-| TASK-034 | Vault fix — hide files from gallery/file manager + biometric unlock fix | ⏳ IN PROGRESS | 2026-06-07 | 6 bugs: VAULT-01..06 |
+| TASK-034 | Vault fix — hide files from gallery/file manager + biometric unlock fix | ✅ | 2026-06-07 | 6 bugs: VAULT-01..06; commit f14eac5 |
+| TASK-035 | Fix Dart compile errors blocking APK build (BUG-BUILD-01 + 02) | ✅ | 2026-06-07 | _openSettings→_openPlayerSettings; Colors.white87→Color(0xDEFFFFFF); APK build1021 succeeded |
