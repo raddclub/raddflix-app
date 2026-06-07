@@ -274,6 +274,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── Video Display Shortcuts toggles ──────────────────────────────────────
   bool _bgPlayEnabled  = false;  // background play
+  bool _audioSessionInitialized = false; // BUG-02: prevents duplicate listener registration
   bool _isMuted        = false;  // mute toggle
 
   // ── Phase 3C: Smart Skip Intro ────────────────────────────────────────────
@@ -374,9 +375,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      // Background audio: don't pause if user didn't pause
-      if (!_userPaused) {
-        // Keep playing for background audio — just disable wakelock
+      if (_bgPlayEnabled && !_userPaused) {
+        // Background audio allowed — keep playing, just disable wakelock
+        WakelockPlus.disable();
+      } else if (!_bgPlayEnabled && !_userPaused) {
+        // BUG-07: background play disabled — pause video when app goes background
+        _player.pause();
         WakelockPlus.disable();
       }
     } else if (state == AppLifecycleState.resumed) {
@@ -385,7 +389,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // Seek back N seconds so user doesn't miss anything after switching apps
         final seekBack = _prefs.seekBackOnResumeSeconds;
         if (seekBack > 0 && _position.inSeconds > seekBack) {
-          _player.seek(_position - Duration(seconds: seekBack));
+          // BUG-14: use live player position, not stale _position state
+          _player.seek(_player.state.position - Duration(seconds: seekBack));
         }
       }
     }
@@ -1674,6 +1679,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Skip error popup if video is already playing fine
       if (_playing && _position.inSeconds > 3) return;
       DebugLogger.logError('PLAYER', 'Stream error: $err');
+      // BUG-03: cancel the 8s fallback timer — prevents double retry race
+      _jazzRetryTimer?.cancel();
       _jazzAutoRetry(err);
     });
 
@@ -1939,6 +1946,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _ended = false;
       _position = Duration.zero;
       _skipIntroVisible = false;
+      _activeAudioIdx = 0; // BUG-06: reset so track memory fires on new episode
     });
     _openMedia(prevFileId, localPath: prevLocalPath);
     _skipIntroTimer?.cancel();
@@ -1978,6 +1986,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _ended = false;
       _position = Duration.zero;
       _skipIntroVisible = false;
+      _activeAudioIdx = 0; // BUG-06: reset so track memory fires on new episode
     });
     _openMedia(nextFileId, localPath: nextLocalPath);
     _skipIntroTimer?.cancel();
@@ -2039,7 +2048,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _sleepFadeTimer?.cancel();
     _sleepFadeActive = false;
     VolumeController().setVolume(_preFadeVolume);
-    _np.setProperty('volume', '${(_volumeBoost * 100).toInt()}');
+    // BUG-05: must multiply by _preFadeVolume — boost alone ignores the pre-fade system volume
+    _np.setProperty('volume', '${(_preFadeVolume * _volumeBoost * 100).toInt()}');
+    setState(() => _volume = _preFadeVolume);
   }
 
   void _setSleepTimer(int minutes) {
@@ -2121,9 +2132,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     // No device found via discovery — open system Cast dialog
-    final args = ModalRoute.of(context)?.settings.arguments as Map?;
-    final url  = args?['stream_url'] as String? ?? args?['local_path'] as String? ?? '';
-    final title = args?['title'] as String? ?? widget.title;
+    // BUG-04: route args are stale after episode changes — use _currentPlaybackUrl
+    final url   = _currentPlaybackUrl.isNotEmpty ? _currentPlaybackUrl
+        : (ModalRoute.of(context)?.settings.arguments as Map?)?['stream_url'] as String? ?? '';
+    final title = widget.title;
     final ok = await CastService.castVideo(
       url: url,
       title: title,
@@ -2745,14 +2757,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
 
           // ── Phase P: Custom skip segment button ──
+          // LAYOUT-01: wrapped in Positioned — without it renders top-left over back button
           if (_activeSkipSegment != null && !_locked && !_showNextEpisode)
-            SkipSegmentButton(
-              segment: _activeSkipSegment!,
-              accentColor: _prefs.accentColor,
-              onSkip: () {
-                _player.seek(_activeSkipSegment!.end);
-                setState(() => _activeSkipSegment = null);
-              },
+            Positioned(
+              bottom: 100, right: 20,
+              child: SkipSegmentButton(
+                segment: _activeSkipSegment!,
+                accentColor: _prefs.accentColor,
+                onSkip: () {
+                  _player.seek(_activeSkipSegment!.end);
+                  setState(() => _activeSkipSegment = null);
+                },
+              ),
             ),
 
           // ── Skip intro ──
@@ -3285,10 +3301,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               child: QuickSettingsPanel(
                 prefs: _prefs,
                 onChanged: (newPrefs) {
+                  // BUG-01: capture old value BEFORE setState — after setState _prefs IS newPrefs
+                  final _oldBoost = _prefs.volumeBoostMultiplier;
                   setState(() => _prefs = newPrefs);
                   newPrefs.save();
                   // Apply live changes
-                  if (newPrefs.volumeBoostMultiplier != _prefs.volumeBoostMultiplier) {
+                  if (newPrefs.volumeBoostMultiplier != _oldBoost) {
                     _applyVolumeBoost(newPrefs.volumeBoostMultiplier);
                   }
                   _applyVideoFilters(newPrefs);
@@ -3398,7 +3416,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     castConnected: _castConnected,
                     onFit: () { setState(() => _showMorePanel = false); _cycleFit(); },
                     onSpeed: () { setState(() { _showMorePanel = false; _showSpeedPicker = !_showSpeedPicker; }); },
-                    onNight: () { setState(() { _showMorePanel = false; }); _toggleCinematic(); },
+                    onNight: () {
+                      // UX-01: Night Mode toggles nightMode pref+filter, NOT cinematic mode
+                      final np = _prefs.copyWith(nightMode: !_prefs.nightMode);
+                      setState(() { _showMorePanel = false; _prefs = np; });
+                      np.save();
+                      _applyVideoFilters(np);
+                    },
                     onLoop: () { setState(() { _showMorePanel = false; _showAbPanel = !_showAbPanel; }); },
                     onSleep: () { setState(() { _showMorePanel = false; _showSleepMenu = !_showSleepMenu; }); },
                     onEq: () { setState(() { _showMorePanel = false; _showEqPanel = true; }); },
@@ -3476,7 +3500,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 isMuted: _isMuted,
                 eqEnabled: _prefs.equalizerEnabled,
                 sleepActive: _sleepRemainingSeconds != null || _sleepAtEpisodeEnd,
-                nightMode: _cinematicMode,
+                nightMode: _prefs.nightMode, // UX-01: show nightMode pref state, not cinematic
                 speed: _speed,
                 loopActive: _abLoop.isActive,
                 abRepeatActive: _abLoop.isActive,
@@ -3486,8 +3510,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 },
                 onBgPlay: (v) {
                   setState(() => _bgPlayEnabled = v);
-                  // Keep audio session active when backgrounded
-                  _initAudioSession();
+                  // BUG-02: only init once — each _initAudioSession() call adds new stream listeners
+                  if (v && !_audioSessionInitialized) {
+                    _audioSessionInitialized = true;
+                    _initAudioSession();
+                  }
                 },
                 onMute: (v) {
                   setState(() => _isMuted = v);
@@ -3500,8 +3527,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   setState(() { _showVideoDisplay = false; _showSleepMenu = true; });
                 },
                 onNightMode: () {
-                  _toggleCinematic();
-                  setState(() {});
+                  // UX-01: Night Mode toggles nightMode pref+filter, NOT cinematic mode
+                  final np = _prefs.copyWith(nightMode: !_prefs.nightMode);
+                  setState(() => _prefs = np);
+                  np.save();
+                  _applyVideoFilters(np);
                 },
                 onSpeed: () {
                   setState(() { _showVideoDisplay = false; _showSpeedPicker = true; });
@@ -4936,27 +4966,32 @@ class _NextEpisodeOverlay extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 14),
               decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
             ),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 8,
-                childAspectRatio: 0.85,
+            // LAYOUT-02: ConstrainedBox prevents 4-row grid overflowing in landscape (~360dp height)
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.72,
               ),
-              itemCount: items.length,
-              itemBuilder: (_, i) {
-                final item = items[i];
-                return _MoreBtn(
-                  icon: item['icon'] as IconData,
-                  label: item['label'] as String,
-                  active: item['active'] as bool,
-                  activeColor: item['color'] as Color?,
-                  onTap: item['tap'] as VoidCallback,
-                  onLongPress: item['longTap'] as VoidCallback?,
-                );
-              },
+              child: GridView.builder(
+                shrinkWrap: true,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 0.85,
+                ),
+                itemCount: items.length,
+                itemBuilder: (_, i) {
+                  final item = items[i];
+                  return _MoreBtn(
+                    icon: item['icon'] as IconData,
+                    label: item['label'] as String,
+                    active: item['active'] as bool,
+                    activeColor: item['color'] as Color?,
+                    onTap: item['tap'] as VoidCallback,
+                    onLongPress: item['longTap'] as VoidCallback?,
+                  );
+                },
+              ),
             ),
           ]),
         ).animate().slideY(begin: 1, end: 0, duration: 250.ms, curve: Curves.easeOutCubic);

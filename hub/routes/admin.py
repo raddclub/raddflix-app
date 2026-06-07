@@ -747,3 +747,102 @@ def admin_reimport_status(job_id: str):
     if not job:
         return jsonify({"ok": False, "error": f"job {job_id} not found (expires on server restart)"}), 404
     return jsonify({"ok": True, **job})
+
+# ---------------------------------------------------------------------------
+# Re-scan missing metadata — runs enrich_and_save on files with no title_id
+# ---------------------------------------------------------------------------
+
+_rescan_meta_jobs: dict = {}  # job_id -> {status, total, matched, still_missing, ...}
+
+
+@bp.route("/api/admin/rescan-metadata", methods=["POST"])
+@auth.login_required
+def admin_rescan_metadata_start():
+    """Find all files saved without a metadata match (title_id IS NULL) and
+    re-run the full IMDb-first enrichment chain on them.  Faster than a full
+    catalog restore — only touches unmatched files.
+    Returns {"ok": true, "job_id": "..."}, poll GET /api/admin/rescan-metadata/<job_id>.
+    """
+    import threading as _threading
+    import uuid as _uuid_mod
+    import time as _time_mod
+    import sqlite3 as _sqlite3
+
+    job_id = _uuid_mod.uuid4().hex[:12]
+    job = {
+        "status": "running", "total": 0,
+        "matched": 0, "still_missing": 0,
+        "started_at": int(_time_mod.time()), "finished_at": None,
+    }
+    _rescan_meta_jobs[job_id] = job
+
+    def _run():
+        try:
+            from hub._legacy import scanner as _sc, schema as _sch
+
+            conn = _sqlite3.connect(_sch.DB_PATH, check_same_thread=False)
+            conn.row_factory = _sqlite3.Row
+
+            rows = conn.execute(
+                "SELECT * FROM files WHERE title_id IS NULL ORDER BY account_id, folder_path, filename"
+            ).fetchall()
+            job["total"] = len(rows)
+
+            if not rows:
+                job["status"] = "done"
+                job["finished_at"] = int(_time_mod.time())
+                return
+
+            # Group by account_id — enrich_and_save handles per-folder grouping internally
+            accounts = {}
+            for row in rows:
+                d = dict(row)
+                accounts.setdefault(d["account_id"], []).append(d)
+
+            fingerprints = [dict(r)["fingerprint"] for r in rows]
+
+            for acct_id, file_list in accounts.items():
+                try:
+                    _sc.enrich_and_save(file_list, acct_id)
+                except Exception as eg:
+                    log.warning("rescan-metadata error (account %s): %s", acct_id, eg)
+
+            # Count how many were matched
+            if fingerprints:
+                ph = ','.join('?' * len(fingerprints))
+                matched = conn.execute(
+                    f"SELECT COUNT(*) FROM files WHERE fingerprint IN ({ph}) AND title_id IS NOT NULL",
+                    fingerprints
+                ).fetchone()[0]
+                job["matched"] = matched
+                job["still_missing"] = len(fingerprints) - matched
+
+            job["status"] = "done"
+            log.info("rescan-metadata job %s done — %d/%d matched",
+                     job_id, job["matched"], job["total"])
+        except Exception as e:
+            job["status"] = "error"
+            job["error"] = str(e)
+            log.warning("rescan-metadata job %s error: %s", job_id, e)
+        finally:
+            job["finished_at"] = int(_time_mod.time())
+
+    _threading.Thread(
+        target=_run, daemon=True, name=f"rescan-meta-{job_id}"
+    ).start()
+    return jsonify({
+        "ok": True,
+        "job_id": job_id,
+        "message": f"Metadata re-scan started for {len(list(db.list_accounts()))} account(s). Poll GET /api/admin/rescan-metadata/{job_id} for progress.",
+    })
+
+
+@bp.route("/api/admin/rescan-metadata/<job_id>", methods=["GET"])
+@auth.login_required
+def admin_rescan_metadata_status(job_id: str):
+    """Poll a metadata re-scan job started by POST /api/admin/rescan-metadata."""
+    job = _rescan_meta_jobs.get(job_id)
+    if not job:
+        return jsonify({"ok": False, "error": f"job {job_id} not found (expires on server restart)"}), 404
+    return jsonify({"ok": True, **job})
+

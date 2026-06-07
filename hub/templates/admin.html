@@ -636,6 +636,18 @@ ssetLoad();
   <div id="dd-table"><div class="muted empty" style="font-size:13px">Click "Refresh Status" to load current domain info.</div></div>
 </div>
 
+<!-- Re-scan Missing Metadata -->
+<div class="card" style="border:1px solid var(--accent)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div>
+      <h3 style="margin:0;color:var(--accent)">&#128269; Re-scan Missing Metadata</h3>
+      <div class="muted" style="font-size:12px;margin-top:4px">Find files saved without a poster/title match and re-run the full metadata search (IMDb &#8594; OMDB &#8594; TMDB &#8594; AI) for them only. Much faster than a full catalog restore &#8212; only touches unmatched files.</div>
+    </div>
+    <button id="btn-rescan-meta" onclick="rescanMeta()" style="white-space:nowrap;flex-shrink:0">&#128269; Fix Missing Metadata</button>
+  </div>
+  <div id="rescan-meta-msg" style="font-size:13px;min-height:16px;margin-top:10px"></div>
+</div>
+
 <!-- Restore Catalog -->
 <div class="card" style="border:1px solid var(--ok)">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
@@ -1046,6 +1058,39 @@ async function dbReset(){
   }
 }
 
+
+async function rescanMeta() {
+  const btn = document.getElementById('btn-rescan-meta');
+  const msg = document.getElementById('rescan-meta-msg');
+  btn.disabled = true;
+  msg.innerHTML = '<span style="color:var(--muted)">&#9203; Starting metadata re-scan&#8230;</span>';
+  try {
+    const r = await api('/admin/api/rescan-metadata', {method:'POST'});
+    if (!r.ok) { msg.innerHTML = `<span style="color:var(--err)">&#10060; ${r.error||'Failed to start'}</span>`; btn.disabled=false; return; }
+    msg.innerHTML = `<span style="color:var(--muted)">&#9203; Running&#8230; checking ${r.message||''}</span>`;
+    let polls = 0;
+    const iv = setInterval(async () => {
+      polls++;
+      const s = await api(`/admin/api/rescan-metadata/${r.job_id}`);
+      if (s.status === 'done') {
+        clearInterval(iv);
+        msg.innerHTML = `<span style="color:var(--ok)">&#9989; Done &#8212; matched <strong>${s.matched}</strong> of <strong>${s.total}</strong> files. Still missing: ${s.still_missing}</span>`;
+        btn.disabled = false;
+      } else if (s.status === 'error') {
+        clearInterval(iv);
+        msg.innerHTML = `<span style="color:var(--err)">&#10060; Error: ${s.error}</span>`;
+        btn.disabled = false;
+      } else if (polls > 120) {
+        clearInterval(iv);
+        msg.innerHTML = '<span style="color:var(--muted)">&#8987; Still running in background&#8230;</span>';
+        btn.disabled = false;
+      }
+    }, 3000);
+  } catch(e) {
+    msg.innerHTML = `<span style="color:var(--err)">&#10060; ${e.message}</span>`;
+    btn.disabled = false;
+  }
+}
 async function dbRestore(){
   const btn = document.getElementById('btn-restore');
   const msgEl = document.getElementById('db-restore-msg');

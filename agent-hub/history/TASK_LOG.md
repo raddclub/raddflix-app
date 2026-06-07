@@ -1700,3 +1700,46 @@ Three classes of real-world files were silently broken in `_parse_episode_info` 
 | 100.mp4 | Drama | s=1 e=100 | ✅ |
 
 Flask restarted, healthz OK.
+
+## 2026-06-07 — TASK-021 + TASK-022: Re-scan metadata + Player critical bugs (Pass 1)
+
+### TASK-021: Re-scan Missing Metadata (admin panel feature)
+
+**What it does:** Finds all `files` rows where `title_id IS NULL` (saved without a metadata match)
+and re-runs the full IMDb→OMDB→TMDB→AI enrichment chain on them. Faster than a full catalog
+restore — only touches the unmatched files.
+
+**Implementation:**
+- `hub/routes/admin.py`: new `POST /api/admin/rescan-metadata` endpoint (background job, returns job_id)
+  + `GET /api/admin/rescan-metadata/<job_id>` for polling
+- `hub/templates/admin.html`: "🔍 Fix Missing Metadata" card + `rescanMeta()` JS with live polling
+- Groups files by account_id, calls `_legacy/scanner.enrich_and_save(files, account_id)`
+- Response: `{matched, still_missing, total}` after completion
+
+### TASK-022: Player Screen — Pass 1 Critical Bugs (13 fixes)
+
+**File:** `raddflix_flutter/lib/screens/player_screen.dart`
+**Source:** Previous agent's bug audit (BUG_TRACKER.md, TASKS_1780833605530.md)
+
+| Bug | Root cause | Fix |
+|-----|-----------|-----|
+| BUG-01 | Volume boost comparison `newPrefs.x != _prefs.x` always false after `setState(() => _prefs = newPrefs)` — same object | Capture `_oldBoost` before setState |
+| BUG-02 | `_initAudioSession()` called on every BG play toggle ON → N listeners accumulate | Added `_audioSessionInitialized` guard bool; only init once |
+| BUG-03 | Error stream fires → `_jazzAutoRetry()`; 8s timer also fires later → second retry mid-playback | Cancel `_jazzRetryTimer` inside error stream listener |
+| BUG-04 | Cast reads `ModalRoute.settings.arguments['stream_url']` (stale from push) not current episode URL | Use `_currentPlaybackUrl` as primary |
+| BUG-05 | Sleep restore: `_np.setProperty('volume', '${_volumeBoost * 100}')` ignores pre-fade volume | Multiply by `_preFadeVolume`; update `_volume` state |
+| BUG-06 | `_activeAudioIdx` never reset on episode change → track memory condition permanently false | Reset `_activeAudioIdx = 0` in both `_playNextEpisode` and `_playPrevEpisode` setState |
+| BUG-07 | `didChangeAppLifecycleState`: paused branch keeps playing regardless of `_bgPlayEnabled` | Gate wakelock disable on `_bgPlayEnabled`; call `_player.pause()` if disabled |
+| BUG-14 | Resume seek uses `_position` (state var, may be stale) not live player position | Use `_player.state.position` |
+| LAYOUT-01 | `SkipSegmentButton` is bare Stack child → renders top-left over back button | Wrapped in `Positioned(bottom: 100, right: 20)` |
+| LAYOUT-02 | `_MxMoreSheet` GridView has no height limit → 4 rows overflow in landscape | Wrapped in `ConstrainedBox(maxHeight: 72% of screen)` |
+| UX-01 (×3) | Both "Night Mode" buttons call `_toggleCinematic()` (wrong function); active state shows `_cinematicMode` not `_prefs.nightMode` | Both buttons now toggle `_prefs.nightMode` via `copyWith` + `_applyVideoFilters`; active state uses `_prefs.nightMode` |
+
+### Files changed
+| File | Change |
+|------|--------|
+| `hub/routes/admin.py` | rescan-metadata endpoint (POST + GET poll) |
+| `hub/templates/admin.html` | Re-scan card + rescanMeta() JS |
+| `raddflix_flutter/lib/screens/player_screen.dart` | 13 targeted fixes across 10 bugs/layout issues |
+
+Flask restarted healthy ✅
