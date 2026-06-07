@@ -277,6 +277,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showSubSyncPanel     = false;
   bool _showSubtitleHunter   = false;
   bool _showHudSettings      = false;
+  // MX-style rotation: track last known landscape side to snap to correct one
+  String? _lastLandscapeSide; // 'left' | 'right'
   bool _showVideoDisplay     = false;
 
   // ── Video Display Shortcuts toggles ──────────────────────────────────────
@@ -383,6 +385,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _quotaTimer = Timer.periodic(const Duration(minutes: 5), (_) => _checkQuota());
       HardwareKeyboard.instance.addHandler(_onHardwareKey);
     }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    // MX-style: detect which direction the user physically rotated the device
+    // and remember it so sensor_landscape snaps to the same side next time.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final view = WidgetsBinding.instance.platformDispatcher.views.first;
+      final size = view.physicalSize / view.devicePixelRatio;
+      if (size.width > size.height) {
+        // Currently landscape — detect side via window padding (safe area)
+        // Android: windowPadding.left > 0 means notch is on the left → landscapeRight held
+        final padding = MediaQuery.of(context).padding;
+        final newSide = padding.left > padding.right ? 'right' : 'left';
+        if (newSide != _lastLandscapeSide) {
+          _lastLandscapeSide = newSide;
+          // If user is in sensor_landscape mode, snap to the new side
+          if (_prefs.rotationMode == 'sensor_landscape') {
+            SystemChrome.setPreferredOrientations(
+              newSide == 'left'
+                ? [DeviceOrientation.landscapeLeft]
+                : [DeviceOrientation.landscapeRight],
+            );
+          }
+        }
+      }
+    });
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -1576,9 +1607,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ? [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]
           : [DeviceOrientation.portraitUp]);
         break;
-      default: // 'sensor_landscape'
-        SystemChrome.setPreferredOrientations(
-          [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+      default: // 'sensor_landscape' — MX-style: use last known side if available
+        if (_lastLandscapeSide == 'left') {
+          SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft]);
+        } else if (_lastLandscapeSide == 'right') {
+          SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeRight]);
+        } else {
+          SystemChrome.setPreferredOrientations(
+            [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+        }
     }
     // BUG-N04: was creating two separate copyWith objects; save the same one we setState with
     final _rotUpdated = _prefs.copyWith(rotationMode: mode);
