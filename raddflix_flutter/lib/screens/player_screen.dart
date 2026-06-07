@@ -2585,6 +2585,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       setState(() => _zoomLevel = newZoom);
                     }
                   },
+                  // Reset _innerZoomStart at gesture end so the next pinch always
+                  // starts from the correct settled zoom level, even if the outer
+                  // onScaleStart fires slightly after the inner onScaleUpdate begins.
+                  onScaleEnd: (_) => _innerZoomStart = _zoomLevel,
                   child: Transform.scale(
                     scale: _zoomLevel,
                     child: AnimatedOpacity(
