@@ -78,6 +78,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:saver_gallery/saver_gallery.dart';
 import '../widgets/player/immersive_overlay.dart';
+import '../widgets/player/player_hud_settings_sheet.dart';
 import '../widgets/player/cinematic_settings_sheet.dart';
 import '../widgets/player/scene_bookmarks_panel.dart';
 import '../widgets/player/track_badges.dart';
@@ -275,6 +276,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showAudioSyncPanel   = false;
   bool _showSubSyncPanel     = false;
   bool _showSubtitleHunter   = false;
+  bool _showHudSettings      = false;
   bool _showVideoDisplay     = false;
 
   // ── Video Display Shortcuts toggles ──────────────────────────────────────
@@ -1156,6 +1158,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       _applyRotation(_prefs.rotationMode);
     });
+  }
+
+  void _openHudSettings() {
+    setState(() { _showMorePanel = false; _showHudSettings = true; });
   }
 
   void _openSleepTimer() {
@@ -3568,6 +3574,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     onImmersive: () { setState(() => _showMorePanel = false); _toggleImmersive(); },
                     onImmersiveSettings: () { setState(() => _showMorePanel = false); _showImmersiveSettings(); },
                     onCinematicSettings: () { setState(() => _showMorePanel = false); _showCinematicSettings(); },
+                    onLayoutSettings: () => _openHudSettings(),
                   ),
               ),
   
@@ -3773,6 +3780,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 },
                 onClose: () => setState(() => _showVideoEnhance = false),
               )),
+
+          // ── HUD Settings Sheet ──
+          if (_showHudSettings)
+            PlayerHudSettingsSheet(
+              key: const Key('hud_settings'),
+              prefs: _prefs,
+              onPrefsChanged: (p) { setState(() => _prefs = p); p.save(); },
+              onClose: () => setState(() => _showHudSettings = false),
+              onOpenFullSettings: () {
+                setState(() => _showHudSettings = false);
+                _openSettings();
+              },
+            ),
 
           // ── Transparent Mode Opacity Slider ──
           if (_prefs.transparentModeEnabled && _showTransparentSlider)
@@ -5262,6 +5282,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
       final VoidCallback onImmersive;
       final VoidCallback onImmersiveSettings;
       final VoidCallback onCinematicSettings;
+      final VoidCallback onLayoutSettings;
 
       const _MxMoreSheet({
         required this.cinematicMode,
@@ -5290,6 +5311,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
         required this.onImmersive,
         required this.onImmersiveSettings,
         required this.onCinematicSettings,
+        required this.onLayoutSettings,
       });
 
       @override
@@ -5317,6 +5339,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
           {'icon': Icons.screen_rotation_rounded,         'label': 'Rotation',          'active': false,              'color': null,                      'tap': onRotation},
           {'icon': Icons.open_in_new_rounded,             'label': 'Open\nWith',        'active': false,              'color': null,                      'tap': onOpenWith},
           {'icon': Icons.settings_rounded,                'label': 'Settings',          'active': false,              'color': null,                      'tap': onSettings},
+          {'icon': Icons.dashboard_customize_rounded,          'label': 'Layout\n& HUD',     'active': false,              'color': const Color(0xFF10B981),   'tap': onLayoutSettings},
         ];
         return Container(
           decoration: const BoxDecoration(
