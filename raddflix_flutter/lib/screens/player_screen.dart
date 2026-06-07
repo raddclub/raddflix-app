@@ -2694,10 +2694,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   child: Transform.scale(
                     scale: _zoomLevel,
                     child: AnimatedOpacity(
-                      // BUG #3 FIX: fade in local video only after first frame
-                      // — prevents ~1-2s black flash from surface attach before
-                      // the first frame is decoded.
-                      opacity: (_isLocalFile && !_playing && _position == Duration.zero) ? 0.0 : 1.0,
+                      // FIX-PLAYER-01: use _duration==Duration.zero (not _position) to guard the fade-in.
+                      // _duration stays >0 once the file loads; _position can transiently reset to zero
+                      // mid-play on Infinix/MediaTek, causing the surface to go black. Using _duration
+                      // prevents that false-trigger while still hiding the surface before any frame loads.
+                      opacity: (_isLocalFile && !_playing && _duration == Duration.zero) ? 0.0 : 1.0,
                       duration: const Duration(milliseconds: 400),
                       child: Video(
                         controller: _videoCtrl,
