@@ -469,7 +469,7 @@ class _ToolbarBtn extends StatelessWidget {
       decoration: BoxDecoration(
         color: active ? accent.withOpacity(0.2) : Colors.white10,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: active ? accent : Colors.white20),
+        border: Border.all(color: active ? accent : Color(0x33FFFFFF)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, color: active ? accent : Colors.white54, size: 14),
