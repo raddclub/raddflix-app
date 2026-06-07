@@ -45,6 +45,7 @@ class DownloadService {
     String? targetFilename,
     int remoteId = 0,
     required void Function(double progress) onProgress,
+    String? contentType,
   }) async {
     await _checkDownloadQuota();
 
@@ -87,6 +88,7 @@ class DownloadService {
       titleText: titleText,
       posterUrl: posterUrl,
       localPath: localPath,
+      contentType: contentType,
     );
 
     final cancelToken = CancelToken();
@@ -110,6 +112,12 @@ class DownloadService {
 
       final file = File(localPath);
       final fileSize = await file.exists() ? await file.length() : 0;
+      // BUG-DL-08: validate file is not a partial/empty download (< 512 KB = broken)
+      if (fileSize < 512 * 1024) {
+        await file.exists().then((e) => e ? file.delete() : Future.value());
+        await LocalDb.updateDownloadStatus(fileId, 'failed', 0.0, 0);
+        throw Exception('Download incomplete: file too small (${fileSize} bytes)');
+      }
       await LocalDb.updateDownloadStatus(fileId, 'completed', 1.0, fileSize);
       onProgress(1.0);
     } on DioException catch (e) {

@@ -1952,29 +1952,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   /// Launch the current video in an external player (MX Player, VLC, etc.)
   Future<void> _openWithExternalPlayer() async {
-    final url = _currentPlaybackUrl;
-    if (url == null || url.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No video loaded yet'), duration: Duration(seconds: 2)),
-        );
-      }
-      return;
-    }
-    try {
-      const ch = MethodChannel('com.raddflix.app/intent');
-      await ch.invokeMethod('openVideoWith', {'uri': url});
-    } catch (e) {
-      // Fallback: use share_plus to share the URL/file with other apps
-      try {
-        await Share.shareUri(Uri.parse(url.startsWith('/') ? 'file://$url' : url));
-      } catch (_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not open external player'), duration: Duration(seconds: 2)),
-          );
-        }
-      }
+    // SECURITY: RaddFlix content is licensed for in-app playback only.
+    // External player access is disabled to prevent content piracy.
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('RaddFlix content plays in RaddFlix only'),
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -5414,7 +5400,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
           // Row 1
           {'icon': Icons.display_settings_rounded,        'label': 'Video\nDisplay',    'active': false,              'color': null,                      'tap': onVideoDisplay},
           {'icon': Icons.content_cut_rounded,             'label': 'Clip\nTrimmer',     'active': false,              'color': null,                      'tap': onClipTrimmer},
-          {'icon': Icons.share_rounded,                   'label': 'Share',             'active': false,              'color': null,                      'tap': onShare},
+          // Share removed: content is not shareable externally (onShare retained for future use).
           {'icon': Icons.fit_screen_rounded,              'label': 'Aspect\nRatio',     'active': fitLabel != 'Fit',  'color': const Color(0xFFE8002D),   'tap': onFit},
           // Row 2
           {'icon': Icons.cast_rounded,                    'label': 'Network\nStream',   'active': castConnected,      'color': const Color(0xFF4FC3F7),   'tap': onCast},

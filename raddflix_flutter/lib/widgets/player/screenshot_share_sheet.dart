@@ -141,29 +141,19 @@ class _ScreenshotShareSheetState extends State<ScreenshotShareSheet> {
         // Action buttons
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-          child: Row(children: [
-            Expanded(child: OutlinedButton.icon(
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
               onPressed: widget.onSave,
               icon: const Icon(Icons.save_alt_rounded, size: 16),
-              label: const Text('Save'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white70,
-                side: const BorderSide(color: Colors.white24),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            )),
-            const SizedBox(width: 12),
-            Expanded(child: ElevatedButton.icon(
-              onPressed: widget.onShare,
-              icon: const Icon(Icons.share_rounded, size: 16),
-              label: const Text('Share'),
+              label: const Text('Save to Gallery'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: acc,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            )),
-          ]),
+            ),
+          ),
         ),
       ]),
     ).animate().slideY(begin: 0.1, end: 0, duration: 240.ms, curve: Curves.easeOutCubic)

@@ -47,7 +47,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   int    _size(Map m)     => m['file_size']  as int? ?? 0;
   int    _date(Map m)     => m['downloaded_at'] as int? ?? 0;
 
-  bool _isComplete(Map m)    => _status(m) == 'complete';
+  bool _isComplete(Map m)    => _status(m) == 'completed';
   bool _isDownloading(Map m) => _status(m) == 'downloading' || _status(m) == 'pending';
   bool _isFailed(Map m)      => _status(m) == 'failed';
 

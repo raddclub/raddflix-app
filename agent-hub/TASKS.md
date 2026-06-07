@@ -14,6 +14,7 @@ This file is the handoff bridge — the next agent reads this first.
 
 | ID | Task | Status | Date | Notes |
 |----|------|--------|------|-------|
+| TASK-033 | Download/Play security audit + 6 bug fixes (DL-01 thru DL-11) | ⏳ IN PROGRESS | 2026-06-07 | Full audit of download, link-gen, share chain |
 | TASK-029 | IDEA-01: Universal Subtitle Hunter | ✅ DONE | 2026-06-07 | SubtitleHunter + ZIP + fuzzy match + sheet + URL loader |
 
 ---

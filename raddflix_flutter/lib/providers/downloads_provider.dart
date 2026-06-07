@@ -73,6 +73,7 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
     String? posterUrl,
     String? targetFilename,
     int remoteId = 0,
+    String? contentType,
   }) async {
     final progress = Map<String, double>.from(state.activeProgress);
     progress[fileId] = 0.0;
@@ -86,6 +87,7 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
         posterUrl: posterUrl,
         targetFilename: targetFilename,
         remoteId: remoteId,
+        contentType: contentType,
         onProgress: (p) {
           final updated = Map<String, double>.from(state.activeProgress);
           updated[fileId] = p;
