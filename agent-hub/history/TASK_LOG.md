@@ -1641,3 +1641,62 @@ So both seasons share one catalog entry; the app uses season+episode to fetch th
 - Scan log events: ✅ lookup/found/not_found (human-readable); old events backward compatible
 - TV Season N stripping: ✅ "The Boys Season 2" → searches "The Boys"
 - Open tasks: none
+
+## 2026-06-07 — TASK-020: All real-world TV/drama filename edge cases
+
+### Problem
+Three classes of real-world files were silently broken in `_parse_episode_info` and `enrich_and_save`:
+
+**1. Numeric-only files** (e.g., "1.mp4", "2.mp4", "01.mp4") inside season folders like "The Boys Season 05"
+   - Old: returned (None, None) — all files saved as the same null episode
+   - Fix: new Pattern 6 — detects pure-numeric basename (≤3 digits, ≤500) and infers season from folder name
+
+**2. Pakistani/Korean drama style** ("Meri Zindagi Hai Tu Episode 1 _ 7 Nov 2025 _ Hania Aamir _ ARY Digital.mp4")
+   - Old: "Episode N" without "Season X" prefix matched nothing; full filename with actor names/dates sent as search query
+   - Fix: Pattern 4 handles "Episode N"/"Ep N"/"Ep.N"; enrich_and_save strips everything from "Episode N" onwards,
+     then strips pipe+date separators, then strips remaining pipes — so "Meri Zindagi Hai Tu" is searched cleanly
+
+**3. Corrupted/special-char filenames** ("V!ncenz0.S01E01.480p…" in folder "Vincenzo")
+   - Old: SxxExx parsed correctly but _clean_filename returned "V!ncenz0" → all APIs returned no match
+   - Fix: enrich_and_save detects special chars (!, @, etc.) or short result (<3 chars) and falls back to folder name;
+     secondary search tries folder base name when primary fails
+
+### Changes (scanner.py — 4 atomic fixes)
+
+**Fix 1: `_parse_episode_info(filename, folder_name='')` — 6 patterns total**
+- Pattern 1: SxxExx (unchanged)
+- Pattern 2: Season X Episode Y (unchanged)  
+- Pattern 3: NxNN (unchanged)
+- Pattern 4 (NEW): Episode N / Ep N / Ep.N → season from folder or default 1
+- Pattern 5 (NEW): E01 alone (no season prefix) → season from folder or default 1
+- Pattern 6 (NEW): Numeric-only filename → season from folder (e.g. "Season 05" → 5) or default 1
+- Helper `_season_from_folder(fn)`: reads "Season N" or "SN" from folder name
+
+**Fix 2: scan_folder call site** — passes `folder_name` (already a local var)
+**Fix 3: root-level call site** — passes `''` (no folder context for root files)
+
+**Fix 4: enrich_and_save — smart search name + folder fallback**
+- Strips: SxxExx, Season N, Episode N, pipe+date ("_ 7 Nov 2025"), remaining pipes
+- Detects corrupted name → uses `_folder_clean` (folder base minus "Season N") as search
+- Extracted `_run_lookup(title, yr, prefer)` helper — both primary and secondary searches use the full chain
+- Secondary search: if filename search fails AND folder name differs → tries folder name automatically
+- Folder-name search result shown as "✅ Title (Year) — via IMDb (folder name)" in scan log
+
+### Unit tests (13/13 passed on Oracle)
+| Filename | Folder | Expected | Got |
+|----------|--------|----------|-----|
+| The.Boys.S02E04.1080p.mkv | The Boys | s=2 e=4 | ✅ |
+| 1.mp4 | The Boys Season 05 | s=5 e=1 | ✅ |
+| 2.mp4 | The Boys Season 05 | s=5 e=2 | ✅ |
+| 01.mp4 | The Boys Season 05 | s=5 e=1 | ✅ |
+| Meri Zindagi…Episode 1 _ 7 Nov 2025….mp4 | Meri Zindagi Hai Tu | s=1 e=1 | ✅ |
+| Meri Zindagi…Episode 2 _ 8 Nov 2025.mp4 | Meri Zindagi Hai Tu | s=1 e=2 | ✅ |
+| V!ncenz0.S01E01.480p.Urdu.Dubbed.mkv | Vincenzo | s=1 e=1 | ✅ |
+| V!ncenz0.S01E02.480p.Urdu.mkv | Vincenzo | s=1 e=2 | ✅ |
+| E05.1080p.mkv | Some Show | s=1 e=5 | ✅ |
+| ep07.mkv | Drama | s=1 e=7 | ✅ |
+| Season 1 Episode 3 - Show.mkv | — | s=1 e=3 | ✅ |
+| Show.2x14.720p.mkv | — | s=2 e=14 | ✅ |
+| 100.mp4 | Drama | s=1 e=100 | ✅ |
+
+Flask restarted, healthz OK.

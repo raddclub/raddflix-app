@@ -47,3 +47,4 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-017 | Fix scanner.py: enrich_and_save was TMDB-first; rewrite to IMDb-first with full chain | 2026-06-07 | ✅ metadata_lookup.enrich() now primary; TMDB is final safety net only |
 | TASK-018 | Fix scan log events: rename tmdb/tmdb_ok/tmdb_miss to lookup/found/not_found | 2026-06-07 | ✅ scan.html updated; backward compat kept for old log entries |
 | TASK-019 | Strip "Season N" from TV folder name before metadata search | 2026-06-07 | ✅ Fixed in enrich_and_save — both SxxExx and "Season N" stripped |
+| TASK-020 | ✅ DONE | 2026-06-07 | Scanner all real-world TV edge cases: Episode N/Ep N (Pakistani drama), numeric-only files (1.mp4), E01 alone; folder-name fallback for corrupted filenames (V!ncenz0); pipe/date strip; secondary folder-name search |
