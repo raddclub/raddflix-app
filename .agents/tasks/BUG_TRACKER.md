@@ -113,3 +113,40 @@ Items confirmed NOT bugs:
 - `_applyRotation` double-`copyWith` (cosmetically wasteful, functionally correct — setState runs callback synchronously so second copyWith is a no-op on the already-updated prefs)
 - Quick Bar "Night Mode" label wired to cinematic in `_QuickShortcutBar.onNightMode` (NOW FIXED as BUG-P-NEW-07)
 - Dead state vars (`_abLoopActive`, `_castScanning`, `_castDevices`, `_connectedCastDevice`, `_watchPartyRoom`, `_audioTracks`, `_selectedAudioTrack`) — declared but unused; not bugs, just stale scaffolding
+
+
+---
+
+## Session 2026-06-07 — Player Screen Pass 5: 29-Bug Full Audit
+
+| ID | Severity | Title | Root Cause | Fix | Status |
+|----|---------|-------|-----------|-----|--------|
+| C-01 | CRITICAL | _applyVolumeBoost maxes system volume on player open | Unconditional VolumeController().setVolume(1.0) ran on prefs restore; gesture handlers already do this inline | Removed call from _applyVolumeBoost | ✅ FIXED |
+| C-02 | CRITICAL | Inner GestureDetector wins pinch arena, outer zoom dead | onScaleStart:(_){} on inner GD claimed arena for all pinch events | Removed onScaleStart; added pointerCount<2 guard in onScaleUpdate | ✅ FIXED |
+| H-01 | HIGH | _applyVideoFilters/_applyAudioPrefs race on rapid pref changes | Both async; rapid calls overwrote each other in MPV | 60ms timestamp debounce (_lastVfTs/_lastAfTs) — newer call supersedes | ✅ FIXED |
+| H-02 | HIGH | _jazzRetryCount not reset on episode change | Counter persisted: ep 2+ could never retry if ep 1 exhausted retries | _jazzRetryCount=0 at start of _playPrevEpisode and _playNextEpisode | ✅ FIXED |
+| H-03 | HIGH | _startWakeTimer uses default prefs (called before _loadPrefs) | initState called _startWakeTimer before prefs loaded; used zero timeout | Added _startWakeTimer() at end of _loadPrefs() | ✅ FIXED |
+| H-04 | HIGH | _cancelSleepTimer setState without mounted guard | Timer fires on background thread; if disposed, setState throws | if (mounted) guard added | ✅ FIXED |
+| H-05 | HIGH | Playback info panel always shows dashes | _fetchPlaybackInfo called once on open, never refreshed | _piTimer: Timer.periodic(2s) while panel open; cancelled in dispose() | ✅ FIXED |
+| H-06 | HIGH | Muting with boost: system silent but MPV plays at boost level | onMute only called VolumeController().setVolume(0); MPV volume untouched | Mute sets MPV vol=0; unmute restores (_volume * _volumeBoost * 100) | ✅ FIXED |
+| H-07 | HIGH | SleepTimerSheet.onStopAtEpisodeEnd dead | onStopAtEpisodeEnd:(_){} blank lambda | Wired to _setSleepTimer(-1) | ✅ FIXED |
+| H-08 | HIGH | Long-press speed badge auto-fades while holding | Fixed-duration fadeOut chain ran regardless of gesture state | Removed .then().fadeOut(); badge lives while _longPressFast=true | ✅ FIXED |
+| M-01 | MEDIUM | QuickShortcutBar nightmode never active-highlighted | _QuickShortcutBar had no nightModeActive param; case never set active=true | nightModeActive field threaded through _ControlsOverlay + _QuickShortcutBar | ✅ FIXED |
+| M-02 | MEDIUM | _SleepPanel shows nothing when sleepAtEpisodeEnd=true | Panel only checked remaining!=null; episode-end mode invisible | sleepAtEpisodeEnd param added; "Pausing at episode end" text shown | ✅ FIXED |
+| M-03 | MEDIUM | SW Decoder toggle has zero effect on MPV | Toggle only updated local _swDecoder state; no callback to MPV | onSwDecoderChanged callback wired to _np.setProperty('hwdec') | ✅ FIXED |
+| M-04 | MEDIUM | CinematicSettingsSheet gets wrong opacity | cinematicOpacity: _prefs.transparentModeOpacity (wrong field) | Changed to _cinematicOpacity (local state var) | ✅ FIXED |
+| M-05 | MEDIUM | Night mode colorchannelmixer missing alpha params | FFmpeg requires 12 coefficients; missing ra/ga/ba default to 0 (transparent) | Added :ra=0 :ga=0 :ba=1 to filter string | ✅ FIXED |
+| M-06 | MEDIUM | Hue divided by 180 compresses to near-zero | MPV eq filter hue takes degrees (-180 to +180), not 0-1 | Removed /180.0 | ✅ FIXED |
+| M-07 | MEDIUM | Controls freeze after rage skip | _scheduleHide() not called; hide timer never restarted | Added _scheduleHide() after _rageSkipActive=true | ✅ FIXED |
+| M-08 | MEDIUM | Plan expiry skips streaming users entirely | Condition gated on widget.localPath!=null; streaming (no localPath) always skipped | Broadened to fileId.isNotEmpty && !_isLocalPath(widget.fileId) | ✅ FIXED |
+| M-09 | MEDIUM | _loadSmartIntro() in initState always returns early | SmartIntroStore.shouldShow checks _duration>0 but duration=0 at initState | Removed dead call; real load via _skipIntroTimer at 5s | ✅ FIXED |
+| L-01 | LOW | Shuffle + Customise Items permanently dead | onTap:(_){} — never implemented | Removed both from _VideoDisplaySheet row2 | ✅ FIXED |
+| L-02 | LOW | Loop and A-B Repeat callbacks identical | Both opened AB panel | onLoop now calls _np.command(['cycle','loop-file']) | ✅ FIXED |
+| L-03 | LOW | Negative remaining time during intro skip | Position ahead of known duration | Deferred — clamp at caller level in next cleanup pass | 🚫 DEFERRED |
+| L-04 | LOW | lock_current uses raw physicalSize (can throw early) | renderViews.first.flutterView.physicalSize is hardware pixels; can throw | Replaced with MediaQuery.of(context).size | ✅ FIXED |
+| L-05 | LOW | Rage skip double-fires within 1200ms animation | No guard in _handleCenterTap | if (_rageSkipActive) return; guard added | ✅ FIXED |
+| L-06 | LOW | Settings pop doesn't restore SystemChrome | Navigator.push with no .then() | Added .then((_){SystemChrome.setEnabledSystemUIMode + _applyRotation}) | ✅ FIXED |
+| L-07 | LOW | _openCinematicSettings accessible when mode is off | No harmful side-effects | Deferred | 🚫 DEFERRED |
+| L-08 | LOW | _longPressFast + mediaButton fields use 4-space indent | Class body uses 2-space throughout | Fixed to 2-space | ✅ FIXED |
+| L-09 | LOW | Duplicate _openJumpTo/_showJumpToTime | Harmless redundancy | Deferred — consolidate in cleanup pass | 🚫 DEFERRED |
+| L-10 | LOW | _cinematicOpacity changes not persisted | onOpacityChanged only updates local state | Deferred — needs PlayerPrefs.cinematicOpacity schema addition | 🚫 DEFERRED |

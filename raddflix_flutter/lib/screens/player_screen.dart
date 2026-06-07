@@ -158,11 +158,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   double? _dragSeekDelta; // seconds offset while scrubbing
 
   // Long press 2×
-    bool _longPressFast = false;
+  bool _longPressFast = false; // FIX-L08: was 4-space indent
 
-    // §3.16F: Headphone button double/triple press
-    int _mediaButtonPressCount = 0;
-    Timer? _mediaButtonTimer;
+  // §3.16F: Headphone button double/triple press
+  int _mediaButtonPressCount = 0;
+  Timer? _mediaButtonTimer;
 
   // Panels
   bool _showSpeedPicker = false;
@@ -183,6 +183,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   int _nextCountdown = 7;
   Timer? _nextEpTimer;
   Timer? _quotaTimer; // BUG-A29: periodic quota check every 5 min
+  Timer? _piTimer;    // FIX-H05: refresh playback-info panel every 2s when open
   late int _currentEpIdx;
   bool get _hasNextEp =>
       widget.episodes != null && _currentEpIdx < widget.episodes!.length - 1;
@@ -366,7 +367,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _loadPrefs();
     _initAudioSession();
     _audioSessionInitialized = true; // BUG-P-NEW-01: mark initialized so BG-play toggle guard works
-    _loadSmartIntro();
+    // FIX-M09: _loadSmartIntro() removed — duration is zero in initState so
+    // SmartIntroStore.shouldShow() always returns early. Real load happens in
+    // _initPlayer() via _skipIntroTimer after 5s when duration is known.
     _loadBookmarks();
     _checkQuota();
     _quotaTimer = Timer.periodic(const Duration(minutes: 5), (_) => _checkQuota());
@@ -428,6 +431,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       mode:        loaded.smartVolumeMode,
     );
     if (loaded.smartVolumeLevelingEnabled) _svc!.start();
+    _startWakeTimer(); // FIX-H03: apply user's saved wake timeout after prefs load
   }
 
   Future<void> _initAudioSession() async {
@@ -480,18 +484,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final parts = <String>[];
     if (p.brightness != 0 || p.contrast != 0 || p.saturation != 0 || p.hue != 0) {
       parts.add('eq=brightness=${p.brightness}:contrast=${1 + p.contrast}'
-          ':saturation=${1 + p.saturation}:hue=${p.hue / 180.0}');
+          ':saturation=${1 + p.saturation}:hue=${p.hue}'); // FIX-M06: MPV eq hue is degrees, dividing by 180 compressed to near-zero
     }
     if (p.nightMode) {
       final i = p.nightModeIntensity;
+      // FIX-M05: added alpha params ra/ga/ba — FFmpeg colorchannelmixer needs 12
+      // coefficients; missing ones default to 0 (transparent output for RGBA sources).
       parts.add('colorchannelmixer='
           'rr=${(0.9 + i * 0.05).toStringAsFixed(3)}'
           ':rg=${(0.1 * i).toStringAsFixed(3)}'
-          ':rb=${(0.05 * i).toStringAsFixed(3)}'
+          ':rb=${(0.05 * i).toStringAsFixed(3)}:ra=0'
           ':gr=${(0.01 * i).toStringAsFixed(3)}'
           ':gg=${(0.8 + i * 0.05).toStringAsFixed(3)}'
-          ':gb=${(0.05 * i).toStringAsFixed(3)}'
-          ':br=0:bg=0:bb=${(0.7 + i * 0.1).toStringAsFixed(3)}');
+          ':gb=${(0.05 * i).toStringAsFixed(3)}:ga=0'
+          ':br=0:bg=0:bb=${(0.7 + i * 0.1).toStringAsFixed(3)}:ba=1');
     }
     if (p.sharpnessEnabled) {
       parts.add('unsharp=la=${(p.sharpness * 2).toStringAsFixed(2)}'
@@ -501,6 +507,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _applyAudioPrefs(PlayerPrefs p) async {
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    _lastAfTs = ts;
+    await Future.delayed(const Duration(milliseconds: 60));
+    if (_lastAfTs != ts || !mounted) return; // FIX-H01
     // Hardware decoder
     await _np.setProperty('hwdec', p.hwDecoderEnabled ? 'auto' : 'no');
     // Deinterlace
@@ -594,16 +604,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         (p.audioTimingOffsetMs / 1000.0).toStringAsFixed(3));
   }
 
+  // FIX-H01: debounce timestamps — concurrent rapid calls race inside MPV
+  int _lastVfTs = 0;
+  int _lastAfTs = 0;
+
   Future<void> _applyVideoFilters(PlayerPrefs p) async {
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    _lastVfTs = ts;
+    await Future.delayed(const Duration(milliseconds: 60));
+    if (_lastVfTs != ts || !mounted) return;
     final vf = _buildVfString(p);
     await _np.setProperty('vf', vf);
   }
 
   void _applyVolumeBoost(double multiplier) {
     _volumeBoost = multiplier;
-    // Step 1: system volume to max
-    VolumeController().setVolume(1.0);
-    // Step 2: MPV internal amplification (100 = normal, 300 = 3×)
+    // FIX-C01: Do NOT override system volume here — gesture handlers
+    // already call VolumeController().setVolume(1.0) when actively boosting.
+    // Was silently maxing user's phone volume every time player opened.
     _np.setProperty('volume', '${(multiplier * 100).toInt()}');
   }
 
@@ -640,6 +658,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   /// Triple-tap center = Rage Skip
   void _handleCenterTap() {
+    if (_rageSkipActive) return; // FIX-L05: block double-fire during animation
     // Immersive mode: tap = play/pause only, never show controls.
     if (_immersiveMode) {
       _player.playOrPause();
@@ -656,6 +675,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _player.seek(target > _duration ? _duration : target);
       HapticFeedback.heavyImpact();
       setState(() => _rageSkipActive = true);
+      _scheduleHide(); // FIX-M07: controls were frozen after rage skip
       Future.delayed(const Duration(milliseconds: 1200), () {
         if (mounted) setState(() => _rageSkipActive = false);
       });
@@ -1113,7 +1133,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _applyAudioPrefs(p);
         },
       ),
-    ));
+    // FIX-L06: restore immersive mode + orientation after settings screen is popped
+    )).then((_) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      _applyRotation(_prefs.rotationMode);
+    });
   }
 
   void _openSleepTimer() {
@@ -1132,7 +1156,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           setState(() => _prefs = _prefs.copyWith(sleepFadeEnabled: v));
           _prefs.save();
         },
-        onStopAtEpisodeEnd: (_) {},
+        onStopAtEpisodeEnd: (_) => _setSleepTimer(-1), // FIX-H07: was dead
       ),
     );
   }
@@ -1152,7 +1176,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         nightMode:           _prefs.nightMode,
         nightModeIntensity:  _prefs.nightModeIntensity,
         cinematicMode:       _cinematicMode,
-        cinematicOpacity:    _prefs.transparentModeOpacity,
+        cinematicOpacity:    _cinematicOpacity, // FIX-M04: was _prefs.transparentModeOpacity (wrong field)
         ambilightEnabled:    _prefs.ambilightEnabled,
         accentColor:         _prefs.accentColor,
         onChanged:           (map) {
@@ -1520,7 +1544,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
         break;
       case 'lock_current':
-        final mq = WidgetsBinding.instance.renderViews.first.flutterView.physicalSize;
+        // FIX-L04: use MediaQuery — physicalSize is raw device pixels,
+        // renderViews.first can throw early in lifecycle.
+        final mq = MediaQuery.of(context).size;
         final isLandscape = mq.width > mq.height;
         SystemChrome.setPreferredOrientations(isLandscape
           ? [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]
@@ -1904,15 +1930,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       final quota = await UsageService.getCachedQuota();
 
-      // 6.9 — offline plan expiry: block if subscription has expired.
-      // Guard: must be non-null AND non-empty; downloads_screen passes '' for
-      // null DB paths, which should not trigger this check (player will stream).
-      // BUG #4 FIX: also skip for user-owned local files (fileId='') — they
-      // never require a subscription. Without this guard, stale quota-cache
-      // sub_expires_at was firing pushReplacementNamed(planExpired) 1-3s after
-      // local playback started, replacing the player with a black screen while
-      // audio continued in the background.
-      if (widget.localPath != null && widget.localPath!.isNotEmpty && widget.fileId.isNotEmpty) {
+      // Plan expiry check — enforced for streaming AND local vault downloads.
+      // FIX-M08: was localPath-only, allowing streaming users with expired plans to
+      // watch indefinitely. Now covers all Oracle fileIds (excludes gallery = fileId=''
+      // and raw device paths content:// /).
+      if (widget.fileId.isNotEmpty && !_isLocalPath(widget.fileId)) {
         final subExpiresAt = quota['sub_expires_at'];
         if (subExpiresAt != null && subExpiresAt is int && subExpiresAt > 0) {
           final nowUnix = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -1961,6 +1983,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _playPrevEpisode() {
     if (widget.episodes == null || _currentEpIdx <= 0) return;
     _nextEpTimer?.cancel();
+    _jazzRetryCount = 0; // FIX-H02: reset so ep 2+ gets a fresh retry attempt
     final prev = widget.episodes![_currentEpIdx - 1];
     final prevFileId   = prev['file_id']?.toString() ?? '';
     final prevLocalPath = prev['local_path'] as String?;
@@ -1999,6 +2022,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _playNextEpisode() {
     if (!_hasNextEp) return;
     _nextEpTimer?.cancel();
+    _jazzRetryCount = 0; // FIX-H02: reset so ep 2+ gets a fresh retry attempt
     final next = widget.episodes![_currentEpIdx + 1];
     final nextFileId   = next['file_id']?.toString() ?? '';
     // FIX-LOCAL-3: local-folder "Play All" stores 'local_path' in episode map;
@@ -2115,8 +2139,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _sleepFadeTimer?.cancel();
     if (_sleepFadeActive) _restoreVolumeAfterSleep();
     _sleepFadeActive = false;
-    // FIX-SLEEP: also clear end-of-episode flag
-    setState(() { _sleepRemainingSeconds = null; _sleepAtEpisodeEnd = false; });
+    // FIX-H04: mounted guard — can be called from timers after dispose()
+    if (mounted) setState(() { _sleepRemainingSeconds = null; _sleepAtEpisodeEnd = false; });
   }
 
   // ── PiP ──────────────────────────────────────────────────────────────────
@@ -2334,6 +2358,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _wakeTimer?.cancel();
     _jazzRetryTimer?.cancel();
     _tapTimer?.cancel();
+    _piTimer?.cancel(); // FIX-H05
     _ambilightCtrl?.dispose();
     _bingeGuardCtrl?.dispose();
     _logWatchSession(); // log partial session on exit
@@ -2364,9 +2389,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     // Restore full auto-rotate so system works normally after player exit
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-      HardwareKeyboard.instance.removeHandler(_onHardwareKey);
-      _mediaButtonTimer?.cancel();
-      super.dispose();
+    HardwareKeyboard.instance.removeHandler(_onHardwareKey); // FIX-L08: was 4-space indent
+    _mediaButtonTimer?.cancel();
+    super.dispose();
   }
 
   void _scheduleHide() {
@@ -2536,8 +2561,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ? _prefs.transparentModeOpacity.clamp(0.2, 1.0)
                     : 1.0,
                 child: GestureDetector(
-                  onScaleStart: (_) {},
+                  // FIX-C02: removed onScaleStart — registering it caused the inner GD to
+                  // win the gesture arena for ALL pinch events, making outer zoom unreachable.
                   onScaleUpdate: (d) {
+                    if (d.pointerCount < 2) return;
                     final newZoom = (_zoomLevel * d.scale).clamp(1.0, 5.0);
                     if ((newZoom - _zoomLevel).abs() > 0.01) {
                       setState(() => _zoomLevel = newZoom);
@@ -2734,8 +2761,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             fontWeight: FontWeight.w600)),
                   ]),
                 ),
-              ).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut)
-               .then(delay: 100.ms).fadeOut(duration: 200.ms),
+              // FIX-H08: removed auto-fadeout — badge stays visible while holding,
+              // disappears naturally when _longPressFast becomes false.
+              ).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut),
             ),
 
           // ── Sleep fade badge ──
@@ -3066,7 +3094,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               onJumpToTime: _showJumpToTime,
               onTogglePlaybackInfo: () {
                 setState(() => _showPlaybackInfo = !_showPlaybackInfo);
-                if (_showPlaybackInfo) _fetchPlaybackInfo();
+                _piTimer?.cancel();
+                if (_showPlaybackInfo) {
+                  _fetchPlaybackInfo();
+                  // FIX-H05: keep info current while panel is open
+                  _piTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+                    if (mounted && _showPlaybackInfo) _fetchPlaybackInfo();
+                  });
+                }
               },
               showRemaining: _showRemaining,
               onToggleRemaining: () => setState(() => _showRemaining = !_showRemaining),
@@ -3081,6 +3116,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               fmtDur: _fmtDur,
               cinematicMode: _cinematicMode,
               onToggleCinematic: _toggleCinematic,
+              nightModeActive: _prefs.nightMode,  // FIX-M01
               onToggleNightMode: () {
                 // BUG-P-NEW-07 FIX: Quick Bar "Night Mode" must toggle nightMode pref,
                 // NOT cinematic mode (which is a separate feature).
@@ -3228,6 +3264,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 onSyncChanged: _applyAudioSync,
                 onOpen: () => setState(() => _showAudioMenu = false),
                 onClose: () => setState(() => _showAudioMenu = false),
+                onSwDecoderChanged: (sw) => _np.setProperty('hwdec', sw ? 'no' : 'auto'), // FIX-M03
               )),
 
           // ── Rage Skip Badge ──
@@ -3557,8 +3594,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   }
                 },
                 onMute: (v) {
+                  // FIX-H06: silence/restore MPV internal volume too — system-only
+                  // mute left MPV at boost level; unmute restored lower than pre-mute.
                   setState(() => _isMuted = v);
-                  VolumeController().setVolume(v ? 0.0 : _volume, showSystemUI: false);
+                  if (v) {
+                    VolumeController().setVolume(0.0, showSystemUI: false);
+                    _np.setProperty('volume', '0');
+                  } else {
+                    final sysVol = _volumeBoost > 1.0 ? 1.0 : _volume;
+                    VolumeController().setVolume(sysVol, showSystemUI: false);
+                    _np.setProperty('volume', '${(_volume * _volumeBoost * 100).toInt()}');
+                  }
                 },
                 onEq: () {
                   setState(() { _showVideoDisplay = false; _showEqPanel = true; });
@@ -3580,7 +3626,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   setState(() { _showVideoDisplay = false; _showEqPanel = true; });
                 },
                 onLoop: () {
-                  setState(() { _showVideoDisplay = false; _showAbPanel = !_showAbPanel; });
+                  // FIX-L02: Loop now toggles single-file loop via MPV, not AB panel
+                  setState(() => _showVideoDisplay = false);
+                  _np.command(['cycle', 'loop-file']);
                 },
                 onAbRepeat: () {
                   setState(() { _showVideoDisplay = false; _showAbPanel = !_showAbPanel; });
@@ -3594,6 +3642,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               right: 0, top: 0, bottom: 0,
               child: _SleepPanel(
                 remaining: _sleepRemainingSeconds,
+                sleepAtEpisodeEnd: _sleepAtEpisodeEnd, // FIX-M02
                 onSelect: (mins) {
                   _setSleepTimer(mins);
                   setState(() => _showSleepMenu = false);
@@ -3730,6 +3779,7 @@ class _ControlsOverlay extends StatelessWidget {
   final bool cinematicMode;
   final VoidCallback onToggleCinematic;
   final VoidCallback onToggleNightMode; // BUG-P-NEW-07 FIX
+  final bool nightModeActive; // FIX-M01
   final int activeAudioIdx;
   final int activeSubIdx;
   final List<String> audioLabels;
@@ -3809,6 +3859,7 @@ class _ControlsOverlay extends StatelessWidget {
     this.cinematicMode = false,
     required this.onToggleCinematic,
     required this.onToggleNightMode,  // BUG-P-NEW-07 FIX
+    this.nightModeActive = false, // FIX-M01
     this.activeAudioIdx = 0,
     this.activeSubIdx = 0,
     this.audioLabels = const [],
@@ -4292,6 +4343,7 @@ class _ControlsOverlay extends StatelessWidget {
                       onSubtitle:     onSubtitleTracks,
                       onLock:         onLock,
                       onNightMode:    onToggleNightMode,  // BUG-P-NEW-07 FIX
+                      nightModeActive: nightModeActive,    // FIX-M01
                     ),
                   // ── Seek row: position | slider | duration ──────────────────
                   Row(
@@ -4643,6 +4695,7 @@ class _QuickShortcutBar extends StatelessWidget {
   final VoidCallback       onSubtitle;
   final VoidCallback       onLock;
   final VoidCallback       onNightMode;
+  final bool               nightModeActive; // FIX-M01
 
   const _QuickShortcutBar({
     required this.items,
@@ -4656,6 +4709,7 @@ class _QuickShortcutBar extends StatelessWidget {
     required this.onSubtitle,
     required this.onLock,
     required this.onNightMode,
+    this.nightModeActive = false, // FIX-M01
   });
 
   @override
@@ -4705,6 +4759,7 @@ class _QuickShortcutBar extends StatelessWidget {
           icon   = Icons.dark_mode_rounded;
           label  = 'Night';
           tapFn  = onNightMode;
+          active = nightModeActive; // FIX-M01
         default:
           continue;
       }
@@ -4786,9 +4841,10 @@ class _MxBadge extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════════════
 class _SleepPanel extends StatelessWidget {
   final int? remaining;
+  final bool sleepAtEpisodeEnd; // FIX-M02
   final ValueChanged<int> onSelect;
   final VoidCallback onCancel;
-  const _SleepPanel({this.remaining, required this.onSelect, required this.onCancel});
+  const _SleepPanel({this.remaining, this.sleepAtEpisodeEnd = false, required this.onSelect, required this.onCancel});
 
   static const _options = [
     (label: '5 minutes',  value: 5),
@@ -4813,10 +4869,12 @@ class _SleepPanel extends StatelessWidget {
             Text('Sleep Timer', style: TextStyle(
                 color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
           ])),
-        if (remaining != null) ...[
+        if (remaining != null || sleepAtEpisodeEnd) ...[ // FIX-M02
           Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Text(
-              'Stopping in ${remaining! ~/ 60}:${(remaining! % 60).toString().padLeft(2, '0')}',
+              remaining != null
+                ? 'Stopping in ${remaining! ~/ 60}:${(remaining! % 60).toString().padLeft(2, '0')}'
+                : 'Pausing at episode end',
               style: const TextStyle(color: Colors.orange, fontSize: 12))),
           ListTile(dense: true,
             leading: const Icon(Icons.cancel_outlined, color: Colors.red, size: 18),
@@ -5366,10 +5424,10 @@ class _VideoDisplaySheet extends StatelessWidget {
     final row2 = [
       _VDSBtn(icon: Icons.speed_rounded,                 label: 'Playback\nSpeed',    active: speed != 1.0,       onTap: (_) => onSpeed()),
       _VDSBtn(icon: Icons.loop_rounded,                  label: 'Loop',               active: loopActive,         onTap: (_) => onLoop(),   isToggle: true),
-      _VDSBtn(icon: Icons.shuffle_rounded,               label: 'Shuffle',            active: false,              onTap: (_) {}),
+      // FIX-L01: Shuffle + Customise Items removed — were dead (onTap: (_) {}),
+      //   misleading users. Restore when features are implemented.
       _VDSBtn(icon: Icons.graphic_eq_rounded,            label: 'Audio\nEffect',      active: false,              onTap: (_) => onAudioEffect()),
       _VDSBtn(icon: Icons.repeat_one_rounded,            label: 'A-B\nRepeat',        active: abRepeatActive,     onTap: (_) => onAbRepeat()),
-      _VDSBtn(icon: Icons.tune_rounded,                  label: 'Customise\nItems',   active: false,              onTap: (_) {}),
     ];
     return Container(
       decoration: const BoxDecoration(
@@ -5565,6 +5623,7 @@ class _MxAudioPanel extends StatefulWidget {
   final ValueChanged<int> onSyncChanged;
   final VoidCallback onOpen;
   final VoidCallback onClose;
+  final ValueChanged<bool>? onSwDecoderChanged; // FIX-M03
 
   const _MxAudioPanel({
     required this.tracks,
@@ -5574,6 +5633,7 @@ class _MxAudioPanel extends StatefulWidget {
     required this.onSyncChanged,
     required this.onOpen,
     required this.onClose,
+    this.onSwDecoderChanged, // FIX-M03
   });
 
   @override
@@ -5670,7 +5730,10 @@ class _MxAudioPanelState extends State<_MxAudioPanel> {
             child: Switch(
               value: _swDecoder,
               activeColor: const Color(0xFF4DB6FF),
-              onChanged: (v) => setState(() => _swDecoder = v),
+              onChanged: (v) {
+                setState(() => _swDecoder = v);
+                widget.onSwDecoderChanged?.call(v); // FIX-M03
+              },
             ),
           ),
         ]),
