@@ -459,3 +459,58 @@ These were pre-existing compile errors unrelated to vault work.
 |------|--------|--------|
 | lib/screens/player_screen.dart | _openSettings → _openPlayerSettings | b6f39e2 |
 | lib/widgets/player/player_hud_settings_sheet.dart | Colors.white87 → Color(0xDEFFFFFF) (×3) | 4f25d18 |
+
+---
+## Session — 2026-06-07 (continued) — Deep Audit & Build-Fix (TASK-036)
+
+### Scope
+Full codebase audit across 100+ Dart files in `raddflix_flutter/lib/`. Every `.dart` file
+was fetched from GitHub and swept for: invalid Flutter color constants, undefined method
+calls, missing widget parameters, and type errors. Previous builds confirmed clean at
+sha 4f25d18 (build1021). This session targeted the remaining file set.
+
+### Bug Found & Fixed
+
+**BUG-BUILD-03** (`lib/screens/layout_designer_screen.dart:472`)
+- Error: `Colors.white20` — does not exist in Flutter's `Colors` class
+- Valid white opacity constants: `white10`, `white12`, `white24`, `white30`, `white38`,
+  `white54`, `white60`, `white70`. There is no `white20`.
+- Fix: Replaced with `Color(0x33FFFFFF)` (0x33 = 51 = exactly 20% of 255), which is
+  const-compatible and semantically equivalent to the intended value.
+- Commit: e4c9009
+
+### Audit Coverage — Files Confirmed Clean
+
+| Category | Files Audited | Result |
+|----------|--------------|--------|
+| Screens (auth, nav, content) | login, register, splash, subscription, onboarding, admin_queue, debug_diagnostics, tid_status, plan_expired, quota_full, history, watchlist, actor, profile, search, show_detail, local_media, local_folder, home, pin_lock, vault_settings | ✅ Clean |
+| Downloads | downloads_screen, download_service, downloads_provider | ✅ Clean |
+| Vault | vault_screen, vault_lock_screen, vault_service, vault_settings_screen | ✅ Fixed in TASK-034 |
+| Player screen | player_screen (6486 lines) | ✅ Fixed in TASK-035 |
+| Player widgets | player_hud_settings_sheet, quick_settings_panel, smart_enhance_sheet, audio_lab_sheet, gesture_map_sheet, picture_profiles_sheet, clip_trimmer, end_action_sheet, sleep_timer_sheet, silence_skip_sheet, jump_to_sheet, theme_picker_sheet, color_picker_sheet, scene_bookmarks_panel, bookmark_panel, subtitle_overlay, dual_subtitle_overlay, track_badges, speed_presets_sheet, zoom_crop_overlay, reaction_stamps_overlay, karaoke_overlay, pip_overlay, zoom_focus_overlay, ab_loop_panel, cinematic_settings_sheet, video_enhance_suite, audio_mixer_sheet, eq_panel, player_settings_screen | ✅ Clean (white87 fixed TASK-035) |
+| Player screens (sub) | player/layout_designer_screen | ✅ Clean |
+| Layout designer | layout_designer_screen | ✅ Fixed (BUG-BUILD-03) |
+| Core player | player_prefs, smart_enhance, audio_lab_service, layout_prefs, layout_config, d_series_picture_profiles, v_series_video_tools, c_series_gestures, t_series_themes, g_series_features, o_series_content, n_series_network | ✅ Clean |
+| Providers | auth, catalog, downloads, watchlist, subscription | ✅ Clean |
+| Models | catalog_item, local_video, user, subscription | ✅ Clean |
+| Theme | radd_theme, radd_colors | ✅ Clean |
+| Infra | main, app, local_db, api_client | ✅ Clean |
+
+### Method Audit — player_screen.dart
+All `_openX()`, `_handleX()`, `_toggleX()`, `_initX()` calls cross-checked against
+definitions. Every called method was confirmed defined within `_PlayerScreenState`.
+`onOpen*` callbacks for `QuickSettingsPanel` confirmed wired inline at lines 3519–3640.
+
+### Color Constant Reference (for future agents)
+Valid `Colors.white` opacities: `white10`, `white12`, `white24`, `white30`, `white38`, `white54`, `white60`, `white70`
+Valid `Colors.black` opacities: `black12`, `black26`, `black38`, `black45`, `black54`, `black87`
+For other values use `Color(0xAAFFFFFF)` where AA is the alpha hex byte.
+
+### Result
+- APK build `27099535721` at sha `e4c9009`: **completed success**
+- No further compile errors detected in any audited file.
+
+### Files Changed
+| File | Change | Commit |
+|------|--------|--------|
+| lib/screens/layout_designer_screen.dart | Colors.white20 → Color(0x33FFFFFF) | e4c9009 |
