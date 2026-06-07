@@ -168,9 +168,10 @@ Mark ✅ DONE when complete + pushed. This is the handoff bridge between agents.
 13. **Use `db.setting(k)` not `db.get_setting(k)`** — `get_setting` does not exist in `db.py`
 14. **For bulk DELETEs** use direct `sqlite3.connect()` + `BEGIN IMMEDIATE`, NOT `db.conn()`
 15. **Oracle git pull**: always `git stash && git pull && git stash pop` — Oracle has local uncommitted files
-16. **TV show IMDb search**: strip `SxxExx` from the clean name before searching IMDbAPI — the episode
-    suffix is already stripped in `_legacy/scanner.py` (prefer='tv' path). Never pass "Show S01E02"
-    to a title search API; strip to "Show" first.
+16. **TV show metadata search**: strip BOTH `SxxExx` AND `Season N` from the clean name before
+    any metadata API search. Both strips are in `enrich_and_save()` (prefer='tv' path).
+    "The Boys S02E01" → search "The Boys". "The Boys Season 2" → search "The Boys".
+    Never pass episode/season suffixes to any title search API.
 
 Full rules: `agent-hub/RULES.md` | Architecture: `agent-hub/CONTEXT.md`
 
@@ -193,9 +194,9 @@ Oracle:   /opt/jazzmax/radd-hub/hub/
   routes/catalog_api.py                /api/catalog/*
   routes/mobile_api.py                 /api/auth/*, usage, history, /api/app/config
   routes/admin.py                      Admin panel API (db/reset + db/restore)
-  _legacy/scanner.py                   Legacy scanner: TV detection, episode parsing, IMDb fallback
+  _legacy/scanner.py                   Scanner: enrich_and_save() is IMDb-first primary; TMDB direct is final safety net only
   media_naming.py                      _detect_season_episode, _plan_tv, MediaPlan
-  metadata_lookup.py                   enrich() — IMDb-first lookup chain
+  metadata_lookup.py                   enrich() — PRIMARY: IMDb → OMDB → TMDB → AI → YouTube → Google KG
   metadata.py                          fetch_imdbapi(), enrich_title()
   _legacy/enricher.py                  TMDB fetch_full_metadata(), _clean_filename()
   templates/scan.html                  Scan log UI — human-readable messages
