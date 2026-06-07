@@ -163,3 +163,30 @@ Items confirmed NOT bugs:
 | BUG-VAULT-04 | 🟡 MEDIUM | Biometric prompt fires on every app open even when user never set it up | `isBiometricEnabled()` defaulted to `true` — meaning all new installs had biometric enabled without consent | Changed default to `false` — user must explicitly enable in Vault Settings | `vault_service.dart` |
 | BUG-VAULT-05 | 🟡 MEDIUM | Fingerprint button shows on lock screen even when biometric disabled in Settings | Numpad `bio` button only checked `_biometricAvailable`, ignored `_biometricEnabled` | Added `&& _biometricEnabled` to the button visibility condition; auto-trigger also respects this | `vault_lock_screen.dart` |
 | BUG-VAULT-06 | 🟢 LOW | Vault subfolders not protected with .nomedia — scanner can index them | `getVaultFolder()` created subdirectories but never wrote a `.nomedia` file inside them | Added `.nomedia` file creation to `getVaultFolder()` (vault root already had one) | `vault_service.dart` |
+
+---
+
+## Build Errors (BUG-BUILD-XX) — Detected during TASK-035 / TASK-036
+
+### BUG-BUILD-01 (HIGH) — `_openSettings` undefined in `_PlayerScreenState`
+`player_screen.dart:3870` called `_openSettings()` inside the `onOpenFullSettings` callback
+of `PlayerHudSettingsSheet`, but no such method was ever defined.
+**Fix**: Replaced with existing `_openPlayerSettings()` (defined at line 1213).
+**Commit**: b6f39e2 | **Task**: TASK-035
+
+### BUG-BUILD-02 (HIGH) — `Colors.white87` not a valid Flutter color
+`player_hud_settings_sheet.dart` (lines 595, 759, 1125) used `Colors.white87`, which does
+not exist in Flutter's `Colors` class. Valid white opacities: `white10/12/24/30/38/54/60/70`.
+**Fix**: Replaced all 3 occurrences with `Color(0xDEFFFFFF)` (0xDE = 87% opacity, const-compatible).
+**Commit**: 4f25d18 | **Task**: TASK-035
+
+### BUG-BUILD-03 (HIGH) — `Colors.white20` not a valid Flutter color
+`layout_designer_screen.dart:472` used `Colors.white20`, which does not exist in Flutter's
+`Colors` class. Valid white opacity constants jump from `white12` to `white24`.
+**Fix**: Replaced with `Color(0x33FFFFFF)` (0x33 = 51 = 20% of 255, const-compatible).
+**Commit**: e4c9009 | **Task**: TASK-036
+
+**Color constant reference for future work:**
+- White opacities available: `Colors.white10`, `white12`, `white24`, `white30`, `white38`, `white54`, `white60`, `white70`
+- Black opacities available: `Colors.black12`, `black26`, `black38`, `black45`, `black54`, `black87`
+- For any other value: use `Color(0xAAFFFFFF)` / `Color(0xAA000000)` with the hex alpha byte
