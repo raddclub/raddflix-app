@@ -150,3 +150,17 @@ Items confirmed NOT bugs:
 | L-08 | LOW | _longPressFast + mediaButton fields use 4-space indent | Class body uses 2-space throughout | Fixed to 2-space | ✅ FIXED |
 | L-09 | LOW | Duplicate _openJumpTo/_showJumpToTime | Harmless redundancy | Deferred — consolidate in cleanup pass | 🚫 DEFERRED |
 | L-10 | LOW | _cinematicOpacity changes not persisted | onOpacityChanged only updates local state | Deferred — needs PlayerPrefs.cinematicOpacity schema addition | 🚫 DEFERRED |
+
+---
+
+## Session 2026-06-07 — Download/Play Security Audit (TASK-033)
+
+| ID | Severity | Title | Root Cause | Fix Applied | File |
+|----|---------|-------|-----------|-------------|------|
+| BUG-DL-09 | CRITICAL | Downloads screen never shows play button | `_isComplete()` checked `'complete'` but DB stores `'completed'` — string mismatch means all finished downloads appear unplayable forever | Changed `== 'complete'` → `== 'completed'` | `screens/downloads_screen.dart` |
+| BUG-DL-01 | CRITICAL | "Open with External Player" leaks content to other apps | `_openWithExternalPlayer()` sent CDN URL / file:// URI to Android intent + Share fallback — full content piracy vector | Replaced function with a security toast: "RaddFlix content plays in RaddFlix only" | `screens/player_screen.dart` |
+| BUG-DL-02 | HIGH | Screenshot Share button sends frames to OS share sheet | `ScreenshotShareSheet` had two buttons (Save + Share); Share opened system share sheet; watermark OFF by default | Removed Share button; Save only, full-width | `widgets/player/screenshot_share_sheet.dart` |
+| BUG-DL-03 | HIGH | Share item in More sheet exposes title+timestamp via OS share | `_MxMoreSheet` had a Share grid item calling `_shareTimestamp()` → `Share.share()` (OS share sheet) | Removed Share item from More sheet grid | `screens/player_screen.dart` |
+| BUG-DL-06 | MEDIUM | Stale CDN URLs served in 60-min window before expiry | Cache TTL was 180 min; CDN tokens expire ~2h → URLs cached at T=0 were re-served at T=121-180 after expiry | Reduced `_cacheTtl` from 180 → 110 minutes | `core/services/jazzdrive_service.dart` |
+| BUG-DL-08 | MEDIUM | Partial download marked 'completed' if network cuts at last byte | No file size validation after download; 0-byte or tiny files got status='completed' | Added 512 KB minimum size guard — smaller = mark 'failed' + delete orphan file | `core/download/download_service.dart` |
+| BUG-DL-11 | LOW | All downloads land in "Movies" folder regardless of type | `contentType` never passed through `DownloadService.downloadFile()` → `LocalDb.insertDownload()` always got null | Added `contentType` param through `downloads_provider → download_service → insertDownload` | `download_service.dart`, `downloads_provider.dart` |

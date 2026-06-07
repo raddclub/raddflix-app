@@ -370,3 +370,37 @@ that renders inside the player Stack so the video is always visible behind it.
 - `_showSmartEnhance` state bool + `_openSmartEnhance()` method
 - `SmartEnhanceSheet` overlay added to player Stack
 - "Smart Enhance" button (violet, `auto_awesome` icon) added to `_MxMoreSheet` grid
+
+---
+
+## Session 2026-06-07 — Download/Play Security Audit (TASK-033)
+
+**Tasks completed**
+| ID | Task | Status |
+|----|------|--------|
+| TASK-033 | Download/Play security + bug audit (6 bugs fixed) | ✅ DONE |
+
+**What was audited**
+Full trace of the download/play pipeline:
+1. JazzDrive link generation (share_url → SQLite → JazzDriveService → CDN URL)
+2. Download storage path (private app storage — correct, not accessible to file manager)
+3. Download status tracking, file integrity, folder categorization
+4. All share/export vectors in the player (Open With, Share sheet, Screenshot Share)
+
+**Files changed**
+| File | Change | Commit |
+|------|--------|--------|
+| lib/screens/downloads_screen.dart | BUG-DL-09: `'complete'`→`'completed'` (play button was always hidden) | 217842e |
+| lib/screens/player_screen.dart | BUG-DL-01: block external player; BUG-DL-03: remove Share from More sheet | 217842e |
+| lib/widgets/player/screenshot_share_sheet.dart | BUG-DL-02: remove Share button, Save only | 217842e |
+| lib/core/services/jazzdrive_service.dart | BUG-DL-06: TTL 180→110 min | 217842e |
+| lib/core/download/download_service.dart | BUG-DL-08: 512KB min size guard; BUG-DL-11: contentType param | 217842e |
+| lib/providers/downloads_provider.dart | BUG-DL-11: thread contentType through | 217842e |
+
+**State at end of session**
+- Oracle Flask: RUNNING (`{"ok":true,"version":"3.0.0"}`)
+- Account: ACTIVE
+- Downloaded content: plays in RaddFlix ONLY (external player access blocked)
+- Screenshots: save-only to gallery (no OS share sheet)
+- Downloads screen: play button now shows correctly for completed items
+- Open tasks: see agent-hub/TASKS.md
