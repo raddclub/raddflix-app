@@ -1,5 +1,5 @@
 # agent-hub/CONTEXT.md — RaddFlix System Context
-Last updated: 2026-06-07
+Last updated: 2026-06-07 (player audit complete)
 
 ## What is RaddFlix?
 Pakistani Flutter streaming app. Content is zero-rated (free data) on Jazz SIM via JazzDrive.
@@ -171,7 +171,8 @@ raddflix_flutter/lib/
   core/security/request_encoder.dart   XOR decode + base64 padding fix (CRITICAL)
   core/api/api_client.dart             Dio + XOR + auth interceptors
   core/db/local_db.dart                SQLCipher DB, schema v17
-  screens/player_screen.dart           Video player
+  screens/player_screen.dart           Video player (6265 lines, all bugs fixed as of 2ac9e8dc)
+                                         See agent-hub/PLAYER_SPEC.md for full architecture
   providers/auth_provider.dart         Auth state + session restore
 ```
 

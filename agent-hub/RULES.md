@@ -68,10 +68,27 @@ Last updated: 2026-06-07
 
 ---
 
+## Player Screen Rules (player_screen.dart)
+22. **`_ControlsOverlay` has two separate night-mode callbacks — never swap them:**
+    - `onToggleCinematic` → toggles `_cinematicMode` (dims the controls overlay via Opacity)
+    - `onToggleNightMode` → applies `_prefs.copyWith(nightMode: !_prefs.nightMode)` + save + `_applyVideoFilters()`
+    The More Sheet "Night Mode" tile uses `onToggleCinematic`. The Quick Bar "nightmode" slot
+    and Video Display Sheet use `onToggleNightMode`. Do NOT cross-wire them.
+23. **VideoEnhanceSuite cinematic toggle must be bidirectional:**
+    Compare `map['cinematicMode']` against `_cinematicMode`; call `_toggleCinematic()` only
+    when they differ. Never call unconditionally when value is `true` — that breaks toggle-off.
+24. **A-B loop: always sync UI state to controller:**
+    Any widget that sets A-B points (ClipTrimmer, AbLoopPanel, etc.) MUST call
+    `_abLoop.setA(d)` / `_abLoop.setB(d)` in addition to updating `_abLoopStart`/`_abLoopEnd`.
+    Updating only the state vars breaks `maybeSeekBack()` enforcement and seek bar markers.
+
+---
+
 ## End of Session (every session, no exceptions)
-22. Mark all completed tasks ✅ DONE in `agent-hub/TASKS.md`
-23. Append session summary to `agent-hub/history/TASK_LOG.md`
-24. Update `BUG_TRACKER.md` with any new bugs found or fixed
-25. Update `AGENT_HANDOFF.md` current state section
-26. Update `AGENT_PROMPT.md` known issues table + any new rules
-27. Push ALL doc changes to GitHub before ending session
+25. Mark all completed tasks ✅ DONE in `agent-hub/TASKS.md`
+26. Append session summary to `agent-hub/history/TASK_LOG.md`
+27. Update `BUG_TRACKER.md` with any new bugs found or fixed
+28. Update `AGENT_HANDOFF.md` current state section
+29. Update `HANDOFF_NEXT.md` with what was done + what's next
+30. Update `PLAYER_SPEC.md` if any player architecture changed
+31. Push ALL doc changes to GitHub before ending session

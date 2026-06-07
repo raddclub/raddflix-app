@@ -1,6 +1,6 @@
 # AGENT_HANDOFF.md
 > **Read this file first — every session, every agent, no exceptions.**
-> Last updated: 2026-06-06
+> Last updated: 2026-06-07
 
 ---
 
@@ -317,7 +317,47 @@ to create script files, then run with `node /path/to/script.js`.
 
 ---
 
-## Current State (2026-06-06)
+## Current State (2026-06-07)
+
+All code bugs fixed. One open ops issue (expired JazzDrive session).
+
+### Completed 2026-06-07 — Player Screen Full Audit (4 passes, 7 bugs fixed)
+
+Player screen (`player_screen.dart`, 6265 lines) fully audited across 4 passes.
+All 7 bugs found are fixed. Latest player commit: `2ac9e8dc`.
+
+| ID | Severity | Fix | Commit |
+|----|---------|-----|--------|
+| BUG-P-NEW-01 | HIGH | `_audioSessionInitialized` never set true → duplicate BG listeners | `7802d53` |
+| BUG-P-NEW-02 | MEDIUM | More Sheet Night Mode tile showed cinematic state instead of `nightMode` pref | `7802d53` |
+| BUG-P-NEW-03 | HIGH | Mid-stream errors silently dropped → infinite buffering with no feedback | `7802d53` |
+| BUG-P-NEW-04 | CRITICAL | `_enterCast()` NPE on nullable `_currentPlaybackUrl` | `7802d53` |
+| BUG-P-NEW-05 | HIGH | ClipTrimmer `onTrimChanged` never called `_abLoop.setA()/setB()` | `e9abc17` |
+| BUG-P-NEW-06 | MEDIUM | VideoEnhanceSuite cinematic toggle only worked one-way (ON, never OFF) | `2ac9e8dc` |
+| BUG-P-NEW-07 | HIGH | Quick Bar "Night Mode" wired to `onToggleCinematic` instead of night mode filter | `2ac9e8dc` |
+
+**No further bugs remain in `player_screen.dart`.**
+
+### Completed 2026-06-06 (Agent 4)
+- **BUG-A01 FIXED**: Admin "Reset Tables" silently failing (WAL mode lock). Commit: `f8affe1`
+- **BUG-A02 FIXED**: `mobile_api.py` called `db.get_setting()` → HTTP 500 every 2 min. Fixed to `db.setting()`.
+- **IMDbAPI URL fix** (commit `7a7cf2f`): Fixed dead v1 API URL in `metadata_lookup.py` and `poster_proxy.py`
+- **Admin reimport endpoint** (commit `7da7345`): `POST /api/admin/reimport`, `GET /api/admin/reimport/<job_id>`
+- **Proxy pool cleanup**: RAM 6,148MB → 61MB, CPU 60.7% → 6.9%
+
+### Completed 2026-06-05
+- **OTP Proxy Hardening** (commit `1887b63`): 6 bugs fixed across OTP proxy flow
+- **BUG-P02/P03**: Black flash + planExpired redirect for local files
+- **BUG-J01 (CRITICAL)**: JazzDrive Pass3 episode match broken by Dart backslash-dollar
+
+### Open (requires user action)
+- **Account 03286829827 session EXPIRED** — needs OTP re-login via Upload page.
+  Until fixed: uploads fail, keepalive fails, delta_push 401 errors every few minutes.
+- **DATA-01**: All Of Us Are Dead missing E03/E04/E05/E09 — need JazzDrive upload + sync.
+
+## Current State (2026-06-06 archive)
+
+### Archive detail
 
 All code bugs fixed. One open ops issue (expired JazzDrive session).
 

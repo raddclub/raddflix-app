@@ -1,6 +1,7 @@
 # PROJECT_RULES.md — Non-Negotiable Rules
 
-> All 10 rules apply to every agent, every session. No exceptions.
+> All 13 rules apply to every agent, every session. No exceptions.
+> Last updated: 2026-06-07
 
 ---
 
@@ -121,3 +122,38 @@ Always test like this:
 ssh -i /tmp/oracle_key ubuntu@92.4.95.252 "curl -s http://localhost:5000/api/..."
 ```
 Never try to hit `http://92.4.95.252:5000/...` directly — it will time out.
+
+---
+
+### Rule 11 — Never swap the two night-mode callbacks in _ControlsOverlay
+
+`_ControlsOverlay` has two distinct night-mode callbacks:
+- `onToggleCinematic` → dims the controls overlay via `Opacity(opacity: _cinematicOpacity)`
+- `onToggleNightMode` → applies a blue-light colour filter via `_applyVideoFilters()`
+
+The Quick Bar "Night" slot must be wired to `onToggleNightMode`.
+The More Sheet item 11 "Night Mode" must be wired to `onToggleCinematic`.
+Cross-wiring them silently applies the wrong effect — the symptom is subtle and hard to debug.
+
+---
+
+### Rule 12 — VideoEnhanceSuite cinematic toggle must be bidirectional
+
+When reading back the result map from `_openVideoEnhanceSuite()`:
+```dart
+// WRONG — only fires when new value is true; toggle-off is silently dropped
+if (map['cinematicMode'] as bool? ?? false) _toggleCinematic();
+
+// CORRECT — compare against current state, toggle only when they differ
+final newCinematic = map['cinematicMode'] as bool? ?? _cinematicMode;
+if (newCinematic != _cinematicMode) _toggleCinematic();
+```
+
+---
+
+### Rule 13 — A-B loop controller and UI state must stay in sync
+
+Any widget that sets A-B loop points (ClipTrimmer, AbLoopPanel, etc.) MUST call
+`_abLoop.setA(d)` / `_abLoop.setB(d)` alongside updating the `_abLoopStart` / `_abLoopEnd`
+state vars. Updating only the state vars leaves `_abLoop.isActive = false`, which breaks
+both the `maybeSeekBack()` enforcement and the seek bar A/B markers.

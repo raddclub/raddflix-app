@@ -1,5 +1,5 @@
 # RaddFlix Player — Full Feature Specification
-> Last Updated: 2026-06-01 | Source: player_screen.dart (4521 lines)
+> Last Updated: 2026-06-07 | Source: player_screen.dart (6265 lines, commit 2ac9e8dc)
 > This document is the single truth for the video player. Read before touching any player file.
 
 ---
@@ -10,15 +10,20 @@ The entire player lives in one state machine: `_PlayerScreenState` inside `playe
 Modes, gestures, UI layers, and all panels are managed here. No separate route/navigation.
 
 ```
-player_screen.dart (4521 lines)
+player_screen.dart (6265 lines)
   ├── _PlayerScreenState        ← master state: mode, position, prefs, panels
   ├── _ControlsOverlay          ← all visible controls (top bar, seek bar, center buttons, right strip)
+  │     └── _QuickShortcutBar  ← icon-only shortcut row above seek bar (8 configurable slots)
   ├── _MxMoreSheet              ← 16-item bottom sheet (long-tap = settings for that feature)
   ├── _MxAudioPanel             ← audio track selector + sync
   ├── _MxSubPanel               ← subtitle track selector + sync
-  ├── _VideoDisplaySheet        ← 12 shortcut tiles (row×2)
-  ├── _MxSeekBtn                ← vertical seek button (up=back, down=forward)
-  ├── _MxSideBtn                ← right-strip icon button
+  ├── _VideoDisplaySheet        ← 12 shortcut tiles (2 rows × 6)
+  ├── _SpeedPanel               ← playback speed picker (right-edge strip)
+  ├── _SleepPanel               ← sleep timer options panel
+  ├── _MxSeekBtn                ← seek ±15s button with seconds label
+  ├── _MxSideBtn                ← right-strip icon button (label + icon)
+  ├── _MxBadge                  ← top bar badge (A/V sync offset, zoom level)
+  ├── _CenterAuxBtn             ← auxiliary center buttons (Prev ep, Skip Intro)
   ├── _CircularDotsLoader       ← loading animation (ring of dots)
   ├── _DragIndicator            ← vol/brightness gesture HUD (full)
   ├── _ImmersiveDragNumber      ← vol/brightness gesture HUD (immersive — number only)
@@ -37,6 +42,21 @@ widgets/player/
 
 ---
 
+## CRITICAL: Two separate night-mode callbacks in _ControlsOverlay
+
+`_ControlsOverlay` has two distinct callbacks that must NEVER be swapped:
+
+| Callback | Toggles | Used by |
+|----------|---------|---------|
+| `onToggleCinematic` | `_cinematicMode` — dims the entire controls overlay | More Sheet "Night Mode" tile, cinematic settings |
+| `onToggleNightMode` | `_prefs.nightMode` — applies a blue-light filter via `_applyVideoFilters()` | Quick Bar "nightmode" slot, Video Display Sheet |
+
+The More Sheet item 11 ("Night Mode") toggles **cinematic mode**, not the colour filter.
+The Quick Bar "Night" slot and Video Display Sheet "Night Mode" toggle the **actual night mode filter**.
+Do NOT wire `onToggleNightMode` to `_toggleCinematic()` or vice versa.
+
+---
+
 ## Mode System (CRITICAL — read carefully)
 
 Three mutually exclusive modes. All logic (gestures, long-press speed, seek) works in ALL modes.
@@ -52,7 +72,7 @@ The modes only control what is VISIBLE.
 ### Cinematic Mode (`_cinematicMode = true`)
 - Controls auto-hide/show EXACTLY like Normal mode
 - Entire `_ControlsOverlay` wrapped in `Opacity(opacity: _cinematicOpacity)`
-- `_cinematicOpacity` default = 0.5, range 0.15–1.0, user-adjustable via long-press Night Mode in More Sheet → CinematicSettingsSheet
+- `_cinematicOpacity` default = 0.5, range 0.15–1.0, user-adjustable via CinematicSettingsSheet
 - Live opacity slider: changes update `_cinematicOpacity` in real time via `onOpacityChanged` callback
 - Subtitles SHOW (previously hidden — fixed 2026-06-01)
 - Long press → 2× speed (unchanged)
@@ -69,7 +89,7 @@ The modes only control what is VISIBLE.
   - Seek → values change, no label shown
   - Pinch → zoom works, zoom indicator not shown
 - Always visible: bottom-left elapsed time + bottom-right remaining time (10px, 45% opacity)
-- Exit: tap top-right corner → exit button appears for 5s, auto-hides → tap exit → Normal mode
+- Exit: tap top-right corner → exit button appears for 5s → tap exit → Normal mode
 - `ImmersiveOverlay` widget handles the corner exit zone and time HUD
 
 ---
@@ -86,7 +106,31 @@ The modes only control what is VISIBLE.
 | Swipe right half vertical | volume | volume | volume (silent) |
 | Swipe horizontal | seek scrub | seek scrub | seek scrub (silent) |
 | Pinch | zoom | zoom | zoom |
-| Triple tap | rage skip | rage skip | N/A |
+| Triple tap center | rage skip | rage skip | N/A |
+
+---
+
+## AbLoopController API (`core/player/ab_loop_controller.dart`)
+
+```dart
+// Fields
+Duration? pointA, pointB;
+
+// Methods
+void setA(Duration d);                      // set loop start
+void setB(Duration d);                      // set loop end
+void clear();                               // clear both points
+
+// Getters
+bool get isActive;                          // true when both A and B are set
+
+// Loop enforcement (call on every position event)
+Duration? maybeSeekBack(Duration current);  // returns pointA if current >= pointB, else null
+```
+
+**Rule:** Any UI that sets A-B points MUST call `_abLoop.setA()` / `_abLoop.setB()` in addition
+to updating `_abLoopStart` / `_abLoopEnd` state vars. Updating only the state vars breaks
+`maybeSeekBack()` enforcement and seek bar markers. (Was BUG-P-NEW-05.)
 
 ---
 
@@ -109,7 +153,7 @@ bool _draggingVolume = false;
 bool _draggingSeek = false;
 bool _longPressFast = false;
 
-// Panels (all bottom sheets)
+// Panels (all bottom sheets / overlays)
 bool _showQuickSettings = false;
 bool _showMorePanel = false;
 bool _showEqPanel = false;
@@ -123,7 +167,30 @@ bool _showSpeedPicker = false;
 bool _showSubtitleMenu = false;
 bool _showAudioMenu = false;
 bool _showSleepMenu = false;
+bool _showJumpPanel = false;
+bool _showTransparentSlider = false;
+bool _showBingeGuard = false;
 ```
+
+---
+
+## Quick Bar (`_QuickShortcutBar`)
+
+Thin icon row (46×40px tiles) rendered above the seek slider when `showQuickBar = true`.
+Configurable via `quickBarItems` pref (comma-separated IDs).
+
+| Slot ID | Label | Action |
+|---------|-------|--------|
+| `pip` | PiP | `onPiP` |
+| `bgplay` | BG Play | `onBgPlay(!bgPlayEnabled)` — toggleable |
+| `fit` | Resize | `onFit` (cycle aspect ratio) |
+| `screenshot` | Shot | `onScreenshot` |
+| `speed` | Speed | `onSpeed` (open speed picker) |
+| `subtitle` | Sub | `onSubtitle` (open subtitle panel) |
+| `lock` | Lock | `onLock` (lock controls) |
+| `nightmode` | Night | `onNightMode` → **must be `onToggleNightMode`** (night mode filter, NOT cinematic) |
+
+Default: `'pip,bgplay,fit,screenshot,speed'`
 
 ---
 
@@ -141,41 +208,83 @@ bool _showSleepMenu = false;
 
 ## More Sheet Items (16 items in 4×4 grid)
 
-| # | Label | Icon | Active state |
-|---|-------|------|-------------|
-| 0 | Playing Queue | `queue_music_rounded` | queue not empty |
-| 1 | Cut | `content_cut_rounded` | — |
-| 2 | Share | `share_rounded` | — |
-| 3 | Video Display Shortcuts | `display_settings_rounded` | — |
-| 4 | Aspect Ratio | `aspect_ratio_rounded` | not 'Fit' |
-| 5 | Favourite | `favorite_rounded` | favourited |
-| 6 | Network Stream | `cast_rounded` | connected |
-| 7 | PiP | `picture_in_picture_rounded` | in PiP |
-| 8 | Add To Playlist | `playlist_add_rounded` | — |
-| 9 | **Display Settings** (restored) | `tune_rounded` | — |
-| 10 | Equalizer | `equalizer_rounded` | eq enabled |
-| 11 | Night Mode (Cinematic) | `dark_mode_rounded` | `_cinematicMode` |
-| 12 | Information | `info_outline_rounded` | — |
-| 13 | Bookmark | `bookmark_rounded` | has bookmarks |
-| 14 | Sleep Timer | `bedtime_rounded` | sleep active |
-| 15 | A-B Repeat | `repeat_one_rounded` | AB active |
+| # | Label | Icon | Active state | Notes |
+|---|-------|------|-------------|-------|
+| 0 | Playing Queue | `queue_music_rounded` | queue not empty | |
+| 1 | Cut | `content_cut_rounded` | — | Opens ClipTrimmer |
+| 2 | Share | `share_rounded` | — | |
+| 3 | Video Display Shortcuts | `display_settings_rounded` | — | Opens _VideoDisplaySheet |
+| 4 | Aspect Ratio | `aspect_ratio_rounded` | not 'Fit' | |
+| 5 | Favourite | `favorite_rounded` | favourited | |
+| 6 | Network Stream | `cast_rounded` | connected | |
+| 7 | PiP | `picture_in_picture_rounded` | in PiP | |
+| 8 | Add To Playlist | `playlist_add_rounded` | — | |
+| 9 | Display Settings | `tune_rounded` | — | |
+| 10 | Equalizer | `equalizer_rounded` | eq enabled | |
+| 11 | Night Mode | `dark_mode_rounded` | `_cinematicMode` | Toggles CINEMATIC mode (not filter) |
+| 12 | Information | `info_outline_rounded` | — | |
+| 13 | Bookmark | `bookmark_rounded` | has bookmarks | |
+| 14 | Sleep Timer | `bedtime_rounded` | sleep active | |
+| 15 | A-B Repeat | `repeat_one_rounded` | AB active | |
 
-Long-press Night Mode → `CinematicSettingsSheet` (opacity slider + tap settings)
-Long-press Immersive Mode → `ImmersiveModeSettingsSheet` (tap/icon/hide settings)
+**Note:** More Sheet item 11 "Night Mode" toggles `_cinematicMode` (dims the overlay).
+The Quick Bar "Night" slot and Video Display Sheet "Night Mode" toggle the colour filter (`_prefs.nightMode`).
+These are two different features with similar labels — keep them separate.
 
 ---
 
-## Known Differences vs Screenshots (from deep analysis session)
+## PlayerPrefs fields (player_prefs.dart)
 
-These are items confirmed different from the MX Player screenshot reference. Fix in future sessions:
+```dart
+// Playback
+final double playbackSpeed;
+final String speedPresets;           // comma-sep: '0.25,0.5,...,3.0'
+final double volumeBoostMultiplier;  // 1.0–3.0
+final int    audioTimingOffsetMs;
+final int    subtitleSyncOffsetMs;
 
-1. **More Sheet item 9**: Currently still shows "Immersive Mode" — should be "Display Settings" (revert the replacement done in previous session)
-2. **Audio track chips**: Screenshots show radio-button circles (filled/empty), our code uses rectangular pill chips
-3. **EQ Panel Audio Effect**: "Original" should be a full-width banner card, others in 2-column grid
-4. **Loading animation**: All dots equal brightness, ~50-60 dots (our code: 40, fading tail), center icon different
-5. **Video Display Shortcuts selected tile**: Screenshot: dark square + blue `<` chevron inside; our code: solid blue fill
-6. **Quick Settings Controls tab**: Screenshots show gesture list as individual rows; our code uses chip Wrap
-7. **Audio/Subtitle panel dismiss**: Screenshot shows back `<` at bottom-left; our code has X in header
-8. **Subtitle panel**: "Online subtitles" is vertical text on right edge; our code has it as a small badge
-9. **Right-side strip**: Screenshots show Screenshot/Rotate/HW+/More; our code shows Sub/Audio/Rotate/More
-10. **Center play button**: Screenshots show smaller/less-glow button than our 68px red circle
+// Modes & features
+final bool   cinematicMode;          // persisted cinematic on/off
+final double cinematicOpacity;       // 0.15–1.0
+final bool   nightMode;              // blue-light reduction filter
+final bool   immersiveMode;
+final bool   rageSkipEnabled;
+final int    rageSkipSeconds;
+final bool   abLoopEnabled;
+final bool   backgroundPlayEnabled;
+final bool   bingeGuardEnabled;
+final int    bingeGuardThresholdMinutes;
+final bool   ambilightEnabled;
+
+// Center button customization
+final String centerBtnPosition;      // 'center' | 'bottom' | 'hidden'
+final double centerBtnScale;
+final double centerBtnVerticalOffset;
+final bool   centerBtnIconOnly;
+final double centerBtnBgOpacity;
+final bool   showCenterPrev;
+final bool   showCenterSkip;
+final bool   showCenterNext;
+
+// Quick bar
+final bool   showQuickBar;
+final String quickBarItems;          // comma-sep slot IDs
+
+// UI
+final Color  accentColor;
+final String buttonShape;            // 'circle'|'squircle'|'rounded'|'sharp'|'pill'
+final String seekBarStyle;           // 'classic'|'wave'|'film'|'minimal'
+final String iconPack;               // 'mx'|'ios'|'fluent'|'material3'|'cute'|'minimal'
+final String rotationMode;           // 'sensor_landscape'|'auto'|'lock_left'|'lock_right'|'lock_portrait'|'lock_current'
+```
+
+---
+
+## Known Open Items (not bugs — UI polish)
+
+1. **Audio track chips**: Screenshots show radio-button circles; code uses rectangular pill chips
+2. **EQ Panel Audio Effect**: "Original" should be a full-width banner card; others in 2-column grid
+3. **Loading animation**: Our code has 40 dots with fading tail; reference has ~50-60 equal-brightness dots
+4. **Audio/Subtitle panel dismiss**: Reference shows back `<` at bottom-left; code has X in header
+5. **Right-side strip**: Reference shows Screenshot/Rotate/HW+/More; code shows Sub/Audio/Rotate/More
+6. **Quick bar overflow on small screens**: `_QuickShortcutBar` Row not wrapped in `SingleChildScrollView`
