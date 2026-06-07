@@ -79,6 +79,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:saver_gallery/saver_gallery.dart';
 import '../widgets/player/immersive_overlay.dart';
 import '../widgets/player/player_hud_settings_sheet.dart';
+import '../widgets/player/smart_enhance_sheet.dart';
+import '../core/player/smart_enhance.dart';
 import '../widgets/player/cinematic_settings_sheet.dart';
 import '../widgets/player/scene_bookmarks_panel.dart';
 import '../widgets/player/track_badges.dart';
@@ -277,6 +279,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showSubSyncPanel     = false;
   bool _showSubtitleHunter   = false;
   bool _showHudSettings      = false;
+  bool _showSmartEnhance     = false;
   // MX-style rotation: track last known landscape side to snap to correct one
   String? _lastLandscapeSide; // 'left' | 'right'
   bool _showVideoDisplay     = false;
@@ -526,9 +529,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Build MPV vf= filter string from prefs
   String _buildVfString(PlayerPrefs p) {
     final parts = <String>[];
-    if (p.brightness != 0 || p.contrast != 0 || p.saturation != 0 || p.hue != 0) {
-      parts.add('eq=brightness=${p.brightness}:contrast=${1 + p.contrast}'
-          ':saturation=${1 + p.saturation}:hue=${p.hue}'); // FIX-M06: MPV eq hue is degrees, dividing by 180 compressed to near-zero
+
+    // ── Smart Enhance overlay (MX-style) ─────────────────────────────────────
+    // When enabled, the preset delta values are stacked on top of the user's
+    // manual eq adjustments so both are always respected simultaneously.
+    double seB = 0, seC = 0, seS = 0, seH = 0, seSharp = 0.0;
+    bool   seNoise = false;
+    if (p.smartEnhanceEnabled) {
+      final se = getSmartEnhancePreset(p.smartEnhanceMode);
+      seB     = se.brightness;
+      seC     = se.contrast;
+      seS     = se.saturation;
+      seH     = se.hue;
+      seSharp = se.sharpness;
+      seNoise = se.noiseReduce;
+    }
+
+    final effB = (p.brightness + seB).clamp(-1.0,  1.0);
+    final effC = (p.contrast   + seC).clamp(-2.0,  2.0);
+    final effS = (p.saturation + seS).clamp(-3.0,  3.0);
+    final effH =  p.hue        + seH;
+
+    if (effB != 0 || effC != 0 || effS != 0 || effH != 0) {
+      parts.add('eq=brightness=${effB.toStringAsFixed(3)}'
+          ':contrast=${(1 + effC).toStringAsFixed(3)}'
+          ':saturation=${(1 + effS).toStringAsFixed(3)}'
+          ':hue=${effH.toStringAsFixed(1)}'); // FIX-M06: MPV eq hue is degrees
     }
     if (p.nightMode) {
       final i = p.nightModeIntensity;
@@ -543,10 +569,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ':gb=${(0.05 * i).toStringAsFixed(3)}:ga=0'
           ':br=0:bg=0:bb=${(0.7 + i * 0.1).toStringAsFixed(3)}:ba=0'); // BUG-N01: ba=1 bled alpha into blue output
     }
-    if (p.sharpnessEnabled) {
-      parts.add('unsharp=la=${(p.sharpness * 2).toStringAsFixed(2)}'
-          ':ca=${p.sharpness.toStringAsFixed(2)}');
+
+    // Sharpness: user manual + smart enhance extra — combined and clamped
+    if (p.sharpnessEnabled || seSharp > 0) {
+      final baseSharp = p.sharpnessEnabled ? p.sharpness : 0.0;
+      final combined  = (baseSharp + seSharp).clamp(0.0, 1.5);
+      parts.add('unsharp=la=${(combined * 2).toStringAsFixed(2)}'
+          ':ca=${combined.toStringAsFixed(2)}');
     }
+
+    // Smart Enhance noise reduction (hqdn3d) — Low Light mode only
+    if (seNoise) {
+      parts.add('hqdn3d=luma_spatial=2:chroma_spatial=1.5:luma_tmp=3:chroma_tmp=2.25');
+    }
+
     return parts.join(',');
   }
 
@@ -1193,6 +1229,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _openHudSettings() {
     setState(() { _showMorePanel = false; _showHudSettings = true; });
+  }
+
+  void _openSmartEnhance() {
+    setState(() { _showMorePanel = false; _showSmartEnhance = true; });
+    HapticFeedback.mediumImpact();
   }
 
   void _openSleepTimer() {
@@ -3612,6 +3653,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     onImmersiveSettings: () { setState(() => _showMorePanel = false); _showImmersiveSettings(); },
                     onCinematicSettings: () { setState(() => _showMorePanel = false); _showCinematicSettings(); },
                     onLayoutSettings: () => _openHudSettings(),
+                    onSmartEnhance:  () => _openSmartEnhance(),
                   ),
               ),
   
@@ -3817,6 +3859,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 },
                 onClose: () => setState(() => _showVideoEnhance = false),
               )),
+
+          // ── Smart Enhance Sheet ──
+          if (_showSmartEnhance)
+            SmartEnhanceSheet(
+              prefs: _prefs,
+              onPrefsChanged: (newPrefs) {
+                setState(() => _prefs = newPrefs);
+                newPrefs.save();
+                _applyVideoFilters(newPrefs);
+              },
+              onClose: () => setState(() => _showSmartEnhance = false),
+            ),
 
           // ── HUD Settings Sheet ──
           if (_showHudSettings)
@@ -5320,6 +5374,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
       final VoidCallback onImmersiveSettings;
       final VoidCallback onCinematicSettings;
       final VoidCallback onLayoutSettings;
+  final VoidCallback onSmartEnhance;
 
       const _MxMoreSheet({
         required this.cinematicMode,
@@ -5349,6 +5404,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
         required this.onImmersiveSettings,
         required this.onCinematicSettings,
         required this.onLayoutSettings,
+    required this.onSmartEnhance,
       });
 
       @override
@@ -5377,6 +5433,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
           {'icon': Icons.open_in_new_rounded,             'label': 'Open\nWith',        'active': false,              'color': null,                      'tap': onOpenWith},
           {'icon': Icons.settings_rounded,                'label': 'Settings',          'active': false,              'color': null,                      'tap': onSettings},
           {'icon': Icons.dashboard_customize_rounded,          'label': 'Layout\n& HUD',     'active': false,              'color': const Color(0xFF10B981),   'tap': onLayoutSettings},
+          {'icon': Icons.auto_awesome_rounded,                   'label': 'Smart\nEnhance',   'active': false,              'color': const Color(0xFFA78BFA),   'tap': onSmartEnhance},
         ];
         return Container(
           decoration: const BoxDecoration(

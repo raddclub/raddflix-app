@@ -331,6 +331,13 @@ class PlayerPrefs {
   /// Supported: pip, bgplay, fit, screenshot, speed, subtitle, lock, nightmode
   final String quickBarItems;
 
+  // ── Smart Enhance ────────────────────────────────────────────────────────
+  /// Whether MX-style AI video enhancement is active.
+  final bool   smartEnhanceEnabled;
+  /// Content mode preset ID — 'standard'|'movie'|'sports'|'anime'|
+  /// 'low_light'|'amoled'|'drama'|'documentary'
+  final String smartEnhanceMode;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -501,6 +508,8 @@ class PlayerPrefs {
     this.centerBtnPosition           = 'center',
     this.showQuickBar                = true,
     this.quickBarItems               = 'pip,bgplay,fit,screenshot,speed',
+    this.smartEnhanceEnabled         = false,
+    this.smartEnhanceMode            = 'standard',
   });
 
   PlayerPrefs copyWith({
@@ -606,6 +615,8 @@ class PlayerPrefs {
     String? centerBtnPosition,
     bool?   showQuickBar,
     String? quickBarItems,
+    bool?   smartEnhanceEnabled,
+    String? smartEnhanceMode,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -770,6 +781,8 @@ class PlayerPrefs {
       centerBtnPosition:           centerBtnPosition           ?? this.centerBtnPosition,
       showQuickBar:                showQuickBar                ?? this.showQuickBar,
       quickBarItems:               quickBarItems               ?? this.quickBarItems,
+      smartEnhanceEnabled:         smartEnhanceEnabled         ?? this.smartEnhanceEnabled,
+      smartEnhanceMode:            smartEnhanceMode            ?? this.smartEnhanceMode,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -952,6 +965,8 @@ class PlayerPrefs {
       centerBtnPosition:           s.getString('${_p}center_btn_position')       ?? 'center',
       showQuickBar:                s.getBool('${_p}show_quick_bar')              ?? true,
       quickBarItems:               s.getString('${_p}quick_bar_items')           ?? 'pip,bgplay,fit,screenshot,speed',
+      smartEnhanceEnabled:         s.getBool('${_p}smart_enhance_enabled')        ?? false,
+      smartEnhanceMode:            s.getString('${_p}smart_enhance_mode')         ?? 'standard',
     );
   }
 
@@ -1130,6 +1145,8 @@ class PlayerPrefs {
       s.setString('${_p}center_btn_position',        centerBtnPosition),
       s.setBool('${_p}show_quick_bar',               showQuickBar),
       s.setString('${_p}quick_bar_items',            quickBarItems),
+      s.setBool('${_p}smart_enhance_enabled',         smartEnhanceEnabled),
+      s.setString('${_p}smart_enhance_mode',          smartEnhanceMode),
     ]);
   }
 }
