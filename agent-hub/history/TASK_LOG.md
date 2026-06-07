@@ -227,3 +227,27 @@
 | raddflix_flutter/lib/screens/player_screen.dart | 12 fixes; net +18 lines |
 | agent-hub/TASKS.md | TASK-027 added to completed archive |
 | agent-hub/history/TASK_LOG.md | Pass 6 session appended |
+
+## TASK-029 — IDEA-01: Universal Subtitle Hunter
+**Date:** 2026-06-07  **Status:** ✅ DONE
+
+### Components implemented
+| Component | Detail |
+|-----------|--------|
+| SubtitleHunter (compute isolate) | Walks device storage recursively; collects .srt/.ass/.ssa/.vtt/.sub/.sbv |
+| ZIP extraction | archive package peeks inside .zip files, extracts matching subtitle entries to temp cache |
+| Fuzzy scoring | Token overlap 70% + Levenshtein similarity 30% → 0-100 confidence |
+| 60s result cache | Second open of same video returns instantly |
+| SubtitleHunterSheet | Bottom sheet: ranked list, confidence bar, ZIP badge, collapsible preview (5 lines), one-tap Load |
+| URL loader | Download .srt/.ass/.vtt from any HTTP URL → auto-loads into player |
+| _MxSubPanel integration | Replaced dead “+ Add Translation” with “Search” button; → _openSubtitleHunter() |
+
+### Files changed
+| File | Change |
+|------|--------|
+| lib/core/subtitles/subtitle_hunter.dart | NEW |
+| lib/core/subtitles/subtitle_hunter_sheet.dart | NEW |
+| lib/screens/player_screen.dart | +imports, +_openSubtitleHunter(), +onHunt wiring, +Search button |
+| pubspec.yaml | +archive: ^3.4.0 |
+| agent-hub/TASKS.md | TASK-029 added |
+| agent-hub/history/TASK_LOG.md | This entry |

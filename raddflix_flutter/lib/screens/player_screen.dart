@@ -91,6 +91,8 @@ import '../widgets/player/picture_profiles_sheet.dart';
 import '../widgets/player/audio_lab_sheet.dart';
 import '../widgets/player/intro_skip_editor.dart';
 import '../widgets/player/dual_subtitle_overlay.dart';
+import '../core/subtitles/subtitle_hunter.dart';
+import '../core/subtitles/subtitle_hunter_sheet.dart';
 import '../widgets/player/jump_to_sheet.dart';
 import '../widgets/player/end_action_sheet.dart';
 import '../widgets/player/silence_skip_sheet.dart';
@@ -272,6 +274,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showEqPanel          = false;
   bool _showAudioSyncPanel   = false;
   bool _showSubSyncPanel     = false;
+  bool _showSubtitleHunter   = false;
   bool _showVideoDisplay     = false;
 
   // ── Video Display Shortcuts toggles ──────────────────────────────────────
@@ -2365,6 +2368,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await _player.setSubtitleTrack(SubtitleTrack.uri(uri));
   }
 
+  // ── IDEA-01: Universal Subtitle Hunter ───────────────────────────────────────
+  /// Fuzzy-scan device storage + ZIP archives for subtitle candidates, show sheet.
+  void _openSubtitleHunter() {
+    final videoPath = widget.localPath ?? widget.fileId;
+    if (videoPath.isEmpty) return;
+    setState(() => _showSubtitleMenu = false);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SubtitleHunterSheet(
+        videoPath: videoPath,
+        onLoad: (filePath) async {
+          final uri = filePath.startsWith('file://') ? filePath : 'file://$filePath';
+          await _player.setSubtitleTrack(SubtitleTrack.uri(uri));
+        },
+      ),
+    );
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -3267,6 +3290,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 },
                 onSyncChanged: _applySubSync,
                 onOpen: () { setState(() => _showSubtitleMenu = false); _pickSubtitle(); },
+                onHunt: _openSubtitleHunter,
                 onSettings: () { setState(() { _showSubtitleMenu = false; _showQuickSettings = true; }); },
                 onClose: () => setState(() => _showSubtitleMenu = false),
               )),
@@ -5896,6 +5920,7 @@ class _MxSubPanel extends StatefulWidget {
   final ValueChanged<int> onSelect;
   final ValueChanged<int> onSyncChanged;
   final VoidCallback onOpen;
+  final VoidCallback onHunt;
   final VoidCallback onSettings;
   final VoidCallback onClose;
 
@@ -5906,6 +5931,7 @@ class _MxSubPanel extends StatefulWidget {
     required this.onSelect,
     required this.onSyncChanged,
     required this.onOpen,
+    required this.onHunt,
     required this.onSettings,
     required this.onClose,
   });
@@ -6024,19 +6050,15 @@ class _MxSubPanelState extends State<_MxSubPanel> {
 
         const SizedBox(height: 14),
 
-        // Action buttons row: Open | Settings | Add Translation
+        // Action buttons row: Open | Search | Settings
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(children: [
             _MxPanelOption(icon: Icons.folder_open_rounded, label: 'Open', onTap: widget.onOpen),
             const SizedBox(width: 20),
+            _MxPanelOption(icon: Icons.manage_search_rounded, label: 'Search', onTap: widget.onHunt),
+            const SizedBox(width: 20),
             _MxPanelOption(icon: Icons.settings_rounded, label: 'Settings', onTap: widget.onSettings),
-            const Spacer(),
-            GestureDetector(
-              onTap: () {},
-              child: const Text('+ Add Translation',
-                  style: TextStyle(color: Color(0xFF4DB6FF), fontSize: 12, fontWeight: FontWeight.w500)),
-            ),
           ]),
         ),
 
