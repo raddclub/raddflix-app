@@ -168,6 +168,10 @@ Mark ✅ DONE when complete + pushed. This is the handoff bridge between agents.
 13. **Use `db.setting(k)` not `db.get_setting(k)`** — `get_setting` does not exist in `db.py`
 14. **For bulk DELETEs** use direct `sqlite3.connect()` + `BEGIN IMMEDIATE`, NOT `db.conn()`
 15. **Oracle git pull**: always `git stash && git pull && git stash pop` — Oracle has local uncommitted files
+17. **THE ONLY REAL DB is `/opt/jazzmax/radd-hub/data/radd_hub.db`** (~4.3 MB).
+    All other `.db` files on Oracle (radd.db, radd_hub.db, raddflix.db, hub.db, etc.) are **0-byte
+    empty artifacts** — they have NO tables and NO data. Never query them. If `find` shows 15 DB
+    files, ignore all except `data/radd_hub.db`. Full guide: `agent-hub/DATABASE.md`.
 16. **TV show metadata search**: strip BOTH `SxxExx` AND `Season N` from the clean name before
     any metadata API search. Both strips are in `enrich_and_save()` (prefer='tv' path).
     "The Boys S02E01" → search "The Boys". "The Boys Season 2" → search "The Boys".
@@ -281,3 +285,4 @@ Session log template:
 - Account: ACTIVE/EXPIRED
 - Open tasks: see agent-hub/TASKS.md
 ```
+
