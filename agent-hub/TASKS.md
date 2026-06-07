@@ -62,3 +62,4 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-032 | Smart Enhance — MX-style AI video enhancement suite (8 presets, master toggle, intensity, before/after compare) | 2026-06-07 | ✅ |
 | TASK-034 | Vault fix — hide files from gallery/file manager + biometric unlock fix | ✅ | 2026-06-07 | 6 bugs: VAULT-01..06; commit f14eac5 |
 | TASK-035 | Fix Dart compile errors blocking APK build (BUG-BUILD-01 + 02) | ✅ | 2026-06-07 | _openSettings→_openPlayerSettings; Colors.white87→Color(0xDEFFFFFF); APK build1021 succeeded |
+| TASK-036 | Deep codebase audit — fix Colors.white20 compile error + sweep all 100+ Dart files for build-blocking bugs | ✅ | 2026-06-07 | BUG-BUILD-03: Colors.white20→Color(0x33FFFFFF) in layout_designer_screen; all 100+ files clean; APK build1022 success |
