@@ -365,6 +365,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _initBrightnessVolume();
     _loadPrefs();
     _initAudioSession();
+    _audioSessionInitialized = true; // BUG-P-NEW-01: mark initialized so BG-play toggle guard works
     _loadSmartIntro();
     _loadBookmarks();
     _checkQuota();
@@ -1676,9 +1677,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Layer 1: MPV fires a hard error (expired token, DNS fail, etc.)
     _player.stream.error.listen((err) {
       if (!mounted || _isLocalFile) return;
-      // Skip error popup if video is already playing fine
-      if (_playing && _position.inSeconds > 3) return;
       DebugLogger.logError('PLAYER', 'Stream error: $err');
+      // BUG-P-NEW-03: mid-stream errors (after 3s playback) were silently swallowed.
+      // If already playing beyond 3s, show a dismissible snackbar and attempt soft
+      // retry so the user knows about network drops / CDN URL expiry.
+      if (_playing && _position.inSeconds > 3) {
+        if (!_isRetrying) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Connection lost — reconnecting…'),
+            duration: Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+          ));
+          setState(() => _isRetrying = true);
+          _jazzAutoRetry(err);
+          Future.delayed(const Duration(seconds: 5), () {
+            if (mounted) setState(() => _isRetrying = false);
+          });
+        }
+        return;
+      }
       // BUG-03: cancel the 8s fallback timer — prevents double retry race
       _jazzRetryTimer?.cancel();
       _jazzAutoRetry(err);
@@ -2133,7 +2150,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
     // No device found via discovery — open system Cast dialog
     // BUG-04: route args are stale after episode changes — use _currentPlaybackUrl
-    final url   = _currentPlaybackUrl.isNotEmpty ? _currentPlaybackUrl
+    // BUG-P-NEW-04: _currentPlaybackUrl is String? — .isNotEmpty on null crashes; null-check first
+    final url   = (_currentPlaybackUrl != null && _currentPlaybackUrl!.isNotEmpty)
+        ? _currentPlaybackUrl!
         : (ModalRoute.of(context)?.settings.arguments as Map?)?['stream_url'] as String? ?? '';
     final title = widget.title;
     final ok = await CastService.castVideo(
@@ -3413,6 +3432,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 bottom: 0, left: 0, right: 0,
                 child: _MxMoreSheet(
                     cinematicMode: _cinematicMode,
+                    nightModeActive: _prefs.nightMode, // BUG-P-NEW-02: correct night mode highlight
                     abLoopActive: _abLoop.isActive,
                     sleepActive: _sleepRemainingSeconds != null || _sleepAtEpisodeEnd,
                     speed: _speed,
@@ -5086,6 +5106,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
   // ── More Panel (MX Player–style bottom sheet) ────────────────────────────────
   class _MxMoreSheet extends StatelessWidget {
       final bool cinematicMode;
+      final bool nightModeActive; // BUG-P-NEW-02: separate from cinematicMode
       final bool immersiveMode;
       final bool abLoopActive;
       final bool sleepActive;
@@ -5113,6 +5134,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
 
       const _MxMoreSheet({
         required this.cinematicMode,
+        required this.nightModeActive,
         required this.immersiveMode,
         required this.abLoopActive,
         required this.sleepActive,
@@ -5154,7 +5176,7 @@ class _NextEpisodeOverlay extends StatelessWidget {
           {'icon': Icons.visibility_off_rounded,          'label': 'Immersive\nMode',   'active': immersiveMode,      'color': const Color(0xFF8B5CF6),   'tap': onImmersive, 'longTap': onImmersiveSettings},
           {'icon': Icons.equalizer_rounded,               'label': 'Equalizer',         'active': false,              'color': null,                      'tap': onEq},
           // Row 3
-          {'icon': Icons.dark_mode_rounded,               'label': 'Night\nMode',       'active': cinematicMode,      'color': const Color(0xFF3B82F6),   'tap': onNight, 'longTap': onCinematicSettings},
+          {'icon': Icons.dark_mode_rounded,               'label': 'Night\nMode',       'active': nightModeActive,    'color': const Color(0xFF3B82F6),   'tap': onNight, 'longTap': onCinematicSettings}, // BUG-P-NEW-02: was cinematicMode (wrong)
           {'icon': sleepActive ? Icons.bedtime_rounded : Icons.bedtime_outlined,
                                                           'label': 'Sleep\nTimer',      'active': sleepActive,        'color': Colors.orange,             'tap': onSleep},
           {'icon': Icons.loop_rounded,                    'label': 'A-B\nRepeat',       'active': abLoopActive,       'color': const Color(0xFFE8002D),   'tap': onLoop},

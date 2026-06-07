@@ -49,3 +49,5 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-019 | Strip "Season N" from TV folder name before metadata search | 2026-06-07 | ✅ Fixed in enrich_and_save — both SxxExx and "Season N" stripped |
 | TASK-020 | Scanner all real-world TV edge cases: Episode N/Ep N (Pakistani drama), numeric-only files (1.mp4), E01 alone, folder-name fallback | 2026-06-07 | ✅ |
 | TASK-021 | JazzDrive Dart integration test + CI job (jazzdrive-dart) | 2026-06-07 | ✅ raddflix_flutter/test_suite/jazzdrive_dart_test.dart + ci-tests.yml updated. Key finding: Dart logic correct; JazzDrive filenames on CDN are corrupted upload names (Vncenz0 not Vincenzo) — Pass 1/2 fail for these, only Pass 0 (remote_id) or Pass 3 (episode code) work. |
+| TASK-022 | Player screen — Pass 1 critical bugs (13 fixes: BUG-01→14, LAYOUT-01/02, UX-01×3) | 2026-06-07 | ✅ player_screen.dart patched; all 13 targeted fixes confirmed |
+| TASK-023 | Player screen — Pass 2 deep audit (4 NEW bugs: BUG-P-NEW-01→04) | 2026-06-07 | ✅ All 4 fixed in player_screen.dart: audioSession guard, night mode highlight, mid-stream error silence, _enterCast NPE |

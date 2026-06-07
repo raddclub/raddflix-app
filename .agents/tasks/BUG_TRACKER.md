@@ -215,3 +215,16 @@ OTP re-login no longer needed on Flask restart. Session auto-recovers via Androi
 |----|-------|--------|-------|
 | DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB. Need JazzDrive upload + sync. |
 | OPS-01 | Account 03286829827 session | ✅ RESOLVED 2026-06-07 | BUG-A03 fixed. Session auto-recovers via Android OAuth2 + PK proxy. No OTP needed. |
+
+---
+
+## Session 2026-06-07 — Player Screen Pass 2 Deep Audit (TASK-023)
+
+Full 6226-line read of player_screen.dart. 4 new bugs found that were NOT in the prior tracker.
+
+| ID | Severity | Title | Root Cause | Fix Applied | File |
+|----|---------|-------|-----------|-------------|------|
+| BUG-P-NEW-01 | HIGH | `_audioSessionInitialized` never set to `true` in `initState()` — BUG-02 guard broken | `initState()` calls `_initAudioSession()` but never sets `_audioSessionInitialized = true`. The BG-play guard in `_VideoDisplaySheet` (`if (v && !_audioSessionInitialized)`) always passes → second `_initAudioSession()` call on BG play toggle → duplicate `interruptionEventStream` + `becomingNoisyEventStream` listeners accumulate per toggle | Added `_audioSessionInitialized = true;` in `initState()` immediately after `_initAudioSession()` call | `screens/player_screen.dart` |
+| BUG-P-NEW-02 | MEDIUM | Night Mode grid button in `_MxMoreSheet` highlights `cinematicMode` state not `_prefs.nightMode` | `_MxMoreSheet` items list: `'active': cinematicMode` for the Night Mode tile. `cinematicMode` is the controls-dimming overlay (separate feature). After TASK-022 UX-01 fix, `onNight` correctly toggles `_prefs.nightMode`, but the tile highlight/color still reflects `cinematicMode` — Night Mode appears OFF even when enabled | Added `final bool nightModeActive` field + `required this.nightModeActive` to `_MxMoreSheet` constructor; changed Night Mode tile `'active': cinematicMode` → `'active': nightModeActive`; pass `nightModeActive: _prefs.nightMode` at call site | `screens/player_screen.dart` |
+| BUG-P-NEW-03 | HIGH | Mid-stream network errors (after 3s of playback) silently swallowed — infinite buffering | `_player.stream.error.listen`: `if (_playing && _position.inSeconds > 3) return;` — blanket early-return means CDN URL expiry, network drops, or DNS failures mid-stream are logged but user sees nothing and player buffers forever with no retry | Replaced blanket `return` with mid-stream handler: shows "Connection lost — reconnecting…" SnackBar, sets `_isRetrying = true`, calls `_jazzAutoRetry(err)`, clears `_isRetrying` after 5s | `screens/player_screen.dart` |
+| BUG-P-NEW-04 | CRITICAL | `_enterCast()` null dereference crash — `_currentPlaybackUrl.isNotEmpty` on `String?` | `_currentPlaybackUrl` declared `String? _currentPlaybackUrl` (nullable). Code: `_currentPlaybackUrl.isNotEmpty ? ...` — calling `.isNotEmpty` on a null value throws `Null check operator used on a null value` crash whenever user opens cast before the first URL is loaded | Changed to null-safe check: `(_currentPlaybackUrl != null && _currentPlaybackUrl!.isNotEmpty) ? _currentPlaybackUrl! : fallback` | `screens/player_screen.dart` |

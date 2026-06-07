@@ -5,6 +5,37 @@
 
 ---
 
+## Session 2026-06-07 (Pass 2)
+
+**Agent:** Replit Agent (main branch)
+**Task:** TASK-023 — Player Screen deep audit: find ALL remaining bugs not yet in tracker
+
+### What was done
+
+- Read all 6226 lines of `raddflix_flutter/lib/screens/player_screen.dart` in full
+- Cross-referenced every function reference against definitions
+- Found 4 new bugs (BUG-P-NEW-01 through BUG-P-NEW-04) not previously tracked
+- Fixed all 4 bugs in single targeted patch; pushed atomically with updated docs
+
+### Bugs Found and Fixed
+
+| ID | Severity | Fix |
+|----|---------|-----|
+| BUG-P-NEW-01 | HIGH | `_audioSessionInitialized` never set to `true` in `initState()` → BG-play toggle triggers duplicate audio session listeners. Fixed: add `_audioSessionInitialized = true` in `initState()` after `_initAudioSession()` |
+| BUG-P-NEW-02 | MEDIUM | `_MxMoreSheet` Night Mode tile `active` state used `cinematicMode` (wrong feature) instead of `_prefs.nightMode`. Fixed: added `nightModeActive` field, pass `_prefs.nightMode` at call site |
+| BUG-P-NEW-03 | HIGH | Mid-stream errors after 3s of playback silently swallowed — blanket `return` caused infinite buffering with no user feedback on CDN expiry/network drop. Fixed: show "Connection lost — reconnecting…" SnackBar + soft `_jazzAutoRetry` |
+| BUG-P-NEW-04 | CRITICAL | `_enterCast()` NPE — `_currentPlaybackUrl.isNotEmpty` called on nullable `String?` → crash when cast opened before first URL loaded. Fixed: null-safe check `(_currentPlaybackUrl != null && _currentPlaybackUrl!.isNotEmpty)` |
+
+### Files changed
+| File | Change |
+|------|--------|
+| `raddflix_flutter/lib/screens/player_screen.dart` | 4 targeted fixes (BUG-P-NEW-01→04) |
+| `agent-hub/TASKS.md` | Added TASK-023 to completed archive |
+| `.agents/tasks/BUG_TRACKER.md` | Appended Pass 2 session with all 4 new bugs |
+| `agent-hub/history/TASK_LOG.md` | This entry |
+
+---
+
 ## Session 2026-06-06
 
 **Agent:** Replit Agent (main branch)
