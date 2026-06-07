@@ -122,23 +122,47 @@ class _State extends State<PlayerSettingsScreen> {
               (v) => _u(_p.copyWith(showPlaybackInfo: v))),
         ]),
         _sec('Center Controls', [
+          // ── Position ─────────────────────────────────────────────────────
+          _choices(Icons.my_location_rounded, 'Controls Position',
+              ['center', 'bottom', 'hidden'],
+              ['Center (Classic)', 'Bottom (Modern)', 'Hidden'],
+              _p.centerBtnPosition, a, (v) => _u(_p.copyWith(centerBtnPosition: v))),
+          // ── Button style ─────────────────────────────────────────────────
           _sld(ctx, Icons.zoom_in_rounded, 'Button scale',
               _p.centerBtnScale, 0.6, 2.0, 14, a, (v) => '${(v * 100).toInt()}%',
               (v) => _u(_p.copyWith(centerBtnScale: v))),
-          _sld(ctx, Icons.vertical_align_center_rounded, 'Vertical position',
-              _p.centerBtnVerticalOffset, -150.0, 150.0, 30, a,
-              (v) => '${v.toInt()}px', (v) => _u(_p.copyWith(centerBtnVerticalOffset: v))),
-          _tog(Icons.image_not_supported_outlined, 'Icon only (no background)', _p.centerBtnIconOnly, a,
+          if (_p.centerBtnPosition == 'center')
+            _sld(ctx, Icons.vertical_align_center_rounded, 'Vertical position',
+                _p.centerBtnVerticalOffset, -150.0, 150.0, 30, a,
+                (v) => '${v.toInt()}px', (v) => _u(_p.copyWith(centerBtnVerticalOffset: v))),
+          _tog(Icons.hide_image_outlined, 'Icon only (no background)', _p.centerBtnIconOnly, a,
               (v) => _u(_p.copyWith(centerBtnIconOnly: v))),
-          _sld(ctx, Icons.opacity_rounded, 'Button bg opacity',
-              _p.centerBtnBgOpacity, 0.0, 1.0, 10, a, (v) => '${(v * 100).toInt()}%',
-              (v) => _u(_p.copyWith(centerBtnBgOpacity: v))),
+          if (!_p.centerBtnIconOnly)
+            _sld(ctx, Icons.opacity_rounded, 'Button bg opacity',
+                _p.centerBtnBgOpacity, 0.0, 1.0, 10, a, (v) => '${(v * 100).toInt()}%',
+                (v) => _u(_p.copyWith(centerBtnBgOpacity: v))),
           _tog(Icons.skip_previous_rounded, 'Show Prev episode button', _p.showCenterPrev, a,
               (v) => _u(_p.copyWith(showCenterPrev: v))),
           _tog(Icons.skip_next_rounded, 'Show Next episode button', _p.showCenterNext, a,
               (v) => _u(_p.copyWith(showCenterNext: v))),
           _tog(Icons.fast_forward_rounded, 'Show Skip Intro button', _p.showCenterSkip, a,
               (v) => _u(_p.copyWith(showCenterSkip: v))),
+        ]),
+        // ── Quick Shortcut Bar ─────────────────────────────────────────────
+        _sec('Quick Shortcut Bar', [
+          _info('One-tap icons shown above the seek bar — instant access to the most-used features without opening any menu.'),
+          _tog(Icons.view_timeline_rounded, 'Show Quick Bar', _p.showQuickBar, a,
+              (v) => _u(_p.copyWith(showQuickBar: v))),
+          if (_p.showQuickBar) ...[
+            _qbItem(ctx, Icons.picture_in_picture_alt_rounded, 'PiP (Picture-in-Picture)', 'pip', a),
+            _qbItem(ctx, Icons.play_circle_outline_rounded, 'Background Play', 'bgplay', a),
+            _qbItem(ctx, Icons.fit_screen_rounded, 'Resize / Fit', 'fit', a),
+            _qbItem(ctx, Icons.camera_alt_rounded, 'Screenshot', 'screenshot', a),
+            _qbItem(ctx, Icons.speed_rounded, 'Speed', 'speed', a),
+            _qbItem(ctx, Icons.subtitles_rounded, 'Subtitles', 'subtitle', a),
+            _qbItem(ctx, Icons.lock_outline_rounded, 'Lock Controls', 'lock', a),
+            _qbItem(ctx, Icons.dark_mode_rounded, 'Night Mode', 'nightmode', a),
+          ],
         ]),
         _sec('Advanced', [
           _tog(Icons.skip_next_rounded, 'Rage skip', _p.rageSkipEnabled, a,
@@ -191,6 +215,10 @@ class _State extends State<PlayerSettingsScreen> {
       child: Column(children: [...ch.map((c) => Column(children: [c,
           const Divider(height:1, color:Colors.white10)]))])),
   ]);
+
+  Widget _info(String text) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+    child: Text(text, style: const TextStyle(color: Colors.white38, fontSize: 11)));
 
   Widget _tog(IconData icon, String label, bool value, Color accent, ValueChanged<bool> onC) =>
     InkWell(onTap: () => onC(!value), child: Padding(
@@ -250,4 +278,34 @@ class _State extends State<PlayerSettingsScreen> {
                   color: sel ? Colors.white : Colors.white60,
                   fontSize: 11, fontWeight: sel ? FontWeight.w700 : FontWeight.normal))));
         }))]));
+
+  Widget _qbItem(BuildContext ctx, IconData icon, String label, String id, Color accent) {
+    final items = _p.quickBarItems.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    final active = items.contains(id);
+    return InkWell(
+      onTap: () {
+        final next = List<String>.from(items);
+        if (active) next.remove(id); else next.add(id);
+        _u(_p.copyWith(quickBarItems: next.join(',')));
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(children: [
+          Icon(icon, color: active ? accent : Colors.white38, size: 18),
+          const SizedBox(width: 12),
+          Expanded(child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13))),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            width: 22, height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: active ? accent.withOpacity(0.2) : Colors.transparent,
+              border: Border.all(color: active ? accent : Colors.white24, width: 1.5),
+            ),
+            child: active ? Icon(Icons.check_rounded, color: accent, size: 14) : const SizedBox.shrink(),
+          ),
+        ]),
+      ),
+    );
+  }
 }

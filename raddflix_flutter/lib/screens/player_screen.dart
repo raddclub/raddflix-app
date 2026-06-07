@@ -3090,6 +3090,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               showCenterPrev:          _prefs.showCenterPrev,
               showCenterSkip:          _prefs.showCenterSkip,
               showCenterNext:          _prefs.showCenterNext,
+              centerBtnPosition:       _prefs.centerBtnPosition,
+              showQuickBar:            _prefs.showQuickBar,
+              quickBarItems:           _prefs.quickBarItems,
+              bgPlayEnabled:           _bgPlayEnabled,
+              onBgPlayToggle:          (v) => setState(() => _bgPlayEnabled = v),
               onPrevEpisode: (widget.episodes != null && _currentEpIdx > 0)
                   ? _playPrevEpisode
                   : null,
@@ -3733,6 +3738,13 @@ class _ControlsOverlay extends StatelessWidget {
   final VoidCallback? onPrevEpisode;
   final VoidCallback? onSkipIntroCenter;
 
+  // ── Quick Bar & Position ─────────────────────────────────────────────────
+  final String             centerBtnPosition;
+  final bool               showQuickBar;
+  final String             quickBarItems;
+  final bool               bgPlayEnabled;
+  final ValueChanged<bool>? onBgPlayToggle;
+
   const _ControlsOverlay({
     required this.title, required this.playing, required this.buffering,
     required this.bufferedFraction,
@@ -3795,6 +3807,11 @@ class _ControlsOverlay extends StatelessWidget {
     this.showCenterNext              = true,
     this.onPrevEpisode,
     this.onSkipIntroCenter,
+    this.centerBtnPosition           = 'center',
+    this.showQuickBar                = true,
+    this.quickBarItems               = 'pip,bgplay,fit,screenshot,speed',
+    this.bgPlayEnabled               = false,
+    this.onBgPlayToggle,
   });
 
   /// Returns the BoxDecoration for the play button based on [shape].
@@ -3951,10 +3968,62 @@ class _ControlsOverlay extends StatelessWidget {
   
 
       // ── CENTER CONTROLS (horizontal: seek-back | play | seek-forward) ──────
-        if (!locked)
-          Transform.translate(
-            offset: Offset(0, centerBtnVerticalOffset),
-            child: Center(
+        if (!locked && centerBtnPosition != 'hidden')
+          centerBtnPosition == 'bottom'
+          ? Positioned(
+              bottom: 84, left: 0, right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (showCenterPrev && onPrevEpisode != null) ...[
+                        _CenterAuxBtn(
+                          icon: Icons.skip_previous_rounded, label: 'Prev',
+                          iconOnly: true, bgOpacity: 0.0,
+                          scale: centerBtnScale * 0.72, onTap: onPrevEpisode!),
+                        SizedBox(width: 10 * centerBtnScale),
+                      ],
+                      _MxSeekBtn(isForward: false, seconds: 15, onTap: onSeekBack,
+                        bgOpacity: centerBtnIconOnly ? 0.0 : centerBtnBgOpacity,
+                        scale: centerBtnScale * 0.78),
+                      SizedBox(width: 14 * centerBtnScale),
+                      GestureDetector(
+                        onTap: onPlayPause,
+                        onLongPress: onLongPressPlay,
+                        child: Container(
+                          width: 58 * centerBtnScale,
+                          height: 58 * centerBtnScale,
+                          decoration: _playBtnDecoration(buttonShape, accentColor),
+                          clipBehavior: Clip.hardEdge,
+                          child: Icon(
+                            playing
+                                ? _iconForPack(iconPack, 'pause')
+                                : _iconForPack(iconPack, 'play'),
+                            color: Colors.white, size: 34 * centerBtnScale),
+                        ),
+                      ),
+                      SizedBox(width: 14 * centerBtnScale),
+                      _MxSeekBtn(isForward: true, seconds: 15, onTap: onSeekForward,
+                        bgOpacity: centerBtnIconOnly ? 0.0 : centerBtnBgOpacity,
+                        scale: centerBtnScale * 0.78),
+                      if (showCenterNext && hasNext && onNextEpisode != null) ...[
+                        SizedBox(width: 10 * centerBtnScale),
+                        _CenterAuxBtn(
+                          icon: Icons.skip_next_rounded, label: 'Next',
+                          iconOnly: true, bgOpacity: 0.0,
+                          scale: centerBtnScale * 0.72, onTap: onNextEpisode!),
+                      ],
+                    ],
+                  ).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut),
+                ),
+              ),
+            )
+          : Transform.translate(
+              offset: Offset(0, centerBtnVerticalOffset),
+              child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -4171,6 +4240,21 @@ class _ControlsOverlay extends StatelessWidget {
                           constraints: const BoxConstraints(),
                           onPressed: onFrameStep),
                       ]),
+                    ),
+                  // ── Quick Shortcut Bar ────────────────────────────────────────
+                  if (showQuickBar && !locked)
+                    _QuickShortcutBar(
+                      items:          quickBarItems,
+                      bgPlayEnabled:  bgPlayEnabled,
+                      accentColor:    accentColor,
+                      onPiP:          onPiP,
+                      onBgPlay:       onBgPlayToggle ?? (v) {},
+                      onFit:          onCycleFit,
+                      onScreenshot:   onTakeScreenshot,
+                      onSpeed:        onSpeed,
+                      onSubtitle:     onSubtitleTracks,
+                      onLock:         onLock,
+                      onNightMode:    onToggleCinematic,
                     ),
                   // ── Seek row: position | slider | duration ──────────────────
                   Row(
@@ -4503,6 +4587,133 @@ class _CenterAuxBtn extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// QUICK SHORTCUT BAR — icon-only one-tap controls row above seek bar
+// ═══════════════════════════════════════════════════════════════════════════════
+class _QuickShortcutBar extends StatelessWidget {
+  final String             items;         // comma-separated IDs
+  final bool               bgPlayEnabled;
+  final Color              accentColor;
+  final VoidCallback       onPiP;
+  final ValueChanged<bool> onBgPlay;
+  final VoidCallback       onFit;
+  final VoidCallback       onScreenshot;
+  final VoidCallback       onSpeed;
+  final VoidCallback       onSubtitle;
+  final VoidCallback       onLock;
+  final VoidCallback       onNightMode;
+
+  const _QuickShortcutBar({
+    required this.items,
+    required this.bgPlayEnabled,
+    required this.accentColor,
+    required this.onPiP,
+    required this.onBgPlay,
+    required this.onFit,
+    required this.onScreenshot,
+    required this.onSpeed,
+    required this.onSubtitle,
+    required this.onLock,
+    required this.onNightMode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ids = items.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    final btns = <Widget>[];
+
+    for (final id in ids) {
+      late IconData icon;
+      late String   label;
+      late VoidCallback tapFn;
+      bool active = false;
+
+      switch (id) {
+        case 'pip':
+          icon   = Icons.picture_in_picture_alt_rounded;
+          label  = 'PiP';
+          tapFn  = onPiP;
+        case 'bgplay':
+          icon   = bgPlayEnabled
+              ? Icons.play_circle_rounded
+              : Icons.play_circle_outline_rounded;
+          label  = 'BG Play';
+          active = bgPlayEnabled;
+          tapFn  = () => onBgPlay(!bgPlayEnabled);
+        case 'fit':
+          icon   = Icons.fit_screen_rounded;
+          label  = 'Resize';
+          tapFn  = onFit;
+        case 'screenshot':
+          icon   = Icons.camera_alt_rounded;
+          label  = 'Shot';
+          tapFn  = onScreenshot;
+        case 'speed':
+          icon   = Icons.speed_rounded;
+          label  = 'Speed';
+          tapFn  = onSpeed;
+        case 'subtitle':
+          icon   = Icons.subtitles_rounded;
+          label  = 'Sub';
+          tapFn  = onSubtitle;
+        case 'lock':
+          icon   = Icons.lock_outline_rounded;
+          label  = 'Lock';
+          tapFn  = onLock;
+        case 'nightmode':
+          icon   = Icons.dark_mode_rounded;
+          label  = 'Night';
+          tapFn  = onNightMode;
+        default:
+          continue;
+      }
+
+      final col = active ? accentColor : Colors.white70;
+      btns.add(GestureDetector(
+        onTap: () { HapticFeedback.selectionClick(); tapFn(); },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          width: 46, height: 40,
+          decoration: BoxDecoration(
+            color: active
+                ? accentColor.withOpacity(0.18)
+                : Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: active
+                  ? accentColor.withOpacity(0.48)
+                  : Colors.white.withOpacity(0.10),
+            ),
+          ),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, color: col, size: 16),
+            const SizedBox(height: 2),
+            Text(label,
+                style: TextStyle(color: col, fontSize: 7.5, fontWeight: FontWeight.w600),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+          ]),
+        ),
+      ));
+    }
+
+    if (btns.isEmpty) return const SizedBox.shrink();
+
+    final spaced = <Widget>[];
+    for (int i = 0; i < btns.length; i++) {
+      spaced.add(btns[i]);
+      if (i < btns.length - 1) spaced.add(const SizedBox(width: 6));
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: spaced,
+      ).animate().fadeIn(duration: 160.ms, curve: Curves.easeOut),
     );
   }
 }

@@ -319,6 +319,16 @@ class PlayerPrefs {
   /// Show Next Episode button in the center row (requires hasNext to be true).
   final bool   showCenterNext;
 
+  // ── Quick Shortcut Bar & Center Button Position ───────────────────────────
+  /// Controls widget anchor: 'center' | 'bottom' | 'hidden'.
+  /// bottom = modern style (Netflix/YouTube), near the seek bar.
+  final String centerBtnPosition;
+  /// Show a one-tap icon shortcut bar above the seek bar.
+  final bool   showQuickBar;
+  /// Comma-separated quick-bar slot IDs.
+  /// Supported: pip, bgplay, fit, screenshot, speed, subtitle, lock, nightmode
+  final String quickBarItems;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -485,6 +495,9 @@ class PlayerPrefs {
     this.showCenterPrev              = false,
     this.showCenterSkip              = false,
     this.showCenterNext              = true,
+    this.centerBtnPosition           = 'center',
+    this.showQuickBar                = true,
+    this.quickBarItems               = 'pip,bgplay,fit,screenshot,speed',
   });
 
   PlayerPrefs copyWith({
@@ -587,6 +600,9 @@ class PlayerPrefs {
     bool?   showCenterPrev,
     bool?   showCenterSkip,
     bool?   showCenterNext,
+    String? centerBtnPosition,
+    bool?   showQuickBar,
+    String? quickBarItems,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -747,6 +763,9 @@ class PlayerPrefs {
       showCenterPrev:              showCenterPrev              ?? this.showCenterPrev,
       showCenterSkip:              showCenterSkip              ?? this.showCenterSkip,
       showCenterNext:              showCenterNext              ?? this.showCenterNext,
+      centerBtnPosition:           centerBtnPosition           ?? this.centerBtnPosition,
+      showQuickBar:                showQuickBar                ?? this.showQuickBar,
+      quickBarItems:               quickBarItems               ?? this.quickBarItems,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -925,6 +944,9 @@ class PlayerPrefs {
       showCenterPrev:              s.getBool('${_p}center_show_prev')            ?? false,
       showCenterSkip:              s.getBool('${_p}center_show_skip')            ?? false,
       showCenterNext:              s.getBool('${_p}center_show_next')            ?? true,
+      centerBtnPosition:           s.getString('${_p}center_btn_position')       ?? 'center',
+      showQuickBar:                s.getBool('${_p}show_quick_bar')              ?? true,
+      quickBarItems:               s.getString('${_p}quick_bar_items')           ?? 'pip,bgplay,fit,screenshot,speed',
     );
   }
 
@@ -1099,6 +1121,9 @@ class PlayerPrefs {
       s.setBool('${_p}center_show_prev',             showCenterPrev),
       s.setBool('${_p}center_show_skip',             showCenterSkip),
       s.setBool('${_p}center_show_next',             showCenterNext),
+      s.setString('${_p}center_btn_position',        centerBtnPosition),
+      s.setBool('${_p}show_quick_bar',               showQuickBar),
+      s.setString('${_p}quick_bar_items',            quickBarItems),
     ]);
   }
 }
