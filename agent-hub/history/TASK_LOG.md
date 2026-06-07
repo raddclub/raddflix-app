@@ -373,34 +373,56 @@ that renders inside the player Stack so the video is always visible behind it.
 
 ---
 
-## Session 2026-06-07 — Download/Play Security Audit (TASK-033)
+## Session 2026-06-07 — Vault Feature Fix (TASK-034)
 
 **Tasks completed**
 | ID | Task | Status |
 |----|------|--------|
-| TASK-033 | Download/Play security + bug audit (6 bugs fixed) | ✅ DONE |
+| TASK-034 | Vault fix — hide files from gallery/file manager + biometric unlock | ✅ DONE |
 
-**What was audited**
-Full trace of the download/play pipeline:
-1. JazzDrive link generation (share_url → SQLite → JazzDriveService → CDN URL)
-2. Download storage path (private app storage — correct, not accessible to file manager)
-3. Download status tracking, file integrity, folder categorization
-4. All share/export vectors in the player (Open With, Share sheet, Screenshot Share)
+**6 bugs fixed across 4 files**
+
+### BUG-VAULT-01 (CRITICAL) — Files stay in gallery after vault import
+Android 11+ FilePicker returns a temp-cache copy path, not the original. The original file in
+MediaStore was never touched. Fixed by:
+- `vault_screen.dart`: collect `file.identifier` (content URI) for every picked file
+- `vault_service.dart`: new `deleteFromMediaStore(List<String> contentUris)` method
+- `MainActivity.kt`: new `deleteMediaFiles` handler in MEDIA_CHANNEL
+  - API 30+: `MediaStore.createDeleteRequest` → one-time system dialog "Allow RaddFlix to delete N items?"
+  - API ≤29: `ContentResolver.delete()` + `MediaScannerConnection.scanFile` fallback
+
+### BUG-VAULT-02 (CRITICAL) — Biometric fails silently on Infinix/Samsung A-series
+`authenticateBiometric()` only checked `canCheckBiometrics` — returns false on MediaTek phones
+even with enrolled fingerprints. `isBiometricAvailable()` already had the `isDeviceSupported()`
+fallback but `authenticateBiometric()` did not use it. Fixed: added same dual-check.
+
+### BUG-VAULT-03 (HIGH) — Device screen-lock PIN unlocked the vault
+`biometricOnly: false` allowed the Android lock-screen PIN to bypass the vault PIN entirely.
+Fixed: changed to `biometricOnly: true`.
+
+### BUG-VAULT-04 (MEDIUM) — Biometric enabled by default
+`isBiometricEnabled()` returned `true` by default — biometric fired on every new install
+without user consent. Fixed: default changed to `false`.
+
+### BUG-VAULT-05 (MEDIUM) — Fingerprint button ignores Settings toggle
+Numpad `bio` button checked `_biometricAvailable` only, ignored `_biometricEnabled`.
+Auto-trigger in `_init()` also ignored it. Fixed: added `&& _biometricEnabled` to both.
+
+### BUG-VAULT-06 (LOW) — Vault subfolders not .nomedia protected
+`getVaultFolder()` created subdirectories without `.nomedia`. Fixed: added `.nomedia`
+creation alongside `createSync()` for each subfolder.
 
 **Files changed**
 | File | Change | Commit |
 |------|--------|--------|
-| lib/screens/downloads_screen.dart | BUG-DL-09: `'complete'`→`'completed'` (play button was always hidden) | 217842e |
-| lib/screens/player_screen.dart | BUG-DL-01: block external player; BUG-DL-03: remove Share from More sheet | 217842e |
-| lib/widgets/player/screenshot_share_sheet.dart | BUG-DL-02: remove Share button, Save only | 217842e |
-| lib/core/services/jazzdrive_service.dart | BUG-DL-06: TTL 180→110 min | 217842e |
-| lib/core/download/download_service.dart | BUG-DL-08: 512KB min size guard; BUG-DL-11: contentType param | 217842e |
-| lib/providers/downloads_provider.dart | BUG-DL-11: thread contentType through | 217842e |
+| lib/services/vault_service.dart | BUG-VAULT-02,03,04,06 + new deleteFromMediaStore | TASK-034 |
+| lib/screens/vault_screen.dart | BUG-VAULT-01: pass identifiers to deleteFromMediaStore | TASK-034 |
+| lib/screens/vault_lock_screen.dart | BUG-VAULT-05: fingerprint button checks both flags | TASK-034 |
+| android/.../MainActivity.kt | BUG-VAULT-01: deleteMediaFiles + onActivityResult | TASK-034 |
 
-**State at end of session**
-- Oracle Flask: RUNNING (`{"ok":true,"version":"3.0.0"}`)
-- Account: ACTIVE
-- Downloaded content: plays in RaddFlix ONLY (external player access blocked)
-- Screenshots: save-only to gallery (no OS share sheet)
-- Downloads screen: play button now shows correctly for completed items
-- Open tasks: see agent-hub/TASKS.md
+**Architecture note**
+The vault directory (`getApplicationDocumentsDirectory()/.vault/`) is already in app-private
+storage — invisible to other apps by design on Android. The `.nomedia` file prevents the
+app's own media scanner from indexing it. The new `deleteMediaFiles` channel ensures that
+ORIGINAL files (before the move to vault) are also removed from the system MediaStore so
+they disappear from gallery apps, file managers, and all third-party media players.

@@ -24,7 +24,6 @@ class _VaultLockScreenState extends State<VaultLockScreen>
   int _failedAttempts = 0;
   DateTime? _lockedUntil;
   int _expectedPinLength = 6;
-  // During setup: user-chosen PIN length (4 or 6)
   int _pinLengthChoice = 6;
 
   late AnimationController _shakeCtrl;
@@ -60,7 +59,8 @@ class _VaultLockScreenState extends State<VaultLockScreen>
       final pinLen = await VaultService.getPinLength();
       if (mounted) setState(() => _expectedPinLength = pinLen);
     }
-    if (!widget.isSetup && biAvail) {
+    // FIX-VAULT-05: only auto-trigger biometric if BOTH available AND enabled
+    if (!widget.isSetup && biAvail && biEnabled) {
       await Future.delayed(const Duration(milliseconds: 400));
       if (mounted) _tryBiometric();
     }
@@ -168,7 +168,6 @@ class _VaultLockScreenState extends State<VaultLockScreen>
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
               child: Row(
@@ -228,7 +227,6 @@ class _VaultLockScreenState extends State<VaultLockScreen>
 
             const Spacer(),
 
-            // PIN dots
             AnimatedBuilder(
               animation: _shakeAnim,
               builder: (_, child) => Transform.translate(
@@ -274,7 +272,6 @@ class _VaultLockScreenState extends State<VaultLockScreen>
 
             const Spacer(),
 
-            // PIN length selector (setup mode, before confirmation step)
             if (widget.isSetup && !_confirming)
               Padding(
                 padding: const EdgeInsets.only(bottom: 20),
@@ -320,7 +317,6 @@ class _VaultLockScreenState extends State<VaultLockScreen>
                 ),
               ),
 
-            // Numpad
             if (!isLocked)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -338,7 +334,10 @@ class _VaultLockScreenState extends State<VaultLockScreen>
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: row.map((k) {
                             if (k == 'bio') {
-                              return _biometricAvailable && !widget.isSetup
+                              // FIX-VAULT-05: show fingerprint button ONLY when
+                              // BOTH available (hardware exists + enrolled) AND
+                              // user explicitly enabled it in Vault Settings.
+                              return _biometricAvailable && _biometricEnabled && !widget.isSetup
                                   ? _NumKey(
                                       child: const Icon(Icons.fingerprint_rounded,
                                           color: Colors.white, size: 28),

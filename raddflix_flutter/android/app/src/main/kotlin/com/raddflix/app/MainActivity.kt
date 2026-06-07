@@ -1,10 +1,15 @@
 package com.raddflix.app
 
+import android.app.Activity
 import android.app.PictureInPictureParams
-import android.media.MediaScannerConnection
+import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.MediaScannerConnection
+import android.net.Uri
 import android.os.Build
+import android.os.Bundle
+import android.provider.MediaStore
 import android.util.Rational
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -28,15 +33,21 @@ class MainActivity : FlutterActivity() {
     private val SECURITY_CHANNEL = "com.raddflix.app/security"
 
     private var pendingVideoUri: String? = null
-    private var pendingVideoTitle: String? = null   // display name resolved from ContentResolver
-    private var pendingSubtitleUri: String? = null  // subtitle file alongside the video (or vice versa)
+    private var pendingVideoTitle: String? = null
+    private var pendingSubtitleUri: String? = null
 
-    // Known subtitle and video file extensions for "Open With" routing
     companion object {
         private val SUBTITLE_EXTS = setOf("srt", "ass", "ssa", "vtt", "sub")
         private val VIDEO_EXTS    = setOf("mp4", "mkv", "avi", "mov", "flv", "wmv", "m4v", "3gp", "ts", "webm", "m2ts", "mts")
+        // Request code for MediaStore.createDeleteRequest (Android 11+ vault import cleanup)
+        private const val DELETE_MEDIA_REQUEST_CODE = 9002
     }
+
     private var intentMethodChannel: MethodChannel? = null
+
+    // Holds the pending MethodChannel.Result for deleteMediaFiles while the
+    // system delete-permission dialog is shown on Android 11+.
+    private var pendingDeleteResult: MethodChannel.Result? = null
 
     private var castContext: CastContext? = null
     private var castSession: CastSession? = null
@@ -83,7 +94,6 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-        // Extract video URI from the cold-start intent
         extractVideoUri(intent)
 
         // ── PiP Channel ──────────────────────────────────────────────────
@@ -105,10 +115,21 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-        // ── Media Scanner Channel ────────────────────────────────────────
+        // ── Media Channel (scanFile + deleteMediaFiles for vault) ─────────
+        //
+        // deleteMediaFiles — removes the ORIGINAL files from MediaStore so they
+        // disappear from the gallery and all third-party media players after
+        // the user imports them into the private vault.
+        //
+        // Android 11+ (API 30+): uses MediaStore.createDeleteRequest which shows
+        // a one-time system confirmation dialog "Allow RaddFlix to delete N items?"
+        //
+        // Android 10 and below: deletes via ContentResolver directly (works
+        // because requestLegacyExternalStorage=true grants broad write access).
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+
                     "scanFile" -> {
                         val scanPath = call.argument<String>("path")
                         if (scanPath != null) {
@@ -118,13 +139,71 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success(null)
                     }
+
+                    "deleteMediaFiles" -> {
+                        val uriStrings = call.argument<List<String>>("uris") ?: emptyList()
+                        if (uriStrings.isEmpty()) {
+                            result.success(true)
+                            return@setMethodCallHandler
+                        }
+
+                        val uris = uriStrings.mapNotNull { uriStr ->
+                            try { Uri.parse(uriStr) } catch (e: Exception) { null }
+                        }
+
+                        if (uris.isEmpty()) {
+                            result.success(false)
+                            return@setMethodCallHandler
+                        }
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            // Android 11+: show system dialog asking user to approve deletion.
+                            // The system enforces this — apps cannot silently delete MediaStore
+                            // items they don't own without MANAGE_EXTERNAL_STORAGE permission.
+                            try {
+                                val deleteRequest = MediaStore.createDeleteRequest(contentResolver, uris)
+                                pendingDeleteResult = result
+                                startIntentSenderForResult(
+                                    deleteRequest.intentSender,
+                                    DELETE_MEDIA_REQUEST_CODE,
+                                    null, 0, 0, 0
+                                )
+                                // result will be resolved in onActivityResult
+                            } catch (e: Exception) {
+                                result.success(false)
+                            }
+                        } else {
+                            // Android 10 and below: direct delete via ContentResolver.
+                            // With requestLegacyExternalStorage=true, the app has write
+                            // access to external storage, so this succeeds.
+                            var deletedCount = 0
+                            for (uri in uris) {
+                                try {
+                                    val rows = contentResolver.delete(uri, null, null)
+                                    if (rows > 0) deletedCount++
+                                } catch (e: SecurityException) {
+                                    // Fallback: scan the path so MediaStore removes
+                                    // the stale entry when it finds the file gone
+                                    val filePath = getFilePath(uri)
+                                    if (filePath != null) {
+                                        MediaScannerConnection.scanFile(
+                                            this, arrayOf(filePath), null, null
+                                        )
+                                        deletedCount++
+                                    }
+                                } catch (e: Exception) {
+                                    // Silent — best-effort deletion
+                                }
+                            }
+                            result.success(deletedCount > 0)
+                        }
+                    }
+
                     else -> result.notImplemented()
                 }
             }
 
         // ── Security Channel ─────────────────────────────────────────────
-        // Used by AppGuard for: APK signature check, Frida detection, root check.
-        // Tampered APK / Frida detected → AppGuard.isTampered = true → fake empty data.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SECURITY_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -254,6 +333,17 @@ class MainActivity : FlutterActivity() {
             }
     }
 
+    // ── Activity result: handle MediaStore.createDeleteRequest response ───
+    // Called after the system dialog "Allow RaddFlix to delete N items?" on API 30+.
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == DELETE_MEDIA_REQUEST_CODE) {
+            val approved = resultCode == Activity.RESULT_OK
+            pendingDeleteResult?.success(approved)
+            pendingDeleteResult = null
+        }
+    }
+
     // ── Warm-start intent (user taps "Open with RaddFlix" while app is running) ─
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -283,22 +373,17 @@ class MainActivity : FlutterActivity() {
 
         when {
             ext in SUBTITLE_EXTS -> {
-                // User opened a subtitle file — find the matching video in the same directory.
                 val subPath = resolveSubtitlePath(data, displayName)
-                pendingSubtitleUri = subPath ?: uriStr  // prefer real path, keep URI as fallback
+                pendingSubtitleUri = subPath ?: uriStr
                 val videoPath = findMatchingVideo(data, displayName)
                 if (videoPath != null) {
-                    pendingVideoUri   = "file://${'$'}videoPath"
+                    pendingVideoUri   = "file://$videoPath"
                     pendingVideoTitle = videoPath.substringAfterLast('/')
                 }
-                // If no matching video found, pendingVideoUri stays null →
-                // Flutter won't push the player (subtitle alone is useless).
             }
             else -> {
-                // Normal video file (or unknown — pass through so media_kit can try).
                 pendingVideoUri   = uriStr
                 pendingVideoTitle = displayName.ifEmpty { resolveDisplayName(data) }
-                // Try to auto-discover a sidecar subtitle next to the video.
                 val videoFilePath = getFilePath(data)
                 if (videoFilePath != null) {
                     pendingSubtitleUri = findMatchingSubtitle(videoFilePath, displayName)
@@ -307,16 +392,12 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    /** Resolve a subtitle URI to an absolute file path.
-     *  Tries DATA column first; falls back to copying content into app cache. */
     private fun resolveSubtitlePath(uri: android.net.Uri, displayName: String): String? {
-        // Fast path: real file path via _data
         val filePath = getFilePath(uri)
         if (filePath != null) return filePath
-        // Fallback: copy to app cache so MPV can read it by absolute path
         val ext = displayName.substringAfterLast('.', "srt")
         return try {
-            val tmp = java.io.File(cacheDir, "sub_${'$'}{System.currentTimeMillis()}.${'$'}ext")
+            val tmp = java.io.File(cacheDir, "sub_${System.currentTimeMillis()}.$ext")
             contentResolver.openInputStream(uri)?.use { input ->
                 tmp.outputStream().use { out -> input.copyTo(out) }
             }
@@ -324,31 +405,28 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) { null }
     }
 
-    /** Given a subtitle URI, find a video file with the same base name in the same directory. */
     private fun findMatchingVideo(subtitleUri: android.net.Uri, subtitleName: String): String? {
         val base = subtitleName.substringBeforeLast('.')
         if (base.isEmpty()) return null
 
-        // Try filesystem first (works when we have a real file path)
         val subPath = getFilePath(subtitleUri)
         if (subPath != null) {
             val dir = java.io.File(subPath).parentFile ?: return null
             for (ext in VIDEO_EXTS) {
-                val candidate = java.io.File(dir, "${'$'}base.${'$'}ext")
+                val candidate = java.io.File(dir, "$base.$ext")
                 if (candidate.exists()) return candidate.absolutePath
             }
             return null
         }
 
-        // MediaStore fallback: query by display name
         val proj = arrayOf(android.provider.MediaStore.Video.Media.DATA)
         for (ext in VIDEO_EXTS) {
             try {
                 contentResolver.query(
                     android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
                     proj,
-                    "${'$'}{android.provider.MediaStore.Video.Media.DISPLAY_NAME} = ?",
-                    arrayOf("${'$'}base.${'$'}ext"),
+                    "${android.provider.MediaStore.Video.Media.DISPLAY_NAME} = ?",
+                    arrayOf("$base.$ext"),
                     null
                 )?.use { c ->
                     if (c.moveToFirst()) {
@@ -361,22 +439,19 @@ class MainActivity : FlutterActivity() {
         return null
     }
 
-    /** Given a video file path + display name, find a subtitle file in the same directory. */
     private fun findMatchingSubtitle(videoFilePath: String, videoName: String): String? {
         val base = videoName.substringBeforeLast('.')
         if (base.isEmpty()) return null
         val dir = java.io.File(videoFilePath).parentFile ?: return null
         for (ext in SUBTITLE_EXTS) {
-            val candidate = java.io.File(dir, "${'$'}base.${'$'}ext")
+            val candidate = java.io.File(dir, "$base.$ext")
             if (candidate.exists()) return candidate.absolutePath
-            val upper = java.io.File(dir, "${'$'}base.${'$'}{ext.uppercase()}")
+            val upper = java.io.File(dir, "$base.${ext.uppercase()}")
             if (upper.exists()) return upper.absolutePath
         }
         return null
     }
 
-    /** Get the real filesystem path from a URI (content:// or file://).
-     *  Returns null when the path cannot be resolved (e.g. cloud-only providers). */
     private fun getFilePath(uri: android.net.Uri): String? {
         return try {
             when (uri.scheme) {
@@ -393,9 +468,6 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) { null }
     }
 
-    /** Query Android ContentResolver for the human-readable display name of a URI.
-     *  Works for content:// (MediaStore, Downloads, file pickers) and file:// URIs.
-     *  Returns null if name cannot be resolved — caller falls back to URI path segment. */
     private fun resolveDisplayName(uri: android.net.Uri): String? {
         return when (uri.scheme) {
             "content" -> {

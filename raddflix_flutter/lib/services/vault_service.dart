@@ -29,18 +29,38 @@ class VaultService {
   static const _pinLengthKey  = 'vault_pin_length';
 
   static final _auth = LocalAuthentication();
+  // com.raddflix.app/media — handles scanFile + deleteMediaFiles (for vault import cleanup)
   static const _mediaChannel = MethodChannel('com.raddflix.app/media');
 
-  /// Notify Android MediaStore about [path] (deletion or new file).
-  /// Call after deleting a file — scanner notices it's gone and removes it from gallery index.
-  /// Call after restoring/creating a file — scanner adds it to gallery.
+  /// Notify Android MediaStore that [path] was created/changed.
+  /// Scanner adds or removes the entry automatically based on whether the file exists.
   static Future<void> notifyMediaStore(String path) async {
     try {
       await _mediaChannel.invokeMethod('scanFile', {'path': path});
     } catch (_) {}
   }
-  // Keep private alias for internal use
-  static Future<void> _removefromMediaStore(String path) => notifyMediaStore(path);
+
+  /// Delete files from Android MediaStore using their content URIs.
+  ///
+  /// On Android 11+ (API 30+) the system shows a one-time confirmation dialog
+  /// "Allow RaddFlix to delete N item(s) from your gallery?" — this is the only
+  /// way to remove files we don't own without MANAGE_EXTERNAL_STORAGE.
+  /// On Android 10 and below we delete via ContentResolver directly.
+  ///
+  /// Returns true if the deletion succeeded or was approved.
+  static Future<bool> deleteFromMediaStore(List<String> contentUris) async {
+    if (contentUris.isEmpty) return true;
+    try {
+      final result = await _mediaChannel.invokeMethod<bool>(
+        'deleteMediaFiles',
+        {'uris': contentUris},
+      );
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static bool _unlocked = false;
   static DateTime? _unlockedAt;
   static bool _isFakeVault = false;
@@ -90,7 +110,6 @@ class VaultService {
     await _checkLockout();
     final hash = _hashPin(pin);
 
-    // Real PIN
     final real = await _storage.read(key: _pinKey);
     if (hash == real) {
       _unlocked = true;
@@ -100,7 +119,6 @@ class VaultService {
       return true;
     }
 
-    // Fake PIN
     final fake = await _storage.read(key: _fakePinKey);
     if (fake != null && hash == fake) {
       _unlocked = true;
@@ -114,15 +132,31 @@ class VaultService {
     return false;
   }
 
+  /// Authenticate with device biometric (fingerprint / face ID).
+  ///
+  /// FIX-VAULT-02: uses the same dual-check as [isBiometricAvailable] so
+  /// Infinix / MediaTek phones where [canCheckBiometrics] incorrectly returns
+  /// false but [isDeviceSupported] returns true are handled correctly.
+  ///
+  /// FIX-VAULT-03: [biometricOnly: true] — only an enrolled biometric is
+  /// accepted. The device screen-lock PIN/pattern can no longer bypass the
+  /// vault PIN (they are separate credentials).
   static Future<bool> authenticateBiometric(BuildContext context) async {
     final enabled = await isBiometricEnabled();
     if (!enabled) return false;
-    final available = await _auth.canCheckBiometrics;
-    if (!available) return false;
+
+    // Use same dual-check as isBiometricAvailable — handles MediaTek quirk
+    final canCheck = await _auth.canCheckBiometrics;
+    final supported = await _auth.isDeviceSupported();
+    if (!canCheck && !supported) return false;
+
     try {
       final ok = await _auth.authenticate(
         localizedReason: 'Unlock your private vault',
-        options: const AuthenticationOptions(biometricOnly: false, stickyAuth: true),
+        options: const AuthenticationOptions(
+          biometricOnly: true,   // strict: no device PIN/pattern fallback
+          stickyAuth: true,
+        ),
       );
       if (ok) {
         _unlocked = true;
@@ -138,7 +172,6 @@ class VaultService {
 
   static bool get isUnlocked {
     if (!_unlocked) return false;
-    // Check auto-lock
     final secs = _autoLockSecondsSync();
     if (secs > 0 && _unlockedAt != null) {
       if (DateTime.now().difference(_unlockedAt!).inSeconds >= secs) {
@@ -197,14 +230,11 @@ class VaultService {
   // ── Settings ─────────────────────────────────────────────────────────────
   static Future<int> getAutoLockSeconds() async {
     final prefs = await SharedPreferences.getInstance();
-    _cachedAutoLock = prefs.getInt(_autoLockKey) ?? 0; // keep sync cache up to date
+    _cachedAutoLock = prefs.getInt(_autoLockKey) ?? 0;
     return _cachedAutoLock;
   }
 
-  static int _autoLockSecondsSync() {
-    // Read sync — call after first async load
-    return _cachedAutoLock;
-  }
+  static int _autoLockSecondsSync() => _cachedAutoLock;
   static int _cachedAutoLock = 0;
 
   static Future<void> setAutoLockSeconds(int secs) async {
@@ -213,9 +243,11 @@ class VaultService {
     await prefs.setInt(_autoLockKey, secs);
   }
 
+  /// FIX-VAULT-04: default changed false — biometric must be explicitly
+  /// enabled by the user in Vault Settings before it activates.
   static Future<bool> isBiometricEnabled() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_biometricKey) ?? true;
+    return prefs.getBool(_biometricKey) ?? false;
   }
 
   static Future<void> setBiometricEnabled(bool v) async {
@@ -226,8 +258,8 @@ class VaultService {
   static Future<bool> isBiometricAvailable() async {
     try {
       if (await _auth.canCheckBiometrics) return true;
-      // Fallback for devices (e.g. Infinix) where canCheckBiometrics
-      // returns false even with enrolled fingerprints
+      // Fallback for Infinix / MediaTek where canCheckBiometrics returns false
+      // even with enrolled fingerprints
       return await _auth.isDeviceSupported();
     } catch (_) {
       return false;
@@ -239,16 +271,21 @@ class VaultService {
     final base = await getApplicationDocumentsDirectory();
     final dir = Directory(p.join(base.path, fake ? '.vault_decoy' : '.vault'));
     if (!dir.existsSync()) dir.createSync(recursive: true);
-    // .nomedia prevents Android media scanner from indexing
+    // .nomedia prevents Android media scanner from indexing vault root
     final nomedia = File(p.join(dir.path, '.nomedia'));
     if (!nomedia.existsSync()) nomedia.writeAsStringSync('');
     return dir;
   }
 
+  /// FIX-VAULT-06: .nomedia is now written into every subfolder too, not just
+  /// the vault root — prevents any partial scanner indexing of sub-directories.
   static Future<Directory> getVaultFolder(String folderName, {bool? fake}) async {
     final vaultDir = await getVaultDir(fake: fake ?? _isFakeVault);
     final folder = Directory(p.join(vaultDir.path, folderName));
     if (!folder.existsSync()) folder.createSync(recursive: true);
+    // Each subfolder also needs a .nomedia file
+    final nomedia = File(p.join(folder.path, '.nomedia'));
+    if (!nomedia.existsSync()) nomedia.writeAsStringSync('');
     return folder;
   }
 
@@ -286,6 +323,12 @@ class VaultService {
     return results;
   }
 
+  /// Move [sourcePath] (a local file path, typically a FilePicker cache copy
+  /// on Android 11+) into the vault directory and delete the source.
+  ///
+  /// FIX-VAULT-01 companion: after calling this, the caller must also call
+  /// [deleteFromMediaStore] with the original content URIs so the file
+  /// disappears from the gallery and all media players.
   static Future<void> moveFileToVault(String sourcePath, {String? folder}) async {
     final src = File(sourcePath);
     final targetDir = folder != null
@@ -295,8 +338,11 @@ class VaultService {
     final dest = File(p.join(targetDir.path, name));
     await src.copy(dest.path);
     await src.delete();
-    // Tell Android MediaStore the source file is gone so it disappears from gallery/other apps
-    await _removefromMediaStore(sourcePath);
+    // Scan the source path — if it was a real filesystem path (Android ≤10)
+    // the scanner will notice it is gone and remove it from MediaStore.
+    // On Android 11+ this is a no-op (temp-cache path not in MediaStore),
+    // but the deleteFromMediaStore() call in vault_screen.dart handles that.
+    await notifyMediaStore(sourcePath);
   }
 
   static Future<void> importFileBytes(Uint8List bytes, String name, {String? folder}) async {
@@ -312,7 +358,7 @@ class VaultService {
     final dest = File(p.join(destDir, p.basename(vaultPath)));
     await src.copy(dest.path);
     await src.delete();
-    // Tell Android MediaStore about the newly restored file so it appears in gallery
+    // Tell MediaStore about the restored file so it appears in gallery
     await notifyMediaStore(dest.path);
   }
 

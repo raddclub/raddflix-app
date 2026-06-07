@@ -45,7 +45,6 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Auto-lock when app goes to background
     if (state == AppLifecycleState.paused) {
       VaultService.lock();
     } else if (state == AppLifecycleState.resumed) {
@@ -280,7 +279,6 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
           ? Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // Storage bar (root only)
                 if (isRoot && _totalSize > 0)
                   Container(
                     margin: const EdgeInsets.all(16),
@@ -302,7 +300,6 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
                     ]),
                   ).animate().fadeIn(),
 
-                // File list / grid
                 Expanded(
                   child: _files.isEmpty
                       ? Center(
@@ -437,7 +434,6 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
 
   Future<void> _restoreToGallery(VaultFile f) async {
     try {
-      // On Android, restore to the Downloads directory (always accessible)
       final destDir = '/storage/emulated/0/Download';
       await VaultService.restoreFile(f.path, destDir);
       if (mounted) {
@@ -457,11 +453,21 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Import files into the vault.
+  ///
+  /// FIX-VAULT-01: After copying each file to private vault storage we collect
+  /// the content URIs ([PlatformFile.identifier]) and call
+  /// [VaultService.deleteFromMediaStore] once for the whole batch.
+  ///
+  /// Android 10 and below: ContentResolver deletes the entry directly and
+  /// MediaScannerConnection removes it from the gallery index.
+  ///
+  /// Android 11+ (API 30+): the system shows a one-time dialog:
+  /// "Allow RaddFlix to delete N item(s)?" — user taps Allow and the
+  /// originals vanish from the gallery and all media players.
   Future<void> _importFiles(FileType type) async {
-    Navigator.pop(context); // close bottom sheet first
+    Navigator.pop(context);
     try {
-      // withData:false avoids loading large video files entirely into RAM (OOM risk).
-      // FilePicker still gives us file.path (either real path or a temp cache copy).
       final result = await FilePicker.platform.pickFiles(
         type: type,
         allowMultiple: true,
@@ -472,6 +478,8 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
 
       int imported = 0;
       bool hadBytesOnlyImport = false;
+      // Collect content URIs for batch MediaStore deletion (Android 11+)
+      final contentUris = <String>[];
 
       for (final file in result.files) {
         final src = file.path;
@@ -480,15 +488,21 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
             : null;
 
         if (src != null) {
-          // Best path: move file to vault, delete original, notify MediaStore.
-          // Works on Android <11 (real path) and Android 11+ (temp cache path from FilePicker).
           await VaultService.moveFileToVault(src, folder: folder);
+          // identifier = content URI on Android (e.g. content://media/external/video/media/42)
+          // null on desktop/iOS — safe to ignore when null
+          final uri = file.identifier;
+          if (uri != null && uri.isNotEmpty) contentUris.add(uri);
           imported++;
         } else {
-          // Rare fallback: content URI with no resolvable path (some Android 11+ edge cases).
-          // Re-pick with data just for this file isn't possible — skip gracefully.
           hadBytesOnlyImport = true;
         }
+      }
+
+      // Remove originals from MediaStore so they vanish from gallery/file managers.
+      // On Android 11+ this triggers a one-time system permission dialog.
+      if (contentUris.isNotEmpty) {
+        await VaultService.deleteFromMediaStore(contentUris);
       }
 
       if (mounted && imported > 0) {
