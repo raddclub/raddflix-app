@@ -319,7 +319,23 @@ to create script files, then run with `node /path/to/script.js`.
 
 ## Current State (2026-06-07)
 
-All code bugs fixed. One open ops issue (expired JazzDrive session).
+All code bugs fixed. Player Feature Sprint complete (TASK-029 → TASK-032). Latest player commit: `034938fb`
+
+### Completed 2026-06-07 — Player Feature Sprint (Pass 5)
+
+| Task | Feature | Commit |
+|------|---------|--------|
+| TASK-029 | Universal Subtitle Hunter — recursive walk, fuzzy match, archive extract, URL/QR load | prior |
+| TASK-030 | Layout & HUD Settings Sheet v1 (transparent overlay, 758 lines) | `cd8bcd83` |
+| TASK-031 | HUD Settings v2 — presets, portrait/landscape tabs, drag-reorder Quick Bar, button shapes, MX rotation | `0a4c3c58` |
+| TASK-032 | Smart Enhance — MX-style video enhancement, 8 modes, master toggle, before/after compare | `034938fb` |
+
+New source files added this session:
+- `lib/core/subtitles/subtitle_hunter.dart`
+- `lib/core/subtitles/subtitle_hunter_sheet.dart`
+- `lib/widgets/player/player_hud_settings_sheet.dart` (1145 lines)
+- `lib/core/player/smart_enhance.dart`
+- `lib/widgets/player/smart_enhance_sheet.dart` (655 lines)
 
 ### Completed 2026-06-07 — Player Screen Full Audit (4 passes, 7 bugs fixed)
 

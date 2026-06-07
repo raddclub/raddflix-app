@@ -1,107 +1,175 @@
 # agent-hub/HANDOFF_NEXT.md — Next Agent Handoff
-> Generated: 2026-06-07 | Author: Replit Agent (Pass 4 session)
+> Generated: 2026-06-07 | Author: Replit Agent (Pass 5 session — Player Feature Sprint)
 > **Read this AFTER AGENT_HANDOFF.md and BEFORE touching any code.**
 
 ---
 
-## What happened this session (Pass 4)
+## What happened this session (Pass 5 — Player Feature Sprint)
 
-**Player screen full re-audit complete.** All 7 bugs across 4 passes are fixed.
-Latest commit: `2ac9e8dc`
+Four new player features implemented across TASK-029 → TASK-032.
+All committed via GitHub Trees API. Latest commit: `034938fb`
+Player screen: `player_screen.dart` (275 KB, ~6,440+ lines)
 
-### Pass 4 fixes (this session)
+### Features shipped this session
 
-**BUG-P-NEW-06** (Medium) — `_openVideoEnhanceSuite` cinematic toggle one-way
-- Root cause: `if (map['cinematicMode'] as bool? ?? false) _toggleCinematic()` — only fired when value was `true`. If user turned cinematic OFF in the sheet, nothing happened.
-- Fix: compare against `_cinematicMode`; call `_toggleCinematic()` only when value differs.
-
-**BUG-P-NEW-07** (High) — Quick Bar "Night Mode" wired to wrong callback
-- Root cause: `onNightMode: onToggleCinematic` in `_ControlsOverlay._QuickShortcutBar` call. Tapping "Night" silently toggled cinematic mode instead of the blue-light filter.
-- Fix: added `onToggleNightMode` callback to `_ControlsOverlay`; wired from `_buildPlayerBody` with `_prefs.copyWith(nightMode: !_prefs.nightMode)` + save + `_applyVideoFilters()`.
-
-### All player bugs — complete history
-
-| ID | Severity | Status | Commit |
-|----|---------|--------|--------|
-| BUG-P-NEW-01 | HIGH | ✅ Fixed | `7802d53` |
-| BUG-P-NEW-02 | MEDIUM | ✅ Fixed | `7802d53` |
-| BUG-P-NEW-03 | HIGH | ✅ Fixed | `7802d53` |
-| BUG-P-NEW-04 | CRITICAL | ✅ Fixed | `7802d53` |
-| BUG-P-NEW-05 | HIGH | ✅ Fixed | `e9abc17` |
-| BUG-P-NEW-06 | MEDIUM | ✅ Fixed | `2ac9e8dc` |
-| BUG-P-NEW-07 | HIGH | ✅ Fixed | `2ac9e8dc` |
-
-**`player_screen.dart` is clean. No remaining known bugs.**
+| Task | Feature | Commit |
+|------|---------|--------|
+| TASK-029 | Universal Subtitle Hunter | prior session |
+| TASK-030 | Layout & HUD Settings Sheet v1 | `cd8bcd83` |
+| TASK-031 | Layout & HUD Settings Sheet v2 (full rewrite) | `0a4c3c58` |
+| TASK-032 | Smart Enhance — MX-style AI video enhancement | `034938fb` |
 
 ---
 
-## Files changed this session
+## TASK-029 — Universal Subtitle Hunter
+**Status:** ✅ Complete
 
-| File | Change | Commit |
-|------|--------|--------|
-| `raddflix_flutter/lib/screens/player_screen.dart` | BUG-P-NEW-06 + BUG-P-NEW-07 fixes | `2ac9e8dc` |
-| `agent-hub/TASKS.md` | TASK-025 added to completed archive | `2ac9e8dc` |
-| `.agents/tasks/BUG_TRACKER.md` | Pass 4 bugs appended | `2ac9e8dc` |
-| `agent-hub/history/TASK_LOG.md` | Pass 4 session entry added | `2ac9e8dc` |
-| All other agent-hub .md files | Updated to reflect audit completion | this push |
+New files:
+- `lib/core/subtitles/subtitle_hunter.dart` — recursive file walk, fuzzy match, archive extract
+- `lib/core/subtitles/subtitle_hunter_sheet.dart` — bottom sheet UI with ranked results
+- `archive` package added to pubspec.yaml for ZIP/RAR scanning
 
----
-
-## Next Agent: Open Tasks
-
-The player audit is complete. The open items below are **UI polish** (not bugs) and
-**infrastructure tasks** (not player-related).
-
-### Player polish (low urgency — not bugs)
-
-**TASK-P01: Quick bar overflow on small screens**
-```dart
-// In _QuickShortcutBar.build(), wrap the Row in:
-SingleChildScrollView(
-  scrollDirection: Axis.horizontal,
-  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: spaced),
-)
-```
-
-**TASK-P02: Sleep timer resume position**
-When app goes background and auto-pauses (bgPlay=false), `_sleepTimer` keeps counting.
-On resume, remaining sleep time should be restored, not reset.
-Store `_sleepRemainingSeconds` before `didChangeAppLifecycleState(paused)`, restore on `resumed`.
-
-**TASK-P03: Volume boost warning**
-At `volumeBoostMultiplier > 1.5`: show brief SnackBar "High boost may distort audio".
-Hard cap at 3.0× (already enforced in slider range — just add the warning toast).
-
-**TASK-P04: Seek bar thumb on wave/film styles**
-`wave` and `film` CustomPainter subclasses in `seek_bar_painter.dart` don't draw the
-thumb circle. Add explicit thumb draw at the current position.
-
-### Infrastructure (backend/ops)
-
-**OPEN-OPS-01: JazzDrive session expired**
-Account 03286829827 needs OTP re-login via the Upload page on the admin panel.
-Until fixed: uploads fail, keepalive fails, delta_push 401 errors every few minutes.
-
-**OPEN-DATA-01: Missing episodes**
-All Of Us Are Dead — E03/E04/E05/E09 not on JazzDrive. Need upload + catalog sync.
+Wired into player_screen.dart: subtitle icon opens hunter when no embedded subs found.
 
 ---
 
-## Key Code Locations (player_screen.dart — post `2ac9e8dc`, 6265 lines)
+## TASK-030 — Layout & HUD Settings Sheet v1
+**Status:** ✅ Complete (superseded by v2, still in history)
+
+New file: `lib/widgets/player/player_hud_settings_sheet.dart` (758 lines, v1)
+Wired via "Layout & HUD" button in _MxMoreSheet.
+
+---
+
+## TASK-031 — Layout & HUD Settings Sheet v2
+**Status:** ✅ Complete | Commit: `0a4c3c58`
+
+Full rewrite (1145 lines) of `lib/widgets/player/player_hud_settings_sheet.dart`:
+- **Layout preset strip**: Netflix / MX Classic / Minimal / Binge / Custom chips
+- **Per-orientation tabs**: Portrait / Landscape — independent prefs per orientation
+- **Drag-to-reorder Quick Bar**: `ReorderableListView` with drag handles
+- **Dedup guard**: amber warning when subtitle added to Quick Bar (already in top bar)
+- **Button shape switcher**: Circle / Squircle / Rounded / Pill / Sharp — each previews its shape
+- **MX-style auto-rotation**: `didChangeMetrics()` override tracks which physical side user
+  flipped to via safe-area padding heuristic; `sensor_landscape` snaps to that exact side.
+  `_lastLandscapeSide` state variable persists between flips.
+
+PlayerPrefs fields added (TASK-031):
+- `centerBtnScale`, `centerBtnVerticalOffset`, `centerBtnIconOnly`, `centerBtnBgOpacity`
+- `showCenterPrev`, `showCenterSkip`, `showCenterNext`, `centerBtnPosition`
+- `showQuickBar`, `quickBarItems`, `buttonShape`, `layoutPreset`, `layoutJson`
+
+---
+
+## TASK-032 — Smart Enhance (MX-style AI Video Enhancement)
+**Status:** ✅ Complete | Commit: `034938fb`
+
+New files:
+- `lib/core/player/smart_enhance.dart` — `SmartEnhancePreset` class + `kSmartEnhancePresets` (8 modes)
+- `lib/widgets/player/smart_enhance_sheet.dart` — full MX-style panel (655 lines)
+
+8 content modes: Standard / Movie / Sports / Anime / Low Light / AMOLED / Drama / Documentary
+Each preset defines: brightness/contrast/saturation/hue deltas + sharpness + noiseReduce flag
+
+Panel features:
+- Master ON/OFF toggle with green glow ring
+- 8-card mode grid (3 cols) — selecting any mode auto-enables Smart Enhance
+- "What's Applied" badge chips showing actual values per mode
+- Intensity slider: Subtle → Max (0.5×–1.5× multiplier on preset deltas)
+- Before/After hold button — hold to bypass enhance and see original video live
+
+`_buildVfString` in player_screen.dart extended to merge Smart Enhance deltas with user eq:
+- brightness/contrast/saturation/hue stacked + clamped to MPV limits
+- sharpness = (user + se delta) clamped 0–1.5
+- `hqdn3d` noise filter appended when Low Light mode active
+
+PlayerPrefs fields added (TASK-032):
+- `smartEnhanceEnabled` (bool, default: false)
+- `smartEnhanceMode` (String, default: 'standard')
+
+---
+
+## Key Code Locations (player_screen.dart — post `034938fb`, ~6,440 lines)
 
 | Section | Approx Line | Description |
 |---------|-------------|-------------|
-| `_PlayerScreenState` class | ~180 | Master state + all fields |
-| `_openClipTrimmer()` | ~940 | ClipTrimmer A-B: onTrimChanged must call _abLoop.setA()/setB() |
-| `_openVideoEnhanceSuite()` | ~1150 | VideoEnhanceSuite: cinematic compare-and-toggle pattern |
-| `_ControlsOverlay` call site | ~3076 | All pref params + both night-mode callbacks passed here |
-| `onToggleCinematic` wiring | ~3080 | → `_toggleCinematic` |
-| `onToggleNightMode` wiring | ~3084 | → `_prefs.copyWith(nightMode:)` + save + `_applyVideoFilters()` |
-| `_ControlsOverlay` class | ~3680 | Widget definition + all params |
-| `onNightMode` in QuickShortcutBar | ~4294 | **Must be `onToggleNightMode`, NOT `onToggleCinematic`** |
-| `_QuickShortcutBar` class | ~4617 | 8-slot shortcut bar |
-| `_SleepPanel` class | ~4770 | Sleep timer options |
-| `_MxBadge` class | ~4742 | Compact top-bar badge widget |
+| `_PlayerScreenState` fields | ~180 | All state vars incl. `_showHudSettings`, `_showSmartEnhance`, `_lastLandscapeSide` |
+| `_buildVfString()` | ~527 | Video filter chain builder — Smart Enhance merged here |
+| `_applyVideoFilters()` | ~655 | Debounced async caller for `_buildVfString` |
+| `_openHudSettings()` | ~1194 | Opens HUD settings sheet |
+| `_openSmartEnhance()` | ~1201 | Opens Smart Enhance sheet |
+| `didChangeMetrics()` | ~261 | MX-style rotation side detection |
+| `_MxMoreSheet` class | ~5310 | More panel — has both "Layout & HUD" and "Smart Enhance" buttons |
+| Smart Enhance overlay | ~3820 | `if (_showSmartEnhance) SmartEnhanceSheet(...)` in Stack |
+| HUD Settings overlay | ~3832 | `if (_showHudSettings) PlayerHudSettingsSheet(...)` in Stack |
+
+---
+
+## PlayerPrefs — All new fields added this session
+
+```dart
+// Quick Bar / Layout (TASK-031)
+final double  centerBtnScale;           // default: 1.0
+final double  centerBtnVerticalOffset;  // default: 0.0
+final bool    centerBtnIconOnly;        // default: false
+final double  centerBtnBgOpacity;       // default: 0.3
+final bool    showCenterPrev;           // default: false
+final bool    showCenterSkip;           // default: false
+final bool    showCenterNext;           // default: true
+final String  centerBtnPosition;        // 'center' | 'bottom' | 'hidden'
+final bool    showQuickBar;             // default: true
+final String  quickBarItems;            // comma-sep slot IDs
+final String  layoutPreset;             // 'netflix'|'mx'|'minimal'|'binge'|'custom'
+final String  layoutJson;               // serialized per-orientation prefs
+
+// Smart Enhance (TASK-032)
+final bool    smartEnhanceEnabled;      // default: false
+final String  smartEnhanceMode;         // 'standard'|'movie'|'sports'|'anime'|'low_light'|'amoled'|'drama'|'documentary'
+```
+
+All fields wired in: field decl → constructor default → copyWith param+body → load() → save()
+SharedPrefs keys all prefixed with `${_p}` (player key prefix).
+
+---
+
+## Next Agent — Suggested Features (from PLAYER_FEATURE_IDEAS.md)
+
+Easiest + highest impact remaining:
+
+### IDEA-06 — Subtitle Personality Engine (2–3 days, Easy)
+Subtitles visually adapt their style based on content:
+- ALL CAPS → bold + larger + slight red tint
+- `...` trailing off → italic + faded
+- `[whispering]` → tiny + italic + no outline
+- `?!` shock → brief scale-up bounce animation
+- `♪` music → italic + soft gradient background
+Files: `lib/core/subtitles/subtitle_personality.dart` + extend subtitle overlay widget
+
+### IDEA-07 — Player Skin Palette Generator (2 days, Easy)
+User photos a poster → app extracts palette → generates entire player color scheme.
+Uses `palette_generator` Flutter package (Google-made).
+`playerTheme` field already exists in PlayerPrefs.
+
+### IDEA-05 — Cinematic Frame Capture + Story Export (2–3 days, Easy)
+Triple-tap paused video → 2.39:1 crop + film grain + vignette + title/timestamp caption.
+One-tap export as Instagram Story format (9:16).
+Uses `VideoThumbnail` + `dart:ui` Canvas + `share_plus`.
+
+### IDEA-08 — Phonetic Subtitle Overlay (3–4 days, Medium)
+For Urdu/Hindi subtitles: show Roman Urdu transliteration as a second row below main subtitle.
+Huge differentiator for Pakistani market. No other player has this.
+
+### IDEA-02 — Gesture Macro Recorder (4–5 days, Medium)
+Record a sequence of player actions → save as named macro → trigger with one tap.
+Example: "Study Mode" → Speed 0.75x + Subs ON + Night Mode ON + No autoplay.
+
+---
+
+## Open Ops Issues (unchanged from previous handoff)
+
+- **OPEN-OPS-01**: JazzDrive session expired — account 03286829827 needs OTP re-login
+  Until fixed: uploads fail, keepalive fails, delta_push 401 errors
+- **OPEN-DATA-01**: All Of Us Are Dead — E03/E04/E05/E09 missing from JazzDrive
 
 ---
 
@@ -118,25 +186,13 @@ echo "Lines: $(wc -l < /tmp/ps.dart)"
 
 ## GitHub Push Recipe
 
-Use Trees API for multi-file atomic commits. Always:
-1. Download the file fresh from GitHub before editing (never reuse stale /tmp copies)
-2. Apply patches in Python (`str.replace()` with asserts)
-3. Update tracker files (TASKS.md, BUG_TRACKER.md, TASK_LOG.md) in the same commit
-4. Push all files at once via `pushTree` in a Node.js script
+Use Trees API for multi-file atomic commits:
+1. `GET /repos/{owner}/{repo}/git/refs/heads/main` → commitSha
+2. `GET /repos/{owner}/{repo}/git/commits/{commitSha}` → treeSha
+3. `POST /git/blobs` for each file → blobSha
+4. `POST /git/trees` with base_tree + new items → newTreeSha
+5. `POST /git/commits` → newCommitSha
+6. `PATCH /git/refs/heads/main` → update HEAD
 
 Owner: `raddclub`, Repo: `raddflix-app`, Branch: `main`.
-
----
-
-## Oracle SSH (backend work only)
-
-```bash
-node -e "
-const raw = process.env.ORACLE_SSH_KEY || '';
-const m = raw.match(/(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)/s);
-require('fs').writeFileSync('/tmp/oracle_key',
-  m[1].trim()+'\n'+m[2].trim().replace(/ /g,'\n')+'\n'+m[3].trim()+'\n', {mode:0o600});
-console.log('key written');
-"
-ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 "curl -s http://localhost:5000/healthz"
-```
+**NEVER use git shell commands.**

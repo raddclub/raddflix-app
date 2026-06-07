@@ -1,14 +1,38 @@
 # RaddFlix Player — New Feature Ideas
 **Written by:** Replit Agent (handoff session)
 **Date:** 2026-06-07
-**Status:** Ideas only — none implemented. Each idea is fully specced for the next agent to pick up.
+**Status:** IDEA-01 ✅ implemented (TASK-029). HUD Settings + Smart Enhance added in Pass 5 sprint.
 
 > These are completely new features. None of them exist in VLC, MX Player, Infuse, Plex, or any mainstream mobile player as of this writing. Each idea is rated by implementation difficulty and user impact.
 
 ---
 
-## IDEA-01 — Universal Subtitle Hunter 🔍
-**(Requested by user — highest priority)**
+## ✅ Features Implemented in Pass 5 Sprint (2026-06-07)
+
+### HUD Settings Sheet — TASK-030 + TASK-031
+`lib/widgets/player/player_hud_settings_sheet.dart` (1145 lines, commit `0a4c3c58`)
+- Layout preset strip: Netflix / MX Classic / Minimal / Binge / Custom — auto-detects active preset
+- Portrait / Landscape tabs — independent layout prefs per orientation
+- Drag-to-reorder Quick Bar using ReorderableListView + drag handles
+- Dedup guard — amber warning when subtitle added (already permanently in top bar)
+- Button shape switcher: Circle / Squircle / Rounded / Pill / Sharp — each chip previews its shape
+- MX-style auto-rotation: didChangeMetrics() tracks physical side via safe-area padding heuristic
+
+### Smart Enhance — TASK-032
+`lib/core/player/smart_enhance.dart` + `lib/widgets/player/smart_enhance_sheet.dart` (commit `034938fb`)
+8 content modes: Standard / Movie / Sports / Anime / Low Light / AMOLED / Drama / Documentary
+Panel: master toggle (green glow), mode card grid, "What's Applied" badge chips,
+intensity slider (Subtle→Max), Before/After hold-to-compare button.
+Integrated into _buildVfString: preset deltas stacked on user eq, clamped to MPV limits.
+Low Light mode adds hqdn3d noise reduction filter.
+
+### Universal Subtitle Hunter — TASK-029
+IDEA-01 fully implemented. See IDEA-01 section below.
+
+---
+
+## ✅ IDEA-01 — Universal Subtitle Hunter 🔍
+**(✅ IMPLEMENTED — TASK-029)**
 
 ### What it does
 Right now the player finds subtitles only if they are in the **same folder as the video** with a matching filename. IDEA-01 makes the player able to find subtitles **anywhere on the device**, including:
