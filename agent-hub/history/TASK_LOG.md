@@ -5,6 +5,26 @@
 
 ---
 
+## Session 2026-06-07 (Pass 3 — verification)
+
+**Agent:** Replit Agent (main branch)
+**Task:** TASK-024 — Re-audit after Pass 2 to confirm completeness
+
+### What was done
+- Full re-read of AbLoopController API (`ab_loop_controller.dart`) to verify ClipTrimmer sync
+- Confirmed BUG-P-NEW-05: `ClipTrimmer.onTrimChanged` only set `_abLoopStart`/`_abLoopEnd` state vars but never called `_abLoop.setA()`/`_abLoop.setB()` — so A-B loop enforcement via `maybeSeekBack()` and seek bar markers were both broken when trim was set through the trimmer
+- Fixed: added `_abLoop.setA(trim.start)` and `_abLoop.setB(trim.end)` after setState in `onTrimChanged`
+
+### Files changed
+| File | Change |
+|------|--------|
+| `raddflix_flutter/lib/screens/player_screen.dart` | BUG-P-NEW-05: sync ClipTrimmer points to _abLoop controller |
+| `agent-hub/TASKS.md` | Added TASK-024 |
+| `.agents/tasks/BUG_TRACKER.md` | Appended BUG-P-NEW-05 |
+| `agent-hub/history/TASK_LOG.md` | This entry |
+
+---
+
 ## Session 2026-06-07 (Pass 2)
 
 **Agent:** Replit Agent (main branch)

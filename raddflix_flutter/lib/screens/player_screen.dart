@@ -951,6 +951,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         accentColor: _prefs.accentColor,
         onTrimChanged: (trim) {
           setState(() { _abLoopStart = trim.start; _abLoopEnd = trim.end; });
+          // BUG-P-NEW-05: sync to _abLoop controller so maybeSeekBack() enforces
+          // the loop and seek bar markers (pointA/pointB) actually appear.
+          _abLoop.setA(trim.start);
+          _abLoop.setB(trim.end);
         },
         onExportClip: () => Navigator.pop(context),
         onExportGif:  () => Navigator.pop(context),
