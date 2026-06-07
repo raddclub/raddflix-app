@@ -147,6 +147,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String? _dragIntent; // 'brightness' | 'volume' | 'seek' | 'pinch'
   Offset _dragStartLocal = Offset.zero;
   double _startScale = 1.0;
+  double _innerZoomStart = 1.0; // BUG-N08: captured at gesture start to avoid exponential drift
   double _startBrightness = 0.5;
   double _startVolume = 0.7;
   double _startVolumeBoost = 1.0; // boost at gesture start (for swipe-into-boost)
@@ -309,6 +310,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // ── Phase 3K: A-B Loop ────────────────────────────────────────────────────
   final AbLoopController _abLoop = AbLoopController();
   bool _showAbPanel = false;
+  // BUG-N10: separate MPV loop-file state from A-B loop state
+  bool _loopFileActive = false;
 
   // ── Phase 3K: Playback Info ───────────────────────────────────────────────
   bool _showPlaybackInfo = false;
@@ -396,6 +399,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // BUG-14: use live player position, not stale _position state
           _player.seek(_player.state.position - Duration(seconds: seekBack));
         }
+        // BUG-N03: OS may have paused the player while backgrounded; resume it
+        if (!_player.state.playing) _player.play();
       }
     }
   }
@@ -497,7 +502,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ':gr=${(0.01 * i).toStringAsFixed(3)}'
           ':gg=${(0.8 + i * 0.05).toStringAsFixed(3)}'
           ':gb=${(0.05 * i).toStringAsFixed(3)}:ga=0'
-          ':br=0:bg=0:bb=${(0.7 + i * 0.1).toStringAsFixed(3)}:ba=1');
+          ':br=0:bg=0:bb=${(0.7 + i * 0.1).toStringAsFixed(3)}:ba=0'); // BUG-N01: ba=1 bled alpha into blue output
     }
     if (p.sharpnessEnabled) {
       parts.add('unsharp=la=${(p.sharpness * 2).toStringAsFixed(2)}'
@@ -622,7 +627,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // FIX-C01: Do NOT override system volume here — gesture handlers
     // already call VolumeController().setVolume(1.0) when actively boosting.
     // Was silently maxing user's phone volume every time player opened.
-    _np.setProperty('volume', '${(multiplier * 100).toInt()}');
+    // BUG-N02: must factor in current _volume so MPV volume = system% × boost
+    _np.setProperty('volume', '${(_volume * multiplier * 100).toInt()}');
   }
 
   Future<void> _applyAudioSync(int ms) async {
@@ -1556,8 +1562,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         SystemChrome.setPreferredOrientations(
           [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
     }
-    setState(() => _prefs = _prefs.copyWith(rotationMode: mode));
-    _prefs.copyWith(rotationMode: mode).save();
+    // BUG-N04: was creating two separate copyWith objects; save the same one we setState with
+    final _rotUpdated = _prefs.copyWith(rotationMode: mode);
+    setState(() => _prefs = _rotUpdated);
+    _rotUpdated.save();
   }
 
   void _cycleRotation() {
@@ -1756,12 +1764,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           seriesId: seriesId, epIndex: _currentEpIdx);
       setState(() { _savedIntroEnd = saved; });
       if (_duration.inSeconds > 60) {
-        setState(() => _skipIntroVisible = true);
+        // BUG-N05: check autoSkip BEFORE setting visible to avoid a flicker frame
         if (_prefs.autoSkipIntroEnabled && saved != null) {
           _player.seek(Duration(seconds: saved));
-          setState(() => _skipIntroVisible = false);
           return;
         }
+        setState(() => _skipIntroVisible = true);
         Timer(const Duration(seconds: 8), () {
           if (mounted) setState(() => _skipIntroVisible = false);
         });
@@ -2114,15 +2122,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) { t.cancel(); return; }
       setState(() {
         _sleepRemainingSeconds = (_sleepRemainingSeconds ?? 0) - 1;
-
-        // Start volume fade when N seconds remain
-        if (_prefs.sleepFadeEnabled &&
-            !_sleepFadeActive &&
-            _sleepRemainingSeconds! > 0 &&
-            _sleepRemainingSeconds! <= _prefs.sleepFadeDurationSeconds) {
-          _startSleepFade();
-        }
       });
+      // BUG-N06: _startSleepFade() moved outside setState — it calls setState
+      // internally; nesting it caused a nested-setState anti-pattern warning
+      if (_prefs.sleepFadeEnabled &&
+          !_sleepFadeActive &&
+          _sleepRemainingSeconds != null &&
+          _sleepRemainingSeconds! > 0 &&
+          _sleepRemainingSeconds! <= _prefs.sleepFadeDurationSeconds) {
+        _startSleepFade();
+      }
       // Expiry logic outside setState — avoids nested setState anti-pattern
       if (_sleepRemainingSeconds != null && _sleepRemainingSeconds! <= 0) {
         t.cancel();
@@ -2227,6 +2236,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (d.pointerCount >= 2) {
       _dragIntent = 'pinch';
       _startScale = _scale;
+      _innerZoomStart = _zoomLevel; // BUG-N08: capture inner zoom start so inner GD uses fixed base
     } else {
       _dragIntent = null;
     }
@@ -2340,7 +2350,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final r = await FilePicker.platform.pickFiles(
         type: FileType.custom, allowedExtensions: ['srt', 'ass', 'vtt']);
     if (r == null || r.files.single.path == null) return;
-    await _player.setSubtitleTrack(SubtitleTrack.uri(r.files.single.path!));
+    // BUG-N07: MPV requires file:// URI prefix for local file paths
+    final localPath = r.files.single.path!;
+    final uri = localPath.startsWith('file://') ? localPath : 'file://$localPath';
+    await _player.setSubtitleTrack(SubtitleTrack.uri(uri));
   }
 
   @override
@@ -2563,9 +2576,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 child: GestureDetector(
                   // FIX-C02: removed onScaleStart — registering it caused the inner GD to
                   // win the gesture arena for ALL pinch events, making outer zoom unreachable.
+                  // BUG-N08: use _innerZoomStart (captured in outer onScaleStart) instead of
+                  // _zoomLevel so we don't multiply an already-updated value by d.scale each frame.
                   onScaleUpdate: (d) {
                     if (d.pointerCount < 2) return;
-                    final newZoom = (_zoomLevel * d.scale).clamp(1.0, 5.0);
+                    final newZoom = (_innerZoomStart * d.scale).clamp(1.0, 5.0);
                     if ((newZoom - _zoomLevel).abs() > 0.01) {
                       setState(() => _zoomLevel = newZoom);
                     }
@@ -3572,14 +3587,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           if (_showVideoDisplay)
             Positioned(bottom: 0, left: 0, right: 0,
               child: _VideoDisplaySheet(
-                screenRotation: _prefs.rotationMode != 'auto',
+                // BUG-N09: 'sensor_landscape' is also non-locked; only explicit lock modes are active
+                screenRotation: _prefs.rotationMode != 'auto' && _prefs.rotationMode != 'sensor_landscape',
                 bgPlay: _bgPlayEnabled,
                 isMuted: _isMuted,
                 eqEnabled: _prefs.equalizerEnabled,
                 sleepActive: _sleepRemainingSeconds != null || _sleepAtEpisodeEnd,
                 nightMode: _prefs.nightMode, // UX-01: show nightMode pref state, not cinematic
                 speed: _speed,
-                loopActive: _abLoop.isActive,
+                loopActive: _loopFileActive,      // BUG-N10: MPV loop-file state, not A-B loop
                 abRepeatActive: _abLoop.isActive,
                 onScreenRotation: () {
                   _cycleRotation();
@@ -3627,7 +3643,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 },
                 onLoop: () {
                   // FIX-L02: Loop now toggles single-file loop via MPV, not AB panel
-                  setState(() => _showVideoDisplay = false);
+                  // BUG-N10: track local state so loopActive indicator reflects reality
+                  setState(() { _showVideoDisplay = false; _loopFileActive = !_loopFileActive; });
                   _np.command(['cycle', 'loop-file']);
                 },
                 onAbRepeat: () {
@@ -4227,7 +4244,8 @@ class _ControlsOverlay extends StatelessWidget {
               children: [
                 _MxSideBtn(
                   icon: _iconForPack(iconPack, 'subtitle'),
-                  label: subLabels.isNotEmpty ? 'Sub' : 'Sub',
+                  // BUG-N11: dead ternary — both branches were 'Sub'; now shows track count
+                  label: subLabels.length > 1 ? 'Sub (${subLabels.length})' : 'Sub',
                   active: subLabels.isNotEmpty && activeSubIdx < subLabels.length,
                   activeColor: const Color(0xFF4DB6FF),
                   onTap: onSubtitleTracks,
@@ -4235,7 +4253,8 @@ class _ControlsOverlay extends StatelessWidget {
                 const SizedBox(height: 8),
                 _MxSideBtn(
                   icon: _iconForPack(iconPack, 'audio'),
-                  label: audioLabels.length > 1 ? 'Audio' : 'Audio',
+                  // BUG-N12: dead ternary — both branches were 'Audio'; now shows track count
+                  label: audioLabels.length > 1 ? 'Audio (${audioLabels.length})' : 'Audio',
                   active: audioLabels.length > 1,
                   activeColor: const Color(0xFF4DB6FF),
                   onTap: onAudioTracks,
@@ -6326,3 +6345,4 @@ class _StreamErrorOverlay extends StatelessWidget {
     );
   }
 }
+

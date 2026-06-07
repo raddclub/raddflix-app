@@ -154,3 +154,34 @@
 | agent-hub/TASKS.md | TASK-026 to completed archive; BACKLOG-01 added |
 | .agents/tasks/BUG_TRACKER.md | Pass 5 session appended (all 29 bugs) |
 | agent-hub/history/TASK_LOG.md | This entry |
+
+---
+
+## TASK-027 — Player screen Pass 6: full line-by-line audit (12 bugs)
+**Date:** 2026-06-07
+**Commit:** Pass 6 — 12 of 12 bugs fixed
+**Status:** ✅ DONE
+
+### Bugs fixed (N01–N12)
+
+| ID | Sev | Bug | Fix |
+|----|-----|-----|-----|
+| N01 | HIGH | `ba=1` in night-mode colorchannelmixer — alpha bleeds into blue output | Changed to `ba=0` |
+| N02 | HIGH | `_applyVolumeBoost` sets MPV volume = multiplier×100, ignores system `_volume` fraction | Fixed to `(_volume * multiplier * 100).toInt()` |
+| N03 | MED | App resume seeks back but never calls `_player.play()` — player stays paused if OS paused it | Added `if (!_player.state.playing) _player.play()` on resume |
+| N04 | MED | `_applyRotation` creates two separate `copyWith` objects; second save uses a throwaway copy | Refactored to save the single `copyWith` result |
+| N05 | MED | Auto-skip intro flickers: sets `_skipIntroVisible = true` then `= false` in same frame | Check autoSkip BEFORE setting visible=true |
+| N06 | MED | `_startSleepFade()` called inside `setState()` — nested setState anti-pattern | Moved `_startSleepFade()` call outside the setState block |
+| N07 | MED | `_pickSubtitle` passes bare POSIX path to `SubtitleTrack.uri()` — MPV rejects without `file://` | Prefix with `file://` if not already present |
+| N08 | MED | Inner zoom GestureDetector has no `onScaleStart` → `_zoomLevel * d.scale` on already-updated value → exponential drift | Added `_innerZoomStart` field; captured in outer `onScaleStart`; inner GD now uses `_innerZoomStart * d.scale` |
+| N09 | LOW | `screenRotation` active = `rotationMode != 'auto'` — marks `sensor_landscape` as locked too | Exclude `sensor_landscape`: `!= 'auto' && != 'sensor_landscape'` |
+| N10 | LOW | `loopActive` and `abRepeatActive` both use `_abLoop.isActive` — Loop uses MPV `loop-file` since FIX-L02 | Added `_loopFileActive` bool; toggled in `onLoop`; `loopActive` now uses it |
+| N11 | LOW | `subLabels.isNotEmpty ? 'Sub' : 'Sub'` — dead ternary, both branches identical | Changed to `subLabels.length > 1 ? 'Sub (${subLabels.length})' : 'Sub'` |
+| N12 | LOW | `audioLabels.length > 1 ? 'Audio' : 'Audio'` — dead ternary, both branches identical | Changed to `audioLabels.length > 1 ? 'Audio (${audioLabels.length})' : 'Audio'` |
+
+### Files changed
+| File | Change |
+|------|--------|
+| raddflix_flutter/lib/screens/player_screen.dart | 12 fixes; net +18 lines |
+| agent-hub/TASKS.md | TASK-027 added to completed archive |
+| agent-hub/history/TASK_LOG.md | Pass 6 session appended |
