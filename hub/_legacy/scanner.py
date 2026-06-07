@@ -608,18 +608,29 @@ def scan_account(account_id: int, progress_cb=None, extra_skip_folders=None) -> 
         'folder_poster_map': _folder_poster_map,
     }
 def enrich_and_save(files: list, account_id: int, progress_cb=None) -> int:
+    """Enrich files with metadata and save to DB.
+
+    Lookup order (IMDb-first, TMDB is a fallback — not the primary):
+      1. IMDbAPI.dev  — free, no key, full IMDb catalogue (primary)
+      2. OMDB         — IMDb-backed supplement (requires omdb vault key)
+      3. TMDB         — best poster quality (requires tmdb vault key)
+      4. AI           — Groq/Gemini/OpenAI/OpenRouter for regional content
+      5. YouTube      — poster-only last resort
+      6. enricher.fetch_full_metadata — TMDB direct (final safety net)
+    """
     def emit(event, msg):
         schema.log_scan(account_id, event, msg)
         if progress_cb:
             progress_cb(event, msg)
+
     grouped = {}
     for f in files:
         folder = f.get('folder_path', '')
         grouped.setdefault(folder, []).append(f)
 
-    # Per-scan TMDB dedup cache: filename → (metadata, title_id)
-    # Prevents calling TMDB 35× for the same file spread across nested archive folders.
-    _tmdb_cache: dict = {}
+    # Per-scan dedup cache: (clean_name, prefer) → (metadata, title_id)
+    # Prevents hitting APIs 35× for the same show spread across nested folders.
+    _lookup_cache: dict = {}
 
     titles_done = 0
     for folder_path, folder_files in grouped.items():
@@ -631,60 +642,97 @@ def enrich_and_save(files: list, account_id: int, progress_cb=None) -> int:
             for f in folder_files
         ) else 'auto'
 
-        # Use cache key = (lowercase filename, prefer_type) so identical files in
-        # different nested folders never hit TMDB more than once per scan.
         cache_key = (sample.lower(), prefer)
-        if cache_key in _tmdb_cache:
-            metadata, title_id = _tmdb_cache[cache_key]
+        if cache_key in _lookup_cache:
+            metadata, title_id = _lookup_cache[cache_key]
         else:
-            # Clean the filename for display — strip extension, quality tags, dots
+            # ── Clean filename: strip extension, quality tags, dots/underscores ──
             _clean_name, _clean_year = enricher._clean_filename(sample)
-            _display = _clean_name or sample
-            emit('tmdb', f"🔍 Looking up: {_display}")
-            metadata = enricher.fetch_full_metadata(sample, prefer_type=prefer)
+
+            # ── Build search name ──────────────────────────────────────────────
+            # For TV: strip "S01E02" suffix AND "Season N" from the search query.
+            # e.g. "The Boys S01E02" → "The Boys"
+            # e.g. "The Boys Season 2" → "The Boys"   (folder-name style)
+            _search_name = _clean_name
+            if prefer == 'tv':
+                _search_name = re.sub(r'\s*[Ss]\d{1,2}[Ee]\d{1,3}.*$', '', _search_name).strip()
+                _search_name = re.sub(r'\s*[Ss]eason\s*\d+.*$', '', _search_name, flags=re.IGNORECASE).strip()
+            _display = _search_name or _clean_name or sample
+
+            emit('lookup', f"🔍 Searching: {_display}")
+            log.debug("enrich_and_save: lookup %r prefer=%s year=%s", _display, prefer, _clean_year)
+
+            metadata = None
             title_id = None
-            if metadata and metadata.get('title') and metadata.get('content_key'):
-                _src = metadata.get('_source', 'database')
-                emit('tmdb_ok', f"✅ Found: {metadata['title']} ({metadata.get('year','')}) — added to catalog")
-                title_id = schema.upsert_title(metadata)
-                titles_done += 1
-            else:
-                # TMDB missed — try IMDbAPI.dev (free, no key, real IMDb data)
-                emit('tmdb_miss', f"⚠️ Not in TMDB for: {_display} — trying IMDb & other sources…")
+
+            # ── PRIMARY: metadata_lookup.enrich — IMDb → OMDB → TMDB → AI → YouTube ──
+            try:
+                from hub import metadata_lookup as _ml
+                _yr_int = None
+                if _clean_year and str(_clean_year).isdigit():
+                    _yr_int = int(_clean_year)
+                _parsed = {
+                    'title':      _search_name,
+                    'year':       _yr_int,
+                    'media_type': prefer if prefer in ('movie', 'tv') else 'movie',
+                }
+                _enrich_result = _ml.enrich(_parsed, config={})
+                if _enrich_result and _enrich_result.get('title'):
+                    _src  = _enrich_result.get('source', 'unknown')
+                    _src_label = {
+                        'imdbapi': 'IMDb', 'omdb': 'OMDB', 'tmdb': 'TMDB',
+                        'ai': 'AI', 'youtube_api': 'YouTube', 'youtube_scrape': 'YouTube',
+                        'google_kg': 'Google',
+                    }.get(_src, _src.upper())
+                    _iid  = _enrich_result.get('imdb_id') or ''
+                    _tid  = _enrich_result.get('tmdb_id')
+                    _ckey = (f"imdb:{_iid}"   if _iid else
+                             f"tmdb:{_tid}"   if _tid else
+                             f"imdb_{_search_name[:40]}")
+                    metadata = {
+                        'content_key':    _ckey,
+                        'title':          _enrich_result.get('title') or _search_name,
+                        'original_title': _enrich_result.get('original_title') or _enrich_result.get('title', ''),
+                        'year':           str(_enrich_result.get('year') or _clean_year or ''),
+                        'media_type':     _enrich_result.get('media_type') or (prefer if prefer in ('movie', 'tv') else 'movie'),
+                        'rating':         _enrich_result.get('rating'),
+                        'vote_count':     _enrich_result.get('vote_count') or 0,
+                        'poster':         _enrich_result.get('poster') or '',
+                        'overview':       _enrich_result.get('overview') or _enrich_result.get('plot') or '',
+                        'genres_csv':     _enrich_result.get('genres_csv') or '',
+                        'cast_names':     _enrich_result.get('cast_names') or '',
+                        'cast_json':      _enrich_result.get('cast_json') or _enrich_result.get('cast') or '[]',
+                        'director':       _enrich_result.get('director') or '',
+                        'imdb_id':        _iid,
+                        'tmdb_id':        _tid,
+                        'runtime':        _enrich_result.get('runtime'),
+                        '_source':        _src,
+                    }
+                    title_id = schema.upsert_title(metadata)
+                    titles_done += 1
+                    emit('found', f"✅ {_enrich_result['title']} ({_enrich_result.get('year','')}) — via {_src_label}")
+            except Exception as _ml_err:
+                log.debug("metadata_lookup.enrich failed for %r: %s", _search_name, _ml_err)
+
+            # ── FALLBACK: enricher.fetch_full_metadata (TMDB direct) ──────────
+            # Only reached if the full chain above returned nothing at all.
+            if metadata is None:
                 try:
-                    from hub.metadata import fetch_imdbapi as _fetch_imdb
-                    _imdb_result = _fetch_imdb(_clean_name, _clean_year, prefer if prefer == 'tv' else 'movie')
-                    if _imdb_result and _imdb_result.get('title'):
-                        # Build a minimal legacy-schema-compatible metadata dict
-                        metadata = {
-                            'content_key':    _imdb_result.get('imdb_id') or f"imdb_{_clean_name[:40]}",
-                            'title':          _imdb_result.get('title') or _clean_name,
-                            'original_title': _imdb_result.get('original_title') or _imdb_result.get('title', ''),
-                            'year':           str(_imdb_result.get('year') or _clean_year or ''),
-                            'media_type':     _imdb_result.get('media_type') or (prefer if prefer in ('movie','tv') else 'movie'),
-                            'rating':         _imdb_result.get('rating'),
-                            'vote_count':     _imdb_result.get('imdb_votes') or 0,
-                            'poster':         _imdb_result.get('poster') or '',
-                            'overview':       _imdb_result.get('plot') or _imdb_result.get('overview') or '',
-                            'genres_csv':     _imdb_result.get('genres_csv') or '',
-                            'cast_names':     _imdb_result.get('cast_names') or '',
-                            'cast_json':      _imdb_result.get('cast') or '[]',
-                            'director':       _imdb_result.get('director') or '',
-                            'imdb_id':        _imdb_result.get('imdb_id') or '',
-                            'runtime':        _imdb_result.get('runtime'),
-                            '_source':        'imdbapi',
-                        }
+                    _tmdb_result = enricher.fetch_full_metadata(sample, prefer_type=prefer)
+                    if _tmdb_result and _tmdb_result.get('title') and _tmdb_result.get('content_key'):
+                        metadata = _tmdb_result
                         title_id = schema.upsert_title(metadata)
-                        emit('tmdb_ok', f"✅ Found on IMDb: {metadata['title']} ({metadata.get('year','')}) — added to catalog")
                         titles_done += 1
+                        emit('found', f"✅ {_tmdb_result['title']} ({_tmdb_result.get('year','')}) — via TMDB")
                     else:
-                        emit('tmdb_miss', f"⚠️ No match found for: {_display} — will save filename only")
+                        emit('not_found', f"⚠️ No match found for: {_display} — saved without metadata")
                         metadata = None
                 except Exception as _fb_err:
-                    log.debug("IMDbAPI fallback failed for %r: %s", _clean_name, _fb_err)
-                    emit('tmdb_miss', f"⚠️ No match found for: {_display} — saved to catalog without metadata")
+                    log.debug("TMDB fallback failed for %r: %s", _search_name, _fb_err)
+                    emit('not_found', f"⚠️ No match found for: {_display} — saved without metadata")
                     metadata = None
-            _tmdb_cache[cache_key] = (metadata, title_id)
+
+            _lookup_cache[cache_key] = (metadata, title_id)
             time.sleep(0.05)
 
         for file_rec in folder_files:

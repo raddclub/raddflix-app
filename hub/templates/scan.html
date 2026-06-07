@@ -361,6 +361,7 @@
   .sl-ok    { color:#5cd66f; font-weight:600; }
   .sl-err   { color:#ff6b6b; font-weight:600; }
   .sl-warn  { color:#ffc857; }
+  .sl-lookup { color:#7ab4ff; }
   .sl-tmdb  { color:#7ab4ff; }
   .sl-fold  { color:#a78bfa; }
   .sl-mirror{ color:#5cb4ff; }
@@ -411,9 +412,12 @@ const _KIND_CLS = {
   scan_start:'sl-scan', scan_done:'sl-scan',
   folder:'sl-fold', progress:'sl-info',
   info:'sl-info', error:'sl-err', warn:'sl-warn',
-  tmdb:'sl-tmdb', tmdb_ok:'sl-ok', tmdb_miss:'sl-warn',
+  // new event names (IMDb-first scanner)
+  lookup:'sl-lookup', found:'sl-ok', not_found:'sl-warn',
+  // legacy compat — old logs still display correctly
+  tmdb:'sl-lookup', tmdb_ok:'sl-ok', tmdb_miss:'sl-warn',
   imdb_ok:'sl-ok', imdb_miss:'sl-warn',
-  mirror:'sl-mirror', enrich:'sl-tmdb',
+  mirror:'sl-mirror', enrich:'sl-lookup',
   otp:'sl-info', debug:'sl-skip',
 };
 
@@ -425,22 +429,29 @@ const _KIND_LABEL = {
   progress:   '',
   info:       '',
   error:      'Error',
-  warn:       'Warning',
-  tmdb:       'Looking up',
+  warn:       '',
+  // new event names
+  lookup:     'Searching',
+  found:      '',
+  not_found:  '',
+  // legacy compat
+  tmdb:       'Searching',
   tmdb_ok:    '',
   tmdb_miss:  '',
   imdb_ok:    '',
   imdb_miss:  '',
-  enrich:     'Enriching',
+  enrich:     'Searching',
   mirror:     'Syncing',
   otp:        'Auth',
   debug:      '',
 };
 
-// Suppress noisy low-value lines (skip-clean chatter, internal debug)
+// Suppress internal noise — normal users don't need to see raw API chatter
 const _SUPPRESS = [
   'skip-clean check',
   '[Metadata]',
+  'IMDbAPI fallback',
+  'TMDB direct',
 ];
 
 function _appendLog(kind, msg) {
@@ -471,7 +482,7 @@ function _appendLog(kind, msg) {
 
   // Update stats counters from log content
   if (kind === 'folder') _ssFolders++;
-  if (kind === 'tmdb_ok' || kind === 'imdb_ok') _ssTitles++;
+  if (kind === 'found' || kind === 'tmdb_ok' || kind === 'imdb_ok') _ssTitles++;
   if (kind === 'scan_done' || kind === 'info') {
     const m = msg.match(/(\d+)\s+files/i);
     if (m) { _ssFiles = Math.max(_ssFiles, parseInt(m[1])); }

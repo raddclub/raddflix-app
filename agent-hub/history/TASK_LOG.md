@@ -1602,3 +1602,42 @@ _search_name = re.sub(r'\s*[Ss]\d{1,2}[Ee]\d{1,3}.*$', '', _clean_name).strip()
 - Scan log: ✅ human-readable
 - Admin panel: ✅ db/reset fixed, Restore Catalog added
 - Open tasks: none — see agent-hub/TASKS.md
+
+## Session 2026-06-07 (part 2) — Fix scanner IMDb-first, log readability, TV season search
+
+### Root cause found & fixed
+The previous session (TASK-013/014) fixed metadata_lookup.py to be IMDb-first but
+**scanner.py's enrich_and_save still called enricher.fetch_full_metadata() as PRIMARY**,
+which is TMDB-only. IMDb was only used as a fallback when TMDB failed. The scan page
+events were named "tmdb"/"tmdb_ok"/"tmdb_miss" which confused users.
+
+Also: TV folder names like "The Boys Season 2" were passed directly to IMDb search
+without stripping "Season 2", so the lookup would fail or return the wrong show.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-017 | Fix enrich_and_save: IMDb-first with full fallback chain | ✅ DONE |
+| TASK-018 | Rename scan log events to lookup/found/not_found | ✅ DONE |
+| TASK-019 | Strip "Season N" from TV folder name before metadata search | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| hub/_legacy/scanner.py | enrich_and_save: metadata_lookup.enrich() as primary (IMDb→OMDB→TMDB→AI→YouTube); TMDB direct is final safety net only | this commit |
+| hub/templates/scan.html | Added lookup/found/not_found event classes; human-readable labels; backward compat kept; _ssTitles counter updated | this commit |
+
+### TV seasons/episodes — definitive answer
+"The Boys Season 1" and "The Boys Season 2" both resolve to the **same title_id** in the
+titles table (one row for "The Boys"). The files table stores season+episode:
+- files.season = 1 or 2 (parsed from S01E01 in the filename, NOT the folder name)
+- files.episode = 1, 2, 3… (episode number within that season)
+- Dedup key: (account_id, title_id, season, episode) — one row per unique episode
+So both seasons share one catalog entry; the app uses season+episode to fetch the right file.
+
+### State at end of session
+- Oracle Flask: ✅ RUNNING, healthz OK
+- enrich_and_save: ✅ IMDb-first → OMDB → TMDB → AI → YouTube → TMDB direct
+- Scan log events: ✅ lookup/found/not_found (human-readable); old events backward compatible
+- TV Season N stripping: ✅ "The Boys Season 2" → searches "The Boys"
+- Open tasks: none
