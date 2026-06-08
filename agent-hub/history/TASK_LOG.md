@@ -2,6 +2,50 @@
 
 > Newest session at top. Every agent must append here after completing work.
 > Format: `## Session YYYY-MM-DD` followed by bullets.
+## Session — 2026-06-08 — FIX-SYNC-TIMEOUT: fast Oracle→delta fallback
+
+### Context
+Sync priority was already correct (Oracle first, delta fallback) but connectTimeout
+was 15s. No-bundle Jazz SIM users waited up to 15 seconds before JazzDrive delta
+kicked in, because TCP connections to Oracle can silently drop packets on no-bundle
+networks in Pakistan until the timeout is hit.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-042 | FIX-SYNC-TIMEOUT: reduce Oracle timeout, add 5s probe on getVersion() | ✅ DONE |
+
+### Commit
+| Commit | Change |
+|--------|--------|
+| b709ebe | FIX-042: Fast Oracle→delta fallback for no-bundle Jazz SIM users |
+
+### Changes made
+**`raddflix_flutter/lib/core/api/api_client.dart`**
+- `connectTimeout: 15s → 6s` — halves worst-case TCP connection wait.
+  Still generous for real internet (Oracle responds < 1s in practice).
+
+**`raddflix_flutter/lib/core/db/sync_service.dart`**
+- Added `.timeout(Duration(seconds: 5))` to `CatalogApi.getVersion()` in
+  `_syncFromOracle()`. getVersion() is a lightweight probe (3 integers).
+  If Oracle doesn't respond in 5s → TimeoutException → caught by sync()
+  outer catch → falls immediately to JazzDrive delta.
+- syncFull / syncDelta keep their full 30s receiveTimeout (large catalog
+  downloads on slow-but-real connections still complete).
+
+### Behaviour after fix
+| User | Oracle response | Result |
+|------|----------------|--------|
+| Has bundle | < 1s | Instant Oracle sync, delta never used |
+| No bundle (Jazz SIM) | 5s timeout | Falls to delta in ≤ 5s |
+| Slow internet | 2-4s but responds | Oracle sync completes normally |
+
+### State at end of session
+- Latest commit: b709ebe (main branch)
+- Open tasks: none
+
+---
+
 ## Session — 2026-06-08 — FIX-DELTA-PURGE: Radd-Delta folder cleanup
 
 ### Context

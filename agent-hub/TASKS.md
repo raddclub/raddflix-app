@@ -17,6 +17,7 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-029 | IDEA-01: Universal Subtitle Hunter | ✅ DONE | 2026-06-07 | SubtitleHunter + ZIP + fuzzy match + sheet + URL loader |
 | TASK-040 | FIX-CONFIG-01: RemoteConfig instant cache load, Oracle fetch in background | ✅ DONE | 2026-06-08 | loadCached() awaited on startup; fetchBackground() fire-and-forget after runApp() |
 | TASK-041 | FIX-DELTA-PURGE: Radd-Delta folder cleanup — trash all old files before each upload | ✅ DONE | 2026-06-08 | list_all_files_in_folder() + purge before upload + manual purge route |
+| TASK-042 | FIX-SYNC-TIMEOUT: fast Oracle→delta fallback (connectTimeout 6s, 5s probe on getVersion) | ✅ DONE | 2026-06-08 | No-bundle users fall to delta in ≤5s instead of 15s |
 
 ---
 
