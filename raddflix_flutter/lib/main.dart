@@ -36,9 +36,10 @@ void main() async {
   // Run all independent startup tasks in parallel — reduces cold-start time
   // by avoiding sequential awaits on operations that have no dependencies.
   await Future.wait([
-    // Fetch server config (brand theme, feature flags, API URL override).
-    // SplashScreen reads from cached prefs — no second network call needed.
-    RemoteConfig.fetch(),
+    // Load config from SharedPreferences cache — instant, no network call.
+    // Jazz SIM users with no internet bundle see the app in < 10ms.
+    // Oracle refresh fires in background AFTER runApp (see below).
+    RemoteConfig.loadCached(),
     // Create poster storage directories on disk.
     PosterService.init(),
     // Evict expired JazzDrive CDN tokens from SQLite.
@@ -58,6 +59,10 @@ void main() async {
   }
 
   // Background tasks — fire-and-forget, never block app launch.
+  // Oracle config refresh: runs after the UI is up. On Jazz SIM with no bundle
+  // this fails in ~4s and silently no-ops. loadCached() above already applied
+  // the last-known-good config so nothing the user sees depends on this call.
+  unawaited(RemoteConfig.fetchBackground());
   unawaited(JazzDriveService.warmTopFreeItems(8));   // pre-warm top free content CDN links
   unawaited(AppUpdateService.check());               // populate _ForceUpdateGuard result
   HistoryApi.flushUnsynced().ignore();               // push offline watch positions

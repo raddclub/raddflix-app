@@ -4,13 +4,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'constants.dart';
 import 'api/api_client.dart';
 
-/// Fetches server config from the Oracle server itself.
-/// No GitHub dependency — works even when repo is private.
+/// Remote config loader for RaddFlix.
 ///
-/// Priority:
-///   1. Oracle server   → http://92.4.95.252/api/config   (primary)
-///   2. Last cached config in SharedPreferences
-///   3. Hardcoded AppConstants.apiBaseUrl (always works as final fallback)
+/// Split into two separate operations so Jazz SIM users (no internet bundle)
+/// never wait on startup:
+///
+///   loadCached()      — instant, reads SharedPreferences, no network.
+///                       Always called in main() before runApp().
+///   fetchBackground() — fires an Oracle HTTP call (short 4s timeout).
+///                       Fire-and-forget: never blocks startup or UI.
+///                       Silently no-ops when Oracle is unreachable.
+///
+/// Priority for loadCached():
+///   1. SharedPreferences cache (written by last successful fetchBackground)
+///   2. Hardcoded AppConstants.apiBaseUrl (built-in fallback, always valid)
 class RemoteConfig {
   static const String _configUrl = 'http://92.4.95.252/api/config';
   static const String _prefsKey  = 'jm_remote_config';
@@ -53,76 +60,83 @@ class RemoteConfig {
   /// Optional callback — set by BrandThemeNotifier to reload theme after fetch.
   static Future<void> Function()? onBrandConfigLoaded;
 
-  static Future<void> fetch() async {
-    final prefs = await SharedPreferences.getInstance();
+  /// Apply a config map to AppConstants + brand prefs.
+  /// Shared by both loadCached() and fetchBackground().
+  static Future<void> _applyData(
+      Map<String, dynamic> data, SharedPreferences prefs) async {
+    final url = (data['api_base_url'] as String?)?.trim();
+    if (url != null && url.isNotEmpty) {
+      AppConstants.apiBaseUrl = url;
+      ApiClient.updateBaseUrl(url);
+    }
+    final deltaUrl = (data['jd_delta_url'] as String?)?.trim() ?? '';
+    if (deltaUrl.isNotEmpty) AppConstants.jazzDriveDeltaUrl = deltaUrl;
+    final supportWa = (data['support_whatsapp'] as String?)?.trim() ?? '';
+    if (supportWa.isNotEmpty) AppConstants.supportWhatsApp = supportWa;
+    for (final k in _brandKeys) {
+      final v = (data[k] as String?)?.trim() ?? '';
+      if (v.isNotEmpty) await prefs.setString(k, v);
+    }
+    await onBrandConfigLoaded?.call();
+  }
 
-    // 1. Try fetching fresh from Oracle server
+  /// Load config instantly from SharedPreferences cache — no network call.
+  ///
+  /// Call this in main() before runApp(). Completes in < 10ms.
+  /// Jazz SIM users with no internet bundle get their cached config
+  /// (including jd_delta_url) immediately without any startup delay.
+  static Future<void> loadCached() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString(_prefsKey);
+    if (cached != null) {
+      try {
+        final data = jsonDecode(cached) as Map<String, dynamic>;
+        await _applyData(data, prefs);
+        return;
+      } catch (_) {}
+    }
+    // No cache yet — use hardcoded fallback (first install, no internet yet)
+    ApiClient.updateBaseUrl(AppConstants.apiBaseUrl);
+  }
+
+  /// Fetch fresh config from Oracle in the background — fire-and-forget.
+  ///
+  /// Use [unawaited(RemoteConfig.fetchBackground())] in main() after runApp().
+  /// Uses a short 4s timeout so it fails fast on no-bundle Jazz SIM.
+  /// On success: updates AppConstants + refreshes SharedPreferences cache.
+  /// On failure: silently no-ops — cached values from loadCached() stay active.
+  ///
+  /// This is the ONLY place that makes a network call to Oracle for config.
+  static Future<void> fetchBackground() async {
     try {
       final dio = Dio();
       final res = await dio.get<dynamic>(
         _configUrl,
         options: Options(
-          receiveTimeout: const Duration(seconds: 8),
-          sendTimeout:    const Duration(seconds: 8),
+          receiveTimeout: const Duration(seconds: 4),
+          sendTimeout:    const Duration(seconds: 4),
         ),
       );
       if (res.statusCode == 200 && res.data != null) {
         final data = res.data is String
             ? jsonDecode(res.data as String) as Map<String, dynamic>
             : res.data as Map<String, dynamic>;
-        final url = (data['api_base_url'] as String?)?.trim();
-        if (url != null && url.isNotEmpty) {
-          AppConstants.apiBaseUrl = url;
-          ApiClient.updateBaseUrl(url);
-        }
-        final deltaUrl = (data['jd_delta_url'] as String?)?.trim() ?? '';
-        if (deltaUrl.isNotEmpty) {
-          AppConstants.jazzDriveDeltaUrl = deltaUrl;
-        }
-        final supportWa = (data['support_whatsapp'] as String?)?.trim() ?? '';
-        if (supportWa.isNotEmpty) {
-          AppConstants.supportWhatsApp = supportWa;
-        }
-        // Cache all brand_ fields from Brand Studio admin panel
-        for (final k in _brandKeys) {
-          final v = (data[k] as String?)?.trim() ?? '';
-          if (v.isNotEmpty) {
-            await prefs.setString(k, v);
-          }
-        }
-        // Cache full config for offline restarts
+        final prefs = await SharedPreferences.getInstance();
+        await _applyData(data, prefs);
+        // Refresh cache for next app open
         await prefs.setString(_prefsKey, jsonEncode(data));
-        // Notify brand theme provider to reload
-        await onBrandConfigLoaded?.call();
-        return;
       }
-    } catch (_) {}
-
-    // 2. Fall back to last-cached config
-    final cached = prefs.getString(_prefsKey);
-    if (cached != null) {
-      try {
-        final data = jsonDecode(cached) as Map<String, dynamic>;
-        final url = (data['api_base_url'] as String?)?.trim();
-        if (url != null && url.isNotEmpty) {
-          AppConstants.apiBaseUrl = url;
-          ApiClient.updateBaseUrl(url);
-        }
-        final deltaUrl = (data['jd_delta_url'] as String?)?.trim() ?? '';
-        if (deltaUrl.isNotEmpty) AppConstants.jazzDriveDeltaUrl = deltaUrl;
-        final supportWa = (data['support_whatsapp'] as String?)?.trim() ?? '';
-        if (supportWa.isNotEmpty) AppConstants.supportWhatsApp = supportWa;
-        for (final k in _brandKeys) {
-          final v = (data[k] as String?)?.trim() ?? '';
-          if (v.isNotEmpty) await prefs.setString(k, v);
-        }
-        await onBrandConfigLoaded?.call();
-        return;
-      } catch (_) {}
+    } catch (_) {
+      // Oracle unreachable (no bundle, server down, etc.) — silently no-op.
+      // loadCached() has already applied the last-known-good config.
     }
+  }
 
-    // 3. Hardcoded fallback
-    ApiClient.updateBaseUrl(AppConstants.apiBaseUrl);
+  /// Legacy: loads cache then fires background fetch.
+  /// Prefer calling loadCached() + unawaited(fetchBackground()) directly in main().
+  static Future<void> fetch() async {
+    await loadCached();
+    fetchBackground().ignore();
   }
 
   // ── Convenience getters ─────────────────────────────────────────────────────
