@@ -126,8 +126,11 @@ Last updated: 2026-06-08 (added Rules 32–38 — RemoteConfig, sync, delta, con
 
 ## Delta Folder Purge Rules (TASK-041 — added 2026-06-08)
 36. **Always purge the JazzDrive delta folder BEFORE uploading a new delta.json.**
-37. **`list_all_files_in_folder(folder_id)` in `jazzdrive.py` uses `/media/video?action=get`**
-    — despite the name, this returns ALL file types. Do NOT use other listing endpoints.
+37. **`list_all_files_in_folder(account_id, folder_id)` in `jazzdrive.py` uses `/media/file?action=get`**
+    — this is the correct endpoint for `mediatype="file"` items (delta.json/.txt uploads).
+    `/media/video` returns ZERO results for non-video items — do NOT use it for file-type listing.
+    Soft-delete (`trash_files`) returns false-positive success for `media_type="file"` but does NOT
+    remove files. Always use `delete_files_permanent()` to clean old delta files.
 
 ---
 
