@@ -32,7 +32,6 @@ Expected: `{"ok":true,"version":"3.0.0"}`
 ```bash
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/TASKS.md"
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/HANDOFF_NEXT.md"
-curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/history/TASK_LOG.md" | tail -80
 ```
 
 ---
@@ -50,24 +49,22 @@ Read it fully, then work through every section in order.
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/FULL_AUDIT_PROMPT.md"
 ```
 
-This audit covers:
-1. **6 confirmed discrepancies** between docs and actual code — fix all of them
-2. **File-by-file code verification** (Flutter + Flask + Android)
-3. **Oracle live state checks**
-4. **Final 25-point verification checklist**
-
 ---
 
-## Current System State (as of 2026-06-08 17:55 PKT)
+## Current System State (as of 2026-06-08 — post TASK-046)
 
 | Component | State |
 |-----------|-------|
-| Oracle Flask | ✅ RUNNING — restarted, health OK |
+| Oracle Flask | ✅ RUNNING — PID 2978797, HTTP 302 |
+| v3 DB | ✅ 17 titles / 28 files — all Live (`is_published=1`) |
+| Library UI | ✅ Publish All / Unpublish All / bulk controls / bulk delete working |
+| Admin UI | ✅ All confirm()/prompt() replaced with two-step arm+fire toasts |
+| Scan UI | ✅ Excluded folders remove — error toast added; role change two-step |
+| Settings UI | ✅ OTP flow replaced with inline panel; all confirm() replaced |
+| scanner.py | ✅ UNIQUE slug conflict handled with fallback lookup (commit 6ccfa67) |
+| scan_excluded_folders | ✅ Empty `[]` — account MSISDN removed from exclusion list |
 | JAZZDRIVE_PROXY_BYPASS | ✅ = 1 (direct wg0, all proxies bypassed) |
-| jd_delta_url | ✅ set |
 | delta_auto_enabled | ✅ = 1 (auto-runs every 6 hours) |
-| APK Build | ✅ #1029 triggered — monitor at https://github.com/raddclub/raddflix-app/actions |
-| Latest commit | `d81f2fc` (main branch) |
 
 ---
 
@@ -78,8 +75,21 @@ This audit covers:
 - **Share URLs**: JazzDrive share_urls NEVER expire — security via APK integrity, not link expiry
 - **Sync priority**: Oracle first (5s probe) → JazzDrive delta fallback on timeout
 - **DB path**: `/opt/jazzmax/radd-hub/data/radd_hub.db` (SQLite WAL, this is the ONLY real DB)
+- **Account**: MSISDN 03286829827 → v3 account_id=15, legacy_id=2
 - **Proxy setting key**: `JAZZDRIVE_PROXY_BYPASS` = `1` (NOT `proxy_bypass`)
-- **GitHub push**: Trees API ONLY — never git shell
+- **GitHub push**: Trees/Contents API ONLY — never git shell
+- **Template GitHub path**: `radd-hub/hub/templates/` (NOT `hub/templates/`)
+
+---
+
+## v3 DB Schema Quirks (agents get this wrong constantly)
+
+```
+titles: plot (NOT overview), genres_csv, cast_json, is_published (0/1)
+files:  scanned_at (NOT created_at), fingerprint='scan:<remote_id>'
+db API: db.setting(k) / db.set_setting(k,v) — NEVER db.get_setting()
+settings columns: k and v (NOT key / value)
+```
 
 ---
 
@@ -100,6 +110,8 @@ This audit covers:
 12. JAZZDRIVE_PROXY_BYPASS DB key (NOT proxy_bypass)
 13. Debug code must be gated behind kDebugMode or DebugLogger
 14. share_url scrambling: unscrambleUrl() passes through non-RF1: URLs (backward compat)
+15. No confirm()/prompt() in Flask templates — use two-step arm+fire toast instead
+16. Template GitHub path: radd-hub/hub/templates/ — push sequentially (not parallel)
 ```
 
 ---
