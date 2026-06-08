@@ -1788,6 +1788,59 @@ def _upload_pending() -> None:
         
         folder_id = current_parent
 
+        # -- JazzDrive-side duplicate guard (mirrors upload_to_jazzdrive guard) -----
+        # _upload_file() is called directly here and bypasses the guard in
+        # upload_to_jazzdrive(). This check prevents uploading a movie or episode
+        # that already exists in the resolved JazzDrive folder under the same filename.
+        # Covers: DB resets, scan fingerprint mismatch, re-queued files after failure.
+        if folder_id:
+            try:
+                _jd_dup_check = jazzdrive.sapi_request(
+                    endpoint="/media/video",
+                    action="get",
+                    params={"parentId": folder_id, "folderId": folder_id},
+                    account_id=acct["id"],
+                    tokens=None,
+                )
+                _jd_dup_items = (_jd_dup_check.get("data") or {}).get("videos") or []
+                _dup_target_lower = plan.filename.lower()
+                for _jd_dup_item in _jd_dup_items:
+                    _dup_folder = _jd_dup_item.get("folder")
+                    if _dup_folder is not None and int(_dup_folder) != int(folder_id):
+                        continue
+                    _dup_name = (_jd_dup_item.get("name") or "").lower()
+                    if _dup_name == _dup_target_lower and not _jd_dup_item.get("softdeleted", False):
+                        _dup_exist_id = int(_jd_dup_item["id"])
+                        log.info(
+                            "upload_pending: JD duplicate guard: %r already in folder %d "
+                            "as remote_id=%d — skipping upload, recording existing file.",
+                            plan.filename, folder_id, _dup_exist_id,
+                        )
+                        _dup_share = None
+                        try:
+                            _dup_share = _create_share_link(
+                                sess, vk, jsid, _dup_exist_id, folder_id=folder_id
+                            )
+                        except Exception as _dup_sl_err:
+                            log.debug("upload_pending dup-guard share link failed: %s", _dup_sl_err)
+                        try:
+                            with db.conn() as _dup_dc:
+                                _dup_dc.execute(
+                                    "UPDATE files SET is_ready=1, remote_id=?, share_url=?,"
+                                    " remote_folder_id=?, fingerprint=?, uploaded_at=? WHERE id=?",
+                                    (str(_dup_exist_id), _dup_share or "", folder_id,
+                                     "scan:" + str(_dup_exist_id), int(time.time()), file_id),
+                                )
+                        except Exception as _dup_db_err:
+                            log.debug("upload_pending dup-guard DB update failed: %s", _dup_db_err)
+                        clear_live_stat(file_id)
+                        return  # already on JazzDrive — no local delete, no upload
+            except Exception as _jd_dup_err:
+                log.debug(
+                    "upload_pending: JD duplicate pre-check failed (non-fatal, upload continues): %s",
+                    _jd_dup_err,
+                )
+
         # Get proxy URL for live stats tracking
         _active_proxy = (sess.proxies or {}).get("https", "")
         def _prog_cb(sent, total):
