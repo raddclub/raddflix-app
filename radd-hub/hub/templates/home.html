@@ -17,6 +17,12 @@
 .health-dot.warn{background:var(--warn)}
 .health-dot.err{background:var(--err)}
 .health-dot.mut{background:var(--muted);opacity:.5}
+.btn-tid-ok{background:rgba(92,214,111,.12);color:var(--ok);border:1px solid rgba(92,214,111,.3);padding:3px 9px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-tid-ok:hover{background:rgba(92,214,111,.25)}
+.btn-tid-ok:disabled{opacity:.45;cursor:default}
+.btn-tid-err{background:rgba(255,107,107,.08);color:var(--err);border:1px solid rgba(255,107,107,.25);padding:3px 9px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-tid-err:hover{background:rgba(255,107,107,.2)}
+.btn-tid-err:disabled{opacity:.45;cursor:default}
 #tid-alert-banner{display:none;align-items:center;gap:12px;background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.35);border-radius:10px;padding:12px 16px;margin-bottom:16px;animation:tid-fadein .3s ease}
 @keyframes tid-fadein{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 #tid-alert-banner .tid-icon{font-size:20px;flex-shrink:0}
@@ -26,6 +32,7 @@
 #tid-alert-banner .tid-dismiss:hover{color:var(--text)}
 </style>
 
+<script>const CSRF_TOKEN="{{ csrf_token }}";</script>
 <div class="h-row">
   <h2>Dashboard</h2>
   <div class="row" style="gap:8px">
@@ -412,13 +419,52 @@ async function loadRecentTids(){
         <td>${r.phone||r.username||'—'}</td>
         <td>${r.amount ? 'PKR '+r.amount : '—'}</td>
         <td><span class="badge b-warn">pending</span></td>
-        <td><a href="/tid/" style="font-size:12px;color:var(--accent)">Review →</a></td>
+        <td style="display:flex;gap:5px;align-items:center">
+          <button class="btn-tid-ok" id="tid-ok-${r.id}" onclick="tidApprove(${r.id})">✓ Approve</button>
+          <button class="btn-tid-err" id="tid-err-${r.id}" onclick="tidReject(${r.id})">✗ Reject</button>
+        </td>
       </tr>`).join('') +
       '</tbody></table></div>';
   } catch(e){
     const el=document.getElementById('recent-tids');
     if(el) el.innerHTML='<div class="muted" style="font-size:13px">No pending TID payments. <a href="/tid/">View history →</a></div>';
   }
+}
+
+async function tidApprove(id){
+  const okBtn  = document.getElementById('tid-ok-'+id);
+  const errBtn = document.getElementById('tid-err-'+id);
+  if(okBtn)  { okBtn.disabled=true;  okBtn.textContent='…'; }
+  if(errBtn)   errBtn.disabled=true;
+  try{
+    const fd = new FormData();
+    fd.append('_csrf_token', CSRF_TOKEN);
+    fd.append('force_approve', '1');
+    const r = await fetch('/tid/'+id+'/approve', {method:'POST', credentials:'include', body:fd});
+    if(r.ok){
+      toast('Payment approved ✓');
+      loadRecentTids(); loadUserStats();
+    } else { toast('Approve failed (HTTP '+r.status+')'); if(okBtn){okBtn.disabled=false;okBtn.textContent='✓ Approve';} if(errBtn) errBtn.disabled=false; }
+  }catch(e){ toast('Approve error'); if(okBtn){okBtn.disabled=false;okBtn.textContent='✓ Approve';} if(errBtn) errBtn.disabled=false; }
+}
+
+async function tidReject(id){
+  const note = window.prompt('Reason for rejection (optional, press OK to skip):');
+  if(note === null) return;
+  const okBtn  = document.getElementById('tid-ok-'+id);
+  const errBtn = document.getElementById('tid-err-'+id);
+  if(okBtn)  okBtn.disabled=true;
+  if(errBtn) { errBtn.disabled=true; errBtn.textContent='…'; }
+  try{
+    const fd = new FormData();
+    fd.append('_csrf_token', CSRF_TOKEN);
+    fd.append('note', note||'');
+    const r = await fetch('/tid/'+id+'/reject', {method:'POST', credentials:'include', body:fd});
+    if(r.ok){
+      toast('Payment rejected');
+      loadRecentTids(); loadUserStats();
+    } else { toast('Reject failed (HTTP '+r.status+')'); if(errBtn){errBtn.disabled=false;errBtn.textContent='✗ Reject';} if(okBtn) okBtn.disabled=false; }
+  }catch(e){ toast('Reject error'); if(errBtn){errBtn.disabled=false;errBtn.textContent='✗ Reject';} if(okBtn) okBtn.disabled=false; }
 }
 
 async function refreshAll(){
