@@ -1298,8 +1298,15 @@ async function removeExcluded(btn, name) {
   btn.disabled = true;
   try {
     const r = await api('/scan/api/excluded-folders/' + encodeURIComponent(name), {method:'DELETE'});
-    _renderExcluded(r.folders || []);
+    if (r.ok) {
+      toast('✔ Removed: ' + name);
+      _renderExcluded(r.folders || []);
+    } else {
+      toast('✗ Failed to remove: ' + (r.error || 'unknown error'));
+      btn.disabled = false;
+    }
   } catch(e) {
+    toast('✗ Error: ' + e.message);
     btn.disabled = false;
   }
 }
@@ -1350,10 +1357,17 @@ async function scanAll() {
 /* ── Change Role (with confirm) ──────────────────────────────────────────── */
 async function changeRole(id, currentRole) {
   const newRole = currentRole === 'scan' ? 'flix' : 'scan';
-  const label   = newRole === 'flix'
-    ? `Promote account #${id} to FLIX (upload) role?\n\nOnly one active flix account is allowed — this will fail if another already exists.`
-    : `Demote account #${id} to SCAN (read-only) role?`;
-  if (!confirm(label)) return;
+  const key = '_chgRole_' + id;
+  if (!window[key]) {
+    const label = newRole === 'flix'
+      ? `Promote #${id} to FLIX? (only 1 active flix allowed) — click again to confirm`
+      : `Demote #${id} to SCAN (read-only)? — click again to confirm`;
+    window[key] = true;
+    toast('⚠ ' + label, 5000);
+    setTimeout(() => { window[key] = false; }, 5000);
+    return;
+  }
+  window[key] = false;
   await _applyRoleChange(id, currentRole, newRole);
 }
 
