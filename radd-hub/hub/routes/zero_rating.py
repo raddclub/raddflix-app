@@ -494,7 +494,13 @@ def generate_delta():
 @bp.route("/upload-delta", methods=["POST"])
 @login_required
 def upload_delta():
-    """Generate delta.json and upload to JazzDrive, saving the share URL."""
+    """Generate delta.json and upload to JazzDrive, saving the share URL.
+
+    PRE-PURGE strategy: delete all existing files in Radd-Delta BEFORE upload.
+    This guarantees JazzDrive names the new file "delta.txt" (no collision rename
+    to delta_RANDOM.txt). Brief ~5s window where folder is empty is acceptable —
+    Flutter clients gracefully fall back to local catalog if file is momentarily missing.
+    """
     payload = generate_delta_payload()
     with open(_DELTA_PATH, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
@@ -526,30 +532,36 @@ def upload_delta():
         except Exception:
             pass
 
-        # -- Step 3: snapshot ALL existing files in Radd-Delta BEFORE upload ---
-        # This is the safe pre-upload list — we trash exactly these IDs after
-        # the new file is confirmed uploaded. Trashing AFTER (not before) means
-        # Flutter always has at least one valid delta file available.
-        _pre_upload_ids = []
+        # -- Step 3: PRE-UPLOAD PURGE — delete ALL existing files first --------
+        # Why PRE-purge (not post-purge): JazzDrive auto-renames uploads to
+        # delta_RANDOM.txt when delta.txt already exists. Pre-purging ensures the
+        # folder is empty so JD always creates delta.txt with a clean name.
+        # Post-purge approach was unreliable: if delete failed silently, temp files
+        # accumulated across uploads and the DB ended up pointing to a stale file.
+        _purged_count = 0
         if _delta_folder_id:
             try:
                 existing = jd.list_all_files_in_folder(_aid, _delta_folder_id)
-                _pre_upload_ids = [f["id"] for f in existing]
-                log.info(
-                    "upload_delta: pre-upload snapshot — %d file(s) in Radd-Delta to trash after upload: %s",
-                    len(_pre_upload_ids), _pre_upload_ids,
-                )
-            except Exception as _snap_err:
-                log.warning("upload_delta: pre-upload snapshot failed (continuing): %s", _snap_err)
+                _old_ids = [f["id"] for f in existing]
+                if _old_ids:
+                    jd.delete_files_permanent(_aid, _old_ids)
+                    _purged_count = len(_old_ids)
+                    log.info("upload_delta: pre-purged %d old file(s) from Radd-Delta: %s",
+                             _purged_count, _old_ids)
+                else:
+                    log.info("upload_delta: Radd-Delta folder already empty — uploading cleanly")
+            except Exception as _purge_err:
+                log.warning("upload_delta: pre-purge failed (continuing anyway): %s", _purge_err)
 
         # -- Step 4: upload new delta.json ------------------------------------
+        # Folder is now empty — JD will create delta.txt with clean name
         result = jd.upload_json_to_jazzdrive(_DELTA_PATH)
         if not result.get("ok"):
             err_msg = result.get("error", "Unknown upload error")
             log.error("JazzDrive delta upload failed: %s", err_msg)
             return _render_index(err=f"✗ Upload failed: {err_msg} — Download delta.json and upload manually.")
 
-        share_url    = result.get("share_url") or result.get("url") or ""
+        share_url     = result.get("share_url") or result.get("url") or ""
         new_remote_id = str(result.get("remote_id") or "")
 
         # -- Step 5: save new share URL + remote_id to DB ---------------------
@@ -560,29 +572,10 @@ def upload_delta():
             with db.conn() as c:
                 c.execute("INSERT OR REPLACE INTO settings(k,v) VALUES('jd_delta_remote_id',?)", (new_remote_id,))
 
-        # -- Step 6: trash ALL pre-upload files (now that new one is live) ----
-        # Excludes the new remote_id in case the API reused an existing slot.
-        if _pre_upload_ids:
-            ids_to_delete = [i for i in _pre_upload_ids if str(i) != str(new_remote_id)]
-            if ids_to_delete:
-                try:
-                    # NOTE: trash_files() with media_type="file" returns success but does NOT
-                    # actually soft-delete — files remain visible. Use delete_files_permanent()
-                    # for file-type delta cleanup (these are ephemeral temp files; perm delete is safe).
-                    dr = jd.delete_files_permanent(_aid, ids_to_delete)
-                    log.info(
-                        "upload_delta: permanently deleted %d old delta file(s) → %s",
-                        len(ids_to_delete), dr.get("success") or dr.get("error") or dr,
-                    )
-                except Exception as _de:
-                    log.warning("upload_delta: delete of old files failed (non-fatal): %s", _de)
-            else:
-                log.info("upload_delta: no old files to delete (new_remote_id matched or list was empty)")
-
         if share_url:
             log.info("JazzDrive delta URL saved: %s", share_url)
             return _render_index(
-                msg=f"✓ Uploaded & saved — {len(_pre_upload_ids)} old file(s) trashed. URL: {share_url}"
+                msg=f"✓ Uploaded & saved (purged {_purged_count} old file(s)). URL: {share_url}"
             )
         else:
             return _render_index(
@@ -600,6 +593,50 @@ def download_delta():
     if not os.path.exists(_DELTA_PATH):
         return "delta.json not found — generate it first", 404
     return send_file(_DELTA_PATH, as_attachment=True, download_name="delta.json", mimetype="application/json")
+
+
+@bp.route("/purge-delta-folder", methods=["POST"])
+@login_required
+def purge_delta_folder():
+    """Manually delete ALL files in the Radd-Delta JazzDrive folder.
+
+    Emergency cleanup route. Use when stale temp files (delta_RANDOM.txt)
+    have accumulated and need to be cleared without running a full upload.
+    Safe to call at any time — Flutter clients fall back to local catalog
+    gracefully if the delta folder is momentarily empty.
+    """
+    try:
+        from hub import jazzdrive as jd
+
+        aid_row = None
+        with db.conn() as _c:
+            aid_row = _c.execute(
+                "SELECT id FROM accounts WHERE is_active=1 ORDER BY id LIMIT 1"
+            ).fetchone()
+        if not aid_row:
+            return _render_index(err="✗ No active JazzDrive account.")
+        _aid = aid_row["id"]
+
+        _delta_folder_id = None
+        with db.conn() as _c:
+            fr = _c.execute("SELECT v FROM settings WHERE k='jd_delta_folder_id'").fetchone()
+            if fr and str(fr["v"]).isdigit():
+                _delta_folder_id = int(fr["v"])
+        if not _delta_folder_id:
+            return _render_index(err="✗ jd_delta_folder_id not set in DB — run an Upload first.")
+
+        existing = jd.list_all_files_in_folder(_aid, _delta_folder_id)
+        if not existing:
+            return _render_index(msg="✓ Radd-Delta folder is already empty.")
+
+        ids_to_delete = [f["id"] for f in existing]
+        jd.delete_files_permanent(_aid, ids_to_delete)
+        log.info("purge_delta_folder: deleted %d file(s): %s", len(ids_to_delete), ids_to_delete)
+        return _render_index(msg=f"✓ Purged {len(ids_to_delete)} file(s) from Radd-Delta folder.")
+
+    except Exception as e:
+        log.exception("purge_delta_folder error")
+        return _render_index(err=f"✗ Purge failed: {e}")
 
 
 @bp.route("/set-delta-url", methods=["POST"])

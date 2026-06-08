@@ -1450,3 +1450,43 @@ No further geo-restriction bugs found after full audit.
 - Keepalive: Heartbeat OK
 - All proxy chains audited and correct
 - GitHub: commit bdea6d2
+
+## Session 2026-06-08 — FIX-DELTA-PREPURGE: delta upload pre-purge strategy
+
+### Context
+Previous agent hit token limit mid-task while debugging 3 stale files in Radd-Delta folder.
+This session completed the investigation and implemented the permanent fix.
+
+### Root cause found
+JazzDrive auto-renames uploaded files to `delta_RANDOM.txt` when `delta.txt` already exists
+in the folder. The old post-purge strategy (snapshot IDs → upload → delete old IDs) meant the
+new upload always collided with the existing file and got a random name. If the post-upload
+delete then failed silently (due to transient session issue), temp files accumulated.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-052 | FIX-DELTA-PREPURGE: pre-purge strategy + /purge-delta-folder route | ✅ DONE |
+
+### Fix applied: zero_rating.py upload_delta() — pre-purge strategy
+**Before**: snapshot existing IDs → upload → delete old IDs after  
+**After**: delete ALL existing files BEFORE upload → JD creates delta.txt cleanly (no collision)
+
+Also added `POST /zero-rating/purge-delta-folder` admin route for emergency manual cleanup.
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| radd-hub/hub/routes/zero_rating.py | upload_delta() pre-purge + /purge-delta-folder route | this session |
+
+### Verified
+- Cleanup script confirmed: Radd-Delta folder had 1 file (delta.txt id=242552967) — already clean
+- DB jd_delta_remote_id=242552967 — correct
+- Flask restarted, healthz OK
+- Patch applied and verified on Oracle
+
+### State at end of session
+- Oracle Flask: RUNNING, healthz OK
+- Account 03286829827: ACTIVE, auto-refreshes
+- Radd-Delta folder: 1 file only (delta.txt)
+- Open tasks: none
