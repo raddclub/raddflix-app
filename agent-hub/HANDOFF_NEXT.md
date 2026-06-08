@@ -1,18 +1,53 @@
 # agent-hub/HANDOFF_NEXT.md — Next Agent Handoff
-> Generated: 2026-06-08 | Session: Infrastructure Sprint (TASK-040/041/042)
+> Generated: 2026-06-08 | Session: Infrastructure Sprint (TASK-040/041/042/043)
 > **Read this AFTER AGENT_HANDOFF.md and BEFORE touching any code.**
 
 ---
 
 ## What happened this session (2026-06-08 — Infrastructure Sprint)
 
-Three infrastructure tasks completed. No player changes. Latest commit: `6e7e517`
+Four infrastructure tasks completed. No player changes. Latest commit: `a45b0735`
 
 | Task | Feature | Commits |
 |------|---------|---------|
 | TASK-040 | RemoteConfig split — loadCached (instant) + fetchBackground (4s fire-and-forget) | `4020cdf` |
 | TASK-041 | Delta folder purge — list+trash all old files before each upload | `f8cd79b` |
 | TASK-042 | Fast Oracle→delta fallback — connectTimeout 6s, 5s probe on getVersion | `b709ebe` |
+| TASK-043 | Auto-publish fix — all titles with share_url published after scan (NULL + scope bug) | `a45b0735` |
+
+---
+
+## TASK-043 — Auto-Publish Fix
+
+**Status:** ✅ Complete | Commit: `a45b0735`
+
+**Problem:** `_auto_publish_titled_files()` in `scanner.py` had two bugs that prevented newly
+scanned titles from being auto-published:
+
+1. **NULL condition bug** — `AND is_published=0` in SQLite never matches rows where
+   `is_published IS NULL` (SQLite `NULL = 0` evaluates to NULL, not true). Titles inserted
+   without an explicit `is_published` value had NULL and were silently skipped.
+
+2. **Account scope too narrow** — the query filtered `WHERE account_id=?` in the files
+   subquery. A title with a file from account A wouldn't be published when scanning account B,
+   even though the title has a valid share_url and should be visible.
+
+**Fix in `radd-hub/hub/scanner.py`:**
+```python
+# BEFORE (broken):
+" AND is_published=0", (now, account_id)
+
+# AFTER (fixed):
+" AND (is_published IS NULL OR is_published != 1)",
+# + removed account_id=? filter from files subquery
+(now,)
+```
+
+**Immediate DB fix also applied** — ran the corrected SQL on the live DB. Published 4 titles
+that had been stuck with NULL is_published despite having valid share_url files.
+
+**Result:** After any scan completes (or is stopped by user), ALL titles across the entire
+catalog that have at least one file with a non-empty share_url are published in one pass.
 
 ---
 
