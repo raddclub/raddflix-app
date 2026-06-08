@@ -96,3 +96,49 @@ No fallback existed for concurrent/duplicate slug situations.
 **Result:** v3 DB = 17 titles, 28 files, all Live. Library page renders correctly.
 
 **Commits:** 6ccfa67 (scanner.py slug-conflict fix)
+
+
+  ---
+
+  ## TASK-054: Fix Bug 2 — TV show episodes missing from delta (DONE)
+
+  **Problem:** Spider-Noir S01E01/S01E02 and Vincenzo episodes gave "Jazz SIM Required /
+  Could not connect to JazzDrive" when Play clicked in app.
+
+  **Root cause 1 — zero_rating.py episode-fill bug:**
+  `generate_delta_payload()` filled episodes only for `media_type == "show"`, but Spider-Noir
+  and Vincenzo are stored as `media_type="tv"` in Oracle DB, and Inuyashiki/Reborn as
+  `media_type="series"`. All four shows had **empty episodes[]** in every delta.json upload.
+  Flutter `sync_service.dart` merges episodes from delta — empty episodes = no share_url =
+  "Jazz SIM Required".
+
+  **Root cause 2 — JSESSIONID not extracted reliably on Android:**
+  `jazzdrive_service.dart _loginShare()` read JSESSIONID only from Set-Cookie response header.
+  Android's `dart:io` HttpClient absorbs Set-Cookie before Dio sees it, leaving `cookie=""`.
+  `_getMedia` then sends no Cookie header → JazzDrive returns HTML instead of JSON → parse
+  fails → "Jazz SIM Required". Also: no detection of JD error responses (MED-1011 key
+  invalid, FOL-1004 folder gone) — both silently became confusing "Jazz SIM Required".
+
+  **Fixes applied:**
+  1. **Oracle — zero_rating.py:** Changed `media_type == "show"` → `media_type in ("show", "tv", "series")`
+     in both episode-fill lines (100 + 130). Commit: b94ec8a352. Applied on Oracle server + GitHub.
+  2. **Flutter — jazzdrive_service.dart:** Extract JSESSIONID from JSON body (`inner['jsessionid']`)
+     as primary source; fall back to Set-Cookie header. Also detect JD error responses (MED-1011,
+     FOL-1004) and throw descriptive exception instead of silent failure. Commit: 95013b88a6.
+  3. **Oracle — delta regenerated + uploaded:** Ran `generate_delta_payload()` + JazzDrive upload.
+     New delta URL: `gH9GymFdRKmy1rDgdQq5B...` — Spider-Noir now has 2 episodes with share_urls,
+     Vincenzo 2 episodes, Reborn 1 episode, Inuyashiki 1 episode.
+
+  **Additional finding — 9 old movies have deleted JazzDrive files:**
+  Animal, Dune, Inception, Interstellar, Inuyashiki, Oppenheimer, Reborn, The Ninth Gate,
+  Super Mario Galaxy — their JD files (remote_ids) return empty videos[] (deleted from JazzDrive).
+  Their share URLs are old individual-file links (MED-1011 invalid). No local source files exist
+  (local_path empty for all). These 9 movies need manual re-upload to JazzDrive by admin.
+  The 6 newer movies (Bhooth Bangla, Luka Chuppi, Pitt Siyapa, Swapped, The Raja Saab, Wildcat)
+  have valid folder share links and SHOULD play after the APK rebuild.
+
+  **Bug 1 status (no play button for movies):**
+  Code in `show_detail_screen.dart` IS correct — play button at line 464 shows when `isMovie=true`.
+  Animal is in delta with `media_type="movie"`, `file_id="5"`. Most likely cause: user's installed APK
+  predates the play button code. Rebuild APK from current main branch to verify.
+  
