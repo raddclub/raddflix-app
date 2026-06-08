@@ -275,6 +275,10 @@ _HTML = """
         <button type="submit" class="btn-orange">☁ Generate + Upload to JazzDrive</button>
       </form>
       {% endif %}
+      <form method="post" action="/zero-rating/purge-delta-folder"
+            onsubmit="return confirm('Delete ALL files in Radd-Delta folder on JazzDrive? Use this to manually clean up stale delta_RANDOM.txt files.')">
+        <button type="submit" style="background:#c0392b;color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font-size:13px">🗑 Purge Delta Folder</button>
+      </form>
     </div>
     {% if delta_exists %}
     <div style="margin-top:14px;padding:12px;background:var(--panel2);border-radius:8px;font-size:12px;color:var(--muted);font-family:monospace">
