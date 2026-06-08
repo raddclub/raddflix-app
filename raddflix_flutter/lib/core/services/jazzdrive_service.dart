@@ -251,28 +251,47 @@ class JazzDriveService {
     }
 
     final data = resp.data!;
-    final inner = (data['data'] as Map<String, dynamic>?) ?? data;
-    final vk = (inner['validationkey'] ?? inner['validationKey'] ?? inner['validation_key']
-                ?? data['validationkey'] ?? data['validationKey']) as String?;
 
-    if (vk == null || vk.isEmpty) {
-      throw Exception('JazzDrive login: no validationkey in response');
-    }
-
-    // Extract JSESSIONID from Set-Cookie header
-    final rawHeaders = resp.headers.map;
-    final setCookieList = rawHeaders['set-cookie'] ?? [];
-    String cookie = '';
-    for (final c in setCookieList) {
-      final m = RegExp(r'JSESSIONID=([^;]+)').firstMatch(c);
-      if (m != null) {
-        cookie = 'JSESSIONID=${m.group(1)}';
-        break;
+      // Detect explicit error from JazzDrive (e.g. MED-1011 = share key invalid/expired,
+      // FOL-1004 = folder deleted from JazzDrive). Throw descriptive exception.
+      final errorObj = data['error'] as Map<String, dynamic>?;
+      if (errorObj != null && (errorObj['code'] as String? ?? '').isNotEmpty) {
+        final errCode = errorObj['code'] as String? ?? 'UNKNOWN';
+        final errMsg  = errorObj['message'] as String? ?? 'Link expired';
+        throw Exception('Content unavailable ($errCode: $errMsg). Please contact admin.');
       }
-    }
 
-    return _ShareSession(validationKey: vk, cookie: cookie);
-  }
+      final inner = (data['data'] as Map<String, dynamic>?) ?? data;
+      final vk = (inner['validationkey'] ?? inner['validationKey'] ?? inner['validation_key']
+                  ?? data['validationkey'] ?? data['validationKey']) as String?;
+
+      if (vk == null || vk.isEmpty) {
+        throw Exception('JazzDrive login: no validationkey in response');
+      }
+
+      // Extract JSESSIONID — prefer JSON body (more reliable on Android where
+      // Dart's HttpClient may absorb Set-Cookie headers before they reach Dio).
+      String cookie = '';
+      final bodyJsid = (inner['jsessionid'] ?? inner['JSESSIONID']
+                       ?? data['jsessionid'] ?? data['JSESSIONID']) as String?;
+      if (bodyJsid != null && bodyJsid.isNotEmpty) {
+        // Strip node suffix if present (e.g. "06B2BCBBE57.2i182" → "06B2BCBBE57")
+        final jsidPart = bodyJsid.contains('.') ? bodyJsid.split('.').first : bodyJsid;
+        cookie = 'JSESSIONID=${jsidPart}';
+      } else {
+        // Fallback: extract from Set-Cookie response header
+        final setCookieList = resp.headers.map['set-cookie'] ?? [];
+        for (final c in setCookieList) {
+          final m = RegExp(r'JSESSIONID=([^;]+)').firstMatch(c);
+          if (m != null) {
+            cookie = 'JSESSIONID=${m.group(1)}';
+            break;
+          }
+        }
+      }
+
+      return _ShareSession(validationKey: vk, cookie: cookie);
+    }
 
   static Future<_MediaRecord> _getMedia(
     String shareKey,
