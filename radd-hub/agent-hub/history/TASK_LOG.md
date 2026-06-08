@@ -171,3 +171,270 @@ Vincenzo S01E02 was auto-renamed by JazzDrive — remote_id found it; filename m
 - NEXT-01: Regenerate + push delta.json to JazzDrive (Flutter catalog sync)
 - DATA-01: All Of Us Are Dead missing episodes need upload
 - OAUTH-01: Account 03286829827 needs manual OTP re-login
+
+
+---
+
+## Session: 2026-06-06 — db/reset catalog version bug fix
+
+### Problem
+Admin panel Reset Tables button appeared to do nothing. User wiped titles/files
+from Oracle but Flutter app still showed old catalog data.
+
+### Root Cause
+db_reset() emptied the titles table but did NOT update catalog_forced_version
+in the settings table. Since _catalog_version() returns MAX(titles.updated_at,
+catalog_forced_version), the version stayed at the old timestamp. Flutter app
+saw no catalog version change and kept showing its stale local cache.
+
+### Fix Applied
+hub/routes/admin.py — db_reset() now also:
+1. Clears turbo_cache, recommendation_cache, media_index cache tables
+2. Calls db.set_setting("catalog_forced_version", str(int(time.time()))) after
+   clearing — forces every Flutter device to re-sync on next launch
+3. Returns cleared/skipped table lists instead of a generic message
+
+### DB State After This Session
+Agent SSH test accidentally executed both db/reset AND db/full-delete.
+DB is now wiped: 0 accounts, 0 titles, 0 files (392 KB empty schema).
+User must re-add Jazz SIM account 03286829827 via admin panel, do OTP login,
+set account to scan mode, then trigger a JazzDrive scan.
+
+### Files Changed
+- hub/routes/admin.py (db_reset route patched, Flask restarted)
+
+### Non-Negotiable Rules (carry forward)
+- Never upgrade sqflite_sqlcipher past 3.1.0+1
+- Never add androidAttachSurfaceAfterVideoParameters: true
+- XOR padding fix must stay in request_encoder.dart
+- No git shell commands — GitHub pushes via Contents/Trees API only
+
+---
+
+## Session: 2025-06-07 — Bug fixes: catalog sync, local video black screen, vault biometric
+
+### Bugs Fixed
+
+**FIX-CATALOG-01 — Published movies not showing play button (some)**
+- Root cause: Flutter local DB was synced before all 3 movies were published; only 1 had file data. After publishing, catalog version must change to trigger auto-sync.
+- Fix: Bumped  on all 3 published titles (Animal id=16, Bhooth Bangla id=25, Luka Chuppi id=27). Catalog version is MAX(updated_at), so this forces app to re-sync on next check. User must also tap Settings → Sync if auto-sync doesn't trigger.
+- Note: Animal (id=16) has no file linked at all → play button will never show until a file is linked.
+
+**FIX-PLAYER-01 — Local video black screen after 2-3s, audio continues**
+- Root cause:  condition for the local-file fade-in guard was . On Infinix/MediaTek, the player internally resets  to  and emits  transiently during playback (~2-3s). This triggered opacity=0, making the video surface appear black. Opening the VideoDisplay settings panel forced a rebuild that saw position/playing correctly, restoring opacity=1.
+- Fix: Changed condition to use  instead of . Duration is only zero before the file loads; it stays at the file's runtime throughout playback regardless of position resets.
+- Commit: 215bbc2055 (player_screen.dart line 2700)
+
+**FIX-VAULT-01 — Vault biometric not working (fingerprint prompt never appeared)**
+- Root cause:  in  throws a  on Infinix/MediaTek phones that lack Class 3 (strong) biometric. The exception was caught by  silently — no prompt, no error shown.
+- Fix: Changed  → . The vault already has its own PIN keypad as the alternative, so the system biometric dialog also offering device-credential fallback is safe.
+- Commit: 59fc97249c (vault_service.dart line 157)
+
+### DB Changes
+- titles.updated_at bumped for ids 16, 25, 27 (catalog version refresh)
+
+### Non-Negotiable Rules (carry forward)
+- Never upgrade sqflite_sqlcipher past 3.1.0+1
+- Never add androidAttachSurfaceAfterVideoParameters: true
+- XOR padding fix must stay in request_encoder.dart
+- No git shell commands — GitHub pushes via Contents/Trees API only
+- No local Python3 — use Oracle SSH for Python3 GitHub API calls
+
+---
+
+## Session: 2026-06-07 — 3 Bug Fixes (catalog sync, local video black screen, vault biometric)
+
+### Context
+User reported 3 bugs seen in build1023:
+1. Published movies missing play button (only 1 of 3 showed it)
+2. Local video goes black after 2-3s; audio continues; opening settings restores video
+3. Vault fingerprint unlock did not work
+
+---
+
+### FIX-CATALOG-01 — Play button missing on published movies
+**Root cause:** Flutter app local SQLite synced before all movies were published;
+local DB had stale/missing file_id + share_url for Bhooth Bangla and Luka Chuppi.
+**Fix:** Bumped updated_at on all published titles (SQL):
+  UPDATE titles SET updated_at = strftime(%s,now) WHERE is_published=1;
+Catalog version = MAX(updated_at), so the app detects the change and re-syncs on next launch.
+**Note:** Animal (id=16) has NO file linked — play button will not appear until a video
+file is scanned/uploaded and linked to this title_id.
+
+---
+
+### FIX-PLAYER-01 — Local video black screen after 2-3s (commit 215bbc2055)
+**File:** raddflix_flutter/lib/screens/player_screen.dart  L2701
+**Root cause (proven from stream listener code):**
+Two Dart stream listeners run microseconds apart:
+  _player.stream.position fires  -> _position = Duration.zero  (NO setState, direct assign)
+  _player.stream.playing  fires  -> setState(() => _playing = false)  (triggers rebuild)
+  build() reads: _isLocalFile=true, !_playing=true, _position=Duration.zero -> opacity=0.0 -> BLACK
+
+This is an Infinix/MediaTek quirk: content:// local URIs cause a transient internal
+player reset (position=0, playing=false) at ~2-3s during MediaCodec initialization.
+_position is a direct-assign (no setState), so build() sees the reset value exactly when
+_playing fires its setState rebuild — a precise race condition.
+
+**Fix:** Changed _position==Duration.zero to _duration==Duration.zero.
+_duration is also direct-assign (no setState) but is set once at file-load and NEVER
+resets during playback. Any subsequent rebuild sees _duration > 0, keeping opacity=1.0.
+  OLD: opacity: (_isLocalFile && !_playing && _position == Duration.zero) ? 0.0 : 1.0,
+  NEW: opacity: (_isLocalFile && !_playing && _duration == Duration.zero) ? 0.0 : 1.0,
+
+**Why "opening settings restores video":** By the time the user opens the settings panel
+(seconds later), the player has recovered (_playing=true, _position>0). The setState from
+opening the panel rebuilds with the correct state, restoring opacity=1.0.
+
+---
+
+### FIX-VAULT-01 — Vault fingerprint prompt never appeared (commit 59fc97249c)
+**File:** raddflix_flutter/lib/services/vault_service.dart  L157
+**Root cause:** biometricOnly:true maps to Android BiometricPrompt BIOMETRIC_STRONG (Class 3).
+Infinix fingerprint sensors are Class 2 (BIOMETRIC_WEAK). Android throws PlatformException
+before the prompt appears. catch(_){return false} swallowed it silently — no prompt, no error.
+User confirmed: fingerprint works in ALL other apps (those use biometricOnly:false or omit it).
+**Fix:** biometricOnly:false — fingerprint still preferred; device PIN available as fallback
+in the system dialog. Vault PIN keypad remains as the separate in-app fallback.
+  OLD: biometricOnly: true,   // strict: no device PIN/pattern fallback
+  NEW: biometricOnly: false,  // FIX-VAULT-01: Class 3 throws on Infinix; false still uses fingerprint
+
+---
+
+### Verification (via GitHub API — bypasses CDN cache)
+  player_screen.dart SHA bf614900e141 — _duration==Duration.zero confirmed at L2701
+  vault_service.dart  SHA fc646586fa55 — biometricOnly: false confirmed at L157
+  Oracle DB: updated_at=1780856421 (2026-06-07 18:20:21) for title ids 16, 25, 27
+
+### Non-Negotiable Rules (carry forward)
+- Never upgrade sqflite_sqlcipher past 3.1.0+1
+- Never add androidAttachSurfaceAfterVideoParameters: true
+- XOR padding fix must stay in request_encoder.dart
+- No git shell — GitHub Contents API only; use Oracle Python3 for large files
+- GitHub token in local Replit env GITHUB_TOKEN (Oracle .env is empty)
+- db.setting(k) not db.get_setting(k)
+
+---
+
+## Session: 2026-06-07 (continued) — FEAT-AUTOPUB-01: Auto-publish titles after scan
+
+### Problem
+Every time a new movie/show was scanned from JazzDrive, its title row sat in the DB
+with is_published=0 (invisible to users). An admin had to manually run SQL to set
+is_published=1. This caused: Bhooth Bangla + Luka Chuppi missing play buttons in build1023.
+
+### Solution: _auto_publish_titled_files(account_id) in scanner.py
+Added a new helper function that runs a single atomic SQL query:
+
+  UPDATE titles SET is_published=1, updated_at=<now>
+  WHERE id IN (
+      SELECT DISTINCT title_id FROM files
+      WHERE account_id=? AND title_id IS NOT NULL
+        AND share_url IS NOT NULL AND share_url != 
+  )
+  AND is_published=0
+
+This publishes any title that:
+  - Has at least one file linked to it (for this account)
+  - That file has a share_url (so the Flutter app can stream it)
+  - Was not already published
+
+Called from 3 locations in _scan_worker:
+  L600 — function definition (after _assign_poster_share_urls)
+  L807 — main scan completion path (after enrichment, before db.touch_account_scan)
+  L820 — InterruptedError path (after _import_legacy_into_v3, if user stops scan early)
+
+### Files changed (Oracle only — no app rebuild needed)
+  /opt/jazzmax/radd-hub/hub/scanner.py
+    L600: new _auto_publish_titled_files() function
+    L807: call after enrichment in main scan flow
+    L820: call in InterruptedError handler
+
+### Verification
+  python3 -m py_compile scanner.py → SYNTAX OK
+  Backend restarted: PID 1020859, responding on :5000
+
+### Impact
+From now on: run a scan → titles with linked files are auto-published immediately.
+No more manual SQL needed after scanning new content.
+
+---
+
+## Session: 2026-06-08 — INVESTIGATION: All streaming broken + local video still dark
+
+### User report (post-build1023 install)
+1. Local video still goes dark immediately on play
+2. Movies → "video not available"
+3. Season episodes → "retry link has expired" even on first play
+
+### Root Cause 1: User installed build1023 (before our fixes)
+Both FIX-PLAYER-01 (215bbc2055) and FIX-VAULT-01 (59fc97249c) were committed on June 7
+AFTER build1023 was created. GitHub Actions automatically triggered:
+  build1024 → FIX-VAULT-01 commit → completed success 2026-06-07T18:22:41
+  build1025 → FIX-PLAYER-01 commit → completed success 2026-06-07T18:23:14
+User must install build1025 (RaddFlix-1.0.0+1-build1025.apk, 56MB) to get both fixes.
+
+### Root Cause 2: db_update.json was stale (June 2, 6 days old)
+The db_update.json catalog file had:
+  - version=1780400706 (June 2) while DB had current titles from June 7-8
+  - ALL titles showed share_url="" (no share_urls in old file rows)
+  - Did NOT contain Bhooth Bangla, Luka Chuppi, Spider-Noir, Vincenzo at all
+  - Had OLD title_ids (e.g. Dune=9, Inception=14) that dont match current DB
+
+
+---
+
+## Session: 2026-06-08 — All streaming broken + local video still dark
+
+### User report
+1. Local video still goes dark on play
+2. Movies: "video not available"
+3. Episodes: "retry link has expired" even on first play
+
+### Root Cause 1: Wrong APK installed (build1023, before our fixes)
+FIX-PLAYER-01 commit 215bbc2055 and FIX-VAULT-01 commit 59fc97249c were pushed
+AFTER build1023. GitHub Actions auto-triggered:
+  build1024 success 2026-06-07T18:22:41
+  build1025 success 2026-06-07T18:23:14
+User must install build1025 (56MB) to get both fixes.
+
+### Root Cause 2: db_update.json stale since June 2 (6 days old)
+The catalog JSON had version=1780400706 and zero share_urls on any file.
+It did not contain Bhooth Bangla, Luka Chuppi, Spider-Noir, or Vincenzo.
+Old file_ids no longer existed in current DB stream_links.
+When Flutter called the play endpoint with stale file_ids, the server returned
+404 "file not found" or 404 "no share_url" which Flutter renders as errors.
+The db_update.json regeneration trigger was not firing after direct SQL updates.
+
+### Root Cause 3: Three ghost-published titles had no files
+Titles 15 Dune, 16 Animal, 20 Inception were is_published=1 but had zero rows
+in the files table. They were manually published before any scan linked files.
+
+### Fixes Applied (server-side, no APK rebuild needed)
+FIX-CATALOG-02: Unpublished 3 ghost titles via SQL:
+  UPDATE titles SET is_published=0, updated_at=now WHERE id IN (15,16,20)
+  AND NOT EXISTS (SELECT 1 FROM files WHERE title_id=titles.id)
+  Result: 3 rows updated
+
+FIX-CATALOG-03: Regenerated db_update.json from scratch via Python:
+  version=1780915473 (fresh timestamp, Flutter will detect change and sync)
+  4 published titles, all with real share_urls and valid file_ids
+  4 episodes, all with real share_urls
+
+### Final catalog state
+  title_id=25  Bhooth Bangla  movie  file_id=18  share=YES
+  title_id=27  Luka Chuppi   movie  file_id=28  share=YES
+  title_id=28  Spider-Noir    show   S1E1 f31 S1E2 f30  share=YES
+  title_id=30  Vincenzo       show   S1E1 f35 S1E2 f32  share=YES
+
+### APK location for user
+  Build: 1025  File: RaddFlix-1.0.0+1-build1025.apk  56MB
+  GitHub Actions run ID: 27100948120
+  Artifact ID: 7466792698  Expires: 2026-07-07
+  URL: github.com/raddclub/raddflix-app/actions/runs/27100948120
+
+### Notes for next session
+  - db_update.json auto-regen does NOT trigger on direct SQL updates to titles.
+    Always regenerate manually via Python script after any is_published change.
+  - Ghost-published titles from old data: IDs 15, 16, 20 now set to is_published=0.
+  - SSH key lives in ORACLE_SSH_KEY env var; reconstruct at /tmp/oracle_key on session start.

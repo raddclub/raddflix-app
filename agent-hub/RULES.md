@@ -129,10 +129,26 @@ Last updated: 2026-06-08 (added Rules 32–38 — RemoteConfig, sync, delta, con
 37. **`list_all_files_in_folder(account_id, folder_id)` in `jazzdrive.py` uses `/media/file?action=get`**
     — this is the correct endpoint for `mediatype="file"` items (delta.json/.txt uploads).
     `/media/video` returns ZERO results for non-video items — do NOT use it for file-type listing.
-    Soft-delete (`trash_files`) returns false-positive success for `media_type="file"` but does NOT
-    remove files. Always use `delete_files_permanent()` to clean old delta files.
+    **`trash_files()` is a false-positive for BOTH `media_type="file"` AND `media_type="video"`**
+    — it returns success but does NOT actually remove the file. Confirmed on both types (TASK-049,
+    TASK-050). **Always use `delete_files_permanent(account_id, [ids])` for any file cleanup.**
 
 ---
+
+---
+
+## Duplicate Upload Guard Rules (TASK-048 → TASK-051)
+40. **Every direct `_upload_file()` call site must have a JazzDrive-side duplicate guard.**
+    Check `/media/video?parentId=FOLDER_ID&folderId=FOLDER_ID` for the target filename before
+    calling `_upload_file()`. If found: record existing remote_id, skip upload, return.
+    Both guarded paths are in `uploader.py`:
+    - `upload_to_jazzdrive()` guard at ~L1287
+    - `_upload_pending()` guard at ~L1791
+    Verified safe: `assets.py:process_title_poster` (early-return if poster_share_url exists),
+    `keepalive.py` (intentional unique-name heartbeat file), `library.py:push-poster-to-jd`
+    (delete-before-upload guard added TASK-051).
+    Any NEW direct `_upload_file()` call must add this guard.
+
 
 ## End of Session (every session, no exceptions)
 25. Mark all completed tasks ✅ DONE in `agent-hub/TASKS.md`

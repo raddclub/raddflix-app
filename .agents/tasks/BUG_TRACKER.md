@@ -1,5 +1,5 @@
 # BUG_TRACKER.md
-Last updated: 2026-06-07
+Last updated: 2026-06-06
 
 ## Status Key
 - ✅ FIXED — committed and verified on live server
@@ -78,115 +78,139 @@ parts, never `\$` — or use raw strings (`r'...'`).
 
 ## Data Gap (not a code bug)
 
+| ID | Title | Status | Notes |
+|----|-------|--------|-------|
+| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB episodes table. Need upload to JazzDrive + sync. |
+
 ---
 
-## Session 2026-06-07 — Player Screen Pass 2 (BUG-P-NEW-01 through BUG-P-NEW-04)
+## Session 2026-06-05 — Proxy Pool God-Level Upgrade
+
+No new bugs found in app logs. App running cleanly (raddflix_radd via supervisorctl).
+
+### Changes made (not bugs — improvements)
+
+| ID | Type | Title | Action | File |
+|----|------|-------|--------|------|
+| IMP-P01 | IMPROVEMENT | Proxy pool had only 65 seeds with basic round-robin | Upgraded to 150+ seeds, weighted scoring, circuit breaker, 5-min fast recovery | `hub/proxy_pool.py` |
+| IMP-P02 | IMPROVEMENT | Dead proxy recovery only ran every 10 min | Added fast recovery thread: re-tests disabled proxies every 5 min | `hub/proxy_pool.py` |
+| IMP-P03 | IMPROVEMENT | If all proxies dead, upload would fail | CircuitBreaker: >80% dead → auto-fallback to direct connection | `hub/proxy_pool.py` |
+| IMP-U01 | IMPROVEMENT | Settings proxy panel was old inline code | Replaced with `_proxy_pool_panel.html` include (stat cards, filter, sort, score, bulk import, export, per-proxy test, 10s refresh) | `hub/templates/settings.html` |
+| IMP-U02 | IMPROVEMENT | No bulk import for proxies | Added bulk import panel: paste 100+ proxy URLs, auto-detect format | `hub/templates/_proxy_pool_panel.html` |
+| IMP-A01 | IMPROVEMENT | Only 3 pool API endpoints | Added 5 new endpoints: stats, bulk-import, test-one, reset-dead, export | `hub/routes/settings.py` |
+
+---
+
+## Session 2026-06-05 (2nd session) — OTP Upload Page Investigation
 
 | ID | Severity | Title | Root Cause | Fix Applied | File |
 |----|---------|-------|-----------|-------------|------|
-| BUG-P-NEW-01 | HIGH | Background-play toggle triggers duplicate audio session listeners | `_audioSessionInitialized` flag never set to `true` in `initState()` — every BG-play toggle re-ran `_initAudioSession()` and stacked listeners | Set `_audioSessionInitialized = true` immediately after `_initAudioSession()` call in `initState()` | `screens/player_screen.dart` |
-| BUG-P-NEW-02 | MEDIUM | Night Mode tile in More sheet always shows as inactive | `_MxMoreSheet` `active` state used `cinematicMode` instead of `_prefs.nightMode` | Added `nightModeActive` field; pass `_prefs.nightMode` at call site | `screens/player_screen.dart` |
-| BUG-P-NEW-03 | HIGH | Mid-stream errors silently swallowed → infinite buffering with no feedback | Blanket `return` in error handler dropped all errors after 3s of playback (CDN expiry / network drop) | Show "Connection lost — reconnecting…" SnackBar + soft `_jazzAutoRetry` | `screens/player_screen.dart` |
-| BUG-P-NEW-04 | CRITICAL | Cast button crashes app before first URL loads | `_currentPlaybackUrl.isNotEmpty` called on nullable `String?` — NPE when cast opened before URL resolved | Null-safe check: `_currentPlaybackUrl != null && _currentPlaybackUrl!.isNotEmpty` | `screens/player_screen.dart` |
+| BUG-O01 | CRITICAL | OTP not received from upload page | `scanner.send_otp()` called `resolve_proxies()` once with no retry; circuit open → direct → MED-1011 | Added proxy retry chain to `send_otp()` and `resend_otp()` | `hub/scanner.py` |
+| BUG-O02 | HIGH | OTP always fails when proxy pool circuit is open | `resolve_proxies(purpose='otp')` returned `None` when circuit open | Added fallback to `get_proxy_chain(n=1)` | `hub/jazzdrive.py` |
+
+Commit: `696890f`
 
 ---
 
-## Session 2026-06-07 — Player Screen Pass 3 (BUG-P-NEW-05)
+## Session 2026-06-05 (3rd session) — OTP Verify Proxy Bug
 
 | ID | Severity | Title | Root Cause | Fix Applied | File |
 |----|---------|-------|-----------|-------------|------|
-| BUG-P-NEW-05 | HIGH | ClipTrimmer A-B points don't enforce loop or show on seek bar | `onTrimChanged` only set `_abLoopStart`/`_abLoopEnd` state vars but never called `_abLoop.setA()`/`_abLoop.setB()` — so `maybeSeekBack()` had no data and seek bar markers never rendered | Added `_abLoop.setA(trim.start)` and `_abLoop.setB(trim.end)` after setState in `onTrimChanged` | `screens/player_screen.dart` |
+| BUG-V01 | CRITICAL | OTP verify always fails — "Connection aborted, RemoteDisconnected" | `verify_otp` used `resolve_proxies(purpose='sapi')` which returns `None` when circuit open → direct Oracle IP → Jazz drops connection | Changed to `purpose='otp'` + retry chain with `mark_fail` | `hub/scanner.py` |
+| BUG-V02 | HIGH | Cascading session death after failed OTP verify | verify_otp failure → no tokens saved → keepalive can't recover | Fixed by BUG-V01 | `hub/scanner.py` |
+
+Commit: `bd037a7`
+
+### Cascading Failure Chain (BUG-V02)
+```
+verify_otp fails (no proxy) → no tokens saved
+→ old refresh_token expires → invalid_grant (HTTP 400)
+→ old raw_accesstoken expires → 401 Unauthorized
+→ keepalive heartbeat fails repeatedly
+→ account needs fresh OTP re-login → loop
+```
 
 ---
 
-## Session 2026-06-07 — Player Screen Pass 4 full re-audit (BUG-P-NEW-06 + BUG-P-NEW-07)
+## Session 2026-06-06 — Admin Panel db/reset Fix + db.get_setting Fix
 
-| ID | Severity | Title | Root Cause | Fix Applied | File |
-|----|---------|-------|-----------|-------------|------|
-| BUG-P-NEW-06 | MEDIUM | Cinematic mode can only be toggled ON via VideoEnhanceSuite sheet, never OFF | `_openVideoEnhanceSuite` `onChanged` handler checked `map['cinematicMode'] == true` and called `_toggleCinematic()` — but never called it when the value was `false`. So once cinematic was enabled through the sheet, it could never be disabled via that path. | Compare new value against `_cinematicMode` and call `_toggleCinematic()` only when they differ: `if ((map['cinematicMode'] as bool? ?? _cinematicMode) != _cinematicMode) _toggleCinematic();` | `screens/player_screen.dart` |
-| BUG-P-NEW-07 | HIGH | Quick Bar "Night Mode" button toggles cinematic mode instead of night mode | `_QuickShortcutBar`'s `onNightMode` was wired to `onToggleCinematic` in `_ControlsOverlay`'s build method — a copy-paste error. Tapping "Night" in the Quick Bar silently toggled cinematic instead of applying the night-mode video filter. The Video Display Sheet had the correct implementation; the Quick Bar did not. | Added `onToggleNightMode` callback to `_ControlsOverlay`; wired it from `_buildPlayerBody` to the same correct lambda used by the Video Display Sheet (`_prefs.copyWith(nightMode: !_prefs.nightMode)` + save + `_applyVideoFilters()`); changed `onNightMode: onToggleCinematic` to `onNightMode: onToggleNightMode`. | `screens/player_screen.dart` |
+| ID | Severity | Title | Root Cause | Fix Applied | File | Commit |
+|----|---------|-------|-----------|-------------|------|--------|
+| BUG-A01 | HIGH | Admin "Reset Tables" button shows success but nothing deleted | `db_reset()` used `db.conn()` shared wrapper; WAL-mode read locks from background threads silently blocked DELETE; inner `try/except: pass` swallowed all errors, always returned `ok:True` | Replaced with direct `sqlite3.connect()` + `BEGIN IMMEDIATE` (exclusive lock) + `PRAGMA wal_checkpoint(TRUNCATE)` after commit | `hub/routes/admin.py` | `f8affe1` |
+| BUG-A02 | HIGH | `/api/app/config` crashes with `AttributeError` every ~2 min | `mobile_api.py` called `db.get_setting()` which does not exist; correct function name is `db.setting()` | Changed both occurrences to `db.setting("api_base_url", "")` | `hub/routes/mobile_api.py` | (this session) |
 
-### Pass 4 audit completeness note
-All 6,252 lines of `player_screen.dart` were read in full across 4 passes.
-No additional functional bugs found beyond BUG-P-NEW-06 and BUG-P-NEW-07.
-Items confirmed NOT bugs:
-- `_applyRotation` double-`copyWith` (cosmetically wasteful, functionally correct — setState runs callback synchronously so second copyWith is a no-op on the already-updated prefs)
-- Quick Bar "Night Mode" label wired to cinematic in `_QuickShortcutBar.onNightMode` (NOW FIXED as BUG-P-NEW-07)
-- Dead state vars (`_abLoopActive`, `_castScanning`, `_castDevices`, `_connectedCastDevice`, `_watchPartyRoom`, `_audioTracks`, `_selectedAudioTrack`) — declared but unused; not bugs, just stale scaffolding
+### Root Cause Details
 
+**BUG-A01:** SQLite WAL mode allows concurrent readers but requires an exclusive write lock
+for writes. Python's `sqlite3` via the shared `db.conn()` wrapper can silently fail to obtain
+`BEGIN IMMEDIATE` when background threads hold open read transactions. The fix uses a fresh
+direct connection which always succeeds in WAL mode.
+
+**BUG-A02:** `db.py` exposes `setting(k, default)` and `set_setting(k, v)` — there is no
+`get_setting()`. This caused an `AttributeError` on every call to `GET /api/app/config`,
+returning an HTTP 500 instead of the app config. Flutter app fell back to hardcoded defaults.
+The error appeared in logs every ~2 minutes (Flutter app polls this endpoint on cold start).
+
+### Also investigated this session (not bugs — findings)
+
+| Finding | Detail |
+|---------|--------|
+| Uploads use NO proxy/VPN | `JAZZDRIVE_PROXY_BYPASS=1` → all JazzDrive traffic goes direct from Oracle IP. WARP only routes 3 Jazz SAPI IPs for zero-rating; JazzDrive upload host is NOT in WARP tunnel. |
+| Auto-delete is configured correctly | `upload_auto_delete=true` in DB settings. Delete only triggers if `share_url OR remote_id` exists after upload. Files stuck because account session expired → uploads fail → no share_url → no delete. |
+| Leftover files in /data/media | `Pitt_Siyapa_2026.mp4` (682KB) and `Vncenz0.S01E02...mp4` (707KB) stuck since Jun 5. Empty folder `Off_Campus_S01/` also present. Root cause: account session expired, needs OTP re-login. |
+| Account 03286829827 session | EXPIRED — needs fresh OTP re-login via Upload page. All keepalive heartbeats failing. |
 
 ---
 
-## Session 2026-06-07 — Player Screen Pass 5: 29-Bug Full Audit
 
-| ID | Severity | Title | Root Cause | Fix | Status |
+## Session 2026-06-07 — BUG-A03: JazzDrive Geo-Restriction Root Cause
+
+### Root Cause Summary
+Session appeared "expired" (SAPI 401 on every restart) but raw_accesstoken was valid.
+Our wg0 VPN exits through Cloudflare (162.159.192.1) — NOT a Pakistani IP.
+JazzDrive /sapi/login/oauth is geo-restricted: Apache web server returns 401 HTML from
+non-PK IPs before the request even reaches the SAPI application layer.
+Normal SAPI calls (with JSESSIONID cookie) are NOT geo-restricted — these work fine direct.
+
+### Bugs Fixed
+
+| ID | Severity | Title | Root Cause | Fix | Commit |
 |----|---------|-------|-----------|-----|--------|
-| C-01 | CRITICAL | _applyVolumeBoost maxes system volume on player open | Unconditional VolumeController().setVolume(1.0) ran on prefs restore; gesture handlers already do this inline | Removed call from _applyVolumeBoost | ✅ FIXED |
-| C-02 | CRITICAL | Inner GestureDetector wins pinch arena, outer zoom dead | onScaleStart:(_){} on inner GD claimed arena for all pinch events | Removed onScaleStart; added pointerCount<2 guard in onScaleUpdate | ✅ FIXED |
-| H-01 | HIGH | _applyVideoFilters/_applyAudioPrefs race on rapid pref changes | Both async; rapid calls overwrote each other in MPV | 60ms timestamp debounce (_lastVfTs/_lastAfTs) — newer call supersedes | ✅ FIXED |
-| H-02 | HIGH | _jazzRetryCount not reset on episode change | Counter persisted: ep 2+ could never retry if ep 1 exhausted retries | _jazzRetryCount=0 at start of _playPrevEpisode and _playNextEpisode | ✅ FIXED |
-| H-03 | HIGH | _startWakeTimer uses default prefs (called before _loadPrefs) | initState called _startWakeTimer before prefs loaded; used zero timeout | Added _startWakeTimer() at end of _loadPrefs() | ✅ FIXED |
-| H-04 | HIGH | _cancelSleepTimer setState without mounted guard | Timer fires on background thread; if disposed, setState throws | if (mounted) guard added | ✅ FIXED |
-| H-05 | HIGH | Playback info panel always shows dashes | _fetchPlaybackInfo called once on open, never refreshed | _piTimer: Timer.periodic(2s) while panel open; cancelled in dispose() | ✅ FIXED |
-| H-06 | HIGH | Muting with boost: system silent but MPV plays at boost level | onMute only called VolumeController().setVolume(0); MPV volume untouched | Mute sets MPV vol=0; unmute restores (_volume * _volumeBoost * 100) | ✅ FIXED |
-| H-07 | HIGH | SleepTimerSheet.onStopAtEpisodeEnd dead | onStopAtEpisodeEnd:(_){} blank lambda | Wired to _setSleepTimer(-1) | ✅ FIXED |
-| H-08 | HIGH | Long-press speed badge auto-fades while holding | Fixed-duration fadeOut chain ran regardless of gesture state | Removed .then().fadeOut(); badge lives while _longPressFast=true | ✅ FIXED |
-| M-01 | MEDIUM | QuickShortcutBar nightmode never active-highlighted | _QuickShortcutBar had no nightModeActive param; case never set active=true | nightModeActive field threaded through _ControlsOverlay + _QuickShortcutBar | ✅ FIXED |
-| M-02 | MEDIUM | _SleepPanel shows nothing when sleepAtEpisodeEnd=true | Panel only checked remaining!=null; episode-end mode invisible | sleepAtEpisodeEnd param added; "Pausing at episode end" text shown | ✅ FIXED |
-| M-03 | MEDIUM | SW Decoder toggle has zero effect on MPV | Toggle only updated local _swDecoder state; no callback to MPV | onSwDecoderChanged callback wired to _np.setProperty('hwdec') | ✅ FIXED |
-| M-04 | MEDIUM | CinematicSettingsSheet gets wrong opacity | cinematicOpacity: _prefs.transparentModeOpacity (wrong field) | Changed to _cinematicOpacity (local state var) | ✅ FIXED |
-| M-05 | MEDIUM | Night mode colorchannelmixer missing alpha params | FFmpeg requires 12 coefficients; missing ra/ga/ba default to 0 (transparent) | Added :ra=0 :ga=0 :ba=1 to filter string | ✅ FIXED |
-| M-06 | MEDIUM | Hue divided by 180 compresses to near-zero | MPV eq filter hue takes degrees (-180 to +180), not 0-1 | Removed /180.0 | ✅ FIXED |
-| M-07 | MEDIUM | Controls freeze after rage skip | _scheduleHide() not called; hide timer never restarted | Added _scheduleHide() after _rageSkipActive=true | ✅ FIXED |
-| M-08 | MEDIUM | Plan expiry skips streaming users entirely | Condition gated on widget.localPath!=null; streaming (no localPath) always skipped | Broadened to fileId.isNotEmpty && !_isLocalPath(widget.fileId) | ✅ FIXED |
-| M-09 | MEDIUM | _loadSmartIntro() in initState always returns early | SmartIntroStore.shouldShow checks _duration>0 but duration=0 at initState | Removed dead call; real load via _skipIntroTimer at 5s | ✅ FIXED |
-| L-01 | LOW | Shuffle + Customise Items permanently dead | onTap:(_){} — never implemented | Removed both from _VideoDisplaySheet row2 | ✅ FIXED |
-| L-02 | LOW | Loop and A-B Repeat callbacks identical | Both opened AB panel | onLoop now calls _np.command(['cycle','loop-file']) | ✅ FIXED |
-| L-03 | LOW | Negative remaining time during intro skip | Position ahead of known duration | Deferred — clamp at caller level in next cleanup pass | 🚫 DEFERRED |
-| L-04 | LOW | lock_current uses raw physicalSize (can throw early) | renderViews.first.flutterView.physicalSize is hardware pixels; can throw | Replaced with MediaQuery.of(context).size | ✅ FIXED |
-| L-05 | LOW | Rage skip double-fires within 1200ms animation | No guard in _handleCenterTap | if (_rageSkipActive) return; guard added | ✅ FIXED |
-| L-06 | LOW | Settings pop doesn't restore SystemChrome | Navigator.push with no .then() | Added .then((_){SystemChrome.setEnabledSystemUIMode + _applyRotation}) | ✅ FIXED |
-| L-07 | LOW | _openCinematicSettings accessible when mode is off | No harmful side-effects | Deferred | 🚫 DEFERRED |
-| L-08 | LOW | _longPressFast + mediaButton fields use 4-space indent | Class body uses 2-space throughout | Fixed to 2-space | ✅ FIXED |
-| L-09 | LOW | Duplicate _openJumpTo/_showJumpToTime | Harmless redundancy | Deferred — consolidate in cleanup pass | 🚫 DEFERRED |
-| L-10 | LOW | _cinematicOpacity changes not persisted | onOpacityChanged only updates local state | Deferred — needs PlayerPrefs.cinematicOpacity schema addition | 🚫 DEFERRED |
+| BUG-A03a | HIGH | _ar_chain in android_refresh_session tried dead proxy pool with PROXY_BYPASS=1 | Chain builder always queried pool (dead) even with bypass=1, wasting 4×25s timeouts before failing OAuth2 step | Added is_proxy_bypass() guard at top of _ar_chain builder | 54f2434 |
+| BUG-A03b | CRITICAL | SAPI login blocked by geo-restriction (Cloudflare exit = non-PK IP) | wg0 exits via Cloudflare → Apache 401 HTML on /sapi/login/oauth | _s2_chain fetches proxy via proxy_pool.pool.get_best() directly, bypassing resolve_proxies() entirely — PK proxy used for login regardless of PROXY_BYPASS flag | 54f2434 |
+| BUG-A03c | MEDIUM | Over-broad bypass fix routed ALL SAPI calls through PK proxy | Added purpose!='sapi' exception to resolve_proxies() bypass guard → all SAPI calls (keepalive, uploads) went through PK proxy, timing out | Reverted resolve_proxies() to original; scoped to _s2_chain direct pool access only | 54f2434 |
+| BUG-A03d | MEDIUM | submit_otp _sub_chain: no PK proxy for geo-restricted OTP verify endpoint | cloud.jazzdrive.com.pk OTP verify is geo-restricted. _sub_chain used resolve_proxies() which returns None with PROXY_BYPASS=1 → Cloudflare exit → Apache 401 | _sub_chain now uses proxy_pool.pool.get_best() directly (mirrors _s2_chain fix). No is_proxy_bypass() short-circuit — this step MUST have PK proxy | bdea6d2 |
+
+### SAPI Call Architecture (CRITICAL — memorise this)
+```
+CALL TYPE                  | EXIT IP              | GEO-RESTRICTED?
+---------------------------|----------------------|----------------
+Keepalive (JSESSIONID)     | wg0 → Cloudflare     | NO  ✅
+Upload (JSESSIONID)        | wg0 → Cloudflare     | NO  ✅
+OAuth2 /oauth2/refresh     | wg0 → Cloudflare     | NO  ✅
+SAPI login /sapi/login     | Pakistani SOCKS proxy| YES ⚠️
+```
+PROXY_BYPASS=1 skips proxies in resolve_proxies() for all callers.
+_s2_chain bypasses resolve_proxies() and reads pool directly — PK proxy always used for login.
+
+### Verified Pakistani Proxies Added to sapi_proxies Table
+| Proxy | Result |
+|-------|--------|
+| socks5://182.184.119.180:1080 | ✅ HTTP 200 from SAPI — primary |
+| http://221.120.218.66:8080    | ⚠️ partial — fail_count=3 |
+
+### Session State After Fix
+```
+✓ Heartbeat OK for 03286829827 (session alive, expiry rolled +30d)
+startup_refresh: session restored — Android OAuth2 session refreshed (no OTP required)
+```
+OTP re-login no longer needed on Flask restart. Session auto-recovers via Android OAuth2 + PK proxy.
 
 ---
 
-## Session 2026-06-07 — Vault Feature Audit (TASK-034)
+## Open Issues (requires user action, not code fixes)
 
-| ID | Severity | Title | Root Cause | Fix Applied | File |
-|----|---------|-------|-----------|-------------|------|
-| BUG-VAULT-01 | 🔴 CRITICAL | Files stay visible in gallery / file manager after vault import | Android 11+: `FilePicker.file.path` = temp cache copy, NOT original. Original untouched in MediaStore. `scanFile()` on a cache path is a no-op for gallery | Collect `file.identifier` (content URI) per file; call `deleteMediaFiles(uris)` via MEDIA channel. API 30+: `MediaStore.createDeleteRequest` shows system confirmation dialog. API ≤29: `ContentResolver.delete()` + `scanFile` fallback | `vault_screen.dart`, `vault_service.dart`, `MainActivity.kt` |
-| BUG-VAULT-02 | 🔴 CRITICAL | Biometric unlock fails silently on Infinix / Samsung A-series | `authenticateBiometric()` checked `canCheckBiometrics` only. On MediaTek phones this returns false even with enrolled fingerprints. `isBiometricAvailable()` had the `isDeviceSupported()` fallback but `authenticateBiometric()` did not | Added same dual-check (`canCheckBiometrics \|\| isDeviceSupported`) to `authenticateBiometric()` | `vault_service.dart` |
-| BUG-VAULT-03 | 🟠 HIGH | Device screen-lock PIN/pattern unlocks the vault (wrong!) | `AuthenticationOptions(biometricOnly: false)` — user's Android lock-screen PIN was accepted as a valid vault unlock credential | Changed to `biometricOnly: true` — only fingerprint/face ID accepted | `vault_service.dart` |
-| BUG-VAULT-04 | 🟡 MEDIUM | Biometric prompt fires on every app open even when user never set it up | `isBiometricEnabled()` defaulted to `true` — meaning all new installs had biometric enabled without consent | Changed default to `false` — user must explicitly enable in Vault Settings | `vault_service.dart` |
-| BUG-VAULT-05 | 🟡 MEDIUM | Fingerprint button shows on lock screen even when biometric disabled in Settings | Numpad `bio` button only checked `_biometricAvailable`, ignored `_biometricEnabled` | Added `&& _biometricEnabled` to the button visibility condition; auto-trigger also respects this | `vault_lock_screen.dart` |
-| BUG-VAULT-06 | 🟢 LOW | Vault subfolders not protected with .nomedia — scanner can index them | `getVaultFolder()` created subdirectories but never wrote a `.nomedia` file inside them | Added `.nomedia` file creation to `getVaultFolder()` (vault root already had one) | `vault_service.dart` |
-
----
-
-## Build Errors (BUG-BUILD-XX) — Detected during TASK-035 / TASK-036
-
-### BUG-BUILD-01 (HIGH) — `_openSettings` undefined in `_PlayerScreenState`
-`player_screen.dart:3870` called `_openSettings()` inside the `onOpenFullSettings` callback
-of `PlayerHudSettingsSheet`, but no such method was ever defined.
-**Fix**: Replaced with existing `_openPlayerSettings()` (defined at line 1213).
-**Commit**: b6f39e2 | **Task**: TASK-035
-
-### BUG-BUILD-02 (HIGH) — `Colors.white87` not a valid Flutter color
-`player_hud_settings_sheet.dart` (lines 595, 759, 1125) used `Colors.white87`, which does
-not exist in Flutter's `Colors` class. Valid white opacities: `white10/12/24/30/38/54/60/70`.
-**Fix**: Replaced all 3 occurrences with `Color(0xDEFFFFFF)` (0xDE = 87% opacity, const-compatible).
-**Commit**: 4f25d18 | **Task**: TASK-035
-
-### BUG-BUILD-03 (HIGH) — `Colors.white20` not a valid Flutter color
-`layout_designer_screen.dart:472` used `Colors.white20`, which does not exist in Flutter's
-`Colors` class. Valid white opacity constants jump from `white12` to `white24`.
-**Fix**: Replaced with `Color(0x33FFFFFF)` (0x33 = 51 = 20% of 255, const-compatible).
-**Commit**: e4c9009 | **Task**: TASK-036
-
-**Color constant reference for future work:**
-- White opacities available: `Colors.white10`, `white12`, `white24`, `white30`, `white38`, `white54`, `white60`, `white70`
-- Black opacities available: `Colors.black12`, `black26`, `black38`, `black45`, `black54`, `black87`
-- For any other value: use `Color(0xAAFFFFFF)` / `Color(0xAA000000)` with the hex alpha byte
+| ID | Title | Status | Notes |
+|----|-------|--------|-------|
+| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB. Need JazzDrive upload + sync. |
+| OPS-01 | Account 03286829827 session | ✅ RESOLVED 2026-06-07 | BUG-A03 fixed. Session auto-recovers via Android OAuth2 + PK proxy. No OTP needed. |

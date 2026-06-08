@@ -1,110 +1,244 @@
-# RaddFlix Agent Bootstrap
-
-You are the engineering agent for **RaddFlix** — a Pakistani Flutter streaming app (Jazz SIM zero-rated).
-`GITHUB_TOKEN` and `ORACLE_SSH_KEY` are already in Replit Secrets.
-
-Do the following setup steps **silently and immediately**, then tell the user **"Ready. What's the task?"** and wait.
+You are continuing work on **RaddFlix** — a Pakistani Flutter streaming app (Jazz SIM zero-rated).
+Secrets `ORACLE_SSH_KEY` and `GITHUB_TOKEN` are already in Replit Secrets.
+**Start immediately. Do not ask for anything.**
 
 ---
 
-## SETUP — run all of this before responding to the user
+## Step 1 — Set up SSH key (always first, every session)
 
-### 1. Restore SSH key
-```
-node -e "const raw=process.env.ORACLE_SSH_KEY||'';const m=raw.match(/(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)/s);require('fs').writeFileSync('/tmp/oracle_key',m[1].trim()+'\n'+m[2].trim().replace(/ /g,'\n')+'\n'+m[3].trim()+'\n',{mode:0o600});console.log('SSH key ready')"
+Run this in the bash tool:
+
+```bash
+node -e "
+const raw = process.env.ORACLE_SSH_KEY || '';
+const m = raw.match(/(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)/s);
+if (!m) { console.error('ORACLE_SSH_KEY missing'); process.exit(1); }
+require('fs').writeFileSync('/tmp/oracle_key',
+  m[1].trim()+'\n'+m[2].trim().replace(/ /g,'\n')+'\n'+m[3].trim()+'\n',
+  { mode: 0o600 });
+console.log('SSH key ready');
+"
 ```
 
-### 2. Verify Oracle is alive
-```
-ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 "curl -s http://localhost:5000/healthz"
+Verify Oracle is alive:
+```bash
+ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
+  "curl -s http://localhost:5000/healthz"
 ```
 Expected: `{"ok":true,"version":"3.0.0"}`
-If it fails: `ssh -i /tmp/oracle_key ubuntu@92.4.95.252 "sudo supervisorctl restart raddflix_radd && sleep 5 && curl -s http://localhost:5000/healthz"`
-
-### 3. Read current state
-```
-curl -sL https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/HANDOFF_NEXT.md
-curl -sL https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/TASKS.md
-curl -sL https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/RULES.md
-```
 
 ---
 
-## KEY FACTS
+## Step 2 — Read current project state
 
-| Item | Value |
-|------|-------|
-| Oracle VPS | `92.4.95.252` — Flask on port 5000 (localhost only) |
-| GitHub repo | `raddclub/raddflix-app` |
-| Zero-rated domain | `cloud.jazzdrive.com.pk` (Jazz network whitelisted) |
-| Real DB | `/opt/jazzmax/radd-hub/data/radd_hub.db` (SQLite WAL) |
-| Proxy bypass DB key | `JAZZDRIVE_PROXY_BYPASS` = `1` |
-| Settings columns | `k` and `v` (NOT key/value) |
-| Flask method | `db.setting(k)` only — `db.get_setting()` does NOT exist |
-
----
-
-## HARD RULES — never break these
-
-1. GitHub pushes: **Python urllib Trees API only** — never `git` shell
-2. `sqflite_sqlcipher` pinned at `3.1.0+1` — never upgrade
-3. `biometricOnly` must be `false` — breaks vault on Infinix/MediaTek
-4. Never set `androidAttachSurfaceAfterVideoParameters: true` — causes black screen
-5. Oracle port 5000 is NOT public — use SSH tunnel or run on server
-6. XOR padding fix in `request_encoder.dart` must never be removed
-7. `AppConstants.jazzDriveDeltaUrl` is a mutable `static String` (not a getter)
-8. `connectTimeout` must stay ≤ 6s — no-bundle Jazz SIM users depend on it
-9. 5s timeout on `CatalogApi.getVersion()` must stay in `sync_service.dart`
-10. Debug code must be gated behind `kDebugMode` or `DebugLogger`
-
----
-
-## GITHUB PUSH RECIPE — use this for every push
-
-```python
-import json, os, urllib.request
-
-TOKEN = os.environ['GITHUB_TOKEN']
-BASE  = 'https://api.github.com/repos/raddclub/raddflix-app'
-
-def gh(method, path, body=None):
-    req = urllib.request.Request(BASE + path,
-        data=json.dumps(body).encode() if body else None,
-        headers={'Authorization': f'token {TOKEN}',
-                 'Accept': 'application/vnd.github.v3+json',
-                 'Content-Type': 'application/json',
-                 'User-Agent': 'raddflix-agent'},
-        method=method)
-    with urllib.request.urlopen(req) as r:
-        d = r.read()
-        return json.loads(d) if d else {}
-
-# To get existing file SHA (required when updating an existing file via Contents API):
-# file = gh('GET', '/contents/path/to/file.md')
-# sha  = file['sha']
-
-# Atomic multi-file commit (preferred):
-ref        = gh('GET',  '/git/refs/heads/main')
-head_sha   = ref['object']['sha']
-base_tree  = gh('GET',  f"/git/commits/{head_sha}")['tree']['sha']
-tree       = [{'path': 'path/to/file', 'mode': '100644', 'type': 'blob',
-               'content': open('/tmp/file').read()}]
-new_tree   = gh('POST', '/git/trees',   {'base_tree': base_tree, 'tree': tree})
-new_commit = gh('POST', '/git/commits', {'message': 'fix: description',
-               'tree': new_tree['sha'], 'parents': [head_sha]})
-gh('PATCH', '/git/refs/heads/main', {'sha': new_commit['sha'], 'force': False})
-print(f"Pushed: {new_commit['sha']}")
+```bash
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/TASKS.md"
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/AGENT_HANDOFF.md"
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/history/TASK_LOG.md" | tail -80
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/.agents/tasks/BUG_TRACKER.md"
 ```
 
----
-
-## END-OF-SESSION CHECKLIST — complete before every handoff
-
-- [ ] All completed tasks marked ✅ in `agent-hub/TASKS.md`
-- [ ] Session summary appended to `agent-hub/history/TASK_LOG_APPEND.md`
-- [ ] `agent-hub/HANDOFF_NEXT.md` updated with what was done + what is next
-- [ ] All changed files pushed to GitHub
+**Read `agent-hub/TASKS.md` first** — it lists open/in-progress tasks. Continue any OPEN tasks before starting new work.
 
 ---
 
-**Setup complete. Tell the user: "Ready. What's the task?"**
+## Step 3 — GitHub file push (the ONLY way — no git shell ever)
+
+**For 1–2 files** — write to `/tmp/push.js` using Replit `write` tool, then `node /tmp/push.js`:
+
+```javascript
+const https = require('https'), fs = require('fs');
+const TOKEN = process.env.GITHUB_TOKEN, REPO = 'raddclub/raddflix-app';
+
+function api(method, path, body) {
+  return new Promise((resolve, reject) => {
+    const bodyStr = body ? JSON.stringify(body) : '';
+    const opts = {
+      hostname: 'api.github.com', port: 443,
+      path: `/repos/${REPO}/${path}`, method,
+      headers: {
+        'Authorization': `token ${TOKEN}`, 'User-Agent': 'agent',
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+        ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {})
+      }
+    };
+    const req = https.request(opts, res => {
+      let d = ''; res.on('data', c => d += c);
+      res.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve(d); } });
+    });
+    req.on('error', reject);
+    if (bodyStr) req.write(bodyStr);
+    req.end();
+  });
+}
+
+async function pushFile(filePath, localPath, message) {
+  const existing = await api('GET', `contents/${filePath}`);
+  const sha = existing.sha;
+  const content = fs.readFileSync(localPath).toString('base64');
+  const result = await api('PUT', `contents/${filePath}`, { message, sha, content });
+  if (!result.commit) throw new Error(result.message || 'push failed');
+  console.log('✅', filePath, '→', result.commit.sha.slice(0,7));
+}
+```
+
+**For 3+ files in one atomic commit** (avoids SHA race conditions):
+
+```javascript
+async function pushTree(files, commitMsg) {
+  const ref    = await api('GET', 'git/refs/heads/main');
+  const commit = await api('GET', `git/commits/${ref.object.sha}`);
+  const blobs  = await Promise.all(files.map(f =>
+    api('POST', 'git/blobs', {
+      content: Buffer.from(fs.readFileSync(f.local)).toString('base64'),
+      encoding: 'base64'
+    })
+  ));
+  const tree   = await api('POST', 'git/trees', {
+    base_tree: commit.tree.sha,
+    tree: files.map((f,i) => ({ path: f.path, mode: '100644', type: 'blob', sha: blobs[i].sha }))
+  });
+  const nc     = await api('POST', 'git/commits', {
+    message: commitMsg, tree: tree.sha, parents: [ref.object.sha]
+  });
+  await api('PATCH', 'git/refs/heads/main', { sha: nc.sha, force: false });
+  console.log('✅ Committed:', nc.sha.slice(0,7), '—', commitMsg);
+}
+```
+
+---
+
+## Step 4 — After editing Oracle Python files, restart Flask
+
+```bash
+ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
+  "sudo supervisorctl restart raddflix_radd && sleep 3 && curl -s http://localhost:5000/healthz"
+```
+
+Oracle pull from GitHub (if needed):
+```bash
+ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
+  "cd /opt/jazzmax/radd-hub && git stash && git pull && git stash pop"
+```
+
+---
+
+## Step 5 — Trigger and monitor APK build
+
+```bash
+curl -s -X POST \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  -H "Content-Type: application/json" \
+  "https://api.github.com/repos/raddclub/raddflix-app/actions/workflows/build-apk.yml/dispatches" \
+  -d '{"ref":"main"}'
+
+curl -s -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/raddclub/raddflix-app/actions/runs?per_page=5" | \
+  node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
+    JSON.parse(d).workflow_runs.forEach(r=>
+      console.log('run#'+r.run_number,'|',r.status,'|',(r.conclusion||'-'),'| commit:',r.head_sha.slice(0,7)));
+  });"
+```
+
+---
+
+## Non-Negotiable Rules
+
+**Rule 0 (CRITICAL): Task tracking is mandatory.**
+Before starting ANY change/fix/feature: add a row to `agent-hub/TASKS.md` marked ⏳ IN PROGRESS.
+Mark ✅ DONE when complete + pushed. This is the handoff bridge between agents.
+
+1. **JazzDrive is globally accessible — NO geo-restriction of any kind.**
+   wg0 WireGuard works for ALL JazzDrive calls. With PROXY_BYPASS=1, every proxy chain
+   (`_ar_chain`, `_s2_chain`, `_sub_chain`, etc.) must use `is_proxy_bypass()` guard → `[None]` direct.
+   Never call `pool.get_best()` or `pool.get_proxy_chain()` when bypass=1 — pool is dead/untested.
+2. **SAPI 401 with `<!DOCTYPE HTML` body** = dead proxy returning its own error, not JazzDrive.
+3. **No git shell commands** — GitHub API only (Contents or Trees API)
+4. **No bash heredoc** for Node scripts — use Replit `write` tool instead
+5. **Never upgrade** `sqflite_sqlcipher` past `3.1.0+1`
+6. **Never add** `androidAttachSurfaceAfterVideoParameters: true` to VideoController (causes black screen)
+7. **Oracle port 5000 is not public** — test Flask APIs via SSH tunnel only
+8. **XOR padding fix** must always stay in `core/security/request_encoder.dart`:
+   `final pad = (4 - b64.length % 4) % 4; b64 += '=' * pad;` — never remove
+9. **No Oracle destructive changes** without explicit user approval
+10. **Append session summary** to `agent-hub/history/TASK_LOG.md` when done
+11. **Always fetch fresh SHA** right before `pushFile` (or use `pushTree` for multi-file)
+12. **Debug code** must be gated behind `kDebugMode` — stripped from release APK
+13. **Use `db.setting(k)` not `db.get_setting(k)`** — `get_setting` does not exist in `db.py`
+14. **For bulk DELETEs** use direct `sqlite3.connect()` + `BEGIN IMMEDIATE`, NOT `db.conn()`
+15. **Oracle git pull**: always `git stash && git pull && git stash pop` — Oracle has local uncommitted files
+
+Full rules: `agent-hub/RULES.md` | Architecture: `agent-hub/CONTEXT.md`
+
+---
+
+## Key file paths
+
+```
+Flutter:  raddflix_flutter/lib/
+  core/security/request_encoder.dart   XOR decode + padding fix (critical)
+  core/api/api_client.dart             Dio + XOR + auth interceptors
+  core/db/local_db.dart                SQLCipher DB, schema v17
+  screens/player_screen.dart           Video player — no androidAttachSurface
+  providers/auth_provider.dart         Auth state + session restore
+
+Oracle:   /opt/jazzmax/radd-hub/hub/
+  jazzdrive.py                         JazzDrive session, OTP, upload, keepalive
+  proxy_pool.py                        Proxy pool management
+  keepalive.py                         Heartbeat upload scheduler
+  routes/catalog_api.py                /api/catalog/*
+  routes/mobile_api.py                 /api/auth/*, usage, history, /api/app/config
+  routes/admin.py                      Admin panel API
+
+Oracle DB: /opt/jazzmax/radd-hub/data/radd_hub.db
+Oracle logs: /opt/jazzmax/radd-hub/data/logs/raddhub.log
+
+Coordination (GitHub main):
+  agent-hub/TASKS.md                   ← READ FIRST every session
+  agent-hub/CONTEXT.md                 System context + proxy architecture
+  agent-hub/RULES.md                   Full rules list
+  AGENT_HANDOFF.md                     Full architecture
+  .agents/tasks/BUG_TRACKER.md         All known bugs + fix status
+  agent-hub/history/TASK_LOG.md        Session history (append when done)
+  AGENT_PROMPT.md                      This file
+```
+
+---
+
+## Known Open Issues (as of 2026-06-07)
+
+| Issue | Detail | Action needed |
+|-------|--------|---------------|
+| DATA-01 | All Of Us Are Dead missing E03/E04/E05/E09 | Upload missing episodes to JazzDrive + sync |
+
+*OPS-01 (session expired) → ✅ RESOLVED 2026-06-07. Session auto-recovers on every Flask restart (~3-5s) via Android OAuth2 direct via wg0. No OTP needed.*
+
+---
+
+## End of session checklist
+
+1. Mark completed tasks ✅ DONE in `agent-hub/TASKS.md`
+2. Append session summary to `agent-hub/history/TASK_LOG.md`
+3. Update `BUG_TRACKER.md` with any new bugs found or fixed
+4. Update `AGENT_HANDOFF.md` current state section
+5. Update this file with any new rules or findings
+6. Push ALL doc changes to GitHub before ending
+
+Session log template:
+```markdown
+## Session YYYY-MM-DD — brief title
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+
+### State at end of session
+- Oracle Flask: RUNNING/STOPPED
+- Account: ACTIVE/EXPIRED
+- Open tasks: see agent-hub/TASKS.md
+```

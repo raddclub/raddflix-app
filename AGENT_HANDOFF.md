@@ -1,6 +1,6 @@
 # AGENT_HANDOFF.md
 > **Read this file first — every session, every agent, no exceptions.**
-> Last updated: 2026-06-07
+> Last updated: 2026-06-06
 
 ---
 
@@ -317,96 +317,24 @@ to create script files, then run with `node /path/to/script.js`.
 
 ---
 
-## Current State (2026-06-07)
+## Current State (2026-06-08)
 
-All code bugs fixed. Player Feature Sprint complete (TASK-029 → TASK-032). Latest player commit: `034938fb`
+All code bugs fixed. Uploads fully working. 17 titles / 28 files — all Live.
 
-### Completed 2026-06-07 — Player Feature Sprint (Pass 5)
+### Completed 2026-06-08 (TASK-048 → TASK-051)
+- **TASK-048**: `upload_to_jazzdrive()` JazzDrive-side duplicate guard — checks `/media/video` before upload
+- **TASK-049**: Radd-Delta folder accumulation fix — `list_all_files_in_folder()` + `delete_files_permanent()` purge; 26 orphaned delta files cleaned
+- **TASK-050**: `_upload_pending()` (scheduler path) duplicate guard — injected after folder resolution; also renamed `Vncenz0` → `Vincenzo` on JazzDrive, deleted 2 leftover duplicate files
+- **TASK-051**: Bug audit found 3 more issues: poster duplicate accumulation (library.py), `_get_or_create_folder()` race condition (added lock+retry), `_upload_pending()` missing `rename_video()` post-upload
 
-| Task | Feature | Commit |
-|------|---------|--------|
-| TASK-029 | Universal Subtitle Hunter — recursive walk, fuzzy match, archive extract, URL/QR load | prior |
-| TASK-030 | Layout & HUD Settings Sheet v1 (transparent overlay, 758 lines) | `cd8bcd83` |
-| TASK-031 | HUD Settings v2 — presets, portrait/landscape tabs, drag-reorder Quick Bar, button shapes, MX rotation | `0a4c3c58` |
-| TASK-032 | Smart Enhance — MX-style video enhancement, 8 modes, master toggle, before/after compare | `034938fb` |
-
-New source files added this session:
-- `lib/core/subtitles/subtitle_hunter.dart`
-- `lib/core/subtitles/subtitle_hunter_sheet.dart`
-- `lib/widgets/player/player_hud_settings_sheet.dart` (1145 lines)
-- `lib/core/player/smart_enhance.dart`
-- `lib/widgets/player/smart_enhance_sheet.dart` (655 lines)
-
-### Completed 2026-06-07 — Player Screen Full Audit (4 passes, 7 bugs fixed)
-
-Player screen (`player_screen.dart`, 6265 lines) fully audited across 4 passes.
-All 7 bugs found are fixed. Latest player commit: `2ac9e8dc`.
-
-| ID | Severity | Fix | Commit |
-|----|---------|-----|--------|
-| BUG-P-NEW-01 | HIGH | `_audioSessionInitialized` never set true → duplicate BG listeners | `7802d53` |
-| BUG-P-NEW-02 | MEDIUM | More Sheet Night Mode tile showed cinematic state instead of `nightMode` pref | `7802d53` |
-| BUG-P-NEW-03 | HIGH | Mid-stream errors silently dropped → infinite buffering with no feedback | `7802d53` |
-| BUG-P-NEW-04 | CRITICAL | `_enterCast()` NPE on nullable `_currentPlaybackUrl` | `7802d53` |
-| BUG-P-NEW-05 | HIGH | ClipTrimmer `onTrimChanged` never called `_abLoop.setA()/setB()` | `e9abc17` |
-| BUG-P-NEW-06 | MEDIUM | VideoEnhanceSuite cinematic toggle only worked one-way (ON, never OFF) | `2ac9e8dc` |
-| BUG-P-NEW-07 | HIGH | Quick Bar "Night Mode" wired to `onToggleCinematic` instead of night mode filter | `2ac9e8dc` |
-
-**No further bugs remain in `player_screen.dart`.**
-
-### Completed 2026-06-06 (Agent 4)
-- **BUG-A01 FIXED**: Admin "Reset Tables" silently failing (WAL mode lock). Commit: `f8affe1`
-- **BUG-A02 FIXED**: `mobile_api.py` called `db.get_setting()` → HTTP 500 every 2 min. Fixed to `db.setting()`.
-- **IMDbAPI URL fix** (commit `7a7cf2f`): Fixed dead v1 API URL in `metadata_lookup.py` and `poster_proxy.py`
-- **Admin reimport endpoint** (commit `7da7345`): `POST /api/admin/reimport`, `GET /api/admin/reimport/<job_id>`
-- **Proxy pool cleanup**: RAM 6,148MB → 61MB, CPU 60.7% → 6.9%
-
-### Completed 2026-06-05
-- **OTP Proxy Hardening** (commit `1887b63`): 6 bugs fixed across OTP proxy flow
-- **BUG-P02/P03**: Black flash + planExpired redirect for local files
-- **BUG-J01 (CRITICAL)**: JazzDrive Pass3 episode match broken by Dart backslash-dollar
-
-### Open (requires user action)
-- **Account 03286829827 session EXPIRED** — needs OTP re-login via Upload page.
-  Until fixed: uploads fail, keepalive fails, delta_push 401 errors every few minutes.
-- **DATA-01**: All Of Us Are Dead missing E03/E04/E05/E09 — need JazzDrive upload + sync.
-
-## Current State (2026-06-06 archive)
-
-### Archive detail
-
-All code bugs fixed. One open ops issue (expired JazzDrive session).
-
-### Completed this session (2026-06-06, Agent 4)
-- **BUG-A01 FIXED**: Admin "Reset Tables" was silently failing due to WAL mode lock.
-  Replaced `db.conn()` with direct `sqlite3.connect()` + `BEGIN IMMEDIATE` + `wal_checkpoint(TRUNCATE)`.
-  Commit: `f8affe1`
-- **BUG-A02 FIXED**: `mobile_api.py` called `db.get_setting()` which does not exist.
-  Fixed to `db.setting()`. This was crashing `/api/app/config` every ~2 min (HTTP 500).
-  Flutter app fell back to hardcoded defaults silently.
-- **Catalog cleared**: User ran Reset Tables. DB now at 0 titles, 0 files.
-- **Proxy/WARP audit**: Confirmed uploads go DIRECT (PROXY_BYPASS=1). WARP only routes Jazz SAPI IPs.
-- **Auto-delete audit**: Working correctly in code; stuck files due to expired JazzDrive session.
+### Previously completed (2026-06-07)
+- Full proxy audit, BUG-A03a–e fixed, agent-hub docs created, GitHub synced
 
 ### Previously completed (2026-06-06)
-- **IMDbAPI URL fix** (commit `7a7cf2f`): Fixed dead v1 API URL in `metadata_lookup.py` and `poster_proxy.py`
-- **Admin reimport endpoint** (commit `7da7345`): `POST /api/admin/reimport`, `GET /api/admin/reimport/<job_id>`
-- **Cloudflare WARP split tunnel**: Oracle routes Jazz IPs through WARP for zero-rating
-- **Jazz IP Watchdog v4**: Accumulate mode, never drops IPs
-- **Proxy pool cleanup**: RAM 6,148MB → 61MB, CPU 60.7% → 6.9%
-- **Keepalive fix**: Interval DB-driven (6 hours)
+- BUG-A01/A02 fixed, IMDbAPI URL fix, Admin reimport endpoint, WARP tunnel, proxy pool cleanup, keepalive fix
 
-### Previously completed (2026-06-05)
-- **OTP Proxy Hardening** (commit `1887b63`): 6 bugs fixed across OTP proxy flow
-- **Proxy Pool God-Level Upgrade**: 150+ seeds, weighted rotation, circuit breaker
-- **BUG-P02/P03**: Black flash + planExpired redirect for local files
-- **BUG-J01 (CRITICAL)**: JazzDrive Pass3 episode match broken by Dart backslash-dollar
-- **Episode gap placeholders + Coming Soon banner + episodeCount field**
-
-### Open (requires user action)
-- **Account 03286829827 session EXPIRED** — needs OTP re-login via Upload page.
-  Until fixed: uploads fail, keepalive fails, delta_push 401 errors every few minutes.
-- **DATA-01**: All Of Us Are Dead missing E03/E04/E05/E09 — need JazzDrive upload + sync.
+### Open (data gap — not code bugs)
+- **DATA-01**: All Of Us Are Dead missing E03/E04/E05/E09 — need JazzDrive upload + sync
 
 ### JazzDrive — critical notes
 
