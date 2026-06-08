@@ -636,9 +636,33 @@ ssetLoad();
   <div id="dd-table"><div class="muted empty" style="font-size:13px">Click "Refresh Status" to load current domain info.</div></div>
 </div>
 
+<!-- Re-scan Missing Metadata -->
+<div class="card" style="border:1px solid var(--accent)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div>
+      <h3 style="margin:0;color:var(--accent)">&#128269; Re-scan Missing Metadata</h3>
+      <div class="muted" style="font-size:12px;margin-top:4px">Find files saved without a poster/title match and re-run the full metadata search (IMDb &#8594; OMDB &#8594; TMDB &#8594; AI) for them only. Much faster than a full catalog restore &#8212; only touches unmatched files.</div>
+    </div>
+    <button id="btn-rescan-meta" onclick="rescanMeta()" style="white-space:nowrap;flex-shrink:0">&#128269; Fix Missing Metadata</button>
+  </div>
+  <div id="rescan-meta-msg" style="font-size:13px;min-height:16px;margin-top:10px"></div>
+</div>
+
+<!-- Restore Catalog -->
+<div class="card" style="border:1px solid var(--ok)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div>
+      <h3 style="margin:0;color:var(--ok)">&#8635; Restore Catalog</h3>
+      <div class="muted" style="font-size:12px;margin-top:4px">Re-scan all linked JazzDrive accounts to rebuild titles and files after a reset. Runs in the background &#8212; check the <a href="/scan/">Scan page</a> for live progress.</div>
+    </div>
+    <button id="btn-restore" onclick="dbRestore()" style="white-space:nowrap;flex-shrink:0;background:var(--ok);border-color:var(--ok);color:#000">&#8635; Restore from JazzDrive</button>
+  </div>
+  <div id="db-restore-msg" style="font-size:13px;min-height:16px;margin-top:10px"></div>
+</div>
+
 <!-- Danger Zone -->
 <div class="card" style="border: 2px solid var(--err)">
-  <h3 style="color:var(--err)">⚠ Danger Zone</h3>
+  <h3 style="color:var(--err)">&#9888; Danger Zone</h3>
   <div class="muted" style="margin-bottom:14px;font-size:13px">
     The following actions are <strong>permanent</strong> and cannot be undone. Use with extreme caution.
   </div>
@@ -648,12 +672,13 @@ ssetLoad();
     <div style="padding:12px; background:rgba(255,0,0,0.05); border-radius:8px">
       <div style="font-weight:600;margin-bottom:4px">Reset Local Tables</div>
       <div class="muted" style="font-size:12px;margin-bottom:10px">Deletes all titles, files, and logs from the local database. Keeps accounts and settings.</div>
-      <div style="display:flex;align-items:center;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <label style="font-size:12px;text-transform:none;letter-spacing:0;color:var(--fg);cursor:pointer">
           <input type="checkbox" id="chk-db-reset"> I understand this clears all media records
         </label>
-        <button class="danger" onclick="dbReset()" style="padding:4px 12px;font-size:12px">Reset Tables</button>
+        <button class="danger" id="btn-db-reset" onclick="dbReset()" style="padding:4px 12px;font-size:12px">Reset Tables</button>
       </div>
+      <div id="db-reset-result" style="display:none;margin-top:12px;padding:10px 12px;border-radius:6px;font-size:13px"></div>
     </div>
 
     {# Full Wipe #}
@@ -981,27 +1006,143 @@ function _dangerMsg(msg, isErr){
 async function dbReset(){
   const chk = document.getElementById('chk-db-reset');
   if(!chk || !chk.checked){ toast('Please check the confirmation box first'); return; }
-  if(!confirm('ARE YOU SURE? All local titles, files, and scan logs will be DELETED.')) return;
-  
-  _dangerMsg('Resetting…');
+  const btn = document.getElementById('btn-db-reset');
+  // Two-step: first click arms, second click fires
+  if(!btn._armed){
+    btn._armed = true;
+    btn.textContent = '⚠️ Click again to confirm';
+    btn.style.background = '#c0392b';
+    setTimeout(()=>{ btn._armed=false; btn.textContent='Reset Tables'; btn.style.background=''; }, 4000);
+    return;
+  }
+  btn._armed = false;
+  btn.style.background = '';
+
+  const resultEl = document.getElementById('db-reset-result');
+  if(btn){ btn.disabled=true; btn.textContent='Resetting…'; }
+  if(resultEl){ resultEl.style.display='none'; }
+  _dangerMsg('⏳ Resetting tables…');
+
   try{
     const r = await api('/admin/api/db/reset',{method:'POST'});
     if(r.ok){
-      const t = r.row_counts ? r.row_counts.titles||0 : '?';
-      const f = r.row_counts ? r.row_counts.files||0  : '?';
-      _dangerMsg('✔ Cleared '+t+' title(s) and '+f+' file(s). Re-sync on next app launch.');
+      const counts = r.row_counts || {};
+      const total = Object.values(counts).reduce((s,v)=>s+v, 0);
+      const rows = Object.entries(counts)
+        .map(([k,v])=>`<tr>
+          <td style="padding:3px 10px;color:var(--muted);font-size:12px">${k}</td>
+          <td style="padding:3px 10px;text-align:right;font-size:12px;color:${v>0?'var(--warn)':'var(--muted)'}">${v} row${v!==1?'s':''} deleted</td>
+        </tr>`).join('');
+      if(resultEl){
+        resultEl.style.display='block';
+        resultEl.style.background='rgba(92,214,111,0.08)';
+        resultEl.style.border='1px solid var(--ok)';
+        resultEl.innerHTML=
+          `<div style="color:var(--ok);font-weight:600;margin-bottom:8px">✔ Reset complete — ${total} total row${total!==1?'s':''} removed</div>`
+          +`<table style="width:100%;border-collapse:collapse">${rows}</table>`
+          +`<div style="margin-top:8px;font-size:11px;color:var(--muted)">Devices will re-sync on next app launch. Use <strong>Restore from JazzDrive</strong> above to rebuild the catalog.</div>`;
+        resultEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+      }
       chk.checked = false;
+      _dangerMsg('✔ Reset complete — '+total+' rows removed');
     } else {
+      if(resultEl){
+        resultEl.style.display='block';
+        resultEl.style.background='rgba(255,107,107,0.08)';
+        resultEl.style.border='1px solid var(--err)';
+        resultEl.innerHTML=`<div style="color:var(--err);font-weight:600">✗ Reset failed</div><div style="margin-top:4px;font-size:12px;color:var(--muted)">${r.error||'Unknown error'}</div>`;
+      }
       _dangerMsg('Error: '+(r.error||'?'), true);
     }
-  }catch(e){ _dangerMsg('Error: '+e.message, true); }
+  }catch(e){
+    if(resultEl){
+      resultEl.style.display='block';
+      resultEl.style.background='rgba(255,107,107,0.08)';
+      resultEl.style.border='1px solid var(--err)';
+      resultEl.innerHTML=`<div style="color:var(--err);font-weight:600">✗ Reset failed</div><div style="margin-top:4px;font-size:12px;color:var(--muted)">${e.message}</div>`;
+    }
+    _dangerMsg('Error: '+e.message, true);
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='Reset Tables'; }
+  }
+}
+
+
+async function rescanMeta() {
+  const btn = document.getElementById('btn-rescan-meta');
+  const msg = document.getElementById('rescan-meta-msg');
+  btn.disabled = true;
+  msg.innerHTML = '<span style="color:var(--muted)">&#9203; Starting metadata re-scan&#8230;</span>';
+  try {
+    const r = await api('/admin/api/rescan-metadata', {method:'POST'});
+    if (!r.ok) { msg.innerHTML = `<span style="color:var(--err)">&#10060; ${r.error||'Failed to start'}</span>`; btn.disabled=false; return; }
+    msg.innerHTML = `<span style="color:var(--muted)">&#9203; Running&#8230; checking ${r.message||''}</span>`;
+    let polls = 0;
+    const iv = setInterval(async () => {
+      polls++;
+      const s = await api(`/admin/api/rescan-metadata/${r.job_id}`);
+      if (s.status === 'done') {
+        clearInterval(iv);
+        msg.innerHTML = `<span style="color:var(--ok)">&#9989; Done &#8212; matched <strong>${s.matched}</strong> of <strong>${s.total}</strong> files. Still missing: ${s.still_missing}</span>`;
+        btn.disabled = false;
+      } else if (s.status === 'error') {
+        clearInterval(iv);
+        msg.innerHTML = `<span style="color:var(--err)">&#10060; Error: ${s.error}</span>`;
+        btn.disabled = false;
+      } else if (polls > 120) {
+        clearInterval(iv);
+        msg.innerHTML = '<span style="color:var(--muted)">&#8987; Still running in background&#8230;</span>';
+        btn.disabled = false;
+      }
+    }, 3000);
+  } catch(e) {
+    msg.innerHTML = `<span style="color:var(--err)">&#10060; ${e.message}</span>`;
+    btn.disabled = false;
+  }
+}
+async function dbRestore(){
+  const btn = document.getElementById('btn-restore');
+  const msgEl = document.getElementById('db-restore-msg');
+  if(btn){ btn.disabled=true; btn.textContent='Starting…'; }
+  if(msgEl){ msgEl.innerHTML='<span style="color:var(--muted)">⏳ Triggering rescan…</span>'; }
+  try{
+    const r = await api('/admin/api/db/restore',{method:'POST'});
+    if(r.ok){
+      const started = (r.started||[]).map(a=>a.msisdn||('#'+a.id)).join(', ');
+      const skipped = (r.skipped||[]).map(a=>(a.msisdn||('#'+a.id))+' ('+a.reason+')').join(', ');
+      const errs    = (r.errors||[]).map(a=>(a.msisdn||('#'+a.id))+': '+a.error).join(', ');
+      let html = `<span style="color:var(--ok);font-weight:600">✔ ${r.message||'Restore started'}</span>`;
+      if(started) html += `<br><span style="font-size:11px;color:var(--muted)">Scanning: ${started}</span>`;
+      if(skipped) html += `<br><span style="font-size:11px;color:var(--muted)">Skipped: ${skipped}</span>`;
+      if(errs)    html += `<br><span style="font-size:11px;color:var(--err)">Errors: ${errs}</span>`;
+      html += `<br><span style="font-size:11px;color:var(--muted)">Check the <a href="/scan/">Scan page</a> for live progress.</span>`;
+      if(msgEl){ msgEl.innerHTML=html; }
+      toast('Restore scan started');
+    } else {
+      if(msgEl){ msgEl.innerHTML=`<span style="color:var(--err)">✗ ${r.error||'Failed to start restore'}</span>`; }
+      toast('Restore failed: '+(r.error||'?'), 4000);
+    }
+  }catch(e){
+    if(msgEl){ msgEl.innerHTML=`<span style="color:var(--err)">✗ ${e.message}</span>`; }
+    toast('Error: '+e.message, 4000);
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='↺ Restore from JazzDrive'; }
+  }
 }
 
 async function dbFullWipe(){
   const chk = document.getElementById('chk-db-wipe');
   if(!chk || !chk.checked){ toast('Please check the confirmation box first'); return; }
-  if(!confirm('CRITICAL WARNING: This will delete the entire database file including all accounts and settings. You will be logged out. Continue?')) return;
-  
+  const btn = document.querySelector('#chk-db-wipe').closest('div').querySelector('button');
+  if(btn && !btn._armed){
+    btn._armed = true;
+    btn.textContent = '⚠️ Click again — THIS CANNOT BE UNDONE';
+    btn.style.background = '#7b0000';
+    setTimeout(()=>{ btn._armed=false; btn.textContent='Wipe Database'; btn.style.background=''; }, 5000);
+    return;
+  }
+  if(btn){ btn._armed=false; btn.style.background=''; }
+
   _dangerMsg('Wiping entire database…');
   try{
     const r = await api('/admin/api/db/full-delete',{method:'POST'});
