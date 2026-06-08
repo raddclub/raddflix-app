@@ -557,6 +557,9 @@ def init_db() -> None:
             "CREATE INDEX IF NOT EXISTS idx_titles_imdb ON titles(imdb_id)",
             # FTS5 index rebuild — populates titles_fts for all existing rows
             # (no-op if already populated; safe to re-run)
+            "ALTER TABLE plans ADD COLUMN badge TEXT",
+            "ALTER TABLE plans ADD COLUMN color TEXT",
+            "ALTER TABLE plans ADD COLUMN features_json TEXT",
             "INSERT INTO titles_fts(titles_fts) VALUES('rebuild')",
             # P3.5 cleanup — drop legacy/duplicate columns from titles.
             # Order matters: drop triggers first so SQLite allows DROP COLUMN;
@@ -625,7 +628,8 @@ _CRITICAL_SCHEMA = {
     "settings": ["k", "v"],
     "plans": [
         "is_active", "price_pkr", "name",
-        "duration_days", "max_devices", "features_json",
+        "duration_days", "max_devices", "description",
+        "badge", "color", "features_json",
     ],
     "queue": [
         "job_id", "movie", "site", "status", "created_at", "updated_at",
