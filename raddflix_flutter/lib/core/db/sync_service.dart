@@ -63,9 +63,14 @@ class SyncService {
   static Future<SyncResult> _syncFromOracle() async {
     UsageService.fetchQuota().ignore();
 
-    final lastSyncTs     = await LocalDb.getLastSyncTimestamp();
-    final serverVersion  = await CatalogApi.getVersion();
-    final localVersion   = await LocalDb.getLastSyncVersion();
+    final lastSyncTs = await LocalDb.getLastSyncTimestamp();
+    // Short probe timeout: if Oracle doesn't respond in 5s the user has no bundle.
+    // Falls through to the JazzDrive delta catch in sync() immediately.
+    // syncFull / syncDelta keep their full 30s receiveTimeout for big downloads.
+    final serverVersion = await CatalogApi.getVersion().timeout(
+      const Duration(seconds: 5),
+    );
+    final localVersion = await LocalDb.getLastSyncVersion();
 
     if (localVersion >= serverVersion.version && lastSyncTs > 0) {
       return const SyncResult(
