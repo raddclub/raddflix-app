@@ -142,3 +142,23 @@ No fallback existed for concurrent/duplicate slug situations.
   Animal is in delta with `media_type="movie"`, `file_id="5"`. Most likely cause: user's installed APK
   predates the play button code. Rebuild APK from current main branch to verify.
   
+
+  ---
+
+  ## TASK-055: Full end-to-end data flow verification (IN PROGRESS)
+
+  **Goal:** Verify Oracle API → Flutter sync → JazzDrive delta → Play/Download flow is correct
+  end-to-end. Run all checks from NEXT_AGENT_BRIEF.md Section 8. Fix any bugs found.
+
+  **Checks:**
+  - [ ] A. Oracle health (/healthz)
+  - [ ] B. Library data (all 19 files, share_url present)
+  - [ ] C. Delta settings (jd_delta_url, folder_id, remote_id)
+  - [ ] D. Flutter sync_service.dart (version check, delta fallback)
+  - [ ] E. Player flow (JazzDriveService.getStreamLink, stream caching)
+  - [ ] F. Download flow (quota check, JD resolve, private storage)
+  - [ ] G. API endpoints live test (/api/catalog/version, /api/config, /api/stream/link)
+  - [ ] H. XOR decode verification
+  - [ ] I. Delta.json content (Spider-Noir episodes, share_urls valid)
+  - [ ] J. JD share login test (Spider-Noir share key → validationKey)
+  
