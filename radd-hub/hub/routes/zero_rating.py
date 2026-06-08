@@ -97,7 +97,7 @@ def generate_delta_payload() -> dict:
 
     # Fill episode list for TV shows
     if titles_out:
-        title_ids = [t["id"] for t in titles_out if t["media_type"] == "show"]
+        title_ids = [t["id"] for t in titles_out if t["media_type"] in ("show", "tv", "series")]
         if title_ids:
             ph = ",".join("?" * len(title_ids))
             with db.conn() as c:
@@ -127,7 +127,7 @@ def generate_delta_payload() -> dict:
                 })
 
             for t in titles_out:
-                if t["media_type"] == "show":
+                if t["media_type"] in ("show", "tv", "series"):
                     t["episodes"] = ep_map.get(t["id"], [])
 
     now = int(time.time())
