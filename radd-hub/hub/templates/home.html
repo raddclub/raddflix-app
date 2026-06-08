@@ -17,6 +17,13 @@
 .health-dot.warn{background:var(--warn)}
 .health-dot.err{background:var(--err)}
 .health-dot.mut{background:var(--muted);opacity:.5}
+#tid-alert-banner{display:none;align-items:center;gap:12px;background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.35);border-radius:10px;padding:12px 16px;margin-bottom:16px;animation:tid-fadein .3s ease}
+@keyframes tid-fadein{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+#tid-alert-banner .tid-icon{font-size:20px;flex-shrink:0}
+#tid-alert-banner .tid-msg{flex:1;font-size:13px;font-weight:600;color:var(--err)}
+#tid-alert-banner .tid-msg span{font-weight:400;color:var(--text);margin-left:6px}
+#tid-alert-banner .tid-dismiss{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:0 4px;flex-shrink:0}
+#tid-alert-banner .tid-dismiss:hover{color:var(--text)}
 </style>
 
 <div class="h-row">
@@ -24,6 +31,16 @@
   <div class="row" style="gap:8px">
     <button class="ghost" style="font-size:12px;padding:5px 12px" onclick="refreshAll()">↺ Refresh</button>
   </div>
+</div>
+
+<!-- ── Pending TID alert banner ─────────────────────────────────────── -->
+<div id="tid-alert-banner" role="alert">
+  <div class="tid-icon">🔔</div>
+  <div class="tid-msg">
+    <span id="tid-banner-count">0</span> pending TID payment<span id="tid-banner-plural">s</span> awaiting review
+    <span><a href="/tid/" style="color:var(--err);font-weight:700">Review now →</a></span>
+  </div>
+  <button class="tid-dismiss" onclick="document.getElementById('tid-alert-banner').style.display='none'" title="Dismiss">×</button>
 </div>
 
 <!-- ── Stats grid ─────────────────────────────────────────────────────── -->
@@ -325,6 +342,20 @@ async function loadUserStats(){
     setTxt('st-app-users', d.total ?? '—');
     setTxt('st-active-subs', d.active_subs ?? '—');
     setTxt('st-pending-tids', d.pending_tids ?? '—');
+    // TID alert banner
+    const tidN = parseInt(d.pending_tids) || 0;
+    const banner = document.getElementById('tid-alert-banner');
+    const tidCnt = document.getElementById('tid-banner-count');
+    const tidPlural = document.getElementById('tid-banner-plural');
+    if(banner){
+      if(tidN > 0){
+        if(tidCnt) tidCnt.textContent = tidN;
+        if(tidPlural) tidPlural.textContent = tidN === 1 ? '' : 's';
+        banner.style.display = 'flex';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
   } catch(e){
     ['st-app-users','st-active-subs','st-pending-tids'].forEach(id=>{
       const el=document.getElementById(id);
