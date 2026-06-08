@@ -20,7 +20,7 @@ Users pay PKR 149–399/month. Content served from JazzDrive CDN.
 - **DB:** SQLCipher — `sqflite_sqlcipher: 3.1.0+1` (**PINNED** — never upgrade)
 - **Video:** `media_kit ^1.1.10` + `media_kit_video ^1.2.4`
 - **HTTP:** Dio + custom XOR encoding interceptor
-- **Backend:** Flask on Oracle Ubuntu VPS (`92.4.95.252`), supervisord managed
+- **Backend:** Flask on Oracle Ubuntu VPS (`92.4.95.252`), supervisord managed as `raddflix_radd`
 
 ## Build
 
@@ -32,6 +32,8 @@ flutter build apk --debug
 flutter build apk --release --obfuscate --split-debug-info=build/debug-info
 ```
 
+APK is auto-built on every push to `main` via GitHub Actions (`.github/workflows/build-apk.yml`).
+
 ## Architecture in One Paragraph
 
 All `/api/*` responses are XOR-encoded. Key = SHA-256 of device ID + UTC day + UTC hour,
@@ -42,17 +44,24 @@ is 2 lines in `request_encoder.dart`.
 
 See [AGENT_HANDOFF.md](AGENT_HANDOFF.md) for full details.
 
-## Current State (2026-06-04)
+## Current State (2026-06-08)
 
 All critical code bugs fixed. APK auto-built on every push to main via GitHub Actions.
+Latest build: **RaddFlix-1.0.0+1-build1034.apk** (run 27156269376, expires 2026-07-08).
 
-Recent fixes: JazzDrive Pass3 episode matching (Dart backslash-dollar escape bug),
-black flash on first frame (AnimatedOpacity), planExpired redirect for local files
-(fileId guard), episode gap placeholders, Coming Soon banner, JazzDrive 27-test suite.
+Recent fixes (TASK-057 — A-Z full audit):
+- Flutter: TabController memory leak, download DB flood, URI deep-link parse, LIKE escape, search initialFilter, safe id cast
+- Oracle Python: `is_ongoing` string-"0" truthy bug, XOR `_candidate_keys` missing +1 hour window
 
-Open data gap: DATA-01 — All Of Us Are Dead missing E03/E04/E05/E09 in Oracle DB.
+Previous session fixes: JazzDrive Pass3 episode matching (Dart backslash-dollar escape bug),
+black flash on first frame, planExpired redirect for local files, episode gap placeholders,
+Coming Soon banner, 27-test JazzDrive test suite, JSESSIONID from JSON body.
+
+Open data gap: 9 movies (Animal, Dune, Inception, etc.) have deleted JazzDrive files — need
+admin re-upload. DATA-01 (All Of Us Are Dead E03/04/05/09) also needs JD upload.
 
 ---
+
 ## Security Notes
 
 - Tokens in Android Keystore (flutter_secure_storage)

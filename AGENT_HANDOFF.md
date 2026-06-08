@@ -1,6 +1,6 @@
 # AGENT_HANDOFF.md
 > **Read this file first — every session, every agent, no exceptions.**
-> Last updated: 2026-06-06
+> Last updated: 2026-06-08
 
 ---
 
@@ -320,21 +320,34 @@ to create script files, then run with `node /path/to/script.js`.
 ## Current State (2026-06-08)
 
 All code bugs fixed. Uploads fully working. 17 titles / 28 files — all Live.
+Latest APK: **RaddFlix-1.0.0+1-build1034.apk** (run 27156269376, expires 2026-07-08).
 
-### Completed 2026-06-08 (TASK-048 → TASK-051)
-- **TASK-048**: `upload_to_jazzdrive()` JazzDrive-side duplicate guard — checks `/media/video` before upload
-- **TASK-049**: Radd-Delta folder accumulation fix — `list_all_files_in_folder()` + `delete_files_permanent()` purge; 26 orphaned delta files cleaned
-- **TASK-050**: `_upload_pending()` (scheduler path) duplicate guard — injected after folder resolution; also renamed `Vncenz0` → `Vincenzo` on JazzDrive, deleted 2 leftover duplicate files
-- **TASK-051**: Bug audit found 3 more issues: poster duplicate accumulation (library.py), `_get_or_create_folder()` race condition (added lock+retry), `_upload_pending()` missing `rename_video()` post-upload
+### Completed 2026-06-08 (TASK-057) — A-Z Full Audit
+- **FIX-ISONGOING**: zero_rating.py — `is_ongoing` string "0" truthy in Python → int() cast
+- **FIX-XOR-NEXTHR**: request_encoding.py — `_candidate_keys` missing +1 hour window
+- **BUG-TAB-01**: show_detail_screen.dart — TabController memory leak on pull-to-refresh
+- **BUG-DL-THROTTLE**: download_service.dart — SQLite progress DB flooded (100s writes/sec)
+- **FIX-URI-01**: splash_screen.dart — URI deep-link parse drops query params
+- **FIX-LIKE-01**: local_db.dart — LIKE query didn't escape % / _ meta-chars
+- **FIX-SEARCH-INIT**: search_screen.dart — initialFilter didn't trigger _doSearch()
+- **FIX-ID-CAST**: catalog_item.dart — json['id'] as int throws TypeError on null
+
+### Completed 2026-06-08 (TASK-048 → TASK-056)
+- TASK-048/050/051: JazzDrive duplicate upload guards (all paths)
+- TASK-049: Delta folder cleanup (26 orphaned files removed)
+- TASK-052: Delta pre-purge before upload
+- TASK-053/055/056: Data flow verification (all checks A–J passed)
+- TASK-054: TV show episodes missing from delta (zero_rating.py + jazzdrive_service.dart)
 
 ### Previously completed (2026-06-07)
 - Full proxy audit, BUG-A03a–e fixed, agent-hub docs created, GitHub synced
 
 ### Previously completed (2026-06-06)
-- BUG-A01/A02 fixed, IMDbAPI URL fix, Admin reimport endpoint, WARP tunnel, proxy pool cleanup, keepalive fix
+- BUG-A01/A02 fixed, IMDbAPI URL fix, Admin reimport endpoint, WARP tunnel, proxy pool
 
 ### Open (data gap — not code bugs)
 - **DATA-01**: All Of Us Are Dead missing E03/E04/E05/E09 — need JazzDrive upload + sync
+- **DATA-02**: 9 movies with deleted JD files — need admin re-upload to JazzDrive
 
 ### JazzDrive — critical notes
 
@@ -348,7 +361,5 @@ All code bugs fixed. Uploads fully working. 17 titles / 28 files — all Live.
 **Test suite**: `raddflix_flutter/test_suite/jazzdrive_logic_test.js` — 27 tests
   - Run anywhere: `node jazzdrive_logic_test.js`
   - Full network test on Jazz SIM: `node jazzdrive_logic_test.js --live <shareUrl> [target]`
-
-**MED-1011 error**: Solved by WARP tunnel on Oracle. Jazz SIM still required for Flutter app testing (zero-rating only on Jazz network).
 
 See `.agents/tasks/BUG_TRACKER.md` for full bug table.

@@ -438,3 +438,24 @@ FIX-CATALOG-03: Regenerated db_update.json from scratch via Python:
     Always regenerate manually via Python script after any is_published change.
   - Ghost-published titles from old data: IDs 15, 16, 20 now set to is_published=0.
   - SSH key lives in ORACLE_SSH_KEY env var; reconstruct at /tmp/oracle_key on session start.
+
+
+---
+
+## Session 2026-06-08 (TASK-057) — A-Z Full Audit + Oracle Python Fixes
+
+### Oracle Python bugs fixed (commit 41fcc63)
+
+| ID | File | Bug | Fix |
+|----|------|-----|-----|
+| FIX-ISONGOING | hub/routes/zero_rating.py | `is_ongoing` checked string "0" which is truthy in Python | Cast to `int()` before comparison |
+| FIX-XOR-NEXTHR | hub/request_encoding.py | `_candidate_keys()` missing +1 hour window for forward-clock edge | Added `utc_hour + 1` candidate |
+
+### Flask restart
+`sudo supervisorctl restart raddflix_radd` — new PID: 3008136.
+Confirmed supervisor name is `raddflix_radd` (NOT `radd-hub`).
+
+### State
+- Flask: ✅ RUNNING (pid 3008136)
+- DB: 17 titles / 28 files — all Live
+- All code bugs resolved — see .agents/tasks/BUG_TRACKER.md for full list

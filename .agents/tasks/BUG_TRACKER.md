@@ -1,5 +1,5 @@
 # BUG_TRACKER.md
-Last updated: 2026-06-06
+Last updated: 2026-06-08
 
 ## Status Key
 - ✅ FIXED — committed and verified on live server
@@ -214,3 +214,43 @@ OTP re-login no longer needed on Flask restart. Session auto-recovers via Androi
 |----|-------|--------|-------|
 | DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB. Need JazzDrive upload + sync. |
 | OPS-01 | Account 03286829827 session | ✅ RESOLVED 2026-06-07 | BUG-A03 fixed. Session auto-recovers via Android OAuth2 + PK proxy. No OTP needed. |
+
+
+---
+
+## Session 2026-06-08 (TASK-057) — A-Z Full Audit + Fix + APK Build
+
+### Oracle Python bugs fixed (commit 41fcc63)
+
+| ID | Severity | Title | Root Cause | Fix Applied | File |
+|----|---------|-------|-----------|-------------|------|
+| FIX-ISONGOING | HIGH | Events never marked as not-ongoing | is_ongoing compared string "0" which is truthy in Python | Cast to int() before comparison | hub/routes/zero_rating.py |
+| FIX-XOR-NEXTHR | MEDIUM | XOR decode fails near hour boundary | _candidate_keys() only tried current UTC hour | Added utc_hour + 1 as second candidate | hub/request_encoding.py |
+
+### Flutter bugs fixed (commits 3a68806, bf50cd6)
+
+| ID | Severity | Title | Root Cause | Fix Applied | File |
+|----|---------|-------|-----------|-------------|------|
+| BUG-TAB-01 | HIGH | TabController memory leak on pull-to-refresh | _initTabs() recreated controller without disposing old one | Dispose old controller before replacing | screens/show_detail_screen.dart |
+| BUG-DL-THROTTLE | MEDIUM | SQLite DB flood during download | Progress updated on every byte callback — 100s writes/sec | Throttled to 5% boundary | core/download/download_service.dart |
+| FIX-URI-01 | MEDIUM | Deep-link URI parse drops query params | uri.split('/').last discards ?queryParams | Uri.parse(uri).pathSegments.last with fallback | screens/splash_screen.dart |
+| FIX-LIKE-01 | MEDIUM | Search LIKE matches wrong items | % and _ in search input act as SQL wildcards | Escape meta-chars before LIKE | core/db/local_db.dart |
+| FIX-SEARCH-INIT | LOW | Search screen empty with initialFilter | initialFilter set text field but didn't call _doSearch() | Call _doSearch() in initState when initialFilter non-empty | screens/search_screen.dart |
+| FIX-ID-CAST | LOW | TypeError crash on catalog item with null id | json['id'] as int throws TypeError when null | Safe cast: (json['id'] as int?) | models/catalog_item.dart |
+
+### Build note
+Initial commit 3a68806 had a Dart syntax error: semicolon placed AFTER an inline comment.
+Rule: Dart semicolons MUST come BEFORE inline comments — expr); // comment (never after).
+Fixed in commit bf50cd6. APK build1034 succeeded.
+
+### APK
+Build 1034 — RaddFlix-1.0.0+1-build1034.apk — run 27156269376 — 56.7 MB — expires 2026-07-08
+
+---
+
+## Open Data Gaps (need admin action, not code fixes)
+
+| ID | Title | Status | Notes |
+|----|-------|--------|-------|
+| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | OPEN | Need JazzDrive upload + sync |
+| DATA-02 | 9 movies with deleted JD files (Animal, Dune, Inception, Interstellar, Inuyashiki, Oppenheimer, Reborn, The Ninth Gate, Super Mario Galaxy) | OPEN | JD files deleted. Need manual re-upload to JazzDrive by admin |
