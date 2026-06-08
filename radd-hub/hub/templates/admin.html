@@ -150,6 +150,15 @@
     <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="loadQuotaLeaderboard()">↺ Refresh</button>
   </div>
   <div id="quota-leaderboard-tbl"><div class="muted empty">Loading…</div></div>
+  <!-- Inline quota input (replaces prompt()) -->
+  <div id="quota-input-panel" style="display:none;align-items:center;gap:8px;margin-top:12px;padding:10px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;flex-wrap:wrap">
+    <span id="quota-lbl" style="font-size:13px;color:var(--muted)">Quota (MB/day):</span>
+    <input type="number" id="quota-mb-input" min="0" step="100" placeholder="e.g. 500"
+           style="width:110px;font-family:monospace"
+           onkeydown="if(event.key==='Enter') applyQuota()">
+    <button onclick="applyQuota()" style="padding:4px 14px;font-size:13px">Set</button>
+    <button class="ghost" onclick="document.getElementById('quota-input-panel').style.display='none'" style="font-size:12px;padding:4px 10px">Cancel</button>
+  </div>
 </div>
 
 <!-- Force User Sync -->
@@ -755,7 +764,13 @@ async function waAction(cmd){
 }
 
 async function waRelink(){
-  if(!confirm('Wipe WhatsApp auth and restart?')) return;
+  if (!window._armed_waRelink) {
+    window._armed_waRelink = true;
+    toast('⚠ Wipe WhatsApp auth and restart? — click again to confirm', 4000);
+    setTimeout(() => { window._armed_waRelink = false; }, 4000);
+    return;
+  }
+  window._armed_waRelink = false;
   try{ await api(WA_ADM+'/relink',{method:'POST'}); toast('Re-link triggered'); setTimeout(pollWa,1500); }
   catch(e){ toast('Failed: '+e.message); }
 }
@@ -804,12 +819,24 @@ async function loadBotUsers(){
   } catch(e){ cont.innerHTML='<div class="muted">Error: '+e.message+'</div>'; }
 }
 
-async function setQuota(num){
-  const mb=prompt('New daily quota in MB for '+num+':');
-  if(mb===null) return;
+var _quotaNum = '';
+function setQuota(num){
+  _quotaNum = num;
+  const panel = document.getElementById('quota-input-panel');
+  const lbl   = document.getElementById('quota-lbl');
+  if (panel) {
+    lbl.textContent = 'Quota (MB/day) for ' + num + ':';
+    document.getElementById('quota-mb-input').value = '';
+    panel.style.display = 'flex';
+    document.getElementById('quota-mb-input').focus();
+  }
+}
+async function applyQuota(){
+  const mb = parseInt(document.getElementById('quota-mb-input').value) || 0;
+  document.getElementById('quota-input-panel').style.display = 'none';
   try{
-    await api(WA_ADM+'/quota',{method:'POST',body:{number:num,mb:parseInt(mb)||0}});
-    toast('Quota updated'); loadBotUsers();
+    await api(WA_ADM+'/quota',{method:'POST',body:{number:_quotaNum,mb}});
+    toast('✔ Quota updated to ' + mb + ' MB/day'); loadBotUsers();
   } catch(e){ toast('Failed: '+e.message); }
 }
 
@@ -869,7 +896,13 @@ async function admSendBroadcast(){
   if(!msg){ toast('Enter a message first'); return; }
   const roles=[]; if(chkV) roles.push('verified'); if(chkA) roles.push('admins');
   if(!roles.length){ toast('Select at least one role'); return; }
-  if(!confirm('Send broadcast to all '+roles.join(' + ')+' users?')) return;
+  if (!window._armed_broadcast) {
+    window._armed_broadcast = true;
+    toast('⚠ Send broadcast to all ' + roles.join(' + ') + ' users? — click again to confirm', 4000);
+    setTimeout(() => { window._armed_broadcast = false; }, 4000);
+    return;
+  }
+  window._armed_broadcast = false;
   if(st) st.textContent='Sending…';
   try{
     const d=await api('/api/whatsapp/broadcast',{method:'POST',body:{message:msg,roles}});
@@ -1174,8 +1207,13 @@ async function dbSync(mode){
 }
 
 async function dbClearGithub(){
-  if(!confirm('DANGER: This will wipe your GitHub JSON database file. Are you sure?')) return;
-  if(!confirm('FINAL CONFIRMATION: Are you absolutely sure? This cannot be undone.')) return;
+  if (!window._armed_clearGh) {
+    window._armed_clearGh = true;
+    toast('⚠ DANGER: Wipe GitHub JSON database? — click again to confirm', 4000);
+    setTimeout(() => { window._armed_clearGh = false; }, 4000);
+    return;
+  }
+  window._armed_clearGh = false;
   _dangerMsg('Clearing GitHub…');
   try{
     const r=await api('/admin/api/db/clear-github',{method:'POST'});
@@ -1184,8 +1222,13 @@ async function dbClearGithub(){
 }
 
 async function dbClearSheets(){
-  if(!confirm('DANGER: This will delete all rows from your Google Sheet. Are you sure?')) return;
-  if(!confirm('FINAL CONFIRMATION: Are you absolutely sure? This cannot be undone.')) return;
+  if (!window._armed_clearGs) {
+    window._armed_clearGs = true;
+    toast('⚠ DANGER: Delete all rows from Google Sheet? — click again to confirm', 4000);
+    setTimeout(() => { window._armed_clearGs = false; }, 4000);
+    return;
+  }
+  window._armed_clearGs = false;
   _dangerMsg('Clearing Google Sheets…');
   try{
     const r=await api('/admin/api/db/clear-gsheets',{method:'POST'});
@@ -1429,8 +1472,13 @@ async function dsTriggerNow() {
 }
 
 async function dsRestartOracle() {
-  if (!confirm('Restart Oracle server?
-All active connections will drop for ~5 seconds.')) return;
+  if (!window._armed_restartOracle) {
+    window._armed_restartOracle = true;
+    toast('⚠ Restart Oracle server? All connections drop for ~5s — click again to confirm', 4000);
+    setTimeout(() => { window._armed_restartOracle = false; }, 4000);
+    return;
+  }
+  window._armed_restartOracle = false;
   const btn = document.getElementById('ds-restart-btn');
   btn.disabled = true; btn.textContent = 'Restarting…';
   _dsMsg('Sending restart signal…');
