@@ -132,6 +132,8 @@
 .bulk-btn.pub:hover{background:#16a34a}
 .bulk-btn.unpub{background:var(--panel2);color:var(--text);border:1px solid var(--border)}
 .bulk-btn.unpub:hover{border-color:var(--err);color:var(--err)}
+.bulk-btn.del{background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)}
+.bulk-btn.del:hover{background:#ef4444;color:#fff}
 .bulk-btn.clear{background:transparent;color:var(--muted);font-weight:400;font-size:11px;padding:4px 8px;border:none;cursor:pointer}
 </style>
 
@@ -544,8 +546,9 @@
 <!-- ── Bulk action bar ───────────────────────────────────────────────── -->
 <div id="bulk-bar" class="hidden">
   <span id="bulk-count">0 selected</span>
-  <button class="bulk-btn pub" onclick="bulkPublish()">✅ Publish Selected</button>
-  <button class="bulk-btn unpub" onclick="bulkUnpublish()">🚫 Unpublish Selected</button>
+  <button class="bulk-btn pub" onclick="bulkPublish()">✅ Publish</button>
+  <button class="bulk-btn unpub" onclick="bulkUnpublish()">🚫 Unpublish</button>
+  <button class="bulk-btn del" id="bulk-del-btn" onclick="bulkDelete()">🗑 Delete</button>
   <button class="bulk-btn clear" onclick="clearSelection()">✕ Clear</button>
 </div>
 
@@ -728,6 +731,47 @@ async function bulkUnpublish(){
       clearSelection();
     } else toast('Error: '+(d.error||'?'));
   } catch(e){ toast('Error: '+e.message); }
+}
+
+async function bulkDelete(){
+  if(!_sel.size) return;
+  const btn = document.getElementById('bulk-del-btn');
+  const ids  = [..._sel];
+  // Two-step: arm first
+  if(!btn._armed){
+    btn._armed = true;
+    btn.textContent = `⚠️ Delete ${ids.length} title(s)?`;
+    btn.style.background = '#ef4444'; btn.style.color = '#fff';
+    setTimeout(()=>{ btn._armed=false; btn.textContent='🗑 Delete'; btn.style.background=''; btn.style.color=''; }, 4000);
+    return;
+  }
+  btn._armed = false; btn.style.background=''; btn.style.color='';
+  btn.disabled = true; btn.textContent = '⏳ Deleting…';
+  let deleted = 0, failed = 0;
+  try{
+    for(const id of ids){
+      try{
+        const d = await fetch(`/library/api/title/${id}/delete`,{
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({delete_files: false})
+        }).then(r=>r.json());
+        if(d.ok){
+          deleted++;
+          // Remove row from table
+          const row = document.querySelector(`tr[data-id="${id}"]`);
+          if(row) row.remove();
+          // Remove card from grid
+          const card = document.getElementById(`card-${id}`);
+          if(card) card.remove();
+          delete _titles[id];
+        } else { failed++; }
+      } catch(e){ failed++; }
+    }
+    clearSelection();
+    toast(`Deleted ${deleted} title(s)${failed ? ` (${failed} failed)` : ''}`);
+  } finally {
+    btn.disabled = false; btn.textContent = '🗑 Delete';
+  }
 }
 
 let _currentTitle=null;
