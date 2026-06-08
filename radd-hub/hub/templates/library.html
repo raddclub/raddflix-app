@@ -101,6 +101,38 @@
 @media(max-width:400px){
   .poster-grid{grid-template-columns:repeat(2,1fr)}
 }
+
+/* ── Publish status dots ───────────────────────────────────────────── */
+.pub-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;vertical-align:middle}
+.pub-dot.on{background:#22c55e}
+.pub-dot.off{background:#555}
+.pub-badge-pub{background:#16a34a22;color:#22c55e;border:1px solid #22c55e44;
+  font-size:9px;padding:1px 5px;border-radius:3px;white-space:nowrap}
+.pub-badge-unpub{background:var(--panel2);color:var(--muted);border:1px solid var(--border);
+  font-size:9px;padding:1px 5px;border-radius:3px;white-space:nowrap}
+
+/* ── Selection checkboxes ──────────────────────────────────────────── */
+.row-cb{width:14px;height:14px;cursor:pointer;accent-color:var(--accent)}
+.card-cb-wrap{position:absolute;top:6px;left:6px;z-index:2}
+.card-cb-wrap input{width:16px;height:16px;cursor:pointer;accent-color:var(--accent)}
+.poster-card{position:relative}
+.poster-card.selected{outline:2px solid var(--accent);outline-offset:1px}
+
+/* ── Bulk action bar ───────────────────────────────────────────────── */
+#bulk-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  background:var(--panel);border:1px solid var(--accent);border-radius:12px;
+  padding:10px 18px;display:flex;align-items:center;gap:10px;
+  box-shadow:0 8px 32px #0007;z-index:900;white-space:nowrap;
+  transition:opacity .2s,transform .2s}
+#bulk-bar.hidden{opacity:0;pointer-events:none;transform:translateX(-50%) translateY(20px)}
+#bulk-count{font-size:13px;font-weight:600;color:var(--accent)}
+.bulk-btn{padding:6px 14px;font-size:12px;border-radius:8px;cursor:pointer;border:none;
+  font-weight:600;white-space:nowrap}
+.bulk-btn.pub{background:#22c55e;color:#fff}
+.bulk-btn.pub:hover{background:#16a34a}
+.bulk-btn.unpub{background:var(--panel2);color:var(--text);border:1px solid var(--border)}
+.bulk-btn.unpub:hover{border-color:var(--err);color:var(--err)}
+.bulk-btn.clear{background:transparent;color:var(--muted);font-weight:400;font-size:11px;padding:4px 8px;border:none;cursor:pointer}
 </style>
 
 <!-- ── Page header ──────────────────────────────────────────────────── -->
@@ -150,6 +182,16 @@
                 border:1px solid var(--border);border-radius:6px;color:var(--muted);
                 background:transparent;cursor:pointer"
          title="Run TMDB + OMDB enrichment on ALL titles with confidence &lt; 60 (missing plot/poster/genres) — runs in background">🔄 Re-enrich All</button>
+      <button onclick="publishAll()" id="pub-all-btn"
+         style="padding:5px 10px;font-size:12px;white-space:nowrap;
+                border:1px solid #22c55e44;border-radius:6px;color:#22c55e;
+                background:#16a34a11;cursor:pointer"
+         title="Publish all titles that have a JazzDrive file link">✅ Publish All</button>
+      <button onclick="unpublishAll()" id="unpub-all-btn"
+         style="padding:5px 10px;font-size:12px;white-space:nowrap;
+                border:1px solid var(--border);border-radius:6px;color:var(--muted);
+                background:transparent;cursor:pointer"
+         title="Hide all titles from the app">🚫 Unpublish All</button>
     </div>
   </div>
 </div>
@@ -169,10 +211,17 @@
 <div class="card" style="padding:14px 16px;margin-top:14px">
   <div class="filter-bar">
     <div style="font-size:12px;color:var(--muted);white-space:nowrap">Type:</div>
-    <a href="/library/?q={{ query }}" class="filter-btn {{ 'active' if not filter_type }}">All</a>
-    <a href="/library/?q={{ query }}&type=movie" class="filter-btn {{ 'active' if filter_type=='movie' }}">Movies</a>
-    <a href="/library/?q={{ query }}&type=series" class="filter-btn {{ 'active' if filter_type=='series' }}">Series</a>
-    <a href="/library/?q={{ query }}&type=anime" class="filter-btn {{ 'active' if filter_type=='anime' }}">Anime</a>
+    <a href="/library/?q={{ query }}{% if filter_pub %}&pub={{ filter_pub }}{% endif %}" class="filter-btn {{ 'active' if not filter_type }}">All</a>
+    <a href="/library/?q={{ query }}&type=movie{% if filter_pub %}&pub={{ filter_pub }}{% endif %}" class="filter-btn {{ 'active' if filter_type=='movie' }}">Movies</a>
+    <a href="/library/?q={{ query }}&type=series{% if filter_pub %}&pub={{ filter_pub }}{% endif %}" class="filter-btn {{ 'active' if filter_type=='series' }}">Series</a>
+    <a href="/library/?q={{ query }}&type=anime{% if filter_pub %}&pub={{ filter_pub }}{% endif %}" class="filter-btn {{ 'active' if filter_type=='anime' }}">Anime</a>
+
+    <div style="width:1px;background:var(--border);height:20px;margin:0 2px"></div>
+
+    <div style="font-size:12px;color:var(--muted);white-space:nowrap">Status:</div>
+    <a href="/library/?q={{ query }}{% if filter_type %}&type={{ filter_type }}{% endif %}" class="filter-btn {{ 'active' if not filter_pub }}">All</a>
+    <a href="/library/?q={{ query }}{% if filter_type %}&type={{ filter_type }}{% endif %}&pub=published" class="filter-btn {{ 'active' if filter_pub=='published' }}" style="{{ 'color:#22c55e' if filter_pub!='published' else '' }}">✅ Published</a>
+    <a href="/library/?q={{ query }}{% if filter_type %}&type={{ filter_type }}{% endif %}&pub=unpublished" class="filter-btn {{ 'active' if filter_pub=='unpublished' }}">⬜ Unpublished</a>
 
     <div style="width:1px;background:var(--border);height:20px;margin:0 2px"></div>
 
@@ -205,6 +254,8 @@
         <option value="year_asc" {{ 'selected' if sort=='year_asc' }}>Year ↑</option>
         <option value="rating" {{ 'selected' if sort=='rating' }}>Rating ↓</option>
         <option value="added" {{ 'selected' if sort=='added' }}>Date added ↓</option>
+        <option value="pub_first" {{ 'selected' if sort=='pub_first' }}>Published first</option>
+        <option value="unpub_first" {{ 'selected' if sort=='unpub_first' }}>Unpublished first</option>
       </select>
     </div>
   </div>
@@ -225,13 +276,15 @@
   {% endif %}
 </div>
 
-<!-- ── Results info ─────────────────────────────────────────────────── -->
+<!-- ── Results info + select all ────────────────────────────────────── -->
 {% if titles %}
-<div class="row" style="margin:10px 0 8px;justify-content:space-between">
-  <div class="results-info">
-    Showing <strong>{{ titles|length }}</strong>
-    {% if titles|length >= 200 %} (limited to 200 — refine search){% endif %}
-    {% if query %} for "<strong>{{ query }}</strong>"{% endif %}
+<div class="row" style="margin:10px 0 8px;justify-content:space-between;align-items:center">
+  <div class="results-info" style="display:flex;align-items:center;gap:10px">
+    <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--muted)">
+      <input type="checkbox" id="select-all-cb" class="row-cb" onchange="toggleSelectAll(this.checked)">
+      Select all
+    </label>
+    <span>Showing <strong>{{ titles|length }}</strong>{% if query %} for "<strong>{{ query }}</strong>"{% endif %}</span>
   </div>
 </div>
 {% endif %}
@@ -240,22 +293,26 @@
 <div class="card" id="view-table" style="margin-top:10px">
   {% if titles %}
   <div class="table-wrap">
-  <table style="min-width:560px">
+  <table style="min-width:580px">
     <thead>
       <tr>
+        <th style="width:24px"><input type="checkbox" class="row-cb" onchange="toggleSelectAll(this.checked)"></th>
         <th style="width:42px"></th>
         <th>Title</th>
+        <th style="width:72px">Status</th>
         <th style="width:56px">Year</th>
         <th style="width:72px">Type</th>
         <th style="width:56px">Rating</th>
         <th>Director</th>
-        <th>Languages</th>
         <th style="width:60px">Files</th>
       </tr>
     </thead>
     <tbody>
     {% for t in titles %}
-    <tr onclick="openDetail({{ t.id }})" style="cursor:pointer">
+    <tr id="row-{{ t.id }}" onclick="handleRowClick(event, {{ t.id }})" style="cursor:pointer">
+      <td style="padding:6px 8px" onclick="event.stopPropagation()">
+        <input type="checkbox" class="row-cb title-cb" data-id="{{ t.id }}" onchange="onCbChange()">
+      </td>
       <td style="padding:6px 8px">
         {% if t.poster %}
         <img src="{{ t.poster }}" class="poster-thumb" alt=""
@@ -275,11 +332,20 @@
         </div>
         {% endif %}
       </td>
+      <td id="pub-cell-{{ t.id }}" onclick="event.stopPropagation()">
+        <button class="pub-toggle-btn" data-id="{{ t.id }}" data-pub="{{ 1 if t.is_published else 0 }}"
+                onclick="quickTogglePublish({{ t.id }}, this)"
+                style="background:none;border:none;cursor:pointer;padding:2px 0;display:flex;align-items:center;gap:4px">
+          <span class="pub-dot {{ 'on' if t.is_published else 'off' }}"></span>
+          <span class="{{ 'pub-badge-pub' if t.is_published else 'pub-badge-unpub' }}">
+            {{ 'Live' if t.is_published else 'Hidden' }}
+          </span>
+        </button>
+      </td>
       <td>{{ t.year or '—' }}</td>
       <td><span class="badge b-info">{{ t.media_type or '?' }}</span></td>
       <td>{{ '%0.1f' % t.rating if t.rating else '—' }}</td>
       <td class="muted" style="font-size:12px;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.director or '—' }}</td>
-      <td class="muted" style="font-size:12px">{{ (t.languages_csv or '—')[:20] }}</td>
       <td style="text-align:center"><span class="badge b-mut">{{ t.file_count or 0 }}</span></td>
     </tr>
     {% endfor %}
@@ -353,7 +419,10 @@
   {% if titles %}
   <div class="poster-grid">
   {% for t in titles %}
-  <div class="poster-card" onclick="openDetail({{ t.id }})">
+  <div class="poster-card" id="card-{{ t.id }}" onclick="handleCardClick(event, {{ t.id }})">
+    <div class="card-cb-wrap" onclick="event.stopPropagation()">
+      <input type="checkbox" class="title-cb" data-id="{{ t.id }}" onchange="onCbChange()">
+    </div>
     {% if t.poster %}
     <img src="{{ t.poster }}" class="poster-img" alt="{{ t.title }}"
          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
@@ -367,9 +436,9 @@
         <span>{{ t.year or '—' }}</span>
         {% if t.rating %}<span>⭐ {{ '%0.1f' % t.rating }}</span>{% endif %}
       </div>
-      <div style="margin-top:4px">
+      <div style="margin-top:4px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">
         <span class="poster-badge">{{ t.media_type or '?' }}</span>
-        {% if t.file_count %}<span class="muted" style="font-size:10px;margin-left:4px">{{ t.file_count }} file{{ 's' if t.file_count != 1 }}</span>{% endif %}
+        <span class="{{ 'pub-badge-pub' if t.is_published else 'pub-badge-unpub' }}">{{ 'Live' if t.is_published else 'Hidden' }}</span>
       </div>
     </div>
   </div>
@@ -472,6 +541,14 @@
   </div>
 </div>
 
+<!-- ── Bulk action bar ───────────────────────────────────────────────── -->
+<div id="bulk-bar" class="hidden">
+  <span id="bulk-count">0 selected</span>
+  <button class="bulk-btn pub" onclick="bulkPublish()">✅ Publish Selected</button>
+  <button class="bulk-btn unpub" onclick="bulkUnpublish()">🚫 Unpublish Selected</button>
+  <button class="bulk-btn clear" onclick="clearSelection()">✕ Clear</button>
+</div>
+
 <!-- ── Link File to Title Modal ──────────────────────────────────────────── -->
 <div id="link-modal" class="modal" style="display:none" onclick="if(event.target===this)closeLinkModal()">
   <div class="modal-box" style="max-width:480px">
@@ -520,8 +597,138 @@ _titles[{{ t.id }}]={
   genres_csv:{{ (t.genres_csv or '')|tojson }},cast_names:{{ (t.cast_names or '')|tojson }},
   overview:{{ (t.overview or '')|tojson }},poster:{{ (t.poster or '')|tojson }},
   tmdb_id:{{ t.tmdb_id or 'null' }},
+  _is_published:{{ 1 if t.is_published else 0 }},
+  _is_free:0,
 };
 {% endfor %}
+
+// ── Row/Card click (opens detail unless checkbox was clicked) ──────────────
+function handleRowClick(e, id){ if(e.target.type==='checkbox') return; openDetail(id); }
+function handleCardClick(e, id){ if(e.target.type==='checkbox') return; openDetail(id); }
+
+// ── Selection logic ───────────────────────────────────────────────────────
+const _sel = new Set();
+function onCbChange(){
+  _sel.clear();
+  document.querySelectorAll('.title-cb:checked').forEach(cb=>_sel.add(parseInt(cb.dataset.id)));
+  // sync card highlight
+  document.querySelectorAll('.poster-card').forEach(c=>{
+    const id=parseInt(c.id.replace('card-',''));
+    c.classList.toggle('selected', _sel.has(id));
+  });
+  updateBulkBar();
+}
+function toggleSelectAll(checked){
+  document.querySelectorAll('.title-cb').forEach(cb=>{ cb.checked=checked; });
+  // sync the other select-all checkbox in thead
+  document.querySelectorAll('#select-all-cb,thead input[type=checkbox]').forEach(cb=>cb.checked=checked);
+  onCbChange();
+}
+function clearSelection(){
+  document.querySelectorAll('.title-cb,#select-all-cb,thead input[type=checkbox]').forEach(cb=>cb.checked=false);
+  _sel.clear();
+  document.querySelectorAll('.poster-card').forEach(c=>c.classList.remove('selected'));
+  updateBulkBar();
+}
+function updateBulkBar(){
+  const bar=document.getElementById('bulk-bar');
+  const cnt=document.getElementById('bulk-count');
+  if(!bar) return;
+  if(_sel.size===0){ bar.classList.add('hidden'); }
+  else { bar.classList.remove('hidden'); cnt.textContent=_sel.size+' selected'; }
+}
+
+// ── Quick publish toggle on table row ─────────────────────────────────────
+async function quickTogglePublish(id, btn){
+  const curPub = parseInt(btn.dataset.pub||'0');
+  const newVal = curPub ? 0 : 1;
+  btn.style.opacity='0.5';
+  try {
+    const d = await fetch(`/library/api/title/${id}/set-published`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({is_published: newVal})
+    }).then(r=>r.json());
+    if(d.ok){
+      btn.dataset.pub = newVal;
+      const dot  = btn.querySelector('.pub-dot');
+      const badge= btn.querySelector('span:last-child');
+      if(dot){  dot.className='pub-dot '+(newVal?'on':'off'); }
+      if(badge){ badge.className=newVal?'pub-badge-pub':'pub-badge-unpub'; badge.textContent=newVal?'Live':'Hidden'; }
+      if(_titles[id]) _titles[id]._is_published=newVal;
+    } else { toast('Error: '+(d.error||'?')); }
+  } catch(e){ toast('Error: '+e.message); }
+  finally { btn.style.opacity=''; }
+}
+
+// ── Publish All / Unpublish All ───────────────────────────────────────────
+async function publishAll(){
+  const btn=document.getElementById('pub-all-btn');
+  if(!confirm('Publish ALL titles that have a JazzDrive file link?')) return;
+  if(btn){ btn.textContent='⏳ Publishing…'; btn.disabled=true; }
+  try{
+    const d=await fetch('/library/api/titles/publish-all',{method:'POST'}).then(r=>r.json());
+    if(d.ok){ toast(`Published ${d.published} title(s)`); if(d.published>0) setTimeout(()=>location.reload(),900); }
+    else toast('Error: '+(d.error||'?'));
+  } catch(e){ toast('Error: '+e.message); }
+  finally{ if(btn){ btn.textContent='✅ Publish All'; btn.disabled=false; } }
+}
+async function unpublishAll(){
+  const btn=document.getElementById('unpub-all-btn');
+  if(!confirm('Unpublish ALL titles? They will be hidden from the app.')) return;
+  if(btn){ btn.textContent='⏳ Hiding…'; btn.disabled=true; }
+  try{
+    const d=await fetch('/library/api/titles/unpublish-all',{method:'POST'}).then(r=>r.json());
+    if(d.ok){ toast(`Unpublished ${d.unpublished} title(s)`); if(d.unpublished>0) setTimeout(()=>location.reload(),900); }
+    else toast('Error: '+(d.error||'?'));
+  } catch(e){ toast('Error: '+e.message); }
+  finally{ if(btn){ btn.textContent='🚫 Unpublish All'; btn.disabled=false; } }
+}
+
+// ── Bulk publish / unpublish selected ─────────────────────────────────────
+async function bulkPublish(){
+  if(!_sel.size) return;
+  const ids=[..._sel];
+  try{
+    const d=await fetch('/library/api/titles/bulk-set-published',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ids, is_published: true})
+    }).then(r=>r.json());
+    if(d.ok){
+      toast(`Published ${d.updated} title(s)`);
+      ids.forEach(id=>{
+        const btn=document.querySelector(`.pub-toggle-btn[data-id="${id}"]`);
+        if(btn){ btn.dataset.pub='1';
+          const dot=btn.querySelector('.pub-dot'); if(dot) dot.className='pub-dot on';
+          const badge=btn.querySelector('span:last-child'); if(badge){ badge.className='pub-badge-pub'; badge.textContent='Live'; }
+        }
+        if(_titles[id]) _titles[id]._is_published=1;
+      });
+      clearSelection();
+    } else toast('Error: '+(d.error||'?'));
+  } catch(e){ toast('Error: '+e.message); }
+}
+async function bulkUnpublish(){
+  if(!_sel.size) return;
+  const ids=[..._sel];
+  try{
+    const d=await fetch('/library/api/titles/bulk-set-published',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ids, is_published: false})
+    }).then(r=>r.json());
+    if(d.ok){
+      toast(`Unpublished ${d.updated} title(s)`);
+      ids.forEach(id=>{
+        const btn=document.querySelector(`.pub-toggle-btn[data-id="${id}"]`);
+        if(btn){ btn.dataset.pub='0';
+          const dot=btn.querySelector('.pub-dot'); if(dot) dot.className='pub-dot off';
+          const badge=btn.querySelector('span:last-child'); if(badge){ badge.className='pub-badge-unpub'; badge.textContent='Hidden'; }
+        }
+        if(_titles[id]) _titles[id]._is_published=0;
+      });
+      clearSelection();
+    } else toast('Error: '+(d.error||'?'));
+  } catch(e){ toast('Error: '+e.message); }
+}
 
 let _currentTitle=null;
 function openDetail(id){
@@ -710,8 +917,18 @@ async function togglePublished() {
     }).then(r=>r.json());
     if (d.ok) {
       _currentTitle._is_published = newVal;
+      if (_titles[id]) _titles[id]._is_published = newVal;
       if (btn) btn.textContent = newVal ? '📵 Unpublish' : '📺 Publish';
       toast(newVal ? 'Title published — visible in app' : 'Title unpublished — hidden from app');
+      // sync the row status cell inline without reload
+      const rowBtn = document.querySelector(`.pub-toggle-btn[data-id="${id}"]`);
+      if(rowBtn){
+        rowBtn.dataset.pub = newVal;
+        const dot  = rowBtn.querySelector('.pub-dot');
+        const badge= rowBtn.querySelector('span:last-child');
+        if(dot)  dot.className='pub-dot '+(newVal?'on':'off');
+        if(badge){ badge.className=newVal?'pub-badge-pub':'pub-badge-unpub'; badge.textContent=newVal?'Live':'Hidden'; }
+      }
     }
   } catch(e) { toast('Error: '+e.message); }
 }
@@ -746,17 +963,25 @@ async function bulkEnrichOmdb() {
   finally { if (btn) { btn.textContent = '⚡ Bulk Enrich'; btn.disabled = false; } }
 }
 
-// ── _initAdminButtons — called by openDetail to refresh free/published labels ─
+// ── _initAdminButtons — called by openDetail to set free/published labels ─
+// Uses pre-loaded _titles data first; falls back to fetch to get is_free
 function _initAdminButtons(id) {
+  const cached = _titles[id];
+  const fb = document.getElementById('detail-free-btn');
+  const pb = document.getElementById('detail-pub-btn');
+  // Set publish button immediately from cached data
+  if (cached && pb) {
+    pb.textContent = cached._is_published ? '📵 Unpublish' : '📺 Publish';
+  }
+  // Fetch is_free (not in server-rendered data) + confirm is_published
   fetch(`/library/api/title/${id}`).then(r=>r.json()).then(d=>{
     if (d.title) {
       const t = d.title;
       if (_currentTitle) {
-        _currentTitle._is_free       = t.is_free || 0;
-        _currentTitle._is_published  = t.is_published || 0;
+        _currentTitle._is_free      = t.is_free || 0;
+        _currentTitle._is_published = t.is_published || 0;
+        if (_titles[id]) _titles[id]._is_published = t.is_published || 0;
       }
-      const fb = document.getElementById('detail-free-btn');
-      const pb = document.getElementById('detail-pub-btn');
       if (fb) fb.textContent = t.is_free ? '🔒 Mark Paid' : '🔓 Mark Free';
       if (pb) pb.textContent = t.is_published ? '📵 Unpublish' : '📺 Publish';
     }

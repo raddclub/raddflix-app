@@ -100,11 +100,13 @@ _SORT_MAP = {
     "year_asc":  "t.year ASC NULLS LAST",
     "rating":    "t.rating DESC NULLS LAST",
     "added":     "t.id DESC",
+    "pub_first": "t.is_published DESC NULLS LAST, t.title ASC",
+    "unpub_first":"COALESCE(t.is_published,0) ASC, t.title ASC",
 }
 
 
 def _list_titles_filtered(q="", media_type="", genre="", director="", actor="",
-                           sort="title", limit=200):
+                           filter_pub="", sort="title", limit=200):
     """Flexible title query with optional filters. Returns list of dicts."""
     sort_clause = _SORT_MAP.get(sort, "t.title ASC")
     conditions  = []
@@ -128,6 +130,10 @@ def _list_titles_filtered(q="", media_type="", genre="", director="", actor="",
     if actor:
         conditions.append("t.cast_json LIKE ?")
         params.append(f"%{actor}%")
+    if filter_pub == "published":
+        conditions.append("t.is_published = 1")
+    elif filter_pub == "unpublished":
+        conditions.append("(t.is_published IS NULL OR t.is_published != 1)")
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     sql = f"""
@@ -144,7 +150,6 @@ def _list_titles_filtered(q="", media_type="", genre="", director="", actor="",
         try:
             rows = c.execute(sql, params).fetchall()
         except Exception:
-            # Fallback: no file_count column if DB schema older
             sql2 = f"SELECT * FROM titles t {where} ORDER BY {sort_clause} LIMIT ?"
             rows = c.execute(sql2, params).fetchall()
     return [db._enrich_title(r) for r in rows]
@@ -249,14 +254,17 @@ def page():
     filter_genre = request.args.get("genre",    "").strip()
     filter_dir   = request.args.get("director", "").strip()
     filter_actor = request.args.get("actor",    "").strip()
+    filter_pub   = request.args.get("pub",      "").strip()
     sort         = request.args.get("sort",     "title").strip()
     if sort not in _SORT_MAP:
         sort = "title"
+    if filter_pub not in ("published", "unpublished", ""):
+        filter_pub = ""
 
     titles = _list_titles_filtered(
         q=q, media_type=filter_type, genre=filter_genre,
         director=filter_dir, actor=filter_actor,
-        sort=sort, limit=200,
+        filter_pub=filter_pub, sort=sort, limit=500,
     )
 
     # Fetch unidentified files (those without a title_id)
@@ -279,6 +287,7 @@ def page():
         filter_genre=filter_genre,
         filter_dir=filter_dir,
         filter_actor=filter_actor,
+        filter_pub=filter_pub,
         sort=sort,
         stats=db.count_library(),
     )
@@ -634,11 +643,74 @@ def api_set_published(title_id):
     with db.conn() as c:
         c.execute("UPDATE titles SET is_published=?, updated_at=? WHERE id=?",
                   (val, int(_tm.time()), title_id))
-    # Auto-regenerate db_update.json so zero-rated users get updated catalog
     threading.Thread(target=_regen_db_update_bg, daemon=True).start()
-    # Auto-notify users when a title goes live (in-app + WhatsApp)
     threading.Thread(target=_notify_new_title_bg, args=(title_id, val), daemon=True).start()
     return jsonify({"ok": True, "is_published": val})
+
+
+@bp.route("/api/titles/publish-all", methods=["POST"])
+@auth.login_required
+def api_publish_all():
+    """Publish all titles that have at least one file with a share_url."""
+    import time as _tm
+    now = int(_tm.time())
+    with db.conn() as c:
+        result = c.execute(
+            "UPDATE titles SET is_published=1, updated_at=?"
+            " WHERE id IN ("
+            "   SELECT DISTINCT title_id FROM files"
+            "   WHERE title_id IS NOT NULL"
+            "     AND share_url IS NOT NULL AND share_url != '')"
+            " AND (is_published IS NULL OR is_published != 1)",
+            (now,)
+        )
+        n = result.rowcount
+    threading.Thread(target=_regen_db_update_bg, daemon=True).start()
+    return jsonify({"ok": True, "published": n})
+
+
+@bp.route("/api/titles/unpublish-all", methods=["POST"])
+@auth.login_required
+def api_unpublish_all():
+    """Unpublish every title in the library."""
+    import time as _tm
+    now = int(_tm.time())
+    with db.conn() as c:
+        result = c.execute(
+            "UPDATE titles SET is_published=0, updated_at=? WHERE is_published=1",
+            (now,)
+        )
+        n = result.rowcount
+    threading.Thread(target=_regen_db_update_bg, daemon=True).start()
+    return jsonify({"ok": True, "unpublished": n})
+
+
+@bp.route("/api/titles/bulk-set-published", methods=["POST"])
+@auth.login_required
+def api_bulk_set_published():
+    """Set is_published for a specific list of title IDs.
+
+    Body: { "ids": [1, 2, 3], "is_published": true|false }
+    """
+    import time as _tm
+    data = request.get_json(force=True, silent=True) or {}
+    ids  = [int(i) for i in (data.get("ids") or []) if str(i).isdigit()]
+    val  = 1 if data.get("is_published") else 0
+    if not ids:
+        return jsonify({"ok": False, "error": "ids required"}), 400
+    now = int(_tm.time())
+    ph  = ",".join("?" * len(ids))
+    with db.conn() as c:
+        result = c.execute(
+            f"UPDATE titles SET is_published=?, updated_at=? WHERE id IN ({ph})",
+            [val, now] + ids
+        )
+        n = result.rowcount
+    threading.Thread(target=_regen_db_update_bg, daemon=True).start()
+    if val == 1:
+        for tid in ids:
+            threading.Thread(target=_notify_new_title_bg, args=(tid, 1), daemon=True).start()
+    return jsonify({"ok": True, "updated": n, "is_published": val})
 
 
 @bp.route("/api/title/<int:title_id>/delete", methods=["DELETE", "POST"])
