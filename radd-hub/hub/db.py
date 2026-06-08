@@ -584,7 +584,111 @@ def init_db() -> None:
                 c.execute(migration_sql)
             except Exception:
                 pass  # column/index already exists, or FTS5 not compiled in SQLite
+    # Run schema check at startup — logs WARNING for any missing critical columns.
+    validate_schema()
 
+
+
+
+# --------------------------------------------------------------------------- #
+# Schema health check                                                         #
+# --------------------------------------------------------------------------- #
+
+# Every table -> list of columns that MUST exist for the app to work correctly.
+# Derived from full A-Z audit of all 27 admin-panel route files (2026-06-08).
+_CRITICAL_SCHEMA = {
+    "app_subscriptions": [
+        "is_active",
+        "expires_at", "plan", "user_id", "started_at", "created_at",
+    ],
+    "app_users": [
+        "id", "phone", "is_active", "created_at",
+        "device_id", "device_name", "last_login_at",
+    ],
+    "titles": [
+        "is_published", "updated_at", "media_type",
+        "poster", "slug", "is_free", "rating", "language",
+        "genres", "plot", "folder_share_url", "poster_share_url",
+    ],
+    "files": [
+        "is_ready", "share_url", "title_id",
+        "season", "episode", "filename", "size_bytes", "fingerprint",
+    ],
+    "tid_payments": [
+        "status", "plan", "user_id", "phone",
+        "amount_pkr", "tid", "payment_method", "submitted_at", "reviewed_at",
+    ],
+    "accounts": [
+        "is_active", "msisdn", "validation_key", "jsessionid",
+        "token_expires_at", "role", "refresh_token",
+    ],
+    "settings": ["k", "v"],
+    "plans": [
+        "is_active", "price_pkr", "name",
+        "duration_days", "max_devices", "features_json",
+    ],
+    "queue": [
+        "job_id", "movie", "site", "status", "created_at", "updated_at",
+    ],
+}
+
+
+# Returns: {ok, issue_count, issues, checks, checked_at}
+# Logs WARNING per missing item so problems appear in supervisord logs at startup.
+def validate_schema():
+    import time as _time
+    import logging as _logging
+    _log = _logging.getLogger("hub.db.schema")
+
+    issues = []
+    checks = {}
+
+    with _conn() as c:
+        tables_raw = c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+        existing_tables = {r["name"] for r in tables_raw}
+
+        col_cache = {}
+        for tbl in existing_tables:
+            try:
+                rows = c.execute('PRAGMA table_info("%s")' % tbl).fetchall()
+                col_cache[tbl] = {r["name"] for r in rows}
+            except Exception:
+                col_cache[tbl] = set()
+
+    ts = int(_time.time())
+
+    for table, columns in _CRITICAL_SCHEMA.items():
+        if table not in existing_tables:
+            msg = "MISSING TABLE %s" % table
+            issues.append(msg)
+            _log.warning("schema-check: %s", msg)
+            for col in columns:
+                checks["%s.%s" % (table, col)] = False
+            continue
+
+        for col in columns:
+            key = "%s.%s" % (table, col)
+            ok  = col in col_cache.get(table, set())
+            checks[key] = ok
+            if not ok:
+                msg = "MISSING COLUMN %s" % key
+                issues.append(msg)
+                _log.warning("schema-check: %s", msg)
+
+    result = {
+        "ok":          len(issues) == 0,
+        "issue_count": len(issues),
+        "issues":      issues,
+        "checks":      checks,
+        "checked_at":  ts,
+    }
+    if issues:
+        _log.warning("schema-check: %d issue(s) found", len(issues))
+    else:
+        _log.info("schema-check: all %d critical columns OK", len(checks))
+    return result
 
 # --------------------------------------------------------------------------- #
 # Generic helpers                                                             #
