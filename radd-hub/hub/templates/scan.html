@@ -360,11 +360,13 @@
   .sl-info  { color:var(--muted); }
   .sl-ok    { color:#5cd66f; font-weight:600; }
   .sl-err   { color:#ff6b6b; font-weight:600; }
-  .sl-warn  { color:#ffc857; font-weight:600; }
+  .sl-warn  { color:#ffc857; }
+  .sl-lookup { color:#7ab4ff; }
   .sl-tmdb  { color:#7ab4ff; }
   .sl-fold  { color:#a78bfa; }
   .sl-mirror{ color:#5cb4ff; }
   .sl-scan  { color:#5cd66f; font-weight:600; }
+  .sl-skip  { color:#666; font-style:italic; }
   #scan-log { background:var(--panel2); border:1px solid var(--border);
               border-radius:8px; padding:10px 12px; max-height:380px;
               overflow-y:auto; font-size:11.5px; font-family:monospace;
@@ -410,24 +412,77 @@ const _KIND_CLS = {
   scan_start:'sl-scan', scan_done:'sl-scan',
   folder:'sl-fold', progress:'sl-info',
   info:'sl-info', error:'sl-err', warn:'sl-warn',
-  tmdb:'sl-tmdb', tmdb_ok:'sl-ok', tmdb_miss:'sl-warn',
-  mirror:'sl-mirror', enrich:'sl-tmdb',
-  otp:'sl-info', debug:'sl-info',
+  // new event names (IMDb-first scanner)
+  lookup:'sl-lookup', found:'sl-ok', not_found:'sl-warn',
+  // legacy compat — old logs still display correctly
+  tmdb:'sl-lookup', tmdb_ok:'sl-ok', tmdb_miss:'sl-warn',
+  imdb_ok:'sl-ok', imdb_miss:'sl-warn',
+  mirror:'sl-mirror', enrich:'sl-lookup',
+  otp:'sl-info', debug:'sl-skip',
 };
 
+// Human-readable label for each event kind
+const _KIND_LABEL = {
+  scan_start: 'Started',
+  scan_done:  'Complete',
+  folder:     'Folder',
+  progress:   '',
+  info:       '',
+  error:      'Error',
+  warn:       '',
+  // new event names
+  lookup:     'Searching',
+  found:      '',
+  not_found:  '',
+  // legacy compat
+  tmdb:       'Searching',
+  tmdb_ok:    '',
+  tmdb_miss:  '',
+  imdb_ok:    '',
+  imdb_miss:  '',
+  enrich:     'Searching',
+  mirror:     'Syncing',
+  otp:        'Auth',
+  debug:      '',
+};
+
+// Suppress internal noise — normal users don't need to see raw API chatter
+const _SUPPRESS = [
+  'skip-clean check',
+  '[Metadata]',
+  'IMDbAPI fallback',
+  'TMDB direct',
+];
+
 function _appendLog(kind, msg) {
-  const el  = document.getElementById('scan-log');
+  const el = document.getElementById('scan-log');
   if (!el) return;
-  const cls = _KIND_CLS[kind] || 'sl-info';
-  const ts  = new Date().toLocaleTimeString('en', {hour12:false});
-  const ln  = document.createElement('span');
+
+  // Suppress internal noise
+  for (const s of _SUPPRESS) {
+    if (msg.indexOf(s) !== -1) return;
+  }
+
+  const cls   = _KIND_CLS[kind] || 'sl-info';
+  const label = _KIND_LABEL[kind];
+  const ts    = new Date().toLocaleTimeString('en', {hour12:false, minute:'2-digit', second:'2-digit'});
+  const ln    = document.createElement('span');
   ln.className = 'll ' + cls;
-  ln.textContent = ts + '  [' + kind + ']  ' + msg;
+
+  // Build the display text — no raw [kind] noise, just a readable label
+  let display = '';
+  if (label) {
+    display = ts + '  ' + label + ': ' + msg;
+  } else {
+    display = ts + '  ' + msg;
+  }
+  ln.textContent = display;
   el.appendChild(ln);
   el.scrollTop = el.scrollHeight;
 
   // Update stats counters from log content
   if (kind === 'folder') _ssFolders++;
+  if (kind === 'found' || kind === 'tmdb_ok' || kind === 'imdb_ok') _ssTitles++;
   if (kind === 'scan_done' || kind === 'info') {
     const m = msg.match(/(\d+)\s+files/i);
     if (m) { _ssFiles = Math.max(_ssFiles, parseInt(m[1])); }
@@ -1243,8 +1298,15 @@ async function removeExcluded(btn, name) {
   btn.disabled = true;
   try {
     const r = await api('/scan/api/excluded-folders/' + encodeURIComponent(name), {method:'DELETE'});
-    _renderExcluded(r.folders || []);
+    if (r.ok) {
+      toast('✔ Removed: ' + name);
+      _renderExcluded(r.folders || []);
+    } else {
+      toast('✗ Failed to remove: ' + (r.error || 'unknown error'));
+      btn.disabled = false;
+    }
   } catch(e) {
+    toast('✗ Error: ' + e.message);
     btn.disabled = false;
   }
 }
@@ -1295,10 +1357,17 @@ async function scanAll() {
 /* ── Change Role (with confirm) ──────────────────────────────────────────── */
 async function changeRole(id, currentRole) {
   const newRole = currentRole === 'scan' ? 'flix' : 'scan';
-  const label   = newRole === 'flix'
-    ? `Promote account #${id} to FLIX (upload) role?\n\nOnly one active flix account is allowed — this will fail if another already exists.`
-    : `Demote account #${id} to SCAN (read-only) role?`;
-  if (!confirm(label)) return;
+  const key = '_chgRole_' + id;
+  if (!window[key]) {
+    const label = newRole === 'flix'
+      ? `Promote #${id} to FLIX? (only 1 active flix allowed) — click again to confirm`
+      : `Demote #${id} to SCAN (read-only)? — click again to confirm`;
+    window[key] = true;
+    toast('⚠ ' + label, 5000);
+    setTimeout(() => { window[key] = false; }, 5000);
+    return;
+  }
+  window[key] = false;
   await _applyRoleChange(id, currentRole, newRole);
 }
 
