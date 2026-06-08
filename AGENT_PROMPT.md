@@ -168,14 +168,26 @@ Mark ✅ DONE when complete + pushed. This is the handoff bridge between agents.
 13. **Use `db.setting(k)` not `db.get_setting(k)`** — `get_setting` does not exist in `db.py`
 14. **For bulk DELETEs** use direct `sqlite3.connect()` + `BEGIN IMMEDIATE`, NOT `db.conn()`
 15. **Oracle git pull**: always `git stash && git pull && git stash pop` — Oracle has local uncommitted files
-17. **THE ONLY REAL DB is `/opt/jazzmax/radd-hub/data/radd_hub.db`** (~4.3 MB).
-    All other `.db` files on Oracle (radd.db, radd_hub.db, raddflix.db, hub.db, etc.) are **0-byte
-    empty artifacts** — they have NO tables and NO data. Never query them. If `find` shows 15 DB
-    files, ignore all except `data/radd_hub.db`. Full guide: `agent-hub/DATABASE.md`.
 16. **TV show metadata search**: strip BOTH `SxxExx` AND `Season N` from the clean name before
     any metadata API search. Both strips are in `enrich_and_save()` (prefer='tv' path).
     "The Boys S02E01" → search "The Boys". "The Boys Season 2" → search "The Boys".
     Never pass episode/season suffixes to any title search API.
+17. **THE ONLY REAL DB is `/opt/jazzmax/radd-hub/data/radd_hub.db`** (~4.3 MB).
+    All other `.db` files on Oracle (radd.db, radd_hub.db, raddflix.db, hub.db, etc.) are **0-byte
+    empty artifacts** — they have NO tables and NO data. Never query them. If `find` shows 15 DB
+    files, ignore all except `data/radd_hub.db`. Full guide: `agent-hub/DATABASE.md`.
+18. **Vault biometric: `biometricOnly: false` — DO NOT change to `true`.**
+    `biometricOnly: true` breaks vault auth entirely on Infinix/MediaTek/Samsung A-series devices
+    (common in Pakistan). Device credentials (PIN/pattern) must remain as fallback.
+    The vault PIN screen is the security layer — biometric is convenience only.
+19. **Local video black screen: detect first frame via `_duration == Duration.zero`**, not `_position`.
+    Using `_position` caused a black screen flash on local file open because position briefly stays
+    at zero even after the first frame is decoded. `_duration` becomes non-zero only after the
+    codec initialises — use that as the ready signal.
+20. **Flutter `Colors` valid opacity constants** — only these exist (no others):
+    White: `white10`, `white12`, `white24`, `white30`, `white38`, `white54`, `white60`, `white70`
+    Black: `black12`, `black26`, `black38`, `black45`, `black54`, `black87`
+    For any other value use `Color(0xAAFFFFFF)` / `Color(0xAA000000)` with hex alpha byte.
 
 Full rules: `agent-hub/RULES.md` | Architecture: `agent-hub/CONTEXT.md`
 
@@ -248,7 +260,7 @@ When searching IMDbAPI for a TV show, the episode suffix is stripped first:
 
 ---
 
-## Known Open Issues (as of 2026-06-07)
+## Known Open Issues (as of 2026-06-08)
 
 | Issue | Detail | Action needed |
 |-------|--------|---------------|
@@ -256,6 +268,15 @@ When searching IMDbAPI for a TV show, the episode suffix is stripped first:
 
 *DATA-01 (All Of Us Are Dead missing episodes) → ✅ RESOLVED 2026-06-07.*
 *OPS-01 (session expired) → ✅ RESOLVED 2026-06-07. Session auto-recovers (~3-5s) via wg0.*
+*FIX-PLAYER-01 (local video black screen) → ✅ RESOLVED 2026-06-07. sha 215bbc2, build1025.*
+*FIX-VAULT-01 (vault biometric broken on MediaTek) → ✅ RESOLVED 2026-06-07. biometricOnly reverted to false. sha 59fc972, build1024.*
+
+---
+
+## Latest APK
+
+**build1025** — sha `215bbc2` — 2026-06-07 — ✅ success
+Artifact: `RaddFlix-1.0.0+1-build1025.apk`
 
 ---
 
@@ -285,4 +306,3 @@ Session log template:
 - Account: ACTIVE/EXPIRED
 - Open tasks: see agent-hub/TASKS.md
 ```
-

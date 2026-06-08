@@ -2,6 +2,36 @@
 
 > Newest session at top. Every agent must append here after completing work.
 > Format: `## Session YYYY-MM-DD` followed by bullets.
+## Session — 2026-06-08 — Doc sync: track unlogged fixes + update AGENT_PROMPT.md
+
+### Context
+Two commits landed after TASK-036 (last documented session) with no task tracking or log entry.
+This session retroactively documents them and updates all coordination files.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-037 | FIX-VAULT-01: vault biometric reverted to biometricOnly:false (Infinix/MediaTek fix) | ✅ DONE |
+| TASK-038 | FIX-PLAYER-01: local video black screen — use _duration==Duration.zero not _position | ✅ DONE |
+
+### Commits (already on main before this session)
+| Commit | Change |
+|--------|--------|
+| 59fc972 | FIX-VAULT-01: vault biometric — change biometricOnly:true to false |
+| 215bbc2 | FIX-PLAYER-01: local video black screen — use _duration==Duration.zero not _position |
+
+### Rule additions (added to AGENT_PROMPT.md)
+- Rule 18: Vault biometricOnly must stay false — biometricOnly:true breaks auth on Infinix/MediaTek/Samsung A-series (common in Pakistan)
+- Rule 19: Local video black screen detection — use _duration==Duration.zero (codec ready), NOT _position
+- Rule 20: Flutter Colors valid opacity constants — reference table to prevent future build errors
+
+### State at end of session
+- Oracle Flask: RUNNING ({ok:true,version:3.0.0})
+- Latest APK: build1025, sha 215bbc2, ✅ success
+- Open tasks: none
+
+---
+
 
 ---
 
