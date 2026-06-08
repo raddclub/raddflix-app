@@ -168,7 +168,14 @@ loadStatus();
 
 var _gsSource = null;
 window.gsEnrich = function(force){
-  if(!confirm(force ? 'Force re-enrich ALL titles (overwrites existing data)?' : 'Enrich all titles missing metadata?')) return;
+  const key = force ? '_armed_enrichForce' : '_armed_enrichMissing';
+  if (!window[key]) {
+    window[key] = true;
+    toast('⚠ ' + (force ? 'Force re-enrich ALL titles?' : 'Enrich titles missing metadata?') + ' — click again to confirm', 4000);
+    setTimeout(() => { window[key] = false; }, 4000);
+    return;
+  }
+  window[key] = false;
   if(_gsSource){ _gsSource.close(); }
 
   var overlay = document.getElementById('gs-progress-overlay');
@@ -330,8 +337,19 @@ window.gsCloseProgress=function(){
 
   <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
     <button onclick="saveEnvSettings('jazzdrive')">Save Settings</button>
-    <button class="ghost" onclick="triggerRelogin()" style="border-color:var(--accent)">Trigger OTP Login</button>
+    <button class="ghost" id="btn-trigger-otp" onclick="triggerRelogin()" style="border-color:var(--accent)">Trigger OTP Login</button>
     <span id="jd-save-status" class="muted" style="font-size:13px"></span>
+  </div>
+  <div id="otp-panel" style="display:none;margin-top:12px;padding:12px;background:var(--surface2,#181d28);border:1px solid var(--border);border-radius:8px">
+    <div style="font-size:13px;color:var(--muted);margin-bottom:8px" id="otp-hint">Enter the OTP sent to your number:</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="text" id="otp-input" placeholder="e.g. 123456" maxlength="8"
+             style="width:140px;font-family:monospace;font-size:16px;letter-spacing:2px"
+             onkeydown="if(event.key==='Enter') verifyOtp()">
+      <button onclick="verifyOtp()" id="btn-verify-otp">Verify</button>
+      <button class="ghost" onclick="document.getElementById('otp-panel').style.display='none'" style="font-size:12px">Cancel</button>
+    </div>
+    <div id="otp-status" style="font-size:12px;margin-top:6px;color:var(--muted)"></div>
   </div>
 </div>
 
@@ -709,10 +727,17 @@ async function saveKey(){
   } catch(e){ toast('Failed: '+e.message); }
 }
 async function delKey(id){
-  if(!confirm('Delete key?')) return;
+  const key = '_armDelKey_' + id;
+  if (!window[key]) {
+    window[key] = true;
+    toast('⚠ Delete this key? — click again to confirm', 4000);
+    setTimeout(() => { window[key] = false; }, 4000);
+    return;
+  }
+  window[key] = false;
   try{
     await api('/settings/api/keys/'+id,{method:'DELETE'});
-    toast('Deleted'); document.getElementById('k-'+id).remove();
+    toast('✔ Deleted'); document.getElementById('k-'+id).remove();
   } catch(e){ toast('Failed: '+e.message); }
 }
 async function toggleKey(id,active){
@@ -760,31 +785,63 @@ async function saveEnvSettings(group){
   }
 }
 
+var _otpMsisdn = '';
 async function triggerRelogin(){
   const msisdn = document.getElementById('set-JAZZDRIVE_MSISDN').value.trim();
   if(!msisdn) { toast('Enter MSISDN first'); return; }
-  
-  if(!confirm('This will trigger a new OTP to ' + msisdn + '. Proceed?')) return;
-  
-  toast('Triggering OTP...');
+  const btn = document.getElementById('btn-trigger-otp');
+  const key = '_armed_otp';
+  if (!window[key]) {
+    window[key] = true;
+    toast('⚠ Send OTP to ' + msisdn + '? — click again to confirm', 4000);
+    setTimeout(() => { window[key] = false; }, 4000);
+    return;
+  }
+  window[key] = false;
+  btn.disabled = true; btn.textContent = 'Sending OTP…';
+  const status = document.getElementById('otp-status');
+  const panel  = document.getElementById('otp-panel');
+  const hint   = document.getElementById('otp-hint');
   try {
     const d = await api('/api/jd/send-otp', {method:'POST', body: {msisdn}});
     if(d.ok) {
-      const otp = prompt('Enter the OTP sent to ' + msisdn);
-      if(otp) {
-        toast('Verifying OTP...');
-        const v = await api('/api/jd/verify-otp', {method:'POST', body: {msisdn, otp}});
-        if(v.ok) {
-          toast('✓ JazzDrive Connected!');
-          setTimeout(() => location.reload(), 1000);
-        } else {
-          toast('✗ OTP Verification Failed: ' + v.error);
-        }
-      }
+      _otpMsisdn = msisdn;
+      hint.textContent = 'OTP sent to ' + msisdn + ' — enter it below:';
+      panel.style.display = 'block';
+      document.getElementById('otp-input').value = '';
+      status.textContent = '';
+      document.getElementById('otp-input').focus();
+      toast('✔ OTP sent');
     } else {
-      toast('✗ Failed to send OTP: ' + d.error);
+      toast('✗ Failed to send OTP: ' + (d.error || '?'));
     }
   } catch(e) { toast('Error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Trigger OTP Login'; }
+}
+
+async function verifyOtp(){
+  const otp = (document.getElementById('otp-input').value || '').trim();
+  if (!otp) { toast('Enter the OTP first'); return; }
+  const btn = document.getElementById('btn-verify-otp');
+  const status = document.getElementById('otp-status');
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  status.textContent = 'Verifying…'; status.style.color = 'var(--muted)';
+  try {
+    const v = await api('/api/jd/verify-otp', {method:'POST', body: {msisdn: _otpMsisdn, otp}});
+    if(v.ok) {
+      status.textContent = '✓ Connected!'; status.style.color = 'var(--ok)';
+      toast('✓ JazzDrive Connected!');
+      document.getElementById('otp-panel').style.display = 'none';
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      status.textContent = '✗ ' + (v.error || 'Verification failed');
+      status.style.color = 'var(--err)';
+      toast('✗ OTP failed: ' + (v.error || '?'));
+    }
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message; status.style.color = 'var(--err)';
+    toast('Error: ' + e.message);
+  } finally { btn.disabled = false; btn.textContent = 'Verify'; }
 }
 
 const _DOMAIN_KEYS=[
@@ -958,8 +1015,15 @@ window.addSig=function(){
   api('/settings/api/app-signatures',{method:'POST',body:{sig_hash:hash,label:label,is_allowed:parseInt(type)}}).then(function(){G('av-new-sig').value='';toast('Added');loadAV();}).catch(function(e){toast('Failed: '+e.message);});
 };
 window._delSig=function(id){
-  if(!confirm('Remove?'))return;
-  api('/settings/api/app-signatures/'+id,{method:'DELETE'}).then(function(){toast('Removed');loadAV();}).catch(function(e){toast('Failed: '+e.message);});
+  const key = '_armDelSig_' + id;
+  if (!window[key]) {
+    window[key] = true;
+    toast('⚠ Remove this signature? — click again to confirm', 4000);
+    setTimeout(() => { window[key] = false; }, 4000);
+    return;
+  }
+  window[key] = false;
+  api('/settings/api/app-signatures/'+id,{method:'DELETE'}).then(function(){toast('✔ Removed');loadAV();}).catch(function(e){toast('Failed: '+e.message);});
 };
 loadAV();
 })();
