@@ -19,7 +19,9 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-041 | FIX-DELTA-PURGE: Radd-Delta folder cleanup — trash all old files before each upload | ✅ DONE | 2026-06-08 | list_all_files_in_folder() + purge before upload + manual purge route |
 | TASK-042 | FIX-SYNC-TIMEOUT: fast Oracle→delta fallback (connectTimeout 6s, 5s probe on getVersion) | ✅ DONE | 2026-06-08 | No-bundle users fall to delta in ≤5s instead of 15s |
 | TASK-043 | FIX-AUTOPUBLISH: auto-publish all titles with share_url after scan — fix NULL + account scope | ✅ DONE | 2026-06-08 | Fixed NULL condition bug + removed account_id filter; 4 titles published immediately on live DB |
-| TASK-044 | FEAT-LIBRARY-PUBLISH: Library publish controls — Publish All, Unpublish All, Publish Selected, status filter, quick inline toggle | ✅ DONE | 2026-06-08 | commit a8046eb — 3 new API routes + full HTML UI overhaul |
+| TASK-044 | FEAT-LIBRARY-PUBLISH: Library publish controls — Publish All, Unpublish All, Publish Selected, status filter, quick inline toggle | ✅ DONE | 2026-06-08 | commits a8046eb, 222428a — 3 new API routes + full HTML UI overhaul + bulk delete |
+| TASK-045 | FIX-CATALOG-IMPORT: v3 DB was empty (0 titles/files) — fixed slug UNIQUE bug in scanner import | ✅ DONE | 2026-06-08 | Direct import: 17 titles, 28 files, all Live. scanner.py slug-conflict fallback added. commit 6ccfa67 |
+| TASK-046 | FIX-CONFIRM-DIALOGS: replace all confirm()/prompt() calls across admin, scan, settings templates | ✅ DONE | 2026-06-08 | 12 bugs fixed: two-step arm+fire toasts for all destructive actions; inline OTP panel; inline quota input. commits 82cd047, b8f19cb, 54a5beb |
 
 ---
 
@@ -59,33 +61,15 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-023 | Player screen — Pass 2 deep audit (BUG-P-NEW-01 to 04) | 2026-06-07 | ✅ |
 | TASK-024 | Player screen — Pass 3 verification (BUG-P-NEW-05) | 2026-06-07 | ✅ |
 | TASK-025 | Player screen — Pass 4 full re-audit (BUG-P-NEW-06 + 07) | 2026-06-07 | ✅ |
-| TASK-026 | Player screen — Pass 5 comprehensive 29-bug audit (2C+8H+9M+10L) | 2026-06-07 | ✅ 26 fixes applied; L-03/07/09/10 deferred (L-10 in BACKLOG-01) |
+| TASK-026 | Player screen — Pass 5 comprehensive 29-bug audit (2C+8H+9M+10L) | 2026-06-07 | ✅ 26 fixes applied; L-03/07/09/10 deferred |
 | TASK-027 | Player screen — Pass 6 full line-by-line audit (12 bugs fixed: N01–N12) | 2026-06-07 | ✅ All 12 fixed in one atomic commit |
-| TASK-028 | player_prefs.dart full schema audit (P01–P04 + BACKLOG-01) | 2026-06-07 | ✅ 3 critical bugs fixed; BACKLOG-01 resolved; 5 duplicate-field pairs documented |
+| TASK-028 | player_prefs.dart full schema audit (P01–P04 + BACKLOG-01) | 2026-06-07 | ✅ 3 critical bugs fixed; 5 duplicate-field pairs documented |
 | TASK-030 | PlayerHudSettingsSheet — live-preview transparent layout & controls settings overlay | 2026-06-07 | ✅ |
 | TASK-031 | HUD v2 — presets, orientation tabs, drag-reorder Quick Bar, button shapes, MX-style auto-rotation, dedup guard | 2026-06-07 | ✅ |
 | TASK-032 | Smart Enhance — MX-style AI video enhancement suite (8 presets, master toggle, intensity, before/after compare) | 2026-06-07 | ✅ |
-| TASK-034 | Vault fix — hide files from gallery/file manager + biometric unlock fix | ✅ | 2026-06-07 | 6 bugs: VAULT-01..06; commit f14eac5 |
-| TASK-035 | Fix Dart compile errors blocking APK build (BUG-BUILD-01 + 02) | ✅ | 2026-06-07 | _openSettings→_openPlayerSettings; Colors.white87→Color(0xDEFFFFFF); APK build1021 succeeded |
-| TASK-036 | Deep codebase audit — fix Colors.white20 compile error + sweep all 100+ Dart files for build-blocking bugs | ✅ | 2026-06-07 | BUG-BUILD-03: Colors.white20→Color(0x33FFFFFF) in layout_designer_screen; all 100+ files clean; APK build1022 success |
+| TASK-034 | Vault fix — hide files from gallery/file manager + biometric unlock fix | 2026-06-07 | ✅ 6 bugs: VAULT-01..06; commit f14eac5 |
+| TASK-035 | Fix Dart compile errors blocking APK build (BUG-BUILD-01 + 02) | 2026-06-07 | ✅ APK build1021 succeeded |
+| TASK-036 | Deep codebase audit — fix Colors.white20 compile error + sweep all 100+ Dart files | 2026-06-07 | ✅ APK build1022 success |
 | TASK-037 | FIX-VAULT-01: revert biometricOnly to false — fixes vault auth on Infinix/MediaTek | 2026-06-07 | ✅ sha 59fc972, build1024 |
 | TASK-038 | FIX-PLAYER-01: local video black screen — _duration==Duration.zero not _position | 2026-06-07 | ✅ sha 215bbc2, build1025 |
 | TASK-039 | Audit fix batch: FIX-RETRY-01 + FIX-POSTER-01 + FIX-FOLDER-01 + TTL comment | 2026-06-08 | ✅ sha 78f14210 — 4 bugs/gaps fixed |
----
-## TASK-045: Fix catalog import — v3 DB now populated (DONE)
-
-**Problem:** `_import_legacy_into_v3_for_account` raised `UNIQUE constraint failed: titles.slug`
-on duplicate legacy titles, silently returning 0 imported rows. v3 had 0 titles/files.
-
-**Root cause:** `upsert_title` tries an INSERT that conflicts with an already-inserted slug.
-No fallback existed for concurrent/duplicate slug situations.
-
-**Fix applied:**
-1. Direct import script: cleared v3, imported 20 legacy titles (slug-deduped), 28 files,
-   auto-published 17 titles (those with share_url files). Removed 3 orphan 0-file titles.
-2. scanner.py `_import_legacy_into_v3_for_account`: wrapped `db.upsert_title` in try/except;
-   on UNIQUE slug conflict, looks up existing row by slug so files still get linked.
-
-**Result:** v3 DB = 17 titles, 28 files, all Live. Library page renders correctly.
-
-**Commits:** 6ccfa67 (scanner.py slug-conflict fix)
