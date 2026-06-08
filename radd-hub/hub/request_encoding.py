@@ -65,10 +65,13 @@ def generate_session_key(device_id: str, hour_offset: int = 0) -> str:
 
 
 def _candidate_keys(device_id: str) -> list[str]:
-    """Return [current_key, previous_key] to handle clock-edge requests."""
+    """Return [current_key, previous_key, next_key] to handle clock-edge requests.
+    +1 hour is included so a device whose clock is slightly ahead at the top of the
+    hour (e.g. 10:59 client vs 11:00 server) still gets a valid decode attempt."""
     return [
         generate_session_key(device_id, 0),
         generate_session_key(device_id, -1),
+        generate_session_key(device_id, 1),
     ]
 
 

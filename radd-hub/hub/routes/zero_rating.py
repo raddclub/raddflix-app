@@ -85,7 +85,7 @@ def generate_delta_payload() -> dict:
             "poster_share_url": r["poster_share_url"] or "",
             "folder_share_url": r["folder_share_url"] or "",
             "status":         status,
-            "is_ongoing":     1 if (r["is_ongoing"] or status == "ongoing") else 0,
+            "is_ongoing":     1 if (int(r["is_ongoing"] or 0) or status == "ongoing") else 0,
             "runtime":        r["runtime"],
             "season_count":   r["season_count"],
             "episode_count":  r["episode_count"],
