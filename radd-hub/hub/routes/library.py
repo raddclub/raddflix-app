@@ -377,24 +377,59 @@ def api_poster(title_id):
 @bp.route("/api/user/status")
 @auth.login_required
 def api_user_status():
-    """Return mock or real quota status for the JazzBuzz app."""
-    import time
-    # In a real app, this would query the 'users' table or Jazz network API
-    return jsonify({
-        "ok": True,
-        "user": {
-            "username": "Cinema Explorer",
-            "tier": "Premium",
-            "quota_total_gb": 10.0,
-            "quota_used_gb": 4.25,
-            "quota_remaining_gb": 5.75,
-            "data_speed": "4G/LTE+",
-            "network": "Jazz Zero-Rated",
-            "is_optimized": True,
-            "points": 1240,
-            "expires_at": int(time.time()) + (24 * 86400)
-        }
-    })
+    """Return real subscription status for a given app user (admin view).
+    Query params: ?user_id=<int> or ?phone=<str>
+    """
+    import time as _time
+    now = int(_time.time())
+    user_id = request.args.get("user_id", "").strip()
+    phone   = request.args.get("phone",   "").strip()
+
+    if not user_id and not phone:
+        return jsonify({"ok": False, "error": "user_id or phone required"}), 400
+
+    try:
+        with db.conn() as c:
+            if user_id:
+                user = c.execute(
+                    "SELECT id, phone, device_name, is_active, created_at FROM app_users WHERE id=?",
+                    (int(user_id),)
+                ).fetchone()
+            else:
+                user = c.execute(
+                    "SELECT id, phone, device_name, is_active, created_at FROM app_users WHERE phone=? LIMIT 1",
+                    (phone,)
+                ).fetchone()
+
+            if not user:
+                return jsonify({"ok": False, "error": "User not found"}), 404
+
+            uid = user["id"]
+            sub = c.execute(
+                "SELECT plan, started_at, expires_at, is_active FROM app_subscriptions "
+                "WHERE user_id=? ORDER BY expires_at DESC LIMIT 1",
+                (uid,)
+            ).fetchone()
+
+        plan       = (sub["plan"]       if sub else "free")
+        expires_at = (sub["expires_at"] if sub else 0)
+        sub_active = bool(sub and sub["is_active"] and expires_at > now)
+
+        return jsonify({
+            "ok": True,
+            "user": {
+                "id":          uid,
+                "phone":       user["phone"],
+                "device_name": user["device_name"] or "",
+                "is_active":   bool(user["is_active"]),
+                "plan":        plan,
+                "sub_active":  sub_active,
+                "expires_at":  expires_at,
+                "joined_at":   user["created_at"],
+            }
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 
