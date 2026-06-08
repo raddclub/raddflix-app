@@ -460,63 +460,6 @@ def trash_files(account_id: int, file_ids: list, media_type: str = "file") -> di
     )
 
 
-def list_all_files_in_folder(folder_id: int, account_id: Optional[int] = None) -> list:
-    """List all files (any type) inside a JazzDrive folder.
-
-    JazzDrive's /media/video endpoint returns every uploaded object regardless
-    of MIME type — the scanner normally filters out non-video extensions, but we
-    intentionally keep them here so we can bulk-trash leftover delta .txt files.
-
-    Returns a list of dicts: [{"id": N, "name": "..."}, ...]
-    Returns [] on any error.
-    """
-    try:
-        data = sapi_request(
-            endpoint="/media/video",
-            action="get",
-            method="GET",
-            params={"parentId": folder_id, "folderId": folder_id},
-            account_id=account_id,
-        )
-        if data.get("error"):
-            log.warning("list_all_files_in_folder: SAPI error: %s", data["error"])
-            return []
-        items = []
-        if isinstance(data, dict):
-            for key in ("data", "videos", "items", "result"):
-                v = data.get(key)
-                if isinstance(v, list):
-                    items = v
-                    break
-                if isinstance(v, dict):
-                    for sub in ("videos", "items", "files"):
-                        if isinstance(v.get(sub), list):
-                            items = v[sub]
-                            break
-                    if items:
-                        break
-        elif isinstance(data, list):
-            items = data
-
-        result = []
-        for item in items:
-            fid = item.get("id") or item.get("videoId") or item.get("video_id")
-            if not fid:
-                continue
-            item_folder = item.get("folder") or item.get("parentid") or item.get("parentId")
-            if item_folder is not None and int(item_folder) != int(folder_id):
-                continue
-            result.append({
-                "id":   int(fid),
-                "name": item.get("name") or item.get("title") or item.get("filename") or "",
-            })
-        log.info("list_all_files_in_folder(folder_id=%s): found %d files", folder_id, len(result))
-        return result
-    except Exception as exc:
-        log.warning("list_all_files_in_folder(%s): %s", folder_id, exc)
-        return []
-
-
 def delete_files_permanent(account_id: int, file_ids: list) -> dict:
     """Permanently delete one or more files from JazzDrive (IRREVERSIBLE).
 
@@ -531,6 +474,40 @@ def delete_files_permanent(account_id: int, file_ids: list) -> dict:
         json_data={"data": {"ids": [int(fid) for fid in file_ids]}},
         account_id=account_id
     )
+
+
+def list_all_files_in_folder(account_id: int, folder_id: int) -> list:
+    """List all non-video files (mediatype=file) in a JazzDrive folder.
+
+    Uses /media/file?action=get — the correct endpoint for .txt/.json uploads.
+    /media/video ONLY returns video-type items and will miss delta.json/txt files.
+
+    Returns list of dicts: {"id": int, "name": str, "size": int}
+    Only includes non-softdeleted items whose folder matches folder_id.
+    """
+    data = sapi_request(
+        endpoint="/media/file",
+        action="get",
+        params={"parentId": folder_id, "folderId": folder_id},
+        account_id=account_id,
+        tokens=None,
+    )
+    files = (data.get("data") or {}).get("files") or []
+    result = []
+    for f in files:
+        item_folder = f.get("folder")
+        if item_folder is not None and int(item_folder) != int(folder_id):
+            continue
+        if f.get("softdeleted"):
+            continue
+        fid = f.get("id")
+        if fid:
+            result.append({
+                "id":   int(fid),
+                "name": f.get("name") or "",
+                "size": int(f.get("size") or 0),
+            })
+    return result
 
 
 def get_file_trash(account_id: int, max_items: int = 200) -> dict:

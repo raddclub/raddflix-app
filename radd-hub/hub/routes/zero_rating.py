@@ -276,14 +276,6 @@ _HTML = """
       </form>
       {% endif %}
     </div>
-    {% if jd_delta_folder_id %}
-    <div style="margin-top:12px;padding:10px 12px;background:rgba(255,107,107,.06);border:1px solid rgba(255,107,107,.2);border-radius:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <span style="font-size:12px;color:var(--muted);flex:1">Folder has <b>{{ delta_folder_file_count }}</b> file{{ 's' if delta_folder_file_count != 1 else '' }} on JazzDrive (should be ≤ 1). Use Purge to remove all leftover copies.</span>
-      <form method="post" action="/zero-rating/purge-delta-folder">
-        <button type="submit" class="btn-danger">🗑 Purge Delta Folder</button>
-      </form>
-    </div>
-    {% endif %}
     {% if delta_exists %}
     <div style="margin-top:14px;padding:12px;background:var(--panel2);border-radius:8px;font-size:12px;color:var(--muted);font-family:monospace">
       delta.json · {{ delta_size_kb }} KB · {{ delta_titles }} titles · Format: delta_v2 (full playback data · expires 24h)
@@ -455,21 +447,9 @@ def _render_index(msg=None, err=None):
 
     with db.conn() as c:
         published = c.execute("SELECT COUNT(*) AS n FROM titles WHERE is_published=1").fetchone()["n"]
-        jd_delta_row  = c.execute("SELECT v FROM settings WHERE k='jd_delta_url'").fetchone()
-        jd_delta_url  = jd_delta_row["v"] if jd_delta_row else None
-        folder_id_row = c.execute("SELECT v FROM settings WHERE k='jd_delta_folder_id'").fetchone()
-        jd_delta_folder_id = int(folder_id_row["v"]) if folder_id_row and str(folder_id_row["v"]).isdigit() else None
+        jd_delta_row = c.execute("SELECT v FROM settings WHERE k='jd_delta_url'").fetchone()
+        jd_delta_url = jd_delta_row["v"] if jd_delta_row else None
         titles = c.execute("SELECT id, title, year, is_free FROM titles WHERE is_published=1 ORDER BY title").fetchall()
-
-    # Count files in Radd-Delta folder (lightweight — just for the purge indicator)
-    delta_folder_file_count = 0
-    if jd_delta_folder_id:
-        try:
-            from hub import jazzdrive as _jd
-            files = _jd.list_all_files_in_folder(jd_delta_folder_id)
-            delta_folder_file_count = len(files)
-        except Exception:
-            pass
 
     return render_template_string(_HTML,
         msg=msg, err=err,
@@ -478,8 +458,6 @@ def _render_index(msg=None, err=None):
         delta_at=delta_at,
         delta_size_kb=delta_size_kb,
         jd_delta_url=jd_delta_url,
-        jd_delta_folder_id=jd_delta_folder_id,
-        delta_folder_file_count=delta_folder_file_count,
         db_update_exists=db_exists,
         json_titles=json_titles,
         json_episodes=json_episodes,
@@ -516,12 +494,7 @@ def generate_delta():
 @bp.route("/upload-delta", methods=["POST"])
 @login_required
 def upload_delta():
-    """Generate delta.json and upload to JazzDrive, saving the share URL.
-
-    Before uploading the new file, all existing files in the Radd-Delta folder
-    are listed via SAPI and trashed — this is the only way to guarantee the
-    folder stays clean regardless of how many past uploads accumulated.
-    """
+    """Generate delta.json and upload to JazzDrive, saving the share URL."""
     payload = generate_delta_payload()
     with open(_DELTA_PATH, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
@@ -530,74 +503,91 @@ def upload_delta():
     try:
         from hub import jazzdrive as jd
 
-        # ── Step 0: resolve account_id and folder_id ──────────────────────────
-        account_id  = None
-        delta_folder_id = None
+        # -- Step 1: get active account ----------------------------------------
+        aid_row = None
         try:
             with db.conn() as _c:
                 aid_row = _c.execute(
                     "SELECT id FROM accounts WHERE is_active=1 ORDER BY id LIMIT 1"
                 ).fetchone()
-                if aid_row:
-                    account_id = aid_row["id"]
-                frow = _c.execute(
-                    "SELECT v FROM settings WHERE k='jd_delta_folder_id'"
-                ).fetchone()
-                if frow and str(frow["v"]).isdigit():
-                    delta_folder_id = int(frow["v"])
-        except Exception as _e:
-            log.warning("upload_delta: could not resolve account/folder: %s", _e)
+        except Exception:
+            pass
+        if not aid_row:
+            return _render_index(err="✗ No active JazzDrive account found.")
+        _aid = aid_row["id"]
 
-        # ── Step 1: snapshot all existing files in Radd-Delta BEFORE upload ──
-        # We snapshot BEFORE uploading so the list never includes the new file.
-        old_file_ids = []
-        if account_id and delta_folder_id:
+        # -- Step 2: get Radd-Delta folder_id from settings --------------------
+        _delta_folder_id = None
+        try:
+            with db.conn() as _c:
+                fr = _c.execute("SELECT v FROM settings WHERE k='jd_delta_folder_id'").fetchone()
+                if fr and str(fr["v"]).isdigit():
+                    _delta_folder_id = int(fr["v"])
+        except Exception:
+            pass
+
+        # -- Step 3: snapshot ALL existing files in Radd-Delta BEFORE upload ---
+        # This is the safe pre-upload list — we trash exactly these IDs after
+        # the new file is confirmed uploaded. Trashing AFTER (not before) means
+        # Flutter always has at least one valid delta file available.
+        _pre_upload_ids = []
+        if _delta_folder_id:
             try:
-                old_files = jd.list_all_files_in_folder(delta_folder_id, account_id=account_id)
-                old_file_ids = [f["id"] for f in old_files if f.get("id")]
-                log.info("upload_delta: found %d existing files to purge after upload: %s",
-                         len(old_file_ids), old_file_ids)
-            except Exception as _le:
-                log.warning("upload_delta: could not list old delta files (will skip purge): %s", _le)
+                existing = jd.list_all_files_in_folder(_aid, _delta_folder_id)
+                _pre_upload_ids = [f["id"] for f in existing]
+                log.info(
+                    "upload_delta: pre-upload snapshot — %d file(s) in Radd-Delta to trash after upload: %s",
+                    len(_pre_upload_ids), _pre_upload_ids,
+                )
+            except Exception as _snap_err:
+                log.warning("upload_delta: pre-upload snapshot failed (continuing): %s", _snap_err)
 
-        # ── Step 2: upload new delta ──────────────────────────────────────────
+        # -- Step 4: upload new delta.json ------------------------------------
         result = jd.upload_json_to_jazzdrive(_DELTA_PATH)
         if not result.get("ok"):
             err_msg = result.get("error", "Unknown upload error")
             log.error("JazzDrive delta upload failed: %s", err_msg)
             return _render_index(err=f"✗ Upload failed: {err_msg} — Download delta.json and upload manually.")
 
-        share_url     = result.get("share_url") or result.get("url") or ""
+        share_url    = result.get("share_url") or result.get("url") or ""
         new_remote_id = str(result.get("remote_id") or "")
-        # Update folder_id cache if the upload assigned a new one
-        if result.get("folder_id") and not delta_folder_id:
-            delta_folder_id = int(result["folder_id"])
 
+        # -- Step 5: save new share URL + remote_id to DB ---------------------
         if share_url:
             with db.conn() as c:
                 c.execute("INSERT OR REPLACE INTO settings(k,v) VALUES('jd_delta_url',?)", (share_url,))
-            if new_remote_id:
-                with db.conn() as c:
-                    c.execute("INSERT OR REPLACE INTO settings(k,v) VALUES('jd_delta_remote_id',?)", (new_remote_id,))
+        if new_remote_id:
+            with db.conn() as c:
+                c.execute("INSERT OR REPLACE INTO settings(k,v) VALUES('jd_delta_remote_id',?)", (new_remote_id,))
 
-            # ── Step 3: trash ALL old files ───────────────────────────────────
-            # Excludes the just-uploaded file (new_remote_id) in case SAPI
-            # returned it before we snapshotted — belt-and-suspenders guard.
-            purge_ids = [fid for fid in old_file_ids if str(fid) != new_remote_id]
-            if purge_ids and account_id:
+        # -- Step 6: trash ALL pre-upload files (now that new one is live) ----
+        # Excludes the new remote_id in case the API reused an existing slot.
+        if _pre_upload_ids:
+            ids_to_delete = [i for i in _pre_upload_ids if str(i) != str(new_remote_id)]
+            if ids_to_delete:
                 try:
-                    tr = jd.trash_files(account_id, purge_ids, media_type="file")
-                    log.info("upload_delta: trashed %d old delta files → %s", len(purge_ids), tr)
-                except Exception as _te:
-                    log.warning("upload_delta: could not trash old files %s: %s", purge_ids, _te)
-            elif not account_id:
-                log.warning("upload_delta: no active account — skipping purge")
+                    # NOTE: trash_files() with media_type="file" returns success but does NOT
+                    # actually soft-delete — files remain visible. Use delete_files_permanent()
+                    # for file-type delta cleanup (these are ephemeral temp files; perm delete is safe).
+                    dr = jd.delete_files_permanent(_aid, ids_to_delete)
+                    log.info(
+                        "upload_delta: permanently deleted %d old delta file(s) → %s",
+                        len(ids_to_delete), dr.get("success") or dr.get("error") or dr,
+                    )
+                except Exception as _de:
+                    log.warning("upload_delta: delete of old files failed (non-fatal): %s", _de)
+            else:
+                log.info("upload_delta: no old files to delete (new_remote_id matched or list was empty)")
 
+        if share_url:
             log.info("JazzDrive delta URL saved: %s", share_url)
-            purge_note = f" (purged {len(purge_ids)} old file{'s' if len(purge_ids) != 1 else ''})" if purge_ids else ""
-            return _render_index(msg=f"✓ Uploaded & saved JazzDrive delta URL: {share_url}{purge_note}")
+            return _render_index(
+                msg=f"✓ Uploaded & saved — {len(_pre_upload_ids)} old file(s) trashed. URL: {share_url}"
+            )
         else:
-            return _render_index(err="✗ Upload succeeded but no share URL returned.")
+            return _render_index(
+                err="✗ Upload succeeded but no share URL returned — check JazzDrive manually."
+            )
 
     except Exception as e:
         log.exception("upload_delta error")
@@ -610,46 +600,6 @@ def download_delta():
     if not os.path.exists(_DELTA_PATH):
         return "delta.json not found — generate it first", 404
     return send_file(_DELTA_PATH, as_attachment=True, download_name="delta.json", mimetype="application/json")
-
-
-@bp.route("/purge-delta-folder", methods=["POST"])
-@login_required
-def purge_delta_folder():
-    """Trash all files in the Radd-Delta JazzDrive folder.
-
-    Use this as a one-time cleanup to remove files that accumulated before
-    the automatic pre-upload purge was added.  The current jd_delta_url and
-    jd_delta_remote_id are preserved — only the JazzDrive copies are trashed.
-    """
-    try:
-        from hub import jazzdrive as jd
-
-        account_id      = None
-        delta_folder_id = None
-        with db.conn() as _c:
-            aid_row = _c.execute("SELECT id FROM accounts WHERE is_active=1 ORDER BY id LIMIT 1").fetchone()
-            if aid_row:
-                account_id = aid_row["id"]
-            frow = _c.execute("SELECT v FROM settings WHERE k='jd_delta_folder_id'").fetchone()
-            if frow and str(frow["v"]).isdigit():
-                delta_folder_id = int(frow["v"])
-
-        if not account_id:
-            return _render_index(err="✗ No active JazzDrive account found.")
-        if not delta_folder_id:
-            return _render_index(err="✗ Radd-Delta folder not found — upload a delta first to create it.")
-
-        files = jd.list_all_files_in_folder(delta_folder_id, account_id=account_id)
-        if not files:
-            return _render_index(msg="✓ Radd-Delta folder is already empty.")
-
-        file_ids = [f["id"] for f in files if f.get("id")]
-        tr = jd.trash_files(account_id, file_ids, media_type="file")
-        log.info("purge_delta_folder: trashed %d files → %s", len(file_ids), tr)
-        return _render_index(msg=f"✓ Purged {len(file_ids)} old delta file{'s' if len(file_ids) != 1 else ''} from JazzDrive.")
-    except Exception as e:
-        log.exception("purge_delta_folder error")
-        return _render_index(err=f"✗ Purge error: {e}")
 
 
 @bp.route("/set-delta-url", methods=["POST"])
