@@ -1,5 +1,5 @@
 # agent-hub/CONTEXT.md — RaddFlix System Context
-Last updated: 2026-06-08 (TASK-040/041/042 — RemoteConfig split, delta purge, sync timeout fix)
+Last updated: 2026-06-08 (TASK-045/046 — catalog import fixed, confirm/prompt dialogs replaced)
 
 ## What is RaddFlix?
 Pakistani Flutter streaming app. Content is zero-rated (free data) on Jazz SIM via JazzDrive.
@@ -13,14 +13,43 @@ Users install the APK, log in, and stream content. All content lives on JazzDriv
 - DB: `/opt/jazzmax/radd-hub/data/radd_hub.db` (SQLite WAL mode)
 - Logs: `/opt/jazzmax/radd-hub/data/logs/raddhub.log`
 - Restart: `sudo supervisorctl restart raddflix_radd`
+  - If supervisorctl requires root password: `kill <pid>` instead — supervisord auto-restarts it
+  - Find Flask PID: `pgrep -f 'radd_hub.py run'`
 - WireGuard: wg0 — split tunnel routing JazzDrive IPs through VPN
   - Works correctly for ALL JazzDrive traffic — JazzDrive is globally accessible
 
 ### GitHub Repo: raddclub/raddflix-app
 - Flutter app: `raddflix_flutter/`
-- Flask backend: `radd-hub/`
+- Flask backend: `radd-hub/`  ← templates live at `radd-hub/hub/templates/`
 - Agent docs: `agent-hub/`, `AGENT_HANDOFF.md`, `AGENT_PROMPT.md`
 - APK CI: `.github/workflows/build-apk.yml` (triggers on push to `raddflix_flutter/**`)
+
+---
+
+## Live DB State (as of 2026-06-08)
+```
+v3 DB: /opt/jazzmax/radd-hub/data/radd_hub.db
+  Titles:  17  (all Live / is_published=1)
+  Files:   28  (all have share_url)
+  Account: 03286829827 → account_id=15, legacy_id=2
+```
+
+### v3 Schema Quirks (CRITICAL — agents frequently get this wrong)
+```python
+# titles table
+plot        # description field — NOT 'overview' (that's the legacy schema name)
+genres_csv  # comma string
+cast_json   # JSON (no 'cast_names' column in v3)
+is_published # INTEGER 0=Hidden 1=Live
+
+# files table
+scanned_at  # timestamp — NOT 'created_at'
+fingerprint # pattern: 'scan:<remote_id>'
+
+# NEVER use db.get_setting() — AttributeError → HTTP 500
+# Use db.setting(k) / db.set_setting(k, v)
+# Settings columns: k and v (NOT key / value)
+```
 
 ---
 
@@ -35,28 +64,8 @@ wg0 WireGuard works for ALL call types.
 When `PROXY_BYPASS=1` is set in DB settings:
 - `is_proxy_bypass()` returns True
 - `resolve_proxies()` returns None for all call types
-- All proxy chains (`_ar_chain`, `_s2_chain`, `_sub_chain`, all others) go to `[None]` (direct via wg0)
-- Pool health-check and recovery threads are skipped
+- All proxy chains go to `[None]` (direct via wg0)
 - This is CORRECT — direct via wg0 is the intended path
-
-### What causes 401/errors on JazzDrive calls?
-If you see SAPI 401 with an HTML body like `<!DOCTYPE HTML`:
-- This comes from a **dead proxy** returning its own error page, not from JazzDrive
-- Fix: ensure `is_proxy_bypass()` guard is in place so dead proxies are skipped
-- NOT a geo-restriction — JazzDrive works globally
-
-### Call type summary
-```
-CALL TYPE                         | WITH PROXY_BYPASS=1  | CORRECT?
-----------------------------------|----------------------|----------
-_ar_chain (OAuth2 refresh)        | [None] direct wg0    | ✅
-_s2_chain (SAPI login)            | [None] direct wg0    | ✅
-_sub_chain (OTP verify)           | [None] direct wg0    | ✅
-trigger_otp_flow                  | [None] direct wg0    | ✅
-resend_otp                        | [None] direct wg0    | ✅
-keepalive heartbeat (JSESSIONID)  | [None] direct wg0    | ✅
-upload (JSESSIONID)               | [None] direct wg0    | ✅
-```
 
 ---
 
@@ -69,8 +78,28 @@ db.set_setting(k, v)           # WRITE a setting
 
 ### SQLite write rule
 For writes from background threads or admin routes: use `sqlite3.connect()` + `BEGIN IMMEDIATE`.
-The shared `db.conn()` wrapper can be silently blocked by WAL read locks from background threads.
 DB settings table columns: `k` / `v` (NOT `key` / `value`).
+
+---
+
+## Admin UI Rules
+**No `confirm()` or `prompt()` in Flask templates** — blocked by Cloudflare tunnel/proxy.
+All destructive actions use two-step arm+fire toast pattern.
+All input-required flows (OTP, quota) use inline HTML panels.
+See RULES.md Rule 38 for implementation pattern.
+
+---
+
+## Template GitHub Paths (CRITICAL — wrong path = 404 or pushes to wrong place)
+```
+Admin panel:   radd-hub/hub/templates/admin.html
+Scan page:     radd-hub/hub/templates/scan.html
+Settings page: radd-hub/hub/templates/settings.html
+Library page:  radd-hub/hub/templates/library.html
+Base layout:   radd-hub/hub/templates/base.html
+scanner.py:    radd-hub/hub/scanner.py
+```
+Push template files **sequentially** — parallel GitHub PUTs cause 409 SHA conflicts.
 
 ---
 
@@ -79,125 +108,7 @@ DB settings table columns: `k` / `v` (NOT `key` / `value`).
 Flask restart
   → startup_refresh()
   → android_refresh_session()
-      → _ar_chain: OAuth2 /oauth2/refresh_token.php — direct via wg0 (~1s)
-      → _s2_chain: SAPI /sapi/login/oauth — direct via wg0 (~2s)
-  → session restored in ~3-5 seconds total
-  → keepalive every 360 min: upload heartbeat file to Radd-Heartbeat/ folder (direct)
-```
-No OTP needed on restart IF `refresh_token` is stored in DB.
-
----
-
-## OTP Flow (manual, when refresh_token expired or missing)
-```
-Admin page → Trigger OTP
-  → trigger_otp_flow(): sends OTP SMS (direct via wg0 with PROXY_BYPASS=1)
-  → User enters OTP in admin
-  → submit_otp(): verifies code, saves session (direct via wg0 with PROXY_BYPASS=1)
-  → Session saved, refresh_token stored
-```
-
----
-
-## Scan & Metadata Pipeline
-
-### Overview
-JazzDrive scan reads the user's JazzDrive folders, matches files to movie/TV metadata,
-and writes results to SQLite. The Flutter app syncs from there.
-
-### File detection
-`_legacy/scanner.py` → `scan_account()` → lists all video files from JazzDrive.
-Each file record has: `filename`, `remote_id`, `folder_path`, `size_bytes`, `season`, `episode`.
-
-### TV vs Movie detection
-TV is detected if **any file in the folder** matches either:
-- `[Ss]\d{1,2}[Ee]\d{1,3}` pattern in filename (e.g. `S01E02`)
-- `season` field already set on the file record
-
-If TV is detected, `prefer='tv'` is passed to the metadata lookup chain.
-
-### Episode parsing — `_parse_episode_info(filename)`
-Three patterns tried in order:
-1. `SxxExx` — `Spider Noir S01E02.mp4` → season=1, episode=2
-2. `Season X Episode Y` — `Season 1 Episode 3.mp4` → season=1, episode=3
-3. `NxNN` — `1x03.mp4` → season=1, episode=3
-
-Returns `(None, None)` if none match — treated as a movie file.
-
-### Season/episode stored in DB
-`files` table has `season INTEGER` and `episode INTEGER` columns.
-Deduplication key for episodes: `(account_id, title_id, season, episode)` — prevents the
-same episode being stored twice if uploaded with two filenames (clean + dirty).
-
-### Metadata lookup chain (in order)
-For each folder group, the scanner tries:
-1. **TMDB** (via `enricher.fetch_full_metadata()`) — best structured data, great for Hollywood
-2. **IMDbAPI.dev** fallback — free, no API key, real IMDb data — best for Pakistani/Urdu/new content
-
-#### TV-specific search fix (critical)
-When prefer='tv', the `_clean_name` from `_clean_filename()` still contains the episode suffix
-(e.g. `"Spider Noir S01E02"`). Before passing to IMDbAPI, the scanner strips it:
-```python
-_search_name = re.sub(r'\s*[Ss]\d{1,2}[Ee]\d{1,3}.*$', '', _clean_name).strip()
-```
-This ensures IMDbAPI searches for `"Spider Noir"` not `"Spider Noir S01E02"`.
-
-### Metadata source priority (metadata_lookup.py)
-For general lookups outside the legacy scanner:
-`IMDbAPI.dev → OMDB → TMDB → AI → YouTube → Google KG`
-IMDb-first because Pakistani/Urdu content is on IMDb long before TMDB.
-
-### Scan log kinds
-| Kind | Meaning |
-|------|---------|
-| `scan_start` | Scan began for account |
-| `folder` | A folder was found with N files |
-| `progress` | Running total of files found |
-| `scan_done` | File discovery complete |
-| `tmdb` | Metadata lookup started for a title |
-| `tmdb_ok` | Title matched (TMDB or IMDb fallback) |
-| `tmdb_miss` | No match after all sources tried |
-
-### Media naming (`media_naming.py`)
-`MediaPlan` struct: `{ title, year, folder_label, filename, season, episode, ... }`
-TV files get filename: `"Show Name S01E02.ext"`
-TV season folders: `"Show Season 1 (2024)"` or `"Show Season 1"` (no year)
-
----
-
-## Flutter App Key Files
-```
-raddflix_flutter/lib/
-  core/security/request_encoder.dart   XOR decode + base64 padding fix (CRITICAL)
-  core/api/api_client.dart             Dio + XOR + auth interceptors
-                                         connectTimeout: 6s (TASK-042 — was 15s)
-                                         receiveTimeout: 30s (unchanged)
-  core/db/local_db.dart                SQLCipher DB, schema v17
-  core/db/sync_service.dart            Oracle-first sync with 5s probe on getVersion()
-                                         Falls to JazzDrive delta if probe times out
-                                         See STREAMING_ARCHITECTURE.md for full flow
-  core/remote_config.dart              Split into loadCached() + fetchBackground()
-                                         loadCached(): instant, reads SharedPreferences, NO network
-                                         fetchBackground(): fire-and-forget after runApp, 4s timeout
-  screens/player_screen.dart           Video player (6265 lines, all bugs fixed as of 2ac9e8dc)
-                                         See agent-hub/PLAYER_SPEC.md for full architecture
-  providers/auth_provider.dart         Auth state + session restore
-```
-
-## Flask Key Files
-```
-radd-hub/hub/
-  jazzdrive.py           JazzDrive session, OTP, upload, keepalive
-                           list_all_files_in_folder(folder_id): lists ALL files via
-                           /media/video?action=get (returns ALL MIME types, not just video)
-                           Used by upload_delta() to snapshot+purge before upload
-  proxy_pool.py          SOCKS/HTTP proxy pool management
-  keepalive.py           Heartbeat upload scheduler
-  uploader.py            JazzDrive upload queue
-  scanner.py             v3 scanner (_scan_worker, _enrich_low_confidence_titles)
-  _legacy/scanner.py     Legacy scanner with enrich_and_save, TV detection, IMDb fallback
-  media_naming.py        _detect_season_episode, _plan_tv, MediaPlan struct
-  metadata_lookup.py     enrich() — IMDb-first lookup chain
+...
   metadata.py            fetch_imdbapi(), enrich_title()
   _legacy/enricher.py    TMDB fetch_full_metadata(), _clean_filename()
   db.py                  DB helpers — only exports setting() and set_setting()
@@ -206,11 +117,9 @@ radd-hub/hub/
     catalog_api.py       /api/catalog/*
     mobile_api.py        /api/auth/*, usage, history, /api/app/config
     settings.py          Proxy pool admin
+    scan.py              Scan routes + excluded-folders CRUD
     zero_rating.py       Zero-rating manager — delta generate/upload/purge
-                           POST /zero-rating/purge-delta-folder: trash all files in delta folder
-  templates/
-    scan.html            Scan log UI — human-readable, suppresses internal chatter
-    admin.html           Admin panel — Restore Catalog + Danger Zone
+  templates/             (see Template GitHub Paths above)
 ```
 
 ---
@@ -219,3 +128,4 @@ radd-hub/hub/
 Use Contents API for 1-2 files, Trees API for 3+ files (atomic commit).
 See AGENT_PROMPT.md Step 3 for the exact Node.js templates.
 Always fetch fresh SHA immediately before PUT — stale SHA = 409 conflict.
+**Push template files sequentially — parallel PUTs conflict on the same SHA.**
