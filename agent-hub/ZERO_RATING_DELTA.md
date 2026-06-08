@@ -13,14 +13,14 @@ After that, Jazz SIM users can get **new catalog updates without any data bundle
 because `cloud.jazzdrive.com.pk` is zero-rated on the Jazz network (whitelisted
 at the network level — no bundle required, not "free with a bundle").
 
-The delta system is a **last-24h snapshot** of new and updated titles from Oracle,
-uploaded to JazzDrive periodically. It is the bridge between Oracle (the real database)
-and Jazz SIM users who have no active internet package.
+The delta system is a **snapshot of all published titles** uploaded to JazzDrive
+periodically. It is the bridge between Oracle (the real database) and Jazz SIM
+users who have no active internet package.
 
 **Oracle vs JazzDrive delta — critical distinction:**
 - **Oracle** (`92.4.95.252`) = complete full database, all titles since day one.
   Oracle catalog endpoints **require JWT auth** (added 2026-06-02). Full bundle/WiFi needed.
-- **JazzDrive delta** (`cloud.jazzdrive.com.pk`) = last-24h snapshot of new/changed titles.
+- **JazzDrive delta** (`cloud.jazzdrive.com.pk`) = snapshot of all published titles.
   Zero-rated — works on Jazz SIM without any data bundle. No auth required.
 
 ---
@@ -29,8 +29,8 @@ and Jazz SIM users who have no active internet package.
 
 **JazzDrive share_urls NEVER expire.** (Confirmed by user 2026-05-31)
 
-This is intentional and permanent. The previous "24h expiry" claim in this
-document was WRONG and has been corrected here.
+This is intentional and permanent. Any "24h expiry" claim anywhere in this codebase
+or docs is WRONG and should be removed.
 
 Consequences:
 - delta.json can contain share_urls that will work indefinitely
@@ -48,7 +48,7 @@ Consequences:
 - **JazzDrive hosted** — downloadable via zero-rated CDN
 - **Format**: `delta_v2`
 
-### Security Model (CORRECTED)
+### Security Model
 The share_urls in delta.json are **permanent links**. Security is enforced by:
 1. **APK signature check** (AppGuard) — cracked APK gets fake empty data, never real URLs
 2. **Frida detection** (AppGuard) — runtime hooking attempt → fake data
@@ -69,7 +69,7 @@ See `agent-hub/SECURITY_ARCHITECTURE.md` for the full threat model and implement
 {
   "format": "delta_v2",
   "generated_at": 1748700000,
-  "count": 24,  // titles added/changed in last 24h
+  "count": 24,
   "titles": [ /* array of title objects — see below */ ]
 }
 ```
@@ -147,7 +147,7 @@ Flutter poster load priority:
 
 ---
 
-## Who Gets Zero-Rating? (All Users)
+## Who Gets Zero-Rating? (All Jazz SIM Users)
 
 Zero-rating via JazzDrive works for **ALL** Jazz SIM users — paid, free, or no bundle.
 The network whitelists `cloud.jazzdrive.com.pk` at the packet level.
@@ -155,12 +155,16 @@ The network whitelists `cloud.jazzdrive.com.pk` at the packet level.
 | User Type | Oracle Sync | Delta Sync |
 |-----------|-------------|------------|
 | Has internet bundle | ✅ Full Oracle sync | ✅ Also available |
-| No bundle (Jazz SIM) | ❌ Fails | ✅ Works (zero-rated) |
+| No bundle (Jazz SIM) | ❌ Times out in ~5s | ✅ Works (zero-rated) |
 | Registered (one-time) | Required once for account creation | N/A |
 | Guest | ❌ | ✅ Can browse catalog |
 
 **First registration requires internet once** — account is created, device bound,
 subscription checked. After that: Oracle sync when online, delta when not.
+
+The Oracle timeout before delta fallback is **≤ 5 seconds** (TASK-042, 2026-06-08):
+- `connectTimeout: 6s` in `api_client.dart`
+- `.timeout(Duration(seconds: 5))` on `CatalogApi.getVersion()` probe in `sync_service.dart`
 
 ---
 
@@ -170,9 +174,6 @@ subscription checked. After that: Oracle sync when online, delta when not.
 |------|-----------|-------------|
 | Free movies (max ~50) | 1 | Everyone (guests too) |
 | Paid movies/dramas | 0 | Subscribed users only |
-
-Subscription packages: Basic Rs.149/30GB, Standard Rs.249/50GB, Premium Rs.399/100GB.
-SIMOSA partnership gives Jazz SIM users daily free MBs (see AppConstants.simosaDailyMb).
 
 ---
 
@@ -190,18 +191,26 @@ SQLite `.db` file merging is dangerous:
 ### File: `radd-hub/hub/routes/zero_rating.py`
 - `generate_delta_payload()` — queries all published titles,
   joins files for `file_id`/`share_url`, queries episodes for shows
-- `upload_delta()` route — calls `jazzdrive.upload_json_to_jazzdrive()` (bypasses
-  media extension block), saves share URL to `settings.jd_delta_url`
-- Scheduler (`hub/scheduler.py`) calls this periodically
+- `upload_delta()` route — **UPDATED (TASK-041, 2026-06-08)**:
+  1. Calls `jazzdrive.list_all_files_in_folder(delta_folder_id)` to snapshot ALL existing files
+  2. Calls `jazzdrive.upload_json_to_jazzdrive()` to upload new delta.json
+  3. Trashes ALL files from the pre-upload snapshot (keeps folder clean — only current JSON)
+  4. Saves new share URL to `settings.jd_delta_url`
+- `POST /zero-rating/purge-delta-folder` — manual purge route, trashes all files in delta
+  folder, returns count. Admin UI button shows file count before purge.
+- Scheduler (`hub/scheduler.py`) calls upload_delta periodically
 
 ### File: `radd-hub/hub/jazzdrive.py`
 - `upload_json_to_jazzdrive(file_path)` — uploads `.json` directly via SAPI
   multipart, bypassing the media-only extension check in `uploader.py`
-- Returns `{"ok": True, "share_url": "https://cloud.jazzdrive.com.pk/share/f/..."}`
+  Returns `{"ok": True, "share_url": "https://cloud.jazzdrive.com.pk/share/f/..."}`
+- `list_all_files_in_folder(folder_id)` — **NEW (TASK-041, 2026-06-08)**:
+  Uses `SAPI /media/video?action=get` which returns ALL file types regardless of MIME.
+  Do NOT use any other listing endpoint — they filter by MIME and miss `.json` files.
 
-### File: `radd-hub/hub/routes/api.py`
+### File: `radd-hub/hub/routes/api.py` (mobile_api.py)
 - `/api/config` route includes `jd_delta_url` from `settings` table
-- Flutter reads this on every startup and caches it in SharedPreferences
+- Flutter reads this via `RemoteConfig.fetchBackground()` and caches to SharedPreferences
 
 ---
 
@@ -210,16 +219,42 @@ SQLite `.db` file merging is dangerous:
 ### File: `lib/core/constants.dart`
 - `AppConstants.jazzDriveDeltaUrl` — mutable `static String` (NOT a getter)
 - Default: `''` (empty = JazzDrive delta disabled, Oracle-only sync)
-- Updated by `RemoteConfig.fetch()` on every successful Oracle connection
+- Updated by both `RemoteConfig.loadCached()` (from cache) and `fetchBackground()` (from Oracle)
 
-### File: `lib/core/remote_config.dart`
-- Reads `jd_delta_url` from `/api/config` response
-- Writes it to `AppConstants.jazzDriveDeltaUrl`
-- Caches full config JSON in SharedPreferences under key `jm_remote_config`
-- On offline start: loads from SharedPreferences cache (so delta URL survives reboot without internet)
+### File: `lib/core/remote_config.dart` — **UPDATED (TASK-040, 2026-06-08)**
+
+Two methods, called at different times in `main.dart`:
+
+```dart
+// Called BEFORE runApp() — awaited — instant — NO network
+static Future<void> loadCached() async {
+  // Reads SharedPreferences only
+  // Sets AppConstants.jazzDriveDeltaUrl from cached value
+  // Completes in < 10ms even with no internet
+}
+
+// Called AFTER runApp() — NOT awaited — fire-and-forget
+static Future<void> fetchBackground() async {
+  // Hits Oracle /api/config with 4-second timeout
+  // Updates AppConstants.jazzDriveDeltaUrl in memory
+  // Refreshes SharedPreferences cache for next cold start
+  // Silently ignored on timeout/error
+}
+
+// Legacy shim — kept for backwards compat — calls fetchBackground()
+static Future<void> fetch() => fetchBackground();
+```
+
+**Why the split matters:**
+- `loadCached()` ensures `jazzDriveDeltaUrl` is set from the start, even offline
+- `fetchBackground()` keeps the URL fresh without blocking startup
+- Before this split, startup hung for up to 4s on slow Oracle connections before showing the app
 
 ### File: `lib/core/db/sync_service.dart`
-- `SyncService.sync()` — tries Oracle first, falls back to JazzDrive delta
+- `SyncService.sync()` — tries Oracle first, falls back to JazzDrive delta on ANY exception
+- Oracle probe: `CatalogApi.getVersion().timeout(Duration(seconds: 5))` — lightweight,
+  throws TimeoutException if Oracle unreachable → caught by outer catch → delta runs
+- `syncFull()` / `syncDelta()` keep 30s receiveTimeout for large catalog downloads
 - `_syncFromJazzDriveDelta()` — if URL is a JazzDrive share URL, calls
   `_resolveJazzDriveDocumentUrl()` first (2-step zero-rated SAPI flow)
 - `_resolveJazzDriveDocumentUrl()`:
@@ -237,28 +272,48 @@ SQLite `.db` file merging is dangerous:
 
 ---
 
-## End-to-End Flow
+## End-to-End Flow (updated 2026-06-08)
 
 ```
 Admin → "Generate + Upload to JazzDrive"
-  → delta.json generated (all published titles, full playback data)
-  → uploaded to JazzDrive via SAPI (upload_json_to_jazzdrive)
-  → share URL saved to settings.jd_delta_url
-  → /api/config now returns jd_delta_url
+  → delta.json generated (ALL published titles, full playback data)
+  → list_all_files_in_folder() → snapshot existing files in delta folder
+  → upload new delta.json via upload_json_to_jazzdrive()
+  → trash all files from snapshot (folder now contains only new delta.json)
+  → new share URL saved to settings.jd_delta_url
+  → /api/config now returns new jd_delta_url
 
-User opens app WITH internet:
-  → RemoteConfig.fetch() → gets jd_delta_url → caches in SharedPreferences
-  → Oracle sync runs → full catalog update
+User opens app — startup sequence:
+  → main() BEFORE runApp:
+      await RemoteConfig.loadCached()
+        → reads jd_delta_url from SharedPreferences (instant, no network)
+        → AppConstants.jazzDriveDeltaUrl set immediately
+
+  → runApp() → app visible immediately
+
+  → main() AFTER runApp (fire-and-forget):
+      RemoteConfig.fetchBackground()   // NOT awaited
+        → hits Oracle /api/config (4s timeout)
+        → updates jd_delta_url in memory + refreshes cache
+
+User opens app WITH internet bundle:
+  → SyncService.sync():
+      _syncFromOracle()
+        → getVersion().timeout(5s) → Oracle responds < 1s ✅
+        → syncDelta() or syncFull() as needed (30s timeout)
+      → full Oracle sync complete, delta never used
 
 User opens app WITHOUT bundle (Jazz SIM):
-  → RemoteConfig.fetch() fails → loads jd_delta_url from SharedPreferences cache
-  → Oracle sync fails
-  → _syncFromJazzDriveDelta() runs:
-      POST /sapi/link/login   (zero-rated ✅)
-      GET  /sapi/media/video  (zero-rated ✅)
-      GET  <CDN URL>          (zero-rated ✅)
-  → delta.json downloaded, merged into local SQLite
-  → User sees full catalog, can play content
+  → SyncService.sync():
+      _syncFromOracle()
+        → getVersion().timeout(5s) → times out after 5s (no bundle) ❌
+        → TimeoutException thrown
+      → caught by outer catch → _syncFromJazzDriveDelta() runs:
+          POST /sapi/link/login   (zero-rated ✅)
+          GET  /sapi/media/video  (zero-rated ✅)
+          GET  <CDN URL>          (zero-rated ✅)
+      → delta.json downloaded, merged into local SQLite
+      → User sees full catalog, can play content (total wait: ≤ 5s)
 
 User eventually gets a bundle:
   → Oracle sync fills in everything automatically
@@ -285,9 +340,10 @@ for any realistic catalog size — trivial to download over zero-rated CDN.
 
 Zero-Rating Manager at `/zero-rating/`:
 1. **Generate Delta Now** — creates delta.json from all published titles
-2. **Generate + Upload to JazzDrive** — creates + uploads, saves share URL
-3. **JD Delta URL field** — shows current URL, can be manually set
-4. **Free/Paid toggle** — per-title is_free flag
+2. **Generate + Upload to JazzDrive** — creates + uploads + purges old files + saves share URL
+3. **Purge Delta Folder** — manual button showing file count, trashes all files in delta folder
+4. **JD Delta URL field** — shows current URL, can be manually set
+5. **Free/Paid toggle** — per-title is_free flag
 
 Scheduler auto-runs periodically (tracked in `settings.last_delta_generated_at`).
 
@@ -307,3 +363,11 @@ Scheduler auto-runs periodically (tracked in `settings.last_delta_generated_at`)
 6. **Share_urls NEVER expire** — this is confirmed architecture. Any code/doc claiming
    "links expire 24h" is WRONG. Do not reintroduce that claim.
 7. **Security relies on APK integrity, not link expiry** — see SECURITY_ARCHITECTURE.md
+8. **`list_all_files_in_folder()` must use `/media/video?action=get`** — this is the only
+   SAPI endpoint that returns ALL file types. Switching to another listing endpoint will
+   miss `.json` files and leave stale deltas in the folder (TASK-041, 2026-06-08)
+9. **`RemoteConfig.loadCached()` must never make network calls** — it is the instant
+   startup path. Network calls belong in `fetchBackground()` only. (TASK-040, 2026-06-08)
+10. **`connectTimeout` in api_client.dart must stay ≤ 6s** and **5s timeout on
+    `getVersion()` must stay** — no-bundle users cannot wait 15s for a cold start.
+    (TASK-042, 2026-06-08)

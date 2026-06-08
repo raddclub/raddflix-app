@@ -1,181 +1,219 @@
 # agent-hub/HANDOFF_NEXT.md — Next Agent Handoff
-> Generated: 2026-06-07 | Author: Replit Agent (Pass 5 session — Player Feature Sprint)
+> Generated: 2026-06-08 | Session: Infrastructure Sprint (TASK-040/041/042)
 > **Read this AFTER AGENT_HANDOFF.md and BEFORE touching any code.**
 
 ---
 
-## What happened this session (Pass 5 — Player Feature Sprint)
+## What happened this session (2026-06-08 — Infrastructure Sprint)
 
-Four new player features implemented across TASK-029 → TASK-032.
-All committed via GitHub Trees API. Latest commit: `034938fb`
-Player screen: `player_screen.dart` (275 KB, ~6,440+ lines)
+Three infrastructure tasks completed. No player changes. Latest commit: `6e7e517`
 
-### Features shipped this session
-
-| Task | Feature | Commit |
-|------|---------|--------|
-| TASK-029 | Universal Subtitle Hunter | prior session |
-| TASK-030 | Layout & HUD Settings Sheet v1 | `cd8bcd83` |
-| TASK-031 | Layout & HUD Settings Sheet v2 (full rewrite) | `0a4c3c58` |
-| TASK-032 | Smart Enhance — MX-style AI video enhancement | `034938fb` |
+| Task | Feature | Commits |
+|------|---------|---------|
+| TASK-040 | RemoteConfig split — loadCached (instant) + fetchBackground (4s fire-and-forget) | `4020cdf` |
+| TASK-041 | Delta folder purge — list+trash all old files before each upload | `f8cd79b` |
+| TASK-042 | Fast Oracle→delta fallback — connectTimeout 6s, 5s probe on getVersion | `b709ebe` |
 
 ---
 
-## TASK-029 — Universal Subtitle Hunter
-**Status:** ✅ Complete
+## TASK-040 — RemoteConfig Split
 
-New files:
-- `lib/core/subtitles/subtitle_hunter.dart` — recursive file walk, fuzzy match, archive extract
-- `lib/core/subtitles/subtitle_hunter_sheet.dart` — bottom sheet UI with ranked results
-- `archive` package added to pubspec.yaml for ZIP/RAR scanning
+**Status:** ✅ Complete | Commit: `4020cdf`
 
-Wired into player_screen.dart: subtitle icon opens hunter when no embedded subs found.
+**Problem:** `RemoteConfig.fetch()` was awaited in `main()` before `runApp()`. If Oracle was
+slow or unreachable, the splash screen hung while waiting for the network response.
 
----
+**Solution:** Split into two methods:
 
-## TASK-030 — Layout & HUD Settings Sheet v1
-**Status:** ✅ Complete (superseded by v2, still in history)
+```
+main() before runApp():
+  await RemoteConfig.loadCached()
+    → reads ONLY from SharedPreferences — instant, zero network
+    → sets AppConstants.jazzDriveDeltaUrl from cache
+    → app always starts fast, delta URL always available offline
 
-New file: `lib/widgets/player/player_hud_settings_sheet.dart` (758 lines, v1)
-Wired via "Layout & HUD" button in _MxMoreSheet.
-
----
-
-## TASK-031 — Layout & HUD Settings Sheet v2
-**Status:** ✅ Complete | Commit: `0a4c3c58`
-
-Full rewrite (1145 lines) of `lib/widgets/player/player_hud_settings_sheet.dart`:
-- **Layout preset strip**: Netflix / MX Classic / Minimal / Binge / Custom chips
-- **Per-orientation tabs**: Portrait / Landscape — independent prefs per orientation
-- **Drag-to-reorder Quick Bar**: `ReorderableListView` with drag handles
-- **Dedup guard**: amber warning when subtitle added to Quick Bar (already in top bar)
-- **Button shape switcher**: Circle / Squircle / Rounded / Pill / Sharp — each previews its shape
-- **MX-style auto-rotation**: `didChangeMetrics()` override tracks which physical side user
-  flipped to via safe-area padding heuristic; `sensor_landscape` snaps to that exact side.
-  `_lastLandscapeSide` state variable persists between flips.
-
-PlayerPrefs fields added (TASK-031):
-- `centerBtnScale`, `centerBtnVerticalOffset`, `centerBtnIconOnly`, `centerBtnBgOpacity`
-- `showCenterPrev`, `showCenterSkip`, `showCenterNext`, `centerBtnPosition`
-- `showQuickBar`, `quickBarItems`, `buttonShape`, `layoutPreset`, `layoutJson`
-
----
-
-## TASK-032 — Smart Enhance (MX-style AI Video Enhancement)
-**Status:** ✅ Complete | Commit: `034938fb`
-
-New files:
-- `lib/core/player/smart_enhance.dart` — `SmartEnhancePreset` class + `kSmartEnhancePresets` (8 modes)
-- `lib/widgets/player/smart_enhance_sheet.dart` — full MX-style panel (655 lines)
-
-8 content modes: Standard / Movie / Sports / Anime / Low Light / AMOLED / Drama / Documentary
-Each preset defines: brightness/contrast/saturation/hue deltas + sharpness + noiseReduce flag
-
-Panel features:
-- Master ON/OFF toggle with green glow ring
-- 8-card mode grid (3 cols) — selecting any mode auto-enables Smart Enhance
-- "What's Applied" badge chips showing actual values per mode
-- Intensity slider: Subtle → Max (0.5×–1.5× multiplier on preset deltas)
-- Before/After hold button — hold to bypass enhance and see original video live
-
-`_buildVfString` in player_screen.dart extended to merge Smart Enhance deltas with user eq:
-- brightness/contrast/saturation/hue stacked + clamped to MPV limits
-- sharpness = (user + se delta) clamped 0–1.5
-- `hqdn3d` noise filter appended when Low Light mode active
-
-PlayerPrefs fields added (TASK-032):
-- `smartEnhanceEnabled` (bool, default: false)
-- `smartEnhanceMode` (String, default: 'standard')
-
----
-
-## Key Code Locations (player_screen.dart — post `034938fb`, ~6,440 lines)
-
-| Section | Approx Line | Description |
-|---------|-------------|-------------|
-| `_PlayerScreenState` fields | ~180 | All state vars incl. `_showHudSettings`, `_showSmartEnhance`, `_lastLandscapeSide` |
-| `_buildVfString()` | ~527 | Video filter chain builder — Smart Enhance merged here |
-| `_applyVideoFilters()` | ~655 | Debounced async caller for `_buildVfString` |
-| `_openHudSettings()` | ~1194 | Opens HUD settings sheet |
-| `_openSmartEnhance()` | ~1201 | Opens Smart Enhance sheet |
-| `didChangeMetrics()` | ~261 | MX-style rotation side detection |
-| `_MxMoreSheet` class | ~5310 | More panel — has both "Layout & HUD" and "Smart Enhance" buttons |
-| Smart Enhance overlay | ~3820 | `if (_showSmartEnhance) SmartEnhanceSheet(...)` in Stack |
-| HUD Settings overlay | ~3832 | `if (_showHudSettings) PlayerHudSettingsSheet(...)` in Stack |
-
----
-
-## PlayerPrefs — All new fields added this session
-
-```dart
-// Quick Bar / Layout (TASK-031)
-final double  centerBtnScale;           // default: 1.0
-final double  centerBtnVerticalOffset;  // default: 0.0
-final bool    centerBtnIconOnly;        // default: false
-final double  centerBtnBgOpacity;       // default: 0.3
-final bool    showCenterPrev;           // default: false
-final bool    showCenterSkip;           // default: false
-final bool    showCenterNext;           // default: true
-final String  centerBtnPosition;        // 'center' | 'bottom' | 'hidden'
-final bool    showQuickBar;             // default: true
-final String  quickBarItems;            // comma-sep slot IDs
-final String  layoutPreset;             // 'netflix'|'mx'|'minimal'|'binge'|'custom'
-final String  layoutJson;               // serialized per-orientation prefs
-
-// Smart Enhance (TASK-032)
-final bool    smartEnhanceEnabled;      // default: false
-final String  smartEnhanceMode;         // 'standard'|'movie'|'sports'|'anime'|'low_light'|'amoled'|'drama'|'documentary'
+main() after runApp() — fire-and-forget:
+  RemoteConfig.fetchBackground()    // NOT awaited
+    → hits Oracle /api/config with 4-second timeout
+    → updates AppConstants.jazzDriveDeltaUrl (hot-updates in memory)
+    → refreshes SharedPreferences cache for next cold start
+    → silently ignored if Oracle unreachable
 ```
 
-All fields wired in: field decl → constructor default → copyWith param+body → load() → save()
-SharedPrefs keys all prefixed with `${_p}` (player key prefix).
+**Files changed:**
+- `raddflix_flutter/lib/core/remote_config.dart` — added `loadCached()`, `fetchBackground()`; kept legacy `fetch()` shim
+- `raddflix_flutter/lib/main.dart` — `await loadCached()` before runApp, `fetchBackground()` after
+
+**Critical rules (never undo):**
+- `loadCached()` must NEVER make network calls — it is the "instant startup" path
+- `fetchBackground()` must NEVER be awaited before `runApp()`
+- `AppConstants.jazzDriveDeltaUrl` must stay a mutable `static String` (not a getter)
+- Legacy `fetch()` shim calls `fetchBackground()` — kept for any callers that still use `fetch()`
 
 ---
 
-## Next Agent — Suggested Features (from PLAYER_FEATURE_IDEAS.md)
+## TASK-041 — Delta Folder Purge
 
-Easiest + highest impact remaining:
+**Status:** ✅ Complete | Commit: `f8cd79b`
 
-### IDEA-06 — Subtitle Personality Engine (2–3 days, Easy)
-Subtitles visually adapt their style based on content:
-- ALL CAPS → bold + larger + slight red tint
-- `...` trailing off → italic + faded
-- `[whispering]` → tiny + italic + no outline
-- `?!` shock → brief scale-up bounce animation
-- `♪` music → italic + soft gradient background
-Files: `lib/core/subtitles/subtitle_personality.dart` + extend subtitle overlay widget
+**Problem:** Every `upload_delta()` call added a new `delta.json` file to the JazzDrive delta
+folder without removing old ones. Over time the folder accumulated duplicate JSONs with stale
+catalog data.
 
-### IDEA-07 — Player Skin Palette Generator (2 days, Easy)
-User photos a poster → app extracts palette → generates entire player color scheme.
-Uses `palette_generator` Flutter package (Google-made).
-`playerTheme` field already exists in PlayerPrefs.
+**Solution:** Snapshot + trash all existing files BEFORE upload, then upload new file.
 
-### IDEA-05 — Cinematic Frame Capture + Story Export (2–3 days, Easy)
-Triple-tap paused video → 2.39:1 crop + film grain + vignette + title/timestamp caption.
-One-tap export as Instagram Story format (9:16).
-Uses `VideoThumbnail` + `dart:ui` Canvas + `share_plus`.
+**New function in `jazzdrive.py`:**
+```python
+def list_all_files_in_folder(folder_id):
+    # Uses /media/video?action=get — returns ALL MIME types despite the name
+    # Do NOT use /media?action=list — it filters by MIME and misses .json files
+```
 
-### IDEA-08 — Phonetic Subtitle Overlay (3–4 days, Medium)
-For Urdu/Hindi subtitles: show Roman Urdu transliteration as a second row below main subtitle.
-Huge differentiator for Pakistani market. No other player has this.
+**Rewritten `upload_delta()` in `zero_rating.py`:**
+```
+1. list_all_files_in_folder(delta_folder_id) → snapshot of all files
+2. Upload new delta.json
+3. If upload OK → trash ALL files from snapshot (not re-listed after upload)
+4. Save new share_url to settings.jd_delta_url
+```
 
-### IDEA-02 — Gesture Macro Recorder (4–5 days, Medium)
-Record a sequence of player actions → save as named macro → trigger with one tap.
-Example: "Study Mode" → Speed 0.75x + Subs ON + Night Mode ON + No autoplay.
+**New manual route:** `POST /zero-rating/purge-delta-folder`
+- Admin UI button shows file count before purge
+- Trashes ALL files in the configured delta folder
+- Returns count of files trashed
+
+**Files changed:**
+- `radd-hub/hub/jazzdrive.py` — new `list_all_files_in_folder()`
+- `radd-hub/hub/routes/zero_rating.py` — rewritten `upload_delta()`, new purge route + button
+
+**Critical rules (never undo):**
+- SAPI `/media/video?action=get` returns ALL file types — don't switch to a type-filtered endpoint
+- Snapshot files BEFORE upload (not after) — prevents accidentally trashing the new file
+- Purge is automatic on every upload — admin manual purge button is just a maintenance helper
 
 ---
 
-## Open Ops Issues (unchanged from previous handoff)
+## TASK-042 — Fast Oracle→Delta Fallback
 
-- **OPEN-OPS-01**: JazzDrive session expired — account 03286829827 needs OTP re-login
-  Until fixed: uploads fail, keepalive fails, delta_push 401 errors
+**Status:** ✅ Complete | Commit: `b709ebe`
+
+**Problem:** Sync order was already correct (Oracle first → JazzDrive delta fallback). But
+`connectTimeout` was 15s. On Jazz SIM with no bundle, TCP packets to Oracle (92.4.95.252) are
+silently dropped by the operator, not refused. App blocked for **15 seconds** before every cold
+start if user had no bundle.
+
+**Fix 1 — `api_client.dart`:**
+```dart
+connectTimeout: const Duration(seconds: 6),  // was 15s
+receiveTimeout: const Duration(seconds: 30),  // unchanged
+```
+
+**Fix 2 — `sync_service.dart`:**
+```dart
+// Inside _syncFromOracle():
+final serverVersion = await CatalogApi.getVersion().timeout(
+  const Duration(seconds: 5),
+);
+// getVersion() = lightweight probe (returns 3 integers)
+// If Oracle doesn't respond in 5s → TimeoutException → caught by sync() → falls to delta
+// syncFull() / syncDelta() keep their full 30s receiveTimeout
+```
+
+**Result:**
+
+| User | Oracle response | What happens |
+|------|----------------|-------------|
+| Has bundle | < 1s | Oracle sync, delta never used |
+| No bundle (Jazz SIM) | ~5s timeout | Falls to JazzDrive delta in ≤ 5s total |
+| Slow connection | 2-4s but responds | Oracle sync completes normally |
+
+**Files changed:**
+- `raddflix_flutter/lib/core/api/api_client.dart` — connectTimeout 15s → 6s
+- `raddflix_flutter/lib/core/db/sync_service.dart` — 5s probe on getVersion()
+
+**Critical rules (never undo):**
+- connectTimeout MUST stay ≤ 6s — see RULES.md Rule 34
+- 5s timeout on getVersion() MUST stay — see RULES.md Rule 35
+- Do NOT add short timeouts to syncFull/syncDelta — catalog downloads need 30s on slow connections
+
+---
+
+## Open Ops Issues (carry forward)
+
+- **OPEN-OPS-01**: JazzDrive session for 03286829827 may need OTP re-login after Oracle restarts
+  Until fixed: uploads fail, keepalive fails, delta upload 401 errors
 - **OPEN-DATA-01**: All Of Us Are Dead — E03/E04/E05/E09 missing from JazzDrive
 
 ---
 
-## Download fresh player_screen.dart
+## Current State at End of Session
+
+| Component | State |
+|-----------|-------|
+| Oracle Flask | ✅ Running |
+| JazzDrive delta | ✅ Functional (purge + upload working) |
+| Flutter sync | ✅ Fast fallback (≤5s to delta for no-bundle users) |
+| RemoteConfig | ✅ Instant startup (loadCached + fetchBackground split) |
+| Latest commit | `6e7e517` (docs) on `main` |
+
+---
+
+## Next Agent — Suggested Work (in priority order)
+
+### HIGH PRIORITY — Security wiring (half-built, needs completion)
+**Wire `MainActivity.kt` security MethodChannel** — AppGuard needs native channel for:
+- `getSignatureFingerprint` — read APK signing cert SHA-256
+- `checkFrida` — scan `/proc/self/maps` for Frida strings
+- `checkRoot` — check `su` binary paths
+The exact Kotlin code is in SECURITY_ARCHITECTURE.md. This is the last step to activate APK tamper detection.
+
+**Wire share_url scrambling in `local_db.dart`:**
+- `mergeDeltaTitle()` → `RequestEncoder.scrambleUrl(shareUrl, deviceId)` before insert
+- `upsertEpisode()` → same for episode share_url
+- Any read of share_url → `RequestEncoder.unscrambleUrl(url, deviceId)`
+Code already exists in `request_encoder.dart` — just needs wiring.
+
+### MEDIUM — Scheduler for delta auto-upload
+Add a cron job / APScheduler task that calls `upload_delta()` every 24 hours automatically.
+Currently admin must manually click "Generate + Upload" in the admin panel.
+File: `radd-hub/hub/scheduler.py` (APScheduler already used for keepalive)
+
+### LOW — Player features (see PLAYER_FEATURE_IDEAS.md)
+- IDEA-06: Subtitle Personality Engine (ALL CAPS → bold red, ♪ → italic gradient, etc.)
+- IDEA-07: Player Skin Palette Generator (extract palette from poster → theme player)
+- IDEA-05: Cinematic Frame Capture (triple-tap → 2.39:1 crop + export as story)
+
+---
+
+## Download fresh files
 
 ```bash
+# api_client.dart
+curl -sH "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/raddclub/raddflix-app/contents/raddflix_flutter/lib/core/api/api_client.dart" \
+  | python3 -c "import sys,json,base64; d=json.load(sys.stdin); open('/tmp/api_client.dart','wb').write(base64.b64decode(d['content']))"
+
+# sync_service.dart
+curl -sH "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/raddclub/raddflix-app/contents/raddflix_flutter/lib/core/db/sync_service.dart" \
+  | python3 -c "import sys,json,base64; d=json.load(sys.stdin); open('/tmp/sync_service.dart','wb').write(base64.b64decode(d['content']))"
+
+# remote_config.dart
+curl -sH "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/raddclub/raddflix-app/contents/raddflix_flutter/lib/core/remote_config.dart" \
+  | python3 -c "import sys,json,base64; d=json.load(sys.stdin); open('/tmp/remote_config.dart','wb').write(base64.b64decode(d['content']))"
+
+# jazzdrive.py
+curl -sH "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/raddclub/raddflix-app/contents/radd-hub/hub/jazzdrive.py" \
+  | python3 -c "import sys,json,base64; d=json.load(sys.stdin); open('/tmp/jazzdrive.py','wb').write(base64.b64decode(d['content']))"
+
+# zero_rating.py
+curl -sH "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/raddclub/raddflix-app/contents/radd-hub/hub/routes/zero_rating.py" \
+  | python3 -c "import sys,json,base64; d=json.load(sys.stdin); open('/tmp/zero_rating.py','wb').write(base64.b64decode(d['content']))"
+
+# player_screen.dart
 curl -sH "Authorization: token $GITHUB_TOKEN" \
   "https://api.github.com/repos/raddclub/raddflix-app/contents/raddflix_flutter/lib/screens/player_screen.dart" \
   | python3 -c "import sys,json,base64; d=json.load(sys.stdin); open('/tmp/ps.dart','wb').write(base64.b64decode(d['content']))"
@@ -189,10 +227,9 @@ echo "Lines: $(wc -l < /tmp/ps.dart)"
 Use Trees API for multi-file atomic commits:
 1. `GET /repos/{owner}/{repo}/git/refs/heads/main` → commitSha
 2. `GET /repos/{owner}/{repo}/git/commits/{commitSha}` → treeSha
-3. `POST /git/blobs` for each file → blobSha
-4. `POST /git/trees` with base_tree + new items → newTreeSha
-5. `POST /git/commits` → newCommitSha
-6. `PATCH /git/refs/heads/main` → update HEAD
+3. `POST /git/trees` with base_tree + file content → newTreeSha
+4. `POST /git/commits` → newCommitSha
+5. `PATCH /git/refs/heads/main` → update HEAD
 
 Owner: `raddclub`, Repo: `raddflix-app`, Branch: `main`.
 **NEVER use git shell commands.**

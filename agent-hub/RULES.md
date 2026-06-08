@@ -1,5 +1,5 @@
 # agent-hub/RULES.md — Non-Negotiable Agent Rules
-Last updated: 2026-06-07
+Last updated: 2026-06-08 (added Rules 32–36 for RemoteConfig, sync timeouts, delta purge)
 
 ## Startup (every session, no exceptions)
 1. Set up SSH key from `ORACLE_SSH_KEY` env var (see AGENT_PROMPT.md Step 1)
@@ -81,6 +81,55 @@ Last updated: 2026-06-07
     Any widget that sets A-B points (ClipTrimmer, AbLoopPanel, etc.) MUST call
     `_abLoop.setA(d)` / `_abLoop.setB(d)` in addition to updating `_abLoopStart`/`_abLoopEnd`.
     Updating only the state vars breaks `maybeSeekBack()` enforcement and seek bar markers.
+
+---
+
+## RemoteConfig Rules (TASK-040 — added 2026-06-08)
+32. **RemoteConfig has TWO methods — never merge them back into one:**
+    - `RemoteConfig.loadCached()` — awaited in `main()` before `runApp()`. Reads ONLY from
+      SharedPreferences. ZERO network calls. Instant. Sets `AppConstants.jazzDriveDeltaUrl`
+      from cache so delta is available immediately on every cold start, including offline starts.
+    - `RemoteConfig.fetchBackground()` — called AFTER `runApp()`, fire-and-forget, NOT awaited.
+      Has 4-second timeout. Hits Oracle `/api/config`. Updates `AppConstants.jazzDriveDeltaUrl`
+      AND refreshes the SharedPreferences cache.
+    - Legacy `fetch()` shim exists for backwards compatibility — it calls `fetchBackground()`.
+      Do not remove it. Do not add network calls inside `loadCached()`.
+
+33. **`AppConstants.jazzDriveDeltaUrl` must remain a mutable `static String`** — NOT a getter.
+    RemoteConfig.loadCached() and fetchBackground() both write to it. A `get` getter cannot
+    be written to. Any refactor that turns this into a getter breaks offline delta.
+
+---
+
+## Sync Timeout Rules (TASK-042 — added 2026-06-08)
+34. **`connectTimeout` in `api_client.dart` must stay at 6 seconds or less.**
+    It was previously 15s. On Jazz SIM with no bundle, TCP packets to Oracle can be silently
+    dropped by the operator — the app would block for 15s before falling to JazzDrive delta.
+    6s is still generous for real internet connections (Oracle responds < 1s in practice).
+    NEVER raise this back to 15s — it kills no-bundle UX.
+
+35. **The `.timeout(Duration(seconds: 5))` on `CatalogApi.getVersion()` must stay.**
+    File: `lib/core/db/sync_service.dart`, inside `_syncFromOracle()`.
+    `getVersion()` is the Oracle probe — a tiny call that returns 3 integers. If it doesn't
+    answer in 5s, the user has no bundle and we fall immediately to JazzDrive delta.
+    `syncFull()` and `syncDelta()` intentionally keep their full 30s receiveTimeout — large
+    catalog downloads on slow-but-real connections need that time. DO NOT add short timeouts
+    to syncFull/syncDelta. DO NOT remove the timeout from getVersion().
+
+---
+
+## Delta Folder Purge Rules (TASK-041 — added 2026-06-08)
+36. **Always purge the JazzDrive delta folder BEFORE uploading a new delta.json.**
+    `upload_delta()` in `zero_rating.py` snapshots all files via `list_all_files_in_folder()`
+    BEFORE starting the upload, then trashes them ALL after the new file is successfully uploaded.
+    This keeps the delta folder clean (only the current delta.json lives there at all times).
+    NEVER skip the pre-upload snapshot — if you only purge after upload you risk trashing
+    the new file if the folder listing is re-fetched after the upload.
+
+37. **`list_all_files_in_folder(folder_id)` in `jazzdrive.py` uses `/media/video?action=get`**
+    — despite the name, this SAPI endpoint returns ALL file types (not just video). This is the
+    only endpoint that reliably lists all files in a folder. Do NOT use `/media?action=list` or
+    any other listing endpoint — they filter by MIME type and miss `.json` files.
 
 ---
 

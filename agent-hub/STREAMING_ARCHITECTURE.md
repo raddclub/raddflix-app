@@ -24,7 +24,7 @@ When a user taps Play on a RaddFlix catalog title:
 ```
 Step 1: share_url lookup (no network)
   App reads the file's share_url from local SQLite DB.
-  share_url was stored during the last Oracle catalog sync.
+  share_url was stored during the last Oracle catalog sync or JazzDrive delta sync.
   Example: https://cloud.jazzdrive.com.pk/share/f/XXXXXX
 
 Step 2: JazzDrive API login (zero-rated — no bundle needed)
@@ -73,8 +73,8 @@ Protection:
 - Delta JSON (zero-rated catalog sync) **includes share_urls** — security relies on APK
   integrity (AppGuard signature check + Frida detection), not on link hiding. A cracked APK
   gets fake empty data, never real share_urls.
-- Oracle full catalog sync also includes share_urls and now **requires JWT auth**
-  (added 2026-06-02). Oracle = complete database; JazzDrive delta = last-24h snapshot only.
+- Oracle full catalog sync also includes share_urls and **requires JWT auth**
+  (added 2026-06-02). Oracle = complete database; JazzDrive delta = full published snapshot.
 
 ---
 
@@ -117,17 +117,65 @@ Both streaming and downloading are zero-rated. Both share the same `stream_cache
 - Code: `SyncService._syncFromOracle()` in `sync_service.dart`
 - Upserts complete rows into local SQLite including share_url
 
-### Path 2: JazzDrive Delta (zero-rated — ACTIVE)
+**Timeout behaviour (TASK-042, 2026-06-08):**
+
+```
+_syncFromOracle():
+  getVersion().timeout(5s)    ← lightweight probe — returns 3 integers
+    If Oracle responds → proceed to syncFull() / syncDelta() with 30s timeout
+    If times out (5s) → TimeoutException → caught by sync() → falls to Path 2
+
+api_client.dart Dio options:
+  connectTimeout: 6s   ← was 15s before TASK-042
+  receiveTimeout: 30s  ← unchanged (catalog downloads need this on slow connections)
+```
+
+No-bundle users fall to JazzDrive delta in ≤ 5 seconds total.
+Users with internet have Oracle respond in < 1s — no impact.
+Users with slow-but-real internet: probe takes 2-4s, Oracle sync continues normally.
+
+### Path 2: JazzDrive Delta (zero-rated — always available without bundle)
 - Fetches `delta.json` from `AppConstants.jazzDriveDeltaUrl` (set by RemoteConfig on startup)
 - Contains **full playback data** — includes `share_url`, `file_id`, `folder_share_url`, and
   complete episode lists per show
-- Is a **last-24h snapshot** of new/updated titles from Oracle (not the full catalog)
+- Is a **full snapshot** of all published titles from Oracle
 - Uses `LocalDb.mergeDeltaTitle()` which preserves any share_url from prior Oracle syncs
 - Code: `SyncService._syncFromJazzDriveDelta()` in `sync_service.dart`
+
+**Sync priority (always Oracle first, delta as fallback):**
+```
+sync() flow:
+  try:
+    _syncFromOracle()    → full Oracle sync (getVersion probe + catalog fetch)
+  catch ANY exception:   → TimeoutException, DioException, SocketException, etc.
+    _syncFromJazzDriveDelta()
+```
 
 **Security model:** share_urls in delta.json are permanent (never expire). Security is enforced
 by APK integrity — AppGuard signature check + Frida detection. A cracked APK sees fake empty
 data, never real share_urls. See ZERO_RATING_DELTA.md and SECURITY_ARCHITECTURE.md.
+
+---
+
+## RemoteConfig — Delta URL Startup Behaviour (TASK-040, 2026-06-08)
+
+```
+main() before runApp():
+  await RemoteConfig.loadCached()
+    → reads jd_delta_url from SharedPreferences (INSTANT — no network)
+    → AppConstants.jazzDriveDeltaUrl is set before app renders any frame
+    → works even with no internet (uses cached value from last online session)
+
+main() after runApp() — fire-and-forget, NOT awaited:
+  RemoteConfig.fetchBackground()
+    → hits Oracle /api/config with 4-second timeout
+    → updates AppConstants.jazzDriveDeltaUrl in memory (hot update)
+    → refreshes SharedPreferences for next cold start
+    → silently ignored if Oracle is unreachable
+```
+
+This guarantees `jazzDriveDeltaUrl` is always populated when `_syncFromJazzDriveDelta()` runs,
+even on the very first cold start of an offline Jazz SIM user.
 
 ---
 
@@ -155,3 +203,4 @@ Player `_jazzAutoRetry()` detects expired links and refreshes transparently duri
 
 **Key insight:** First-time setup (login + catalog sync) requires a bundle or WiFi once.
 After that, Jazz SIM users stream freely without any bundle.
+After delta sync runs (≤5s on cold start), Jazz SIM users have an up-to-date catalog.

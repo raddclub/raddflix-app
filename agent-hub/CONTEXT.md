@@ -1,5 +1,5 @@
 # agent-hub/CONTEXT.md — RaddFlix System Context
-Last updated: 2026-06-07 (player audit complete)
+Last updated: 2026-06-08 (TASK-040/041/042 — RemoteConfig split, delta purge, sync timeout fix)
 
 ## What is RaddFlix?
 Pakistani Flutter streaming app. Content is zero-rated (free data) on Jazz SIM via JazzDrive.
@@ -28,7 +28,7 @@ Users install the APK, log in, and stream content. All content lives on JazzDriv
 
 ### Key fact: JazzDrive is globally accessible — NO geo-restriction
 JazzDrive (jazzdrive.com.pk, cloud.jazzdrive.com.pk) works from any IP worldwide.
-wg0 WireGuard routes all JazzDrive IPs and works correctly for all call types.
+wg0 WireGuard works for ALL call types.
 **Do NOT force proxies for JazzDrive calls.**
 
 ### PROXY_BYPASS=1 (normal production state)
@@ -170,7 +170,15 @@ TV season folders: `"Show Season 1 (2024)"` or `"Show Season 1"` (no year)
 raddflix_flutter/lib/
   core/security/request_encoder.dart   XOR decode + base64 padding fix (CRITICAL)
   core/api/api_client.dart             Dio + XOR + auth interceptors
+                                         connectTimeout: 6s (TASK-042 — was 15s)
+                                         receiveTimeout: 30s (unchanged)
   core/db/local_db.dart                SQLCipher DB, schema v17
+  core/db/sync_service.dart            Oracle-first sync with 5s probe on getVersion()
+                                         Falls to JazzDrive delta if probe times out
+                                         See STREAMING_ARCHITECTURE.md for full flow
+  core/remote_config.dart              Split into loadCached() + fetchBackground()
+                                         loadCached(): instant, reads SharedPreferences, NO network
+                                         fetchBackground(): fire-and-forget after runApp, 4s timeout
   screens/player_screen.dart           Video player (6265 lines, all bugs fixed as of 2ac9e8dc)
                                          See agent-hub/PLAYER_SPEC.md for full architecture
   providers/auth_provider.dart         Auth state + session restore
@@ -180,6 +188,9 @@ raddflix_flutter/lib/
 ```
 radd-hub/hub/
   jazzdrive.py           JazzDrive session, OTP, upload, keepalive
+                           list_all_files_in_folder(folder_id): lists ALL files via
+                           /media/video?action=get (returns ALL MIME types, not just video)
+                           Used by upload_delta() to snapshot+purge before upload
   proxy_pool.py          SOCKS/HTTP proxy pool management
   keepalive.py           Heartbeat upload scheduler
   uploader.py            JazzDrive upload queue
@@ -195,6 +206,8 @@ radd-hub/hub/
     catalog_api.py       /api/catalog/*
     mobile_api.py        /api/auth/*, usage, history, /api/app/config
     settings.py          Proxy pool admin
+    zero_rating.py       Zero-rating manager — delta generate/upload/purge
+                           POST /zero-rating/purge-delta-folder: trash all files in delta folder
   templates/
     scan.html            Scan log UI — human-readable, suppresses internal chatter
     admin.html           Admin panel — Restore Catalog + Danger Zone
