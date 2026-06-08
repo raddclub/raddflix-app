@@ -551,9 +551,11 @@ class LocalDb {
       if (rows.isNotEmpty) return rows.map(_rowToItem).toList();
     } catch (_) {}
     // Fallback: plain LIKE (used on first install before FTS index is populated)
+    // FIX-LIKE-01: escape % and _ so they match literally, not as LIKE wildcards.
+    final safeQ = query.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
     final rows = await db.query('titles',
-        where: 'title LIKE ?',
-        whereArgs: ['%$query%'],
+        where: "title LIKE ? ESCAPE '\\'",
+        whereArgs: ['%$safeQ%'],
         orderBy: 'title ASC',
         limit: 50);
     return rows.map(_rowToItem).toList();

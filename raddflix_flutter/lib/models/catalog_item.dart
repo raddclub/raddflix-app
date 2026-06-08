@@ -84,7 +84,7 @@ class CatalogItem {
   factory CatalogItem.fromJson(Map<String, dynamic> json) {
     final episodesRaw = json['episodes'] as List<dynamic>? ?? [];
     return CatalogItem(
-      id:          json['id'] as int,
+      id:          (json['id'] as int? ?? (int.tryParse(json['id']?.toString() ?? '') ?? 0)), // FIX-ID-CAST: safe cast — null id defaults to 0 instead of TypeError crash
       title:       json['title'] as String? ?? '',
       year:        json['year'] == null ? null : int.tryParse(json['year'].toString()),
       mediaType:   _normalizeMediaType(json['media_type']?.toString()),

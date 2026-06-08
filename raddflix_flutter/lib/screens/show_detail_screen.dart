@@ -104,6 +104,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         _resumeEpisodeIndex = resumeIdx;
         _loading = false;
         if (_seasons.length > 1) {
+          _seasonTab?.dispose(); // FIX-TAB-01: dispose old controller before recreating (fixes memory leak on pull-to-refresh)
           _seasonTab = TabController(length: _seasons.length, vsync: this);
           _seasonTab!.addListener(() {
             if (!_seasonTab!.indexIsChanging) {

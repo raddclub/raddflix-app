@@ -84,7 +84,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             // Prefer ContentResolver display name; fall back to fully-decoded URI segment.
             final String title = (resolvedTitle != null && resolvedTitle.isNotEmpty)
                 ? resolvedTitle
-                : Uri.decodeFull(uri.split('/').last);
+                : Uri.decodeFull(Uri.parse(uri).pathSegments.isNotEmpty ? Uri.parse(uri).pathSegments.last : uri.split('/').last) // FIX-URI-01: pathSegments handles query params correctly;
             // Normalise path: strip file:// prefix; content:// passed as-is for media_kit.
             final String localPath =
                 uri.startsWith('file://') ? uri.substring(7) : uri;
