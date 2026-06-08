@@ -126,6 +126,11 @@
         <div style="flex:1"><strong>API Keys</strong></div>
         <span class="badge b-mut" id="h-keys">checking…</span>
       </div>
+      <div class="health-item" id="schema-health-row">
+        <div class="health-dot mut" id="dot-schema"></div>
+        <div style="flex:1"><strong>DB Schema</strong> <span class="muted" id="schema-detail" style="font-size:11px"></span></div>
+        <span class="badge b-mut" id="h-schema" style="cursor:default">checking…</span>
+      </div>
     </div>
   </div>
 
@@ -286,6 +291,31 @@ async function loadHealth(){
       if(el){ el.textContent='unknown'; el.className='badge b-mut'; }
     });
   }
+  // always refresh schema health when health panel refreshes
+  loadSchemaHealth();
+}
+
+async function loadSchemaHealth(){
+  const dot   = document.getElementById('dot-schema');
+  const badge = document.getElementById('h-schema');
+  const detail = document.getElementById('schema-detail');
+  try {
+    const d = await api('/admin/api/schema-health');
+    const ok = d.ok === true;
+    if(dot){   dot.className   = 'health-dot ' + (ok ? 'ok' : 'err'); }
+    if(badge){ badge.textContent = ok
+      ? d.checks ? Object.keys(d.checks).length + ' OK' : 'all OK'
+      : d.issue_count + ' issue' + (d.issue_count===1?'':'s');
+      badge.className = 'badge ' + (ok ? 'b-ok' : 'b-err');
+      badge.title = ok ? 'All critical DB columns present' : (d.issues||[]).join('\n');
+    }
+    if(detail && !ok && d.issues && d.issues.length){
+      detail.textContent = d.issues.slice(0,2).join(', ') + (d.issues.length>2?' …':'');
+    } else if(detail){ detail.textContent = ''; }
+  } catch(e){
+    if(dot)   dot.className   = 'health-dot mut';
+    if(badge){ badge.textContent='unknown'; badge.className='badge b-mut'; }
+  }
 }
 
 async function loadUserStats(){
@@ -361,7 +391,7 @@ async function loadRecentTids(){
 }
 
 async function refreshAll(){
-  refreshStats(); refreshJobs(); loadHealth(); loadUserStats(); loadJdSessions(); loadRecentTids();
+  refreshStats(); refreshJobs(); loadHealth(); loadUserStats(); loadJdSessions(); loadRecentTids(); loadSchemaHealth();
 }
 
 // Boot sequence
@@ -374,4 +404,5 @@ setTimeout(loadRecentTids, 1400);
 setInterval(refreshJobs, 30000);
 setInterval(loadHealth, 60000);
 setInterval(loadUserStats, 60000);
+setInterval(loadSchemaHealth, 300000);  // re-check schema every 5 min
 </script>{% endblock %}
