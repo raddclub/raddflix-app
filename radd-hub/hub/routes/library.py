@@ -871,6 +871,40 @@ def api_push_poster_jd(title_id):
         import requests as _rq2
         sess = _rq2.Session()
 
+        # -- Duplicate poster guard ------------------------------------------
+        # Delete any existing poster*.jpg in the JD folder before uploading a
+        # fresh one. Without this, each "push poster" call accumulates
+        # poster (1).jpg, poster (2).jpg etc on JazzDrive.
+        try:
+            _poster_check = _jd.sapi_request(
+                endpoint="/media/video",
+                action="get",
+                params={"parentId": folder_id, "folderId": folder_id},
+                account_id=aid,
+                tokens=None,
+            )
+            _poster_items = (_poster_check.get("data") or {}).get("videos") or []
+            _old_poster_ids = [
+                int(i["id"])
+                for i in _poster_items
+                if int(i.get("folder", 0)) == folder_id
+                and not i.get("softdeleted", False)
+                and ("poster" in (i.get("name") or "").lower())
+            ]
+            if _old_poster_ids:
+                import logging as _logging
+                _logging.getLogger("hub.library").info(
+                    "push-poster-to-jd: removing %d old poster file(s) from folder %d: %s",
+                    len(_old_poster_ids), folder_id, _old_poster_ids,
+                )
+                _jd.delete_files_permanent(aid, _old_poster_ids)
+        except Exception as _pg_err:
+            import logging as _logging
+            _logging.getLogger("hub.library").debug(
+                "push-poster-to-jd: old-poster cleanup failed (non-fatal): %s", _pg_err
+            )
+        # --------------------------------------------------------------------
+
         result = _up._upload_file(
             sess, vk, jsid, tmp,
             parent_id=folder_id,

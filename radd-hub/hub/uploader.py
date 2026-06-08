@@ -480,6 +480,21 @@ def get_active_account() -> Optional[dict]:
 _root_folder_id_cache: dict = {}
 _root_folder_cache_lock = threading.Lock()
 
+# Per-folder-name lock to prevent race condition where two concurrent upload
+# threads both see a folder is missing and both call _create_folder(), ending
+# up with two JazzDrive folders of the same name for the same show/season.
+# Key: (parent_id, name) — value: threading.Lock()
+_folder_create_locks: dict = {}
+_folder_create_locks_meta = threading.Lock()
+
+def _get_folder_create_lock(parent_id: int, name: str) -> threading.Lock:
+    """Return a lock unique to (parent_id, name) for safe folder creation."""
+    k = (int(parent_id), name)
+    with _folder_create_locks_meta:
+        if k not in _folder_create_locks:
+            _folder_create_locks[k] = threading.Lock()
+        return _folder_create_locks[k]
+
 
 def _get_root_folder_id(sess, vk: str, jsid: str, account_id: Optional[int] = None) -> int:
     """Fetch and cache the real root folder ID for this session.
@@ -611,18 +626,52 @@ def _create_folder(sess, vk: str, jsid: str, name: str, parent_id: int = 0, acco
 
 def _get_or_create_folder(sess, vk: str, jsid: str,
                            name: str, parent_id: int = 0, account_id: Optional[int] = None) -> int:
-    """Return the ID of the named folder under parent_id, creating it if needed."""
+    """Return the ID of the named folder under parent_id, creating it if needed.
+
+    Thread-safe: uses a per-(parent_id, name) lock to prevent concurrent calls
+    from both finding the folder absent and both calling _create_folder(), which
+    would produce duplicate JazzDrive folders for the same show/season.
+    If _create_folder() fails (API error), retries _list_folders() once in case
+    a concurrent thread already created the folder successfully.
+    """
+    def _find_in_list(items):
+        for item in items:
+            if isinstance(item, dict):
+                n = item.get("name") or item.get("title") or ""
+                if n == name:
+                    fid = item.get("id") or item.get("folderid")
+                    if fid is not None:
+                        return int(fid)
+        return None
+
+    # Fast path: check without holding any lock
     items = _list_folders(sess, vk, jsid, parent_id, account_id=account_id)
-    for item in items:
-        if isinstance(item, dict):
-            n = item.get("name") or item.get("title") or ""
-            if n == name:
-                fid = item.get("id") or item.get("folderid")
-                if fid is not None:
-                    return int(fid)
-    # Not found — create it
-    new_id = _create_folder(sess, vk, jsid, name, parent_id, account_id=account_id)
-    return new_id if new_id is not None else 0
+    found = _find_in_list(items)
+    if found is not None:
+        return found
+
+    # Folder not found — acquire per-folder lock, then double-check + create
+    _lock = _get_folder_create_lock(int(parent_id) if parent_id else 0, name)
+    with _lock:
+        # Double-check: another thread may have created it while we waited
+        items2 = _list_folders(sess, vk, jsid, parent_id, account_id=account_id)
+        found2 = _find_in_list(items2)
+        if found2 is not None:
+            return found2
+
+        new_id = _create_folder(sess, vk, jsid, name, parent_id, account_id=account_id)
+        if new_id is not None:
+            return new_id
+
+        # Creation failed — retry list one final time (concurrent success / API inconsistency)
+        items3 = _list_folders(sess, vk, jsid, parent_id, account_id=account_id)
+        found3 = _find_in_list(items3)
+        if found3 is not None:
+            log.debug("_get_or_create_folder: creation failed but folder now exists (concurrent): %r → %d", name, found3)
+            return found3
+
+        log.warning("_get_or_create_folder: could not find or create folder %r under parent=%s", name, parent_id)
+        return 0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1860,8 +1909,16 @@ def _upload_pending() -> None:
         if confirmed_remote_id and confirmed_remote_id != 0:
             _set_file_folder(vk, jsid, confirmed_remote_id, folder_id, account_id=acct["id"])
 
-        # DB is source of truth — JD file name does not matter.
-        # Canonical title lives in the titles table; no rename API call needed.
+        # Defense in depth: explicitly rename to canonical name on JazzDrive.
+        # JazzDrive async uploads can ignore the multipart filename; this guarantees
+        # the file is stored with the plan filename regardless of upload path used.
+        # (Mirrors the rename block in upload_to_jazzdrive().)
+        if confirmed_remote_id and confirmed_remote_id != 0 and plan.filename:
+            try:
+                jazzdrive.rename_video(acct["id"], confirmed_remote_id, plan.filename, folder_id=folder_id)
+                log.debug("upload_pending: JD rename OK → %s", plan.filename)
+            except Exception as _rn_err:
+                log.debug("upload_pending: post-upload rename failed (non-fatal): %s", _rn_err)
 
         share_url = _create_share_link(sess, vk, jsid, confirmed_remote_id or 0, folder_id=folder_id)
 
