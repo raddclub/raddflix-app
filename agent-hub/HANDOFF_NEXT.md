@@ -49,6 +49,37 @@ that had been stuck with NULL is_published despite having valid share_url files.
 **Result:** After any scan completes (or is stopped by user), ALL titles across the entire
 catalog that have at least one file with a non-empty share_url are published in one pass.
 
+
+---
+
+## TASK-044 — Library Publish Controls
+
+**Status:** ✅ Complete | Commit: `a8046eb`
+
+**What was added to `/library/`:**
+
+### Backend (`library.py`)
+- `POST /api/titles/publish-all` — publishes all titles with any file share_url (same logic as scan auto-publish)
+- `POST /api/titles/unpublish-all` — hides all titles from the app
+- `POST /api/titles/bulk-set-published` — body `{ids:[...], is_published: bool}` — sets publish status for a list of IDs
+- Added `filter_pub` filter to `_list_titles_filtered` (`published` / `unpublished`)
+- Added `pub_first` and `unpub_first` sort options to `_SORT_MAP`
+- Raised list limit from 200 → 500
+
+### Frontend (`library.html`)
+- **Header**: ✅ Publish All and 🚫 Unpublish All buttons added next to existing controls
+- **Filter bar**: Status filter pills — All / ✅ Published / ⬜ Unpublished
+- **Sort select**: Added "Published first" and "Unpublished first" options
+- **Table**: Checkbox column + **Status column** (🟢 Live / grey Hidden) — click status to quick-toggle without opening modal
+- **Grid cards**: Checkbox in top-left corner + Live/Hidden badge under media type
+- **Bulk action bar**: Floating bar appears when ≥1 item selected — shows count, "Publish Selected", "Unpublish Selected", "✕ Clear"
+- **Select All**: Checkbox in results header + table thead synced
+- **Inline sync**: Toggling publish from modal OR row status cell updates the row immediately — no reload needed
+
+### Architecture note
+- `togglePublished()` (modal button) now also syncs the row's pub-dot/badge inline
+- `_initAdminButtons()` uses pre-loaded `_titles._is_published` for instant modal open; still fetches for `is_free`
+
 ---
 
 ## TASK-040 — RemoteConfig Split
