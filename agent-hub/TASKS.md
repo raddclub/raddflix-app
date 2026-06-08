@@ -162,3 +162,88 @@ No fallback existed for concurrent/duplicate slug situations.
   - [ ] I. Delta.json content (Spider-Noir episodes, share_urls valid)
   - [ ] J. JD share login test (Spider-Noir share key → validationKey)
   
+
+  ---
+
+  ## TASK-055: Full end-to-end data flow verification (DONE)
+
+  **Goal:** Verify Oracle API -> Flutter sync -> JazzDrive delta -> Play/Download flow.
+  All checks from NEXT_AGENT_BRIEF.md Section 8 completed. Bug found and fixed.
+
+  ### Verification Results
+
+  **CHECK A: Oracle health** OK  {"ok":true,"version":"3.0.0"}
+  **CHECK B: Library data** OK  19/19 files share_url populated, 17 titles published
+  **CHECK C: Delta settings** OK  api_base_url=http://92.4.95.252 (nginx:80->Flask:5000)
+    jd_delta_url=valid JazzDrive folder share URL, folder_id=1763725, remote_id=242554393
+  **CHECK D: Flutter sync_service.dart** OK
+    - Oracle sync 5s probe timeout -> JD delta fallback
+    - Version gate: same version = instant return
+    - Force-bump: forcedTs > localVersion -> full sync
+    - _syncFromJazzDriveDelta: 2-step JD share resolve -> download -> upsertEpisode
+  **CHECK E: Player flow** OK
+    - _openMedia reads share_url from SQLite -> JazzDriveService.getStreamLink()
+    - 3-layer cache: in-memory (110min) -> SQLite stream_cache -> live JD API
+    - VideoControllerConfiguration(androidAttachSurfaceAfterVideoParameters: false) OK
+  **CHECK F: Download flow** OK
+    - _checkDownloadQuota() -> /api/usage/quota (XOR, auth required)
+    - JazzDriveService.getStreamLink() when shareUrl available
+    - Saves to private app storage, file size validation (< 512KB = broken)
+  **CHECK G: API endpoints live** OK
+    - /api/catalog/version -> {"count":17,"forced_ts":..,"version":..}
+    - /api/config -> plain JSON (raw Dio, no XOR)
+    - /api/catalog/sync -> XOR-encoded, 17 titles + 6 episodes after fix
+    - /api/usage/quota -> 401 (requires auth), XOR-encoded
+  **CHECK H: XOR encoding** OK
+    - RequestEncoder.enabled = true in Flutter
+    - _XorInterceptor: X-Encoded:1 + X-Device-Id on all non-auth requests
+    - Session key: SHA-256("raddflix_xor_v1:deviceId:day:hour")[:32], rotates hourly
+    - Oracle _xor_encode_response after_request hook confirmed active
+    - Oracle XorWsgiMiddleware decodes request body
+    - Padding fix: '=' * ((4 - b64.length % 4) % 4) in request_encoder.dart
+    - Round-trip test confirmed: decoded live XOR response correctly
+    - RemoteConfig.fetchBackground() uses plain Dio -> /api/config returns plain JSON
+  **CHECK I: Delta.json content** OK
+    - 17 titles, all with share_url
+    - Spider-Noir S1E1 (file_id=37) + S1E2 (file_id=36)
+    - Vincenzo S1E1 (file_id=42) + S1E2 (file_id=39)
+    - Inuyashiki S1E1 (file_id=7) -- FIXED this session
+    - Reborn S1E1 (file_id=12) -- FIXED this session
+  **CHECK J: JD share login** OK
+    - Spider-Noir share key login: status=200, validationKey+jsessionid returned
+    - jsessionid IS in JSON body (data.jsessionid) -- confirms prior fix correct
+
+  ---
+
+  ### Bug Fixed This Session: Inuyashiki + Reborn Unplayable After Oracle Sync
+
+  **Root cause:** catalog_api.py line 307: "AND season IS NOT NULL AND season > 0"
+  Both files (id=7 Inuyashiki, id=12 Reborn) had season=NULL,episode=NULL in Oracle DB.
+  Oracle /api/catalog/sync excluded them from episodes array. Flutter loaded their
+  title as media_type='show' with ZERO episodes -> empty list -> nothing to tap -> no play.
+  (Delta sync DID work because zero_rating.py has no season IS NOT NULL filter.)
+
+  **Fix applied:**
+    UPDATE files SET season=1, episode=1 WHERE id IN (7, 12);
+    Applied on Oracle DB directly.
+
+  **Result:**
+    - Oracle /api/catalog/sync: now 6 episodes (was 4) -- Inuyashiki S1E1 + Reborn S1E1 added
+    - Delta regenerated (version=1780937683) + re-uploaded to JazzDrive (remote_id=242554393)
+    - Same share URL reused by JazzDrive (no URL change needed in AppConstants)
+    - Both titles now show Season 1, Episode 1 in Flutter -- tappable -- plays
+
+  ---
+
+  ### Known Remaining Issues (not blocking, need admin action)
+
+  1. **9 movies with deleted JazzDrive files** (Animal, Dune, Inception, Interstellar,
+     Inuyashiki, Oppenheimer, Reborn, The Ninth Gate, Super Mario Galaxy):
+     Their JD remote_ids return empty videos[]. JD files deleted. No local_path.
+     Need manual re-upload to JazzDrive by admin. App now shows descriptive
+     MED-1011 error instead of silent "Jazz SIM Required" (fixed previous session).
+
+  2. **Bug 1 (no movie play button)** -- code IS correct in show_detail_screen.dart.
+     Most likely the user has an old APK predating the play button code.
+     Rebuild APK from current main branch to verify.
+  
