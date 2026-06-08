@@ -2,6 +2,54 @@
 
 > Newest session at top. Every agent must append here after completing work.
 > Format: `## Session YYYY-MM-DD` followed by bullets.
+## Session — 2026-06-08 — FIX-DELTA-PURGE: Radd-Delta folder cleanup
+
+### Context
+User shared screenshot showing 20+ stale delta files accumulated in the Radd-Delta
+JazzDrive folder. Old cleanup code only deleted ONE previously-tracked remote_id
+(jd_delta_remote_id). Any upload that predated tracking, or where cleanup failed,
+left a permanent ghost file. Multiple ghost files break the Flutter app: it fetches
+the folder share URL, which resolves to a folder listing rather than a single file,
+and the SAPI two-step picks the FIRST file alphabetically — which could be stale.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-041 | FIX-DELTA-PURGE: trash ALL files in Radd-Delta before each new upload | ✅ DONE |
+
+### Commit
+| Commit | Change |
+|--------|--------|
+| f8cd79b | FIX-041: Delta folder purge — trash ALL old files before each upload |
+
+### Changes made
+**`radd-hub/hub/jazzdrive.py`**
+- Added `list_all_files_in_folder(folder_id, account_id=None)` — calls SAPI
+  `/media/video?action=get` with parentId+folderId params. Returns all file
+  types (JazzDrive /media/video returns everything regardless of MIME type;
+  the scanner normally skips .txt/.json but we want them here for purge).
+
+**`radd-hub/hub/routes/zero_rating.py`**
+- `upload_delta()` rewritten: BEFORE uploading, lists all existing files in
+  Radd-Delta folder, uploads new delta, then trashes ALL snapshotted old IDs.
+  Folder always has exactly 1 file after a successful upload.
+- New route `POST /zero-rating/purge-delta-folder`: one-time manual cleanup
+  for already-accumulated ghost files. Lists + trashes everything.
+- `_render_index()` now counts folder files and passes count to template.
+- UI: shows file count + red "Purge Delta Folder" button so admin can see
+  and clean up the existing 20+ ghost files immediately.
+
+### Key note
+JazzDrive /media/video SAPI endpoint returns ALL uploaded object types regardless
+of MIME — the scanner filters out .txt/.json but list_all_files_in_folder
+intentionally keeps them so delta cleanup works correctly.
+
+### State at end of session
+- Latest commit: f8cd79b (main branch)
+- Open tasks: none
+
+---
+
 ## Session — 2026-06-08 — FIX-CONFIG-01: RemoteConfig instant startup, Oracle background
 
 ### Context
