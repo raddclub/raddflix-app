@@ -1,5 +1,5 @@
 # agent-hub/RULES.md — Non-Negotiable Agent Rules
-Last updated: 2026-06-08 (added Rules 32–36 for RemoteConfig, sync timeouts, delta purge)
+Last updated: 2026-06-08 (added Rules 32–38 — RemoteConfig, sync, delta, confirm/prompt, template paths)
 
 ## Startup (every session, no exceptions)
 1. Set up SSH key from `ORACLE_SSH_KEY` env var (see AGENT_PROMPT.md Step 1)
@@ -54,8 +54,7 @@ Last updated: 2026-06-08 (added Rules 32–36 for RemoteConfig, sync timeouts, d
 
 ## Scan & Metadata Rules
 18. **TV show IMDb search** — always strip the episode suffix (`S01E02`, etc.) from the
-    clean filename before passing to any title search API. "Spider Noir S01E02" finds nothing;
-    "Spider Noir" finds tt30460310. Already done in `_legacy/scanner.py` prefer='tv' path.
+    clean filename before passing to any title search API.
 19. **Metadata lookup order** — IMDbAPI.dev first, then OMDB, then TMDB, then AI/YouTube/KG.
     Pakistani/Urdu content is on IMDb long before TMDB. Never revert to TMDB-first.
 20. **IMDbAPI.dev is free and keyless** — use it aggressively as a first/fallback source.
@@ -72,64 +71,63 @@ Last updated: 2026-06-08 (added Rules 32–36 for RemoteConfig, sync timeouts, d
 22. **`_ControlsOverlay` has two separate night-mode callbacks — never swap them:**
     - `onToggleCinematic` → toggles `_cinematicMode` (dims the controls overlay via Opacity)
     - `onToggleNightMode` → applies `_prefs.copyWith(nightMode: !_prefs.nightMode)` + save + `_applyVideoFilters()`
-    The More Sheet "Night Mode" tile uses `onToggleCinematic`. The Quick Bar "nightmode" slot
-    and Video Display Sheet use `onToggleNightMode`. Do NOT cross-wire them.
 23. **VideoEnhanceSuite cinematic toggle must be bidirectional:**
     Compare `map['cinematicMode']` against `_cinematicMode`; call `_toggleCinematic()` only
-    when they differ. Never call unconditionally when value is `true` — that breaks toggle-off.
+    when they differ.
 24. **A-B loop: always sync UI state to controller:**
-    Any widget that sets A-B points (ClipTrimmer, AbLoopPanel, etc.) MUST call
-    `_abLoop.setA(d)` / `_abLoop.setB(d)` in addition to updating `_abLoopStart`/`_abLoopEnd`.
-    Updating only the state vars breaks `maybeSeekBack()` enforcement and seek bar markers.
+    Any widget that sets A-B points MUST call `_abLoop.setA(d)` / `_abLoop.setB(d)`.
+
+---
+
+## Admin UI Rules (TASK-046 — added 2026-06-08)
+38. **Never use `confirm()` or `prompt()` in any Flask template** — they are blocked by the
+    Cloudflare tunnel / proxy that the admin panel runs behind.
+    **Replacement patterns:**
+    - **Destructive actions** (delete, wipe, reset, restart): use **two-step arm+fire** toast:
+      ```js
+      if (!window._armed_actionName) {
+        window._armed_actionName = true;
+        toast('⚠ Are you sure? — click again to confirm', 4000);
+        setTimeout(() => { window._armed_actionName = false; }, 4000);
+        return;
+      }
+      window._armed_actionName = false;
+      // proceed with the action
+      ```
+    - **Input required** (quota, OTP): add an **inline panel** in HTML that slides open:
+      show an `<input>` + confirm button inline in the page — do NOT use `prompt()`.
+    - Scope the arm key by item id for per-row actions: `_armed_deleteKey_${id}`.
+
+39. **Flask template GitHub path is `radd-hub/hub/templates/`** — NOT `hub/templates/`.
+    When pushing `scan.html`, `admin.html`, `settings.html`, `library.html`, etc. to GitHub,
+    always use `radd-hub/hub/templates/<filename>` as the remote path.
+    Parallel GitHub PUT calls will fail with 409 SHA conflict — push templates **sequentially**.
 
 ---
 
 ## RemoteConfig Rules (TASK-040 — added 2026-06-08)
 32. **RemoteConfig has TWO methods — never merge them back into one:**
     - `RemoteConfig.loadCached()` — awaited in `main()` before `runApp()`. Reads ONLY from
-      SharedPreferences. ZERO network calls. Instant. Sets `AppConstants.jazzDriveDeltaUrl`
-      from cache so delta is available immediately on every cold start, including offline starts.
+      SharedPreferences. ZERO network calls. Instant.
     - `RemoteConfig.fetchBackground()` — called AFTER `runApp()`, fire-and-forget, NOT awaited.
-      Has 4-second timeout. Hits Oracle `/api/config`. Updates `AppConstants.jazzDriveDeltaUrl`
-      AND refreshes the SharedPreferences cache.
-    - Legacy `fetch()` shim exists for backwards compatibility — it calls `fetchBackground()`.
-      Do not remove it. Do not add network calls inside `loadCached()`.
+      Has 4-second timeout. Hits Oracle `/api/config`.
+    - Legacy `fetch()` shim exists for backwards compatibility — do not remove it.
 
 33. **`AppConstants.jazzDriveDeltaUrl` must remain a mutable `static String`** — NOT a getter.
-    RemoteConfig.loadCached() and fetchBackground() both write to it. A `get` getter cannot
-    be written to. Any refactor that turns this into a getter breaks offline delta.
 
 ---
 
 ## Sync Timeout Rules (TASK-042 — added 2026-06-08)
 34. **`connectTimeout` in `api_client.dart` must stay at 6 seconds or less.**
-    It was previously 15s. On Jazz SIM with no bundle, TCP packets to Oracle can be silently
-    dropped by the operator — the app would block for 15s before falling to JazzDrive delta.
-    6s is still generous for real internet connections (Oracle responds < 1s in practice).
-    NEVER raise this back to 15s — it kills no-bundle UX.
-
 35. **The `.timeout(Duration(seconds: 5))` on `CatalogApi.getVersion()` must stay.**
-    File: `lib/core/db/sync_service.dart`, inside `_syncFromOracle()`.
-    `getVersion()` is the Oracle probe — a tiny call that returns 3 integers. If it doesn't
-    answer in 5s, the user has no bundle and we fall immediately to JazzDrive delta.
-    `syncFull()` and `syncDelta()` intentionally keep their full 30s receiveTimeout — large
-    catalog downloads on slow-but-real connections need that time. DO NOT add short timeouts
-    to syncFull/syncDelta. DO NOT remove the timeout from getVersion().
+    File: `lib/core/db/sync_service.dart`. DO NOT remove.
 
 ---
 
 ## Delta Folder Purge Rules (TASK-041 — added 2026-06-08)
 36. **Always purge the JazzDrive delta folder BEFORE uploading a new delta.json.**
-    `upload_delta()` in `zero_rating.py` snapshots all files via `list_all_files_in_folder()`
-    BEFORE starting the upload, then trashes them ALL after the new file is successfully uploaded.
-    This keeps the delta folder clean (only the current delta.json lives there at all times).
-    NEVER skip the pre-upload snapshot — if you only purge after upload you risk trashing
-    the new file if the folder listing is re-fetched after the upload.
-
 37. **`list_all_files_in_folder(folder_id)` in `jazzdrive.py` uses `/media/video?action=get`**
-    — despite the name, this SAPI endpoint returns ALL file types (not just video). This is the
-    only endpoint that reliably lists all files in a folder. Do NOT use `/media?action=list` or
-    any other listing endpoint — they filter by MIME type and miss `.json` files.
+    — despite the name, this returns ALL file types. Do NOT use other listing endpoints.
 
 ---
 
