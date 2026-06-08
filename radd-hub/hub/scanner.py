@@ -597,6 +597,39 @@ def _assign_poster_share_urls(account_id: int, folder_poster_map: dict) -> None:
         log.info("poster_share_url assigned to %d title(s) from scan", assigned)
 
 
+def _auto_publish_titled_files(account_id: int) -> int:
+    """Publish every title that has at least one file with a share_url.
+
+    Called at end of scan (and on user-stop) so titles whose video file
+    is on JazzDrive become visible in the Flutter app automatically.
+    Publishes any title with is_published != 1 (catches NULL and 0).
+    Scopes to all accounts — a title shared across accounts is published
+    as soon as any account's scan finds a share_url for it.
+    """
+    try:
+        now = int(time.time())
+        with db.conn() as c:
+            result = c.execute(
+                "UPDATE titles SET is_published=1, updated_at=?"
+                " WHERE id IN ("
+                "     SELECT DISTINCT title_id FROM files"
+                "     WHERE title_id IS NOT NULL"
+                "       AND share_url IS NOT NULL AND share_url != '')"
+                " AND (is_published IS NULL OR is_published != 1)",
+                (now,)
+            )
+            n = result.rowcount
+        if n:
+            log.info(
+                "auto-publish: %d title(s) published after scan for account %s",
+                n, account_id
+            )
+        return n
+    except Exception as e:
+        log.warning("auto-publish failed for account %s: %s", account_id, e)
+        return 0
+
+
 def _scan_worker(account_id: int, legacy_id: int) -> None:
     state = _active_scans[account_id]
 
@@ -771,12 +804,22 @@ def _scan_worker(account_id: int, legacy_id: int) -> None:
         except Exception as _ee:
             log.debug("post-scan enrichment error: %s", _ee)
 
+        # -- auto-publish titles that now have a linked file with share_url --
+        try:
+            _pub = _auto_publish_titled_files(account_id)
+            if _pub:
+                cb({"type": "publish",
+                    "message": "auto-published " + str(_pub) + " title(s)"})
+        except Exception as _ape:
+            log.debug("auto-publish step error: %s", _ape)
+
         db.touch_account_scan(account_id)
     except InterruptedError as ie:
         log.info("Scan for account %s interrupted: %s", account_id, ie)
         # Final attempt to import any remaining enriched data before stopping
         try:
             saved = _import_legacy_into_v3_for_account(legacy_id, account_id)
+            _auto_publish_titled_files(account_id)
             cb({"type": "info", "message": f"Scan stopped by user. {saved} files were saved to database."})
         except Exception:
             cb({"type": "info", "message": "Scan stopped. Data saved up to last folder."})
