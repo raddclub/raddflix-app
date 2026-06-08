@@ -504,7 +504,7 @@ def api_stats():
         total = c.execute("SELECT COUNT(*) FROM app_users").fetchone()[0]
         active_subs = c.execute(
             "SELECT COUNT(*) FROM app_subscriptions "
-            "WHERE status='active' AND expires_at > strftime('%s','now')"
+            "WHERE is_active=1 AND expires_at > strftime('%s','now')"
         ).fetchone()[0]
         try:
             pending_tids = c.execute(
