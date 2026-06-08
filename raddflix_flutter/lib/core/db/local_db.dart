@@ -797,6 +797,9 @@ class LocalDb {
         'share_url':        shareUrl.isNotEmpty ? await _encodeUrl(shareUrl) : oldShareUrl,
         // AUDIT-05: write file_id when delta provides one; preserve existing if delta omits it
         if (fileId.isNotEmpty) 'file_id': fileId,
+        // FIX-FOLDER-01: persist folder_share_url so TV shows (episodes in one folder)
+        // can resolve stream links. Column added in migration v17 but was never written.
+        if (folderShareUrl.isNotEmpty) 'folder_share_url': folderShareUrl,
       }, where: 'id = ?', whereArgs: [id]);
     } else {
       await db.insert('titles', {
@@ -815,12 +818,13 @@ class LocalDb {
         'is_ongoing':  isOngoing,
         'share_url':   await _encodeUrl(shareUrl),
         if (fileId.isNotEmpty) 'file_id': fileId,
+        // FIX-FOLDER-01: persist folder_share_url on new inserts too
+        if (folderShareUrl.isNotEmpty) 'folder_share_url': folderShareUrl,
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
 
-    // poster_share_url is stored in stream_cache table (no column in titles yet).
-    // folder_share_url and fileId are used by the player at runtime via getShareUrl().
-    // Future migration: add folder_share_url column to titles when needed.
+    // FIX-FOLDER-01: folder_share_url is now persisted above.
+    // poster_share_url remains in stream_cache (no titles column yet).
   }
 
   /// Decode a share_url that may be RF1:xxx scrambled (as stored in SQLite).

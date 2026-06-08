@@ -264,6 +264,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String? _streamError;
   bool _isRetrying = false;
   String? _currentPlaybackUrl; // track current URL for "Open with" feature
+  String _currentFileId = ''; // FIX-RETRY-01: tracks the currently-playing fileId (not widget.fileId which is always ep1)
 
   // Time display toggle (tap = elapsed/remaining)
   bool _showRemaining = false;
@@ -1691,9 +1692,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         duration: Duration(seconds: 2),
       ));
     }
-    // Wipe stale cached URL — forces fresh JazzDrive login + new CDN token
-    JazzDriveService.invalidate(widget.fileId);
-    _openMedia(widget.fileId);
+    // FIX-RETRY-01: use _currentFileId (the actual playing episode),
+    // NOT widget.fileId which always points to the first episode opened.
+    JazzDriveService.invalidate(_currentFileId);
+    _openMedia(_currentFileId);
   }
   double _brightness = 0.5;
   double _volume = 0.7;
@@ -1880,6 +1882,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       path.startsWith('content://');
 
   Future<void> _openMedia(String fileId, {String? localPath}) async {
+    // FIX-RETRY-01: keep track of which fileId is currently being opened so
+    // _jazzAutoRetry invalidates and retries the right episode, not widget.fileId.
+    _currentFileId = fileId.isNotEmpty ? fileId : _currentFileId;
     // FIX-LOCAL: detect local paths passed as fileId (e.g. gallery videos).
     final effectiveLocalPath = (localPath != null && localPath.isNotEmpty)
         ? localPath

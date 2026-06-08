@@ -29,8 +29,8 @@ class JazzDriveLink {
 ///   4. Cache result for 6 hours (shared between watch + download)
 class JazzDriveService {
   static const String _cloudBase = 'https://cloud.jazzdrive.com.pk';
-  // FIX-TTL: CDN tokens expire in ~1-2h — 180 min cache reduces re-fetches while staying safe
-    static const Duration _cacheTtl = Duration(minutes: 110); // CDN tokens expire ~2h; 110min is safe under expiry
+  // CDN tokens expire in ~2h — 110 min cache is safely under that limit to avoid stale URL errors
+  static const Duration _cacheTtl = Duration(minutes: 110);
 
   static final _inMemory = <String, _CacheEntry>{};
 
@@ -164,7 +164,7 @@ class JazzDriveService {
   /// or UI rendering. Queries SQLite for the top [count] is_free=1 movie
   /// titles ordered by db_version DESC, then calls [getStreamLink] for each.
   ///
-  /// Because [getStreamLink] honours the existing 180-min TTL the warm step
+  /// Because [getStreamLink] honours the existing 110-min TTL the warm step
   /// is a no-op for items already cached — zero extra network calls within
   /// the TTL window. On Jazz SIM all SAPI calls go directly to
   /// cloud.jazzdrive.com.pk (zero-rated). Silently swallows all errors so

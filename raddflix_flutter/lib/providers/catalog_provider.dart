@@ -336,6 +336,11 @@ class CatalogNotifier extends StateNotifier<CatalogState>
     final result = await SyncService.sync();
     _lastSyncTime = DateTime.now();
     if (result.success) {
+      // FIX-POSTER-01: if new items were synced, reset the poster sync flag so
+      // _schedulePosterSync() runs again and downloads posters for the new titles.
+      // Without this reset, the static _posterSyncDone flag blocks poster downloads
+      // for any titles added after the first app launch in the same session.
+      if (result.itemsSynced > 0) resetPosterSyncFlag();
       await _loadFromDb();
       // Refresh subscription / plan silently after every successful sync so
       // plan upgrades, quota changes, and is_free changes reach the user
