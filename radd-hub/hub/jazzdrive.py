@@ -460,6 +460,63 @@ def trash_files(account_id: int, file_ids: list, media_type: str = "file") -> di
     )
 
 
+def list_all_files_in_folder(folder_id: int, account_id: Optional[int] = None) -> list:
+    """List all files (any type) inside a JazzDrive folder.
+
+    JazzDrive's /media/video endpoint returns every uploaded object regardless
+    of MIME type — the scanner normally filters out non-video extensions, but we
+    intentionally keep them here so we can bulk-trash leftover delta .txt files.
+
+    Returns a list of dicts: [{"id": N, "name": "..."}, ...]
+    Returns [] on any error.
+    """
+    try:
+        data = sapi_request(
+            endpoint="/media/video",
+            action="get",
+            method="GET",
+            params={"parentId": folder_id, "folderId": folder_id},
+            account_id=account_id,
+        )
+        if data.get("error"):
+            log.warning("list_all_files_in_folder: SAPI error: %s", data["error"])
+            return []
+        items = []
+        if isinstance(data, dict):
+            for key in ("data", "videos", "items", "result"):
+                v = data.get(key)
+                if isinstance(v, list):
+                    items = v
+                    break
+                if isinstance(v, dict):
+                    for sub in ("videos", "items", "files"):
+                        if isinstance(v.get(sub), list):
+                            items = v[sub]
+                            break
+                    if items:
+                        break
+        elif isinstance(data, list):
+            items = data
+
+        result = []
+        for item in items:
+            fid = item.get("id") or item.get("videoId") or item.get("video_id")
+            if not fid:
+                continue
+            item_folder = item.get("folder") or item.get("parentid") or item.get("parentId")
+            if item_folder is not None and int(item_folder) != int(folder_id):
+                continue
+            result.append({
+                "id":   int(fid),
+                "name": item.get("name") or item.get("title") or item.get("filename") or "",
+            })
+        log.info("list_all_files_in_folder(folder_id=%s): found %d files", folder_id, len(result))
+        return result
+    except Exception as exc:
+        log.warning("list_all_files_in_folder(%s): %s", folder_id, exc)
+        return []
+
+
 def delete_files_permanent(account_id: int, file_ids: list) -> dict:
     """Permanently delete one or more files from JazzDrive (IRREVERSIBLE).
 
