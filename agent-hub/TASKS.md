@@ -71,3 +71,21 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-037 | FIX-VAULT-01: revert biometricOnly to false — fixes vault auth on Infinix/MediaTek | 2026-06-07 | ✅ sha 59fc972, build1024 |
 | TASK-038 | FIX-PLAYER-01: local video black screen — _duration==Duration.zero not _position | 2026-06-07 | ✅ sha 215bbc2, build1025 |
 | TASK-039 | Audit fix batch: FIX-RETRY-01 + FIX-POSTER-01 + FIX-FOLDER-01 + TTL comment | 2026-06-08 | ✅ sha 78f14210 — 4 bugs/gaps fixed |
+---
+## TASK-045: Fix catalog import — v3 DB now populated (DONE)
+
+**Problem:** `_import_legacy_into_v3_for_account` raised `UNIQUE constraint failed: titles.slug`
+on duplicate legacy titles, silently returning 0 imported rows. v3 had 0 titles/files.
+
+**Root cause:** `upsert_title` tries an INSERT that conflicts with an already-inserted slug.
+No fallback existed for concurrent/duplicate slug situations.
+
+**Fix applied:**
+1. Direct import script: cleared v3, imported 20 legacy titles (slug-deduped), 28 files,
+   auto-published 17 titles (those with share_url files). Removed 3 orphan 0-file titles.
+2. scanner.py `_import_legacy_into_v3_for_account`: wrapped `db.upsert_title` in try/except;
+   on UNIQUE slug conflict, looks up existing row by slug so files still get linked.
+
+**Result:** v3 DB = 17 titles, 28 files, all Live. Library page renders correctly.
+
+**Commits:** 6ccfa67 (scanner.py slug-conflict fix)
