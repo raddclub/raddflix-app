@@ -1284,6 +1284,80 @@ def upload_to_jazzdrive(
     
     folder_id = current_parent
 
+    # -- JazzDrive-side duplicate check ----------------------------------------
+    # Before uploading, query JazzDrive live to see if target_filename already
+    # exists in the resolved folder. JazzDrive silently renames duplicates to
+    # "filename (1).mp4" -- this guard prevents that from ever happening.
+    # Covers the case where: DB was reset between uploads, file was auto-deleted
+    # after first upload, or the scan fingerprint does not match the upl: hash.
+    if folder_id:
+        try:
+            _jd_check = jazzdrive.sapi_request(
+                endpoint="/media/video",
+                action="get",
+                params={"parentId": folder_id, "folderId": folder_id},
+                account_id=aid,
+                tokens=None,
+            )
+            _jd_items = (_jd_check.get("data") or {}).get("videos") or []
+            _target_lower = target_filename.lower()
+            for _jd_item in _jd_items:
+                _jd_folder = _jd_item.get("folder")
+                if _jd_folder is not None and int(_jd_folder) != int(folder_id):
+                    continue
+                _jd_name = (_jd_item.get("name") or "").lower()
+                _jd_softdel = _jd_item.get("softdeleted", False)
+                if _jd_name == _target_lower and not _jd_softdel:
+                    _exist_id = int(_jd_item["id"])
+                    _log(
+                        "JazzDrive duplicate guard: %r already exists in folder %s "
+                        "as remote_id=%s -- skipping upload." % (target_filename, folder_id, _exist_id)
+                    )
+                    _exist_share = None
+                    try:
+                        _exist_share = _create_share_link(
+                            sess, vk, jsid, _exist_id, folder_id=folder_id
+                        )
+                    except Exception as _sl_err:
+                        log.debug("duplicate-guard share link failed: %s", _sl_err)
+                    try:
+                        if _claimed_file_id:
+                            with db.conn() as _dc:
+                                _dc.execute(
+                                    "UPDATE files SET is_ready=1, remote_id=?, share_url=?,"
+                                    " remote_folder_id=?, fingerprint=?, uploaded_at=? WHERE id=?",
+                                    (str(_exist_id), _exist_share or "", folder_id,
+                                     "scan:" + str(_exist_id), int(time.time()), _claimed_file_id),
+                                )
+                        else:
+                            db.upsert_file({
+                                "fingerprint":      "scan:" + str(_exist_id),
+                                "source":           "upload",
+                                "account_id":       aid,
+                                "filename":         target_filename,
+                                "local_path":       str(file_path),
+                                "size_bytes":       file_path.stat().st_size,
+                                "remote_id":        str(_exist_id),
+                                "remote_folder_id": folder_id,
+                                "share_url":        _exist_share or "",
+                                "uploaded_at":      int(time.time()),
+                                "is_ready":         1,
+                            })
+                    except Exception as _db_err:
+                        log.debug("duplicate-guard DB update failed: %s", _db_err)
+                    _unclaim()
+                    return {
+                        "ok": True,
+                        "skipped": True,
+                        "reason": "already_on_jazzdrive",
+                        "remote_id": _exist_id,
+                        "share_url": _exist_share or "",
+                    }
+        except Exception as _jd_err:
+            log.debug(
+                "JazzDrive duplicate pre-check failed (non-fatal, upload continues): %s", _jd_err
+            )
+
     # Load upload config (bandwidth limit, retries, etc.)
     upload_cfg = _load_upload_cfg()
     max_bps = (upload_cfg["bandwidth_limit_mbps"] * 1_000_000 / 8
