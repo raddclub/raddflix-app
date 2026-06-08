@@ -15,6 +15,7 @@ This file is the handoff bridge — the next agent reads this first.
 | ID | Task | Status | Date | Notes |
 |----|------|--------|------|-------|
 | TASK-029 | IDEA-01: Universal Subtitle Hunter | ✅ DONE | 2026-06-07 | SubtitleHunter + ZIP + fuzzy match + sheet + URL loader |
+| TASK-040 | FIX-CONFIG-01: RemoteConfig instant cache load, Oracle fetch in background | ✅ DONE | 2026-06-08 | loadCached() awaited on startup; fetchBackground() fire-and-forget after runApp() |
 
 ---
 

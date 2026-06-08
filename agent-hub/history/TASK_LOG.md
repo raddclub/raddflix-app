@@ -2,6 +2,47 @@
 
 > Newest session at top. Every agent must append here after completing work.
 > Format: `## Session YYYY-MM-DD` followed by bullets.
+## Session — 2026-06-08 — FIX-CONFIG-01: RemoteConfig instant startup, Oracle background
+
+### Context
+User pointed out that the app was hitting Oracle on every startup even for Jazz SIM
+users with no internet bundle. `RemoteConfig.fetch()` was awaited in `main()` with
+an 8-second timeout — causing up to 8 seconds of startup delay before the cached
+config kicked in. Oracle is not zero-rated so it always fails for no-bundle users.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-040 | FIX-CONFIG-01: RemoteConfig split into loadCached() + fetchBackground() | ✅ DONE |
+
+### Commit
+| Commit | Change |
+|--------|--------|
+| 4020cdf | FIX-040: RemoteConfig instant cache load, Oracle fetch in background |
+
+### Changes made
+**`raddflix_flutter/lib/core/remote_config.dart`**
+- Added `_applyData()` private helper to deduplicate config-apply logic
+- Added `loadCached()` — reads SharedPreferences only, no network, completes in < 10ms
+- Added `fetchBackground()` — fires Oracle HTTP call (4s timeout, shortened from 8s),
+  silently no-ops on failure, updates cache on success
+- `fetch()` kept as backward-compat shim (calls `loadCached()` + fires `fetchBackground()`)
+
+**`raddflix_flutter/lib/main.dart`**
+- `Future.wait([])` now awaits `RemoteConfig.loadCached()` instead of `RemoteConfig.fetch()`
+- `unawaited(RemoteConfig.fetchBackground())` added to fire-and-forget background block
+
+### Result
+- Jazz SIM users (no bundle): app starts instantly, Oracle call fails in ~4s background
+- Internet users: instant start from cache, Oracle refreshes config in background
+- `jd_delta_url` available from cache immediately on every open
+
+### State at end of session
+- Latest commit: 4020cdf (main branch)
+- Open tasks: none
+
+---
+
 ## Session — 2026-06-08 — Doc sync: track unlogged fixes + update AGENT_PROMPT.md
 
 ### Context
