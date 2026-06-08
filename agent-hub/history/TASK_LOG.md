@@ -1490,3 +1490,93 @@ Also added `POST /zero-rating/purge-delta-folder` admin route for emergency manu
 - Account 03286829827: ACTIVE, auto-refreshes
 - Radd-Delta folder: 1 file only (delta.txt)
 - Open tasks: none
+
+
+## Session 2026-06-08 — Full data flow re-verification (TASK-056)
+
+### Context
+User requested fresh double-check of the complete Flutter↔Oracle↔JazzDrive data flow.
+All 10 verification checks (A–J) run from scratch with live API calls + code audit.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-056 | Re-verify complete data flow end-to-end (all 10 checks A–J) | ✅ DONE |
+
+### Verification Results (all 10 checks PASSED)
+
+**CHECK A — Oracle health** ✅  
+Flask RUNNING (pid 2989296, uptime 1:37+). `{"ok":true,"version":"3.0.0"}`
+
+**CHECK B — Library data** ✅  
+17 titles, all `is_published=1`. 19 files, all have `share_url` (len=89).  
+File→title mapping verified. Inuyashiki/Reborn season=1,ep=1 confirmed in DB.
+
+**CHECK C — Delta settings** ✅  
+- `api_base_url` = http://92.4.95.252  
+- `jd_delta_folder_id` = 1763725  
+- `jd_delta_remote_id` = 242554393  
+- `jd_delta_url` = valid JazzDrive share URL  
+
+**CHECK D — Flutter sync_service.dart** ✅  
+- Oracle 5s probe timeout → JD delta fallback ✅  
+- Version gate: same version = instant return ✅  
+- Force-bump: `forcedTs > localVersion` → full sync ✅  
+- `_syncFromJazzDriveDelta`: 2-step JD share resolve → CDN download → upsert ✅  
+- `CatalogApi._buildItemsWithEpisodes`: reads episodes from top-level array, maps by title_id ✅  
+
+**CHECK E — Player flow** ✅  
+- `VideoControllerConfiguration(androidAttachSurfaceAfterVideoParameters: false)` ✅  
+- 3-layer cache: in-memory 110min → SQLite stream_cache → live JD API ✅  
+- `_openMedia` detects local path vs Oracle file_id correctly ✅  
+
+**CHECK F — Download flow** ✅  
+- `_checkDownloadQuota()` → `/api/usage/quota` (XOR, auth required) ✅  
+- JazzDriveService.getStreamLink() with shareUrl, fallback to LocalDb ✅  
+- Private app storage, 512KB validation ✅  
+
+**CHECK G — Live API endpoints** ✅  
+- `/api/catalog/version` → `{"count":17,"forced_ts":1780927262,"version":1780929441}` (XOR decoded) ✅  
+- `/api/config` → plain JSON, `jd_delta_url` present and correct ✅  
+- `/api/catalog/sync` → 17 titles + **6 episodes** in separate top-level `episodes` array ✅  
+- `/api/usage/quota` → HTTP 401 (auth required, correct) ✅  
+
+**Key structural note confirmed**: `/api/catalog/sync` response has episodes as a **separate top-level key**  
+(`{"titles":[...],"episodes":[...],"version":...,"count":17}`), NOT nested under each title.  
+Flutter `CatalogApi._buildItemsWithEpisodes()` correctly reads `data['episodes']` at top level. ✅  
+Oracle normalises `tv`/`series` → `"show"` in the sync response (line 279 catalog_api.py). Delta preserves original types.  
+
+**CHECK H — XOR encoding** ✅  
+- Key formula confirmed: `sha256("raddflix_xor_v1:{X-Device-Id}:{utc_day}:{utc_hour}").hexdigest()[:32]`  
+  - `utc_day` = day-of-month (1–31), NOT full date string  
+  - Key is 32-char hex string used as UTF-8 bytes  
+  - Oracle uses candidate keys (current hour + previous hour) for clock-drift tolerance  
+- Round-trip verified: decoded `{"count":17,"forced_ts":1780927262,"version":1780929441}` ✅  
+- Padding fix present: `'=' * ((4 - encodedBody.length % 4) % 4)` in request_encoder.dart ✅  
+- `RequestEncoder.enabled = true` ✅  
+
+**CHECK I — Delta.json content** ✅  
+Fresh `generate_delta_payload()` output: version=1780938973, 17 titles.  
+Episodes with share_url:  
+- Spider-Noir S1E1 (file_id=37) ✅, S1E2 (file_id=36) ✅  
+- Vincenzo S1E1 (file_id=42) ✅, S1E2 (file_id=39) ✅  
+- Reborn S1E1 (file_id=12) ✅  
+- Inuyashiki S1E1 (file_id=7) ✅  
+All 13 movies with share_url ✅  
+
+**CHECK J — JD share login** ✅  
+- Radd-Delta share key login → HTTP 200, `validationKey` + `jsessionid` returned ✅  
+- `jsessionid` IS in `data.jsessionid` JSON body field (confirms prior fix correct) ✅  
+- Flutter `_loginShare` reads from `inner['jsessionid']` as primary, Set-Cookie as fallback ✅  
+- Node suffix stripped: `"xxx.2i182"` → `"xxx"` ✅  
+- MED-1011 / FOL-1004 error detection present ✅  
+
+### No bugs found this session
+All checks pass. System is verified end-to-end. No code changes needed.
+
+### State at end of session
+- Oracle Flask: RUNNING (supervisor), uptime 1h37m+
+- JazzDrive session: ACTIVE (keepalive running, last heartbeat confirmed in logs)
+- Delta: version=1780938973, 17 titles, 6 TV episodes, all share_urls valid
+- Proxy pool: active (350/2319 alive per last HC log)
+- Open tasks: none — see Known Issues section in NEXT_AGENT_BRIEF.md
