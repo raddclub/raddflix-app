@@ -65,3 +65,4 @@ This file is the handoff bridge — the next agent reads this first.
 | TASK-036 | Deep codebase audit — fix Colors.white20 compile error + sweep all 100+ Dart files for build-blocking bugs | ✅ | 2026-06-07 | BUG-BUILD-03: Colors.white20→Color(0x33FFFFFF) in layout_designer_screen; all 100+ files clean; APK build1022 success |
 | TASK-037 | FIX-VAULT-01: revert biometricOnly to false — fixes vault auth on Infinix/MediaTek | 2026-06-07 | ✅ sha 59fc972, build1024 |
 | TASK-038 | FIX-PLAYER-01: local video black screen — _duration==Duration.zero not _position | 2026-06-07 | ✅ sha 215bbc2, build1025 |
+| TASK-039 | Audit fix batch: FIX-RETRY-01 + FIX-POSTER-01 + FIX-FOLDER-01 + TTL comment | 2026-06-08 | ✅ sha 78f14210 — 4 bugs/gaps fixed |

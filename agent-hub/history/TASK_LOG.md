@@ -544,3 +544,57 @@ For other values use `Color(0xAAFFFFFF)` where AA is the alpha hex byte.
 | File | Change | Commit |
 |------|--------|--------|
 | lib/screens/layout_designer_screen.dart | Colors.white20 → Color(0x33FFFFFF) | e4c9009 |
+---
+
+## Session: 2026-06-08 — Audit Bug-Fix Batch (TASK-039)
+
+**Commit:** 78f14210
+**Files changed:** player_screen.dart, local_db.dart, catalog_provider.dart, jazzdrive_service.dart
+
+### Findings from deep audit answered by user
+
+| # | Finding | User answer | Action |
+|---|---------|------------|--------|
+| BUG-1 | _jazzAutoRetry retried widget.fileId (ep1) not current episode | Confirmed bug | Fixed |
+| BUG-2 | resetPosterSyncFlag() written but never called after sync | Confirmed bug | Fixed |
+| BUG-3 | APK signature fingerprint = PLACEHOLDER, check disabled | Leave disabled for now | No action |
+| GAP-1 | Watchlist local-only, lost on reinstall | By design — intentional | No action |
+| GAP-2 | Vault/local files no watch position | No, always start from beginning | No action |
+| GAP-3 | New-episode badge clears in show detail screen initState | Confirmed — show_detail_screen.dart line 65 | Already correct |
+| GAP-4 | folder_share_url read from delta but never persisted | Yes, shows use folder shares | Fixed |
+| UNCLEAR-1 | cinematicOpacity persist (BACKLOG-01) | Still deferred | No action |
+| UNCLEAR-2 | jazzDriveDeltaUrl source | Checked — hardcoded in AppConstants | Documented |
+| COMMENT | _cacheTtl comment said 180min, code is 110min | Fix it | Fixed |
+
+### Fixes applied
+
+**FIX-RETRY-01** (`player_screen.dart`):
+- Added `String _currentFileId = ''` state variable
+- `_openMedia()` now sets `_currentFileId = fileId` at entry
+- `_jazzAutoRetry()` now invalidates + retries `_currentFileId` instead of `widget.fileId`
+- Impact: Auto-retry on Episode 3+ no longer sends user back to Episode 1
+
+**FIX-POSTER-01** (`catalog_provider.dart`):
+- `syncFromServer()` now calls `resetPosterSyncFlag()` when `result.itemsSynced > 0`
+- Impact: New titles added to catalog now get posters downloaded in the same app session
+
+**FIX-FOLDER-01** (`local_db.dart`):
+- `mergeDeltaTitle()` UPDATE block now writes `folder_share_url` when delta provides it
+- `mergeDeltaTitle()` INSERT block also writes `folder_share_url`
+- Impact: TV shows using JazzDrive folder shares (e.g. The Boys S05 with 8 episodes in one folder) can now resolve stream links correctly via `remote_id` matching
+
+**COMMENT-TTL** (`jazzdrive_service.dart`):
+- Fixed inline comment `// 180 min` → accurate comment `// 110 min`
+- Fixed `warmTopFreeItems` docstring: "180-min TTL" → "110-min TTL"
+
+### Design decisions confirmed by user (no code change needed)
+- Watchlist: local-only is by design. No server sync planned.
+- Vault/gallery files: always start from beginning. No resume position.
+- APK signature check: fingerprint placeholder left until release signing workflow is set up.
+- cinematicOpacity (BACKLOG-01): still deferred, not yet saved.
+- jazzDriveDeltaUrl: hardcoded in AppConstants. User prefers admin-panel control in future.
+
+### Key findings to carry forward
+- `folder_share_url` column exists in titles table (added migration v17) but was never written — now fixed.
+- `show_detail_screen.dart` line 65: `LocalDb.markEpisodesSeen(widget.item.id).ignore()` in `initState` — badge clears correctly when user opens show detail.
+- `jazzDriveDeltaUrl` is hardcoded — future improvement: pull from RemoteConfig so it can be changed without a new APK.
