@@ -882,7 +882,23 @@ def _import_legacy_into_v3_for_account(legacy_id: int, v3_account_id: int) -> in
                 _o_key = _import_keys.get_active_value("omdb") or None
                 meta = enrich_title(meta, tmdb_key=_t_key, omdb_key=_o_key)
                 
-                new_id = db.upsert_title(meta)
+                try:
+                    new_id = db.upsert_title(meta)
+                except Exception as _ue:
+                    # UNIQUE slug conflict (duplicate legacy title) — look up
+                    # the already-inserted row by slug so we can still link files.
+                    _slug = meta.get("slug") or ""
+                    if _slug and "UNIQUE" in str(_ue):
+                        try:
+                            _row = db._conn().execute(
+                                "SELECT id FROM titles WHERE slug=?", (_slug,)
+                            ).fetchone()
+                            new_id = _row["id"] if _row else None
+                        except Exception:
+                            new_id = None
+                    else:
+                        log.debug("upsert_title failed for %r: %s", meta.get("title"), _ue)
+                        new_id = None
                 if new_id:
                     title_map[t["id"]] = new_id
                     legacy_title_meta[t["id"]] = {
