@@ -1,5 +1,5 @@
 # BUG_TRACKER.md
-Last updated: 2026-06-08
+Last updated: 2026-06-09
 
 ## Status Key
 - ✅ FIXED — committed and verified on live server
@@ -254,3 +254,25 @@ Build 1034 — RaddFlix-1.0.0+1-build1034.apk — run 27156269376 — 56.7 MB �
 |----|-------|--------|-------|
 | DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | OPEN | Need JazzDrive upload + sync |
 | DATA-02 | 9 movies with deleted JD files (Animal, Dune, Inception, Interstellar, Inuyashiki, Oppenheimer, Reborn, The Ninth Gate, Super Mario Galaxy) | OPEN | JD files deleted. Need manual re-upload to JazzDrive by admin |
+
+
+## Session 2026-06-09 — BUG-STALE-IDS: Flutter stale catalog after DB rebuild
+
+| ID | Severity | Title | Root Cause | Fix Applied | File |
+|----|---------|-------|-----------|-------------|------|
+| BUG-STALE-IDS | CRITICAL | Spider-Noir "Jazz SIM Required", Animal/Interstellar no play button, downloads FAILED | Oracle DB rebuilt with new title IDs (1-20), but Flutter's cached localVersion (1780929441) exactly matched server version → Flutter skipped re-sync → kept stale entries (id=28 file_id=31 → 404) | Server: force-bumped catalog_forced_version to 1781003205 (all devices full-sync on next open). Added valid_title_ids to /sync. Flutter (build1035): syncFull returns SyncFullResult; pruneStaleIds() deletes stale title IDs after full sync | catalog_api.py / catalog_api.dart / local_db.dart / sync_service.dart |
+| BUG-PRUNE-SQL | CRITICAL | pruneStaleIds SQL had empty NOT IN () — would delete ALL titles | Dart $placeholders variable in pruneStaleIds SQL was stripped by bash heredoc variable expansion (bash double-quoted the SSH command) | Rewrote push via Python file + scp to avoid bash expansion. Restored NOT IN ($placeholders) | lib/core/db/local_db.dart (commit 338ad31b) |
+
+### Encryption/Decryption Audit (2026-06-09) — All PASS
+
+| Component | Check | Result |
+|-----------|-------|--------|
+| Flutter RequestEncoder | XOR encode/decode symmetric, padding restoration, RF1: passthrough | ✅ PASS |
+| Flutter _XorInterceptor | Session key stored before body encode, auth paths excluded, octet-stream decode, error body decode | ✅ PASS |
+| Server request_encoding.py | XOR symmetric, ±1h candidate keys, padding re-add, device_id from header/JWT fallback | ✅ PASS |
+| CatalogItem.fromJson | All fields safe-cast, no TypeError on null id | ✅ PASS |
+| scrambleUrl/unscrambleUrl | RF1: prefix guard, passthrough for legacy plain URLs, deviceId key fallback | ✅ PASS |
+
+---
+
+## Session 2026-06-08 — All bugs fixed
