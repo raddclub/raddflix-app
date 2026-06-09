@@ -9,6 +9,7 @@
 - [JazzDrive session VK](jazzdrive-session-vk.md) — validation_key required for all SAPI calls; _time_time bug
 - [JazzDrive file delete](jazzdrive-file-delete.md) — always delete_files_permanent(), never trash_files()
 - [JD file delete quirks](jazzdrive-file-delete.md) — trash_files() always returns success but doesn't remove
+- [JazzDrive remote_id](jazzdrive-remote-id.md) — remote_id IS permanent JD file ID; Pass 0 in _getMedia uses it; full chain Oracle→Flutter verified correct
 - [Keepalive config](keepalive-config.md) — WARP + proxy pool architecture
 - [Warp tunnel](warp-tunnel.md) — Jazz IP watchdog accumulate mode; wg0 splits to Jazz IPs only
 - [XOR encoding](xor-encoding.md) — key formula, padding fix, candidate keys, JSESSIONID from JSON body
