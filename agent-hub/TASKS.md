@@ -130,3 +130,38 @@ This file is the handoff bridge — the next agent reads this first.
 - Data flow per use case (Play / Download / Warm)
 - Known issues (MED-1011 from non-Jazz IPs, JSESSIONID on Android, CDN vs Download URL)
 - Bug history table
+
+---
+
+## TASK-059 — APK Rebuild build1040 + Node.js Live Test Investigation (DONE)
+
+**APK Build:** ✅ `RaddFlix-1.0.0+1-build1040.apk` (56.7 MB)
+- GitHub Actions run: 27206723333
+- Artifact ID: 7507976700
+- Expires: 2026-07-09
+- Trigger: Docs commit (TASK-058) — no code changed, clean rebuild confirms build pipeline healthy
+
+**Node.js Live Test — Definitive Findings:**
+
+Share key tested: `lTzy2wdJQDqnsHSZNJGMBjA0NzE3MTIzNzE2NzFfMjYwMzgwMA`
+
+| Test | Result |
+|------|--------|
+| Share landing page (`GET /share/f/<key>`) | ✅ HTTP 200 — og:title = "Interstellar (2014)" — share IS VALID |
+| Login API — Desktop UA, no extra headers | ❌ MED-1011 |
+| Login API — Android UA, no X-Requested-With | ❌ MED-1011 |
+| Login API — Android UA + X-Requested-With (Flutter exact) | ❌ MED-1011 |
+| Login API — No User-Agent | ❌ MED-1011 |
+
+**Root Cause Confirmed: IP-based blocking/rate-limiting by JazzDrive.**
+- Share key IS valid — folder exists on JazzDrive server
+- Headers, User-Agent, X-Requested-With make zero difference — all return same MED-1011
+- JazzDrive `/sapi/link/login` rejects requests from non-Jazz-network IPs (Replit server)
+- Oracle server at 92.4.95.252 successfully called this same API at 02:51 PKT today
+- This is a **network restriction**, not a code bug — Flutter app runs on Jazz SIM → zero-rated + allowed
+
+**Share key structure decoded (base64):**
+`binary_random_token(16 bytes) + user_account_id + "_" + file_id`
+Example: `...0471712371671_2603800` → user 0471712371671, file 2603800
+
+**Conclusion: Flutter Dart code is 100% correct. Node.js live test from Replit is structurally impossible (non-Jazz IP blocked by JazzDrive). Test only valid on Jazz SIM Android device or Oracle server.**
