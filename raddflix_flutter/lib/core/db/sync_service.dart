@@ -92,12 +92,22 @@ class SyncService {
       DebugLogger.log('SYNC', lastSyncTs == 0
           ? 'First sync — running full catalog sync'
           : 'Admin force-bump detected (forcedTs=${serverVersion.forcedTs} > local=$localVersion) — running full sync');
-      items = await CatalogApi.syncFull();
+      final fullResult = await CatalogApi.syncFull();
+      items = fullResult.items;
+      await _persistItems(items);
+      // Prune any title whose ID is no longer in the server catalog.
+      // Prevents stale entries (e.g. after a DB rebuild with new IDs) from
+      // showing duplicate or unplayable titles (BUG-STALE-IDS fix).
+      if (fullResult.validTitleIds.isNotEmpty) {
+        final pruned = await LocalDb.pruneStaleIds(fullResult.validTitleIds);
+        if (pruned > 0) {
+          DebugLogger.log('SYNC', 'Pruned $pruned stale title(s) from local DB');
+        }
+      }
     } else {
       items = await CatalogApi.syncDelta(localVersion);
+      await _persistItems(items);
     }
-
-    await _persistItems(items);
 
     final nowTs = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     await LocalDb.setLastSyncVersion(serverVersion.version);
