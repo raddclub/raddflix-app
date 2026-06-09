@@ -5,6 +5,48 @@
 
 ---
 
+
+## Session 2026-06-09 — TASK-058: Fix BUG-STALE-IDS (Flutter stale catalog)
+
+**Agent:** Replit Agent (main branch)
+**Objective:** Fix "Jazz SIM Required" on Spider-Noir S01E01, no play button on Animal/Interstellar, FAILED badge on downloads
+
+### Root Cause
+Oracle DB was rebuilt with new title IDs (1–20). Flutter's cached `localVersion = 1780929441` matched
+the server version exactly → Flutter skipped re-sync → kept stale entries (Spider-Noir `id=28 file_id=31`
+which no longer exists → 404 → "Jazz SIM Required"). Even when sync runs, `/sync` is additive-only so
+old stale IDs (25, 27, 28, 30) were never removed.
+
+Secondary bug found during fix: `pruneStaleIds` SQL had empty `NOT IN ()` because bash expanded
+`$placeholders` to nothing inside a double-quoted SSH heredoc command.
+
+### Server Fixes (deployed, live now, affect build1034 immediately)
+- **Force-version-bump**: `catalog_forced_version` set to `1781003205` (was `1780929441`)
+  → Flutter detects `forcedTs > localVersion` → triggers full re-sync from Oracle on next app open
+- **`/api/catalog/sync`** now returns `valid_title_ids: [1,2,3,...,20]` in response body
+  → tells Flutter the authoritative set of published title IDs
+
+### Flutter Fixes (GitHub — require build 1035)
+- `lib/core/api/catalog_api.dart`: `syncFull()` now returns `SyncFullResult{items, validTitleIds}`
+- `lib/core/db/local_db.dart`: `pruneStaleIds(List<int> validIds)` added — deletes title rows
+  not in valid set + orphaned episodes + rebuilds FTS index
+- `lib/core/db/sync_service.dart`: full sync branch calls `pruneStaleIds()` after `_persistItems()`
+- `lib/core/db/local_db.dart`: restored `$placeholders` in pruneStaleIds SQL NOT IN clause
+
+### Encryption/Decryption Audit — All Clean
+Full code review of Flutter `request_encoder.dart`, `api_client.dart` `_XorInterceptor`, and
+server `request_encoding.py`. No bugs found. All symmetric XOR logic, padding restoration,
+±1h candidate keys, and passthrough fallbacks confirmed correct.
+
+### Verified Server State
+```
+/api/catalog/version → {"count":17,"forced_ts":1781003205,"version":1781003205}
+/api/catalog/sync    → valid_title_ids:[1,2,...,20], 17 titles, 6 episodes
+Spider-Noir id=18: S1E1 file_id=37, S1E2 file_id=36
+Interstellar id=1 file_id=2, Animal id=3 file_id=5
+```
+
+---
 ## Session 2026-06-06
 
 **Agent:** Replit Agent (main branch)
