@@ -322,8 +322,18 @@ def sync():
                 "is_free":   0,
             })
 
+    # Always include the complete list of valid published title IDs.
+    # Flutter uses this on a full sync to prune stale entries left over
+    # from a DB rebuild where title IDs changed (BUG-STALE-IDS fix).
+    with db.conn() as _c:
+        _valid = _c.execute(
+            "SELECT id FROM titles WHERE is_published=1 ORDER BY id"
+        ).fetchall()
+    valid_title_ids = [r["id"] for r in _valid]
+
     return jsonify({"version": _catalog_version(), "titles": titles,
-                    "episodes": episodes, "count": len(titles)})
+                    "episodes": episodes, "count": len(titles),
+                    "valid_title_ids": valid_title_ids})
 
 
 @bp.route("/share_url")
