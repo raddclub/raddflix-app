@@ -167,3 +167,27 @@ Share key tested: `lTzy2wdJQDqnsHSZNJGMBjA0NzE3MTIzNzE2NzFfMjYwMzgwMA`
 Example: `...0471712371671_2603800` → user 0471712371671, file 2603800
 
 **Conclusion: Flutter Dart code is 100% correct. Node.js live test from Replit is structurally impossible (non-Jazz IP blocked by JazzDrive). Test only valid on Jazz SIM Android device or Oracle server.**
+
+---
+
+## TASK-062 — Remove Delta Logic + Stream Link Server Generation (DONE)
+
+**Scope:** Stop all JazzDrive uploads from Oracle server (delta.json, keepalive heartbeat, bulk stream link generation). Two phone numbers already suspended due to JazzDrive API abuse.
+
+**Changes:**
+| File | Action |
+|------|--------|
+| `hub/keepalive.py` | Gutted to no-op stub — no more heartbeat uploads |
+| `hub/bulk_link_engine.py` | Gutted to no-op stub — no stream link generation |
+| `hub/routes/delta_push.py` | Gutted to no-op stub — no delta.json uploads |
+| `hub/app.py` | Removed keepalive/delta/bulk-link thread registrations |
+| `hub/scheduler.py` | Removed delta_generation loop; updated docstring |
+| `hub/db.py` | Removed get/save/invalidate stream_link functions |
+| `hub/routes/catalog_api.py` | Removed stream_link caching from _do_play() |
+| Oracle DB | Dropped stream_links table (DROP TABLE IF EXISTS stream_links) |
+| `raddflix_flutter/lib/core/db/sync_service.dart` | Removed _syncFromJazzDriveDelta() + resolver helpers; sync() now Oracle-only |
+
+**Architecture after this task:**
+- Oracle = catalog source only (titles + folder_share_url, no stream links)
+- Flutter generates stream links client-side via jazzdrive_service.dart from folder_share_url
+- No JazzDrive uploads from Oracle ever again

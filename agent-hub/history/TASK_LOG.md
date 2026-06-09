@@ -1755,3 +1755,29 @@ Also updated `_generateLink` to pass `session.validationKey` to `_buildStreamUrl
 - Oracle JazzDrive session: still ❌ NO_VK — OTP re-login needed
 - Flutter service code: ✅ FIXED — validationkey now appended correctly
 - APK build: needs trigger after this commit
+
+
+---
+
+## TASK-062 — Remove Delta Logic + Stream Link Server Generation (2026-06-09)
+
+**Motivation:** JazzDrive API abuse (delta.json uploads + keepalive heartbeats) caused 2 phone number suspensions. Immediate stop required.
+
+**Oracle changes (applied directly via SSH, then pushed to GitHub):**
+- `keepalive.py` → no-op stub (removed all JazzDrive upload calls)
+- `bulk_link_engine.py` → no-op stub (removed stream link generation)
+- `routes/delta_push.py` → no-op stub (removed delta.json upload routes)
+- `app.py` → removed thread registrations for keepalive/delta/bulk-link; simplified /d/<remote_id> route (no stream_link calls)
+- `scheduler.py` → removed delta_generation loop; updated docstring
+- `db.py` → removed get_stream_link/save_stream_link/invalidate_stream_links/log_stream_serve
+- `routes/catalog_api.py` → removed stream_link caching from _do_play()
+- Oracle DB: `DROP TABLE IF EXISTS stream_links`
+- Oracle Flask restarted: `{"ok":true,"version":"3.0.0"}`
+
+**Flutter change:**
+- `sync_service.dart` → removed _syncFromJazzDriveDelta() + all JazzDrive share URL resolver helpers; sync() now Oracle-only (fail = return SyncResult.failure, no fallback)
+
+**Architecture locked:**
+- Oracle: catalog data only
+- Flutter: client-side stream link generation via jazzdrive_service.dart (unchanged)
+- No JazzDrive uploads from Oracle
