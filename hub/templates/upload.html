@@ -1,0 +1,1201 @@
+{% extends "base.html" %}
+{% set active="upload" %}
+{% block content %}
+
+{% if not upload_enabled %}
+<div id="upload-paused-banner" style="display:flex;align-items:center;gap:10px;background:rgba(244,67,54,.1);border:1px solid rgba(244,67,54,.4);border-radius:8px;padding:10px 16px;margin-bottom:14px;flex-wrap:wrap">
+  <span style="font-size:18px">⏸</span>
+  <div style="flex:1">
+    <strong style="color:var(--err,#f44336)">Upload service is paused</strong>
+    <span class="muted" style="font-size:13px;margin-left:8px">The watch folder is not being processed and no heartbeat requests are sent to JazzDrive.</span>
+  </div>
+  <button id="upload-toggle-btn" onclick="toggleUploadService()" style="font-size:13px;min-width:90px;background:rgba(34,197,94,.15);border:1px solid #22c55e;color:#22c55e;border-radius:6px;padding:5px 12px;cursor:pointer">▶ Enable</button>
+</div>
+{% else %}
+<div id="upload-paused-banner" style="display:none"></div>
+{% endif %}
+
+<div class="h-row">
+  <div>
+    <h2>Flix</h2>
+    <div class="muted" style="font-size:13px;margin-top:2px">Upload files to JazzDrive — auto-mirror to GitHub and Google Sheets.</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    {% if upload_enabled %}
+    <span id="bg-indicator" title="Background upload worker is always running — uploads continue even if you close this page"
+          style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px">
+      <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;animation:pulse 2s infinite"></span>
+      Worker active
+    </span>
+    {% else %}
+    <span style="font-size:12px;color:var(--err,#f44336);display:flex;align-items:center;gap:5px">
+      <span style="width:8px;height:8px;border-radius:50%;background:var(--err,#f44336);display:inline-block"></span>
+      Worker paused
+    </span>
+    {% endif %}
+    <button id="upload-page-svc-btn" onclick="toggleUploadService()" style="min-width:90px;transition:background .2s;{% if upload_enabled %}background:rgba(34,197,94,.15);border-color:#22c55e;color:#22c55e{% else %}background:rgba(244,67,54,.15);border-color:#f44336;color:#f44336{% endif %}">{% if upload_enabled %}⏸ Pause{% else %}▶ Enable{% endif %}</button>
+    <button onclick="scanNow()" {% if not upload_enabled %}disabled title="Upload is paused"{% endif %}>Rescan folder</button>
+  </div>
+</div>
+<style>
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+</style>
+
+{# ── OTP quick-login banner ── #}
+<div id="otp-banner" style="display:none;background:rgba(230,80,30,.12);border:1px solid #c04020;border-radius:8px;padding:12px 16px;margin-bottom:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+  <div>
+    <span style="font-weight:700;color:#e65020">⚠ JazzDrive session offline</span>
+    <span class="muted" id="otp-banner-msg" style="margin-left:8px;font-size:13px">Uploads are paused until you log in.</span>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button id="otp-banner-btn-refresh" style="display:none;background:var(--accent);color:#fff;border:none">Refresh Now</button>
+    <button id="otp-banner-btn-login"   onclick="showOtpModal()" style="background:#e65020;color:#fff;border:none">Login with OTP</button>
+  </div>
+</div>
+
+{# ── OTP quick-login modal ── #}
+<div id="otp-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;align-items:center;justify-content:center">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:28px 28px 22px;max-width:440px;width:90%;position:relative;max-height:95vh;overflow-y:auto">
+    <button onclick="closeOtpModal()" style="position:absolute;top:10px;right:12px;background:transparent;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0;z-index:10">✕</button>
+    <h3 style="margin:0 0 6px">JazzDrive Login</h3>
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px">
+      <div class="muted" style="font-size:13px">Enter your Jazz number — you'll receive an OTP by SMS.</div>
+      <button class="ghost" onclick="showProxyModal()" style="font-size:11px; padding:3px 8px; margin-left:10px">Proxy Settings</button>
+    </div>
+    
+    {% include "_proxy_manager.html" %}
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Mobile number</label>
+        <input id="modal-msisdn" placeholder="9230xxxxxxxx" autocomplete="tel" style="width:100%">
+      </div>
+      <button id="modal-btn-send" onclick="modalSendOtp()" style="align-self:flex-start">Send OTP</button>
+      <div id="modal-otp-row" style="display:none;flex-direction:column;gap:10px">
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">OTP code</label>
+          <input id="modal-otp" placeholder="4-digit code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" style="width:100%"
+                 onkeydown="if(event.key==='Enter')modalVerifyOtp()">
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="modal-btn-verify" onclick="modalVerifyOtp()">Verify &amp; Connect</button>
+          <button class="ghost" onclick="modalResendOtp()">Resend OTP</button>
+        </div>
+      </div>
+      <div id="modal-msg" class="muted" style="font-size:13px;min-height:18px"></div>
+      <div id="modal-replace-row" style="display:none;margin-top:4px">
+        <button class="danger" style="font-size:12px;padding:4px 12px" onclick="modalDeleteFlixAndRetry()">Delete existing account &amp; retry</button>
+      </div>
+      {# ── SAPI activation panel — shown after OTP succeeds but SAPI is blocked ── #}
+      <div id="modal-sapi-row" style="display:none;flex-direction:column;gap:12px;margin-top:8px;border-top:1px solid var(--border);padding-top:14px">
+        <div>
+          <span style="color:var(--ok,#22c55e);font-weight:600">✔ OTP accepted by JazzDrive</span>
+          <div class="muted" style="font-size:12px;margin-top:4px">One more step — the session must be activated from your Jazz phone.</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">1. Tap this link on your Jazz phone (must be on Jazz mobile data):</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <a id="modal-sapi-link" href="#" target="_blank" rel="noopener"
+               style="font-size:12px;word-break:break-all;color:var(--accent);flex:1;pointer-events:none;opacity:.5">
+              Generating link…
+            </a>
+            <button id="modal-sapi-copy-btn" class="ghost" onclick="modalCopySapiLink()"
+                    style="font-size:11px;padding:3px 10px;white-space:nowrap;display:none">Copy</button>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:4px">2. Your phone shows JSON — paste the <strong>full response</strong> here (values extracted automatically):</div>
+          <textarea id="modal-sapi-json"
+                    placeholder='{"data":{"validationkey":"...","jsessionid":"...","access_token":"..."}}'
+                    style="width:100%;height:80px;font-size:11px;font-family:monospace;resize:vertical"
+                    oninput="modalAutoSaveJson(this.value)"></textarea>
+          <div id="modal-sapi-parse-msg" style="font-size:12px;margin-top:4px;min-height:14px"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="modal-sapi-save-btn" onclick="modalSaveFromJson()" disabled>Save &amp; Connect</button>
+          <button class="ghost" style="font-size:12px" onclick="modalRefreshSapiLink()">↻ Refresh link</button>
+        </div>
+        <div id="modal-sapi-msg" style="font-size:12px;min-height:14px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Dashboard stats ── #}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
+  <div class="card" style="padding:14px;text-align:center">
+    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Session</div>
+    <div id="stat-session" style="font-size:1.35rem;font-weight:700">…</div>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">
+      <div id="stat-session-sub" class="muted" style="font-size:11px"></div>
+      <button id="btn-relogin" class="primary" style="font-size:11px;padding:3px 8px;display:none" onclick="showOtpModal()">Re-login</button>
+    </div>
+  </div>
+  <div class="card" style="padding:14px;text-align:center">
+    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Account</div>
+    <div id="stat-msisdn" style="font-size:1.05rem;font-weight:700;font-family:monospace">—</div>
+    <div class="muted" style="font-size:11px;margin-top:3px">linked phone</div>
+  </div>
+  <div class="card" style="padding:14px;text-align:center">
+    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Storage</div>
+    <div id="stat-storage" style="font-size:1.35rem;font-weight:700">—</div>
+    <div id="stat-storage-sub" class="muted" style="font-size:11px;margin-top:3px"></div>
+  </div>
+
+  <div class="card" style="padding:14px;text-align:center">
+    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Pending</div>
+    <div id="stat-pending" style="font-size:1.35rem;font-weight:700">—</div>
+    <div class="muted" style="font-size:11px;margin-top:3px">queued files</div>
+  </div>
+</div>
+
+{# ── Tab navigation ── #}
+<div style="display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap">
+  <button class="tab-btn active" onclick="switchTab('upload', this)"   style="background:transparent;border:none;border-bottom:2px solid var(--accent);padding:9px 16px;color:var(--text);font-weight:500;border-radius:0;cursor:pointer">Uploads</button>
+  <button class="tab-btn"        onclick="switchTab('flixcfg', this)"  style="background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 16px;color:var(--muted);font-weight:500;border-radius:0;cursor:pointer">Settings</button>
+  <button class="tab-btn"        onclick="switchTab('logs', this)"     style="background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 16px;color:var(--muted);font-weight:500;border-radius:0;cursor:pointer">Logs</button>
+</div>
+
+{# ══ TAB: Upload ══ #}
+<div class="tab-content active" data-tab="upload">
+
+  <div class="card" style="background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.2);padding:12px 16px;font-size:13px;margin-bottom:14px">
+    <strong style="color:#22c55e">Background mode active</strong> —
+    uploads keep running even if you close this browser tab. Worker thread is active.
+  </div>
+
+  <div class="card" id="drop-zone"
+       style="border:2px dashed var(--border);border-radius:10px;padding:32px 20px;
+              text-align:center;cursor:pointer;transition:border-color .2s,background .2s"
+       ondragover="dzOver(event)" ondragleave="dzLeave(event)" ondrop="dzDrop(event)"
+       onclick="document.getElementById('file-input').click()">
+    <div style="font-size:2rem;margin-bottom:8px;user-select:none">📂</div>
+    <div style="font-weight:600;margin-bottom:4px">Drag &amp; drop files here, or click to choose</div>
+    <div class="muted" style="font-size:12px">Any video file — auto-queued for JazzDrive upload</div>
+    <input id="file-input" type="file" multiple accept="video/*,.mkv,.avi,.mov,.ts,.m2ts,.wmv,.flv"
+           style="display:none" onchange="dzFileChosen(this.files)">
+    <div id="dz-status" style="margin-top:12px;font-size:13px;min-height:20px"></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <h3 style="margin:0">Active &amp; Recent Uploads</h3>
+      <div style="display:flex;gap:6px">
+        <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="resetStuck()">Reset stuck</button>
+        <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="loadJobs()">Refresh</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+    <table id="upload-table" style="min-width:560px">
+      <thead><tr>
+        <th style="width:120px">When</th><th>File</th>
+        <th style="width:100px">State</th><th style="width:220px">Progress</th>
+        <th>Share</th>
+      </tr></thead>
+      <tbody><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+
+</div>
+
+{# ══ TAB: Settings ══ #}
+<div class="tab-content" data-tab="flixcfg">
+  <div class="card" id="flix-acct-card">
+    <h3 style="margin-bottom:10px">Flix Account</h3>
+    <div id="flix-acct-none" style="display:none;color:var(--muted);font-size:13px">
+      No flix account configured. Use <strong>Login with OTP</strong> to set one up.
+    </div>
+    <div id="flix-acct-row" style="display:none;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="font-family:monospace;font-size:1.05rem;font-weight:700" id="flix-acct-msisdn">—</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="showOtpModal()">Re-login / Change OTP</button>
+        <button class="danger" onclick="deleteFlixAccount()">Delete account</button>
+      </div>
+    </div>
+  </div>
+
+  {# All accounts list (shows inactive / stale accounts too) #}
+  <div class="card">
+    <h3 style="margin-bottom:10px">JazzDrive Accounts</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:10px">
+      <strong>Upload</strong> accounts (Flix) push media to JazzDrive. <strong>Scan</strong> accounts index JazzDrive to build the library database. Session status is checked live.
+    </div>
+    <div id="accounts-list" style="display:flex;flex-direction:column;gap:6px">
+      <div class="muted" style="font-size:13px">Loading accounts…</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Upload Configuration</h3>
+    <form id="cfg-form" onsubmit="saveConfig(event)">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:14px">
+        <div>
+          <label class="form-label">Default MSISDN</label>
+          <input name="msisdn" id="cfg-msisdn" placeholder="923xxxxxxxxx">
+        </div>
+        <div>
+          <label class="form-label">Share email</label>
+          <input name="share_email" id="cfg-share-email" placeholder="email@example.com">
+        </div>
+        <div>
+          <label class="form-label">Watch root folder</label>
+          <input name="watch_root" id="cfg-watch-root" placeholder="{{ media_dir }}">
+        </div>
+        <div>
+          <label class="form-label">Max parallel uploads</label>
+          <input name="max_parallel" id="cfg-max-parallel" type="number" min="1" max="10" value="1">
+        </div>
+        <div>
+          <label class="form-label">Max file size (GB, 0 = unlimited)</label>
+          <input name="max_size_gb" id="cfg-max-size" type="number" min="0" step="0.1" value="0">
+        </div>
+        <div>
+          <label class="form-label">Max bandwidth (bytes/sec, 0 = unlimited)</label>
+          <input name="max_bps" id="cfg-max-bps" type="number" min="0" value="0">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button type="submit">Save settings</button>
+        <span id="cfg-msg" class="muted" style="font-size:13px"></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="card" id="paste-cookies-card" style="border:2px solid var(--border);transition:border-color .3s">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <h3 style="margin:0">Activate JazzDrive Session</h3>
+      <span id="pt-required-badge" style="display:none;background:var(--warn,#f90);color:#000;
+            font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px">ACTION REQUIRED</span>
+    </div>
+    <div id="pt-instructions" class="muted" style="margin:4px 0 12px;font-size:13px">
+      OTP accepted — but this server IP is outside Pakistan so JazzDrive blocked the session.
+      Use your <strong>Jazz phone</strong> to complete activation (no PC or DevTools needed).
+    </div>
+    <div id="pt-alert" style="display:none;background:rgba(255,160,0,.12);border:1px solid var(--warn,#f90);
+         border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;line-height:1.5"></div>
+
+    {# ── Auto-parse: paste full JSON response ── #}
+    <div style="background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.3);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-weight:600;margin-bottom:4px;font-size:13px">⚡ Quick Paste — paste the full JSON response</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5">
+        After phone activation, JazzDrive shows a JSON response. Paste the <strong>entire JSON</strong> here —
+        <code>validationkey</code> and <code>jsessionid</code> are extracted automatically.
+      </div>
+      <textarea id="pt-json-raw" rows="3"
+                placeholder='{"data":{"validationkey":"...","jsessionid":"...","access_token":"..."}}'
+                oninput="uploadAutoParseJson(this.value)"
+                style="width:100%;font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box"></textarea>
+      <div id="pt-json-msg" style="font-size:12px;margin-top:4px;min-height:14px"></div>
+    </div>
+
+    {# ── Phone Activate ── #}
+    <div style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-weight:600;margin-bottom:6px;font-size:13px">📱 Phone Activate (no PC needed)</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+        Click the button to get a special link. Open it on your <strong>Jazz mobile phone</strong>
+        (connected to Jazz network). You will see a short JSON — paste it above or copy the two values below.
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <button id="btn-get-sapi-url" onclick="uploadGetSapiActivateUrl()">🔗 Get Phone Activation Link</button>
+        <span id="sapi-url-msg" class="muted" style="font-size:12px"></span>
+      </div>
+      <div id="sapi-url-box" style="display:none;margin-top:6px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Open this link in your Jazz phone browser:</div>
+        <a id="sapi-url-link" href="#" target="_blank" rel="noopener"
+           style="color:var(--ok,#5cd66f);text-decoration:underline;word-break:break-all;font-size:11px"></a>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7">
+          The page shows JSON — paste the <strong>full JSON</strong> in the box above for auto-fill.<br>
+          Or manually copy: <code>"validationkey"</code> → <strong>validation_key</strong> below &amp;
+          <code>"jsessionid"</code> → <strong>JSESSIONID</strong> below.
+        </div>
+      </div>
+    </div>
+
+    {# ── Manual inputs ── #}
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Values (auto-filled from JSON paste above, or enter manually):</div>
+    <div style="display:flex;flex-direction:column;gap:8px;max-width:520px">
+      <div class="form-row" style="margin:0">
+        <label style="min-width:140px">MSISDN</label>
+        <input id="pt-msisdn" placeholder="923xxxxxxxxx">
+      </div>
+      <div class="form-row" style="margin:0">
+        <label style="min-width:140px">validation_key</label>
+        <input id="pt-vk" placeholder="Paste validationkey value from JSON">
+      </div>
+      <div class="form-row" style="margin:0">
+        <label style="min-width:140px">JSESSIONID</label>
+        <input id="pt-jid" placeholder="Paste jsessionid value from JSON">
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button onclick="pasteTokens()">Save tokens</button>
+      <span id="pt-msg" class="muted" style="font-size:13px"></span>
+    </div>
+
+    <details style="margin-top:14px">
+      <summary style="cursor:pointer;font-size:12px;color:var(--muted)">Alternative: get values from PC browser DevTools</summary>
+      <ol style="font-size:12px;margin:8px 0 0 18px;line-height:1.8;color:var(--muted)">
+        <li>Open <strong>cloud.jazzdrive.com.pk</strong> in Chrome or Edge on your PC.</li>
+        <li>Log in with your Jazz number — you will receive an SMS OTP.</li>
+        <li>After login press <strong>F12</strong> → <strong>Application</strong> → <strong>Cookies</strong>.</li>
+        <li>Find <code>validation_key</code> and <code>JSESSIONID</code> — copy each value and paste above.</li>
+      </ol>
+    </details>
+  </div>
+</div>
+
+{# ══ TAB: Logs ══ #}
+<div class="tab-content" data-tab="logs">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <h3 style="margin:0">Live Upload Logs</h3>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span id="log-stream-status" class="badge b-mut" style="font-size:11px">connecting…</span>
+        <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer">
+          <input type="checkbox" id="log-autoscroll" checked> Auto-scroll
+        </label>
+        <select id="log-filter" style="font-size:12px;padding:3px 8px" onchange="applyLogFilter()">
+          <option value="">All levels</option>
+          <option value="info">Info+</option>
+          <option value="warn">Warn+</option>
+          <option value="error">Errors only</option>
+        </select>
+        <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="copyToClipboard('log-box')">📋 Copy</button>
+        <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="clearLogs()">Clear</button>
+      </div>
+    </div>
+    <div id="log-box"
+         style="background:var(--panel2,#111);border:1px solid var(--border);border-radius:6px;
+                padding:10px 12px;height:420px;overflow-y:auto;font-family:monospace;font-size:12px;
+                line-height:1.6">
+      <div class="muted" style="font-size:12px">Waiting for log entries…</div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+(function(){
+  async function _svcApi(body){
+    const r = await fetch('/settings/api/services', {
+      method: body ? 'POST' : 'GET',
+      headers: {'Content-Type':'application/json'},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    return r.json();
+  }
+  function _applyUpload(enabled){
+    const banner    = document.getElementById('upload-paused-banner');
+    const pageBtn   = document.getElementById('upload-page-svc-btn');
+    const rescanBtn = document.querySelector('button[onclick="scanNow()"]');
+    const indicator = document.getElementById('bg-indicator');
+    if(banner) banner.style.display = enabled ? 'none' : 'flex';
+    if(pageBtn){
+      pageBtn.textContent = enabled ? '⏸ Pause' : '▶ Enable';
+      pageBtn.style.background  = enabled ? 'rgba(34,197,94,.15)' : 'rgba(244,67,54,.15)';
+      pageBtn.style.borderColor = enabled ? '#22c55e' : '#f44336';
+      pageBtn.style.color       = enabled ? '#22c55e' : '#f44336';
+    }
+    if(rescanBtn) rescanBtn.disabled = !enabled;
+  }
+  window.toggleUploadService = async function(){
+    try{
+      const cur = await _svcApi(null);
+      const newVal = !cur.upload_enabled;
+      const d = await _svcApi({ upload: newVal });
+      _applyUpload(d.upload_enabled);
+      if(typeof toast === 'function') toast('Upload service ' + (d.upload_enabled ? 'enabled' : 'paused'));
+    }catch(e){
+      if(typeof toast === 'function') toast('Failed: ' + e.message);
+    }
+  };
+})();
+</script>
+{% endblock %}
+
+{% block scripts %}<script>
+/* ── state ── */
+let _logSeq = 0;
+let _logEntries  = [];
+let _logSse      = null;
+let _logActive   = false;
+
+/* ── helpers ── */
+function fmtBytes(n) {
+  if (n === null || n === undefined) return '—';
+  if (n < 0) return '—';
+  if (n === 0) return '0 B';
+  const u = ['B','KB','MB','GB','TB']; let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return n.toFixed(n >= 100 ? 0 : 1) + ' ' + u[i];
+}
+function fmtTs(ts) {
+  if (!ts) return '—';
+  try { return new Date(ts * 1000).toLocaleString(); } catch { return ts; }
+}
+function fmtTsShort(ts) {
+  if (!ts) return '—';
+  try {
+    const d = new Date(ts * 1000);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+  } catch { return ts; }
+}
+function badgeState(state) {
+  if (state === 'done')      return '<span class="badge b-ok">done</span>';
+  if (state === 'failed')    return '<span class="badge b-err">failed</span>';
+  if (state === 'uploading') return '<span class="badge b-warn" style="animation:pulse 1.5s infinite">uploading…</span>';
+  if (state === 'queued')    return '<span class="badge b-mut">queued</span>';
+  return '<span class="badge b-mut">' + (state || '?') + '</span>';
+}
+
+/* ── tabs ── */
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.style.color = 'var(--muted)';
+    b.style.borderBottom = '2px solid transparent';
+  });
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  
+  if (btn) {
+    btn.style.color = 'var(--text)';
+    btn.style.borderBottom = '2px solid var(--accent)';
+  }
+  
+  const target = document.querySelector('.tab-content[data-tab="' + tab + '"]');
+  if (target) target.classList.add('active');
+
+  if (tab === 'upload')    loadJobs();
+  if (tab === 'flixcfg')   { loadConfig(); loadAccountsList(); }
+  if (tab === 'logs')      startLogStream();
+}
+
+/* ── dashboard stats (auto-refreshes every 20s) ── */
+async function loadStatus() {
+  try {
+    const s = await api('/upload/api/jd-stats');
+    if (!s.ok) return;
+    const sess = s.session || {};
+    const statSess = document.getElementById('stat-session');
+    const statSessSub = document.getElementById('stat-session-sub');
+    const btnRelogin = document.getElementById('btn-relogin');
+    const banner = document.getElementById('otp-banner');
+
+    if (sess.logged_in) {
+      if (statSess) statSess.innerHTML = '<span class="badge b-ok">Active</span>';
+      if (statSessSub) statSessSub.textContent = sess.remaining_m ? 'exp in ' + sess.remaining_m + ' min' : 'active';
+      if (btnRelogin) btnRelogin.style.display = 'none';
+      if (banner) banner.style.display = 'none';
+    } else {
+      const btnRefresh = document.getElementById('otp-banner-btn-refresh');
+      const btnLogin   = document.getElementById('otp-banner-btn-login');
+      const bannerMsg  = document.getElementById('otp-banner-msg');
+
+      if (btnRelogin) btnRelogin.style.display = 'inline-block';
+
+      if (sess.has_refresh_token) {
+        if (statSess) statSess.innerHTML = '<span class="badge b-warn">Offline</span>';
+        if (statSessSub) statSessSub.textContent = 'Refresh available';
+        if (banner) banner.style.display = 'flex';
+        if (btnRefresh) {
+          btnRefresh.style.display = 'block';
+          btnRefresh.onclick = () => flixRefreshAcct(sess.id || 1);
+        }
+        if (btnLogin) btnLogin.style.display = 'none';
+        if (bannerMsg) bannerMsg.textContent = 'Session offline, but a refresh token is available.';
+      } else {
+        if (statSess) statSess.innerHTML = '<span class="badge b-err">Offline</span>';
+        if (statSessSub) statSessSub.textContent = 'Click Login';
+        if (banner) banner.style.display = 'flex';
+        if (btnRefresh) btnRefresh.style.display = 'none';
+        if (btnLogin) btnLogin.style.display = 'block';
+        if (bannerMsg) bannerMsg.textContent = 'Uploads are paused until you log in.';
+        
+        if (s.config && s.config.msisdn) {
+          const mModal = document.getElementById('modal-msisdn');
+          if (mModal && !mModal.value) mModal.value = s.config.msisdn;
+        }
+      }
+    }
+    const mStat = document.getElementById('stat-msisdn');
+    if (mStat) mStat.textContent = sess.msisdn || '—';
+    _updateFlixAcctCard(sess.msisdn || null);
+    
+    const stor = s.storage || {};
+    const sStat = document.getElementById('stat-storage');
+    const sSub = document.getElementById('stat-storage-sub');
+    if (sStat) {
+        if (stor.used_bytes || stor.total_bytes) {
+          sStat.textContent = fmtBytes(stor.used_bytes);
+          if (sSub) sSub.textContent = stor.total_bytes ? 'of ' + fmtBytes(stor.total_bytes) : '';
+        } else {
+          sStat.textContent = sess.logged_in ? '—' : 'login first';
+        }
+    }
+    const lStat = document.getElementById('stat-library');
+    if (lStat) lStat.textContent = s.library_count ?? '—';
+
+    // Only populate config if we are NOT on the settings tab to avoid overwriting user typing
+    const activeTab = document.querySelector('.tab-content.active');
+    if (s.config && (!activeTab || activeTab.dataset.tab !== 'flixcfg')) {
+      const el = id => document.getElementById(id);
+      if (el('cfg-msisdn'))      el('cfg-msisdn').value       = s.config.msisdn || '';
+      if (el('cfg-share-email')) el('cfg-share-email').value  = s.config.share_email || '';
+      if (el('cfg-watch-root'))  el('cfg-watch-root').value   = s.config.watch_root || '';
+      if (el('cfg-max-parallel'))el('cfg-max-parallel').value = s.config.max_parallel || 1;
+      if (el('cfg-max-size'))    el('cfg-max-size').value     = s.config.max_size_gb || 0;
+      if (el('cfg-max-bps'))     el('cfg-max-bps').value      = s.config.max_bps || 0;
+    }
+  } catch(e) { console.error("loadStatus error:", e); }
+}
+
+async function loadPendingCount() {
+  try {
+    const r = await api('/upload/api/jobs');
+    const pending = (r.jobs || []).filter(j => j.state === 'queued' || j.state === 'uploading').length;
+    document.getElementById('stat-pending').textContent = pending;
+  } catch {}
+}
+
+function startAutoRefresh() {
+  loadStatus();
+  loadJobs();
+  loadPendingCount();
+  loadAccountsList();
+  startLogStream();
+  setInterval(() => { loadStatus(); loadPendingCount(); }, 20000);
+  setInterval(() => { loadJobs(); loadAccountsList(); }, 4000);
+}
+
+/* ── drag-and-drop ── */
+const DZ = document.getElementById('drop-zone');
+const DZ_STATUS = document.getElementById('dz-status');
+
+function dzOver(e) {
+  e.preventDefault();
+  if (DZ) { DZ.style.borderColor='var(--accent)'; DZ.style.background='rgba(0,200,100,.06)'; }
+}
+function dzLeave(e) {
+  if (DZ) { DZ.style.borderColor='var(--border)'; DZ.style.background=''; }
+}
+async function dzDrop(e) {
+  e.preventDefault(); dzLeave(e);
+  const files = e.dataTransfer.files;
+  if (!files || !files.length) return;
+  await dzUploadFiles(files);
+}
+function dzFileChosen(files) {
+  if (!files || !files.length) return;
+  dzUploadFiles(files);
+}
+async function dzUploadFiles(files) {
+  if (DZ_STATUS) DZ_STATUS.textContent = 'Uploading ' + files.length + ' file(s)…';
+  let ok = 0, fail = 0;
+  for (const file of files) {
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const r = await fetch('/upload/api/upload-file', {method:'POST', body: fd});
+      const d = await r.json();
+      if (d.ok) { ok++; } else { fail++; }
+    } catch { fail++; }
+  }
+  if (DZ_STATUS) {
+    DZ_STATUS.textContent = ok > 0 ? '✔ ' + ok + ' file(s) queued' : '✗ Upload failed';
+    DZ_STATUS.style.color = ok > 0 ? 'var(--accent)' : 'var(--err)';
+  }
+  if (ok > 0) setTimeout(() => loadJobs(), 800);
+}
+
+/* ── actions ── */
+async function scanNow() {
+  try {
+    const d = await api('/upload/api/scan-now', {method:'POST'});
+    toast('Queued ' + d.queued + ' new file(s)');
+    setTimeout(() => loadJobs(), 700);
+  } catch(e) { toast('Failed: ' + e.message); }
+}
+
+async function resetStuck() {
+  const incl = confirm('Also reset "not found" skipped files?');
+  try {
+    const r = await api('/upload/api/reset-stuck', {method:'POST', body:{include_skipped: incl}});
+    toast('Reset completed');
+    loadJobs();
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function flixRefreshAcct(id) {
+  try {
+    toast('Refreshing session...');
+    const r = await api('/api/jazzdrive/refresh', {method:'POST', body:{account_id:id}});
+    toast('✓ Session refreshed.'); setTimeout(() => location.reload(), 800);
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+/* ── Upload page: paste-cookies card helpers ── */
+let _uploadPtAccountId = null;
+
+function _showUploadPasteCookiesNeeded(msisdn, message, accountId) {
+  const card  = document.getElementById('paste-cookies-card');
+  const badge = document.getElementById('pt-required-badge');
+  const alert = document.getElementById('pt-alert');
+  if (card)  card.style.borderColor = 'var(--warn,#f90)';
+  if (badge) badge.style.display = 'inline-block';
+  if (alert) { alert.style.display = 'block'; alert.innerHTML = message || ''; }
+  if (msisdn) {
+    const inp = document.getElementById('pt-msisdn');
+    if (inp && !inp.value) inp.value = msisdn;
+  }
+  if (accountId) _uploadPtAccountId = accountId;
+  /* Switch to the Settings tab so the card is visible */
+  const settingsBtn = document.querySelector('.tab-btn[onclick*="flixcfg"]');
+  if (settingsBtn && !settingsBtn.classList.contains('active')) settingsBtn.click();
+  if (card) setTimeout(() => card.scrollIntoView({behavior:'smooth', block:'center'}), 300);
+}
+
+function uploadAutoParseJson(raw) {
+  const msgEl = document.getElementById('pt-json-msg');
+  const raw2 = raw.trim();
+  if (!raw2) { if (msgEl) msgEl.textContent = ''; return; }
+  let parsed;
+  try { parsed = JSON.parse(raw2); } catch(e) {
+    if (msgEl) { msgEl.textContent = '✗ Invalid JSON — paste the full response'; msgEl.style.color = 'var(--err,#f55)'; }
+    return;
+  }
+  /* Support both top-level and nested under .data */
+  const d = parsed.data || parsed;
+  const vk  = d.validationkey || d.validation_key || '';
+  const jid = d.jsessionid    || d.JSESSIONID      || '';
+  const at  = d.access_token  || d.accesstoken     || '';
+  let filled = 0;
+  if (vk)  { document.getElementById('pt-vk').value  = vk;  filled++; }
+  if (jid) { document.getElementById('pt-jid').value = jid; filled++; }
+  if (msgEl) {
+    if (filled === 2) {
+      msgEl.textContent = '✔ validationkey + jsessionid extracted — click Save tokens';
+      msgEl.style.color = 'var(--ok,#22c55e)';
+    } else if (filled === 1) {
+      msgEl.textContent = '⚠ Only ' + (vk ? 'validationkey' : 'jsessionid') + ' found — check the JSON';
+      msgEl.style.color = 'var(--warn,#f90)';
+    } else {
+      msgEl.textContent = '✗ Could not find validationkey or jsessionid in this JSON';
+      msgEl.style.color = 'var(--err,#f55)';
+    }
+  }
+}
+
+async function uploadGetSapiActivateUrl() {
+  const btn    = document.getElementById('btn-get-sapi-url');
+  const msgEl  = document.getElementById('sapi-url-msg');
+  const box    = document.getElementById('sapi-url-box');
+  const link   = document.getElementById('sapi-url-link');
+  const msisdn = (document.getElementById('pt-msisdn').value || '').trim();
+  const body   = _uploadPtAccountId ? {account_id: _uploadPtAccountId} : (msisdn ? {msisdn} : {});
+  if (!_uploadPtAccountId && !msisdn) {
+    msgEl.textContent = 'Enter MSISDN first or log in via OTP above'; return;
+  }
+  btn.disabled = true; btn.textContent = 'Generating…';
+  msgEl.textContent = ''; box.style.display = 'none';
+  try {
+    const r = await api('/upload/api/sapi-activate-url', {method:'POST', body});
+    if (!r.ok) { msgEl.textContent = 'Error: ' + (r.error || 'unknown'); msgEl.style.color='var(--err,#f55)'; return; }
+    link.href = r.sapi_url; link.textContent = r.sapi_url;
+    box.style.display = 'block';
+    msgEl.textContent = '✔ Link ready — open on Jazz phone';
+    msgEl.style.color = 'var(--ok,#22c55e)';
+    if (r.account_id) _uploadPtAccountId = r.account_id;
+    const mEl = document.getElementById('pt-msisdn');
+    if (mEl && r.msisdn && !mEl.value) mEl.value = r.msisdn;
+  } catch(e) {
+    msgEl.textContent = 'Error: ' + e.message; msgEl.style.color = 'var(--err,#f55)';
+  } finally {
+    btn.disabled = false; btn.textContent = '🔗 Get Phone Activation Link';
+  }
+}
+
+async function pasteTokens() {
+  const vk     = document.getElementById('pt-vk').value.trim();
+  const jid    = document.getElementById('pt-jid').value.trim();
+  const msisdn = document.getElementById('pt-msisdn').value.trim();
+  const msg    = document.getElementById('pt-msg');
+  if (!vk || !jid) { msg.textContent = 'Enter validation_key and JSESSIONID (or paste full JSON above)'; return; }
+  msg.textContent = 'Saving…';
+  try {
+    const d = await api('/api/jazzdrive/tokens', {method:'POST',
+      body:{validation_key:vk, jsessionid:jid, msisdn:msisdn||undefined}});
+    if (d.ok === false) { msg.textContent = 'Failed: ' + (d.error || 'unknown'); return; }
+    msg.textContent = '✔ Tokens saved — reloading…';
+    /* Reset card styling */
+    const card  = document.getElementById('paste-cookies-card');
+    const badge = document.getElementById('pt-required-badge');
+    const alert = document.getElementById('pt-alert');
+    if (card)  card.style.borderColor = 'var(--border)';
+    if (badge) badge.style.display = 'none';
+    if (alert) alert.style.display = 'none';
+    setTimeout(() => location.reload(), 1000);
+  } catch(e) { msg.textContent = 'Error: ' + e.message; }
+}
+
+async function loadJobs() {
+  try {
+    const r = await api('/upload/api/jobs');
+    const rows = r.jobs || [];
+    const tbl = document.querySelector('#upload-table tbody');
+    if (!tbl) return;
+
+    if (!rows.length) {
+      tbl.innerHTML = '<tr><td colspan="5" class="empty">No jobs yet.</td></tr>';
+    } else {
+      tbl.innerHTML = rows.map(j => {
+        const pct  = j.percent || 0;
+        const name = (j.path || '').split('/').pop() || '—';
+        const share = j.share_url
+          ? '<a href="' + j.share_url + '" target="_blank" style="font-size:12px">open</a>'
+          + ' <button class="ghost" style="font-size:11px;padding:1px 6px" onclick="navigator.clipboard.writeText(\'' + j.share_url.replace(/'/g,"\\'") + '\');toast(\'Copied!\')">copy</button>'
+          : '<span class="muted">—</span>';
+        // ── Live stats ──────────────────────────────────────────────────────────
+        const barColor = j.state==='failed'?'var(--err)':j.state==='done'?'#22c55e':'var(--accent)';
+        // Speed
+        let speedHtml = '';
+        if (j.state === 'uploading' && j.speed_bps > 0) {
+          const mbps = (j.speed_bps / 1048576).toFixed(2);
+          speedHtml = '<span style="color:var(--accent);font-size:10px;margin-left:6px">'
+            + '↑ ' + mbps + ' MB/s' + '</span>';
+        }
+        // ETA
+        let etaHtml = '';
+        if (j.state === 'uploading' && j.eta_s != null && j.eta_s > 0) {
+          const m = Math.floor(j.eta_s/60), s = j.eta_s%60;
+          etaHtml = '<span class="muted" style="font-size:10px;margin-left:6px">'
+            + (m > 0 ? m+'m ' : '') + s + 's left</span>';
+        }
+        // Proxy badge
+        let proxyHtml = '';
+        if (j.state === 'uploading' && j.proxy_url) {
+          const pHost = j.proxy_url.replace(/^.*\/\//, '').replace(/:\d+$/, '');
+          proxyHtml = '<div style="font-size:9px;color:#a78bfa;margin-top:2px" title="' + j.proxy_url + '">🔀 ' + pHost + '</div>';
+        }
+        // Progress row
+        const bar = '<div style="font-size:11px;display:flex;align-items:center">'
+          + '<span style="font-weight:600;min-width:30px">' + pct + '%</span>'
+          + '<span class="muted" style="font-size:10px;margin-left:4px">'
+          + fmtBytes(j.uploaded) + ' / ' + fmtBytes(j.total) + '</span>'
+          + speedHtml + etaHtml
+          + '</div>'
+          + '<div style="height:5px;background:var(--surface2);border-radius:3px;margin-top:4px;overflow:hidden">'
+          + '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';transition:width .5s"></div></div>'
+          + proxyHtml;
+        return '<tr>'
+          + '<td class="muted" style="font-size:11px">' + fmtTs(j.started_at) + '</td>'
+          + '<td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (j.path||'') + '">' + name + '</td>'
+          + '<td>' + badgeState(j.state) + (j.error ? '<div class="muted" style="font-size:10px;margin-top:2px">' + j.error.slice(0,60) + '</div>' : '') + '</td>'
+          + '<td style="min-width:200px">' + bar + '</td>'
+          + '<td>' + share + '</td>'
+          + '</tr>';
+      }).join('');
+    }
+    document.getElementById('stat-pending').textContent = rows.filter(j => j.state === 'queued' || j.state === 'uploading').length;
+  } catch {}
+}
+
+
+/* ── logs ── */
+function appendLogEntries(entries) {
+  const box = document.getElementById('log-box');
+  if (!box) return;
+  const filter = (document.getElementById('log-filter').value) || '';
+  const LEVELS = ['debug','info','warn','error'];
+  const minIdx = filter ? LEVELS.indexOf(filter) : 0;
+
+  entries.forEach(e => {
+    _logSeq = Math.max(_logSeq, e.seq);
+    if (LEVELS.indexOf(e.level) < minIdx) return;
+    const line = document.createElement('div');
+    line.style.cssText = 'border-bottom:1px solid rgba(255,255,255,.04);padding:2px 0;color:' + ({debug:'#6b7280',info:'#e2e8f0',warn:'#f59e0b',error:'#ef4444'}[e.level]||'#eee');
+    line.textContent = e.msg;
+    if (box.querySelector('.muted')) box.innerHTML = '';
+    box.appendChild(line);
+    if (box.children.length > 500) box.removeChild(box.firstChild);
+  });
+  if (document.getElementById('log-autoscroll').checked) box.scrollTop = box.scrollHeight;
+}
+
+function applyLogFilter() {
+  const box = document.getElementById('log-box');
+  const minIdx = ['debug','info','warn','error'].indexOf(document.getElementById('log-filter').value || 'debug');
+  Array.from(box.children).forEach(el => {
+    // Note: Simple re-filtering isn't perfect without storing all logs in JS, but enough for live stream
+  });
+  clearLogs(); // Simplify: clear when filter changes to avoid complexity
+}
+
+function clearLogs() {
+  const box = document.getElementById('log-box');
+  if (box) box.innerHTML = '<div class="muted" style="font-size:12px">Log cleared.</div>';
+}
+
+function startLogStream() {
+  if (_logSse) return;
+  const statusEl = document.getElementById('log-stream-status');
+  function connect() {
+    _logSse = new EventSource('/upload/api/log-stream?since=' + _logSeq);
+    _logSse.onopen = () => { statusEl.textContent = 'live'; statusEl.className = 'badge b-ok'; };
+    _logSse.onmessage = (ev) => { try { appendLogEntries([JSON.parse(ev.data)]); } catch {} };
+    _logSse.onerror = () => { statusEl.textContent = 'reconnecting…'; statusEl.className = 'badge b-warn'; _logSse.close(); _logSse = null; setTimeout(connect, 3000); };
+  }
+  connect();
+}
+
+/* ── config ── */
+async function loadConfig() {
+  try {
+    const r = await api('/upload/api/config');
+    const c = r.config || {};
+    document.getElementById('cfg-msisdn').value = c.msisdn || '';
+    document.getElementById('cfg-share-email').value = c.share_email || '';
+    document.getElementById('cfg-watch-root').value = c.watch_root || '';
+    document.getElementById('cfg-max-parallel').value = c.max_parallel || 1;
+    document.getElementById('cfg-max-size').value = c.max_size_gb || 0;
+    document.getElementById('cfg-max-bps').value = c.max_bps || 0;
+  } catch {}
+}
+
+async function saveConfig(e) {
+  e.preventDefault();
+  const body = {
+    msisdn: document.getElementById('cfg-msisdn').value.trim(),
+    share_email: document.getElementById('cfg-share-email').value.trim(),
+    watch_root: document.getElementById('cfg-watch-root').value.trim(),
+    max_parallel: parseInt(document.getElementById('cfg-max-parallel').value || '1'),
+    max_size_gb: parseFloat(document.getElementById('cfg-max-size').value || '0'),
+    max_bps: parseInt(document.getElementById('cfg-max-bps').value || '0'),
+  };
+  const msg = document.getElementById('cfg-msg');
+  msg.textContent = 'Saving…';
+  try {
+    await api('/upload/api/config', {method:'POST', body});
+    msg.textContent = '✔ Saved'; toast('Settings saved');
+  } catch(e) { msg.textContent = 'Error: ' + e.message; }
+}
+
+/* ── flix account card (Settings tab) ── */
+function _updateFlixAcctCard(msisdn) {
+  const noneEl = document.getElementById('flix-acct-none');
+  const rowEl  = document.getElementById('flix-acct-row');
+  const msEl   = document.getElementById('flix-acct-msisdn');
+  if (!noneEl || !rowEl) return;
+  if (msisdn) {
+    noneEl.style.display = 'none';
+    rowEl.style.display  = 'flex';
+    if (msEl) msEl.textContent = msisdn;
+  } else {
+    noneEl.style.display = 'block';
+    rowEl.style.display  = 'none';
+  }
+}
+
+async function deleteFlixAccount() {
+  if (!confirm('Delete the flix account? You will need to re-login via OTP after.')) return;
+  try {
+    await api('/upload/api/account', {method:'DELETE'});
+    toast('Flix account deleted');
+    _updateFlixAcctCard(null);
+    document.getElementById('stat-msisdn').textContent = '—';
+    loadAccountsList();
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function loadAccountsList() {
+  const listEl = document.getElementById('accounts-list');
+  if (!listEl) return;
+  try {
+    const [r, kaR] = await Promise.all([
+      api('/upload/api/all-accounts'),
+      api('/api/keepalive/status').catch(() => null)
+    ]);
+    if (!r.ok || !r.accounts) { listEl.innerHTML = '<div class="muted">No accounts found</div>'; return; }
+    const accounts = r.accounts;
+    if (accounts.length === 0) { listEl.innerHTML = '<div class="muted">No accounts</div>'; return; }
+    const kaAccounts = (kaR && kaR.accounts) ? kaR.accounts : {};
+
+    listEl.innerHTML = accounts.map(a => {
+      const roleLabel = a.role === 'flix' ? '⬆ Upload (Flix)' : '🔍 Scan (Indexer)';
+      const ka = kaAccounts[String(a.id)];
+      let statusBadge, rowBg, rowOpacity;
+      if (ka) {
+        if (ka.status === 'ok') {
+          statusBadge = '<span class="badge b-ok" style="font-size:10px">✔ Session live</span>';
+          rowBg = 'var(--panel)'; rowOpacity = 1;
+        } else if (ka.status === 'dead') {
+          statusBadge = '<span class="badge b-err" style="font-size:10px">✗ Session dead</span>';
+          rowBg = 'transparent'; rowOpacity = 0.7;
+        } else {
+          const fails = ka.consecutive_failures || 0;
+          statusBadge = fails > 0
+            ? `<span class="badge b-warn" style="font-size:10px">⚠ ${fails} keepalive fail${fails>1?'s':''}</span>`
+            : '<span class="badge b-warn" style="font-size:10px">⏳ Checking…</span>';
+          rowBg = 'var(--panel)'; rowOpacity = 0.85;
+        }
+      } else {
+        const hasSession = a.is_active && (a.validation_key || a.jsessionid || a.token_expires_at);
+        statusBadge = hasSession
+          ? '<span class="badge b-ok" style="font-size:10px">✔ Linked</span>'
+          : '<span class="badge b-err" style="font-size:10px">Needs login</span>';
+        rowBg = hasSession ? 'var(--panel)' : 'transparent';
+        rowOpacity = hasSession ? 1 : 0.65;
+      }
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:${rowBg};opacity:${rowOpacity}">
+          <div style="flex:1">
+            <div style="font-family:monospace;font-weight:700;font-size:1rem">${a.msisdn || a.label || '—'}</div>
+            <div style="font-size:11px;color:var(--muted)">${roleLabel} &nbsp;${statusBadge}&nbsp;· id ${a.id}</div>
+          </div>
+          <button class="danger" style="font-size:11px;padding:4px 10px" onclick="deleteAccountById(${a.id}, '${a.msisdn}')">Delete</button>
+        </div>`;
+    }).join('');
+  } catch(e) { listEl.innerHTML = '<div class="muted">Could not load accounts</div>'; }
+}
+
+async function deleteAccountById(id, msisdn) {
+  if (!confirm('Delete account ' + (msisdn || id) + '?')) return;
+  try {
+    await api('/scan/api/accounts/' + id, {method:'DELETE'});
+    toast('Account deleted');
+    loadAccountsList();
+    loadStatus();
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+/* ── modal ── */
+function showOtpModal() {
+  document.getElementById('otp-modal-overlay').style.display = 'flex';
+  document.getElementById('modal-msg').textContent = '';
+  document.getElementById('modal-replace-row').style.display = 'none';
+  document.getElementById('modal-otp-row').style.display = 'none';
+  document.getElementById('modal-otp').value = '';
+  const sapiRow = document.getElementById('modal-sapi-row');
+  if (sapiRow) sapiRow.style.display = 'none';
+  const sapiJson = document.getElementById('modal-sapi-json');
+  if (sapiJson) sapiJson.value = '';
+  window._modalSapiMsisdn = null;
+  window._modalSapiAccountId = null;
+  window._modalSapiUrl = null;
+}
+function closeOtpModal() { document.getElementById('otp-modal-overlay').style.display = 'none'; }
+
+async function modalDeleteFlixAndRetry() {
+  const msg = document.getElementById('modal-msg');
+  try {
+    msg.textContent = 'Removing existing account…';
+    document.getElementById('modal-replace-row').style.display = 'none';
+    await api('/upload/api/account', {method:'DELETE'});
+    msg.textContent = '';
+    await modalSendOtp();
+  } catch(e) {
+    msg.textContent = 'Error removing account: ' + e.message;
+  }
+}
+
+async function modalSendOtp() {
+  const m = document.getElementById('modal-msisdn').value.trim();
+  if (!m) return;
+  const btn = document.getElementById('modal-btn-send');
+  const msg = document.getElementById('modal-msg');
+  const replRow = document.getElementById('modal-replace-row');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  msg.textContent = 'Requesting OTP...';
+  replRow.style.display = 'none';
+  try {
+    const r = await api('/upload/api/login/otp', {method:'POST', body:{msisdn:m}});
+    btn.disabled = false; btn.textContent = 'Send OTP';
+    if (r.ok) {
+      document.getElementById('modal-otp-row').style.display = 'flex';
+      msg.innerHTML = '<span style="color:var(--ok)">✔ OTP has been sent. Check your SMS.</span>';
+      document.getElementById('modal-otp').focus();
+    } else {
+      msg.textContent = 'Error: ' + (r.error || 'Failed to send OTP');
+    }
+  } catch(e) { 
+    btn.disabled = false; btn.textContent = 'Send OTP';
+    msg.textContent = 'Error: ' + e.message;
+    if (e.message && e.message.includes('already exists')) {
+      replRow.style.display = 'block';
+    }
+  }
+}
+async function modalResendOtp() {
+  const m = document.getElementById('modal-msisdn').value.trim();
+  if (!m) return;
+  const msg = document.getElementById('modal-msg');
+  msg.textContent = 'Resending…';
+  try {
+    const r = await api('/upload/api/login/resend', {method:'POST', body:{msisdn:m}});
+    msg.textContent = r.ok ? '✔ OTP resent.' : 'Resend failed: ' + (r.error || 'unknown');
+  } catch(e) { msg.textContent = 'Error: ' + e.message; }
+}
+
+async function modalVerifyOtp() {
+  const m = document.getElementById('modal-msisdn').value.trim();
+  const o = document.getElementById('modal-otp').value.trim();
+  const btn = document.getElementById('modal-btn-verify');
+  const msg = document.getElementById('modal-msg');
+  if (!o) { msg.textContent = 'Enter OTP code'; return; }
+  
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  msg.textContent = 'Verifying code...';
+  try {
+    const r = await api('/upload/api/login/verify', {method:'POST', body:{msisdn:m, otp:o}});
+    if (r.ok) {
+      msg.innerHTML = '<span style="color:var(--ok)">✔ Login successful! Reloading...</span>';
+      toast('✔ JazzDrive connected');
+      setTimeout(() => {
+        closeOtpModal();
+        location.reload();
+      }, 1000);
+    } else if (r.needs_paste_cookies) {
+      btn.disabled = false; btn.textContent = 'Verify & Connect';
+      msg.innerHTML = '<span style="color:var(--ok,#22c55e)">✔ OTP accepted — activate below</span>';
+      document.getElementById('modal-otp-row').style.display = 'none';
+      const sapiRow = document.getElementById('modal-sapi-row');
+      sapiRow.style.display = 'flex';
+      window._modalSapiMsisdn = m;
+      window._modalSapiAccountId = r.account_id || null;
+      modalFetchSapiLink(m, r.account_id);
+      /* Also flag the Settings tab card so it's ready if user closes modal */
+      _showUploadPasteCookiesNeeded(r.msisdn || m, r.error || 'OTP accepted — activate from Jazz phone to complete login.', r.account_id || null);
+    } else {
+      btn.disabled = false; btn.textContent = 'Verify & Connect';
+      msg.textContent = 'Error: ' + (r.error || 'Verification failed');
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Verify & Connect';
+    msg.textContent = 'Error: ' + e.message;
+  }
+}
+
+/* ── SAPI phone-activation helpers ── */
+async function modalFetchSapiLink(msisdn, accountId) {
+  const link    = document.getElementById('modal-sapi-link');
+  const copyBtn = document.getElementById('modal-sapi-copy-btn');
+  const sapiMsg = document.getElementById('modal-sapi-msg');
+  link.textContent   = 'Generating link…';
+  link.style.pointerEvents = 'none';
+  link.style.opacity = '.5';
+  copyBtn.style.display = 'none';
+  try {
+    const body = accountId ? {account_id: accountId} : {msisdn};
+    const r = await api('/upload/api/sapi-activate-url', {method:'POST', body});
+    if (r.ok && r.sapi_url) {
+      link.href = r.sapi_url;
+      link.textContent = 'Tap here to open on your Jazz phone →';
+      link.style.pointerEvents = '';
+      link.style.opacity = '1';
+      copyBtn.style.display = '';
+      window._modalSapiUrl = r.sapi_url;
+      sapiMsg.textContent = '';
+    } else {
+      sapiMsg.textContent = 'Could not generate link: ' + (r.error || 'unknown');
+    }
+  } catch(e) {
+    sapiMsg.textContent = 'Error: ' + e.message;
+  }
+}
+
+function modalRefreshSapiLink() {
+  modalFetchSapiLink(window._modalSapiMsisdn, window._modalSapiAccountId);
+}
+
+function modalCopySapiLink() {
+  const url = window._modalSapiUrl || document.getElementById('modal-sapi-link').href;
+  if (!url || url === '#') return;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.getElementById('modal-sapi-copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  });
+}
+
+function modalAutoSaveJson(val) {
+  const btn    = document.getElementById('modal-sapi-save-btn');
+  const msgEl  = document.getElementById('modal-sapi-parse-msg');
+  val = val.trim();
+  if (!val) {
+    btn.disabled = true;
+    if (msgEl) msgEl.textContent = '';
+    return;
+  }
+  if (!val.startsWith('{')) {
+    btn.disabled = true;
+    if (msgEl) { msgEl.textContent = '✗ Paste the full JSON response (starts with {)'; msgEl.style.color = 'var(--err,#f44)'; }
+    return;
+  }
+  let vk = '', jid = '', filled = 0;
+  try {
+    const d = JSON.parse(val);
+    const data = (d && d.data) ? d.data : d;
+    vk  = data.validationkey  || data.validation_key  || '';
+    jid = data.jsessionid     || data.JSESSIONID       || '';
+    if (vk)  filled++;
+    if (jid) filled++;
+  } catch(e) {
+    btn.disabled = true;
+    if (msgEl) { msgEl.textContent = '✗ Invalid JSON — ' + e.message; msgEl.style.color = 'var(--err,#f44)'; }
+    return;
+  }
+  btn.disabled = filled < 2;
+  if (msgEl) {
+    if (filled === 2) {
+      msgEl.textContent = '✔ validationkey + jsessionid found — click Save & Connect';
+      msgEl.style.color = 'var(--ok,#22c55e)';
+    } else if (filled === 1) {
+      msgEl.textContent = '⚠ Only ' + (vk ? 'validationkey' : 'jsessionid') + ' found — check the JSON';
+      msgEl.style.color = 'var(--warn,#f90)';
+    } else {
+      msgEl.textContent = '✗ Could not find validationkey or jsessionid';
+      msgEl.style.color = 'var(--err,#f44)';
+    }
+  }
+}
+
+async function modalSaveFromJson() {
+  const jsonStr = (document.getElementById('modal-sapi-json').value || '').trim();
+  const sapiMsg = document.getElementById('modal-sapi-msg');
+  const btn     = document.getElementById('modal-sapi-save-btn');
+  const msisdn  = window._modalSapiMsisdn || document.getElementById('modal-msisdn').value.trim();
+  let vk = '', jid = '';
+  try {
+    const d = JSON.parse(jsonStr);
+    const data = (d && d.data) ? d.data : d;
+    vk  = data.validationkey  || data.validation_key  || data.ValidationKey  || '';
+    jid = data.jsessionid     || data.JSESSIONID       || '';
+  } catch(e) {
+    sapiMsg.innerHTML = '<span style="color:var(--err,#f44)">Invalid JSON — ' + e.message + '</span>';
+    return;
+  }
+  if (!vk || !jid) {
+    sapiMsg.innerHTML = '<span style="color:var(--err,#f44)">Missing validationkey or jsessionid in JSON</span>';
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  sapiMsg.textContent = '';
+  try {
+    const r = await api('/upload/api/jazzdrive/tokens', {method:'POST', body:{msisdn, validation_key: vk, jsessionid: jid}});
+    if (r.ok) {
+      sapiMsg.innerHTML = '<span style="color:var(--ok,#22c55e)">✔ Session active! Reloading…</span>';
+      toast('✔ JazzDrive session activated');
+      setTimeout(() => { closeOtpModal(); location.reload(); }, 1200);
+    } else {
+      btn.disabled = false; btn.textContent = 'Save & Connect';
+      sapiMsg.innerHTML = '<span style="color:var(--err,#f44)">Save failed: ' + (r.error || 'unknown') + '</span>';
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Save & Connect';
+    sapiMsg.innerHTML = '<span style="color:var(--err,#f44)">Error: ' + e.message + '</span>';
+  }
+}
+
+
+/* ── boot ── */
+startAutoRefresh();
+</script>{% endblock %}

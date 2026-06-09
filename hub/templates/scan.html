@@ -12,14 +12,16 @@
 </style>
 
 {% if not scan_enabled %}
-<div style="display:flex;align-items:center;gap:10px;background:rgba(244,67,54,.1);border:1px solid rgba(244,67,54,.4);border-radius:8px;padding:10px 16px;margin-bottom:14px;flex-wrap:wrap">
+<div id="scan-paused-banner" style="display:flex;align-items:center;gap:10px;background:rgba(244,67,54,.1);border:1px solid rgba(244,67,54,.4);border-radius:8px;padding:10px 16px;margin-bottom:14px;flex-wrap:wrap">
   <span style="font-size:18px">⏸</span>
   <div style="flex:1">
     <strong style="color:var(--err,#f44336)">Scan service is paused</strong>
     <span class="muted" style="font-size:13px;margin-left:8px">No heartbeat requests are being sent to JazzDrive. Scan buttons are disabled.</span>
   </div>
-  <a href="/settings" style="font-size:13px;color:var(--accent);text-decoration:none;white-space:nowrap">Enable in Settings →</a>
+  <button id="scan-toggle-btn" onclick="toggleScanService()" style="font-size:13px;min-width:90px;background:rgba(34,197,94,.15);border:1px solid #22c55e;color:#22c55e;border-radius:6px;padding:5px 12px;cursor:pointer">▶ Enable</button>
 </div>
+{% else %}
+<div id="scan-paused-banner" style="display:none"></div>
 {% endif %}
 
 <div class="h-row" style="margin-bottom:12px">
@@ -29,7 +31,8 @@
   </div>
   <div style="display:flex; gap:8px">
     <button class="ghost" onclick="showProxyModal()">Proxy Settings</button>
-    <button class="ghost" id="btn-scan-all" onclick="scanAll()" {% if not scan_enabled %}disabled title="Scan is paused — enable in Settings"{% endif %}>⚡ Scan All</button>
+    <button class="ghost" id="btn-scan-all" onclick="scanAll()" {% if not scan_enabled %}disabled title="Scan is paused"{% endif %}>⚡ Scan All</button>
+    <button id="scan-page-svc-btn" onclick="toggleScanService()" style="min-width:90px;transition:background .2s;{% if scan_enabled %}background:rgba(34,197,94,.15);border-color:#22c55e;color:#22c55e{% else %}background:rgba(244,67,54,.15);border-color:#f44336;color:#f44336{% endif %}">{% if scan_enabled %}⏸ Pause{% else %}▶ Enable{% endif %}</button>
     <button onclick="toggleAddForm()" id="btn-add-acct">+ Add account</button>
   </div>
 </div>
@@ -400,6 +403,47 @@
   <div id="scan-log"></div>
 </div>
 
+
+<script>
+(function(){
+  async function _svcApi(body){
+    const r = await fetch('/settings/api/services', {
+      method: body ? 'POST' : 'GET',
+      headers: {'Content-Type':'application/json'},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    return r.json();
+  }
+  function _applyScan(enabled){
+    const banner = document.getElementById('scan-paused-banner');
+    const toggleBtn = document.getElementById('scan-toggle-btn');
+    const pageBtn   = document.getElementById('scan-page-svc-btn');
+    const scanAllBtn = document.getElementById('btn-scan-all');
+    if(banner)    banner.style.display = enabled ? 'none' : 'flex';
+    if(toggleBtn){ toggleBtn.textContent = '▶ Enable'; }
+    if(pageBtn){
+      pageBtn.textContent = enabled ? '⏸ Pause' : '▶ Enable';
+      pageBtn.style.background  = enabled ? 'rgba(34,197,94,.15)' : 'rgba(244,67,54,.15)';
+      pageBtn.style.borderColor = enabled ? '#22c55e' : '#f44336';
+      pageBtn.style.color       = enabled ? '#22c55e' : '#f44336';
+    }
+    if(scanAllBtn) scanAllBtn.disabled = !enabled;
+  }
+  window.toggleScanService = async function(){
+    const pageBtn = document.getElementById('scan-page-svc-btn');
+    const toggleBtn = document.getElementById('scan-toggle-btn');
+    try{
+      const cur = await _svcApi(null);
+      const newVal = !cur.scan_enabled;
+      const d = await _svcApi({ scan: newVal });
+      _applyScan(d.scan_enabled);
+      if(typeof toast === 'function') toast('Scan service ' + (d.scan_enabled ? 'enabled' : 'paused'));
+    }catch(e){
+      if(typeof toast === 'function') toast('Failed: ' + e.message);
+    }
+  };
+})();
+</script>
 {% endblock %}
 {% block scripts %}<script>
 let _wizAcctId = null;
