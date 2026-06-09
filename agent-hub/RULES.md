@@ -1,5 +1,5 @@
 # agent-hub/RULES.md — Non-Negotiable Agent Rules
-Last updated: 2026-06-08 (added Rules 32–38 — RemoteConfig, sync, delta, confirm/prompt, template paths)
+Last updated: 2026-06-09 (added Rules 32–38 — RemoteConfig, sync, confirm/prompt, template paths)
 
 ## Startup (every session, no exceptions)
 1. Set up SSH key from `ORACLE_SSH_KEY` env var (see AGENT_PROMPT.md Step 1)
@@ -113,27 +113,12 @@ Last updated: 2026-06-08 (added Rules 32–38 — RemoteConfig, sync, delta, con
       Has 4-second timeout. Hits Oracle `/api/config`.
     - Legacy `fetch()` shim exists for backwards compatibility — do not remove it.
 
-33. **`AppConstants.jazzDriveDeltaUrl` must remain a mutable `static String`** — NOT a getter.
-
----
 
 ## Sync Timeout Rules (TASK-042 — added 2026-06-08)
 34. **`connectTimeout` in `api_client.dart` must stay at 6 seconds or less.**
 35. **The `.timeout(Duration(seconds: 5))` on `CatalogApi.getVersion()` must stay.**
     File: `lib/core/db/sync_service.dart`. DO NOT remove.
 
----
-
-## Delta Folder Purge Rules (TASK-041 — added 2026-06-08)
-36. **Always purge the JazzDrive delta folder BEFORE uploading a new delta.json.**
-37. **`list_all_files_in_folder(account_id, folder_id)` in `jazzdrive.py` uses `/media/file?action=get`**
-    — this is the correct endpoint for `mediatype="file"` items (delta.json/.txt uploads).
-    `/media/video` returns ZERO results for non-video items — do NOT use it for file-type listing.
-    **`trash_files()` is a false-positive for BOTH `media_type="file"` AND `media_type="video"`**
-    — it returns success but does NOT actually remove the file. Confirmed on both types (TASK-049,
-    TASK-050). **Always use `delete_files_permanent(account_id, [ids])` for any file cleanup.**
-
----
 
 ---
 

@@ -362,10 +362,7 @@ re-synced → kept stale entries (e.g. Spider-Noir `id=28`, `file_id=31` which n
 
 ### Completed 2026-06-08 (TASK-048 → TASK-056)
 - TASK-048/050/051: JazzDrive duplicate upload guards (all paths)
-- TASK-049: Delta folder cleanup (26 orphaned files removed)
-- TASK-052: Delta pre-purge before upload
 - TASK-053/055/056: Data flow verification (all checks A–J passed)
-- TASK-054: TV show episodes missing from delta (zero_rating.py + jazzdrive_service.dart)
 
 ### Previously completed (2026-06-07)
 - Full proxy audit, BUG-A03a–e fixed, agent-hub docs created, GitHub synced

@@ -1781,3 +1781,28 @@ Also updated `_generateLink` to pass `session.validationKey` to `_buildStreamUrl
 - Oracle: catalog data only
 - Flutter: client-side stream link generation via jazzdrive_service.dart (unchanged)
 - No JazzDrive uploads from Oracle
+
+---
+
+## Session 2026-06-09 — TASK-063: Complete Delta Logic Purge
+
+**Goal:** Erase all delta sync logic from Oracle Python server, GitHub docs, and anywhere it exists — as if it never existed.
+
+**Oracle Python changes (SSH-patched directly, then pushed to GitHub):**
+- `hub/routes/zero_rating.py` — full rewrite (~769→~280 lines); removed generate_delta_payload(), _get_delta_info(), all delta routes (/generate-delta, /upload-delta, /download-delta, /purge-delta-folder, /set-delta-url), all delta HTML tiles/cards/flow steps; kept db_update.json export + free/paid titles
+- `hub/routes/delta_push.py` — deleted from server and GitHub
+- `hub/app.py` — removed delta_push blueprint import + registration
+- `hub/routes/catalog_api.py` — removed /delta route, jd_delta_url from ALLOWED set, delta docstring refs
+- `hub/routes/api.py` — removed jd_delta_url from config response
+- `hub/routes/mobile_api.py` — removed jd_delta_url from all config responses
+- `hub/organizer.py` — removed 'radd-delta' from _SKIP_FOLDERS
+- `hub/jazzdrive.py` — removed upload_json_to_jazzdrive() function (~180 lines); fixed comment
+
+**Oracle DB cleanup:** Deleted all delta-related settings (jd_delta_url, jd_delta_folder_id, jd_delta_remote_id, delta_auto_enabled, delta_auto_interval_h). Deleted delta.json file.
+
+**GitHub docs cleanup:**
+- `agent-hub/RULES.md` — removed Rule 33 (jazzDriveDeltaUrl), removed Delta Folder Purge Rules section (36-37), updated header
+- `AGENT_HANDOFF.md` — removed 3 delta task history lines (TASK-049, TASK-052, TASK-054)
+- `agent-hub/TASKS.md` — added TASK-063 ✅ DONE
+
+**Final verification:** `grep -r delta hub/ --include='*.py'` returns zero hits (excluding unrelated `timedelta` stdlib and `scheduler.py` math variable). Flask: `{"ok":true,"version":"3.0.0"}`.

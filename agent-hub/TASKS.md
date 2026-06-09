@@ -14,6 +14,7 @@ This file is the handoff bridge — the next agent reads this first.
 
 | ID | Task | Status | Date | Notes |
 |----|------|--------|------|-------|
+| TASK-063 | CLEANUP: Remove all delta logic from Oracle server + GitHub docs (zero_rating.py, delta_push.py, jazzdrive.py, app.py, catalog_api.py, api.py, mobile_api.py, organizer.py) | ✅ DONE | 2026-06-09 | All delta routes, functions, DB settings, delta.json, and docs references purged. Flask v3.0.0 confirmed healthy. |
 | TASK-061 | BUG-JD-VK: validationkey missing from final CDN URL in jazzdrive_service.dart — playback always fails | ✅ DONE | 2026-06-09 | _buildStreamUrl now appends validationkey (confirmed by Node.js ref script). Previous "DO NOT add" comment was WRONG. |
 | TASK-060 | Flutter Dart JazzDrive audit + test file fixes + JAZZDRIVE_FLUTTER_AUDIT.md | ✅ DONE | 2026-06-09 | 3 bugs fixed in test file; logic in service/download/player/db all correct; OTP re-login needed for session |
 | TASK-059 | Fix BUG-DL-PATH-B + BUG-DL-RF1: download_service wrong episode + RF1 scrambled URL in download | ✅ DONE | 2026-06-09 | Path B: getShareUrl→getShareInfo (adds filename+remote_id). Path A: decode RF1:xxx before JazzDrive. Commit 1cbec5a |

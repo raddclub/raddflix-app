@@ -5,10 +5,9 @@ Registered in app.py at /api/catalog prefix.
 Endpoints:
   GET  /api/catalog/version              current version + count
   GET  /api/catalog/db_update/version    lightweight version check
-  GET  /api/catalog/sync                 full or delta catalog (JSON)
+  GET  /api/catalog/sync                 full catalog sync (JSON)
   GET  /api/catalog/posters              poster URLs for pre-caching
   GET  /api/catalog/db_update            zero-rated db_update.json
-  GET  /api/catalog/delta                Oracle fallback for JazzDrive delta sync
   GET  /api/catalog/share_url            single-file share URL lookup
   POST /api/catalog/share_url/batch      batch share URL lookup (up to 50 file_ids)
   GET  /api/catalog/share_url/batch      same via ?ids=1,2,3 query param
@@ -411,16 +410,6 @@ def _do_play(file_id: int):
     Called by both /api/catalog/play and /watch/api/play/<file_id> (BUG-A35).
     Returns a Flask Response."""
     try:
-        cached = db.get_stream_link(file_id)
-        if cached:
-            return jsonify({
-                "ok":        True,
-                "file_id":   file_id,
-                "direct_url": cached["download_url"],
-                "expires_at": cached["expires_at"],
-                "cached":    True,
-            })
-
         with db.conn() as c:
             row = c.execute(
                 "SELECT f.id, f.filename, f.share_url, f.account_id, "
@@ -432,20 +421,10 @@ def _do_play(file_id: int):
 
         if not row:
             return jsonify({"error": "file not found"}), 404
-        if not row["share_url"]:
+
+        share_url = row["share_url"] or ""
+        if not share_url:
             return jsonify({"error": "no share_url for this file"}), 404
-
-        from hub import jazzdrive
-        _remote_id = int(row["remote_id"]) if row["remote_id"] else 0
-        res = jazzdrive.generate_direct_link(row["share_url"], row["filename"], remote_id=_remote_id)
-        if not res.get("ok"):
-            return jsonify({"error": res.get("error") or "failed to generate link"}), 502
-
-        direct_url = res["direct_link"]
-        expires_in = 28800
-        db.save_stream_link(file_id, direct_url,
-                            expires_in=expires_in,
-                            account_id=row["account_id"])
 
         label = None
         s = row["season"]
@@ -453,15 +432,15 @@ def _do_play(file_id: int):
         if s and e:
             label = "S{:02d}E{:02d}".format(s or 0, e or 0)
 
+        # Stream links are generated on the Flutter client side.
+        # Oracle returns the share_url so the app can call JazzDrive directly.
         return jsonify({
-            "ok":         True,
-            "file_id":    file_id,
-            "direct_url": direct_url,
-            "expires_at": int(time.time()) + expires_in,
-            "cached":     False,
-            "title":      row["title"],
-            "label":      label,
-            "size_bytes": res.get("size_bytes"),
+            "ok":       True,
+            "file_id":  file_id,
+            "share_url": share_url,
+            "filename":  row["filename"] or "",
+            "title":     row["title"],
+            "label":     label,
         })
     except Exception:
         log.exception("Error in play for file_id=%s", file_id)
@@ -595,98 +574,6 @@ def db_update(_user_id=None, _phone=None):
     return response
 
 
-@bp.route("/delta")
-@_catalog_require_auth
-def delta(_user_id=None, _phone=None):
-    """GET /api/catalog/delta — Oracle fallback for Flutter SyncService._syncFromJazzDriveDelta().
-
-    IMPORTANT: episodes are nested INSIDE each title object (not a flat top-level array).
-    Flutter reads row['episodes'] from each title — a flat array is silently ignored.
-    """
-    now = int(time.time())
-
-    with db.conn() as c:
-        title_rows = c.execute(
-            "SELECT t.id, t.title, t.year, t.media_type, t.plot, "
-            "       t.rating, t.genres, t.language, t.is_free, t.updated_at, "
-            "       t.poster, t.poster_share_url, t.folder_share_url, "
-            "       f.id AS file_id, f.share_url AS file_share_url, f.quality "
-            "FROM titles t "
-            "LEFT JOIN files f ON f.id = ("
-            "  SELECT id FROM files WHERE title_id = t.id "
-            "  AND (season IS NULL OR season = 0 OR season = '') ORDER BY id ASC LIMIT 1) "
-"WHERE t.is_published = 1 "
-            "ORDER BY t.id"
-        ).fetchall()
-
-    title_ids = [r["id"] for r in title_rows]
-
-    # Fetch all episodes and group by title_id (nested, not flat)
-    eps_by_title: dict = {}
-    if title_ids:
-        placeholders = ",".join("?" * len(title_ids))
-        with db.conn() as c:
-            ep_rows = c.execute(
-                "SELECT id, title_id, filename, season, episode, share_url, quality, remote_id "
-                "FROM files WHERE title_id IN (" + placeholders + ") "
-                "AND season IS NOT NULL AND season > 0 "
-                "ORDER BY title_id, season, episode",
-                title_ids
-            ).fetchall()
-        for r in ep_rows:
-            eps_by_title.setdefault(r["title_id"], []).append({
-                "id":        r["id"],
-                "file_id":   str(r["id"]),
-                "season":    r["season"],
-                "episode":   r["episode"],
-                "label":     "S{:02d}E{:02d}".format(r["season"] or 0, r["episode"] or 0),
-                "quality":   r["quality"] or None,
-                "is_free":   0,
-                "share_url": r["share_url"] or "",
-                "filename":  r["filename"] or "",
-                "remote_id": int(r["remote_id"] or 0),
-            })
-
-    titles_out = []
-    for r in title_rows:
-        tid = r["id"]
-        mt_raw = (r["media_type"] or "movie").lower().strip()
-        media_type = "show" if mt_raw in ("tv", "series", "show", "tvshow") else "movie"
-        genres = []
-        try:
-            genres = json.loads(r["genres"] or "[]")
-            if not isinstance(genres, list):
-                genres = [str(genres)]
-        except Exception:
-            pass
-        psu = r["poster_share_url"] or ""
-        titles_out.append({
-            "id":               tid,
-            "title":            r["title"] or "",
-            "year":             (int(r["year"]) if r["year"] and str(r["year"]).isdigit() else None),
-            "media_type":       media_type,
-            "description":      r["plot"] or "",
-            "rating":           r["rating"],
-            "genres":           json.dumps(genres),
-            "language":         r["language"] or "",
-            "is_free":          1 if r["is_free"] else 0,
-            "poster_url":       r["poster"] or "",
-            "poster_jd_url":    _poster_jd_url(tid, psu),
-            "poster_share_url": psu,
-            "folder_share_url": r["folder_share_url"] or "",
-            "db_version":       int(r["updated_at"] or 0),
-            "file_id":          str(r["file_id"]) if r["file_id"] is not None else None,
-            "share_url":        r["file_share_url"] or "",
-            "episodes":         eps_by_title.get(tid, []),   # nested — Flutter reads row['episodes']
-        })
-
-    catalog_version = _catalog_version() or now
-    return jsonify({
-        "version":      catalog_version,
-        "generated_at": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "title_count":  len(titles_out),
-        "titles":       titles_out,
-    })
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -963,7 +850,6 @@ def admin_set_setting():
 
     ALLOWED keys (whitelist — prevents arbitrary key injection):
       api_base_url              — returned to app via /api/app/config
-      jd_delta_url              — JazzDrive zero-rated delta.json share URL
       SUPPORT_WHATSAPP_NUMBER   — WhatsApp support number shown in app
       app_current_version       — current APK version string
       app_update_url            — Play Store / APK download URL
@@ -986,7 +872,7 @@ def admin_set_setting():
     value = (data.get("value") or "").strip()
 
     ALLOWED = {
-        "api_base_url", "jd_delta_url", "SUPPORT_WHATSAPP_NUMBER",
+        "api_base_url", "SUPPORT_WHATSAPP_NUMBER",
         "app_current_version", "app_update_url", "app_update_message",
         "app_min_version_code", "WATCH_SERVER_EXTERNAL_URL",
         "ff_maintenance_mode", "ff_maintenance_message",
