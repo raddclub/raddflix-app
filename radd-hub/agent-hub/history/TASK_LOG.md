@@ -3,6 +3,32 @@
 
 ---
 
+## Session 2026-06-09 — Server patch: valid_title_ids + force-version-bump (BUG-STALE-IDS)
+
+### Problem
+Oracle DB was rebuilt with new title IDs. Flutter cached `localVersion = 1781003205` → skipped
+sync → stale entries caused "Jazz SIM Required" on Spider-Noir, no play on Animal/Interstellar.
+
+### Changes
+- `hub/routes/catalog_api.py`: Added `valid_title_ids` list to `/api/catalog/sync` response
+  so Flutter can prune title IDs that no longer exist in Oracle.
+- `catalog_forced_version` bumped to `1781003205` via `POST /api/catalog/force-version-bump`
+  → all Flutter clients trigger a full re-sync on next app open.
+- Service restarted via `sudo supervisorctl restart raddflix_radd`.
+
+### Verification
+```
+GET /api/catalog/version → {"count":17,"forced_ts":1781003205,"version":1781003205}
+GET /api/catalog/sync    → valid_title_ids:[1,2,3,4,5,6,7,8,9,12,13,15,16,17,18,19,20]
+Spider-Noir id=18: episodes file_id=37 (S1E1), file_id=36 (S1E2)
+Interstellar id=1 file_id=2, Animal id=3 file_id=5
+```
+
+### Encryption audit — all correct
+Reviewed `hub/request_encoding.py` and `hub/app.py` XOR hooks.
+Key derivation, candidate keys (±1h), padding, device_id lookup — all correct.
+
+
 ## Session 2026-06-04 — All Critical Bugs Fixed (imported from earlier)
 
 See BUG_TRACKER.md for the complete bug table.
