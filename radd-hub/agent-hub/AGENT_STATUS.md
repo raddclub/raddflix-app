@@ -1,6 +1,6 @@
 # AGENT_STATUS.md
 > Current project status for agent coordination.
-> Last updated: 2026-06-08
+> Last updated: 2026-06-09
 
 ---
 
@@ -122,3 +122,7 @@ OTP verify                 | Pakistani SOCKS proxy| YES ⚠️
 
 PROXY_BYPASS=1 skips proxies in resolve_proxies() for all callers.
 _s2_chain bypasses resolve_proxies() and reads pool directly — PK proxy always used for login.
+
+
+## 2026-06-09 — BUG-STALE-IDS
+Server: force-bump + valid_title_ids. Flutter: pruneStaleIds (build1035 needed). Crypto audit: all pass.
