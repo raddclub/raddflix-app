@@ -391,3 +391,37 @@ re-synced → kept stale entries (e.g. Spider-Noir `id=28`, `file_id=31` which n
   - Full network test on Jazz SIM: `node jazzdrive_logic_test.js --live <shareUrl> [target]`
 
 See `.agents/tasks/BUG_TRACKER.md` for full bug table.
+
+
+## Session 2026-06-09 (2nd) — JD File ID Audit: VERIFIED CORRECT
+
+### Question Investigated
+How does JazzDrive identify files (for delete, rename, play)? Is there a permanent ID?
+Are we using the correct ID throughout the Flutter → Oracle → JazzDrive chain?
+
+### Answer: YES — system uses `remote_id` correctly everywhere
+
+**JD permanent file ID = `remote_id`** (called `id` in JD SAPI responses, e.g. `242518443`)
+- Assigned at upload, **never changes** — survives renames and folder moves
+- Oracle uses it in `rename_video()` and `delete_files_permanent()` ✅
+
+**Full verified chain (all PASS):**
+
+| Layer | Component | Status |
+|-------|-----------|--------|
+| Oracle DB | `files.remote_id` stores JD permanent file ID | ✅ |
+| Oracle API | `/api/catalog/sync` returns `remote_id` per episode | ✅ |
+| Flutter sync | `_persistItems()` writes `remote_id` to SQLite episodes table | ✅ |
+| Flutter DB | `episodes.remote_id INTEGER` column exists (via ALTER TABLE) | ✅ |
+| Flutter DB | `getShareInfo()` reads and returns `remote_id` | ✅ |
+| Flutter player | `remoteId = shareInfo['remote_id']` → passed to `getStreamLink` | ✅ |
+| Flutter JD service | Pass 0 in `_getMedia()`: `m['id'] == remoteId` → exact file match | ✅ |
+
+**Folder share pattern (Spider-Noir, Vincenzo):**
+Both episodes of a show share the same folder share URL. JD returns both files in the
+SAPI media response. Pass 0 uses `remote_id` to pick the correct one:
+- Spider-Noir S01E01: remote_id=242518443 → `m['id']==242518443` → S01E01 ✅
+- Spider-Noir S01E02: remote_id=242518530 → `m['id']==242518530` → S01E02 ✅
+- Cache keys are separate ("37" vs "36") → each episode gets its own CDN URL ✅
+
+### No code changes needed. System was already correct.
