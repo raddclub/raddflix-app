@@ -51,11 +51,17 @@ class DownloadService {
     await _checkDownloadQuota();
 
     String resolvedUrl = streamUrl;
+
+    // Path A: shareUrl passed in from caller (may be RF1:xxx scrambled from
+    // CatalogItem.shareUrl — decode it before handing to JazzDriveService).
+    // FIX-BUG2: CatalogItem.shareUrl carries raw RF1:xxx from _rowToItem;
+    // _extractShareKey regex fails on scrambled URLs → decode first.
     if (shareUrl != null && shareUrl.isNotEmpty) {
+      final decodedShareUrl = await LocalDb.decodeShareUrl(shareUrl) ?? shareUrl;
       try {
         final link = await JazzDriveService.getStreamLink(
           fileId,
-          shareUrl,
+          decodedShareUrl,
           targetFilename: targetFilename,
           remoteId: remoteId,
         );
@@ -65,14 +71,24 @@ class DownloadService {
         DebugLogger.logWarn('DOWNLOAD', 'JazzDrive link failed, using provided URL: $e');
       }
     } else {
-      final dbShareUrl = await LocalDb.getShareUrl(fileId);
+      // Path B: no shareUrl passed — look up in SQLite.
+      // FIX-BUG1: was using getShareUrl() which only returns the URL string,
+      // losing filename and remote_id. For folder-share TV episodes this caused
+      // getStreamLink to skip Pass 0 (remote_id) and Passes 1-3 (filename),
+      // always falling back to records.first — downloading the wrong episode.
+      // Fix: use getShareInfo() which returns all three fields in one query.
+      final shareInfo      = await LocalDb.getShareInfo(fileId);
+      final dbShareUrl     = shareInfo['share_url'] as String?;
+      final dbFilename     = shareInfo['filename']  as String?;
+      final dbRemoteId     = shareInfo['remote_id'] as int? ?? 0;
+
       if (dbShareUrl != null && dbShareUrl.isNotEmpty) {
         try {
           final link = await JazzDriveService.getStreamLink(
             fileId,
             dbShareUrl,
-            targetFilename: targetFilename,
-            remoteId: remoteId,
+            targetFilename: dbFilename ?? targetFilename,
+            remoteId: dbRemoteId > 0 ? dbRemoteId : remoteId,
           );
           resolvedUrl = link.streamUrl;
           DebugLogger.log('DOWNLOAD', 'Using DB JazzDrive URL for $fileId');
