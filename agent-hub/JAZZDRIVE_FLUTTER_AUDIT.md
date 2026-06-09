@@ -1,8 +1,7 @@
 # JazzDrive Flutter Logic — Verified Architecture & Audit Results
 
-**Last updated:** 2026-06-09  
-**Audited by:** Replit Agent  
-**Status:** ✅ Core logic correct | ⚠️ 3 bugs fixed in test file | 🔧 1 cosmetic fix in service
+**Last updated:** 2026-06-09 (5th session — CRITICAL BUG FIX)
+**Status:** ✅ All logic correct and verified against working Node.js reference script
 
 ---
 
@@ -12,7 +11,7 @@ This document answers the question every new agent asks:
 > *"Is the JazzDrive share URL flow geo-blocked? Does it need a login or OTP?  
 > Does the Flutter Dart code correctly replicate what Node.js proved works?"*
 
-**Short answer:** No geo-block. No OTP. The Flutter logic is correct.  
+**Short answer:** No geo-block. No OTP. The Flutter logic is now correct.  
 If share URLs return MED-1011, it's the Oracle SAPI session, not geo-blocking.
 
 ---
@@ -23,217 +22,148 @@ If share URLs return MED-1011, it's the Oracle SAPI session, not geo-blocking.
 
 JazzDrive share URLs (`https://cloud.jazzdrive.com.pk/share/f/<shareKey>`) are:
 - ✅ **Accessible from anywhere in the world** — no geo-restriction
-- ✅ **No Jazz SIM required** to resolve share keys  
+- ✅ **No Jazz SIM required** to resolve share keys
 - ✅ **No OTP, no account login** for the share login step
-- ✅ **Permanent** — share URLs never expire once created (by design)
-- ⚠️ **MED-1011 "Key is invalid"** does NOT mean geo-blocked — it means the share was deleted, or the Oracle JazzDrive SAPI session has expired (see below)
+- ✅ **Permanent** — share URLs never expire once created
+- ⚠️ **MED-1011** does NOT mean geo-blocked — it means share deleted, or Oracle SAPI session expired
 
-**Node.js test confirmed (2026-06-07):** All share URLs resolved to CDN stream links from a non-Jazz, non-Pakistan server. Zero-rating is irrelevant for URL resolution — it only matters for data billing on Jazz SIM.
-
-### The 2-Call Flow (Dart mirrors this exactly)
+### The 3-Step Flow (Dart mirrors this exactly — verified vs working Node.js script)
 
 ```
-App → POST /sapi/link/login?action=login   {data: {accesstoken: <shareKey>}}
-    ← {validationKey: "...", jsessionid: "..."}  (+ Set-Cookie JSESSIONID)
+Step 1: POST /sapi/link/login?action=login
+  Body:    { data: { accesstoken: <shareKey> } }
+  Headers: Content-Type: application/json;charset=UTF-8
+           User-Agent: Android Chrome
+           X-Requested-With: com.jazz.drive
+           Referer: https://cloud.jazzdrive.com.pk/share/f/<shareKey>
+  Returns: { data: { validationkey: "...", jsessionid: "..." } }
 
-App → GET  /sapi/media/video?action=get&shared=true&key=<shareKey>&validationkey=<vk>
-         Cookie: JSESSIONID=<jsid>  |  validation_key: <vk>  (both headers)
-    ← {data: {list: [{id, name, url, thumbnails}]}}
+Step 2: GET /sapi/media/video?action=get&shared=true&key=<shareKey>&validationkey=<vk>
+  Headers: validation_key: <vk>
+           Cookie: JSESSIONID=<jsid>
+  Returns: { data: { list: [{ id, name, url, thumbnails }] } }
 
-App → Build CDN URL:  rawUrl (absolute or prepend cloudBase) + ?filename=<name>
-      DO NOT append validationkey — the k= token in rawUrl is self-signing
+Step 3: Build final CDN URL:
+  <rawUrl>?validationkey=<vk>&filename=<encoded_filename>
+  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  REQUIRED — CDN authenticates every request with validationkey.
+  Without it the server returns 401/403 and playback fails.
 ```
 
 ---
 
-## Flutter Dart Code Audit — File-by-File
+## CRITICAL BUG — Now Fixed (BUG-JD-VK)
+
+**This was the root cause of all Flutter playback failures.**
+
+### What Was Wrong
+
+`_buildStreamUrl` in `jazzdrive_service.dart` had this comment and code:
+```dart
+// DO NOT append validationkey — the k= token is self-authenticating  ← WRONG
+url = '$url${sep}filename=${Uri.encodeComponent(filename)}';           ← missing validationkey!
+```
+
+### What Is Correct (proven by working Node.js reference script)
+
+```javascript
+// Node.js — always works:
+const directLink = `${finalBaseUrl}${sep}validationkey=${vk}&filename=${encodeURIComponent(name)}`;
+```
+
+```dart
+// Flutter — now fixed:
+url = '${url}${sep}validationkey=${Uri.encodeComponent(validationKey)}'
+      '&filename=${Uri.encodeComponent(filename)}';
+```
+
+**The `k=` token inside `rawUrl` is NOT sufficient for CDN authentication. `validationkey` must always be appended.**
+
+---
+
+## Flutter Dart Code Audit — File-by-File (Post-Fix)
 
 ### `core/security/request_encoder.dart` ✅ CORRECT
 
-| Check | Result |
-|-------|--------|
-| XOR decode with padding fix (`'=' * ((4 - len % 4) % 4)`) | ✅ Present |
-| RF1: prefix identifies scrambled URLs | ✅ Correct |
-| `scrambleUrl` / `unscrambleUrl` use deviceId as key | ✅ Correct |
-| `enabled = true` | ✅ |
-| Session key formula: `sha256("raddflix_xor_v1:{deviceId}:{day}:{hour}")[:32]` | ✅ Matches Oracle |
+XOR encode/decode, RF1 prefix scrambling, padding fix, hourly key rotation — all correct.
 
-### `core/services/jazzdrive_service.dart` ✅ CORRECT (1 cosmetic fix)
+### `core/services/jazzdrive_service.dart` ✅ FIXED
 
-| Check | Result |
-|-------|--------|
-| `_loginShare`: checks JSON body for jsessionid first | ✅ Correct |
-| `_loginShare`: strips node suffix from JSESSIONID (`.2i182` → stripped) | ✅ Correct |
-| `_loginShare`: detects MED-1011 / FOL-1004 error codes | ✅ Correct |
-| `_getMedia`: Pass 0 remote_id exact match | ✅ Correct |
-| `_getMedia`: Pass 1 case-insensitive substring | ✅ Correct |
-| `_getMedia`: Pass 2 normalised (dots/underscores → spaces) | ✅ Correct |
-| `_getMedia`: Pass 3 episode code (s01e02) | ✅ Correct |
-| `_buildStreamUrl`: does NOT append validationkey to CDN URL | ✅ Critical, correct |
-| Cache TTL = 110 min (safely under 2h CDN token expiry) | ✅ Correct |
-| `warmTopFreeItems`: 60-min guard prevents duplicate calls | ✅ Correct |
-
-**Cosmetic bug (LOW — logging only):**  
-`JazzDriveLink.filename` is always `''` when returned from memory/DB cache hit.  
-Does not affect playback or downloads. Only makes debug logs less informative.
+| Method | Status | Notes |
+|--------|--------|-------|
+| `_extractShareKey` | ✅ | Regex matches all URL variants |
+| `_loginShare` | ✅ | Checks JSON body for JSESSIONID first, strips node suffix |
+| `_loginShare` error detection | ✅ | Detects MED-1011 / FOL-1004 with descriptive throw |
+| `_getMedia` | ✅ | 4-pass matching: remote_id → substring → normalised → episode code |
+| `_buildStreamUrl` | ✅ FIXED | Now appends `validationkey=` to CDN URL (was missing — caused all failures) |
+| Cache strategy | ✅ | 110 min TTL (under ~2h CDN token expiry), 2-layer: memory + SQLite |
 
 ### `core/download/download_service.dart` ✅ CORRECT
 
-Both prior bugs are fixed (from 2026-06-09 session 3):
-
-| Bug | Fix | Status |
-|-----|-----|--------|
-| BUG-DL-PATH-B: Path B used `getShareUrl()` — lost filename + remote_id | Changed to `getShareInfo()` | ✅ Fixed |
-| BUG-DL-RF1: Path A never decoded RF1:xxx before JazzDrive call | Added `LocalDb.decodeShareUrl()` before call | ✅ Fixed |
+Both prior bugs (BUG-DL-PATH-B, BUG-DL-RF1) confirmed fixed.
 
 ### `core/db/local_db.dart` ✅ CORRECT
 
-| Check | Result |
-|-------|--------|
-| `_encodeUrl()` called in `upsertTitle`, `mergeDeltaTitle`, `upsertEpisode` | ✅ All paths encode |
-| `getTopFreeMovies()` decodes RF1:xxx before returning | ✅ Correct (uses `_decodeUrl` in loop) |
-| `getShareInfo()` decodes RF1:xxx before returning | ✅ Correct |
-| `getShareUrl()` decodes RF1:xxx before returning | ✅ Correct |
-| `_rowToItem` includes `fileId` | ✅ Fixed (AUDIT-03) |
-| `mergeDeltaTitle` preserves existing share_url if delta omits it | ✅ Correct |
-| `folder_share_url` persisted in both INSERT and UPDATE | ✅ Fixed (FIX-FOLDER-01) |
+RF1 decode on all read paths; `getShareInfo` returns decoded URL + filename + remote_id.
 
 ### `screens/player_screen.dart` `_openMedia` ✅ CORRECT
 
-```dart
-// Step 1: Get share_url + filename from local DB (fast, works offline)
-final shareInfo = await LocalDb.getShareInfo(fileId);      // ✅ uses getShareInfo not getShareUrl
-shareUrl       = shareInfo['share_url'] as String?;         // already decoded by getShareInfo
-targetFilename = shareInfo['filename']  as String?;
-remoteId       = shareInfo['remote_id'] as int? ?? 0;
+Uses `getShareInfo` → passes `remoteId` + `targetFilename` → `getStreamLink`.
 
-// Step 2: Fallback to inline shareUrl from route args
-if (shareUrl == null || shareUrl.isEmpty) {
-  shareUrl = await LocalDb.decodeShareUrl(_inlineShareUrl); // ✅ decodes RF1:xxx first
-}
+### `test_suite/jazzdrive_dart_test.dart` ✅ FIXED
 
-// Step 3: Get CDN stream URL (zero-rated on Jazz SIM)
-final link = await JazzDriveService.getStreamLink(
-  cacheKey, shareUrl,
-  targetFilename: targetFilename,
-  remoteId: remoteId,                                        // ✅ Pass 0 enabled
-);
-```
-
----
-
-## Bugs Fixed in This Session
-
-### `test_suite/jazzdrive_dart_test.dart` — 3 Bugs Fixed
-
-**FIX-TEST-01 (MEDIUM): Missing MED-1011 error detection**  
-- **Before:** Login returning `{"error":{"code":"MED-1011",...}}` caused test to throw  
-  `"no validationKey in response"` — unhelpful, hides root cause  
-- **After:** Detects error code and throws:  
-  `"Content unavailable (MED-1011: Key is invalid). If on ALL shares → Oracle session expired."`
-
-**FIX-TEST-02 (HIGH): JSESSIONID only read from Set-Cookie, not JSON body**  
-- **Before:** Test only checked `Set-Cookie` response header for JSESSIONID  
-- **After:** Mirrors service: checks `inner['jsessionid']` in JSON body first, Set-Cookie as fallback  
-- **Why it matters:** On Android, Dart's HttpClient may absorb Set-Cookie before Dio sees them.  
-  The service has always used JSON body first. The test was wrong, not the service.
-
-**FIX-TEST-03 (MEDIUM): Node suffix not stripped from JSESSIONID**  
-- **Before:** JSESSIONID sent as `06B2BCBBE57.2i182` (full with node hint)  
-- **After:** Stripped to `06B2BCBBE57` — matches service behaviour  
-- **Why:** JazzDrive load balancer node suffix causes session mismatches on some requests
+3 bugs fixed in previous session + Validate 2 flipped:
+- Was: "validationkey must NOT be in URL" → WRONG
+- Now: "validationkey MUST be in URL" ← CORRECT
 
 ---
 
 ## When MED-1011 Hits All Share URLs — Root Cause & Fix
 
-**Symptom:** Every share URL login returns `{"error":{"code":"MED-1011","message":"Key is invalid"}}`  
-**This is NOT geo-blocking.** It is also NOT the share URLs expiring.
+**This is NOT geo-blocking and NOT expired share URLs.**
 
-**Root cause:** The Oracle JazzDrive account (03286829827) lost its SAPI `validation_key`.  
-Without a valid SAPI session on the JazzDrive account that owns the files,  
-JazzDrive cannot validate share key login requests — returns MED-1011 for everything.
+Root cause: Oracle JazzDrive account lost its SAPI `validation_key`.
 
 **Diagnosis:**
 ```sql
--- Check Oracle DB:
-SELECT id, msisdn, is_active, 
-       CASE WHEN validation_key IS NOT NULL AND validation_key != '' THEN 'HAS_VK' ELSE 'NO_VK' END,
-       datetime(last_keepalive_at, 'unixepoch')
+SELECT msisdn,
+  CASE WHEN validation_key IS NOT NULL AND validation_key != '' THEN 'HAS_VK' ELSE 'NO_VK' END
 FROM accounts;
--- If NO_VK → session expired. Fix below.
+-- NO_VK = session expired, fix below
 ```
 
-**Fix (takes ~5 seconds, safe):**
+**Fix (takes ~5 seconds if refresh token is still valid):**
 ```bash
-ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
-  "sudo supervisorctl restart raddflix_radd && sleep 5 && curl -s http://localhost:5000/healthz"
-# Expected: {"ok":true,"version":"3.0.0"}
+ssh oracle "sudo supervisorctl restart raddflix_radd && sleep 5"
 ```
-Flask restart triggers Android OAuth2 refresh via wg0 → new VK written to accounts table → shares work again.  
-No OTP needed. Session auto-recovers every time.
 
-**Important:** If restart does not fix MED-1011, check that wg0 is up:
-```bash
-ssh oracle "ip addr show wg0"
-# Must show: inet 172.16.0.2/32
-```
+**If Flask restart doesn't fix it** (refresh token also expired → HTTP 401 on all OAuth2 variants):
+→ OTP re-login required. Go to Oracle admin panel → Settings → JazzDrive Login.
 
 ---
 
-## Key Rules for Future Agents
+## The 10 Rules — Never Break These
 
-1. **Never add geo-restriction logic** — JazzDrive shares work globally, always
-2. **MED-1011 on all shares = Oracle SAPI session expired**, not geo-block or expired links
-3. **JSESSIONID comes from JSON body first** (`inner['jsessionid']`), Set-Cookie is fallback
-4. **Always strip node suffix** from JSESSIONID (`.2i182` → stripped)
-5. **Never append `validationkey=`** to the final CDN stream URL — breaks playback
-6. **RF1:xxx URLs must be decoded** before passing to JazzDriveService — always use  
-   `LocalDb.getShareInfo()` or `LocalDb.decodeShareUrl()`, never raw `CatalogItem.shareUrl`
-7. **Use `getShareInfo()` not `getShareUrl()`** — the latter loses `filename` and `remote_id`  
-   which breaks Pass 0 and Passes 1-3 for folder-share episodes
-8. **Share URLs are permanent** — they do not expire by time. MED-1011 = account issue, not age.
-9. **XML/DOCTYPE response** from JazzDrive media call = stale cookie, NOT geo-block.  
-   Fix: `JazzDriveService.invalidate(fileId)` then retry — player_screen does this automatically.
+1. **No geo-restriction logic** — JazzDrive shares work globally
+2. **MED-1011 on all shares = Oracle SAPI session expired**, not geo-block
+3. **`validationkey` MUST be in the final CDN URL** — append it always
+4. **JSESSIONID from JSON body first** (`inner['jsessionid']`), Set-Cookie as fallback
+5. **Strip node suffix** from JSESSIONID (`.2i182` → stripped)
+6. **RF1:xxx URLs must be decoded** before passing to JazzDriveService
+7. **Use `getShareInfo()` not `getShareUrl()`** — keeps `filename` + `remote_id`
+8. **Share URLs are permanent** — MED-1011 = account issue, not age
+9. **XML/DOCTYPE from media call** = stale cookie; `invalidate(fileId)` then retry
+10. **`_buildStreamUrl` takes 3 args**: rawUrl, filename, validationKey — never 2
 
 ---
 
-## Test Suite — Running the Integration Test
+## Test Suite
 
 ```bash
-# Requires: Dart SDK, valid Oracle session (share URLs live)
 dart run raddflix_flutter/test_suite/jazzdrive_dart_test.dart
 ```
 
-All 8 tests cover:
-- Movies: Pass 0 (remote_id), Pass 1 (substring), multi-file folder selection
-- TV: Pass 0 (Vincenzo — must pick correct episode from 4-file folder)  
-- TV: Pass 3 (Spider-Noir — corrupted upload names, only episode code works)
-- Critical: Episode isolation (E02 must not return E01 from same folder)
+Requires Oracle JazzDrive session healthy (HAS_VK). 8 tests: movies + TV seasons.
+Expected: `All 8 tests passed.`
 
-**Expected output when Oracle session is healthy:**
-```
-All 8 tests passed.
-```
-
----
-
-## File Reference
-
-```
-Flutter:
-  core/security/request_encoder.dart     XOR encode/decode + RF1: scrambling
-  core/api/api_client.dart               Dio + XOR interceptor + auth
-  core/db/local_db.dart                  SQLCipher DB, schema v17
-  core/services/jazzdrive_service.dart   JazzDrive share → CDN URL (THE core)
-  core/download/download_service.dart    Download via JazzDrive
-  screens/player_screen.dart             _openMedia: full resolution chain
-
-Test:
-  test_suite/jazzdrive_dart_test.dart    Integration test (mirrors service exactly)
-
-Oracle:
-  hub/jazzdrive.py                       JazzDrive session, OTP, upload, keepalive
-  hub/routes/catalog_api.py              /api/catalog/sync (builds delta)
-  data/radd_hub.db                       files table: share_url, remote_id, filename
-```
+If all fail with MED-1011 → do OTP re-login on Oracle first.

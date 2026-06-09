@@ -1709,3 +1709,49 @@ This is NOT geo-blocking. It is NOT the Flutter code. It is the Oracle JazzDrive
 - All share URLs: returning MED-1011 until session is restored
 - Flutter code: ✅ CORRECT — no bugs in production code
 - Open tasks: DATA-01 (All Of Us Are Dead episodes), DATA-02 (9 movies need re-upload), OTP re-login
+
+## Session 2026-06-09 (5th) — CRITICAL BUG FIX: validationkey missing from CDN URL
+
+### Bug Found
+User provided working Node.js reference script that revealed the root cause of Flutter playback failure.
+
+**BUG-JD-VK (CRITICAL): `_buildStreamUrl` did NOT append `validationkey` to the final CDN URL.**
+
+Node.js script (working):
+```javascript
+const directLink = `${finalBaseUrl}${sep}validationkey=${vk}&filename=${encodeURIComponent(name)}`;
+```
+
+Flutter code (broken — had wrong comment):
+```dart
+// DO NOT append validationkey — the k= token is self-authenticating  ← WRONG
+url = '$url${sep}filename=${Uri.encodeComponent(filename)}';         ← missing validationkey!
+```
+
+The CDN requires `validationkey=` in the final URL for every request. Without it → 401/403 → black screen.
+
+### Fix Applied
+`jazzdrive_service.dart → _buildStreamUrl`:
+```dart
+// CORRECT — validationkey MUST be in final URL (CDN auth requirement)
+url = '${url}${sep}validationkey=${Uri.encodeComponent(validationKey)}'
+      '&filename=${Uri.encodeComponent(filename)}';
+```
+
+Also updated `_generateLink` to pass `session.validationKey` to `_buildStreamUrl`.
+
+### Test File Fix
+`jazzdrive_dart_test.dart`: flipped Validate 2 check from "validationkey must NOT be in URL" → "validationkey MUST be in URL". The previous check was enforcing the wrong behaviour.
+
+### Files Changed
+| File | Change |
+|------|--------|
+| `raddflix_flutter/lib/core/services/jazzdrive_service.dart` | Fixed `_buildStreamUrl` — append validationkey to CDN URL |
+| `raddflix_flutter/test_suite/jazzdrive_dart_test.dart` | Fixed Validate 2: validationkey must be PRESENT in URL |
+| `agent-hub/JAZZDRIVE_FLUTTER_AUDIT.md` | Updated — corrected the "validationkey in CDN URL" rule |
+| `agent-hub/TASKS.md` | TASK-061 added |
+
+### State at end of session
+- Oracle JazzDrive session: still ❌ NO_VK — OTP re-login needed
+- Flutter service code: ✅ FIXED — validationkey now appended correctly
+- APK build: needs trigger after this commit

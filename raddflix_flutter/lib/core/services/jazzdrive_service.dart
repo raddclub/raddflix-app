@@ -26,7 +26,7 @@ class JazzDriveLink {
 ///   1. Check in-memory cache (instant, no network)
 ///   2. Check persistent SQLite cache (fast, no network)
 ///   3. Call JazzDrive API directly (2 calls to cloud.jazzdrive.com.pk, zero-rated)
-///   4. Cache result for 6 hours (shared between watch + download)
+///   4. Cache result for 110 minutes (safely under ~2h CDN token expiry)
 class JazzDriveService {
   static const String _cloudBase = 'https://cloud.jazzdrive.com.pk';
   // CDN tokens expire in ~2h — 110 min cache is safely under that limit to avoid stale URL errors
@@ -157,7 +157,6 @@ class JazzDriveService {
     await LocalDb.deleteStreamCache(fileId);
   }
 
-
   /// Pre-warm the stream-link cache for the top [count] free movies.
   ///
   /// Fire-and-forget: call with [unawaited] so it never delays app launch
@@ -170,7 +169,6 @@ class JazzDriveService {
   /// cloud.jazzdrive.com.pk (zero-rated). Silently swallows all errors so
   /// an offline device or unreachable JazzDrive never surfaces to the user.
   ///
-  /// AUDIT-09: called from multiple sites (main.dart, Oracle sync, JazzDrive sync).
   /// A 60-minute static guard ensures the warm only executes once per hour
   /// regardless of how many callers trigger it on cold start.
   static DateTime? _lastWarmTime;
@@ -207,20 +205,25 @@ class JazzDriveService {
   // ── Private helpers ────────────────────────────────────────────────────────
 
   static Future<JazzDriveLink> _generateLink(String shareUrl, {String? targetFilename, int remoteId = 0}) async {
-    // Extract share key from URL
     final shareKey = _extractShareKey(shareUrl);
     if (shareKey == null) {
       throw Exception('Invalid JazzDrive share URL: $shareUrl');
     }
 
-    // Step 1: Login to share session → get validationKey + JSESSIONID cookie
+    // Step 1: Login to share → get validationKey + JSESSIONID cookie
     final session = await _loginShare(shareKey);
 
-    // Step 2: Get video media list → get CDN URL + poster
-    final record = await _getMedia(shareKey, session.validationKey, session.cookie, targetFilename: targetFilename, remoteId: remoteId);
+    // Step 2: Get video list → CDN raw URL + filename + poster
+    final record = await _getMedia(
+      shareKey, session.validationKey, session.cookie,
+      targetFilename: targetFilename, remoteId: remoteId,
+    );
 
-    // Step 3: Build final URL (DO NOT add validationkey — k= token is self-signing)
-    final streamUrl = _buildStreamUrl(record.rawUrl, record.filename);
+    // Step 3: Build final CDN URL.
+    // REQUIRED: append validationkey to the final URL — the CDN authenticates
+    // each request with it. Confirmed by working Node.js reference script.
+    // The k= token inside rawUrl is NOT sufficient alone.
+    final streamUrl = _buildStreamUrl(record.rawUrl, record.filename, session.validationKey);
     final posterUrl = _buildPosterUrl(record.rawPosterUrl);
 
     return JazzDriveLink(
@@ -252,46 +255,45 @@ class JazzDriveService {
 
     final data = resp.data!;
 
-      // Detect explicit error from JazzDrive (e.g. MED-1011 = share key invalid/expired,
-      // FOL-1004 = folder deleted from JazzDrive). Throw descriptive exception.
-      final errorObj = data['error'] as Map<String, dynamic>?;
-      if (errorObj != null && (errorObj['code'] as String? ?? '').isNotEmpty) {
-        final errCode = errorObj['code'] as String? ?? 'UNKNOWN';
-        final errMsg  = errorObj['message'] as String? ?? 'Link expired';
-        throw Exception('Content unavailable ($errCode: $errMsg). Please contact admin.');
-      }
+    // Detect explicit JazzDrive error (MED-1011 = share key invalid, FOL-1004 = folder deleted)
+    final errorObj = data['error'] as Map<String, dynamic>?;
+    if (errorObj != null && (errorObj['code'] as String? ?? '').isNotEmpty) {
+      final errCode = errorObj['code'] as String? ?? 'UNKNOWN';
+      final errMsg  = errorObj['message'] as String? ?? 'Link expired';
+      throw Exception('Content unavailable ($errCode: $errMsg). Please contact admin.');
+    }
 
-      final inner = (data['data'] as Map<String, dynamic>?) ?? data;
-      final vk = (inner['validationkey'] ?? inner['validationKey'] ?? inner['validation_key']
-                  ?? data['validationkey'] ?? data['validationKey']) as String?;
+    final inner = (data['data'] as Map<String, dynamic>?) ?? data;
+    final vk = (inner['validationkey'] ?? inner['validationKey'] ?? inner['validation_key']
+                ?? data['validationkey'] ?? data['validationKey']) as String?;
 
-      if (vk == null || vk.isEmpty) {
-        throw Exception('JazzDrive login: no validationkey in response');
-      }
+    if (vk == null || vk.isEmpty) {
+      throw Exception('JazzDrive login: no validationkey in response');
+    }
 
-      // Extract JSESSIONID — prefer JSON body (more reliable on Android where
-      // Dart's HttpClient may absorb Set-Cookie headers before they reach Dio).
-      String cookie = '';
-      final bodyJsid = (inner['jsessionid'] ?? inner['JSESSIONID']
-                       ?? data['jsessionid'] ?? data['JSESSIONID']) as String?;
-      if (bodyJsid != null && bodyJsid.isNotEmpty) {
-        // Strip node suffix if present (e.g. "06B2BCBBE57.2i182" → "06B2BCBBE57")
-        final jsidPart = bodyJsid.contains('.') ? bodyJsid.split('.').first : bodyJsid;
-        cookie = 'JSESSIONID=${jsidPart}';
-      } else {
-        // Fallback: extract from Set-Cookie response header
-        final setCookieList = resp.headers.map['set-cookie'] ?? [];
-        for (final c in setCookieList) {
-          final m = RegExp(r'JSESSIONID=([^;]+)').firstMatch(c);
-          if (m != null) {
-            cookie = 'JSESSIONID=${m.group(1)}';
-            break;
-          }
+    // Extract JSESSIONID — prefer JSON body (more reliable on Android where
+    // Dart's HttpClient may absorb Set-Cookie headers before they reach Dio).
+    String cookie = '';
+    final bodyJsid = (inner['jsessionid'] ?? inner['JSESSIONID']
+                     ?? data['jsessionid'] ?? data['JSESSIONID']) as String?;
+    if (bodyJsid != null && bodyJsid.isNotEmpty) {
+      // Strip node suffix if present (e.g. "06B2BCBBE57.2i182" → "06B2BCBBE57")
+      final jsidPart = bodyJsid.contains('.') ? bodyJsid.split('.').first : bodyJsid;
+      cookie = 'JSESSIONID=$jsidPart';
+    } else {
+      // Fallback: extract from Set-Cookie response header
+      final setCookieList = resp.headers.map['set-cookie'] ?? [];
+      for (final c in setCookieList) {
+        final m = RegExp(r'JSESSIONID=([^;]+)').firstMatch(c);
+        if (m != null) {
+          cookie = 'JSESSIONID=${m.group(1)}';
+          break;
         }
       }
-
-      return _ShareSession(validationKey: vk, cookie: cookie);
     }
+
+    return _ShareSession(validationKey: vk, cookie: cookie);
+  }
 
   static Future<_MediaRecord> _getMedia(
     String shareKey,
@@ -344,12 +346,12 @@ class JazzDriveService {
     }
     DebugLogger.log('JAZZDRIVE', 'Records (${records.length}): ${records.map((r) { final m = r as Map<String,dynamic>; return (m["name"] ?? m["filename"] ?? "?") as String; }).toList()}');
 
-    // Pass 0: match by JazzDrive remote_id — permanent file ID assigned at upload.
-    // Completely filename-independent — exact match in O(n).
-    // Only runs when remoteId > 0 (i.e. stored in local SQLite from sync/delta).
     String _rname(dynamic r) =>
         ((r as Map<String, dynamic>)['name'] ?? r['filename'] ?? '') as String;
+
     Map<String, dynamic>? rec;
+
+    // Pass 0: exact match by JazzDrive file ID (remote_id) — filename-independent
     if (remoteId > 0) {
       for (final r in records) {
         final m = r as Map<String, dynamic>;
@@ -362,10 +364,11 @@ class JazzDriveService {
         }
       }
     }
-    // Passes 1-3: filename-based fallback when remote_id not available or not matched.
+
+    // Passes 1-3: filename-based fallback
     if (rec == null && targetFilename != null && targetFilename.isNotEmpty) {
       final tgt = targetFilename.toLowerCase();
-      // Pass 1: exact case-insensitive substring
+      // Pass 1: case-insensitive substring
       for (final r in records) {
         final n = _rname(r).toLowerCase();
         if (n.contains(tgt) || tgt.contains(n)) { rec = r as Map<String, dynamic>; break; }
@@ -378,7 +381,7 @@ class JazzDriveService {
           if (n.contains(norm(tgt)) || norm(tgt).contains(n)) { rec = r as Map<String, dynamic>; break; }
         }
       }
-      // Pass 3: episode code match — e.g. "s01e04" anywhere in filename
+      // Pass 3: episode code e.g. "s01e04"
       if (rec == null) {
         final em = RegExp(r's(\d{1,2})e(\d{1,2})', caseSensitive: false).firstMatch(tgt);
         if (em != null) {
@@ -392,8 +395,10 @@ class JazzDriveService {
         }
       }
     }
+
     rec ??= records.first as Map<String, dynamic>;
-    final rawUrl = (rec['url'] ?? rec['downloadUrl'] ?? rec['download_url'] ?? '') as String;
+
+    final rawUrl  = (rec['url'] ?? rec['downloadUrl'] ?? rec['download_url'] ?? '') as String;
     final filename = (rec['name'] ?? rec['filename'] ?? 'video.mkv') as String;
 
     // Extract poster from thumbnails[]
@@ -407,14 +412,19 @@ class JazzDriveService {
     return _MediaRecord(rawUrl: rawUrl, filename: filename, rawPosterUrl: rawPosterUrl);
   }
 
-  static String _buildStreamUrl(String rawUrl, String filename) {
+  /// Build the final CDN stream URL.
+  ///
+  /// CRITICAL: [validationKey] MUST be appended as a query parameter.
+  /// The CDN authenticates every request with it — without it the server
+  /// returns 401/403 and playback fails. This was confirmed by the working
+  /// Node.js reference script which always appends validationkey to the URL.
+  /// The k= token embedded in rawUrl is NOT sufficient alone.
+  static String _buildStreamUrl(String rawUrl, String filename, String validationKey) {
     var url = rawUrl.startsWith('/') ? '$_cloudBase$rawUrl' : rawUrl;
-    // Append real filename (with correct extension like .mkv)
-    // DO NOT append validationkey — the k= token is self-authenticating
-    if (!url.contains('filename=')) {
-      final sep = url.contains('?') ? '&' : '?';
-      url = '$url${sep}filename=${Uri.encodeComponent(filename)}';
-    }
+    final sep = url.contains('?') ? '&' : '?';
+    // Append validationkey first (required for CDN auth), then filename
+    url = '${url}${sep}validationkey=${Uri.encodeComponent(validationKey)}'
+          '&filename=${Uri.encodeComponent(filename)}';
     return url;
   }
 
