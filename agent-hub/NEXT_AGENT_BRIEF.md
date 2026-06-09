@@ -1,5 +1,5 @@
 # NEXT AGENT BRIEF — RaddFlix Data Flow Verification
-  > Last verified: 2026-06-08 (TASK-055 complete) | Read AGENT_PROMPT.md first, then this file.
+  > Last verified: 2026-06-09 (TASK-055 complete) | Read AGENT_PROMPT.md first, then this file.
 
   ---
 
@@ -44,6 +44,8 @@
      GET /api/catalog/version (XOR) → compare to local SQLite version
         Same version → instant return, zero download
         Admin force-bump (forcedTs > localVersion) → full sync
+        CURRENT forced_ts = 1781003205 (bumped 2026-06-09 after DB rebuild)
+        Rule: after ANY DB rebuild → run POST /api/catalog/force-version-bump
         New version → delta sync (only changed titles)
 
   2. Local SQLite DB (offline) — when no internet at all
@@ -185,7 +187,22 @@
 
   ---
 
-  ## 7. Recent Changes (2026-06-08)
+  ## 8. Recent Changes (2026-06-09) — BUG-STALE-IDS
+
+### Server (live — build1034 affected immediately)
+- `catalog_forced_version` bumped to `1781003205` → all devices full-sync on next open
+- `/api/catalog/sync` returns `valid_title_ids` list in response
+
+### Flutter (GitHub, next build 1035 needed)
+- `catalog_api.dart`: `syncFull()` → `SyncFullResult{items, validTitleIds}`
+- `local_db.dart`: `pruneStaleIds(List<int> validIds)` — removes stale title IDs
+- `sync_service.dart`: full sync calls `pruneStaleIds()` after persist
+- `local_db.dart`: fix `$placeholders` in pruneStaleIds SQL (bash ate variable)
+
+### Encryption audit — CLEAN
+All XOR logic (Flutter + server) reviewed and verified correct.
+
+## 7. Recent Changes (2026-06-08)
 
   ### TASK-053: upload_delta() pre-purge strategy
   Pre-purge all JD files before upload so JD always names it delta.txt.
