@@ -102,3 +102,31 @@ This file is the handoff bridge — the next agent reads this first.
 | FIX-XOR-NEXTHR | MEDIUM | request_encoding.py | `_candidate_keys` missing +1 hour for forward-clock edge | Added `utc_hour + 1` candidate |
 
 **APK:** `RaddFlix-1.0.0+1-build1034.apk` (56.7 MB) — run 27156269376 — expires 2026-07-08
+
+---
+
+## TASK-058 — JazzDrive Full Code Audit + Documentation (DONE)
+
+**Scope:** Complete audit of Flutter JazzDrive stream link generation logic against confirmed API behaviour.
+
+**Audit results (2026-06-09):**
+| File | Status | Notes |
+|------|--------|-------|
+| `jazzdrive_service.dart` | ✅ CLEAN | All logic correct — _extractShareKey, _loginShare, _getMedia (4-pass), _buildStreamUrl, cache, warmTopFreeItems |
+| `download_service.dart` | ✅ CLEAN | Previous fixes (BUG-DL-PATH-B + BUG-DL-RF1) confirmed working |
+| `local_db.dart` | ✅ CLEAN | RF1 encode/decode consistent; getShareInfo, getTopFreeMovies return decoded URLs |
+| `player_screen.dart` | ✅ CLEAN | getShareInfo → decoded shareUrl + targetFilename + remoteId → getStreamLink |
+
+**Logic test suite:** `raddflix_flutter/test_suite/jazzdrive_logic_test.js` — **27/27 ✅**
+
+**No new bugs found. No code changes needed.**
+
+**Documentation created:** `agent-hub/JAZZDRIVE_STREAM_FLOW.md` (sha 884e28a5)
+- Full API flow (2 HTTP calls: login → media/video)
+- Share key extraction regex
+- 4-pass file matching algorithm (remote_id → substring → normalised → episode code → fallback)
+- RF1 scramble/decode rules + safe vs unsafe read paths
+- Cache strategy (110 min TTL, 2-layer: memory + SQLite)
+- Data flow per use case (Play / Download / Warm)
+- Known issues (MED-1011 from non-Jazz IPs, JSESSIONID on Android, CDN vs Download URL)
+- Bug history table
