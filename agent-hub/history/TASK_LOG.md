@@ -1806,3 +1806,12 @@ Also updated `_generateLink` to pass `session.validationKey` to `_buildStreamUrl
 - `agent-hub/TASKS.md` — added TASK-063 ✅ DONE
 
 **Final verification:** `grep -r delta hub/ --include='*.py'` returns zero hits (excluding unrelated `timedelta` stdlib and `scheduler.py` math variable). Flask: `{"ok":true,"version":"3.0.0"}`.
+
+---
+## Session 2026-06-09 — TASK-064 Service Toggles
+- Added `ORGANIZER_ENABLED` DB flag; `/settings/api/services` now returns & toggles all three: scan, upload, organizer
+- Settings page: 3rd Organizer service row with ⏸/▶ button (same style as Upload & Scan)
+- Scan page: paused banner now has inline ▶ Enable button; toggle button added to h-row actions
+- Upload/Flix page: same — inline toggle button replaces "Enable in Settings →" link
+- Organizer page: paused banner at top + toggle button in header; plan/auto routes return 503 when disabled
+- Commit: 744d7d9 (6 files: routes/settings.py, routes/organizer.py, templates/settings.html, scan.html, upload.html, organizer.html)
