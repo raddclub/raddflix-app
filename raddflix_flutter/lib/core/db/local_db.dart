@@ -943,12 +943,12 @@ class LocalDb {
     final db = await instance;
     final placeholders = validIds.map((_) => '?').join(',');
     final deleted = await db.rawDelete(
-      'DELETE FROM titles WHERE id NOT IN ()',
+      'DELETE FROM titles WHERE id NOT IN ($placeholders)',
       validIds,
     );
     if (deleted > 0) {
       await db.rawDelete(
-        'DELETE FROM episodes WHERE title_id NOT IN ()',
+        'DELETE FROM episodes WHERE title_id NOT IN ($placeholders)',
         validIds,
       );
       await rebuildFtsIndex();
