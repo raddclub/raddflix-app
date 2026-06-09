@@ -1,4 +1,4 @@
-# HANDOFF — RaddFlix Hub (as of TASK-057)
+# HANDOFF — RaddFlix Hub (as of TASK-058)
 
 ## State of Play
 Flask app running at Oracle VPS 92.4.95.252:5000 (nginx 80→5000) — v3.0.0 healthy
@@ -17,6 +17,7 @@ Account 03286829827: session healthy, auto-recovers via Android OAuth2 + PK prox
 
 ## Known Bugs / Gotchas
 1. **`upsert_title` UNIQUE slug bug** — fixed in scanner.py (commit 6ccfa67).
+0. **`catalog_forced_version`** — set to `1781003205` (bumped 2026-06-09). All devices will full-sync on next open. The forced_ts is stored in Oracle `settings` table.
 2. **`scan_excluded_folders`** — already cleared to `[]`.
 3. **`confirm()` blocked by tunnel proxy** — all admin confirm dialogs use two-step arm+fire.
 4. **`trash_files()` false-positive** — always use `delete_files_permanent()` for cleanup.
@@ -28,12 +29,33 @@ Account 03286829827: session healthy, auto-recovers via Android OAuth2 + PK prox
 
 | Build | Status | Fixes included | Size | Expires |
 |-------|--------|----------------|------|---------|
-| 1034 | ✅ LATEST | All TASK-057 fixes | 56.7 MB | 2026-07-08 |
+| **1035** | ⏳ NEEDS BUILD | BUG-STALE-IDS Flutter pruneStaleIds | — | — |
+| 1034 | ✅ CURRENT | All TASK-057 fixes | 56.7 MB | 2026-07-08 |
 | 1025 | OLD | FIX-PLAYER-01 + FIX-VAULT-01 | 56 MB | — |
-| 1023 | OLD | none | 56 MB | — |
 
 GitHub Actions run: https://github.com/raddclub/raddflix-app/actions/runs/27156269376
 Latest Flutter commit: `bf50cd6` | Oracle commit: `41fcc63`
+
+## TASK-058 Fixes (2026-06-09) — BUG-STALE-IDS
+
+**Root cause:** Oracle DB rebuild → new title IDs (1-20) → same version hash →
+Flutter skipped re-sync → stale entries (id=28 Spider-Noir, file_id=31 dead) → 404 → "Jazz SIM Required"
+
+**Server (live — affects build1034 now):**
+| ID | File | Fix |
+|----|------|-----|
+| BUG-STALE-IDS | hub/routes/catalog_api.py | Force-bumped catalog version to 1781003205 |
+| BUG-STALE-IDS | hub/routes/catalog_api.py | Added `valid_title_ids` to /sync response |
+
+**Flutter (GitHub only — build1035 needed):**
+| ID | File | Fix |
+|----|------|-----|
+| BUG-STALE-IDS | lib/core/api/catalog_api.dart | syncFull() returns SyncFullResult{items,validTitleIds} |
+| BUG-STALE-IDS | lib/core/db/local_db.dart | pruneStaleIds() removes titles not in valid set |
+| BUG-STALE-IDS | lib/core/db/sync_service.dart | Full sync calls pruneStaleIds() after persist |
+| BUG-PRUNE-SQL | lib/core/db/local_db.dart | Restored $placeholders in NOT IN SQL (bash ate it) |
+
+**Crypto audit result:** RequestEncoder + _XorInterceptor + server request_encoding.py — all correct, no issues.
 
 ## TASK-057 Bugs Fixed (2026-06-08)
 
