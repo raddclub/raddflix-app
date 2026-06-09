@@ -13,3 +13,4 @@
 - [Warp tunnel](warp-tunnel.md) — Jazz IP watchdog accumulate mode; wg0 splits to Jazz IPs only
 - [XOR encoding](xor-encoding.md) — key formula, padding fix, candidate keys, JSESSIONID from JSON body
 - [No new features rule](no-new-features.md) — never suggest features; user is burnt out; only fix bugs
+- [Catalog sync — stale IDs after DB rebuild](catalog-sync.md) — after any DB rebuild, always force-version-bump or Flutter silently keeps stale data
