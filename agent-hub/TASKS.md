@@ -1,5 +1,5 @@
 # agent-hub/TASKS.md — Agent Task Tracker
-Last updated: 2026-06-08
+Last updated: 2026-06-09
 
 ## Rule
 **Every change, fix, or feature gets a task row BEFORE work starts.**
@@ -14,6 +14,7 @@ This file is the handoff bridge — the next agent reads this first.
 
 | ID | Task | Status | Date | Notes |
 |----|------|--------|------|-------|
+| TASK-058 | Fix BUG-STALE-IDS: Flutter stale catalog after Oracle DB rebuild | ✅ DONE | 2026-06-09 | Server: force-bump + valid_title_ids. Flutter: pruneStaleIds (next build 1035). Crypto audit: all pass. |
 | TASK-057 | A-Z full line-by-line audit of ALL code (Flutter Dart + Oracle Python) + fix every bug + build APK | ✅ DONE | 2026-06-08 | 8 bugs fixed across Flutter + Oracle; APK build1034 succeeded (run 27156269376) |
 | TASK-056 | VERIFY-02: Re-verify complete data flow end-to-end (all 10 checks A–J) | ✅ DONE | 2026-06-08 | All checks passed, no bugs found |
 | TASK-055 | Full end-to-end data flow verification (DONE — see detail below) | ✅ DONE | 2026-06-08 | All checks A–J passed; Inuyashiki/Reborn season fix applied |
