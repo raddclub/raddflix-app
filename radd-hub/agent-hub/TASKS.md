@@ -38,3 +38,10 @@ Add a task row BEFORE making any changes. Mark done when pushed + verified.
 |----|-------|-------|
 | DATA-01 | All Of Us Are Dead E03/04/05/09 missing | Need JD upload + sync |
 | DATA-02 | 9 movies with deleted JD files | Need manual re-upload to JazzDrive |
+
+## 2026-06-09 — BUG-STALE-IDS Server Patch
+
+| ID | Task | Status | Notes |
+|----|------|--------|-------|
+| SRV-STALE-IDS | Force-bump catalog version + add valid_title_ids to /sync | ✅ DONE | version=1781003205, valid_title_ids in /sync response, service restarted |
+| SRV-CRYPTO-AUDIT | Audit request_encoding.py XOR logic | ✅ DONE | All correct — candidate keys, padding, device_id lookup |
