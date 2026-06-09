@@ -1,15 +1,12 @@
 """Smart background scheduler.
 
-Three independent loops run as daemon threads:
+Two independent loops run as daemon threads:
 
-1. rescan_ongoing     — checks 'ongoing' titles every 24 h for new episodes.
+1. rescan_ongoing      — checks 'ongoing' titles every 24 h for new episodes.
    Uses episode-number comparison (not count) to detect truly new content.
 
 2. scheduled_downloads — user-configured recurring downloads (e.g. "Game of Thrones S5,
    every Monday").  Stored in the `scheduled_downloads` DB table.
-
-3. delta_generation   — auto-generates and uploads delta.json every 24 h so
-   Jazz SIM users (zero-rated) always have fresh catalog metadata on JazzDrive.
 """
 from __future__ import annotations
 import logging
@@ -297,4 +294,4 @@ def start(stop_event: threading.Event):
         daemon=True, name="hub-scheduler"
     )
     t.start()
-    log.info("Smart background scheduler started (30-min check interval, delta every 24h)")
+    log.info("Smart background scheduler started (30-min check interval)")
