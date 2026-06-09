@@ -1652,3 +1652,60 @@ Two bugs found in `download_service.dart` that were NOT caught by the prior TASK
 - Oracle Flask: RUNNING (not touched this session)
 - Account: ACTIVE
 - Open tasks: DATA-01 (admin upload needed), DATA-02 (admin upload needed)
+
+## Session 2026-06-09 (4th) — Flutter Dart JazzDrive Audit + Test Fixes + Infrastructure Diagnosis
+
+### Context
+User requested a full audit of the Flutter Dart code for the JazzDrive share URL → stream link flow.
+Goal: verify logic is correct vs proven Node.js test, fix any bugs, write .MD doc for future agents.
+
+### Audit Result: Flutter Logic is CORRECT
+All production files are bug-free. No code changes needed to the actual app.
+
+| File | Status |
+|------|--------|
+| `core/security/request_encoder.dart` | ✅ CORRECT — XOR, RF1 scramble, padding fix all present |
+| `core/services/jazzdrive_service.dart` | ✅ CORRECT — JSON body JSESSIONID first, node suffix strip, 4-pass matching, no VK in CDN URL |
+| `core/download/download_service.dart` | ✅ CORRECT — BUG-DL-PATH-B + BUG-DL-RF1 both confirmed fixed from prior session |
+| `core/db/local_db.dart` | ✅ CORRECT — getTopFreeMovies decodes RF1, getShareInfo decodes, _rowToItem has fileId |
+| `screens/player_screen.dart` | ✅ CORRECT — uses getShareInfo + decodeShareUrl + passes remoteId to getStreamLink |
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-060 | Flutter Dart JazzDrive audit + test file fixes + JAZZDRIVE_FLUTTER_AUDIT.md | ✅ DONE |
+
+### Bugs Fixed (test file only — not production code)
+| Bug ID | File | Severity | Description | Fix |
+|--------|------|----------|-------------|-----|
+| FIX-TEST-01 | jazzdrive_dart_test.dart | MEDIUM | No MED-1011 error detection — gave unhelpful "no validationKey" | Added error code check + descriptive message with fix instructions |
+| FIX-TEST-02 | jazzdrive_dart_test.dart | HIGH | JSESSIONID only read from Set-Cookie, not JSON body | Added JSON body check first (mirrors service) |
+| FIX-TEST-03 | jazzdrive_dart_test.dart | MEDIUM | Node suffix not stripped from JSESSIONID (.2i182 → stripped) | Added strip in both JSON body and Set-Cookie paths |
+
+### Infrastructure Issue Found (NOT a code bug)
+Oracle JazzDrive account (03286829827) lost its SAPI validation_key.
+OAuth2 auto-recovery failed on restart — all 4 variants (Android/Web Nested/Flat) returned HTTP 401.
+**OTP re-login required** to restore JazzDrive session.
+
+Root cause: The refresh_token rotated and the raw_accesstoken in DB is also expired.
+Evidence: `startup_refresh: could not restore session for 03286829827: Silent login failed: [Android-Flat] HTTP 401`
+
+**Result:** All share URLs currently return MED-1011 "Key is invalid" — both from Replit AND Oracle server itself.
+This is NOT geo-blocking. It is NOT the Flutter code. It is the Oracle JazzDrive session.
+
+**Fix required by user:** Do OTP re-login from Oracle admin panel (Settings → JazzDrive Login).
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| raddflix_flutter/test_suite/jazzdrive_dart_test.dart | Fixed 3 bugs (JSESSIONID JSON body, node suffix strip, error detection) | this commit |
+| agent-hub/JAZZDRIVE_FLUTTER_AUDIT.md | NEW — comprehensive audit doc for future agents | this commit |
+| agent-hub/TASKS.md | Added TASK-060 row | this commit |
+| agent-hub/history/TASK_LOG.md | This session summary | this commit |
+
+### State at end of session
+- Oracle Flask: RUNNING (restarted this session)
+- JazzDrive session: ❌ EXPIRED — OTP re-login needed (see above)
+- All share URLs: returning MED-1011 until session is restored
+- Flutter code: ✅ CORRECT — no bugs in production code
+- Open tasks: DATA-01 (All Of Us Are Dead episodes), DATA-02 (9 movies need re-upload), OTP re-login

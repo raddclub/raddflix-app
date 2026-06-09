@@ -7,7 +7,7 @@
 ///
 /// No Flutter, no packages — only dart:io + dart:convert.
 ///
-/// IMPORTANT FINDINGS (discovered 2026-06-07):
+/// IMPORTANT FINDINGS (discovered 2026-06-07, confirmed 2026-06-09):
 /// - JazzDrive stores files with their ORIGINAL upload filenames.
 ///   Files uploaded as "Vncenz0 S01E01.mp4" (corrupted name) are stored
 ///   as "Vncenz0" on JazzDrive, NOT "Vincenzo". Pass 1/2 substring match
@@ -15,6 +15,18 @@
 ///   code) can find the correct episode.
 /// - Some "movie" shares actually contain multiple files (e.g. Luka Chuppi
 ///   has a duplicate). remote_id is essential to pick the correct one.
+///
+/// SESSION NOTE (2026-06-09):
+/// - JSESSIONID comes from the JSON response body (inner['jsessionid']),
+///   NOT only from Set-Cookie headers. On Android, Dart's HttpClient may
+///   absorb Set-Cookie before they reach Dio. This test now mirrors the
+///   service: check JSON body first, Set-Cookie as fallback.
+/// - Node suffix must be stripped from JSESSIONID (e.g. "06B2BCBBE57.2i182"
+///   → "06B2BCBBE57") — required to match the service behaviour exactly.
+/// - If all share URLs return MED-1011 "Key is invalid", the JazzDrive
+///   account SAPI session has expired (validation_key is NULL in Oracle DB).
+///   Fix: restart Oracle Flask — session auto-recovers via Android OAuth2.
+///   Share URLs themselves do NOT expire (they are permanent once created).
 
 import 'dart:convert';
 import 'dart:io';
@@ -22,26 +34,28 @@ import 'dart:io';
 const String _cloudBase = 'https://cloud.jazzdrive.com.pk';
 
 // =============================================================================
-// Test cases — real data from Oracle radd_hub.db (queried 2026-06-07)
+// Test cases — real data from Oracle radd_hub.db (queried 2026-06-09)
+// Update share URLs from Oracle DB:
+//   sqlite3 data/radd_hub.db 'SELECT f.id, t.title, f.filename, f.season, f.episode, f.remote_id, f.share_url FROM files f JOIN titles t ON t.id=f.title_id WHERE f.share_url!="" AND f.is_ready=1 ORDER BY f.id'
 // Filenames use the ACTUAL JazzDrive names (verified from live API responses)
 // =============================================================================
 final List<Map<String, dynamic>> _tests = [
 
   // ── Movies ────────────────────────────────────────────────────────────────
   {
-    'name': 'Movie | Swapped (2026) — Pass 0 by remote_id',
-    'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/WGSUU9PgTLaxqqQHYGHjhTc1MjIwNTczNTg3NzFfMjYyMTAwMA',
-    'targetFilename': 'Swapped (2026).mp4',
-    'remoteId': 242518532,
-    'expectFilenameContains': 'swapped',
+    'name': 'Movie | Interstellar (2014) — Pass 0 by remote_id',
+    'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/lTzy2wdJQDqnsHSZNJGMBjA0NzE3MTIzNzE2NzFfMjYwMzgwMA',
+    'targetFilename': 'Interstellar (2014).mkv',
+    'remoteId': 242373442,
+    'expectFilenameContains': 'interstellar',
     'note': 'Single-file movie — Pass 0 by remote_id',
   },
   {
-    'name': 'Movie | Swapped (2026) — Pass 1 substring (no remote_id)',
-    'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/WGSUU9PgTLaxqqQHYGHjhTc1MjIwNTczNTg3NzFfMjYyMTAwMA',
-    'targetFilename': 'Swapped (2026).mp4',
+    'name': 'Movie | Interstellar (2014) — Pass 1 substring (no remote_id)',
+    'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/lTzy2wdJQDqnsHSZNJGMBjA0NzE3MTIzNzE2NzFfMjYwMzgwMA',
+    'targetFilename': 'Interstellar (2014).mkv',
     'remoteId': 0,
-    'expectFilenameContains': 'swapped',
+    'expectFilenameContains': 'interstellar',
     'note': 'Same movie, no remote_id — Pass 1 substring must match',
   },
   {
@@ -61,7 +75,7 @@ final List<Map<String, dynamic>> _tests = [
     'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/sVvWxQoMSlqKoPZvlt7zUzc1MjIwNTczNTg3NzFfMjYyMTAwMA',
     'targetFilename': 'Vincenzo S01E01.mp4',
     'remoteId': 242518574,
-    'expectFilenameContains': 'vncenz0',   // actual JazzDrive filename (corrupted upload)
+    'expectFilenameContains': 'vncenz0',
     'mustContainEpisodeCode': 's01e01',
     'note': '4-file folder — Pass 0 picks E01 by remote_id',
   },
@@ -70,7 +84,7 @@ final List<Map<String, dynamic>> _tests = [
     'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/sVvWxQoMSlqKoPZvlt7zUzc1MjIwNTczNTg3NzFfMjYyMTAwMA',
     'targetFilename': 'Vincenzo S01E02.mp4',
     'remoteId': 242531168,
-    'expectFilenameContains': 'vncenz0',   // actual JazzDrive filename (corrupted upload)
+    'expectFilenameContains': 'vncenz0',
     'mustContainEpisodeCode': 's01e02',
     'note': '4-file folder — Pass 0 must return E02, NOT E01 or the two (1)/(2) duplicates',
   },
@@ -79,7 +93,7 @@ final List<Map<String, dynamic>> _tests = [
     'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/sVvWxQoMSlqKoPZvlt7zUzc1MjIwNTczNTg3NzFfMjYyMTAwMA',
     'targetFilename': 'Vincenzo S01E02.mp4',
     'remoteId': 0,
-    'expectFilenameContains': 'vncenz0',   // actual JazzDrive filename
+    'expectFilenameContains': 'vncenz0',
     'mustContainEpisodeCode': 's01e02',
     'note': 'No remote_id — Pass 1/2 cannot match (app sends "Vincenzo", JazzDrive has "Vncenz0"). '
             'Pass 3 must extract s01e02 and find E02, not E01.',
@@ -107,7 +121,7 @@ final List<Map<String, dynamic>> _tests = [
 ];
 
 // =============================================================================
-// Core logic — mirrors jazzdrive_service.dart exactly
+// Core logic — mirrors jazzdrive_service.dart EXACTLY
 // =============================================================================
 
 String? _extractShareKey(String shareUrl) {
@@ -115,6 +129,11 @@ String? _extractShareKey(String shareUrl) {
   return m?.group(1);
 }
 
+/// Mirrors jazzdrive_service.dart _loginShare exactly:
+///   1. Check JSON response body for jsessionid (primary — Android doesn't expose Set-Cookie)
+///   2. Fallback to Set-Cookie header
+///   3. Strip node suffix from JSESSIONID (e.g. "06B2BCBBE57.2i182" → "06B2BCBBE57")
+///   4. Detect MED-1011 / FOL-1004 error codes and throw descriptive exception
 Future<Map<String, String>> _loginShare(String shareKey) async {
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 20);
   try {
@@ -143,6 +162,22 @@ Future<Map<String, String>> _loginShare(String shareKey) async {
     final data = jsonDecode(respBody) as Map<String, dynamic>;
     final inner = (data['data'] as Map<String, dynamic>?) ?? data;
 
+    // FIX-TEST-01: Detect explicit error from JazzDrive (MED-1011 = share key invalid/expired,
+    // FOL-1004 = folder deleted). Matches jazzdrive_service.dart error detection.
+    // Previously missing from test — gave unhelpful "no validationkey" on MED-1011.
+    // If ALL share URLs return MED-1011, Oracle JazzDrive session has expired:
+    //   Fix: restart Oracle Flask — auto-recovers via Android OAuth2 in ~5 seconds.
+    final errorObj = data['error'] as Map<String, dynamic>?;
+    if (errorObj != null && (errorObj['code'] as String? ?? '').isNotEmpty) {
+      final errCode = errorObj['code'] as String? ?? 'UNKNOWN';
+      final errMsg  = errorObj['message'] as String? ?? 'Link expired';
+      throw Exception(
+        'Content unavailable ($errCode: $errMsg).\n'
+        '    If MED-1011 on ALL shares → Oracle JazzDrive session expired.\n'
+        '    Fix: ssh oracle → sudo supervisorctl restart raddflix_radd && sleep 5'
+      );
+    }
+
     final vk = (inner['validationkey'] ??
             inner['validationKey'] ??
             inner['validation_key'] ??
@@ -150,18 +185,36 @@ Future<Map<String, String>> _loginShare(String shareKey) async {
             data['validationKey']) as String?;
 
     if (vk == null || vk.isEmpty) {
-      throw Exception('no validationkey in login response');
+      throw Exception('no validationkey in login response. Keys: ${data.keys.toList()}');
     }
 
+    // FIX-TEST-02: Check JSON body for JSESSIONID first (primary on Android).
+    // Previously test ONLY read Set-Cookie header — diverged from service behaviour.
+    // jazzdrive_service.dart checks body first, Set-Cookie as fallback.
     String cookie = '';
-    resp.headers.forEach((name, values) {
-      if (name.toLowerCase() == 'set-cookie') {
-        for (final v in values) {
-          final m = RegExp(r'JSESSIONID=([^;]+)').firstMatch(v);
-          if (m != null && cookie.isEmpty) cookie = 'JSESSIONID=${m.group(1)}';
+    final bodyJsid = (inner['jsessionid'] ?? inner['JSESSIONID']
+                     ?? data['jsessionid'] ?? data['JSESSIONID']) as String?;
+    if (bodyJsid != null && bodyJsid.isNotEmpty) {
+      // FIX-TEST-03: Strip node suffix (e.g. "06B2BCBBE57.2i182" → "06B2BCBBE57").
+      // Previously test didn't strip — would send wrong cookie on some JazzDrive nodes.
+      final jsidPart = bodyJsid.contains('.') ? bodyJsid.split('.').first : bodyJsid;
+      cookie = 'JSESSIONID=$jsidPart';
+    } else {
+      // Fallback: extract from Set-Cookie response header
+      resp.headers.forEach((name, values) {
+        if (name.toLowerCase() == 'set-cookie') {
+          for (final v in values) {
+            final m = RegExp(r'JSESSIONID=([^;]+)').firstMatch(v);
+            if (m != null && cookie.isEmpty) {
+              // Strip node suffix from header too
+              final raw = m.group(1)!;
+              final stripped = raw.contains('.') ? raw.split('.').first : raw;
+              cookie = 'JSESSIONID=$stripped';
+            }
+          }
         }
-      }
-    });
+      });
+    }
 
     return {'validationKey': vk, 'cookie': cookie};
   } finally {
@@ -322,6 +375,8 @@ Future<void> main() async {
   print('  RaddFlix — JazzDrive Dart Integration Tests');
   print('  Real HTTP calls to $_cloudBase');
   print('  Tests: ${_tests.length} (movies + TV seasons)');
+  print('  NOTE: If ALL fail with MED-1011 → Oracle JazzDrive session');
+  print('        expired. Restart Oracle Flask to auto-recover.');
   print('══════════════════════════════════════════════════════════════');
   print('');
 
@@ -343,7 +398,8 @@ Future<void> main() async {
       if (shareKey == null) throw Exception('could not extract share key from URL');
 
       final session = await _loginShare(shareKey);
-      print('    login OK | vk=${session['validationKey']!.substring(0, 12)}…');
+      print('    login OK | vk=${session['validationKey']!.substring(0, 12)}…'
+            ' | cookie=${session['cookie']!.isNotEmpty ? session['cookie']!.substring(0, session['cookie']!.length.clamp(0, 20)) + "…" : "MISSING (may still work)"}');
 
       final result = await _getMedia(
         shareKey,

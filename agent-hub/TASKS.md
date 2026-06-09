@@ -14,6 +14,7 @@ This file is the handoff bridge — the next agent reads this first.
 
 | ID | Task | Status | Date | Notes |
 |----|------|--------|------|-------|
+| TASK-060 | Flutter Dart JazzDrive audit + test file fixes + JAZZDRIVE_FLUTTER_AUDIT.md | ✅ DONE | 2026-06-09 | 3 bugs fixed in test file; logic in service/download/player/db all correct; OTP re-login needed for session |
 | TASK-059 | Fix BUG-DL-PATH-B + BUG-DL-RF1: download_service wrong episode + RF1 scrambled URL in download | ✅ DONE | 2026-06-09 | Path B: getShareUrl→getShareInfo (adds filename+remote_id). Path A: decode RF1:xxx before JazzDrive. Commit 1cbec5a |
 | TASK-058 | Fix BUG-STALE-IDS: Flutter stale catalog after Oracle DB rebuild | ✅ DONE | 2026-06-09 | Server: force-bump + valid_title_ids. Flutter: pruneStaleIds (next build 1035). Crypto audit: all pass. |
 | TASK-057 | A-Z full line-by-line audit of ALL code (Flutter Dart + Oracle Python) + fix every bug + build APK | ✅ DONE | 2026-06-08 | 8 bugs fixed across Flutter + Oracle; APK build1034 succeeded (run 27156269376) |
