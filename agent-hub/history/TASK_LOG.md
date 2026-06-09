@@ -1622,3 +1622,33 @@ All checks pass. System is verified end-to-end. No code changes needed.
 - Delta: version=1780938973, 17 titles, 6 TV episodes, all share_urls valid
 - Proxy pool: active (350/2319 alive per last HC log)
 - Open tasks: none — see Known Issues section in NEXT_AGENT_BRIEF.md
+
+## Session 2026-06-09 (3rd) — Download service bug fixes (BUG-DL-PATH-B + BUG-DL-RF1)
+
+### Context
+User requested a line-by-line audit of the full JazzDrive share URL → direct download link generation flow.
+All relevant Dart files read from source (no docs/comments trusted): jazzdrive_service.dart, local_db.dart,
+download_service.dart, request_encoder.dart, device_id.dart, api_client.dart, player_screen.dart.
+
+Two bugs found in `download_service.dart` that were NOT caught by the prior TASK-057 audit.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-059 | Fix BUG-DL-PATH-B + BUG-DL-RF1 in download_service.dart | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| raddflix_flutter/lib/core/download/download_service.dart | Path B: getShareUrl→getShareInfo (+filename, +remote_id). Path A: decode RF1:xxx before JazzDrive call | 1cbec5a |
+
+### Bugs fixed
+
+**BUG-DL-PATH-B (HIGH):** Download Path B (no shareUrl passed by caller) used `LocalDb.getShareUrl(fileId)` which only returns the decoded URL string. `filename` and `remote_id` were lost — `getStreamLink` called with `targetFilename: null, remoteId: 0`. Pass 0 (remote_id) and Passes 1–3 (filename) all skipped. Fell back to `records.first` every time — always episode 1 downloaded regardless of which episode was requested. Fix: replaced with `LocalDb.getShareInfo(fileId)` which returns `{share_url, filename, remote_id}` in one query.
+
+**BUG-DL-RF1 (MEDIUM):** Download Path A decoded `shareUrl` passed from caller (typically `CatalogItem.shareUrl`) was never decoded from RF1:xxx before use. `_rowToItem` stores the raw scrambled `RF1:xxx` string directly from SQLite column into `CatalogItem.shareUrl`. `_extractShareKey` regex fails on scrambled URL → throws silently → catch falls back to original `streamUrl` param. Fix: added `LocalDb.decodeShareUrl(shareUrl)` before JazzDrive call in Path A.
+
+### State at end of session
+- Oracle Flask: RUNNING (not touched this session)
+- Account: ACTIVE
+- Open tasks: DATA-01 (admin upload needed), DATA-02 (admin upload needed)

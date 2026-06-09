@@ -309,3 +309,16 @@ and used as Pass 0 in `_getMedia()` for exact file matching.
 | ID | Status | Title |
 |----|--------|-------|
 | AUDIT-JD-ID | ✅ CLOSED — NO BUGS | JazzDrive file identification audit — full chain verified correct |
+
+---
+
+## Session 2026-06-09 (3rd) — Download service bugs found by line-by-line code audit
+
+| ID | Severity | Title | Root Cause | Fix Applied | File | Commit |
+|----|---------|-------|-----------|-------------|------|--------|
+| BUG-DL-PATH-B | HIGH | Download Path B always downloads wrong TV episode (always episode 1) | `getShareUrl(fileId)` only returns the decoded URL string — `filename` and `remote_id` are lost. `JazzDriveService.getStreamLink` was called with `targetFilename: null, remoteId: 0`. Pass 0 (remote_id exact match) and Passes 1–3 (filename matching) were both skipped. Fell back to `records.first` — always the first file in the JazzDrive folder, regardless of which episode was requested. | Replaced `LocalDb.getShareUrl()` with `LocalDb.getShareInfo()` which returns all three fields `{share_url, filename, remote_id}` in a single DB query. Pass `dbFilename` and `dbRemoteId` through to `getStreamLink()`. | `core/download/download_service.dart` | `1cbec5a` |
+| BUG-DL-RF1 | MEDIUM | Download Path A fails silently when called with scrambled `CatalogItem.shareUrl` | `_rowToItem` in `local_db.dart` returns `shareUrl: row['share_url'] as String?` — the raw `RF1:xxx` scrambled value from SQLite, not decoded. Any caller passing `item.shareUrl` directly to `downloadFile` as the `shareUrl` param sends a scrambled string. `_extractShareKey` regex `/(?:share-landing\/f\|share\/f\|f)\/([^/?#]+)/` cannot match `RF1:xxx` → returns `null` → throws `Exception('Invalid JazzDrive share URL')` → `catch` in Path A swallows the error silently and falls back to the original `streamUrl` param (which may be wrong or empty). | Added `await LocalDb.decodeShareUrl(shareUrl)` at the start of Path A before passing to `JazzDriveService`. If the URL is `RF1:xxx` it is decoded to the plain JazzDrive URL first; plain URLs pass through unchanged. | `core/download/download_service.dart` | `1cbec5a` |
+
+### Discovery method
+Both bugs found by reading the actual Dart source code line-by-line. No docs or comments consulted.
+Previous AUDIT-JD-ID session (2026-06-09 2nd) audited the player path correctly but did not audit the download service Path B, which used a different (simpler) DB lookup function.
