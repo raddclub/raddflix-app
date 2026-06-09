@@ -192,3 +192,16 @@ Example: `...0471712371671_2603800` → user 0471712371671, file 2603800
 - Oracle = catalog source only (titles + folder_share_url, no stream links)
 - Flutter generates stream links client-side via jazzdrive_service.dart from folder_share_url
 - No JazzDrive uploads from Oracle ever again
+
+## TASK-064 — Service On/Off Toggles (JazzDrive, Scan, Organizer)
+**Status:** ✅ DONE  
+**Commit:** 744d7d9  
+**Date:** 2026-06-09  
+**What:** Added on/off toggle buttons for three services — JD Flix Upload, Scan (JD Indexer), and Organizer.  
+**Where:**  
+- Settings page (`/settings`): Organizer row added to JazzDrive Services card alongside Upload & Scan  
+- Scan page (`/scan`): inline toggle button — no longer redirects to Settings  
+- Flix/Upload page (`/upload`): inline toggle button  
+- Organizer page (`/organizer`): paused banner + toggle button in header  
+- `/settings/api/services` GET/POST now handles `organizer` flag (`ORGANIZER_ENABLED` DB key)  
+- `organizer.py` route: plan + auto-organize endpoints return 503 when `ORGANIZER_ENABLED=0`  
