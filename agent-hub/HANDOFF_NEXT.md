@@ -1,4 +1,4 @@
-# HANDOFF — RaddFlix Hub (as of TASK-058)
+# HANDOFF — RaddFlix Hub (as of TASK-059 / JD File ID Audit)
 
 ## State of Play
 Flask app running at Oracle VPS 92.4.95.252:5000 (nginx 80→5000) — v3.0.0 healthy
@@ -12,8 +12,27 @@ Account 03286829827: session healthy, auto-recovers via Android OAuth2 + PK prox
 - titles schema: `plot` (NOT `overview`), `genres_csv`, `cast_json`
 - files schema: no `created_at` — use `scanned_at`
 - files.fingerprint TEXT UNIQUE NOT NULL — DB-level guard against double-queuing
-- files.remote_id TEXT (no UNIQUE — intentional)
+- files.remote_id TEXT (no UNIQUE — intentional) — this is JazzDrive's permanent file ID
 - settings: `jd_delta_folder_id=1763725`, `jd_delta_remote_id=242554393`
+
+## JazzDrive File ID System (VERIFIED CORRECT 2026-06-09)
+
+JD assigns each uploaded file a permanent integer `id` (called `remote_id` in our code).
+This ID never changes — survives renames, folder moves, and re-shares.
+
+**Full chain (all verified correct):**
+```
+Oracle files.remote_id → /api/catalog/sync response → Flutter episodes.remote_id (SQLite)
+→ getShareInfo() → player_screen remoteId → getStreamLink(remoteId:) → _getMedia Pass 0
+```
+
+**Folder shares:** Spider-Noir S01E01 (remote_id=242518443) and S01E02 (remote_id=242518530)
+share the same folder share URL. Pass 0 (`m['id'] == remoteId`) correctly picks the right
+file. Passes 1-3 (filename matching) are fallback only.
+
+**Server ops:** `rename_video()` and `delete_files_permanent()` both use `remote_id` as JD file ID.
+
+No code changes needed — system was already correct.
 
 ## Known Bugs / Gotchas
 1. **`upsert_title` UNIQUE slug bug** — fixed in scanner.py (commit 6ccfa67).
@@ -34,7 +53,7 @@ Account 03286829827: session healthy, auto-recovers via Android OAuth2 + PK prox
 | 1025 | OLD | FIX-PLAYER-01 + FIX-VAULT-01 | 56 MB | — |
 
 GitHub Actions run: https://github.com/raddclub/raddflix-app/actions/runs/27156269376
-Latest Flutter commit: `bf50cd6` | Oracle commit: `41fcc63`
+Latest Flutter commit: `338ad31b` | Oracle commit: `13f7ad38`
 
 ## TASK-058 Fixes (2026-06-09) — BUG-STALE-IDS
 
@@ -90,6 +109,7 @@ Flutter skipped re-sync → stale entries (id=28 Spider-Noir, file_id=31 dead) �
 - After ANY direct SQL change to is_published: regenerate delta via Python script
 - Add tasks to TASKS.md BEFORE making changes
 - Dart semicolons MUST come BEFORE inline comments: `expr); // comment`
+- NEVER use bash heredoc for Dart code with $ variables — use Python file + scp pattern
 
 ## Open (data gaps — need admin re-upload)
 
