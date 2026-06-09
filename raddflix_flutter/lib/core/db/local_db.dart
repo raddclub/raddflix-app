@@ -932,6 +932,30 @@ class LocalDb {
   }
 
 
+  // ── Catalog pruning ──────────────────────────────────────────────────────
+
+  /// Delete any title (and its orphaned episodes) whose id is NOT in [validIds].
+  /// Called after a full Oracle sync to remove stale entries left over from a
+  /// DB rebuild where title IDs changed (BUG-STALE-IDS fix).
+  /// Returns the number of titles deleted.
+  static Future<int> pruneStaleIds(List<int> validIds) async {
+    if (validIds.isEmpty) return 0;
+    final db = await instance;
+    final placeholders = validIds.map((_) => '?').join(',');
+    final deleted = await db.rawDelete(
+      'DELETE FROM titles WHERE id NOT IN ()',
+      validIds,
+    );
+    if (deleted > 0) {
+      await db.rawDelete(
+        'DELETE FROM episodes WHERE title_id NOT IN ()',
+        validIds,
+      );
+      await rebuildFtsIndex();
+    }
+    return deleted;
+  }
+
   // ── URL Scrambling Helpers ────────────────────────────────────────────────
 
   /// Scramble a JazzDrive share_url before storing in SQLite.
