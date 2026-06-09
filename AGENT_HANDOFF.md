@@ -1,6 +1,6 @@
 # AGENT_HANDOFF.md
 > **Read this file first — every session, every agent, no exceptions.**
-> Last updated: 2026-06-08
+> Last updated: 2026-06-09
 
 ---
 
@@ -321,6 +321,34 @@ to create script files, then run with `node /path/to/script.js`.
 
 All code bugs fixed. Uploads fully working. 17 titles / 28 files — all Live.
 Latest APK: **RaddFlix-1.0.0+1-build1034.apk** (run 27156269376, expires 2026-07-08).
+> **Next build needed: 1035** — includes `pruneStaleIds()` permanent stale-entry cleanup (Flutter commits on GitHub, not yet built).
+
+### Completed 2026-06-09 (TASK-058) — Fix: Flutter stale catalog after DB rebuild (BUG-STALE-IDS)
+
+**Root cause:** Oracle DB was rebuilt with new title IDs (1–20). Flutter's cached `localVersion`
+(1780929441) exactly matched the server version → Flutter said "Already up to date" → never
+re-synced → kept stale entries (e.g. Spider-Noir `id=28`, `file_id=31` which no longer exists
+→ 404 "Jazz SIM Required"). Even when sync ran, `/sync` is additive only, so old IDs remained.
+
+**Server fixes (live immediately, affect build1034 now):**
+- `POST /api/catalog/force-version-bump` → version bumped to `1781003205`
+  (forced_ts > localVersion → every device triggers full re-sync on next app open)
+- `/api/catalog/sync` now returns `valid_title_ids` list in response body
+  (`hub/routes/catalog_api.py`)
+
+**Flutter fixes (GitHub commits — next build 1035):**
+| Commit | File | Change |
+|--------|------|--------|
+| e9107cb6 | `lib/core/api/catalog_api.dart` | `syncFull()` returns `SyncFullResult{items, validTitleIds}` |
+| cb32f9ba | `lib/core/db/local_db.dart` | `pruneStaleIds(List<int> validIds)` — deletes titles+orphaned episodes not in valid set |
+| b523de28 | `lib/core/db/sync_service.dart` | Full sync calls `pruneStaleIds()` after persisting items |
+| 338ad31b | `lib/core/db/local_db.dart` | Fix `$placeholders` in pruneStaleIds SQL (bash heredoc ate the Dart variable) |
+
+**Encryption/Decryption audit (2026-06-09) — all PASS:**
+- Flutter `RequestEncoder` + `_XorInterceptor`: ✅ no issues
+- Server `request_encoding.py`: ✅ no issues (±1h candidate keys, padding, fallback)
+- `CatalogItem.fromJson()`: ✅ all fields safe-cast
+- `scrambleUrl`/`unscrambleUrl`: ✅ RF1: prefix guard, passthrough for legacy plain URLs
 
 ### Completed 2026-06-08 (TASK-057) — A-Z Full Audit
 - **FIX-ISONGOING**: zero_rating.py — `is_ongoing` string "0" truthy in Python → int() cast
