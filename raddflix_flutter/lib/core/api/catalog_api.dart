@@ -22,12 +22,21 @@ class CatalogApi {
   }
 
   /// Full catalog sync. Returns all published titles + their episodes.
-  static Future<List<CatalogItem>> syncFull() async {
+  /// Also returns [SyncFullResult.validTitleIds] — the complete list of
+  /// currently published title IDs. SyncService uses this to prune
+  /// stale local entries after a forced re-sync (BUG-STALE-IDS).
+  static Future<SyncFullResult> syncFull() async {
     final response = await _client.get(ApiPaths.catalogSync);
     final data = response.data as Map<String, dynamic>;
     final titles   = data['titles']   as List<dynamic>? ?? [];
     final episodes = data['episodes'] as List<dynamic>? ?? [];
-    return _buildItemsWithEpisodes(titles, episodes);
+    final validIds = (data['valid_title_ids'] as List<dynamic>? ?? [])
+        .map((e) => (e as num).toInt())
+        .toList();
+    return SyncFullResult(
+      items:          _buildItemsWithEpisodes(titles, episodes),
+      validTitleIds:  validIds,
+    );
   }
 
   /// Delta sync — only items changed since [sinceTimestamp].
@@ -97,6 +106,15 @@ class CatalogApi {
       return [];
     }
   }
+}
+
+/// Result of a full catalog sync from Oracle.
+/// Carries both the synced [items] and the [validTitleIds] set —
+/// used by SyncService to prune stale entries from the local SQLite DB.
+class SyncFullResult {
+  final List<CatalogItem> items;
+  final List<int> validTitleIds;
+  const SyncFullResult({required this.items, required this.validTitleIds});
 }
 
 class CatalogVersion {
