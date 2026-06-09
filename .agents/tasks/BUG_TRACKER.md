@@ -276,3 +276,36 @@ Build 1034 — RaddFlix-1.0.0+1-build1034.apk — run 27156269376 — 56.7 MB �
 ---
 
 ## Session 2026-06-08 — All bugs fixed
+
+
+---
+
+## Session 2026-06-09 (2nd) — JD File ID Audit (AUDIT-JD-ID)
+
+### Investigation: Does JazzDrive use a permanent file ID? Are we using it correctly?
+
+**Trigger:** User question — how does JazzDrive identify files for delete/rename, and are we using the right ID?
+
+### Findings
+
+| Finding | Detail |
+|---------|--------|
+| JD permanent file ID | `id` field in SAPI responses = Oracle `files.remote_id` (e.g. 242518443). Never changes on rename/move. |
+| Oracle server ops | `rename_video(account_id, video_id, ...)` and `delete_files_permanent(account_id, file_ids)` both accept `remote_id` — **CORRECT** |
+| Oracle `/sync` | Returns `remote_id` per episode in response body — **CORRECT** |
+| Flutter `_persistItems` | Explicitly passes `'remote_id': ep['remote_id'] as int? ?? 0` to `upsertEpisode` — **CORRECT** |
+| Flutter SQLite | `episodes` table has `remote_id INTEGER DEFAULT 0` column (via ALTER TABLE migration) — **CORRECT** |
+| Flutter `getShareInfo` | Reads `remote_id` from DB and returns in result map — **CORRECT** |
+| Flutter player | Reads `remoteId` from shareInfo and passes to `getStreamLink(remoteId: remoteId)` — **CORRECT** |
+| Flutter Pass 0 | `_getMedia()` checks `m['id'] == remoteId` before filename fallback — **CORRECT** |
+| Folder shares | Spider-Noir S01E01 (242518443) and S01E02 (242518530) share same folder URL — Pass 0 disambiguates correctly |
+
+### Verdict: NO BUGS — system already correct
+
+**No code changes were required.** The `remote_id` (JD permanent file ID) is correctly
+stored in Oracle, returned via `/sync`, persisted in Flutter SQLite, read by the player,
+and used as Pass 0 in `_getMedia()` for exact file matching.
+
+| ID | Status | Title |
+|----|--------|-------|
+| AUDIT-JD-ID | ✅ CLOSED — NO BUGS | JazzDrive file identification audit — full chain verified correct |
