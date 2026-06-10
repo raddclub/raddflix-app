@@ -486,44 +486,20 @@ def db_reset():
         return jsonify({"ok": False, "error": str(exc)}), 500
 
 
-@bp.route("/api/db/restore", methods=["POST"])
+@bp.route("/api/restart", methods=["POST"])
 @auth.login_required
-def db_restore():
-    """Trigger a JazzDrive re-scan for all accounts to rebuild the catalog.
-    Safe to call after a db/reset. Launches background scans and returns
-    immediately. Check /scan/ page for live progress.
+def admin_restart():
+    """Fire-and-forget restart of the raddflix_radd supervisor service.
+    Spawns a background thread so the HTTP response is sent before the
+    process dies, giving the browser time to receive the 200 OK.
     """
-    try:
-        from .. import scanner as _scan
-        accounts = db.list_accounts()
-        started, skipped, errors = [], [], []
-        for a in accounts:
-            aid = a["id"]
-            if not a.get("token_expires_at"):
-                skipped.append({"id": aid, "msisdn": a.get("msisdn", ""),
-                                 "reason": "no active session"})
-                continue
-            r = _scan.start_scan(aid)
-            if r.get("ok"):
-                started.append({"id": aid, "msisdn": a.get("msisdn", "")})
-            elif "already running" in (r.get("error") or "").lower():
-                skipped.append({"id": aid, "msisdn": a.get("msisdn", ""),
-                                 "reason": "already running"})
-            else:
-                errors.append({"id": aid, "msisdn": a.get("msisdn", ""),
-                                "error": r.get("error")})
-        n = len(started)
-        return jsonify({
-            "ok": True,
-            "started": started,
-            "skipped": skipped,
-            "errors":  errors,
-            "message": (f"Restore started: {n} scan(s) launched"
-                        + (f", {len(skipped)} skipped" if skipped else "")
-                        + (f", {len(errors)} error(s)" if errors else "") + "."),
-        })
-    except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+    import subprocess as _sp, threading as _th, time as _ti
+    def _do():
+        _ti.sleep(0.6)   # let response flush
+        _sp.run(["sudo", "supervisorctl", "restart", "raddflix_radd"],
+                capture_output=True)
+    _th.Thread(target=_do, daemon=True, name="admin-restart").start()
+    return jsonify({"ok": True, "message": "Restart initiated — service will be back in ~4 seconds"})
 
 
 @bp.route("/api/db/sync", methods=["POST"])
@@ -748,101 +724,27 @@ def admin_reimport_status(job_id: str):
         return jsonify({"ok": False, "error": f"job {job_id} not found (expires on server restart)"}), 404
     return jsonify({"ok": True, **job})
 
-# ---------------------------------------------------------------------------
-# Re-scan missing metadata — runs enrich_and_save on files with no title_id
-# ---------------------------------------------------------------------------
 
-_rescan_meta_jobs: dict = {}  # job_id -> {status, total, matched, still_missing, ...}
-
-
-@bp.route("/api/admin/rescan-metadata", methods=["POST"])
+@bp.route("/api/schema-health")
 @auth.login_required
-def admin_rescan_metadata_start():
-    """Find all files saved without a metadata match (title_id IS NULL) and
-    re-run the full IMDb-first enrichment chain on them.  Faster than a full
-    catalog restore — only touches unmatched files.
-    Returns {"ok": true, "job_id": "..."}, poll GET /api/admin/rescan-metadata/<job_id>.
+def schema_health():
+    """Return a full schema health report.
+
+    Checks every critical table + column against the live SQLite DB.
+    Any MISSING entry indicates a schema drift that will cause bugs in prod.
+
+    Response::
+
+        {
+          "ok": true,
+          "issue_count": 0,
+          "issues": [],
+          "checks": {"app_subscriptions.is_active": true, ...},
+          "checked_at": 1234567890
+        }
     """
-    import threading as _threading
-    import uuid as _uuid_mod
-    import time as _time_mod
-    import sqlite3 as _sqlite3
-
-    job_id = _uuid_mod.uuid4().hex[:12]
-    job = {
-        "status": "running", "total": 0,
-        "matched": 0, "still_missing": 0,
-        "started_at": int(_time_mod.time()), "finished_at": None,
-    }
-    _rescan_meta_jobs[job_id] = job
-
-    def _run():
-        try:
-            from hub._legacy import scanner as _sc, schema as _sch
-
-            conn = _sqlite3.connect(_sch.DB_PATH, check_same_thread=False)
-            conn.row_factory = _sqlite3.Row
-
-            rows = conn.execute(
-                "SELECT * FROM files WHERE title_id IS NULL ORDER BY account_id, folder_path, filename"
-            ).fetchall()
-            job["total"] = len(rows)
-
-            if not rows:
-                job["status"] = "done"
-                job["finished_at"] = int(_time_mod.time())
-                return
-
-            # Group by account_id — enrich_and_save handles per-folder grouping internally
-            accounts = {}
-            for row in rows:
-                d = dict(row)
-                accounts.setdefault(d["account_id"], []).append(d)
-
-            fingerprints = [dict(r)["fingerprint"] for r in rows]
-
-            for acct_id, file_list in accounts.items():
-                try:
-                    _sc.enrich_and_save(file_list, acct_id)
-                except Exception as eg:
-                    log.warning("rescan-metadata error (account %s): %s", acct_id, eg)
-
-            # Count how many were matched
-            if fingerprints:
-                ph = ','.join('?' * len(fingerprints))
-                matched = conn.execute(
-                    f"SELECT COUNT(*) FROM files WHERE fingerprint IN ({ph}) AND title_id IS NOT NULL",
-                    fingerprints
-                ).fetchone()[0]
-                job["matched"] = matched
-                job["still_missing"] = len(fingerprints) - matched
-
-            job["status"] = "done"
-            log.info("rescan-metadata job %s done — %d/%d matched",
-                     job_id, job["matched"], job["total"])
-        except Exception as e:
-            job["status"] = "error"
-            job["error"] = str(e)
-            log.warning("rescan-metadata job %s error: %s", job_id, e)
-        finally:
-            job["finished_at"] = int(_time_mod.time())
-
-    _threading.Thread(
-        target=_run, daemon=True, name=f"rescan-meta-{job_id}"
-    ).start()
-    return jsonify({
-        "ok": True,
-        "job_id": job_id,
-        "message": f"Metadata re-scan started for {len(list(db.list_accounts()))} account(s). Poll GET /api/admin/rescan-metadata/{job_id} for progress.",
-    })
-
-
-@bp.route("/api/admin/rescan-metadata/<job_id>", methods=["GET"])
-@auth.login_required
-def admin_rescan_metadata_status(job_id: str):
-    """Poll a metadata re-scan job started by POST /api/admin/rescan-metadata."""
-    job = _rescan_meta_jobs.get(job_id)
-    if not job:
-        return jsonify({"ok": False, "error": f"job {job_id} not found (expires on server restart)"}), 404
-    return jsonify({"ok": True, **job})
+    from .. import db as _db
+    result = _db.validate_schema()
+    status = 200 if result["ok"] else 207  # 207 = partial — some checks failed
+    return jsonify(result), status
 

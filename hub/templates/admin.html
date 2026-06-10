@@ -678,15 +678,46 @@ ssetLoad();
 
   <div style="display:flex;flex-direction:column;gap:16px">
     {# Clear Local #}
-    <div style="padding:12px; background:rgba(255,0,0,0.05); border-radius:8px">
+    <div style="padding:14px;background:rgba(255,0,0,0.05);border-radius:8px">
       <div style="font-weight:600;margin-bottom:4px">Reset Local Tables</div>
-      <div class="muted" style="font-size:12px;margin-bottom:10px">Deletes all titles, files, and logs from the local database. Keeps accounts and settings.</div>
+      <div class="muted" style="font-size:12px;margin-bottom:10px">
+        Deletes all titles, files, and logs from the local database. Keeps accounts and settings.
+        <br>After clearing, the Oracle service is <strong>automatically restarted</strong> so all background workers start fresh.
+      </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <label style="font-size:12px;text-transform:none;letter-spacing:0;color:var(--fg);cursor:pointer">
           <input type="checkbox" id="chk-db-reset"> I understand this clears all media records
         </label>
         <button class="danger" id="btn-db-reset" onclick="dbReset()" style="padding:4px 12px;font-size:12px">Reset Tables</button>
       </div>
+
+      <!-- Live progress panel (hidden until reset starts) -->
+      <div id="db-reset-progress" style="display:none;margin-top:14px;padding:12px;background:rgba(0,0,0,.18);border-radius:8px;border:1px solid rgba(255,255,255,.07)">
+        <!-- Step list -->
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">
+          <div id="rst-step-1" style="display:flex;align-items:flex-start;gap:10px;font-size:13px">
+            <span id="rst-s1-icon" style="font-size:16px;flex-shrink:0;line-height:1.4">&#9203;</span>
+            <div><div id="rst-s1-title" style="font-weight:600">Clearing database tables&hellip;</div>
+                 <div id="rst-s1-sub" style="font-size:11px;color:var(--muted);margin-top:2px"></div></div>
+          </div>
+          <div id="rst-step-2" style="display:flex;align-items:flex-start;gap:10px;font-size:13px;opacity:.3">
+            <span id="rst-s2-icon" style="font-size:16px;flex-shrink:0;line-height:1.4">&#9203;</span>
+            <div><div id="rst-s2-title" style="font-weight:600">Restarting Oracle service&hellip;</div>
+                 <div id="rst-s2-sub" style="font-size:11px;color:var(--muted);margin-top:2px"></div></div>
+          </div>
+          <div id="rst-step-3" style="display:flex;align-items:flex-start;gap:10px;font-size:13px;opacity:.3">
+            <span id="rst-s3-icon" style="font-size:16px;flex-shrink:0;line-height:1.4">&#9203;</span>
+            <div><div id="rst-s3-title" style="font-weight:600">Waiting for service to come back online&hellip;</div>
+                 <div id="rst-s3-sub" style="font-size:11px;color:var(--muted);margin-top:2px"></div></div>
+          </div>
+        </div>
+        <!-- Table-by-table breakdown (shown after step 1 completes) -->
+        <div id="db-reset-table" style="display:none;border-top:1px solid rgba(255,255,255,.07);padding-top:10px;font-size:12px">
+          <div id="db-reset-table-rows"></div>
+        </div>
+      </div>
+
+      <!-- Legacy result div (used for errors before progress panel activates) -->
       <div id="db-reset-result" style="display:none;margin-top:12px;padding:10px 12px;border-radius:6px;font-size:13px"></div>
     </div>
 
@@ -1038,68 +1069,167 @@ function _dangerMsg(msg, isErr){
 
 async function dbReset(){
   const chk = document.getElementById('chk-db-reset');
-  if(!chk || !chk.checked){ toast('Please check the confirmation box first'); return; }
+  if(!chk || !chk.checked){ toast('Check the confirmation box first'); return; }
   const btn = document.getElementById('btn-db-reset');
-  // Two-step: first click arms, second click fires
+
+  /* Two-step arm: first click arms, second fires */
   if(!btn._armed){
     btn._armed = true;
-    btn.textContent = '⚠️ Click again to confirm';
+    btn.textContent = 'Click again to confirm';
     btn.style.background = '#c0392b';
-    setTimeout(()=>{ btn._armed=false; btn.textContent='Reset Tables'; btn.style.background=''; }, 4000);
+    setTimeout(()=>{ btn._armed=false; btn.textContent='Reset Tables'; btn.style.background=''; }, 5000);
     return;
   }
   btn._armed = false;
   btn.style.background = '';
+  btn.disabled = true;
+  btn.textContent = 'Resetting...';
 
+  /* Show progress panel */
+  const progress = document.getElementById('db-reset-progress');
   const resultEl = document.getElementById('db-reset-result');
-  if(btn){ btn.disabled=true; btn.textContent='Resetting…'; }
-  if(resultEl){ resultEl.style.display='none'; }
-  _dangerMsg('⏳ Resetting tables…');
+  const tableEl  = document.getElementById('db-reset-table');
+  const tableRows= document.getElementById('db-reset-table-rows');
+  if(progress){ progress.style.display='block'; progress.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+  if(resultEl) resultEl.style.display='none';
+  if(tableEl)  tableEl.style.display='none';
+
+  /* Step helpers */
+  function _setStep(n, icon, title, sub, opacity){
+    const iconEl  = document.getElementById('rst-s'+n+'-icon');
+    const titleEl = document.getElementById('rst-s'+n+'-title');
+    const subEl   = document.getElementById('rst-s'+n+'-sub');
+    const stepEl  = document.getElementById('rst-step-'+n);
+    if(iconEl)  iconEl.textContent = icon;
+    if(titleEl) titleEl.innerHTML  = title;
+    if(subEl)   subEl.innerHTML    = sub  || '';
+    if(stepEl)  stepEl.style.opacity = (opacity !== undefined) ? String(opacity) : '1';
+  }
+
+  _setStep(1, '[1/3]', 'Clearing database tables...', 'Connecting to database and running DELETE transactions', 1);
+  _setStep(2, '[2/3]', 'Restarting Oracle service...', '', 0.3);
+  _setStep(3, '[3/3]', 'Waiting for service to come back online...', '', 0.3);
+  _dangerMsg('Resetting tables...');
+
+  const TABLE_LABELS = {
+    titles:               'Titles (catalog)',
+    files:                'Files (media records)',
+    scan_log:             'Scan log',
+    media_index:          'Media index / FTS cache',
+    mirror_log:           'Mirror log',
+    queue:                'Download queue',
+    recommendation_cache: 'Recommendation cache',
+    turbo_cache:          'Turbo cache',
+    bot_status_index:     'Bot status index',
+  };
 
   try{
-    const r = await api('/admin/api/db/reset',{method:'POST'});
-    if(r.ok){
-      const counts = r.row_counts || {};
-      const total = Object.values(counts).reduce((s,v)=>s+v, 0);
-      const rows = Object.entries(counts)
-        .map(([k,v])=>`<tr>
-          <td style="padding:3px 10px;color:var(--muted);font-size:12px">${k}</td>
-          <td style="padding:3px 10px;text-align:right;font-size:12px;color:${v>0?'var(--warn)':'var(--muted)'}">${v} row${v!==1?'s':''} deleted</td>
-        </tr>`).join('');
-      if(resultEl){
-        resultEl.style.display='block';
-        resultEl.style.background='rgba(92,214,111,0.08)';
-        resultEl.style.border='1px solid var(--ok)';
-        resultEl.innerHTML=
-          `<div style="color:var(--ok);font-weight:600;margin-bottom:8px">✔ Reset complete — ${total} total row${total!==1?'s':''} removed</div>`
-          +`<table style="width:100%;border-collapse:collapse">${rows}</table>`
-          +`<div style="margin-top:8px;font-size:11px;color:var(--muted)">Devices will re-sync on next app launch. Use <strong>Restore from JazzDrive</strong> above to rebuild the catalog.</div>`;
-        resultEl.scrollIntoView({behavior:'smooth',block:'nearest'});
-      }
-      chk.checked = false;
-      _dangerMsg('✔ Reset complete — '+total+' rows removed');
-    } else {
+    /* STEP 1: clear tables */
+    const r = await api('/admin/api/db/reset', {method:'POST'});
+
+    if(!r.ok){
+      _setStep(1, '[!]', 'Reset failed', r.error||'Unknown error', 1);
       if(resultEl){
         resultEl.style.display='block';
         resultEl.style.background='rgba(255,107,107,0.08)';
         resultEl.style.border='1px solid var(--err)';
-        resultEl.innerHTML=`<div style="color:var(--err);font-weight:600">✗ Reset failed</div><div style="margin-top:4px;font-size:12px;color:var(--muted)">${r.error||'Unknown error'}</div>`;
+        resultEl.innerHTML='<strong style="color:var(--err)">Reset failed</strong><br><span style="font-size:12px;color:var(--muted)">'+(r.error||'Unknown error')+'</span>';
       }
       _dangerMsg('Error: '+(r.error||'?'), true);
+      btn.disabled=false; btn.textContent='Reset Tables';
+      return;
     }
+
+    /* Build per-table breakdown */
+    const counts = r.row_counts || {};
+    const total  = Object.values(counts).reduce((s,v)=>s+(v||0), 0);
+    const skipped= r.skipped || [];
+
+    const rowsHtml = Object.entries(counts).map(([k,v])=>{
+      const label = TABLE_LABELS[k] || k;
+      const val = v > 0
+        ? '<span style="color:var(--warn);font-weight:600">'+v+' row'+(v!==1?'s':'')+' deleted</span>'
+        : '<span style="color:var(--muted);font-size:11px">already empty</span>';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)">'
+           + '<span style="color:var(--muted)">'+label+'</span>'+val+'</div>';
+    }).join('');
+
+    const skipHtml = skipped.length
+      ? '<div style="margin-top:8px;color:var(--warn);font-size:11px">Skipped (not found): '+skipped.join(', ')+'</div>'
+      : '';
+
+    if(tableRows) tableRows.innerHTML =
+      '<div style="font-weight:600;color:var(--ok);margin-bottom:8px">'+total+' total row'+(total!==1?'s':'')+' deleted across '+Object.keys(counts).length+' tables</div>'
+      + rowsHtml + skipHtml
+      + '<div style="margin-top:8px;font-size:11px;color:var(--muted)">'+(r.message||'')+'</div>';
+    if(tableEl) tableEl.style.display='block';
+
+    const summary = Object.entries(counts).filter(([,v])=>v>0).map(([k,v])=>(TABLE_LABELS[k]||k)+': '+v).join(' | ') || 'All tables were already empty';
+    _setStep(1, '[OK]',
+      'Tables cleared &mdash; <strong style="color:var(--ok)">'+total+' row'+(total!==1?'s':'')+' removed</strong>',
+      summary, 1);
+    chk.checked = false;
+    _dangerMsg('Tables cleared &mdash; '+total+' rows removed');
+
+    /* STEP 2: restart service */
+    _setStep(2, '[2/3]', 'Sending restart signal to Oracle service...', 'The page may briefly become unresponsive &mdash; that is expected', 1);
+
+    try{
+      await api('/admin/api/restart', {method:'POST'});
+      _setStep(2, '[OK]', 'Restart signal sent', 'Service is shutting down and restarting...', 1);
+    }catch(_re){
+      /* fire-and-forget: fetch may fail as server dies mid-response */
+      _setStep(2, '[OK]', 'Restart signal sent', 'Service is restarting...', 1);
+    }
+
+    /* STEP 3: poll healthz until service is back */
+    _setStep(3, '[3/3]', 'Waiting for service to come back online...', 'Checking every 1.5 seconds...', 1);
+
+    let attempts = 0;
+    const maxAttempts = 24;   /* 24 x 1.5s = 36s max */
+
+    async function pollHealth(){
+      attempts++;
+      if(attempts > maxAttempts){
+        _setStep(3, '[!]',
+          'Service is taking longer than expected',
+          'Reload this page in a few seconds &mdash; the reset is complete.',
+          1);
+        _dangerMsg('Reset complete &mdash; service restart is slow. Reload the page.', true);
+        btn.disabled=false; btn.textContent='Reset Tables';
+        return;
+      }
+      try{
+        const h = await fetch('/healthz', {credentials:'include'});
+        if(h.ok){
+          _setStep(3, '[OK]',
+            'Service is back online &mdash; Reset complete!',
+            'All background workers restarted. Use Restore from JazzDrive above to rebuild the catalog.',
+            1);
+          _dangerMsg('Reset + restart complete &mdash; service is ready');
+          toast('Reset complete &mdash; Oracle restarted');
+          btn.disabled=false; btn.textContent='Reset Tables';
+          return;
+        }
+      }catch(_pe){ /* server still down, keep polling */ }
+      _setStep(3, '[3/3]', 'Waiting for service to come back online... ('+attempts+'/'+maxAttempts+')', 'Checking every 1.5 seconds...', 1);
+      setTimeout(pollHealth, 1500);
+    }
+
+    setTimeout(pollHealth, 2500);   /* give process ~2.5s to start dying */
+
   }catch(e){
+    _setStep(1, '[!]', 'Unexpected error', e.message, 1);
     if(resultEl){
       resultEl.style.display='block';
       resultEl.style.background='rgba(255,107,107,0.08)';
       resultEl.style.border='1px solid var(--err)';
-      resultEl.innerHTML=`<div style="color:var(--err);font-weight:600">✗ Reset failed</div><div style="margin-top:4px;font-size:12px;color:var(--muted)">${e.message}</div>`;
+      resultEl.innerHTML='<strong style="color:var(--err)">Reset failed</strong><br><span style="font-size:12px;color:var(--muted)">'+e.message+'</span>';
     }
     _dangerMsg('Error: '+e.message, true);
-  } finally {
-    if(btn){ btn.disabled=false; btn.textContent='Reset Tables'; }
+    btn.disabled=false; btn.textContent='Reset Tables';
   }
 }
-
 
 async function rescanMeta() {
   const btn = document.getElementById('btn-rescan-meta');
