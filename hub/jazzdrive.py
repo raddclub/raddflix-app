@@ -265,79 +265,66 @@ def _is_replit() -> bool:
     return bool(os.environ.get("REPL_ID") or os.environ.get("REPLIT_DEPLOYMENT"))
 
 def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
-    """Return a requests-compatible proxies dict.
-
-    purpose='sapi' — uses the SAPI proxy POOL (auto-rotating, health-checked).
-                     Falls back to JAZZDRIVE_SAPI_PROXY setting if pool empty.
-    purpose='otp'  — uses the general JAZZDRIVE_PROXY slot (OTP / refresh_token).
-    Always returns None on Replit because proxy traffic violates ToS."""
-    if _is_replit():
-        return None
-    # Global proxy bypass — when JAZZDRIVE_PROXY_BYPASS=1 all traffic goes direct.
-    # Enable this when Oracle IP is not geo-blocked; proxies only slow things down.
-    # NOTE: SAPI LOGIN (geo-restricted) bypasses this via direct pool access in
-    # _android_refresh_session_inner._s2_chain — NOT via resolve_proxies('sapi').
-    if db.setting('JAZZDRIVE_PROXY_BYPASS', '1') != '0':  # default=VPN/direct; set '0' to enable proxies
-        return None
-    if purpose == 'sapi':
-        # Try the pool first (auto-rotating, health-checked)
-        try:
-            from . import proxy_pool as _pp
-            px = _pp.pool.get_best()
-            if px:
-                return px
-        except Exception:
-            pass
-        # Fallback to single-proxy setting
-        sapi_url = (db.setting("JAZZDRIVE_SAPI_PROXY") or "").strip()
-        if sapi_url:
-            return {"http": sapi_url, "https": sapi_url, "_url": sapi_url}
-        return None
-    # OTP / general proxy — manual setting takes priority
-    manual_enabled = db.setting("JAZZDRIVE_PROXY_ENABLED") == "1"
-    url = (db.setting("JAZZDRIVE_PROXY") or "").strip()
-    if manual_enabled and url:
-        # Dead-proxy guard: if this URL was disabled by mark_fail (>= 5 fails),
-        # skip it and fall through to the pool rather than hammering the same
-        # broken host on every OTP request.
-        _manual_alive = True
-        try:
-            with db.conn() as _rc:
-                _pr = _rc.execute(
-                    "SELECT is_enabled FROM sapi_proxies WHERE url=?", (url,)
-                ).fetchone()
-            if _pr is not None and not _pr["is_enabled"]:
-                _manual_alive = False
-                log.warning(
-                    "resolve_proxies(otp): JAZZDRIVE_PROXY '%s' is disabled "
-                    "(too many fails) — falling through to pool", url)
-        except Exception:
-            pass  # pool DB unavailable — trust the manual setting
-        if _manual_alive:
-            return {"http": url, "https": url, "_url": url}
-    # No live manual proxy — fall back to SAPI pool automatically.
-    # This ensures OTP always goes through a Pakistani IP.
-    try:
-        from . import proxy_pool as _pp
-        px = _pp.pool.get_best()
-        if px:
-            return px
-        # Circuit open (>80% dead) but OTP MUST use a proxy.
-        # Direct connection from Oracle's non-PK IP always returns MED-1011.
-        # Use the least-dead proxy from the chain as a last resort.
-        chain = _pp.pool.get_proxy_chain(n=1)
-        if chain:
-            log.warning("resolve_proxies(otp): circuit open — using least-dead proxy as OTP fallback")
-            return chain[0]
-    except Exception:
-        pass
+    """Always returns None.
+    JazzDrive traffic routes via wg0 VPN at the OS level (IP routes for JD IPs
+    point to wg0).  When wg0 is unavailable those routes are auto-removed and
+    traffic falls back to the default interface.  _with_vpn_fallback() handles
+    the edge-case where wg0 is UP but the tunnel peer is unreachable."""
     return None
 
 
 
 def is_proxy_bypass() -> bool:
-    """Return True when JAZZDRIVE_PROXY_BYPASS=1 — all calls go direct, skip pool."""
-    return db.setting('JAZZDRIVE_PROXY_BYPASS', '1') != '0'  # default=VPN/direct
+    """Always True — all JD traffic goes direct/VPN.  No proxy pool."""
+    return True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VPN / Direct Fallback Helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+_JD_IPS = ["54.179.95.148", "54.254.59.168", "175.41.133.62"]
+_wg0_lock = __import__('threading').Lock()
+
+
+def _wg0_route_ips() -> list:
+    """Return the JD IPs that currently have an explicit wg0 route."""
+    try:
+        import subprocess as _sp
+        out = _sp.check_output(["ip", "route", "show", "dev", "wg0"],
+                               text=True, timeout=2)
+        return [ip for ip in _JD_IPS if ip in out]
+    except Exception:
+        return []
+
+
+def _wg0_alive() -> bool:
+    """Quick TCP probe: can we reach any JD IP on port 443 via wg0 in < 3 s?"""
+    import socket as _sock
+    for ip in _JD_IPS:
+        try:
+            s = _sock.create_connection((ip, 443), timeout=3)
+            s.close()
+            return True
+        except OSError:
+            pass
+    return False
+
+
+def _remove_wg0_routes(ips: list) -> None:
+    """Temporarily delete wg0 routes so traffic uses the default interface."""
+    import subprocess as _sp
+    for ip in ips:
+        _sp.run(["sudo", "ip", "route", "del", ip, "dev", "wg0"],
+                capture_output=True, timeout=3)
+
+
+def _restore_wg0_routes(ips: list) -> None:
+    """Re-add wg0 routes after a direct-fallback attempt."""
+    import subprocess as _sp
+    for ip in ips:
+        _sp.run(["sudo", "ip", "route", "add", ip, "dev", "wg0", "scope", "link"],
+                capture_output=True, timeout=3)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Auth Helpers
@@ -1004,27 +991,14 @@ def sapi_request(endpoint: str, action: str,
         req_headers.update(headers)
 
     # 3. Execute request
-    _proxy_url = (proxies or {}).get("_url") or (proxies or {}).get("https")
-    # Strip private key before passing to requests
-    _req_proxies = {k: v for k, v in (proxies or {}).items() if k in ("http", "https")} if proxies else None
-    _t0_sapi = time.time() if _proxy_url else None
+    # proxies is always None (VPN handled at OS routing level)
+    _req_proxies = None
     try:
-        r = _req.request(method, url, params=req_params, json=json_data, data=data, headers=req_headers, timeout=timeout, proxies=_req_proxies)
+        r = _req.request(method, url, params=req_params, json=json_data, data=data, headers=req_headers, timeout=timeout)
 
         # 3b. Capture any fresh JSESSIONID issued by the server on SUCCESSFUL responses.
         # Only save on 2xx — a 401 response may carry a guest/unauthenticated JSESSIONID
         # which would break subsequent authenticated calls if saved.
-        # Mark proxy success/fail
-        if _proxy_url:
-            try:
-                _elapsed_ms = int((time.time() - _t0_sapi) * 1000) if _t0_sapi else None
-                from . import proxy_pool as _pp
-                if r.status_code in (200, 400, 401, 403, 500):
-                    _pp.pool.mark_success(_proxy_url, _elapsed_ms)
-                else:
-                    _pp.pool.mark_fail(_proxy_url)
-            except Exception:
-                pass
         if 200 <= r.status_code < 300:
             new_jid_from_cookie = r.cookies.get("JSESSIONID")
             new_vk_from_header = r.headers.get("X-Funambol-ValidationKey")
@@ -1125,13 +1099,35 @@ def sapi_request(endpoint: str, action: str,
         return resp_data
 
     except Exception as e:
+        import requests as _rq_exc
+        _is_conn = isinstance(e, (_rq_exc.ConnectionError, _rq_exc.Timeout))
+        if _is_conn:
+            # VPN-with-direct fallback: wg0 may be UP but tunnel peer unreachable.
+            # Temporarily remove wg0 routes so the default interface is used, retry
+            # the request once, then restore the routes.
+            with _wg0_lock:
+                _routed = _wg0_route_ips()
+                if _routed:
+                    log.warning("sapi_request: connection failed via wg0 (%s) — retrying direct", str(e)[:80])
+                    _remove_wg0_routes(_routed)
+                    try:
+                        r = _req.request(method, url, params=req_params, json=json_data,
+                                         data=data, headers=req_headers, timeout=timeout)
+                        log.info("sapi_request: direct fallback succeeded (HTTP %d)", r.status_code)
+                        # Don't return here — fall through to normal response handling below
+                        # by re-raising so the outer retry loop in callers picks it up.
+                        # Actually parse and return directly since we're past the try block.
+                        try:
+                            resp_data = r.json()
+                        except Exception:
+                            resp_data = {"_raw": r.text, "_status": r.status_code}
+                        return resp_data
+                    except Exception as e2:
+                        log.error("sapi_request: direct fallback also failed: %s", e2)
+                        return {"error": {"code": "EXC", "message": str(e2)}}
+                    finally:
+                        _restore_wg0_routes(_routed)
         log.error("sapi_request exception: %s", e)
-        if _proxy_url:
-            try:
-                from . import proxy_pool as _pp
-                _pp.pool.mark_fail(_proxy_url)
-            except Exception:
-                pass
         return {"error": {"code": "EXC", "message": str(e)}}
 
 
@@ -1283,29 +1279,8 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     if not msisdn_local:
         return {"ok": False, "error": "No MSISDN provided or configured"}
 
-    # Build proxy chain — bypass check first.
-    _proxies_chain: list = []
-    _seen_proxy_urls: set = set()
-    if is_proxy_bypass():
-        _proxies_chain = [None]  # direct — Oracle IP is not geo-blocked
-    else:
-        primary = resolve_proxies()
-        if primary:
-            _proxies_chain.append(primary)
-            _seen_proxy_urls.add(primary.get("_url", ""))
-        try:
-            from . import proxy_pool as _pp
-            for p in _pp.pool.get_proxy_chain(n=4):
-                _p_url = p.get("_url", "")
-                if _p_url and _p_url not in _seen_proxy_urls:
-                    _seen_proxy_urls.add(_p_url)
-                    _proxies_chain.append(p)
-        except Exception:
-            pass
-        if not _proxies_chain:
-            log.warning("trigger_otp_flow: proxy chain empty — direct connection "
-                        "will likely fail (MED-1011 from non-PK IP)")
-            _proxies_chain = [None]
+    # Always direct — VPN (wg0) routes JD traffic at OS level.
+    _proxies_chain: list = [None]
 
     last_err: Exception = Exception("No proxies available")
     for proxies in _proxies_chain:
@@ -1345,18 +1320,10 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
         except Exception as e:
             last_err = e
             err_s = str(e).lower()
-            is_conn = any(x in err_s for x in ('connection', 'timeout', 'refused', 'reset', 'socks', 'proxy', 'max retries', 'newconnection'))
-            if is_conn and proxies:
-                url = proxies.get("_url") or proxies.get("https") or ""
-                try:
-                    from . import proxy_pool as _pp
-                    if url:
-                        _pp.pool.mark_fail(url)
-                        log.warning("OTP: proxy %s failed (%s), trying next in chain", url, str(e)[:80])
-                except Exception:
-                    pass
-                continue  # try next proxy in chain
-            break  # non-connection error — don't retry with different proxy
+            is_conn = any(x in err_s for x in ('connection', 'timeout', 'refused', 'reset', 'max retries', 'newconnection'))
+            if is_conn:
+                log.warning("OTP: connection error (%s)", str(e)[:80])
+            break
 
     log.error("trigger_otp error (all proxies exhausted): %s", last_err)
     return {"ok": False, "error": str(last_err)}
@@ -1377,29 +1344,8 @@ def resend_otp() -> dict:
         _OTP_STATE_FILE.unlink(missing_ok=True)
         return {"ok": False, "error": "OTP session expired (>10 min) — trigger a new OTP first"}
 
-    # Build proxy chain — bypass check first.
-    _proxies_chain: list = []
-    _seen_proxy_urls: set = set()
-    if is_proxy_bypass():
-        _proxies_chain = [None]  # direct — Oracle IP is not geo-blocked
-    else:
-        primary = resolve_proxies()
-        if primary:
-            _proxies_chain.append(primary)
-            _seen_proxy_urls.add(primary.get("_url", ""))
-        try:
-            from . import proxy_pool as _pp
-            for p in _pp.pool.get_proxy_chain(n=4):
-                _p_url = p.get("_url", "")
-                if _p_url and _p_url not in _seen_proxy_urls:
-                    _seen_proxy_urls.add(_p_url)
-                    _proxies_chain.append(p)
-        except Exception:
-            pass
-        if not _proxies_chain:
-            log.warning("resend_otp: proxy chain empty — direct connection "
-                        "will likely fail (MED-1011 from non-PK IP)")
-            _proxies_chain = [None]
+    # Always direct — VPN (wg0) routes JD traffic at OS level.
+    _proxies_chain: list = [None]
 
     last_err: Exception = Exception("No proxies available")
     for proxies in _proxies_chain:
@@ -1433,17 +1379,6 @@ def resend_otp() -> dict:
         except Exception as e:
             last_err = e
             err_s = str(e).lower()
-            is_conn = any(x in err_s for x in ('connection', 'timeout', 'refused', 'reset', 'socks', 'proxy', 'max retries', 'newconnection'))
-            if is_conn and proxies:
-                url = proxies.get("_url") or proxies.get("https") or ""
-                try:
-                    from . import proxy_pool as _pp
-                    if url:
-                        _pp.pool.mark_fail(url)
-                        log.warning("OTP resend: proxy %s failed, trying next", url)
-                except Exception:
-                    pass
-                continue
             break
 
     log.error("resend_otp error (all proxies exhausted): %s", last_err)
@@ -1463,33 +1398,8 @@ def submit_otp(otp: str) -> dict:
         _OTP_STATE_FILE.unlink(missing_ok=True)
         return {"ok": False, "error": "OTP expired (>10 min) — request a new OTP"}
 
-    # Build proxy chain for submit_otp.
-    # JazzDrive is globally accessible — no geo-restriction.
-    # With PROXY_BYPASS=1, wg0 routes cloud.jazzdrive.com.pk directly; go direct.
-    # Only use proxy pool in non-bypass environments.
-    _sub_chain: list = []
-    _sub_seen: set = set()
-    if is_proxy_bypass():
-        # PROXY_BYPASS=1 — wg0 routes cloud.jazzdrive.com.pk directly.
-        # Skip pool entirely — proxies are unused/dead in bypass mode.
-        _sub_chain = [None]
-    else:
-        _sub_primary = resolve_proxies()
-        if _sub_primary:
-            _sub_chain.append(_sub_primary)
-            _sub_seen.add(_sub_primary.get("_url", ""))
-        try:
-            from . import proxy_pool as _pp
-            for _subp in _pp.pool.get_proxy_chain(n=4):
-                _subp_url = _subp.get("_url", "")
-                if _subp_url and _subp_url not in _sub_seen:
-                    _sub_seen.add(_subp_url)
-                    _sub_chain.append(_subp)
-        except Exception:
-            pass
-        if not _sub_chain:
-            log.warning("submit_otp: proxy chain empty — using direct connection")
-            _sub_chain = [None]
+    # Always direct — VPN (wg0) routes JD traffic at OS level.
+    _sub_chain: list = [None]
 
     _sub_last_err: Exception = Exception("No proxies available")
     for proxies in _sub_chain:
