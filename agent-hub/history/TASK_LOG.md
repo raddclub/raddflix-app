@@ -1046,3 +1046,18 @@ ProxyPool background threads were hammering the CPU:
 - Load average: dropping (was 7.0, now 4.0 and falling)
 - Account: ACTIVE
 - Open tasks: see agent-hub/TASKS.md
+
+## Session 2026-06-10 — Proxy background scanning permanently disabled
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| PERF-02 | Remove all 4 proxy background auto-threads | DONE |
+
+### What was done
+Removed 4 auto-start background threads from ProxyPool: _hc_loop, _recovery_loop, _disc_loop, _test_seeds_bg.
+All methods kept intact in code — admin can still manually trigger via /api/pool/healthcheck and /api/pool/discover.
+
+### Result
+- Oracle Flask: 9 threads (was 161), ~2% CPU (was 99.9%), 85 MB RAM (was 4.4 GB)
+- Load average: 0.31 (was 7.0). Proxy scanning: PERMANENTLY OFF, manual-only.
