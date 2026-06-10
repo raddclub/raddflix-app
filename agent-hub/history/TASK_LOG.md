@@ -919,3 +919,59 @@ Three reasons the last 2 accounts got suspended by Jazz:
 - Oracle Flask: RUNNING (healthz ok)
 - Accounts table: empty (needs re-add + scan)
 - Open tasks: see agent-hub/TASKS.md
+
+---
+
+## Session: 2026-06-10 — FIX-SESSION-GUARDIAN-01: Session Guardian for Upload Account
+
+### Context
+User clarified usage pattern:
+- Organizer: never used
+- Scanner: 1-2× lifetime (DB rebuild only)
+- Upload: DAILY 2-3 hours → must NEVER get suspended
+
+### Root cause of suspensions (confirmed)
+Uploading itself is safe — Jazz expects it. The suspensions came from:
+1. Keepalive fake uploads → DISABLED (prev session)
+2. Scanner 10-thread crawl → FIXED (prev session)
+3. SAPI backoff resetting on Flask restart → FIXED (prev session)
+
+The remaining risk: session JSESSIONID expires and nobody knows until uploads stop.
+
+### What was built
+
+**`hub/self_heal.py` — _session_guardian() doctor:**
+- Added to _SCHEDULE at 2700s (45 min) interval
+- Does ONE lightweight GET (get_storage_info) — single API call, no upload, zero suspension risk
+- If session dead → WA alert immediately (max once per hour via `session_guardian_last_alert` setting)
+- If session alive but <7 days until expiry → WA alert once per day
+  - 🔴 ≤2 days, 🟡 3–7 days
+- Message includes account MSISDN + instructions to paste cookies
+- Never touches the scan flow, never writes to JazzDrive
+
+**`hub/routes/upload.py` — jd-stats enhancement:**
+- `expires_in_days` field added (int — days until token_expires_at)
+- `token_expires_at` field added (raw epoch for future use)
+
+**`hub/templates/upload.html` — session badge upgrade:**
+- Badge now shows "expires in N days" with colour: green >7d, amber 3–7d, red ≤2d
+- Warning banner appears at ≤7 days: "🟡/🔴 Session expires in N days — paste new cookies soon!"
+- Banner has inline "Paste cookies" link that switches to the flixcfg tab
+
+**`hub/uploader.py` — smart 401 handling:**
+- When JD upload gets HTTP 401 (session expired mid-upload)
+- Sends WA alert (max once per hour via `upload_401_last_alert` setting)
+- Message: "Session expired — upload paused. Open admin panel..."
+- Then raises RuntimeError as before (queue pauses naturally)
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| hub/self_heal.py | _session_guardian() doctor | aeca7bc |
+| hub/routes/upload.py | expires_in_days in jd-stats | aeca7bc |
+| hub/templates/upload.html | Expiry countdown + warning banner | aeca7bc |
+| hub/uploader.py | Smart 401 WA alert | aeca7bc |
+
+### State at end of session
+- Oracle Flask: RUNNING (healthz ok)
+- All 5 session fixes live and deployed

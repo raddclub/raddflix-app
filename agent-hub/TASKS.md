@@ -4,6 +4,14 @@ _Last updated: 2026-06-10_
 
 ---
 
+## Completed — Session 2026-06-10 (5th)
+
+| ID | Changed | Summary | Ref |
+|----|---------|---------|-----|
+| FIX-SESSION-GUARDIAN-01 | hub/self_heal.py, hub/uploader.py, hub/routes/upload.py, hub/templates/upload.html | Session Guardian: 45-min read-only probe, WA alert on death/expiry, expiry countdown in UI, smart 401 WA alert | GitHub aeca7bc |
+
+---
+
 ## Completed — Session 2026-06-10 (4th)
 
 | ID | Changed | Summary | Ref |
