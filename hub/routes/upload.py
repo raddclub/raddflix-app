@@ -105,11 +105,13 @@ def jd_stats():
     return jsonify({
         "ok": True,
         "session": {
-            "id":          acct.get("id"),
-            "logged_in":   logged_in,
-            "needs_otp":   needs_otp,
-            "msisdn":      acct.get("msisdn") or db.setting("JAZZDRIVE_MSISDN", ""),
-            "remaining_m": remaining_m,
+            "id":            acct.get("id"),
+            "logged_in":     logged_in,
+            "needs_otp":     needs_otp,
+            "msisdn":        acct.get("msisdn") or db.setting("JAZZDRIVE_MSISDN", ""),
+            "remaining_m":   remaining_m,
+            "expires_in_days": max(0, int((exp - _time.time()) / 86400)) if exp else 0,
+            "token_expires_at": exp,
             "has_refresh_token": has_rt,
         },
         "storage":       storage,

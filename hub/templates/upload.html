@@ -46,7 +46,13 @@
 </div>
 
 {# ── OTP quick-login banner ── #}
-<div id="otp-banner" style="display:none;background:rgba(230,80,30,.12);border:1px solid #c04020;border-radius:8px;padding:12px 16px;margin-bottom:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+<!-- Session expiry warning (shown when ≤7 days until cookie expires) -->
+  <div id="session-expiry-banner" style="display:none;align-items:center;gap:.75rem;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem">
+    <span id="session-expiry-msg" style="flex:1;font-size:.85rem;color:#f59e0b"></span>
+    <a href="#" onclick="document.querySelector('[data-tab=flixcfg]').click();return false" style="font-size:.8rem;color:#f59e0b;text-decoration:underline;white-space:nowrap">Paste cookies</a>
+  </div>
+
+  <div id="otp-banner" style="display:none;background:rgba(230,80,30,.12);border:1px solid #c04020;border-radius:8px;padding:12px 16px;margin-bottom:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
   <div>
     <span style="font-weight:700;color:#e65020">⚠ JazzDrive session offline</span>
     <span class="muted" id="otp-banner-msg" style="margin-left:8px;font-size:13px">Uploads are paused until you log in.</span>
@@ -538,7 +544,28 @@ async function loadStatus() {
 
     if (sess.logged_in) {
       if (statSess) statSess.innerHTML = '<span class="badge b-ok">Active</span>';
-      if (statSessSub) statSessSub.textContent = sess.remaining_m ? 'exp in ' + sess.remaining_m + ' min' : 'active';
+      // Show days remaining with colour coding
+      const expDays = sess.expires_in_days || 0;
+      const expStr  = expDays > 0 ? `expires in ${expDays} day${expDays===1?'':'s'}` : 'active';
+      if (statSess) {
+        let colour = 'var(--ok,#22c55e)';
+        if (expDays > 0 && expDays <= 2) colour = 'var(--err,#ef4444)';
+        else if (expDays > 0 && expDays <= 7) colour = 'var(--warn,#f59e0b)';
+        statSess.innerHTML = `<span class="badge b-ok" style="background:${colour}20;color:${colour};border-color:${colour}40">Active</span>`;
+      }
+      if (statSessSub) statSessSub.textContent = expStr;
+      // Show expiry warning banner if ≤7 days
+      const expiryBanner = document.getElementById('session-expiry-banner');
+      if (expiryBanner) {
+        if (expDays > 0 && expDays <= 7) {
+          expiryBanner.style.display = 'flex';
+          const urgency = expDays <= 2 ? '🔴' : '🟡';
+          const expiryMsg = document.getElementById('session-expiry-msg');
+          if (expiryMsg) expiryMsg.textContent = `${urgency} Session expires in ${expDays} day${expDays===1?'':'s'} — paste new cookies soon!`;
+        } else {
+          expiryBanner.style.display = 'none';
+        }
+      }
       if (btnRelogin) btnRelogin.style.display = 'none';
       if (banner) banner.style.display = 'none';
     } else {
