@@ -4,6 +4,14 @@ _Last updated: 2026-06-10_
 
 ---
 
+## Completed — Session 2026-06-10 (3rd)
+
+| ID | Changed | Summary | Ref |
+|----|---------|---------|-----|
+| FEAT-LOG-DETAIL-01 | db.py, scanner.py, routes/settings.py, templates/settings.html, templates/scan.html, templates/upload.html | Clean+detailed logs with auto-delete: icon tags, elapsed time, error highlighting, 7-day retention setting, prune-now button | GitHub 8297829 |
+
+---
+
 ## Completed — Session 2026-06-10 (2nd)
 
 | ID | Changed | Summary | Ref |

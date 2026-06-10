@@ -797,3 +797,66 @@ All agent-hub .md files updated with full session history:
 - Oracle Flask: RUNNING (restarted, healthz ok)
 - Account: ACTIVE
 - Open tasks: see agent-hub/TASKS.md
+
+---
+
+## Session: 2026-06-10 — FEAT-LOG-DETAIL-01: Clean, Detailed Logs + Auto-Delete + Retention Setting
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| FEAT-LOG-DETAIL-01 | Clean/detailed logs + auto-delete + settings control | ✅ DONE |
+
+### What was built
+
+**Auto-delete with user-controlled retention:**
+- `db.py`: new `cleanup_old_scan_logs(days)` — deletes `scan_log` rows older than N days using `_lock + _conn()`, returns count
+- `db.py`: `get_scan_log` limit bumped 200→500 so historical view shows more
+- `scanner.py`: on every scan start, reads `log_retention_days` setting (default 7), calls cleanup, logs how many entries were pruned
+- `routes/settings.py`: new `GET/POST /settings/api/log-retention` — reads/saves `log_retention_days`, runs immediate cleanup on save
+
+**Settings UI (settings.html — new "Log Retention" card):**
+- Number input (1–365 days), Save button, "Prune old logs now" button
+- Save shows: "Saved — keeping N day(s). Deleted N old entries."
+- Prune button shows immediate count of entries deleted
+- Loads current value from backend on page open
+
+**Scan log improvements (scan.html — `_appendLog()` rewritten):**
+- Format: `[+HH:MM:SS] [TAG]  message` — elapsed time since scan start instead of wall clock
+- Icon tags per kind: `[RUN]`, `[DONE]`, `[DIR]`, `[ERR]`, `[WRN]`, `[OK]`, `[???]`, `[UP]`, `[KEY]`, etc.
+- `_scanStartTs` tracking: resets on scan_done, rebuilds on scan_start
+- Blank separator line before AND after every error for maximum visibility
+- Blank separator before warnings too
+- Stats counter regex updated to match new message wording
+
+**Upload log improvements (upload.html — `appendLogEntries()` rewritten):**
+- Format: `[HH:MM:SS] [TAG] source        message`
+- `_ulSource()` strips "hub." prefix, maps to short aliases: uploader/keepalive/jazzdrive/scanner
+- Level icons: `[INF]`, `[WRN]`, `[ERR]`, `[dbg]`
+- Error lines get `background:rgba(239,68,68,.06)` highlight + separator gap
+- Warning lines get `background:rgba(245,158,11,.05)` highlight
+
+**Scanner log message improvements (scanner.py — 6 messages reworded):**
+| Old | New |
+|-----|-----|
+| "scan complete, N files" | "JazzDrive scan complete — N media file(s) discovered" |
+| "enriched N new titles" | "Metadata enrichment complete — N new title(s) identified and saved" |
+| "pushed N files to GitHub + Sheets" | "Catalog synced — N file(s) pushed to GitHub mirror" |
+| "Scan stopped by user. N files..." | "Scan stopped by user — N file record(s) saved before stopping" |
+| "Filtered N non-media files..." | "Filtered out N non-media file(s) (personal photos, docs, temp files)" |
+| "Skipped N already-clean files..." | "Skipped N already-enriched file(s) — metadata is current, no re-lookup needed" |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| hub/db.py | cleanup_old_scan_logs(), limit 500 | 8297829 |
+| hub/scanner.py | log prune at start + 6 message improvements | 8297829 |
+| hub/routes/settings.py | GET/POST /api/log-retention | 8297829 |
+| hub/templates/settings.html | Log Retention card | 8297829 |
+| hub/templates/scan.html | _appendLog rewritten with icons + elapsed time | 8297829 |
+| hub/templates/upload.html | appendLogEntries rewritten with icons + highlighting | 8297829 |
+
+### State at end of session
+- Oracle Flask: RUNNING (restarted, healthz ok)
+- Account: ACTIVE
+- Open tasks: see agent-hub/TASKS.md
