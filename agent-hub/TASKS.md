@@ -1,224 +1,113 @@
-# agent-hub/TASKS.md — Agent Task Tracker
-Last updated: 2026-06-09
+# RaddFlix Agent Task Board
 
-## Rule
-**Every change, fix, or feature gets a task row BEFORE work starts.**
-Mark ✅ DONE when fully complete + pushed to GitHub.
-Mark ⏳ IN PROGRESS when actively being worked.
-Mark ❌ BLOCKED when waiting on user input or external dependency.
-This file is the handoff bridge — the next agent reads this first.
+_Last updated: 2026-06-10_
 
 ---
 
-## Current Sprint
+## Completed — Session 2026-06-10
 
-| ID | Task | Status | Date | Notes |
-|----|------|--------|------|-------|
-| TASK-063 | CLEANUP: Remove all delta logic from Oracle server + GitHub docs (zero_rating.py, delta_push.py, jazzdrive.py, app.py, catalog_api.py, api.py, mobile_api.py, organizer.py) | ✅ DONE | 2026-06-09 | All delta routes, functions, DB settings, delta.json, and docs references purged. Flask v3.0.0 confirmed healthy. |
-| TASK-061 | BUG-JD-VK: validationkey missing from final CDN URL in jazzdrive_service.dart — playback always fails | ✅ DONE | 2026-06-09 | _buildStreamUrl now appends validationkey (confirmed by Node.js ref script). Previous "DO NOT add" comment was WRONG. |
-| TASK-060 | Flutter Dart JazzDrive audit + test file fixes + JAZZDRIVE_FLUTTER_AUDIT.md | ✅ DONE | 2026-06-09 | 3 bugs fixed in test file; logic in service/download/player/db all correct; OTP re-login needed for session |
-| TASK-059 | Fix BUG-DL-PATH-B + BUG-DL-RF1: download_service wrong episode + RF1 scrambled URL in download | ✅ DONE | 2026-06-09 | Path B: getShareUrl→getShareInfo (adds filename+remote_id). Path A: decode RF1:xxx before JazzDrive. Commit 1cbec5a |
-| TASK-058 | Fix BUG-STALE-IDS: Flutter stale catalog after Oracle DB rebuild | ✅ DONE | 2026-06-09 | Server: force-bump + valid_title_ids. Flutter: pruneStaleIds (next build 1035). Crypto audit: all pass. |
-| TASK-057 | A-Z full line-by-line audit of ALL code (Flutter Dart + Oracle Python) + fix every bug + build APK | ✅ DONE | 2026-06-08 | 8 bugs fixed across Flutter + Oracle; APK build1034 succeeded (run 27156269376) |
-| TASK-056 | VERIFY-02: Re-verify complete data flow end-to-end (all 10 checks A–J) | ✅ DONE | 2026-06-08 | All checks passed, no bugs found |
-| TASK-055 | Full end-to-end data flow verification (DONE — see detail below) | ✅ DONE | 2026-06-08 | All checks A–J passed; Inuyashiki/Reborn season fix applied |
-| TASK-054 | Fix Bug 2 — TV show episodes missing from delta | ✅ DONE | 2026-06-08 | zero_rating.py + jazzdrive_service.dart + delta regen |
-| TASK-053 | DOCS-HANDOFF: NEXT_AGENT_BRIEF.md | ✅ DONE | 2026-06-08 | Full Flutter data flow, ID system, library verify, play/download |
-| TASK-052 | FIX-DELTA-PREPURGE: upload_delta() pre-purge + /purge-delta-folder route | ✅ DONE | 2026-06-08 | delete all files BEFORE upload — no more delta_RANDOM.txt |
-| TASK-051 | BUG-AUDIT-01: 3 similar bugs (poster dup, folder-create race, _upload_pending missing rename) | ✅ DONE | 2026-06-08 | library.py + uploader.py |
-| TASK-050 | FIX-DEDUP-03: _upload_pending() duplicate guard (scheduler path) | ✅ DONE | 2026-06-08 | pre-check + skip+record logic; also renamed Vncenz0→Vincenzo |
-| TASK-049 | FIX-DELTA-ACCUM: Radd-Delta folder cleanup | ✅ DONE | 2026-06-08 | list_all_files_in_folder + perm-delete 26 orphaned files |
-| TASK-048 | FIX-DEDUP-02: JazzDrive-side duplicate upload guard in uploader.py | ✅ DONE | 2026-06-08 | commit d54d188 |
-| TASK-047 | FIX-DEDUP-01: JazzDrive duplicate file audit + delete 4 duplicate files | ✅ DONE | 2026-06-08 | |
-| TASK-045 | Fix catalog import — v3 DB now populated | ✅ DONE | 2026-06-08 | commit 6ccfa67 |
-| TASK-044 | FEAT-LIBRARY-PUBLISH: Library publish controls | ✅ DONE | 2026-06-08 | commit a8046eb |
-| TASK-043 | FIX-AUTOPUBLISH: auto-publish after scan | ✅ DONE | 2026-06-08 | |
-| TASK-042 | FIX-SYNC-TIMEOUT: fast Oracle→delta fallback | ✅ DONE | 2026-06-08 | |
-| TASK-041 | FIX-DELTA-PURGE: Radd-Delta folder cleanup | ✅ DONE | 2026-06-08 | |
-| TASK-040 | FIX-CONFIG-01: RemoteConfig instant cache load | ✅ DONE | 2026-06-08 | |
-| TASK-039 | Audit fix batch: FIX-RETRY-01 + FIX-POSTER-01 + FIX-FOLDER-01 + TTL comment | ✅ DONE | 2026-06-08 | sha 78f14210 |
-| TASK-038 | FIX-PLAYER-01: local video black screen | ✅ DONE | 2026-06-07 | sha 215bbc2, build1025 |
-| TASK-037 | FIX-VAULT-01: revert biometricOnly to false | ✅ DONE | 2026-06-07 | sha 59fc972, build1024 |
-| TASK-036 | Deep codebase audit — Colors.white20 + 100+ Dart files | ✅ DONE | 2026-06-07 | APK build1022 |
-| TASK-035 | Fix Dart compile errors BUG-BUILD-01 + 02 | ✅ DONE | 2026-06-07 | APK build1021 |
-| TASK-034 | Vault fix — hide files + biometric unlock | ✅ DONE | 2026-06-07 | VAULT-01..06; commit f14eac5 |
-| TASK-032 | Smart Enhance — AI video enhancement suite | ✅ DONE | 2026-06-07 | |
-| TASK-031 | HUD v2 — presets, drag-reorder, MX-style | ✅ DONE | 2026-06-07 | |
-| TASK-030 | PlayerHudSettingsSheet — live-preview overlay | ✅ DONE | 2026-06-07 | |
-| TASK-029 | IDEA-01: Universal Subtitle Hunter | ✅ DONE | 2026-06-07 | |
-| TASK-028 | player_prefs.dart full schema audit | ✅ DONE | 2026-06-07 | |
-| TASK-027 | Player screen — Pass 6 (12 bugs: N01–N12) | ✅ DONE | 2026-06-07 | |
-| TASK-026 | Player screen — Pass 5 (29-bug audit) | ✅ DONE | 2026-06-07 | 26 fixes |
-| TASK-025 | Player screen — Pass 4 (BUG-P-NEW-06 + 07) | ✅ DONE | 2026-06-07 | |
-| TASK-024 | Player screen — Pass 3 (BUG-P-NEW-05) | ✅ DONE | 2026-06-07 | |
-| TASK-023 | Player screen — Pass 2 (BUG-P-NEW-01 to 04) | ✅ DONE | 2026-06-07 | |
-| TASK-022 | Player screen — Pass 1 (13 fixes) | ✅ DONE | 2026-06-07 | |
-| TASK-021 | JazzDrive Dart integration test + CI job | ✅ DONE | 2026-06-07 | |
-| TASK-020 | Scanner TV edge cases | ✅ DONE | 2026-06-07 | |
-| TASK-019 | Strip "Season N" from TV folder before metadata search | ✅ DONE | 2026-06-07 | |
-| TASK-018 | Fix scan log events rename | ✅ DONE | 2026-06-07 | |
-| TASK-017 | Fix scanner.py: rewrite to IMDb-first | ✅ DONE | 2026-06-07 | |
-| TASK-016 | Document TV seasons/episodes system | ✅ DONE | 2026-06-07 | |
-| TASK-015 | Fix TV show IMDbAPI search | ✅ DONE | 2026-06-07 | |
-| TASK-014 | Improve scan log readability | ✅ DONE | 2026-06-07 | |
-| TASK-013 | Fix metadata lookup order | ✅ DONE | 2026-06-07 | |
-| TASK-012 | Add Restore Catalog button | ✅ DONE | 2026-06-07 | |
-| TASK-011 | Fix admin db/reset | ✅ DONE | 2026-06-07 | |
-| TASK-010 | Remove DATA-01 from AGENT_PROMPT.md | ✅ DONE | 2026-06-07 | |
-| TASK-009 | Docs corrected — remove wrong geo-restriction claims | ✅ DONE | 2026-06-07 | |
-| TASK-008 | Fix BUG-A03e: _s2_chain + _sub_chain respect PROXY_BYPASS | ✅ DONE | 2026-06-07 | |
-| TASK-007 | Push all docs to GitHub (part 1) | ✅ DONE | 2026-06-07 | |
-| TASK-006 | Update AGENT_PROMPT.md | ✅ DONE | 2026-06-07 | |
-| TASK-005 | Create agent-hub/CONTEXT.md, RULES.md, TASKS.md | ✅ DONE | 2026-06-07 | |
-| TASK-004 | BUG-A03d: forced pool.get_best() in _sub_chain (reverted) | 2026-06-07 | ❌ wrong — reverted in TASK-008 |
-| TASK-003 | BUG-A03c: resolve_proxies revert | ✅ DONE | 2026-06-07 | |
-| TASK-002 | BUG-A03b: forced PK proxy in _s2_chain (reverted) | 2026-06-07 | ❌ wrong — reverted in TASK-008 |
-| TASK-001 | BUG-A03a: _ar_chain bypass guard | ✅ DONE | 2026-06-07 | |
+| ID | Changed | Summary | Ref |
+|----|---------|---------|-----|
+| TASK-065 | settings.py, settings/scan/upload/organizer .html | Live worker health status bars — auto-refresh every 15s, show service latency/status | GitHub e0b0651d14 |
+| BUG-ADMIN-JS-01 | hub/templates/admin.html | Removed dead Delta Sync section (HTML + nested script block left after TASK-063) that caused SyntaxError killing ALL admin JS including Reset Tables button | GitHub e804820b2da1 |
+| FEAT-RESET-FEEDBACK-01 | hub/templates/admin.html, hub/routes/admin.py | 3-step live progress panel for Reset Tables: per-table row counts, auto Oracle restart, healthz polling until service back online | GitHub 2b2d44b3aa1c |
 
 ---
 
-## Backlog / Open
+## Completed — Session 2026-06-09
 
-| ID | Task | Status | Notes |
-|----|------|--------|-------|
-| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Need JazzDrive upload + sync by admin |
-| DATA-02 | 9 movies with deleted JD files (Animal, Dune, Inception, Interstellar, Inuyashiki, Oppenheimer, Reborn, The Ninth Gate, Super Mario Galaxy) | ❌ OPEN | Need manual re-upload to JazzDrive by admin |
-
----
-
-## TASK-057 Detail — A-Z Full Audit + Fix + APK Build (DONE)
-
-**Flutter bugs fixed (commit 3a68806 + bf50cd6):**
-| ID | Severity | File | Bug | Fix |
-|----|---------|------|-----|-----|
-| BUG-TAB-01 | HIGH | show_detail_screen.dart | TabController recreated on pull-to-refresh without disposing old one → memory leak | Dispose old controller before replacing |
-| BUG-DL-THROTTLE | MEDIUM | download_service.dart | SQLite progress updated 100s of times/sec → DB flood | Throttled to 5% boundary |
-| FIX-URI-01 | MEDIUM | splash_screen.dart | `uri.split('/').last` drops query params on deep-link URIs | `Uri.parse(uri).pathSegments.last` with fallback |
-| FIX-LIKE-01 | MEDIUM | local_db.dart | LIKE query didn't escape `%` / `_` meta-chars in user search | Escape user input before LIKE |
-| FIX-SEARCH-INIT | LOW | search_screen.dart | `initialFilter` param didn't trigger `_doSearch()` → empty results | Call `_doSearch()` when initialFilter is set |
-| FIX-ID-CAST | LOW | catalog_item.dart | `json['id'] as int` throws `TypeError` on null id | Safe cast with null fallback |
-
-**Oracle Python bugs fixed (commit 41fcc63):**
-| ID | Severity | File | Bug | Fix |
-|----|---------|------|-----|-----|
-| FIX-ISONGOING | HIGH | zero_rating.py | `is_ongoing` compared string `"0"` which is truthy in Python → events never marked as not-ongoing | Cast to `int()` before comparison |
-| FIX-XOR-NEXTHR | MEDIUM | request_encoding.py | `_candidate_keys` missing +1 hour for forward-clock edge | Added `utc_hour + 1` candidate |
-
-**APK:** `RaddFlix-1.0.0+1-build1034.apk` (56.7 MB) — run 27156269376 — expires 2026-07-08
+| ID | Changed | Summary | Ref |
+|----|---------|---------|-----|
+| BUG-STALE-IDS | catalog_service.dart, db_helper.dart, catalog_api.py | Flutter never re-synced after DB rebuild (same updated_at timestamp) — added pruneStaleIds(), force-bumped catalog_forced_version | GitHub e9107cb6, cb32f9ba, b523de28 |
 
 ---
 
-## TASK-058 — JazzDrive Full Code Audit + Documentation (DONE)
+## Completed — Session 2026-06-08
 
-**Scope:** Complete audit of Flutter JazzDrive stream link generation logic against confirmed API behaviour.
-
-**Audit results (2026-06-09):**
-| File | Status | Notes |
-|------|--------|-------|
-| `jazzdrive_service.dart` | ✅ CLEAN | All logic correct — _extractShareKey, _loginShare, _getMedia (4-pass), _buildStreamUrl, cache, warmTopFreeItems |
-| `download_service.dart` | ✅ CLEAN | Previous fixes (BUG-DL-PATH-B + BUG-DL-RF1) confirmed working |
-| `local_db.dart` | ✅ CLEAN | RF1 encode/decode consistent; getShareInfo, getTopFreeMovies return decoded URLs |
-| `player_screen.dart` | ✅ CLEAN | getShareInfo → decoded shareUrl + targetFilename + remoteId → getStreamLink |
-
-**Logic test suite:** `raddflix_flutter/test_suite/jazzdrive_logic_test.js` — **27/27 ✅**
-
-**No new bugs found. No code changes needed.**
-
-**Documentation created:** `agent-hub/JAZZDRIVE_STREAM_FLOW.md` (sha 884e28a5)
-- Full API flow (2 HTTP calls: login → media/video)
-- Share key extraction regex
-- 4-pass file matching algorithm (remote_id → substring → normalised → episode code → fallback)
-- RF1 scramble/decode rules + safe vs unsafe read paths
-- Cache strategy (110 min TTL, 2-layer: memory + SQLite)
-- Data flow per use case (Play / Download / Warm)
-- Known issues (MED-1011 from non-Jazz IPs, JSESSIONID on Android, CDN vs Download URL)
-- Bug history table
+| ID | Changed | Summary | Ref |
+|----|---------|---------|-----|
+| TASK-058 | All 27 route files audited | A-Z Admin Panel Bug Audit — found and fixed 2 real bugs | Oracle + GitHub |
+| BUG-AUDIT-01 | app_users_panel.py | /api/stats used wrong column name → Active Subscribers always 0 | Oracle + GitHub |
+| BUG-AUDIT-02 | library.py | /api/user/status returned 100% hardcoded fake data | Oracle + GitHub |
+| TASK-059 | db.py, admin.py | Schema health check: validate_schema() + startup call + /admin/api/schema-health | Oracle + GitHub |
+| BUG-PLANS-01 | db.py init_db() | plans table missing 3 columns (badge, color, features_json) — caught by schema check | Oracle + GitHub |
+| TASK-060 | home.html | Pending TID alert banner on dashboard — auto-shows/hides based on pending_tids count | Oracle + GitHub |
+| TASK-061 | home.py, home.html | TID inline Approve/Reject buttons on dashboard widget | Oracle + GitHub |
+| FIX-CATALOG-02 | Oracle DB | Unpublished 3 ghost titles (Dune, Animal, Inception) that had no linked files | SQL |
+| FIX-CATALOG-03 | Oracle DB | Regenerated db_update.json from scratch — version bumped, all 4 titles with real share_urls | Oracle file |
 
 ---
 
-## TASK-059 — APK Rebuild build1040 + Node.js Live Test Investigation (DONE)
+## Completed — Session 2026-06-07
 
-**APK Build:** ✅ `RaddFlix-1.0.0+1-build1040.apk` (56.7 MB)
-- GitHub Actions run: 27206723333
-- Artifact ID: 7507976700
-- Expires: 2026-07-09
-- Trigger: Docs commit (TASK-058) — no code changed, clean rebuild confirms build pipeline healthy
-
-**Node.js Live Test — Definitive Findings:**
-
-Share key tested: `lTzy2wdJQDqnsHSZNJGMBjA0NzE3MTIzNzE2NzFfMjYwMzgwMA`
-
-| Test | Result |
-|------|--------|
-| Share landing page (`GET /share/f/<key>`) | ✅ HTTP 200 — og:title = "Interstellar (2014)" — share IS VALID |
-| Login API — Desktop UA, no extra headers | ❌ MED-1011 |
-| Login API — Android UA, no X-Requested-With | ❌ MED-1011 |
-| Login API — Android UA + X-Requested-With (Flutter exact) | ❌ MED-1011 |
-| Login API — No User-Agent | ❌ MED-1011 |
-
-**Root Cause Confirmed: IP-based blocking/rate-limiting by JazzDrive.**
-- Share key IS valid — folder exists on JazzDrive server
-- Headers, User-Agent, X-Requested-With make zero difference — all return same MED-1011
-- JazzDrive `/sapi/link/login` rejects requests from non-Jazz-network IPs (Replit server)
-- Oracle server at 92.4.95.252 successfully called this same API at 02:51 PKT today
-- This is a **network restriction**, not a code bug — Flutter app runs on Jazz SIM → zero-rated + allowed
-
-**Share key structure decoded (base64):**
-`binary_random_token(16 bytes) + user_account_id + "_" + file_id`
-Example: `...0471712371671_2603800` → user 0471712371671, file 2603800
-
-**Conclusion: Flutter Dart code is 100% correct. Node.js live test from Replit is structurally impossible (non-Jazz IP blocked by JazzDrive). Test only valid on Jazz SIM Android device or Oracle server.**
+| ID | Changed | Summary | Ref |
+|----|---------|---------|-----|
+| FIX-CATALOG-01 | Oracle DB | Bumped updated_at on 3 published titles to force Flutter re-sync | SQL |
+| FIX-PLAYER-01 | player_screen.dart L2701 | Local video black screen: changed _position==Duration.zero to _duration==Duration.zero | GitHub 215bbc2055 |
+| FIX-VAULT-01 | vault_service.dart L157 | Vault biometric: biometricOnly:true throws silently on Infinix Class 2 sensor → changed to false | GitHub 59fc97249c |
+| FEAT-AUTOPUB-01 | scanner.py L600,L807,L820 | Auto-publish titles after scan: any title with a linked file that has a share_url is auto-published | Oracle only |
 
 ---
 
-## TASK-062 — Remove Delta Logic + Stream Link Server Generation (DONE)
+## Completed — Session 2026-06-06
 
-**Scope:** Stop all JazzDrive uploads from Oracle server (delta.json, keepalive heartbeat, bulk stream link generation). Two phone numbers already suspended due to JazzDrive API abuse.
+| ID | Changed | Summary | Ref |
+|----|---------|---------|-----|
+| BUG-DB-RESET-01 | admin.py db_reset() | Reset did not bump catalog_forced_version → Flutter kept showing stale cache | Oracle + GitHub |
+| PLAYBACK-01..05 | metadata.py, uploader.py, zero_rating.py, catalog_api.py, jazzdrive.py | All 5 episode playback bugs fixed + remote_id pass-0 matching added | Oracle only |
 
-**Changes:**
-| File | Action |
-|------|--------|
-| `hub/keepalive.py` | Gutted to no-op stub — no more heartbeat uploads |
-| `hub/bulk_link_engine.py` | Gutted to no-op stub — no stream link generation |
-| `hub/routes/delta_push.py` | Gutted to no-op stub — no delta.json uploads |
-| `hub/app.py` | Removed keepalive/delta/bulk-link thread registrations |
-| `hub/scheduler.py` | Removed delta_generation loop; updated docstring |
-| `hub/db.py` | Removed get/save/invalidate stream_link functions |
-| `hub/routes/catalog_api.py` | Removed stream_link caching from _do_play() |
-| Oracle DB | Dropped stream_links table (DROP TABLE IF EXISTS stream_links) |
-| `raddflix_flutter/lib/core/db/sync_service.dart` | Removed _syncFromJazzDriveDelta() + resolver helpers; sync() now Oracle-only |
-
-**Architecture after this task:**
-- Oracle = catalog source only (titles + folder_share_url, no stream links)
-- Flutter generates stream links client-side via jazzdrive_service.dart from folder_share_url
-- No JazzDrive uploads from Oracle ever again
-
-## TASK-064 — Service On/Off Toggles (JazzDrive, Scan, Organizer)
-**Status:** ✅ DONE  
-**Commit:** 744d7d9  
-**Date:** 2026-06-09  
-**What:** Added on/off toggle buttons for three services — JD Flix Upload, Scan (JD Indexer), and Organizer.  
-**Where:**  
-- Settings page (`/settings`): Organizer row added to JazzDrive Services card alongside Upload & Scan  
-- Scan page (`/scan`): inline toggle button — no longer redirects to Settings  
-- Flix/Upload page (`/upload`): inline toggle button  
-- Organizer page (`/organizer`): paused banner + toggle button in header  
-- `/settings/api/services` GET/POST now handles `organizer` flag (`ORGANIZER_ENABLED` DB key)  
-- `organizer.py` route: plan + auto-organize endpoints return 503 when `ORGANIZER_ENABLED=0`
 ---
 
-## TASK-065 — Live Worker Health Status Indicators ✅
-**Commit:** e0b0651d14be020f08e864ed4f10f405478ca151  
-**Status:** Complete  
-**What:**  
-Real-time worker health status bars on all three service toggle pages plus the settings page, auto-refreshing every 15 seconds.  
-**Where:**  
-- New endpoint `GET /settings/api/services/status` — returns per-service health for upload, scan, and organizer in one call:  
-  - upload: `enabled`, `thread_alive` (checks `upload-watcher` thread), `health_status/label` from self_heal badges, `queue` counts (pending/in_progress/uploaded/skipped), `last_upload` (name + ts)  
-  - scan: `enabled`, `health_status/label`, `accounts_total`, `active_scans[]` (per-account running state with files_seen/mirrored), `last_scan_ts`  
-  - organizer: `enabled`, `on_demand: true`, `health_status/label`  
-- `settings.html`: `svc-upload-live`, `svc-scan-live`, `svc-organizer-live` sub-divs added inline below each service description; JS polls every 15s; toggle calls `loadSvcStatus()` immediately  
-- `scan.html`: `scan-live-bar` div inserted below h-row showing jd_indexer badge, per-account scan progress, idle/scanning state, last scan timestamp  
-- `upload.html`: `upload-live-bar` div showing flix badge, thread-alive chip, in-progress/pending/uploaded counts, last uploaded filename + time ago  
-- `organizer.html`: `org-live-bar` div showing ready/paused state with on-demand note  
-- All three page toggle functions call their `loadXxxLiveBar()` after toggling to give instant feedback  
+## Completed — Session 2026-06-05
+
+| ID | Changed | Summary | Ref |
+|----|---------|---------|-----|
+| PROXY-UPGRADE | proxy_pool.py, uploader.py, settings.py, templates | God-level proxy pool rewrite: 150+ seeds, WeightedScore rotation, CircuitBreaker, proxy-chain retry in uploader | GitHub |
+
+---
+
+## Current DB State (as of 2026-06-10)
+
+> DB is EMPTY after reset testing. Run JazzDrive scan to rebuild.
+
+| Table | Rows |
+|-------|------|
+| titles | 0 |
+| files | 0 |
+| accounts | 1 |
+
+---
+
+## APK Status
+
+| Build | Status | Fixes included |
+|-------|--------|----------------|
+| 1023 | ❌ OLD — do not use | none of our fixes |
+| 1025 | ✅ LATEST | FIX-PLAYER-01 + FIX-VAULT-01 |
+
+---
+
+## Open Backlog
+
+| ID | Issue | Priority |
+|----|-------|----------|
+| DB-REBUILD | DB is empty after reset test — need JazzDrive scan | HIGH |
+| DATA-01 | All Of Us Are Dead: E03/E04/E05/E09 not scanned | MEDIUM |
+| OAUTH-01 | Account 03286829827: refresh_token expired (invalid_grant) — needs OTP re-login | LOW |
+
+---
+
+## Non-Negotiable Rules
+
+- Never upgrade `sqflite_sqlcipher` past `3.1.0+1`
+- Never add `androidAttachSurfaceAfterVideoParameters: true`
+- XOR padding fix must stay in `request_encoder.dart`
+- GitHub pushes via Trees API only — no git shell
+- Oracle Python3 for large file GitHub API calls
+- GitHub token in local Replit env `GITHUB_TOKEN` (Oracle `.env` empty)
+- SSH key: reconstruct from `ORACLE_SSH_KEY` env var to `/tmp/oracle_key` on each session
+- `db.setting(k)` not `db.get_setting(k)`
+- DB: `/opt/jazzmax/radd-hub/data/radd_hub.db`
+- Backend process: `python3 radd_hub.py run --skip-setup` in `/opt/jazzmax/radd-hub/`
+- After ANY direct SQL change to `is_published`: regenerate `db_update.json` via Python script
+- Always append session summary to `agent-hub/history/TASK_LOG.md` before ending session
