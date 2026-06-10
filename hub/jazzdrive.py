@@ -108,6 +108,47 @@ _SAPI_BACKOFF: "dict[int, float]" = {}
 _SAPI_BACKOFF_LOCK = threading.Lock()
 _SAPI_BACKOFF_SECS = 1800  # 30 minutes
 
+# ── SAPI backoff persistence (survives Flask restarts) ──────────────────────
+def _backoff_file():
+    try:
+        from . import config as _cfg
+        return _cfg.TEMP_DIR / 'sapi_backoff.json'
+    except Exception:
+        import pathlib, tempfile
+        return pathlib.Path(tempfile.gettempdir()) / 'sapi_backoff.json'
+
+def _load_persisted_backoff():
+    """Load SAPI backoff timestamps from disk on startup."""
+    try:
+        import json as _json
+        bf = _backoff_file()
+        if bf.exists():
+            data = _json.loads(bf.read_text())
+            now  = __import__('time').time()
+            with _SAPI_BACKOFF_LOCK:
+                for k, v in data.items():
+                    if now - v < _SAPI_BACKOFF_SECS:  # still valid
+                        _SAPI_BACKOFF[int(k)] = v
+            if _SAPI_BACKOFF:
+                import logging as _lg
+                _lg.getLogger('hub.jazzdrive').info(
+                    'Reloaded SAPI backoff for %d account(s) from disk', len(_SAPI_BACKOFF))
+    except Exception:
+        pass
+
+def _save_persisted_backoff():
+    """Persist SAPI backoff timestamps to disk so restarts don't reset them."""
+    try:
+        import json as _json
+        with _SAPI_BACKOFF_LOCK:
+            data = {str(k): v for k, v in _SAPI_BACKOFF.items()}
+        _backoff_file().write_text(_json.dumps(data))
+    except Exception:
+        pass
+
+# Load on import (runs once per process)
+_load_persisted_backoff()
+
 # ── Per-account refresh-token lock ────────────────────────────────────────────
 # JazzDrive rotates the refresh_token on every /oauth2/refresh_token.php call.
 # If two threads call android_refresh_session for the same account concurrently
@@ -139,6 +180,7 @@ def clear_sapi_backoff(account_id: int) -> None:
     with _SAPI_BACKOFF_LOCK:
         removed = _SAPI_BACKOFF.pop(account_id, None)
     if removed is not None:
+        _save_persisted_backoff()  # update disk so cleared backoff survives restart
         log.info("JazzDrive account %s: session backoff lifted — auto-refresh re-enabled. Account can now upload and stream again.", account_id)
 
 
@@ -166,6 +208,7 @@ def _mark_sapi_backed_off(account_id: Optional[int]) -> None:
         return
     with _SAPI_BACKOFF_LOCK:
         _SAPI_BACKOFF[account_id] = time.time()
+    _save_persisted_backoff()  # persist so Flask restart doesn't reset this
     log.warning(
         "JazzDrive account %s is LOGGED OUT — auto-refresh suppressed for 30 min to protect the token. "
         "Action required: open the admin panel -> Settings -> JazzDrive Scan -> send OTP for this account.",

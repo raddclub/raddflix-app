@@ -1262,3 +1262,83 @@ loadAV();
   }catch(e){ /* silently skip if endpoint unavailable */ }
 })();
 </script>
+
+  <!-- ── Scan Safety ──────────────────────────────────────────────────── -->
+  <div class="card" id="scan-safety-card">
+    <div class="card-hd">
+      <span class="card-icon">🛡️</span>
+      <div>
+        <div class="card-title">Scan Safety</div>
+        <div class="card-sub">Reduce request rate to prevent JazzDrive account suspension</div>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <label for="ss-threads">Parallel scan threads</label>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <input type="number" id="ss-threads" min="1" max="10" value="3"
+               style="width:5rem" title="Threads used during folder crawl (default 3 — higher = faster but more suspension risk)">
+        <span class="hint">1 = safest &nbsp;|&nbsp; 10 = fastest (risky)</span>
+      </div>
+    </div>
+
+    <div class="field-row" style="margin-top:.6rem">
+      <label for="ss-delay">Delay between requests (seconds)</label>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <input type="number" id="ss-delay" min="0.1" max="10" step="0.1" value="0.8"
+               style="width:5rem" title="Pause between JazzDrive API calls (default 0.8s)">
+        <span class="hint">0.1 = fast &nbsp;|&nbsp; 2.0 = very safe</span>
+      </div>
+    </div>
+
+    <div style="margin-top:1rem;display:flex;gap:.6rem;align-items:center">
+      <button class="btn-sm" id="ss-save-btn" onclick="saveScanSafety()">💾 Save</button>
+      <span id="ss-status" class="hint"></span>
+    </div>
+
+    <div class="info-box" style="margin-top:1rem;font-size:.8rem;line-height:1.5">
+      ⚠️ <strong>Why accounts get suspended:</strong>
+      Jazz flags accounts when many API requests arrive simultaneously from a
+      datacenter IP. Keep threads ≤ 3 and delay ≥ 0.5s to avoid suspension.
+      The default (3 threads / 0.8s delay) is safe for overnight scans.
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    fetch('/settings/api/scan-safety')
+      .then(r => r.json()).then(d => {
+        if (d.ok) {
+          document.getElementById('ss-threads').value = d.scan_threads;
+          document.getElementById('ss-delay').value   = d.scan_request_delay;
+        }
+      }).catch(() => {});
+  })();
+
+  function saveScanSafety() {
+    const btn = document.getElementById('ss-save-btn');
+    const st  = document.getElementById('ss-status');
+    const threads = parseInt(document.getElementById('ss-threads').value, 10);
+    const delay   = parseFloat(document.getElementById('ss-delay').value);
+    btn.disabled = true;
+    st.textContent = 'Saving…';
+    fetch('/settings/api/scan-safety', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({scan_threads: threads, scan_request_delay: delay}),
+    }).then(r => r.json()).then(d => {
+      btn.disabled = false;
+      if (d.ok) {
+        st.style.color = 'var(--ok)';
+        st.textContent = `Saved — ${d.scan_threads} thread(s), ${d.scan_request_delay}s delay.`;
+      } else {
+        st.style.color = 'var(--err)';
+        st.textContent = d.error || 'Error saving';
+      }
+    }).catch(e => {
+      btn.disabled = false;
+      st.style.color = 'var(--err)';
+      st.textContent = 'Network error';
+    });
+  }
+  </script>

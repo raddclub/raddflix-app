@@ -871,3 +871,24 @@ def api_log_retention():
     from .. import db as _db
     deleted = _db.cleanup_old_scan_logs(days=days)
     return jsonify({"ok": True, "days": days, "deleted": deleted})
+
+
+@bp.route("/api/scan-safety", methods=["GET", "POST"])
+def scan_safety_api():
+    """GET: return current scan-safety settings.
+    POST: save scan_threads and scan_request_delay."""
+    if request.method == "GET":
+        return jsonify({
+            "ok": True,
+            "scan_threads":       int(db.setting("scan_threads")       or "3"),
+            "scan_request_delay": float(db.setting("scan_request_delay") or "0.8"),
+        })
+    # POST — save
+    data    = request.get_json(silent=True) or {}
+    threads = int(data.get("scan_threads", 3))
+    delay   = float(data.get("scan_request_delay", 0.8))
+    threads = max(1, min(10, threads))
+    delay   = max(0.1, min(10.0, delay))
+    db.set_setting("scan_threads",       str(threads))
+    db.set_setting("scan_request_delay", str(delay))
+    return jsonify({"ok": True, "scan_threads": threads, "scan_request_delay": delay})
