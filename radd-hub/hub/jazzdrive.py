@@ -221,6 +221,42 @@ def _save_session(data: dict):
 def _is_replit() -> bool:
     return bool(os.environ.get("REPL_ID") or os.environ.get("REPLIT_DEPLOYMENT"))
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WG0 VPN enforcement — ALL JazzDrive calls MUST route via wg0
+# ─────────────────────────────────────────────────────────────────────────────
+
+class JDVPNRequired(RuntimeError):
+    """Raised when wg0 VPN is not routing one or more JazzDrive IPs.
+
+    Used to hard-fail any JazzDrive network call that would otherwise leak
+    via Oracle's direct IP — which risks account suspension on Jazz SIM.
+    """
+
+_JD_ROUTED_IPS = ["54.179.95.148", "54.254.59.168", "175.41.133.62"]
+
+
+def require_wg0() -> None:
+    """Abort (raise JDVPNRequired) if wg0 is not routing all JazzDrive IPs.
+
+    Called at the start of every function that sends a JazzDrive network
+    request so that no call can ever leak via Oracle's direct public IP.
+    """
+    import subprocess as _sp
+    try:
+        out = _sp.check_output(["ip", "route", "show", "dev", "wg0"],
+                               text=True, timeout=2)
+    except Exception as _e:
+        raise JDVPNRequired(
+            f"wg0 route check failed — VPN interface may be down: {_e}"
+        )
+    missing = [ip for ip in _JD_ROUTED_IPS if ip not in out]
+    if missing:
+        raise JDVPNRequired(
+            f"wg0 is NOT routing JazzDrive IPs {missing} — "
+            "refusing to leak call via Oracle direct IP"
+        )
+
 def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
     """Return a requests-compatible proxies dict.
 
@@ -228,6 +264,7 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
                      Falls back to JAZZDRIVE_SAPI_PROXY setting if pool empty.
     purpose='otp'  — uses the general JAZZDRIVE_PROXY slot (OTP / refresh_token).
     Always returns None on Replit because proxy traffic violates ToS."""
+    require_wg0()  # Hard-fail if wg0 not routing JD IPs
     if _is_replit():
         return None
     # Global proxy bypass — when JAZZDRIVE_PROXY_BYPASS=1 all traffic goes direct.
@@ -1058,6 +1095,7 @@ def get_status() -> dict:
 
 def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     """Step 1: trigger OTP via jazzdrive_login (from _legacy/scanner.py)."""
+    require_wg0()  # Hard-fail if wg0 down — never leak OTP call
     if not msisdn:
         msisdn = db.setting("JAZZDRIVE_MSISDN") or ""
 
@@ -1154,6 +1192,7 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
 
 def resend_otp() -> dict:
     """Trigger a resend of the OTP using the official 'resendpin' POST trick."""
+    require_wg0()  # Hard-fail if wg0 down — never leak OTP resend
     if not _OTP_STATE_FILE.exists():
         return {"ok": False, "error": "No pending OTP — trigger one first"}
     try:
@@ -1242,6 +1281,7 @@ def resend_otp() -> dict:
 
 def submit_otp(otp: str) -> dict:
     """Step 2: verify OTP and persist session."""
+    require_wg0()  # Hard-fail if wg0 down — never leak OTP submit
     if not _OTP_STATE_FILE.exists():
         return {"ok": False, "error": "No pending OTP — request a new OTP first"}
     try:
@@ -1688,6 +1728,7 @@ def _android_refresh_session_inner(refresh_token: str,
     import base64 as _b64
     import urllib.parse as _up
 
+    require_wg0()  # Hard-fail if wg0 down — never leak OAuth2
     log.info("android_refresh_session: exchanging refresh_token (acct=%s)...", account_id)
 
     # ── Step 1: POST to /oauth2/refresh_token.php ─────────────────────────────
