@@ -786,19 +786,15 @@ def _upload_file(sess, vk: str, jsid: str,
         raise RuntimeError(f"JD upload HTTP 407: proxy error ({_proxy_url_used})")
     if raw_resp.status_code == 401:
         log.warning("JD upload: 401 — session expired during upload")
-        # Send one WA alert so admin knows to re-paste cookies (max once/hour)
         try:
             from . import self_heal as _sh, db as _db2
             import time as _t2
-            _alert_key = 'upload_401_last_alert'
-            _last = float(_db2.setting(_alert_key) or '0')
+            _alert_key = "upload_401_last_alert"
+            _last = float(_db2.setting(_alert_key) or "0")
             if _t2.time() - _last >= 3600:
                 _sh._notify_admins(
-                    '🚨 *RaddFlix — Upload paused: JazzDrive session expired*
-'
-                    'An upload failed with 401 (session cookie expired).
-'
-                    'Open admin panel → Upload → paste new cookies to resume.'
+                    "Session expired - upload paused. "
+                    "Open admin panel Upload tab and paste new cookies to resume."
                 )
                 _db2.set_setting(_alert_key, str(int(_t2.time())))
         except Exception:
