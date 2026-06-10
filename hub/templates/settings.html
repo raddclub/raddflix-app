@@ -318,7 +318,7 @@ window.gsCloseProgress=function(){
 
 <div class="card">
   <h3>JazzDrive</h3>
-  <div class="muted" style="margin:-6px 0 12px">Primary JazzDrive account configuration. Proxy is recommended for OTP delivery.</div>
+  <div class="muted" style="margin:-6px 0 12px">Primary JazzDrive account configuration.</div>
   
   <div class="form-row">
     <label>JazzDrive MSISDN<span class="muted" style="margin-left:6px">923xxxxxxxxx</span></label>
@@ -391,113 +391,6 @@ window.gsCloseProgress=function(){
 </div>
 
 
-
-<div class="card" id="network-mode-card">
-  <h3>JazzDrive Network Mode</h3>
-  <div class="muted" style="margin:-6px 0 14px">
-    <strong>VPN / Direct is the default and safest mode.</strong>
-    All JazzDrive traffic goes through the WireGuard (<code>wg0</code>) tunnel — no proxy code runs.
-    Proxies are disabled by default to protect accounts from suspension.
-    Only enable proxies manually if you have a specific reason.
-  </div>
-
-  <div style="display:flex;gap:12px;align-items:stretch;flex-wrap:wrap;margin-bottom:14px">
-
-    <div id="net-vpn-card" onclick="setNetworkMode(true)"
-         style="flex:1;min-width:180px;padding:16px 18px;border-radius:10px;border:2px solid transparent;
-                background:var(--bg2,rgba(255,255,255,.03));cursor:pointer;transition:border-color .2s,background .2s;position:relative">
-      <div style="position:absolute;top:10px;right:10px;background:#22c55e;color:#000;font-size:.65rem;font-weight:800;
-                  padding:2px 7px;border-radius:20px;letter-spacing:.04em">DEFAULT · SAFE</div>
-      <div style="font-size:1.5rem;margin-bottom:8px">&#128274;</div>
-      <div style="font-weight:700;font-size:.92rem;color:#e7eaf2;margin-bottom:4px">VPN / Direct</div>
-      <div style="font-size:.78rem;color:#7e859b;line-height:1.4">
-        JazzDrive IPs route through <code style="font-size:.75rem">wg0</code> WireGuard tunnel.
-        No proxies — zero suspension risk, faster, and more reliable.
-      </div>
-    </div>
-
-    <div id="net-proxy-card" onclick="setNetworkMode(false)"
-         style="flex:1;min-width:180px;padding:16px 18px;border-radius:10px;border:2px solid transparent;
-                background:var(--bg2,rgba(255,255,255,.03));cursor:pointer;transition:border-color .2s,background .2s;position:relative;opacity:.75">
-      <div style="position:absolute;top:10px;right:10px;background:#ef4444;color:#fff;font-size:.65rem;font-weight:800;
-                  padding:2px 7px;border-radius:20px;letter-spacing:.04em">⚠ RISK</div>
-      <div style="font-size:1.5rem;margin-bottom:8px">&#127760;</div>
-      <div style="font-weight:700;font-size:.92rem;color:#e7eaf2;margin-bottom:4px">Proxy Pool</div>
-      <div style="font-size:.78rem;color:#7e859b;line-height:1.4">
-        Routes requests through HTTP/SOCKS proxy pool.
-        <span style="color:#ef4444;font-weight:600">Account suspension risk.</span>
-        Only enable if VPN is unavailable.
-      </div>
-    </div>
-
-  </div>
-
-  <div id="net-status" style="font-size:.82rem;color:#7e859b;min-height:18px"></div>
-</div>
-
-<script>
-(function(){
-  var VPN_COLOR   = '#22c55e';
-  var PROXY_COLOR = '#ef4444';
-
-  function applyNetworkMode(bypass){
-    var vpnCard   = document.getElementById('net-vpn-card');
-    var proxyCard = document.getElementById('net-proxy-card');
-    var status    = document.getElementById('net-status');
-    if(!vpnCard || !proxyCard) return;
-    if(bypass){
-      vpnCard.style.borderColor   = VPN_COLOR;
-      vpnCard.style.background    = 'rgba(34,197,94,.10)';
-      vpnCard.style.opacity       = '1';
-      proxyCard.style.borderColor = 'transparent';
-      proxyCard.style.background  = 'var(--bg2,rgba(255,255,255,.03))';
-      proxyCard.style.opacity     = '.55';
-      if(status) status.innerHTML = '<span style="color:#22c55e">&#10003; Active: VPN / Direct</span> — JazzDrive traffic through <code>wg0</code> tunnel. Proxy HC/discovery paused.';
-    } else {
-      proxyCard.style.borderColor = PROXY_COLOR;
-      proxyCard.style.background  = 'rgba(239,68,68,.08)';
-      proxyCard.style.opacity     = '1';
-      vpnCard.style.borderColor   = 'transparent';
-      vpnCard.style.background    = 'var(--bg2,rgba(255,255,255,.03))';
-      vpnCard.style.opacity       = '.75';
-      if(status) status.innerHTML = '<span style="color:#ef4444">&#9888; Active: Proxy Pool</span> — JazzDrive requests use proxy pool. Switch back to VPN/Direct to protect your accounts.';
-    }
-  }
-
-  async function loadNetworkMode(){
-    try{
-      var d = await api('/settings/api/proxies/bypass');
-      applyNetworkMode(d.bypass);
-    }catch(e){ console.warn('network mode load failed', e); }
-  }
-
-  window.setNetworkMode = async function(bypassEnabled){
-    if(!bypassEnabled){
-      var ok = confirm(
-        'WARNING: Enabling the proxy pool routes JazzDrive traffic through third-party proxies.\n\n' +
-        'This was responsible for past account suspensions.\n\n' +
-        'Only proceed if the VPN is unavailable and you accept the risk.\n\nEnable proxies?'
-      );
-      if(!ok) return;
-    }
-    var status = document.getElementById('net-status');
-    if(status) status.textContent = 'Saving…';
-    try{
-      var d = await api('/settings/api/proxies/bypass', {
-        method: 'POST',
-        body: { bypass: bypassEnabled }
-      });
-      applyNetworkMode(d.bypass);
-      toast(d.bypass ? 'VPN / Direct mode active ✓' : '⚠ Proxy pool enabled — monitor accounts');
-    }catch(e){
-      if(status) status.textContent = 'Failed: ' + e.message;
-      toast('Failed: ' + e.message);
-    }
-  };
-
-  loadNetworkMode();
-})();
-</script>
 
 
 {% if jd_bot_grouped.whatsapp %}
@@ -638,7 +531,6 @@ window.gsCloseProgress=function(){
 
 <div class="card">
   
-{% include "_proxy_pool_panel.html" %}
 
 <h3>Upload Configuration</h3>
   <div class="muted" style="margin:-6px 0 12px">

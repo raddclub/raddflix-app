@@ -28,13 +28,11 @@
     <div class="muted" style="font-size:13px;margin-top:2px">Scan multiple JazzDrive accounts to index existing files and build the media database.</div>
   </div>
   <div style="display:flex; gap:8px">
-    <button class="ghost" onclick="showProxyModal()">Proxy Settings</button>
     <button class="ghost" id="btn-scan-all" onclick="scanAll()" {% if not scan_enabled %}disabled title="Scan is paused — enable in Services"{% endif %}>⚡ Scan All</button>
     <button onclick="toggleAddForm()" id="btn-add-acct">+ Add account</button>
   </div>
 </div>
 
-{% include "_proxy_manager.html" %}
 
 {% if flix_msisdn %}
 <div style="background:rgba(124,92,255,.1);border:1px solid rgba(124,92,255,.35);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;display:flex;align-items:center;gap:8px">

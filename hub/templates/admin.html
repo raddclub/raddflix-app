@@ -574,34 +574,6 @@ ssetLoad();
   <div id="db-mgmt-msg" class="muted" style="font-size:13px;min-height:20px"></div>
 </div>
 
-<!-- SAPI Proxy -->
-<div class="card">
-  <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px">
-    <div>
-      <h3 style="margin:0">SAPI Proxy</h3>
-      <div class="muted" style="font-size:12px;margin-top:3px">Routes the JazzDrive session-init call (<code>cloud.jazzdrive.com.pk/sapi/…</code>) through a Pakistani proxy — makes OTP login fully automatic with no manual paste.</div>
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <span id="sapi-proxy-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(128,128,128,.15);color:var(--muted)">Not set</span>
-      <button class="ghost" style="font-size:12px;padding:3px 10px" onclick="sapiProxyFind()">🔍 Find PK Proxies</button>
-    </div>
-  </div>
-
-  <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
-    <input id="sapi-proxy-url" placeholder="http://host:port  or  socks5://user:pass@host:port"
-           style="flex:1;min-width:200px;font-family:monospace;font-size:13px">
-    <button onclick="sapiProxySave()" style="white-space:nowrap">Save</button>
-    <button class="ghost" onclick="sapiProxyTest()" style="white-space:nowrap">Test</button>
-    <button class="ghost" style="color:var(--err);border-color:var(--err);font-size:12px;padding:3px 10px;white-space:nowrap" onclick="sapiProxyClear()">Clear</button>
-  </div>
-  <div id="sapi-proxy-msg" class="muted" style="font-size:13px;min-height:18px;margin-top:8px"></div>
-
-  {# Found proxies table #}
-  <div id="sapi-proxy-results" style="display:none;margin-top:14px">
-    <div style="font-weight:600;font-size:13px;margin-bottom:8px">Found Pakistani proxies — click a row to select it:</div>
-    <div id="sapi-proxy-table" style="display:flex;flex-direction:column;gap:4px"></div>
-  </div>
-</div>
 
 <!-- Domain Doctor -->
 <div class="card">
@@ -886,80 +858,6 @@ async function admSendBroadcast(){
   } catch(e){ if(st) st.textContent='Error: '+e.message; toast('Failed: '+e.message); }
 }
 
-/* ── SAPI Proxy ─────────────────────────────────────────────────────────── */
-async function sapiProxyLoad() {
-  try {
-    const r = await api('/settings/api/sapi-proxy');
-    const url = r.url || '';
-    document.getElementById('sapi-proxy-url').value = url;
-    _sapiProxyBadge(url ? 'Set' : 'Not set', !!url);
-  } catch(_) {}
-}
-function _sapiProxyBadge(text, active) {
-  const b = document.getElementById('sapi-proxy-badge');
-  if (!b) return;
-  b.textContent = text;
-  b.style.background = active ? 'rgba(34,197,94,.15)' : 'rgba(128,128,128,.15)';
-  b.style.color = active ? 'var(--ok,#22c55e)' : 'var(--muted)';
-}
-function _sapiMsg(msg, isErr) {
-  const el = document.getElementById('sapi-proxy-msg');
-  if (el) { el.textContent = msg; el.style.color = isErr ? 'var(--err,#f44)' : 'var(--ok,#22c55e)'; }
-}
-async function sapiProxySave() {
-  const url = document.getElementById('sapi-proxy-url').value.trim();
-  _sapiMsg('Saving…');
-  try {
-    const r = await api('/settings/api/sapi-proxy', {method:'POST', body:{url}});
-    if (r.ok) { _sapiMsg('✔ Saved'); _sapiProxyBadge(url ? 'Set' : 'Not set', !!url); }
-    else _sapiMsg('Error: '+(r.error||'?'), true);
-  } catch(e) { _sapiMsg('Error: '+e.message, true); }
-}
-async function sapiProxyClear() {
-  document.getElementById('sapi-proxy-url').value = '';
-  _sapiMsg('Clearing…');
-  try {
-    await api('/settings/api/sapi-proxy', {method:'POST', body:{url:''}});
-    _sapiMsg('Cleared'); _sapiProxyBadge('Not set', false);
-  } catch(e) { _sapiMsg('Error: '+e.message, true); }
-}
-async function sapiProxyTest() {
-  const url = document.getElementById('sapi-proxy-url').value.trim();
-  _sapiMsg('Testing…');
-  try {
-    const r = await api('/settings/api/sapi-proxy/test', {method:'POST', body: url ? {url} : {}});
-    _sapiMsg(r.message || (r.ok ? '✔ OK' : '✗ Failed'), !r.ok);
-  } catch(e) { _sapiMsg('Error: '+e.message, true); }
-}
-async function sapiProxyFind() {
-  _sapiMsg('Fetching fresh Pakistani proxies and testing each against SAPI…');
-  const resultsDiv = document.getElementById('sapi-proxy-results');
-  const tableDiv   = document.getElementById('sapi-proxy-table');
-  if (resultsDiv) resultsDiv.style.display = 'none';
-  try {
-    const r = await api('/settings/api/sapi-proxy/find', {method:'POST', body:{}});
-    if (!r.ok) { _sapiMsg('✗ '+(r.error||'find failed'), true); return; }
-    _sapiMsg(`Tested ${r.tested} proxies — found ${r.found} working`, r.found === 0);
-    if (r.found > 0 && resultsDiv && tableDiv) {
-      tableDiv.innerHTML = r.working.map(p => `
-        <div onclick="sapiProxySelect('${p.url}')" style="cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:12px;background:rgba(34,197,94,.05)" onmouseover="this.style.background='rgba(34,197,94,.12)'" onmouseout="this.style.background='rgba(34,197,94,.05)'">
-          <span style="color:var(--ok,#22c55e);font-weight:700">✔</span>
-          <code style="flex:1">${p.url}</code>
-          <span class="muted">IP: ${p.ip||'?'}</span>
-          <span class="muted">SAPI: ${p.sapi_status||'?'}</span>
-          <span class="muted">${p.ping_ms||'?'} ms</span>
-          <button onclick="event.stopPropagation();sapiProxySelect('${p.url}')" style="font-size:11px;padding:2px 8px">Use</button>
-        </div>`).join('');
-      resultsDiv.style.display = 'block';
-    }
-  } catch(e) { _sapiMsg('Error: '+e.message, true); }
-}
-async function sapiProxySelect(url) {
-  document.getElementById('sapi-proxy-url').value = url;
-  await sapiProxySave();
-  _sapiMsg('✔ Proxy selected and saved — test it now to confirm', false);
-}
-
 /* ── DB management ─────────────────────────────────────────────────────── */
 function _dbMsg(msg, isErr){
   const el=document.getElementById('db-mgmt-msg');
@@ -1210,7 +1108,6 @@ loadBotUsers();
 loadUserRoles();
 loadJdAccounts();
 loadQuotaLeaderboard();
-sapiProxyLoad();
 
 /* ── Domain Doctor ─────────────────────────────────────────────────────── */
 function _ddMsg(msg, isErr){
