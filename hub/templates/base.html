@@ -31,19 +31,22 @@ function toast(msg, ms=2600){
 <style>
 /* ── CSS Variables ─────────────────────────────────────────────────────── */
 :root{
-  --bg:#0a0c11;--panel:#12151e;--panel2:#181d28;--border:#252d3d;
-  --text:#e7eaf2;--muted:#7e859b;--accent:#7c5cff;--ok:#5cd66f;
-  --warn:#ffc857;--err:#ff6b6b;--blue:#5cb4ff;
-  --sidebar-w:230px;--sidebar-w-sm:200px;
+  --bg:#090b10;--panel:#11141c;--panel2:#161b26;--border:#1e2638;
+  --text:#e8ecf5;--muted:#7a82a0;--accent:#7c5cff;--ok:#34d96f;
+  --warn:#fbbf24;--err:#f87171;--blue:#60a5fa;
+  --sidebar-w:234px;--sidebar-w-sm:200px;
   --topbar-h:54px;
+  --radius:10px;--radius-sm:7px;
+  --shadow:0 2px 8px #00000040;--shadow-lg:0 8px 32px #00000060;
+  --transition:.15s ease;
 }
 *{box-sizing:border-box}
 html,body{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--text);
      font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px;
-     -webkit-font-smoothing:antialiased}
-a{color:var(--accent);text-decoration:none}
-a:hover{text-decoration:underline}
+     -webkit-font-smoothing:antialiased;line-height:1.5}
+a{color:var(--accent);text-decoration:none;transition:opacity var(--transition)}
+a:hover{opacity:.8;text-decoration:none}
 
 /* ── Layout ─────────────────────────────────────────────────────────────── */
 .layout{display:grid;grid-template-columns:var(--sidebar-w) 1fr;min-height:100vh}
@@ -62,19 +65,21 @@ a:hover{text-decoration:underline}
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .sidebar{background:var(--panel);border-right:1px solid var(--border);
   padding:18px 0;position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
-.brand{padding:0 18px 16px;border-bottom:1px solid var(--border);margin-bottom:12px}
-.brand h1{font-size:18px;margin:0;font-weight:700}
-.brand .v{color:var(--muted);font-size:12px}
-.nav a{display:flex;gap:10px;align-items:center;padding:10px 18px;color:var(--text);
-       border-left:3px solid transparent;transition:background .12s}
+.brand{padding:0 18px 16px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.brand h1{font-size:17px;margin:0;font-weight:800;letter-spacing:-.02em}
+.brand .v{color:var(--muted);font-size:11px;margin-top:1px}
+.nav a{display:flex;gap:10px;align-items:center;padding:9px 18px;color:var(--text);
+       border-left:3px solid transparent;transition:background var(--transition),
+       border-color var(--transition);border-radius:0 8px 8px 0;margin-right:8px}
 .nav a:hover{background:var(--panel2);text-decoration:none}
-.nav a.active{background:var(--panel2);border-left-color:var(--accent);font-weight:600}
-.nav .icon{width:18px;text-align:center;color:var(--muted);flex-shrink:0}
+.nav a.active{background:linear-gradient(90deg,#7c5cff14 0%,#7c5cff08 100%);
+  border-left-color:var(--accent);font-weight:600}
+.nav .icon{width:20px;text-align:center;font-size:15px;color:var(--muted);flex-shrink:0}
 .nav a.active .icon{color:var(--accent)}
 .nav hr{border:none;border-top:1px solid var(--border);margin:8px 18px}
-.nav-section{padding:14px 18px 4px;font-size:10px;font-weight:700;
-  letter-spacing:1px;text-transform:uppercase;color:var(--muted);
-  opacity:.6;user-select:none}
+.nav-section{padding:16px 18px 5px;font-size:10px;font-weight:700;
+  letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);
+  opacity:.55;user-select:none}
 .nav-label{display:flex;flex-direction:column;line-height:1.1}
 .nav-title{font-size:13px}
 .nav-sub{font-size:10px;color:var(--muted);font-weight:400;margin-top:2px}
@@ -201,15 +206,15 @@ a:hover{text-decoration:underline}
 .sidebar-overlay.open{display:block}
 
 /* ── Main content ────────────────────────────────────────────────────────── */
-.main{padding:28px 32px;overflow-x:hidden;min-width:0}
+.main{padding:30px 36px;overflow-x:hidden;min-width:0}
 
 /* ── Common components ───────────────────────────────────────────────────── */
 .h-row{display:flex;justify-content:space-between;align-items:center;
   margin-bottom:18px;gap:10px;flex-wrap:wrap}
-h2{margin:0;font-size:22px;font-weight:600}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;
-      padding:18px;margin-bottom:16px}
-.card h3{margin:0 0 12px;font-size:15px;font-weight:600}
+h2{margin:0;font-size:22px;font-weight:800;letter-spacing:-.02em}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;
+      padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 14px;font-size:15px;font-weight:700;letter-spacing:-.01em}
 
 /* ── Grids ───────────────────────────────────────────────────────────────── */
 .grid{display:grid;gap:14px}
@@ -218,39 +223,52 @@ h2{margin:0;font-size:22px;font-weight:600}
 .grid-4{grid-template-columns:repeat(4,1fr)}
 
 /* ── Stat tiles ──────────────────────────────────────────────────────────── */
-.stat{background:var(--panel2);padding:16px;border-radius:10px}
-.stat .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
-.stat .v{font-size:24px;font-weight:600;margin-top:4px}
+.stat{background:var(--panel2);padding:16px 18px;border-radius:12px;border:1px solid var(--border);
+  position:relative;overflow:hidden;transition:border-color var(--transition)}
+.stat:hover{border-color:#2d3850}
+.stat .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.stat .v{font-size:26px;font-weight:700;margin-top:5px;letter-spacing:-.02em}
 
 /* ── Forms ───────────────────────────────────────────────────────────────── */
-input,select,textarea{width:100%;padding:9px 11px;background:var(--panel2);
-       border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:13px;
-       font-family:inherit}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
-button,.btn{padding:8px 14px;background:var(--accent);color:white;border:none;
-            border-radius:7px;font-weight:600;cursor:pointer;font-size:13px;
-            white-space:nowrap;flex-shrink:0}
+input,select,textarea{width:100%;padding:9px 12px;background:var(--panel2);
+       border:1px solid var(--border);color:var(--text);border-radius:var(--radius-sm);font-size:13px;
+       font-family:inherit;transition:border-color var(--transition),box-shadow var(--transition)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 3px #7c5cff22}
+input::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
+button,.btn{padding:8px 16px;background:var(--accent);color:white;border:none;
+            border-radius:var(--radius-sm);font-weight:600;cursor:pointer;font-size:13px;
+            white-space:nowrap;flex-shrink:0;transition:background var(--transition),
+            opacity var(--transition),box-shadow var(--transition);letter-spacing:.01em}
+button:hover:not(:disabled){background:#906aff;box-shadow:0 0 0 3px #7c5cff22}
 button.ghost,.btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
-button.danger{background:#3a1c22;color:var(--err);border:1px solid #5a2a32}
-button.ok{background:#1f3a25;color:var(--ok);border:1px solid #2d5a37}
-button:hover{filter:brightness(1.1)}
-button:disabled{opacity:.5;cursor:not-allowed}
+button.ghost:hover:not(:disabled){background:var(--panel2);border-color:#3d4a62;box-shadow:none}
+button.danger{background:#2e1118;color:var(--err);border:1px solid #5a2232}
+button.danger:hover:not(:disabled){background:#3d1520;box-shadow:none}
+button.ok{background:#0f2e18;color:var(--ok);border:1px solid #1e5030}
+button.ok:hover:not(:disabled){background:#163d22;box-shadow:none}
+button.btn-sm,.btn-sm{padding:5px 11px;font-size:12px;border-radius:6px}
+button.primary,.btn.primary{background:var(--accent);color:#fff}
+button:active:not(:disabled){transform:scale(.98)}
+button:disabled{opacity:.45;cursor:not-allowed}
 
 /* ── Tables ──────────────────────────────────────────────────────────────── */
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table{width:100%;border-collapse:collapse;margin-top:6px}
-th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);
+th,td{padding:9px 13px;text-align:left;border-bottom:1px solid var(--border);
       font-size:13px;vertical-align:middle}
-th{background:var(--panel2);color:var(--muted);font-weight:600;text-transform:uppercase;
-   font-size:11px;letter-spacing:.5px}
+th{background:var(--panel2);color:var(--muted);font-weight:700;text-transform:uppercase;
+   font-size:11px;letter-spacing:.5px;white-space:nowrap}
+tbody tr{transition:background var(--transition)}
+tbody tr:hover{background:var(--panel2)}
 
 /* ── Badges ──────────────────────────────────────────────────────────────── */
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
-.b-ok{background:#1f3a25;color:var(--ok)}
-.b-warn{background:#3d3220;color:var(--warn)}
-.b-err{background:#3a1c22;color:var(--err)}
-.b-info{background:#1d2a3d;color:var(--blue)}
-.b-mut{background:#1f2330;color:var(--muted)}
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.01em;white-space:nowrap}
+.b-ok{background:#0e2918;color:var(--ok);border:1px solid #1a4a28}
+.b-warn{background:#271e08;color:var(--warn);border:1px solid #44330f}
+.b-err{background:#2a100f;color:var(--err);border:1px solid #4a1c1a}
+.b-info{background:#0e1e38;color:var(--blue);border:1px solid #1a3060}
+.b-mut{background:#161c2a;color:var(--muted);border:1px solid var(--border)}
 
 /* ── Utilities ───────────────────────────────────────────────────────────── */
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -275,10 +293,11 @@ code{background:var(--panel2);padding:1px 6px;border-radius:4px;font-size:12px;
 
 /* ── Toast ───────────────────────────────────────────────────────────────── */
 .toast{position:fixed;bottom:24px;right:20px;background:var(--panel);
-       border:1px solid var(--border);padding:12px 18px;border-radius:8px;
+       border:1px solid var(--border);padding:12px 20px;border-radius:10px;
        z-index:9999;display:none;font-size:13px;max-width:calc(100vw - 40px);
-       box-shadow:0 8px 24px #0006}
-.toast.show{display:block}
+       box-shadow:var(--shadow-lg);backdrop-filter:blur(8px)}
+.toast.show{display:block;animation:toast-in .18s ease}
+@keyframes toast-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* ────────────────────────────────────────────────────────────────────────── */
 /* Responsive: Tablet  (≤ 1024px)                                            */
@@ -443,13 +462,13 @@ body.sb-col .nav a span.nav-label{display:none}
     <div style="border-bottom:1px solid var(--border);margin-bottom:12px"></div>
     <nav class="nav">
       <a href="/" class="{{ 'active' if active=='home' }}" onclick="closeSidebar()">
-        <span class="icon">▦</span> Dashboard
+        <span class="icon">🏠</span> Dashboard
       </a>
 
       <div class="nav-section">TOOLS</div>
 
       <a href="/stream/" class="{{ 'active' if active=='stream' }}" onclick="closeSidebar()">
-        <span class="icon">▶</span>
+        <span class="icon">⬇</span>
         <span class="nav-label"><span class="nav-title">Downloader</span><span class="nav-sub">Download movies &amp; series</span></span>
       </a>
       <a href="/upload/" class="{{ 'active' if active=='upload' }}" onclick="closeSidebar()">
@@ -457,19 +476,19 @@ body.sb-col .nav a span.nav-label{display:none}
         <span class="nav-label"><span class="nav-title">Flix</span><span class="nav-sub">Upload to JazzDrive &amp; sync DBs</span></span>
       </a>
       <a href="/scan/" class="{{ 'active' if active=='scan' }}" onclick="closeSidebar()">
-        <span class="icon">⌕</span>
+        <span class="icon">🔍</span>
         <span class="nav-label"><span class="nav-title">JD Indexer</span><span class="nav-sub">Index existing cloud files</span></span>
       </a>
       <a href="/organizer/" class="{{ 'active' if active=='organizer' }}" onclick="closeSidebar()">
-        <span class="icon">✦</span>
+        <span class="icon">🗂</span>
         <span class="nav-label"><span class="nav-title">Organizer</span><span class="nav-sub">Clean up &amp; fix JazzDrive files</span></span>
       </a>
       <a href="/bots/" class="{{ 'active' if active=='bots' }}" onclick="closeSidebar()">
-        <span class="icon">◉</span>
+        <span class="icon">💬</span>
         <span class="nav-label"><span class="nav-title">Bot Manager</span><span class="nav-sub">WhatsApp bot &amp; users</span></span>
       </a>
       <a href="/tid/" class="{{ 'active' if active=='tid' }}" onclick="closeSidebar()" style="position:relative">
-        <span class="icon">💳</span>
+        <span class="icon">🧾</span>
         <span class="nav-label"><span class="nav-title">TID Payments</span><span class="nav-sub">Verify subscriptions</span></span>
       </a>
       <a href="/app-users/" class="{{ 'active' if active=='app_users' }}" onclick="closeSidebar()">
@@ -518,7 +537,7 @@ body.sb-col .nav a span.nav-label{display:none}
       <div class="nav-section">SYSTEM</div>
 
       <a href="/admin/services" class="{{ 'active' if active=='services' }}" onclick="closeSidebar()">
-        <span class="icon">⚡</span>
+        <span class="icon">🔧</span>
         <span class="nav-label"><span class="nav-title">Services</span><span class="nav-sub">Toggle background services</span></span>
       </a>
       <a href="/settings/" class="{{ 'active' if active=='settings' }}" onclick="closeSidebar()">
@@ -526,7 +545,7 @@ body.sb-col .nav a span.nav-label{display:none}
         <span class="nav-label"><span class="nav-title">Settings</span><span class="nav-sub">API keys &amp; config</span></span>
       </a>
       <a href="/admin/" class="{{ 'active' if active=='admin' }}" onclick="closeSidebar()">
-        <span class="icon">♛</span>
+        <span class="icon">👑</span>
         <span class="nav-label"><span class="nav-title">Admin</span><span class="nav-sub">Panel users &amp; password</span></span>
       </a>
       <a href="/api/db_mgmt/" class="{{ 'active' if active=='db_mgmt' }}" onclick="closeSidebar()">
@@ -545,7 +564,7 @@ body.sb-col .nav a span.nav-label{display:none}
         <span class="nav-label"><span class="nav-title">XOR Encoding</span><span class="nav-sub">Layer 5 status</span></span>
       </a>
             <hr>
-      <a href="/auth/logout"><span class="icon">⏻</span> Sign out</a>
+      <a href="/auth/logout"><span class="icon">🚪</span> Sign out</a>
     </nav>
   </aside>
 

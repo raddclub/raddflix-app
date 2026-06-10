@@ -12,19 +12,19 @@
 </style>
 
 {% if not scan_enabled %}
-<div style="display:flex;align-items:center;gap:10px;background:rgba(244,67,54,.1);border:1px solid rgba(244,67,54,.4);border-radius:8px;padding:10px 16px;margin-bottom:14px;flex-wrap:wrap">
-  <span style="font-size:18px">⏸</span>
+<div style="display:flex;align-items:center;gap:12px;background:#1e0808;border:1px solid #5a1a1a;border-radius:10px;padding:12px 18px;margin-bottom:16px;flex-wrap:wrap">
+  <span style="font-size:20px;flex-shrink:0">⏸</span>
   <div style="flex:1">
-    <strong style="color:var(--err,#f44336)">Scan service is paused</strong>
+    <strong style="color:var(--err)">Scan service is paused</strong>
     <span class="muted" style="font-size:13px;margin-left:8px">No heartbeat requests are being sent to JazzDrive. Scan buttons are disabled.</span>
   </div>
-  <a href="/admin/services" style="font-size:13px;color:var(--accent);text-decoration:none;white-space:nowrap">Enable in Services →</a>
+  <a href="/admin/services" style="font-size:12px;font-weight:600;color:#fff;background:var(--err);padding:5px 12px;border-radius:6px;white-space:nowrap;text-decoration:none">Enable in Services →</a>
 </div>
 {% endif %}
 
 <div class="h-row" style="margin-bottom:12px">
   <div>
-    <h2>JD Indexer</h2>
+    <h2>🔍 JD Indexer</h2>
     <div class="muted" style="font-size:13px;margin-top:2px">Scan multiple JazzDrive accounts to index existing files and build the media database.</div>
   </div>
   <div style="display:flex; gap:8px">
