@@ -79,7 +79,7 @@ def create_app() -> Flask:
                         tid_panel, app_users_panel, analytics, subscriptions, broadcast, zero_rating, \
                         plans_panel, payment_gateway, mobile_api, \
                         catalog_api, search_api, poster_proxy, \
-                        brand_studio, proxy_pool_page as proxy_pool_page_route
+                        brand_studio
     app.register_blueprint(auth.bp,                    url_prefix="/auth")
     app.register_blueprint(home.bp)
     app.register_blueprint(settings_route.bp,          url_prefix="/settings")
@@ -112,11 +112,12 @@ def create_app() -> Flask:
     # ── Catalog / Search / Poster (migrated from _watch_prototype) ────────
     app.register_blueprint(catalog_api.bp)        # url_prefix in blueprint: /api/catalog
     app.register_blueprint(catalog_api.bp_watch)  # BUG-A35: /watch/api/play/<file_id>
+    from .routes import delta_push as _delta_push
+    app.register_blueprint(_delta_push.bp)       # /api/catalog/delta-push/trigger + /status
     app.register_blueprint(search_api.bp)    # url_prefix in blueprint: /api/search
     app.register_blueprint(poster_proxy.poster_proxy_bp)  # /api/poster/*
     # ── Brand Studio (P6) ──────────────────────────────────────────────────────
     app.register_blueprint(brand_studio.bp)  # /brand/ + /api/brand/*
-    app.register_blueprint(proxy_pool_page_route.bp, url_prefix="/proxy-pool")
     # ── Security telemetry (Phase 25.6) ──────────────────────────────────────
     from .routes.security_telemetry import bp_security
     app.register_blueprint(bp_security)   # POST /api/security/tamper-report
@@ -146,7 +147,8 @@ def create_app() -> Flask:
         try:
             with db.conn() as c:
                 row = c.execute(
-                    "SELECT id, filename, share_url, download_url, title_id FROM files "
+                    "SELECT id, filename, share_url, download_url, "
+                    "remote_folder_id, account_id, title_id FROM files "
                     "WHERE remote_id=? OR remote_file_id=? OR fingerprint=? LIMIT 1",
                     (remote_id, remote_id, remote_id)
                 ).fetchone()
@@ -154,22 +156,50 @@ def create_app() -> Flask:
                 return _err("File Not Found",
                             "This download link is invalid or the file has been removed.", 404)
             row = dict(row)
+            
+            # 1. Check for valid pre-generated stream link (Instant Playback)
+            stream_link = db.get_stream_link(row["id"])
+            if stream_link:
+                db.log_stream_serve(stream_link["id"])
+                return redirect(stream_link["download_url"], code=302)
 
-            # Return the share URL — stream links are generated on the Flutter client side
-            share_url = row.get("share_url") or row.get("download_url")
+            # 2. Fallback: try to generate on-demand if we have a folder share
+            folder_id = row.get("remote_folder_id")
+            from . import jazzdrive
+            
+            # Get folder share URL from title or file
+            share_url = row.get("share_url")
             if not share_url:
                 with db.conn() as c:
-                    t_row = c.execute(
-                        "SELECT folder_share_url FROM titles WHERE id=?", (row["title_id"],)
-                    ).fetchone()
+                    t_row = c.execute("SELECT folder_share_url FROM titles WHERE id=?", (row["title_id"],)).fetchone()
                     share_url = t_row["folder_share_url"] if t_row else None
-
+            
+            session_err = None
             if share_url:
-                return redirect(share_url, code=302)
+                res = jazzdrive.generate_direct_link(share_url, target_filename=row["filename"])
+                if res.get("ok"):
+                    db.save_stream_link(row["id"], res["direct_link"], expires_in=28800, account_id=row.get("account_id"))
+                    return redirect(res["direct_link"], code=302)
+                else:
+                    session_err = res.get("error") or "JazzDrive link generation failed"
+
+            # 3. Last resort: Direct URL from files table
+            direct = row.get("download_url") or row.get("share_url") or ""
+            if direct:
+                return redirect(direct, code=302)
 
             fname = row.get("filename") or remote_id
+            if session_err:
+                return _err(
+                    "Session Expired",
+                    f"Could not generate a download link for <b>{fname}</b>.<br>"
+                    f"The JazzDrive session needs to be refreshed — please contact the admin.<br>"
+                    f"<small>({session_err})</small>",
+                    503,
+                )
             return _err("Link Not Ready",
-                        f"No share URL found for <b>{fname}</b>.", 503)
+                        f"The download link for <b>{fname}</b> has not been generated yet. "
+                        "Please try again shortly.", 503)
         except Exception as _ex:
             return _err("Server Error", str(_ex)[:200], 500)
 
@@ -237,6 +267,13 @@ def create_app() -> Flask:
         self_heal.register_thread("download-queue", downloader.queue_loop,
                                   (_BG_STOP,), _BG_STOP)
 
+    if config.get_env_bool("ENABLE_KEEPALIVE", True):
+        from . import keepalive
+        threading.Thread(target=keepalive.loop,
+                         args=(_BG_STOP,), daemon=True,
+                         name="keepalive").start()
+        self_heal.register_thread("keepalive", keepalive.loop,
+                                  (_BG_STOP,), _BG_STOP)
 
     # ── Startup session refresh ────────────────────────────────────────────────
     # When the app was offline, the JSESSIONID expired (60-min idle timeout).
@@ -263,7 +300,7 @@ def create_app() -> Flask:
                 result = _jd.refresh_session(account_id=acct["id"])
                 if result.get("ok"):
                     msg = result.get("message", "")
-                    log.info("JazzDrive startup: account %s session restored automatically — %s (no OTP needed — good to go)",
+                    log.info("startup_refresh: session restored for %s — %s (no OTP needed)",
                              acct.get("msisdn"), msg)
                 else:
                     log.warning("startup_refresh: could not restore session for %s: %s",
@@ -273,6 +310,12 @@ def create_app() -> Flask:
 
     threading.Thread(target=_startup_refresh, daemon=True, name="startup-refresh").start()
 
+    # Delta-push: auto-regenerate delta.json on JazzDrive every 6h
+    from .routes import delta_push as _delta_push_bg
+    threading.Thread(target=_delta_push_bg.delta_refresh_loop,
+                     daemon=True, name="delta-refresh").start()
+    self_heal.register_thread("delta-refresh", _delta_push_bg.delta_refresh_loop,
+                              (), _BG_STOP)
 
     from . import bots as _bot_manager
     threading.Thread(target=_bot_manager.start_all,
@@ -309,8 +352,16 @@ def create_app() -> Flask:
                          args=(_BG_STOP,), daemon=True,
                          name="quality-upgrade").start()
 
+    # Bulk Link Engine — proactively pre-generate stream links for JazzBuzz
+    if config.get_env_bool("ENABLE_BULK_LINKS", True):
+        from . import bulk_link_engine
+        threading.Thread(target=bulk_link_engine.loop,
+                         args=(_BG_STOP,), daemon=True,
+                         name="bulk-link-engine").start()
+        self_heal.register_thread("bulk-link-engine", bulk_link_engine.loop,
+                                  (_BG_STOP,), _BG_STOP)
 
-    log.info("=== Radd Hub v3.0 is running and ready ===")
+    log.info("Radd Hub v3.0 ready")
 
     # ── Security headers ─────────────────────────────────────────────────────
     @app.after_request
