@@ -1,11 +1,11 @@
 # BUG_TRACKER.md
-Last updated: 2026-06-09
+Last updated: 2026-06-10
 
 ## Status Key
 - ✅ FIXED — committed and verified on live server
 - 🔄 IN PROGRESS
 - ❌ OPEN
-- 🚫 WONT FIX / INTENTIONAL
+- 🚫 WONT FIX / INTENTIONAL / DROPPED
 
 ---
 
@@ -46,12 +46,6 @@ Two characters (`==`) caused 5 critical bugs.
 
 ---
 
-## Open Bugs
-
-See DATA-01 below — all code bugs are fixed.
-
----
-
 ## Session 2026-06-04 (continued) — Additional bugs found and fixed
 
 | ID | Severity | Title | Root Cause | Fix Applied | File |
@@ -73,14 +67,6 @@ the committed Dart file undetected because the fallback always returned a playab
 
 **Rule:** Any Dart string built in a generator script must use concatenation for dynamic
 parts, never `\$` — or use raw strings (`r'...'`).
-
----
-
-## Data Gap (not a code bug)
-
-| ID | Title | Status | Notes |
-|----|-------|--------|-------|
-| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB episodes table. Need upload to JazzDrive + sync. |
 
 ---
 
@@ -208,16 +194,6 @@ OTP re-login no longer needed on Flask restart. Session auto-recovers via Androi
 
 ---
 
-## Open Issues (requires user action, not code fixes)
-
-| ID | Title | Status | Notes |
-|----|-------|--------|-------|
-| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB. Need JazzDrive upload + sync. |
-| OPS-01 | Account 03286829827 session | ✅ RESOLVED 2026-06-07 | BUG-A03 fixed. Session auto-recovers via Android OAuth2 + PK proxy. No OTP needed. |
-
-
----
-
 ## Session 2026-06-08 (TASK-057) — A-Z Full Audit + Fix + APK Build
 
 ### Oracle Python bugs fixed (commit 41fcc63)
@@ -248,14 +224,6 @@ Build 1034 — RaddFlix-1.0.0+1-build1034.apk — run 27156269376 — 56.7 MB �
 
 ---
 
-## Open Data Gaps (need admin action, not code fixes)
-
-| ID | Title | Status | Notes |
-|----|-------|--------|-------|
-| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | OPEN | Need JazzDrive upload + sync |
-| DATA-02 | 9 movies with deleted JD files (Animal, Dune, Inception, Interstellar, Inuyashiki, Oppenheimer, Reborn, The Ninth Gate, Super Mario Galaxy) | OPEN | JD files deleted. Need manual re-upload to JazzDrive by admin |
-
-
 ## Session 2026-06-09 — BUG-STALE-IDS: Flutter stale catalog after DB rebuild
 
 | ID | Severity | Title | Root Cause | Fix Applied | File |
@@ -272,11 +240,6 @@ Build 1034 — RaddFlix-1.0.0+1-build1034.apk — run 27156269376 — 56.7 MB �
 | Server request_encoding.py | XOR symmetric, ±1h candidate keys, padding re-add, device_id from header/JWT fallback | ✅ PASS |
 | CatalogItem.fromJson | All fields safe-cast, no TypeError on null id | ✅ PASS |
 | scrambleUrl/unscrambleUrl | RF1: prefix guard, passthrough for legacy plain URLs, deviceId key fallback | ✅ PASS |
-
----
-
-## Session 2026-06-08 — All bugs fixed
-
 
 ---
 
@@ -322,3 +285,19 @@ and used as Pass 0 in `_getMedia()` for exact file matching.
 ### Discovery method
 Both bugs found by reading the actual Dart source code line-by-line. No docs or comments consulted.
 Previous AUDIT-JD-ID session (2026-06-09 2nd) audited the player path correctly but did not audit the download service Path B, which used a different (simpler) DB lookup function.
+
+---
+
+## Open Bugs
+
+_No open code bugs. All known issues resolved._
+
+## Dropped / Won't Fix
+
+| ID | Title | Reason | Date |
+|----|-------|--------|------|
+| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | Dropped by user — no longer needed | 2026-06-10 |
+| DATA-02 | 9 movies with deleted JD files (Animal, Dune, Inception, etc.) | Dropped by user — no longer needed | 2026-06-10 |
+| BUG-CATALOG-REGEN | db_update.json doesn't auto-regen on direct SQL changes | Dropped by user — no longer needed | 2026-06-10 |
+| BUG-DELTA-PUSH | delta_push pipeline broken — upload_file_to_jazzdrive attr missing | Dropped by user — no longer needed | 2026-06-10 |
+| BUG-DUNE-FILE | Dune Part Two / Inception have no files scanned | Dropped by user — no longer needed | 2026-06-10 |

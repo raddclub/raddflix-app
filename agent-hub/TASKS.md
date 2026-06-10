@@ -59,11 +59,7 @@ GitHub Actions run: https://github.com/raddclub/raddflix-app/actions/runs/271009
 
 ## Backlog
 
-| ID | Issue | Priority |
-|----|-------|----------|
-| BUG-CATALOG-REGEN | db_update.json does NOT auto-regen on direct SQL updates — must run Python script manually after any is_published change | High |
-| BUG-DUNE-FILE | Dune Part Two, Inception have no files scanned — need scan or manual file link before publishing | Medium |
-| BUG-DELTA-PUSH | delta_push pipeline fails: module 'hub.jazzdrive' has no attribute 'upload_json_to_jazzdrive' (should be upload_file_to_jazzdrive) | Medium |
+_No open backlog items._
 
 ## Non-Negotiable Rules
 
