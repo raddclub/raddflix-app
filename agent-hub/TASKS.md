@@ -6,6 +6,7 @@ _Last updated: 2026-06-10_
 
 | ID | Changed | Summary | Ref |
 |----|---------|---------|-----|
+| FIX-WG0-ENFORCE | hub/jazzdrive.py | Hard-block ALL JazzDrive network calls if wg0 not routing JD IPs. Added JDVPNRequired exception + require_wg0() — called from resolve_proxies(), _android_refresh_session_inner(), trigger_otp_flow(), resend_otp(), submit_otp(). No JD call ever leaks via Oracle direct IP. | pending |
 | FEAT-SERVICES-01 | admin.py, services.html (new), base.html, admin.html, settings.html, scan.html, upload.html | Consolidated all 8 service toggles to dedicated /admin/services page. Removed service cards from admin.html + settings.html. Updated paused-banners in scan.html + upload.html to link /admin/services. | b55df7f, 46122dc |
 | PERF-01 | proxy_pool.py, hub/db | Diagnosed proxy-pool CPU spike (99.9%). Throttled ThreadPoolExecutors (40→8, 80→10), extended HC/discovery intervals, VACUUM'd SQLite DB | dde746e |
 | PERF-02 | proxy_pool.py | Permanently removed all 4 background proxy threads (hc_loop, recovery_loop, disc_loop, test_seeds_bg) from ProxyPool.start() + _seed_if_empty(). CPU → ~2%, threads → 9 | 519f649 |

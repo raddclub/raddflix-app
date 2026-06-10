@@ -265,11 +265,10 @@ def _is_replit() -> bool:
     return bool(os.environ.get("REPL_ID") or os.environ.get("REPLIT_DEPLOYMENT"))
 
 def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
-    """Always returns None.
-    JazzDrive traffic routes via wg0 VPN at the OS level (IP routes for JD IPs
-    point to wg0).  When wg0 is unavailable those routes are auto-removed and
-    traffic falls back to the default interface.  _with_vpn_fallback() handles
-    the edge-case where wg0 is UP but the tunnel peer is unreachable."""
+    """Always returns None — JazzDrive traffic routes via wg0 VPN at OS level.
+    Raises JDVPNRequired if wg0 is not routing JD IPs.
+    NEVER allows JD traffic to leak via Oracle direct IP — account would be suspended."""
+    require_wg0()
     return None
 
 
@@ -325,6 +324,40 @@ def _restore_wg0_routes(ips: list) -> None:
     for ip in ips:
         _sp.run(["sudo", "ip", "route", "add", ip, "dev", "wg0", "scope", "link"],
                 capture_output=True, timeout=3)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# wg0 VPN Enforcement — hard-fail if JD IPs are not routed via wg0
+# ─────────────────────────────────────────────────────────────────────────────
+
+class JDVPNRequired(RuntimeError):
+    """Raised when a JazzDrive network call is blocked because wg0 is not
+    routing the JazzDrive IPs.  NEVER allow JD traffic via Oracle's direct IP
+    — account suspension risk."""
+    pass
+
+
+def require_wg0() -> None:
+    """Hard-fail if wg0 is not currently routing ALL JazzDrive IPs.
+
+    Must be called at the entry point of every function that makes a JazzDrive
+    network request.  If any JD IP route is missing (VPN down / peer unreachable),
+    we raise JDVPNRequired instead of letting the request fall through to Oracle's
+    direct IP — which would expose a non-PK IP to JazzDrive and risk account suspension.
+
+    This is a zero-tolerance rule: no JD call ever goes out without wg0.
+    """
+    routed = _wg0_route_ips()
+    missing = [ip for ip in _JD_IPS if ip not in routed]
+    if missing:
+        msg = (
+            f"wg0 VPN not routing JazzDrive IPs {missing} — "
+            f"JazzDrive call BLOCKED (refusing to leak via Oracle direct IP, "
+            f"account suspension risk)"
+        )
+        log.error("require_wg0: %s", msg)
+        raise JDVPNRequired(msg)
+    log.debug("require_wg0: OK — all JD IPs routed via wg0 %s", routed)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Auth Helpers
@@ -1279,6 +1312,7 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     if not msisdn_local:
         return {"ok": False, "error": "No MSISDN provided or configured"}
 
+    require_wg0()  # Hard-fail if wg0 down — never leak OTP call via Oracle direct IP
     # Always direct — VPN (wg0) routes JD traffic at OS level.
     _proxies_chain: list = [None]
 
@@ -1344,6 +1378,7 @@ def resend_otp() -> dict:
         _OTP_STATE_FILE.unlink(missing_ok=True)
         return {"ok": False, "error": "OTP session expired (>10 min) — trigger a new OTP first"}
 
+    require_wg0()  # Hard-fail if wg0 down — never leak OTP resend via Oracle direct IP
     # Always direct — VPN (wg0) routes JD traffic at OS level.
     _proxies_chain: list = [None]
 
@@ -1398,6 +1433,7 @@ def submit_otp(otp: str) -> dict:
         _OTP_STATE_FILE.unlink(missing_ok=True)
         return {"ok": False, "error": "OTP expired (>10 min) — request a new OTP"}
 
+    require_wg0()  # Hard-fail if wg0 down — never leak OTP submit via Oracle direct IP
     # Always direct — VPN (wg0) routes JD traffic at OS level.
     _sub_chain: list = [None]
 
@@ -1794,6 +1830,7 @@ def _android_refresh_session_inner(refresh_token: str,
     import base64 as _b64
     import urllib.parse as _up
 
+    require_wg0()  # Hard-fail if wg0 down — never leak OAuth2/SAPI via Oracle direct IP
     log.info("android_refresh_session: exchanging refresh_token (acct=%s)...", account_id)
 
     # ── Step 1: POST to /oauth2/refresh_token.php ─────────────────────────────
