@@ -941,6 +941,81 @@ async function triggerSync(){
 }
 </script>{% endblock %}
 
+<div class="card" id="log-retention-card">
+  <h3 style="margin:0 0 4px">&#128220; Log Retention</h3>
+  <div class="muted" style="margin-bottom:14px;font-size:13px">
+    Scan logs older than this are automatically deleted at the start of each scan.
+    Upload logs are kept in memory only (cleared on restart).
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <label style="font-size:13px;font-weight:500">Keep scan logs for</label>
+    <input type="number" id="log-retention-days" min="1" max="365" value="7"
+           style="width:70px;background:var(--panel2);border:1px solid var(--border);
+                  border-radius:6px;padding:6px 10px;color:var(--text);font-size:14px;font-weight:600;text-align:center">
+    <label style="font-size:13px;font-weight:500">days</label>
+    <button onclick="saveLogRetention()" style="padding:6px 16px">Save</button>
+    <span id="log-retention-msg" class="muted" style="font-size:12px"></span>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <span style="font-size:12px;color:var(--muted)">Run cleanup now (deletes logs older than saved value):</span>
+    <button class="ghost" style="font-size:12px;padding:3px 10px;color:var(--err);border-color:var(--err)"
+            onclick="cleanupLogsNow()">Prune old logs now</button>
+    <span id="log-cleanup-msg" class="muted" style="font-size:12px"></span>
+  </div>
+</div>
+
+<script>
+(function(){
+  async function _lrApi(method, body){
+    const r = await fetch('/settings/api/log-retention', {
+      method, headers: {'Content-Type':'application/json'},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    return r.json();
+  }
+  async function loadLogRetention(){
+    try {
+      const d = await _lrApi('GET');
+      const inp = document.getElementById('log-retention-days');
+      if (inp && d.days) inp.value = d.days;
+    } catch(e) {}
+  }
+  window.saveLogRetention = async function(){
+    const inp = document.getElementById('log-retention-days');
+    const msg = document.getElementById('log-retention-msg');
+    const days = parseInt(inp ? inp.value : 7) || 7;
+    msg.textContent = 'Saving...';
+    try {
+      const d = await _lrApi('POST', {days});
+      if (d.ok) {
+        msg.style.color = 'var(--ok)';
+        msg.textContent = 'Saved — keeping ' + d.days + ' day(s). Deleted ' + (d.deleted||0) + ' old entries.';
+      } else {
+        msg.style.color = 'var(--err)';
+        msg.textContent = 'Error: ' + (d.error || '?');
+      }
+    } catch(e) { msg.style.color='var(--err)'; msg.textContent='Request failed'; }
+  };
+  window.cleanupLogsNow = async function(){
+    const inp = document.getElementById('log-retention-days');
+    const msg = document.getElementById('log-cleanup-msg');
+    const days = parseInt(inp ? inp.value : 7) || 7;
+    msg.textContent = 'Pruning...';
+    try {
+      const d = await _lrApi('POST', {days});
+      if (d.ok) {
+        msg.style.color = 'var(--ok)';
+        msg.textContent = 'Done — ' + (d.deleted||0) + ' old log entries deleted.';
+      } else {
+        msg.style.color = 'var(--err)';
+        msg.textContent = 'Error: ' + (d.error || '?');
+      }
+    } catch(e) { msg.style.color='var(--err)'; msg.textContent='Request failed'; }
+  };
+  loadLogRetention();
+})();
+</script>
+
 <div class="card" id="app-version-card" style="margin-top:28px">
   <h3 style="margin:0 0 4px;font-size:1rem;color:#e7eaf2">App Version Control</h3>
   <p style="margin:0 0 16px;font-size:.82rem;color:#7e859b">Force-update users, block cracked APKs, set expiry deadlines.</p>

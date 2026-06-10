@@ -1186,12 +1186,20 @@ def append_scan_log(account_id: int, kind: str, message: str) -> None:
                   (account_id, kind, message, int(time.time())))
 
 
-def get_scan_log(account_id: int, after: int = 0, limit: int = 200) -> list:
+def get_scan_log(account_id: int, after: int = 0, limit: int = 500) -> list:
     with _conn() as c:
         rows = c.execute("SELECT * FROM scan_log WHERE account_id=? AND id>? "
                          "ORDER BY id LIMIT ?",
                          (account_id, after, limit)).fetchall()
     return [dict(r) for r in rows]
+
+
+def cleanup_old_scan_logs(days: int = 7) -> int:
+    """Delete scan_log entries older than `days` days. Returns count deleted."""
+    cutoff = int(time.time()) - (days * 86400)
+    with _lock, _conn() as c:
+        n = c.execute("DELETE FROM scan_log WHERE ts<?", (cutoff,)).rowcount
+        return n
 
 
 def find_duplicates(limit: int = 500) -> list:

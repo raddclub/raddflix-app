@@ -852,3 +852,22 @@ def pool_export():
     from .. import proxy_pool as _pp
     urls = _pp.pool.export_list()
     return jsonify({"ok": True, "urls": urls, "count": len(urls)})
+
+
+@bp.route("/api/log-retention", methods=["GET", "POST"])
+@auth.login_required
+def api_log_retention():
+    """GET: return current log_retention_days setting.
+    POST: save new value and immediately prune old logs."""
+    if request.method == "GET":
+        days = int(db.setting("log_retention_days") or "7")
+        return jsonify({"ok": True, "days": days})
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        days = max(1, min(365, int(data.get("days") or 7)))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "days must be a number 1-365"}), 400
+    db.set_setting("log_retention_days", str(days))
+    from .. import db as _db
+    deleted = _db.cleanup_old_scan_logs(days=days)
+    return jsonify({"ok": True, "days": days, "deleted": deleted})

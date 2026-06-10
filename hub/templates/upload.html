@@ -856,6 +856,31 @@ async function loadJobs() {
 
 
 /* ── logs ── */
+/* ── Level icons and colors for upload log ──────────────────────────────── */
+const _UL_ICON  = {debug:'[dbg]', info:'[INF]', warn:'[WRN]', error:'[ERR]'};
+const _UL_COLOR = {debug:'#5a6270', info:'#c9d1db', warn:'#f59e0b', error:'#ef4444'};
+
+function _ulTs(ts) {
+  /* ts is a Unix float from record.created */
+  const d = ts ? new Date(ts * 1000) : new Date();
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  const ss = String(d.getSeconds()).padStart(2,'0');
+  return hh + ':' + mm + ':' + ss;
+}
+
+function _ulSource(logger) {
+  /* Strip "hub." prefix and shorten common names */
+  const aliases = {
+    'hub.uploader':   'uploader',
+    'hub.keepalive':  'keepalive',
+    'hub.jazzdrive':  'jazzdrive',
+    'hub.scanner':    'scanner',
+    'hub.downloader': 'downloader',
+  };
+  return (aliases[logger] || (logger || 'system').replace(/^hub\./, '')).slice(0, 12);
+}
+
 function appendLogEntries(entries) {
   const box = document.getElementById('log-box');
   if (!box) return;
@@ -866,12 +891,45 @@ function appendLogEntries(entries) {
   entries.forEach(e => {
     _logSeq = Math.max(_logSeq, e.seq);
     if (LEVELS.indexOf(e.level) < minIdx) return;
-    const line = document.createElement('div');
-    line.style.cssText = 'border-bottom:1px solid rgba(255,255,255,.04);padding:2px 0;color:' + ({debug:'#6b7280',info:'#e2e8f0',warn:'#f59e0b',error:'#ef4444'}[e.level]||'#eee');
-    line.textContent = e.msg;
+
+    // Clear placeholder on first real entry
     if (box.querySelector('.muted')) box.innerHTML = '';
+
+    const level  = e.level || 'info';
+    const icon   = _UL_ICON[level]  || '[INF]';
+    const color  = _UL_COLOR[level] || '#c9d1db';
+    const ts     = _ulTs(e.ts);
+    const src    = _ulSource(e.logger).padEnd(12, ' ');
+
+    // Add blank separator before warnings/errors for visibility
+    if ((level === 'warn' || level === 'error') && box.children.length > 0) {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'height:4px';
+      box.appendChild(sep);
+    }
+
+    const line = document.createElement('div');
+    line.style.cssText = (
+      'border-bottom:1px solid rgba(255,255,255,.03);padding:3px 0;color:' + color + ';' +
+      'font-family:monospace;font-size:12px;line-height:1.5;' +
+      (level === 'error' ? 'background:rgba(239,68,68,.06);padding:3px 6px;border-radius:3px;' : '') +
+      (level === 'warn'  ? 'background:rgba(245,158,11,.05);padding:3px 6px;border-radius:3px;' : '')
+    );
+
+    // Raw msg already has timestamp from Python formatter — strip it, rebuild clean
+    // Format: [HH:MM:SS] [TAG] source  message
+    const rawMsg = (e.msg || '').replace(/^\d{2}:\d{2}:\d{2} [AP]M \[.*?\] [\w.]+: /, '');
+    line.textContent = '[' + ts + '] ' + icon + ' ' + src + '  ' + rawMsg;
+
     box.appendChild(line);
-    if (box.children.length > 500) box.removeChild(box.firstChild);
+    if (box.children.length > 600) box.removeChild(box.firstChild);
+
+    // Closing separator after errors
+    if (level === 'error') {
+      const sep2 = document.createElement('div');
+      sep2.style.cssText = 'height:4px';
+      box.appendChild(sep2);
+    }
   });
   if (document.getElementById('log-autoscroll').checked) box.scrollTop = box.scrollHeight;
 }

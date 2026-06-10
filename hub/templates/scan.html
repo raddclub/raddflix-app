@@ -545,6 +545,33 @@ const _SUPPRESS = [
   'TMDB direct',
 ];
 
+/* ── Scan start timestamp for elapsed time ──────────────────────────────── */
+let _scanStartTs = null;
+
+function _elapsedStr() {
+  if (!_scanStartTs) return new Date().toLocaleTimeString('en', {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const s = Math.floor((Date.now() - _scanStartTs) / 1000);
+  const h = String(Math.floor(s / 3600)).padStart(2, '0');
+  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const sc = String(s % 60).padStart(2, '0');
+  return '+' + h + ':' + m + ':' + sc;
+}
+
+/* Icon tag + color per log kind */
+const _KIND_ICON = {
+  scan_start: '[RUN]', scan_done:  '[DONE]',
+  folder:     '[DIR] ', progress:   '[...] ',
+  info:       '[INF] ', error:      '[ERR] ',
+  warn:       '[WRN] ',
+  lookup:     '[???] ', found:      '[ OK] ',
+  not_found:  '[---] ',
+  tmdb:       '[???] ', tmdb_ok:    '[ OK] ', tmdb_miss:  '[---] ',
+  imdb_ok:    '[ OK] ', imdb_miss:  '[---] ',
+  enrich:     '[~~~] ', mirror:     '[UP ] ',
+  publish:    '[PUB] ', otp:        '[KEY] ',
+  debug:      '[dbg] ',
+};
+
 function _appendLog(kind, msg) {
   const el = document.getElementById('scan-log');
   if (!el) return;
@@ -554,30 +581,46 @@ function _appendLog(kind, msg) {
     if (msg.indexOf(s) !== -1) return;
   }
 
-  const cls   = _KIND_CLS[kind] || 'sl-info';
-  const label = _KIND_LABEL[kind];
-  const ts    = new Date().toLocaleTimeString('en', {hour12:false, minute:'2-digit', second:'2-digit'});
-  const ln    = document.createElement('span');
+  const cls  = _KIND_CLS[kind] || 'sl-info';
+  const icon = _KIND_ICON[kind] || '[INF] ';
+  const ts   = _elapsedStr();
+
+  // Set scan start time on first scan_start event
+  if (kind === 'scan_start' && !_scanStartTs) _scanStartTs = Date.now();
+  if (kind === 'scan_done') _scanStartTs = null; // reset for next scan
+
+  // Add a blank separator line before errors and warnings for visibility
+  if ((kind === 'error' || kind === 'warn') && el.children.length > 0) {
+    const sep = document.createElement('span');
+    sep.className = 'll sl-skip';
+    sep.textContent = '';
+    el.appendChild(sep);
+  }
+
+  const ln = document.createElement('span');
   ln.className = 'll ' + cls;
 
-  // Build the display text — no raw [kind] noise, just a readable label
-  let display = '';
-  if (label) {
-    display = ts + '  ' + label + ': ' + msg;
-  } else {
-    display = ts + '  ' + msg;
-  }
-  ln.textContent = display;
+  // Format: [+HH:MM:SS] [TAG]  message
+  ln.textContent = '[' + ts + '] ' + icon + ' ' + msg;
   el.appendChild(ln);
+
+  // For errors, add a closing separator too
+  if (kind === 'error') {
+    const sep2 = document.createElement('span');
+    sep2.className = 'll sl-skip';
+    sep2.textContent = '';
+    el.appendChild(sep2);
+  }
+
   el.scrollTop = el.scrollHeight;
 
   // Update stats counters from log content
   if (kind === 'folder') _ssFolders++;
   if (kind === 'found' || kind === 'tmdb_ok' || kind === 'imdb_ok') _ssTitles++;
-  if (kind === 'scan_done' || kind === 'info') {
-    const m = msg.match(/(\d+)\s+files/i);
+  if (kind === 'scan_done' || kind === 'info' || kind === 'scan_done') {
+    const m = msg.match(/(\d+)\s+(?:media\s+)?file/i);
     if (m) { _ssFiles = Math.max(_ssFiles, parseInt(m[1])); }
-    const t = msg.match(/(\d+)\s+(?:new )?titles?/i);
+    const t = msg.match(/(\d+)\s+(?:new\s+)?title/i);
     if (t) { _ssTitles = Math.max(_ssTitles, parseInt(t[1])); }
   }
   _refreshStatsBar();
