@@ -153,3 +153,4 @@ _Last updated: 2026-06-10_
 - Always append session summary to `agent-hub/history/TASK_LOG.md` before ending session
 | PERF-01 | ✅ DONE | Oracle proxy pool CPU fix — throttled HC/recovery/disc workers (40→8, 80→10), capped HC batch to 300/run, spaced intervals (10min→30min HC, 5min→15min recovery, 15min→60min disc), VACUUM'd DB | 2026-06-10 |
 | PERF-02 | ✅ DONE | Permanently disable all proxy background threads (HC/recovery/discovery/seed-test) — admin triggers manually via settings page | 2026-06-10 |
+| PERF-03 | ✅ DONE | Background service control panel — per-service DB toggles (mirror/download/keepalive/scheduler/upload/scan) + WA bot supervisor + admin UI card | 2026-06-10 |
