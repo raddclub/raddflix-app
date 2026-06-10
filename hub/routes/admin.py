@@ -846,33 +846,97 @@ def schema_health():
 # POST /admin/api/services/toggle   — enable or disable a service
 # ─────────────────────────────────────────────────────────────────────────────
 
+# deps = services that MUST be ON before this one works
 _SERVICES = [
-    {"key": "UPLOAD_ENABLED",        "name": "upload",        "label": "Upload Watcher",      "desc": "Watches for new files and uploads them to JazzDrive",       "default": "1"},
-    {"key": "DOWNLOAD_ENABLED",      "name": "download",      "label": "Download Queue",      "desc": "Processes queued download jobs in the background",            "default": "1"},
-    {"key": "MIRROR_ENABLED",        "name": "mirror",        "label": "Mirror Retry",        "desc": "Retries failed GitHub mirror pushes every 60 s",              "default": "1"},
-    {"key": "KEEPALIVE_ENABLED",     "name": "keepalive",     "label": "JazzDrive Keepalive", "desc": "Sends heartbeat pings to keep sessions alive every 15 min",   "default": "1"},
-    {"key": "SCAN_ENABLED",          "name": "scan",          "label": "Scanner",             "desc": "Scans JazzDrive accounts for new content",                    "default": "1"},
-    {"key": "SCHEDULER_ENABLED",     "name": "scheduler",     "label": "Smart Scheduler",     "desc": "Rescans ongoing series and triggers delta generation",         "default": "0"},
-    {"key": "DOMAIN_DOCTOR_ENABLED", "name": "domain_doctor", "label": "Domain Doctor",       "desc": "Auto-discovers working mirror domains every 24 h",             "default": "1"},
+    {
+        "key": "KEEPALIVE_ENABLED", "name": "keepalive", "label": "JazzDrive Keepalive",
+        "desc": "Keeps Jazz SIM sessions alive every 15 min. FOUNDATION — Scanner, Upload Watcher and Smart Scheduler all need this ON.",
+        "default": "1", "deps": [],
+    },
+    {
+        "key": "SCAN_ENABLED", "name": "scan", "label": "Scanner",
+        "desc": "Scans JazzDrive accounts for new content. Needs Keepalive ON first.",
+        "default": "1", "deps": ["keepalive"],
+    },
+    {
+        "key": "UPLOAD_ENABLED", "name": "upload", "label": "Upload Watcher",
+        "desc": "Watches for new files and uploads them to JazzDrive. Needs Keepalive ON first.",
+        "default": "1", "deps": ["keepalive"],
+    },
+    {
+        "key": "SCHEDULER_ENABLED", "name": "scheduler", "label": "Smart Scheduler",
+        "desc": "Rescans ongoing series, triggers delta generation. Needs Keepalive + Scanner both ON first.",
+        "default": "0", "deps": ["keepalive", "scan"],
+    },
+    {
+        "key": "DOWNLOAD_ENABLED", "name": "download", "label": "Download Queue",
+        "desc": "Processes queued download jobs from the internet. Works independently.",
+        "default": "1", "deps": [],
+    },
+    {
+        "key": "MIRROR_ENABLED", "name": "mirror", "label": "Mirror Retry",
+        "desc": "Retries failed GitHub mirror pushes every 60s. Works independently.",
+        "default": "1", "deps": [],
+    },
+    {
+        "key": "DOMAIN_DOCTOR_ENABLED", "name": "domain_doctor", "label": "Domain Doctor",
+        "desc": "Auto-discovers working mirror domains every 24h. Works independently.",
+        "default": "1", "deps": [],
+    },
 ]
+
+def _svc_by_name(name):
+    return next((s for s in _SERVICES if s["name"] == name), None)
+
+def _is_enabled(name):
+    svc = _svc_by_name(name)
+    if not svc:
+        return False
+    return db.setting(svc["key"], svc["default"]) == "1"
+
+def _enable_svc(name):
+    svc = _svc_by_name(name)
+    if svc:
+        db.set_setting(svc["key"], "1")
+        log.info("Service %s auto-enabled as dependency", name)
 
 
 @bp.route("/api/services", methods=["GET"])
 @auth.login_required
 def services_list():
-    """Return enabled/running state of all background services."""
+    """Return enabled/running state with dependency metadata."""
     import subprocess as _sp
+
+    # Build reverse-dep map: who depends on me?
+    rdeps_map = {s["name"]: [] for s in _SERVICES}
+    for svc in _SERVICES:
+        for dep in svc["deps"]:
+            if dep in rdeps_map:
+                rdeps_map[dep].append(svc["name"])
+
+    # Read all states first
+    states = {}
+    for svc in _SERVICES:
+        states[svc["name"]] = db.setting(svc["key"], svc["default"]) == "1"
+
     result = []
     for svc in _SERVICES:
-        val = db.setting(svc["key"], svc["default"])
+        enabled = states[svc["name"]]
+        missing_deps  = [d for d in svc["deps"] if not states.get(d, False)]
+        broken_rdeps  = [r for r in rdeps_map[svc["name"]] if states.get(r, False)] if not enabled else []
         result.append({
-            "name":    svc["name"],
-            "label":   svc["label"],
-            "desc":    svc["desc"],
-            "enabled": val == "1",
-            "key":     svc["key"],
+            "name":         svc["name"],
+            "label":        svc["label"],
+            "desc":         svc["desc"],
+            "enabled":      enabled,
+            "key":          svc["key"],
+            "deps":         svc["deps"],
+            "rdeps":        rdeps_map[svc["name"]],
+            "missing_deps": missing_deps,
+            "broken_rdeps": broken_rdeps,
         })
-    # WhatsApp bot — read from supervisor
+
+    # WhatsApp bot via supervisor
     wa_running = False
     try:
         out = _sp.run(["sudo", "supervisorctl", "status", "raddflix_wa_bot"],
@@ -881,11 +945,10 @@ def services_list():
     except Exception:
         pass
     result.append({
-        "name":       "wa_bot",
-        "label":      "WhatsApp Bot",
-        "desc":       "WhatsApp bot for user interactions and file delivery",
-        "enabled":    wa_running,
-        "supervisor": True,
+        "name": "wa_bot", "label": "WhatsApp Bot",
+        "desc": "WhatsApp bot for user interactions and file delivery. Works independently.",
+        "enabled": wa_running, "supervisor": True,
+        "deps": [], "rdeps": [], "missing_deps": [], "broken_rdeps": [],
     })
     return jsonify({"ok": True, "services": result})
 
@@ -918,7 +981,42 @@ def services_toggle():
     svc = mapping.get(name)
     if not svc:
         return jsonify({"ok": False, "error": f"unknown service: {name}"}), 400
+
+    auto_enabled = []
+    warnings     = []
+
+    if enabled:
+        # Auto-enable all dependencies first (depth-first)
+        visited = set()
+        def _resolve(svc_name):
+            if svc_name in visited:
+                return
+            visited.add(svc_name)
+            s = mapping.get(svc_name)
+            if not s:
+                return
+            for dep_name in s.get("deps", []):
+                _resolve(dep_name)
+                if not _is_enabled(dep_name):
+                    _enable_svc(dep_name)
+                    auto_enabled.append(dep_name)
+        _resolve(name)
+    else:
+        # Warn about dependents that are still ON
+        for other in _SERVICES:
+            if name in other.get("deps", []) and _is_enabled(other["name"]):
+                warnings.append(
+                    f"{other['label']} is ON and needs {svc['label']} — it will stop working"
+                )
+
     db.set_setting(svc["key"], "1" if enabled else "0")
-    log.info("Service %s (%s) set to %s by admin", name, svc["key"], "ENABLED" if enabled else "DISABLED")
-    return jsonify({"ok": True, "service": name, "enabled": enabled})
+    log.info("Service %s (%s) -> %s by admin (auto_enabled=%s warnings=%s)",
+             name, svc["key"], "ON" if enabled else "OFF", auto_enabled, warnings)
+    return jsonify({
+        "ok":           True,
+        "service":      name,
+        "enabled":      enabled,
+        "auto_enabled": auto_enabled,
+        "warnings":     warnings,
+    })
 
