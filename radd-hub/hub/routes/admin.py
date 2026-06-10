@@ -732,3 +732,73 @@ def schema_health():
     status = 200 if result["ok"] else 207  # 207 = partial — some checks failed
     return jsonify(result), status
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JazzDrive Session — status + force-refresh
+# ─────────────────────────────────────────────────────────────────────────────
+
+@bp.route("/api/jd-session", methods=["GET"])
+@auth.login_required
+def jd_session_status():
+    """Return current JazzDrive token state from the accounts DB row."""
+    import time as _t
+    try:
+        with db.conn() as c:
+            row = c.execute(
+                "SELECT id, msisdn, label, jsessionid, refresh_token, raw_accesstoken, "
+                "token_expires_at, last_keepalive_at, is_active "
+                "FROM accounts WHERE role=\'flix\' AND is_active=1 LIMIT 1"
+            ).fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "No active flix account found"})
+        row = dict(row)
+        now  = int(_t.time())
+        kpa  = row.get("last_keepalive_at") or 0
+        exp  = row.get("token_expires_at") or 0
+        return jsonify({
+            "ok":                  True,
+            "account_id":          row["id"],
+            "msisdn":              row["msisdn"],
+            "label":               row["label"] or "",
+            "has_jsessionid":      bool((row.get("jsessionid")      or "").strip()),
+            "has_refresh_token":   bool((row.get("refresh_token")   or "").strip()),
+            "has_raw_accesstoken": bool((row.get("raw_accesstoken") or "").strip()),
+            "token_expires_at":    exp,
+            "token_expired":       bool(exp and exp < now),
+            "last_keepalive_at":   kpa or None,
+            "is_active":           bool(row["is_active"]),
+        })
+    except Exception as e:
+        log.exception("jd_session_status error")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@bp.route("/api/jd-force-refresh", methods=["POST"])
+@auth.login_required
+def jd_force_refresh():
+    """Try to refresh the JazzDrive session using stored tokens.
+
+    Returns {ok, error?, otp_required?}.
+    If all silent strategies fail → {ok:false, otp_required:true}.
+    """
+    try:
+        from .. import jazzdrive as _jd
+        result = _jd.refresh_session()
+        if not result.get("ok"):
+            err = result.get("error", "")
+            # Detect OTP-required signal from various failure messages
+            otp_needed = any(x in err.lower() for x in [
+                "otp", "401", "silent login failed", "invalid_grant", "re-login"
+            ])
+            result["otp_required"] = otp_needed
+        return jsonify(result)
+    except Exception as e:
+        cls = type(e).__name__
+        vpn = "JDVPNRequired" in cls
+        return jsonify({
+            "ok":          False,
+            "error":       str(e),
+            "vpn_error":   vpn,
+            "otp_required": not vpn,
+        }), 500
