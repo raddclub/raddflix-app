@@ -204,4 +204,21 @@ Example: `...0471712371671_2603800` → user 0471712371671, file 2603800
 - Flix/Upload page (`/upload`): inline toggle button  
 - Organizer page (`/organizer`): paused banner + toggle button in header  
 - `/settings/api/services` GET/POST now handles `organizer` flag (`ORGANIZER_ENABLED` DB key)  
-- `organizer.py` route: plan + auto-organize endpoints return 503 when `ORGANIZER_ENABLED=0`  
+- `organizer.py` route: plan + auto-organize endpoints return 503 when `ORGANIZER_ENABLED=0`
+---
+
+## TASK-065 — Live Worker Health Status Indicators ✅
+**Commit:** e0b0651d14be020f08e864ed4f10f405478ca151  
+**Status:** Complete  
+**What:**  
+Real-time worker health status bars on all three service toggle pages plus the settings page, auto-refreshing every 15 seconds.  
+**Where:**  
+- New endpoint `GET /settings/api/services/status` — returns per-service health for upload, scan, and organizer in one call:  
+  - upload: `enabled`, `thread_alive` (checks `upload-watcher` thread), `health_status/label` from self_heal badges, `queue` counts (pending/in_progress/uploaded/skipped), `last_upload` (name + ts)  
+  - scan: `enabled`, `health_status/label`, `accounts_total`, `active_scans[]` (per-account running state with files_seen/mirrored), `last_scan_ts`  
+  - organizer: `enabled`, `on_demand: true`, `health_status/label`  
+- `settings.html`: `svc-upload-live`, `svc-scan-live`, `svc-organizer-live` sub-divs added inline below each service description; JS polls every 15s; toggle calls `loadSvcStatus()` immediately  
+- `scan.html`: `scan-live-bar` div inserted below h-row showing jd_indexer badge, per-account scan progress, idle/scanning state, last scan timestamp  
+- `upload.html`: `upload-live-bar` div showing flix badge, thread-alive chip, in-progress/pending/uploaded counts, last uploaded filename + time ago  
+- `organizer.html`: `org-live-bar` div showing ready/paused state with on-demand note  
+- All three page toggle functions call their `loadXxxLiveBar()` after toggling to give instant feedback  
