@@ -975,3 +975,47 @@ The remaining risk: session JSESSIONID expires and nobody knows until uploads st
 ### State at end of session
 - Oracle Flask: RUNNING (healthz ok)
 - All 5 session fixes live and deployed
+
+---
+
+## Session 2026-06-10 — FEAT-DEVICE-ID-01: Android Device ID in Admin Panel
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| FEAT-DEVICE-ID-01 | Add Android ID `fcbf291eddd5d372` to admin panel | ✅ DONE |
+
+### What was built
+
+**`hub/jazzdrive.py` — get_x_deviceid() new fallback:**
+- Added step 3: check `DEFAULT_ANDROID_ID` setting before the deterministic MSISDN-based fallback
+- Priority chain: per-account DB → MSISDN lookup → **DEFAULT_ANDROID_ID setting** → android-{msisdn}
+- Means the real Android ID is used for all requests even when accounts table is empty
+
+**`hub/templates/settings.html` — Device Identity card:**
+- New card between JazzDrive and JazzDrive Services sections
+- Android ID input (strips `android-` prefix automatically, shows live preview `android-fcbf291eddd5d372`)
+- Device Name input (pre-filled `InfinixInfinix X680F`)
+- "Save & Apply to All Accounts" button: saves settings + calls apply-default API
+- Applies to all accounts that don't already have a per-account override
+
+**`hub/routes/admin.py` — /api/jazzdrive/device/apply-default endpoint:**
+- POST endpoint: reads DEFAULT_ANDROID_ID + JAZZDRIVE_DEVICE_NAME settings
+- Updates all accounts where device_id/device_name is NULL or empty
+- Returns count of accounts updated
+
+**Settings DB — value stored immediately:**
+- `DEFAULT_ANDROID_ID = android-fcbf291eddd5d372`
+- `JAZZDRIVE_DEVICE_NAME = InfinixInfinix X680F`
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| hub/jazzdrive.py | DEFAULT_ANDROID_ID fallback in get_x_deviceid() | 4f1fee3 |
+| hub/templates/settings.html | Device Identity card UI | 4f1fee3 |
+| hub/routes/admin.py | /api/jazzdrive/device/apply-default endpoint | 4f1fee3 |
+
+### State at end of session
+- Oracle Flask: RUNNING (healthz ok)
+- Android ID: `android-fcbf291eddd5d372` active in DB settings
+- Open tasks: see agent-hub/TASKS.md

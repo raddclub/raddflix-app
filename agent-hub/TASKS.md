@@ -4,6 +4,14 @@ _Last updated: 2026-06-10_
 
 ---
 
+## Completed — Session 2026-06-10 (6th)
+
+| ID | Changed | Summary | Ref |
+|----|---------|---------|-----|
+| FEAT-DEVICE-ID-01 | hub/jazzdrive.py, hub/routes/admin.py, hub/templates/settings.html | Device Identity card in admin panel — Android ID `fcbf291eddd5d372` stored as DEFAULT_ANDROID_ID setting, fallback added to get_x_deviceid(), apply-default API to push to all accounts | GitHub 4f1fee3 |
+
+---
+
 ## Completed — Session 2026-06-10 (5th)
 
 | ID | Changed | Summary | Ref |
