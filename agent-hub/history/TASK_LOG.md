@@ -617,3 +617,23 @@ Both correct.
 - Confirmed CPU ~1.2%, threads=9, Flask healthy after restart
 
 ### Commits: 2ba55de (admin.py), 88be21e (admin.html)
+
+---
+
+## Session 2026-06-10 — Backlog cleanup
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| CLEANUP-01 | Dropped DATA-01, DATA-02, BUG-CATALOG-REGEN, BUG-DELTA-PUSH, BUG-DUNE-FILE from backlog per user request | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| agent-hub/TASKS.md | Removed all 5 backlog items — backlog now empty | 1853f91 |
+| .agents/tasks/BUG_TRACKER.md | Moved DATA-01, DATA-02, BUG-CATALOG-REGEN, BUG-DELTA-PUSH, BUG-DUNE-FILE to Dropped/Won't Fix section | 1853f91 |
+
+### State at end of session
+- Oracle Flask: RUNNING (`{"ok":true,"version":"3.0.0"}`)
+- Account: ACTIVE (auto-recovers via Android OAuth2 + PK proxy)
+- Open tasks: none — backlog is clean
