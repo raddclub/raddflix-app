@@ -4,6 +4,14 @@ _Last updated: 2026-06-10_
 
 ---
 
+## Completed — Session 2026-06-10 (2nd)
+
+| ID | Changed | Summary | Ref |
+|----|---------|---------|-----|
+| FEAT-CLEAR-LOGS-01 | uploader.py, routes/scan.py, routes/upload.py, templates/scan.html, templates/upload.html, templates/organizer.html | Working Clear button in all 3 log panels — scan log deletes DB rows, upload log flushes in-memory ring buffer, organizer log clears UI div | GitHub 023ed6f |
+
+---
+
 ## Completed — Session 2026-06-10
 
 | ID | Changed | Summary | Ref |

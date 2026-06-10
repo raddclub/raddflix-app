@@ -744,3 +744,56 @@ All agent-hub .md files updated with full session history:
   proxy pool, admin panel features, common operations, known gotchas, session checklists
 
 **Commits:** single multi-file push covering all 4 .md files
+
+---
+
+## Session: 2026-06-10 — FEAT-CLEAR-LOGS-01: Working Clear button in all log panels
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| FEAT-CLEAR-LOGS-01 | Add working Clear button to all log panels | ✅ DONE |
+
+### What was built
+
+**3 log panels — each gets a real Clear button that deletes data, not just hides it:**
+
+**Scan page (`scan.html`) — `#scan-log` panel:**
+- New red "Clear" button added next to Copy / Hide
+- Two-step confirm: first click → "Confirm?" (4s window), second click → executes
+- Calls `DELETE /scan/api/accounts/<aid>/log` (new endpoint)
+- On success: clears UI div, resets `_logAfter = 0`, shows "Cleared (N)" for 2.5s
+
+**Upload page (`upload.html`) — `#log-box` panel (Live Upload Logs tab):**
+- Existing "Clear" button previously only cleared the UI (`box.innerHTML = ...`)
+- Now calls `POST /upload/api/clear-logs` (new endpoint) first
+- Flushes the in-memory `_LOG_RING` deque in `uploader.py`
+- Resets `_logSeq = 0` so SSE stream restarts from position 0
+- Shows "Log cleared (N entries removed)" on success
+
+**Organizer page (`organizer.html`) — `#auto-log` panel:**
+- New "Clear" button added in a header row above the log div
+- Calls `clearOrgLog()` JS — clears `#auto-log` textContent (UI-only; log is live SSE, no DB)
+
+### Backend changes
+
+| File | Change |
+|------|--------|
+| `hub/uploader.py` | Added `clear_log_entries()` — clears `_LOG_RING` deque under `_LOG_RING_LOCK`, returns count |
+| `hub/routes/scan.py` | New `DELETE /scan/api/accounts/<aid>/log` — direct sqlite3 + BEGIN IMMEDIATE, deletes scan_log rows for account |
+| `hub/routes/upload.py` | New `POST /upload/api/clear-logs` — calls `uploader.clear_log_entries()`, returns cleared count |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| hub/uploader.py | clear_log_entries() | 023ed6f |
+| hub/routes/scan.py | DELETE /<aid>/log endpoint | 023ed6f |
+| hub/routes/upload.py | POST /clear-logs endpoint | 023ed6f |
+| hub/templates/scan.html | Clear button + clearScanLog() JS | 023ed6f |
+| hub/templates/upload.html | clearLogs() updated to call API | 023ed6f |
+| hub/templates/organizer.html | Clear button + clearOrgLog() JS | 023ed6f |
+
+### State at end of session
+- Oracle Flask: RUNNING (restarted, healthz ok)
+- Account: ACTIVE
+- Open tasks: see agent-hub/TASKS.md
