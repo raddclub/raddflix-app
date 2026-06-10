@@ -556,3 +556,64 @@ Disabling downloads now stops only NEW job dispatch. Active jobs finish cleanly
 and get properly cleaned up. Hang watchdog runs regardless of toggle state.
 
 ### Commit: 62407f7
+
+---
+
+## Session: 2026-06-10 — PERF-05: Service dependency logic + Oracle restart
+
+### What was built
+
+**Problem:** Services had no awareness of each other. Turning on Smart Scheduler
+while Keepalive was off would leave it running broken silently. No way to know
+which services depended on which.
+
+**Backend changes — routes/admin.py:**
+
+Added dependency metadata to each service definition:
+
+
+Three new helper functions:
+-  — lookup service by name
+-  — reads DB setting for a service
+-  — writes DB setting + logs
+
+ now returns per-service:
+-  — what this service needs
+-  — what depends on this service
+-  — deps that are currently OFF while this is ON
+-  — dependents that are ON while this is OFF
+
+ now:
+- ON: auto-enables all deps (depth-first) before enabling the target; returns  list
+- OFF: returns  list for any enabled service that depends on this one
+
+**Frontend changes — templates/admin.html:**
+
+- Service cards show needs: X, Y pills under each service
+- Orange warning badge if service is ON but a required dep is OFF
+- Red warning badge if service is OFF but another service depends on it that is ON
+- Border color reflects health state (orange = missing dep, red = breaking dependents)
+- Toast notifications: Auto-enabled first: Keepalive, Scanner on enable
+- Toast warnings: Scanner is ON and needs Keepalive — it will stop working on disable
+
+Services reordered from top to bottom by dependency chain:
+  Keepalive (foundation) → Scanner → Upload → Scheduler → Download → Mirror → Domain Doctor
+
+### Live Test Results
+
+Test 1: Enable Scheduler (scan=OFF, keepalive=ON)
+  auto_enabled: ['scan']  <- scan auto-enabled first automatically
+  warnings: []
+
+Test 2: Disable Keepalive (while scheduler+scan are ON)
+  auto_enabled: []
+  warnings: ['Scanner is ON and needs JazzDrive Keepalive — it will stop working',
+             'Smart Scheduler is ON and needs JazzDrive Keepalive — it will stop working']
+
+Both correct.
+
+### Also in this session
+- Full Oracle server restart (raddflix_radd + raddflix_wa_bot)
+- Confirmed CPU ~1.2%, threads=9, Flask healthy after restart
+
+### Commits: 2ba55de (admin.py), 88be21e (admin.html)
