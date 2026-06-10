@@ -356,7 +356,7 @@ def refresh_jsessionid(validation_key: str,
         at_b64   = _b64.b64encode(at_json.encode()).decode()
         at_b64_q = _up.quote(at_b64, safe='')
         candidates.append(
-            f"{CLOUD_BASE}/sapi/login/oauth?action=login&platform=web"
+            f"{CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android"
             f"&keytype=accesstoken&key={at_b64_q}"
         )
 
@@ -1869,14 +1869,14 @@ def _android_refresh_session_inner(refresh_token: str,
     at_b64_1     = _up.quote(_b64.b64encode(at_json_1.encode()).decode(), safe='')
     at_b64_2     = _up.quote(_b64.b64encode(at_json_2.encode()).decode(), safe='')
     
-    # We try multiple candidates to avoid HTTP 500
+    # Android-only: consistent with Android User-Agent / X-Requested-With headers.
+    # Web variants removed — platform=web with Android headers is a mismatch
+    # Jazz security systems can flag as suspicious (credential stuffing).
+    # Max 2 attempts: Android-Nested first (real app format), Android-Flat only
+    # if server returns HTTP 5xx (Jazz server glitch). 401/403 stops immediately.
     candidates = [
-        # Nested "data" format
         (f"{_CLOUD}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_1}", "Android-Nested"),
-        (f"{_CLOUD}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_1}", "Web-Nested"),
-        # Flat format
         (f"{_CLOUD}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_2}", "Android-Flat"),
-        (f"{_CLOUD}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_2}", "Web-Flat"),
     ]
     
     # Build SAPI proxy chain for Step 2 re-login.
@@ -1907,23 +1907,33 @@ def _android_refresh_session_inner(refresh_token: str,
 
     last_err = "No candidates tried"
     sr = None
+    _s2_auth_failed = False  # 401/403 = token invalid; stop all retries immediately
     for _s2_px in _s2_chain:
+        if _s2_auth_failed:
+            break
         _s2_conn_errs = 0
         for url, label in candidates:
             try:
                 log.info("android_refresh_session: trying %s @ %s", label, url[:100])
                 sr = sess.get(url, timeout=30, proxies=_s2_px)
                 if sr.status_code == 200:
-                    log.info("✓ %s candidate succeeded", label)
+                    log.info("✓ %s login succeeded", label)
                     break
                 last_err = f"[{label}] HTTP {sr.status_code}: {sr.text[:200]}"
-                log.debug("android_refresh_session: %s candidate failed: %s", label, last_err)
+                if sr.status_code in (401, 403):
+                    log.debug("android_refresh_session: %s auth error — token invalid, no more retries", label)
+                    _s2_auth_failed = True
+                    sr = None
+                    break  # token bad — Android-Flat won't help either
+                log.debug("android_refresh_session: %s failed (HTTP 5xx) — trying next format", label)
             except Exception as _se:
                 last_err = str(_se)
                 _s2_conn_errs += 1
                 log.debug("android_refresh_session: %s network error: %s", label, last_err)
         if sr and sr.status_code == 200:
             break  # success — stop trying proxies
+        if _s2_auth_failed:
+            break
         # If every format failed with a connection error, this SAPI proxy is dead
         if _s2_conn_errs == len(candidates) and _s2_px:
             _s2_fail_url = _s2_px.get("_url", "")
@@ -2124,12 +2134,11 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
     at_b64_2   = _up.quote(_b64.b64encode(at_json_2.encode()).decode(), safe='')
     
     # We try multiple candidates to avoid HTTP 500
+    # Android-only: consistent with Android User-Agent / X-Requested-With headers.
+    # Web variants removed — platform=web with Android headers is a suspicious mismatch.
+    # Max 2 attempts: Android-Nested first, Android-Flat only if HTTP 5xx.
     candidates = [
-        # Format 1: Nested (Standard)
-        (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_1}", "Web-Nested"),
         (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_1}", "Android-Nested"),
-        # Format 2: Flat
-        (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_2}", "Web-Flat"),
         (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_2}", "Android-Flat"),
     ]
 
@@ -2140,10 +2149,14 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
             log.info("refresh_session: trying %s @ %s", label, url[:100])
             r = sess.get(url, timeout=30, proxies=proxies)
             if r.status_code == 200:
-                log.info("✓ %s candidate succeeded", label)
+                log.info("✓ %s login succeeded", label)
                 break
             last_err = f"[{label}] HTTP {r.status_code}: {r.text[:200]}"
-            log.debug("refresh_session: %s candidate failed: %s", label, last_err)
+            if r.status_code in (401, 403):
+                log.debug("refresh_session: %s auth error — token invalid, no more retries", label)
+                r = None
+                break  # token bad — Android-Flat won't help
+            log.debug("refresh_session: %s failed (HTTP 5xx) — trying next format", label)
         except Exception as _e:
             last_err = str(_e)
             log.debug("refresh_session: %s network error: %s", label, last_err)
