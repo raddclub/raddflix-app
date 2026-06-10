@@ -410,8 +410,6 @@ def queue_loop(stop_event: threading.Event) -> None:
         log.warning("Startup recovery error: %s", e)
 
     while not stop_event.wait(3):
-        if db.setting("DOWNLOAD_ENABLED", "1") != "1":
-            continue
         # ── Reap finished threads ────────────────────────────────────────────
         for jid in list(active_threads):
             if not active_threads[jid].is_alive():
@@ -451,6 +449,10 @@ def queue_loop(stop_event: threading.Event) -> None:
             _unregister_job(jid)
 
         if len(active_threads) >= _max_parallel():
+            continue
+
+        # Skip dispatching new jobs when download service is disabled
+        if db.setting("DOWNLOAD_ENABLED", "1") != "1":
             continue
 
         try:
