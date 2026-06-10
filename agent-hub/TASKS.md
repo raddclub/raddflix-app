@@ -152,3 +152,4 @@ _Last updated: 2026-06-10_
 - After ANY direct SQL change to `is_published`: regenerate `db_update.json` via Python script
 - Always append session summary to `agent-hub/history/TASK_LOG.md` before ending session
 | PERF-01 | ✅ DONE | Oracle proxy pool CPU fix — throttled HC/recovery/disc workers (40→8, 80→10), capped HC batch to 300/run, spaced intervals (10min→30min HC, 5min→15min recovery, 15min→60min disc), VACUUM'd DB | 2026-06-10 |
+| PERF-02 | ✅ DONE | Permanently disable all proxy background threads (HC/recovery/discovery/seed-test) — admin triggers manually via settings page | 2026-06-10 |
