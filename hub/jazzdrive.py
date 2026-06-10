@@ -343,25 +343,105 @@ def is_proxy_bypass() -> bool:
 # Auth Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_x_deviceid(msisdn: Optional[str] = None) -> str:
-    """Return a deterministic X-deviceid based on the MSISDN.
+def get_x_deviceid(msisdn: Optional[str] = None, account_id: Optional[int] = None) -> str:
+    """Return the X-deviceid for this account.
 
-    JazzDrive sessions are tied to the X-deviceid. Using a stable one
-    prevents 'invalid session' errors when switching between uploader/keepalive.
-    Prefixing with android-raddhub- to mimic Android app without kicking the real app's session.
+    Priority:
+      1. Stored device_id in accounts table (set via admin or from real APK login).
+      2. Deterministic fallback: android-{last10_msisdn} — looks like a real Android app ID.
+
+    Jazz ties sessions to device_id — keeping it stable prevents session invalidation.
     """
+    # 1. Per-account stored device_id
+    if account_id:
+        try:
+            with db.conn() as _c:
+                row = _c.execute(
+                    "SELECT device_id FROM accounts WHERE id=?", (account_id,)
+                ).fetchone()
+                if row and row["device_id"]:
+                    return row["device_id"]
+        except Exception:
+            pass
+    # 2. Try by MSISDN
     m = str(msisdn or db.setting("JAZZDRIVE_MSISDN") or "").strip()
     m = m.replace("+", "").replace(" ", "").replace("-", "")
+    if m:
+        try:
+            with db.conn() as _c:
+                row = _c.execute(
+                    "SELECT device_id FROM accounts WHERE msisdn=?", (m,)
+                ).fetchone()
+                if row and row and row["device_id"]:
+                    return row["device_id"]
+        except Exception:
+            pass
+    # 3. Global default set via admin panel (DEFAULT_ANDROID_ID setting)
+    default_did = db.setting("DEFAULT_ANDROID_ID") or ""
+    if default_did:
+        return default_did
+    # 4. Deterministic fallback — looks like real Android device ID format
     suffix = m[-10:] if len(m) >= 10 else "raddhub"
-    return f"android-raddhub-{suffix}"
+    return f"android-{suffix}"
 
-def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None) -> dict:
-    """Return standard headers for any SAPI/Cloud request."""
+
+def get_x_devicename(msisdn: Optional[str] = None, account_id: Optional[int] = None) -> str:
+    """Return X-devicename for this account.
+
+    Default: InfinixInfinix X680F (the real registered Android device from My Devices page).
+    Can be overridden per-account via the device_name column.
+    """
+    # 1. Per-account stored device_name
+    if account_id:
+        try:
+            with db.conn() as _c:
+                row = _c.execute(
+                    "SELECT device_name FROM accounts WHERE id=?", (account_id,)
+                ).fetchone()
+                if row and row["device_name"]:
+                    return row["device_name"]
+        except Exception:
+            pass
+    # 2. Try by MSISDN
+    m = str(msisdn or db.setting("JAZZDRIVE_MSISDN") or "").strip().replace("+","").replace(" ","").replace("-","")
+    if m:
+        try:
+            with db.conn() as _c:
+                row = _c.execute(
+                    "SELECT device_name FROM accounts WHERE msisdn=?", (m,)
+                ).fetchone()
+                if row and row["device_name"]:
+                    return row["device_name"]
+        except Exception:
+            pass
+    # 3. Global setting override
+    override = db.setting("JAZZDRIVE_DEVICE_NAME") or ""
+    if override:
+        return override
+    # 4. Default: real registered Android device name from My Devices screenshot
+    return "InfinixInfinix X680F"
+
+def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
+                    account_id: Optional[int] = None) -> dict:
+    """Return standard headers for any SAPI/Cloud request.
+
+    Device identity is sourced from the accounts table (device_id / device_name columns).
+    Defaults to the real registered device observed in My Devices:
+      - X-devicename:  InfinixInfinix X680F  (Android: {manufacturer}{model})
+      - User-Agent:    Dalvik/2.1.0 ... Infinix X680F (matching the real phone)
+      - X-deviceid:    stored per-account or android-{last10_msisdn}
+      - X-request-id:  fresh UUID per request (logged by Jazz servers)
+
+    Headers confirmed from Windows binary strings analysis (Jazz Drive.exe, 2025).
+    """
     return {
         "Accept":           "application/json, text/plain, */*",
-        "User-Agent":       "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)",
-        "X-deviceid":       get_x_deviceid(msisdn),
+        "Accept-Language":  "en-US,en;q=0.9",
+        "User-Agent":       "Dalvik/2.1.0 (Linux; U; Android 12; Infinix X680F Build/SP1A.210812.016)",
+        "X-deviceid":       get_x_deviceid(msisdn, account_id=account_id),
+        "X-devicename":     get_x_devicename(msisdn, account_id=account_id),
         "X-Requested-With": "com.jazz.drive",
+        "X-request-id":     _uuid.uuid4().hex,
         "Cookie":           f"JSESSIONID={jid}",
         "validation_key":   vk,
     }
@@ -381,7 +461,16 @@ def refresh_jsessionid(validation_key: str,
     msisdn = str(db.setting('JAZZDRIVE_MSISDN') or "")
     dev_suffix = msisdn[-10:] if len(msisdn) >= 10 else _uuid.uuid4().hex[:10]
 
-    headers = get_auth_headers("", "", msisdn=msisdn)
+    # Find account_id for this msisdn so device_id/device_name are correctly resolved
+    _aid_for_refresh = None
+    try:
+        with db.conn() as _c:
+            _ar = _c.execute("SELECT id FROM accounts WHERE msisdn=?", (m,)).fetchone()
+            if _ar:
+                _aid_for_refresh = _ar["id"]
+    except Exception:
+        pass
+    headers = get_auth_headers("", "", msisdn=msisdn, account_id=_aid_for_refresh)
     headers.pop("Cookie", None)
     headers.pop("validation_key", None)
     headers.update({
@@ -767,6 +856,77 @@ def rename_folder(account_id: int, folder_id: int, new_name: str,
         account_id=account_id
     )
 
+
+# ---------------------------------------------------------------------------
+# Startup handshake - real JazzDrive app sequence on login / session restore
+# ---------------------------------------------------------------------------
+
+def startup_handshake(vk: str, jid: str, msisdn=None, account_id=None) -> dict:
+    import time as _t, random as _r, requests as _req
+    results = {}
+    hdrs = get_auth_headers(vk, jid, msisdn=msisdn, account_id=account_id)
+    px = resolve_proxies()
+
+    def _get(endpoint, action=None, extra=""):
+        params = ("action=" + action) if action else ""
+        if extra:
+            params += ("&" if params else "") + extra
+        url = CLOUD_BASE + "/sapi" + endpoint + ("?" + params if params else "")
+        try:
+            _t.sleep(_r.uniform(0.4, 1.2))
+            r = _req.get(url, headers=hdrs, timeout=15, proxies=px, verify=False)
+            return r.json() if r.status_code == 200 else {"_http": r.status_code}
+        except Exception as e:
+            return {"_error": str(e)}
+
+    results["features"]     = _get("/features")
+    results["profile"]      = _get("/profile", action="get")
+    results["subscription"] = _get("/subscription", action="get")
+    results["storage"]      = _get("/media", action="get-storage-space", extra="softdeleted=true")
+    # Real app also loads folder tree and checks for app updates on startup
+    results["folder_root"]  = _get("/media/folder/root", action="get")
+    results["folder_list"]  = _get("/media/folder", action="get")
+    results["client_info"]  = _get("/profile/client",
+                                   action="get-update-info",
+                                   extra="component=android")
+
+    ok_count = sum(1 for v in results.values() if "_error" not in v and "_http" not in v)
+    log.info("startup_handshake done: %d/%d endpoints OK", ok_count, len(results))
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Post-upload validation polling
+# ---------------------------------------------------------------------------
+
+def post_upload_validate(vk: str, jid: str, msisdn=None, account_id=None,
+                         max_polls: int = 8, poll_interval: float = 3.0) -> dict:
+    import time as _t, random as _r, requests as _req
+    hdrs = get_auth_headers(vk, jid, msisdn=msisdn, account_id=account_id)
+    url  = CLOUD_BASE + "/sapi/media?action=get-validation-status"
+    px   = resolve_proxies()
+
+    log.info("post_upload_validate: polling max=%d interval=%.1fs", max_polls, poll_interval)
+    for poll_num in range(1, max_polls + 1):
+        _t.sleep(poll_interval + _r.uniform(0, 1.0))
+        try:
+            r = _req.get(url, headers=hdrs, timeout=15, proxies=px, verify=False)
+            if r.status_code != 200:
+                break
+            data  = r.json()
+            items = data.get("data") or data.get("items") or []
+            if isinstance(items, list) and len(items) == 0:
+                log.info("post_upload_validate: complete after %d poll(s)", poll_num)
+                return {"ok": True, "polls": poll_num}
+            status = data.get("status") or ""
+            if status in ("done", "complete", "finished"):
+                return {"ok": True, "polls": poll_num, "status": status}
+        except Exception as e:
+            log.debug("post_upload_validate poll %d error: %s", poll_num, e)
+            break
+    return {"ok": True, "polls": max_polls, "note": "max polls reached"}
+
+
 def sapi_request(endpoint: str, action: str, 
                  method: str = "GET", 
                  params: Optional[dict] = None, 
@@ -837,7 +997,7 @@ def sapi_request(endpoint: str, action: str,
         req_params["action"] = action
     req_params["validationkey"] = vk
     
-    req_headers = get_auth_headers(vk, jid or "", msisdn=tokens.get("msisdn"))
+    req_headers = get_auth_headers(vk, jid or "", msisdn=tokens.get("msisdn"), account_id=account_id)
     if not jid:
         req_headers.pop("Cookie", None)
     if headers:

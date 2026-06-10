@@ -251,6 +251,97 @@ def admin_accounts_list():
 
 
 # ---------------------------------------------------------------------------
+# JazzDrive Device Identity Management
+# GET  /api/jazzdrive/device        — list accounts with device_id / device_name
+# POST /api/jazzdrive/device        — set device_id and/or device_name per account
+# POST /api/jazzdrive/handshake     — trigger startup handshake (read-only test)
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/jazzdrive/device", methods=["GET"])
+@auth.login_required
+def jd_device_list():
+    with db.conn() as c:
+        rows = c.execute(
+            "SELECT id, msisdn, label, device_id, device_name, is_active, role "
+            "FROM accounts ORDER BY id"
+        ).fetchall()
+    return jsonify({"ok": True, "accounts": [dict(r) for r in rows]})
+
+
+@bp.route("/api/jazzdrive/device", methods=["POST"])
+@auth.login_required
+def jd_device_update():
+    data = request.get_json(force=True) or {}
+    aid  = data.get("account_id")
+    did  = data.get("device_id")
+    dn   = data.get("device_name")
+    if not aid:
+        return jsonify({"ok": False, "error": "account_id required"}), 400
+    updates = {}
+    if did is not None:
+        updates["device_id"]   = did.strip() or None
+    if dn is not None:
+        updates["device_name"] = dn.strip() or None
+    if not updates:
+        return jsonify({"ok": False, "error": "device_id and/or device_name required"}), 400
+    set_clause = ", ".join(f"{k}=?" for k in updates)
+    with db.conn() as c:
+        c.execute(f"UPDATE accounts SET {set_clause} WHERE id=?",
+                  list(updates.values()) + [aid])
+    return jsonify({"ok": True, "updated": updates, "account_id": aid})
+
+
+@bp.route("/api/jazzdrive/device/apply-default", methods=["POST"])
+@auth.login_required
+def jd_device_apply_default():
+    """Apply DEFAULT_ANDROID_ID and JAZZDRIVE_DEVICE_NAME settings to all accounts
+    that don't already have a per-account device_id set."""
+    default_did = db.setting("DEFAULT_ANDROID_ID") or ""
+    default_dn  = db.setting("JAZZDRIVE_DEVICE_NAME") or ""
+    updated = 0
+    with db.conn() as c:
+        if default_did:
+            r = c.execute(
+                "UPDATE accounts SET device_id=? WHERE device_id IS NULL OR device_id=''",
+                (default_did,)
+            )
+            updated = r.rowcount
+        if default_dn:
+            c.execute(
+                "UPDATE accounts SET device_name=? WHERE device_name IS NULL OR device_name=''",
+                (default_dn,)
+            )
+    return jsonify({"ok": True, "accounts_updated": updated,
+                    "device_id": default_did, "device_name": default_dn})
+
+
+@bp.route("/api/jazzdrive/handshake", methods=["POST"])
+@auth.login_required
+def jd_startup_handshake():
+    from .. import jazzdrive as _jd
+    data = request.get_json(force=True) or {}
+    aid  = data.get("account_id")
+    try:
+        with db.conn() as c:
+            if aid:
+                row = c.execute("SELECT * FROM accounts WHERE id=?", (aid,)).fetchone()
+            else:
+                row = c.execute(
+                    "SELECT * FROM accounts WHERE is_active=1 AND role='flix' LIMIT 1"
+                ).fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "no active flix account"}), 404
+        r = dict(row)
+        result = _jd.startup_handshake(
+            r.get("validation_key", ""), r.get("jsessionid", ""),
+            msisdn=r.get("msisdn"), account_id=r.get("id")
+        )
+        return jsonify({"ok": True, "result": result})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
 # WhatsApp QR / pairing
 # ---------------------------------------------------------------------------
 

@@ -354,6 +354,43 @@ window.gsCloseProgress=function(){
 </div>
 
 <div class="card">
+  <h3>Device Identity</h3>
+  <div class="muted" style="margin:-6px 0 12px">
+    Your real phone's Android ID — makes every request look identical to the official Jazz Drive APK.
+    Find it: install <strong>Device ID</strong> app on your Infinix X680F and copy the Android ID.
+  </div>
+
+  <div class="form-row">
+    <label>Android ID<span class="muted" style="margin-left:6px">16-char hex from your phone</span></label>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="text" id="set-DEFAULT_ANDROID_ID_RAW"
+             value="{{ (settings.DEFAULT_ANDROID_ID or '').replace('android-','') }}"
+             placeholder="e.g. fcbf291eddd5d372"
+             maxlength="16"
+             style="font-family:monospace;letter-spacing:1px;width:200px">
+      <code id="device-id-preview" style="font-size:12px;color:var(--muted)">
+        android-{{ (settings.DEFAULT_ANDROID_ID or '').replace('android-','') or '…' }}
+      </code>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label>Device Name<span class="muted" style="margin-left:6px">Shown in My Devices</span></label>
+    <input type="text" id="set-JAZZDRIVE_DEVICE_NAME"
+           value="{{ settings.JAZZDRIVE_DEVICE_NAME or 'InfinixInfinix X680F' }}"
+           placeholder="InfinixInfinix X680F">
+  </div>
+
+  <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+    <button onclick="saveDeviceIdentity()">Save &amp; Apply to All Accounts</button>
+    <span id="device-save-status" class="muted" style="font-size:13px"></span>
+  </div>
+  <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+    Saved value is used for all JazzDrive requests. Existing per-account overrides take priority.
+  </div>
+</div>
+
+<div class="card">
   <h3>JazzDrive Services</h3>
   <div class="muted" style="margin:-6px 0 14px">
     Pause services when they are not needed to avoid unnecessary requests to JazzDrive.
@@ -814,6 +851,28 @@ async function saveEnvSettings(group){
   }
   catch(e){ 
     toast('Failed: '+e.message); 
+    if(status) status.textContent = 'Failed';
+  }
+}
+
+async function saveDeviceIdentity(){
+  const rawEl  = document.getElementById('set-DEFAULT_ANDROID_ID_RAW');
+  const nameEl = document.getElementById('set-JAZZDRIVE_DEVICE_NAME');
+  const status = document.getElementById('device-save-status');
+  const raw    = (rawEl ? rawEl.value.trim() : '').replace(/^android-/,'');
+  const name   = nameEl ? nameEl.value.trim() : '';
+  if(!raw){ toast('Enter an Android ID first'); return; }
+  const did = 'android-' + raw;
+  const preview = document.getElementById('device-id-preview');
+  if(preview) preview.textContent = did;
+  if(status) status.textContent = 'Saving…';
+  try{
+    await api('/settings/api/settings', {method:'POST', body:{DEFAULT_ANDROID_ID: did, JAZZDRIVE_DEVICE_NAME: name}});
+    await api('/api/jazzdrive/device/apply-default', {method:'POST', body:{}});
+    toast('✓ Device ID saved & applied');
+    if(status) status.textContent = 'Saved ✓';
+  } catch(e){
+    toast('Failed: '+e.message);
     if(status) status.textContent = 'Failed';
   }
 }
