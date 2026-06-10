@@ -226,6 +226,10 @@
         <div class="auto-stat"><span>Ops queued</span><span class="val" id="ar-ops">0</span></div>
         <div class="auto-stat"><span>Applied</span><span class="val ok" id="ar-applied">0</span></div>
         <div class="auto-stat"><span>Failed</span><span class="val err" id="ar-failed">0</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;margin-bottom:2px">
+          <span style="font-size:11px;color:var(--muted);font-weight:600">Run log</span>
+          <button class="ghost" style="font-size:11px;padding:2px 8px;color:var(--err);border-color:var(--err)" onclick="clearOrgLog()">Clear</button>
+        </div>
         <div class="live-log" id="auto-log"></div>
       </div>
 
@@ -731,5 +735,10 @@ function confirmMove(){
   loadOrgLiveBar();
   setInterval(loadOrgLiveBar, 15000);
 })();
+function clearOrgLog() {
+  const log = document.getElementById("auto-log");
+  if (log) log.textContent = "";
+}
+
 </script>
 {% endblock %}

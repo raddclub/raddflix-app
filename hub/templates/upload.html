@@ -347,6 +347,17 @@
       </ol>
     </details>
   </div>
+
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
+    <div>
+      <h3 style="margin:0 0 3px">Restart Service</h3>
+      <div class="muted" style="font-size:13px">Apply all config changes by restarting the Oracle service. Page reloads automatically when it is back up.</div>
+    </div>
+    <button id="restart-svc-btn" onclick="restartService(this)"
+            style="min-width:130px;background:rgba(255,170,0,.12);border:1px solid rgba(255,170,0,.4);color:#ffaa00;padding:7px 16px;border-radius:7px;cursor:pointer;font-weight:600">
+      ↺ Restart Service
+    </button>
+  </div>
 </div>
 
 {# ══ TAB: Logs ══ #}
@@ -876,7 +887,16 @@ function applyLogFilter() {
 
 function clearLogs() {
   const box = document.getElementById('log-box');
-  if (box) box.innerHTML = '<div class="muted" style="font-size:12px">Log cleared.</div>';
+  if (box) box.innerHTML = '<div class="muted" style="font-size:12px">Clearing…</div>';
+  fetch('/upload/api/clear-logs', {method:'POST', headers:{'Content-Type':'application/json'}})
+    .then(r => r.json())
+    .then(d => {
+      if (box) box.innerHTML = '<div class="muted" style="font-size:12px">Log cleared (' + (d.cleared||0) + ' entries removed).</div>';
+      _logSeq = 0;
+    })
+    .catch(() => {
+      if (box) box.innerHTML = '<div class="muted" style="font-size:12px">Log cleared.</div>';
+    });
 }
 
 function startLogStream() {
@@ -1239,6 +1259,27 @@ async function modalSaveFromJson() {
   }
 }
 
+
+/* ── restart service ── */
+async function restartService(btn) {
+  if (!confirm('Restart the Oracle service now?\nPage will reload automatically when it is back up (~8 sec).')) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Restarting…'; }
+  toast('Restarting service — page reloads in ~8 seconds');
+  try { await fetch('/admin/api/restart', {method:'POST'}); } catch(_) {}
+  let tries = 0;
+  const t = setInterval(async () => {
+    tries++;
+    try {
+      const r = await fetch('/api/otp/status', {signal: AbortSignal.timeout(2000)});
+      if (r.ok) { clearInterval(t); toast('✓ Service back — reloading'); setTimeout(() => location.reload(), 500); return; }
+    } catch(_) {}
+    if (tries > 20) {
+      clearInterval(t);
+      if (btn) { btn.disabled = false; btn.textContent = '↺ Restart Service'; }
+      toast('Timeout — reload the page manually');
+    }
+  }, 1200);
+}
 
 /* ── boot ── */
 startAutoRefresh();
