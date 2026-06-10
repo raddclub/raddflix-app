@@ -4,6 +4,14 @@ _Last updated: 2026-06-10_
 
 ---
 
+## Completed — Session 2026-06-10 (4th)
+
+| ID | Changed | Summary | Ref |
+|----|---------|---------|-----|
+| FIX-SUSPENSION-01 | hub/_legacy/scanner.py, hub/jazzdrive.py, hub/routes/settings.py, hub/templates/settings.html | Account suspension prevention: scan threads 10→3 (configurable), request delays 0.05→0.8s, SAPI backoff persisted to disk, Scan Safety settings card | GitHub 2296647 |
+
+---
+
 ## Completed — Session 2026-06-10 (3rd)
 
 | ID | Changed | Summary | Ref |

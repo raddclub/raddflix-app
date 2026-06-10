@@ -860,3 +860,62 @@ All agent-hub .md files updated with full session history:
 - Oracle Flask: RUNNING (restarted, healthz ok)
 - Account: ACTIVE
 - Open tasks: see agent-hub/TASKS.md
+
+---
+
+## Session: 2026-06-10 — FIX-SUSPENSION-01: Prevent JazzDrive Account Suspension
+
+### Root cause analysis
+Three reasons the last 2 accounts got suspended by Jazz:
+
+1. **10 concurrent scan threads from a datacenter IP** — Legacy scanner used `ThreadPoolExecutor(max_workers=10)` with only 50ms delay. Jazz sees 10 simultaneous API calls from Oracle's non-Pakistani datacenter IP (92.4.95.252) = bot fingerprint.
+
+2. **SAPI backoff lost on Flask restart** — The 30-min backoff that suppresses OTP retry hammering lived in a Python dict (`_SAPI_BACKOFF`). Every Flask restart (supervisor shows multiple restarts per session) cleared it, causing the system to immediately hammer Jazz's auth server again.
+
+3. **SAPI geo-block + partial session** — When a new account is added via OTP, Jazz's SAPI silent-login endpoint rejects the Oracle IP (geo-restricted to Pakistani IPs). The system saves partial tokens and should wait, but with the backoff resetting on restart it retried aggressively.
+
+### What was built
+
+**`hub/_legacy/scanner.py` — rate limiting:**
+- Thread count: hard-coded 10 → reads `scan_threads` DB setting (default 3)
+- BFS folder-list delay: 0.05s → reads `scan_request_delay` setting (default 0.8s)
+- Inter-folder delay added after each folder result (0.5× the request delay)
+- Intra-folder per-request delay variable added (from setting)
+- TMDB delay: 0.05s → 0.25× of `scan_request_delay`
+
+**`hub/jazzdrive.py` — persistent backoff:**
+- `_backoff_file()` — returns path to `TEMP_DIR/sapi_backoff.json`
+- `_load_persisted_backoff()` — called on module import, reloads still-valid entries from disk
+- `_save_persisted_backoff()` — called in both `_mark_sapi_backed_off()` and `clear_sapi_backoff()`
+- Now: Flask restart no longer resets the 30-min OTP retry suppression
+
+**`hub/routes/settings.py`:**
+- `GET /settings/api/scan-safety` — returns `{scan_threads, scan_request_delay}`
+- `POST /settings/api/scan-safety` — saves both settings, clamps threads 1–10, delay 0.1–10s
+
+**`hub/templates/settings.html` — Scan Safety card:**
+- Thread count input (1–10, default 3)
+- Delay input (0.1–10s step 0.1, default 0.8s)
+- Inline warning explaining why accounts get suspended and what settings are safe
+- Save button with live feedback
+
+### Safe default profile
+| Setting | Old | New (safe default) |
+|---------|-----|--------------------|
+| Scan threads | 10 (hard-coded) | 3 (configurable) |
+| BFS delay | 0.05s | 0.8s |
+| TMDB delay | 0.05s | 0.2s |
+| SAPI backoff after restart | Resets | Persists (disk) |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| hub/_legacy/scanner.py | Threads, delays from settings | 2296647 |
+| hub/jazzdrive.py | Persistent SAPI backoff | 2296647 |
+| hub/routes/settings.py | /api/scan-safety endpoint | 2296647 |
+| hub/templates/settings.html | Scan Safety card | 2296647 |
+
+### State at end of session
+- Oracle Flask: RUNNING (healthz ok)
+- Accounts table: empty (needs re-add + scan)
+- Open tasks: see agent-hub/TASKS.md
