@@ -112,8 +112,6 @@ def create_app() -> Flask:
     # ── Catalog / Search / Poster (migrated from _watch_prototype) ────────
     app.register_blueprint(catalog_api.bp)        # url_prefix in blueprint: /api/catalog
     app.register_blueprint(catalog_api.bp_watch)  # BUG-A35: /watch/api/play/<file_id>
-    from .routes import delta_push as _delta_push
-    app.register_blueprint(_delta_push.bp)       # /api/catalog/delta-push/trigger + /status
     app.register_blueprint(search_api.bp)    # url_prefix in blueprint: /api/search
     app.register_blueprint(poster_proxy.poster_proxy_bp)  # /api/poster/*
     # ── Brand Studio (P6) ──────────────────────────────────────────────────────
@@ -265,7 +263,7 @@ def create_app() -> Flask:
                 result = _jd.refresh_session(account_id=acct["id"])
                 if result.get("ok"):
                     msg = result.get("message", "")
-                    log.info("startup_refresh: session restored for %s — %s (no OTP needed)",
+                    log.info("JazzDrive startup: account %s session restored automatically — %s (no OTP needed — good to go)",
                              acct.get("msisdn"), msg)
                 else:
                     log.warning("startup_refresh: could not restore session for %s: %s",
@@ -312,7 +310,7 @@ def create_app() -> Flask:
                          name="quality-upgrade").start()
 
 
-    log.info("Radd Hub v3.0 ready")
+    log.info("=== Radd Hub v3.0 is running and ready ===")
 
     # ── Security headers ─────────────────────────────────────────────────────
     @app.after_request
