@@ -839,3 +839,86 @@ def schema_health():
     status = 200 if result["ok"] else 207  # 207 = partial — some checks failed
     return jsonify(result), status
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Background Service Control
+# GET  /admin/api/services          — list all services + enabled/running state
+# POST /admin/api/services/toggle   — enable or disable a service
+# ─────────────────────────────────────────────────────────────────────────────
+
+_SERVICES = [
+    {"key": "UPLOAD_ENABLED",        "name": "upload",        "label": "Upload Watcher",      "desc": "Watches for new files and uploads them to JazzDrive",       "default": "1"},
+    {"key": "DOWNLOAD_ENABLED",      "name": "download",      "label": "Download Queue",      "desc": "Processes queued download jobs in the background",            "default": "1"},
+    {"key": "MIRROR_ENABLED",        "name": "mirror",        "label": "Mirror Retry",        "desc": "Retries failed GitHub mirror pushes every 60 s",              "default": "1"},
+    {"key": "KEEPALIVE_ENABLED",     "name": "keepalive",     "label": "JazzDrive Keepalive", "desc": "Sends heartbeat pings to keep sessions alive every 15 min",   "default": "1"},
+    {"key": "SCAN_ENABLED",          "name": "scan",          "label": "Scanner",             "desc": "Scans JazzDrive accounts for new content",                    "default": "1"},
+    {"key": "SCHEDULER_ENABLED",     "name": "scheduler",     "label": "Smart Scheduler",     "desc": "Rescans ongoing series and triggers delta generation",         "default": "0"},
+    {"key": "DOMAIN_DOCTOR_ENABLED", "name": "domain_doctor", "label": "Domain Doctor",       "desc": "Auto-discovers working mirror domains every 24 h",             "default": "1"},
+]
+
+
+@bp.route("/api/services", methods=["GET"])
+@auth.login_required
+def services_list():
+    """Return enabled/running state of all background services."""
+    import subprocess as _sp
+    result = []
+    for svc in _SERVICES:
+        val = db.setting(svc["key"], svc["default"])
+        result.append({
+            "name":    svc["name"],
+            "label":   svc["label"],
+            "desc":    svc["desc"],
+            "enabled": val == "1",
+            "key":     svc["key"],
+        })
+    # WhatsApp bot — read from supervisor
+    wa_running = False
+    try:
+        out = _sp.run(["sudo", "supervisorctl", "status", "raddflix_wa_bot"],
+                      capture_output=True, text=True, timeout=5).stdout
+        wa_running = "RUNNING" in out
+    except Exception:
+        pass
+    result.append({
+        "name":       "wa_bot",
+        "label":      "WhatsApp Bot",
+        "desc":       "WhatsApp bot for user interactions and file delivery",
+        "enabled":    wa_running,
+        "supervisor": True,
+    })
+    return jsonify({"ok": True, "services": result})
+
+
+@bp.route("/api/services/toggle", methods=["POST"])
+@auth.login_required
+def services_toggle():
+    """Enable or disable a background service.
+    Body: {"service": "upload", "enabled": true}
+    """
+    import subprocess as _sp
+    data    = request.get_json(force=True, silent=True) or {}
+    name    = data.get("service", "")
+    enabled = bool(data.get("enabled", False))
+
+    # ── WhatsApp bot — supervisor control ────────────────────────────────────
+    if name == "wa_bot":
+        cmd = ["sudo", "supervisorctl", "start" if enabled else "stop", "raddflix_wa_bot"]
+        try:
+            r = _sp.run(cmd, capture_output=True, text=True, timeout=15)
+            ok  = r.returncode == 0
+            out = (r.stdout + r.stderr).strip()
+            log.info("WhatsApp bot %s by admin (rc=%d): %s", "started" if enabled else "stopped", r.returncode, out)
+            return jsonify({"ok": ok, "service": "wa_bot", "enabled": enabled, "output": out})
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+    # ── DB-controlled services ────────────────────────────────────────────────
+    mapping = {svc["name"]: svc for svc in _SERVICES}
+    svc = mapping.get(name)
+    if not svc:
+        return jsonify({"ok": False, "error": f"unknown service: {name}"}), 400
+    db.set_setting(svc["key"], "1" if enabled else "0")
+    log.info("Service %s (%s) set to %s by admin", name, svc["key"], "ENABLED" if enabled else "DISABLED")
+    return jsonify({"ok": True, "service": name, "enabled": enabled})
+
