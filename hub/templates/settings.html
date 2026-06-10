@@ -372,6 +372,7 @@ window.gsCloseProgress=function(){
           Enable only when you need to upload — typically <strong>1–2 times per day</strong> at most.
           Disable when not uploading to eliminate all JazzDrive traffic.
         </div>
+        <div id="svc-upload-live" style="margin-top:8px;font-size:11px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-height:14px;color:var(--muted)"><span style="opacity:.35">…</span></div>
       </div>
     </div>
 
@@ -385,6 +386,7 @@ window.gsCloseProgress=function(){
           Scans are <strong>very infrequent</strong> — once a week, month, or even once a year is enough.
           Disable between scan runs to send zero requests to JazzDrive accounts.
         </div>
+        <div id="svc-scan-live" style="margin-top:8px;font-size:11px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-height:14px;color:var(--muted)"><span style="opacity:.35">…</span></div>
       </div>
     </div>
 
@@ -397,6 +399,7 @@ window.gsCloseProgress=function(){
           Controls whether the JazzDrive Organizer can run plan and auto-organize operations.
           Disable to prevent any organizer operations from touching JazzDrive accounts.
         </div>
+        <div id="svc-organizer-live" style="margin-top:8px;font-size:11px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-height:14px;color:var(--muted)"><span style="opacity:.35">…</span></div>
       </div>
     </div>
 
@@ -1082,11 +1085,72 @@ loadAV();
       if(st) st.textContent = label + ' service ' + state + ' ✓';
       toast(label + ' service ' + state);
       setTimeout(()=>{ if(st) st.textContent=''; }, 4000);
+      loadSvcStatus();
     }catch(e){
       if(st) st.textContent = 'Failed: ' + e.message;
       toast('Failed: ' + e.message);
     }
   };
+
+  // ── Live status bars ──────────────────────────────────────────────────────
+  function _svcTimeAgo(ts){
+    if(!ts) return 'never';
+    const s = Math.floor(Date.now()/1000 - ts);
+    if(s < 60)    return s + 's ago';
+    if(s < 3600)  return Math.floor(s/60) + 'm ago';
+    if(s < 86400) return Math.floor(s/3600) + 'h ago';
+    return Math.floor(s/86400) + 'd ago';
+  }
+  function _svcDot(status){
+    const c = {ok:'#22c55e',warn:'#fbbf24',err:'#f44336',unknown:'#6b7280'}[status]||'#6b7280';
+    return '<span style="width:7px;height:7px;border-radius:50%;background:'+c+';display:inline-block;flex-shrink:0"></span>';
+  }
+  function _svcChip(text, color){
+    return '<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:'+color+'1a;border:1px solid '+color+'44;color:'+color+';white-space:nowrap">'+text+'</span>';
+  }
+
+  async function loadSvcStatus(){
+    try{
+      const d = await api('/settings/api/services/status');
+      const sv = d.services || {};
+
+      const uEl = document.getElementById('svc-upload-live');
+      if(uEl && sv.upload){
+        const u = sv.upload, q = u.queue || {};
+        const parts = [_svcDot(u.health_status), '<span>'+u.health_label+'</span>'];
+        parts.push(u.thread_alive ? _svcChip('thread alive','#22c55e') : _svcChip('thread down','#f44336'));
+        if(q.in_progress > 0) parts.push(_svcChip(q.in_progress+' uploading','#7ab4ff'));
+        if(q.pending > 0)     parts.push(_svcChip(q.pending+' pending','#fbbf24'));
+        if(q.uploaded)        parts.push('<span style="color:var(--muted)">'+q.uploaded+' uploaded total</span>');
+        if(u.last_upload)     parts.push('<span style="color:var(--muted)">last: '+_svcTimeAgo(u.last_upload.ts)+'</span>');
+        uEl.innerHTML = parts.join(' ');
+      }
+
+      const sEl = document.getElementById('svc-scan-live');
+      if(sEl && sv.scan){
+        const sc = sv.scan;
+        const parts = [_svcDot(sc.health_status), '<span>'+sc.health_label+'</span>'];
+        if(sc.active_scans && sc.active_scans.length > 0){
+          sc.active_scans.forEach(a => {
+            parts.push(_svcChip('scanning '+a.label+': '+a.files_seen+' seen / '+a.files_mirrored+' mirrored','#7ab4ff'));
+          });
+        } else {
+          parts.push('<span style="color:var(--muted)">'+sc.accounts_total+' account'+(sc.accounts_total!==1?'s ':' ')+'· idle</span>');
+        }
+        if(sc.last_scan_ts) parts.push('<span style="color:var(--muted)">last scan: '+_svcTimeAgo(sc.last_scan_ts)+'</span>');
+        sEl.innerHTML = parts.join(' ');
+      }
+
+      const oEl = document.getElementById('svc-organizer-live');
+      if(oEl && sv.organizer){
+        const o = sv.organizer;
+        oEl.innerHTML = _svcDot(o.health_status)+' <span>'+o.health_label+'</span> <span style="color:var(--muted)">· on-demand · no background thread</span>';
+      }
+    }catch(e){ /* silent */ }
+  }
+
+  loadSvcStatus();
+  setInterval(loadSvcStatus, 15000);
 })();
 
 // ── Bot settings lock overlay ─────────────────────────────────────────────

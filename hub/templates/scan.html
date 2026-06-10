@@ -37,6 +37,10 @@
   </div>
 </div>
 
+<div id="scan-live-bar" style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--bg2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:8px;margin-bottom:12px;font-size:12px;flex-wrap:wrap;min-height:36px;color:var(--muted)">
+  <span style="opacity:.4">Loading status…</span>
+</div>
+
 {% include "_proxy_manager.html" %}
 
 {% if flix_msisdn %}
@@ -429,19 +433,57 @@
     }
     if(scanAllBtn) scanAllBtn.disabled = !enabled;
   }
+
+  function _timeAgoSc(ts){
+    if(!ts) return 'never';
+    const s = Math.floor(Date.now()/1000-ts);
+    if(s<60) return s+'s ago';
+    if(s<3600) return Math.floor(s/60)+'m ago';
+    if(s<86400) return Math.floor(s/3600)+'h ago';
+    return Math.floor(s/86400)+'d ago';
+  }
+  function _dotSc(st){ const c={ok:'#22c55e',warn:'#fbbf24',err:'#f44336',unknown:'#6b7280'}[st]||'#6b7280'; return '<span style="width:8px;height:8px;border-radius:50%;background:'+c+';display:inline-block;flex-shrink:0"></span>'; }
+  function _chipSc(t,c){ return '<span style="font-size:11px;padding:1px 8px;border-radius:8px;background:'+c+'1a;border:1px solid '+c+'44;color:'+c+'">'+t+'</span>'; }
+
+  async function loadScanLiveBar(){
+    const bar = document.getElementById('scan-live-bar');
+    if(!bar) return;
+    try{
+      const d = await _svcApi(null); // get toggle states
+      const r = await fetch('/settings/api/services/status', {headers:{'Content-Type':'application/json'}});
+      const sd = await r.json();
+      const sc = (sd.services||{}).scan || {};
+      const parts = [_dotSc(sc.health_status), '<span>'+sc.health_label+'</span>'];
+      if(sc.active_scans && sc.active_scans.length>0){
+        sc.active_scans.forEach(a=>{
+          const progress = a.paused ? ' (paused)' : '';
+          parts.push(_chipSc(a.label+': '+a.files_seen+' seen / '+a.files_mirrored+' mirrored'+progress,'#7ab4ff'));
+          if(a.started_at) parts.push('<span style="color:var(--muted)">started '+_timeAgoSc(a.started_at)+'</span>');
+        });
+      } else {
+        parts.push('<span style="color:var(--muted)">'+sc.accounts_total+' account'+(sc.accounts_total!==1?'s':'')+' · idle</span>');
+      }
+      if(sc.last_scan_ts) parts.push('<span style="color:var(--muted)">last scan: '+_timeAgoSc(sc.last_scan_ts)+'</span>');
+      if(!d.scan_enabled) parts.push(_chipSc('service paused','#f44336'));
+      bar.innerHTML = parts.join(' ');
+    }catch(e){ bar.innerHTML='<span style="color:var(--muted);opacity:.5">Status unavailable</span>'; }
+  }
+
   window.toggleScanService = async function(){
-    const pageBtn = document.getElementById('scan-page-svc-btn');
-    const toggleBtn = document.getElementById('scan-toggle-btn');
     try{
       const cur = await _svcApi(null);
       const newVal = !cur.scan_enabled;
       const d = await _svcApi({ scan: newVal });
       _applyScan(d.scan_enabled);
       if(typeof toast === 'function') toast('Scan service ' + (d.scan_enabled ? 'enabled' : 'paused'));
+      loadScanLiveBar();
     }catch(e){
       if(typeof toast === 'function') toast('Failed: ' + e.message);
     }
   };
+
+  loadScanLiveBar();
+  setInterval(loadScanLiveBar, 15000);
 })();
 </script>
 {% endblock %}

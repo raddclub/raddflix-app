@@ -112,6 +112,10 @@
   </div>
 </div>
 
+<div id="org-live-bar" style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--bg2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:8px;margin-bottom:12px;font-size:12px;flex-wrap:wrap;min-height:36px;color:var(--muted)">
+  <span style="opacity:.4">Loading status…</span>
+</div>
+
 {% if not accounts %}
 <div class="card no-acct-msg">
   No scan accounts added yet. Go to <a href="/scan/">JD Indexer</a> and add an account first.
@@ -693,6 +697,24 @@ function confirmMove(){
       pageBtn.style.color       = enabled ? '#22c55e' : '#f44336';
     }
   }
+  function _dotOrg(st){ const c={ok:'#22c55e',warn:'#fbbf24',err:'#f44336',unknown:'#6b7280'}[st]||'#6b7280'; return '<span style="width:8px;height:8px;border-radius:50%;background:'+c+';display:inline-block;flex-shrink:0"></span>'; }
+  function _chipOrg(t,c){ return '<span style="font-size:11px;padding:1px 8px;border-radius:8px;background:'+c+'1a;border:1px solid '+c+'44;color:'+c+'">'+t+'</span>'; }
+
+  async function loadOrgLiveBar(){
+    const bar = document.getElementById('org-live-bar');
+    if(!bar) return;
+    try{
+      const r = await fetch('/settings/api/services/status', {headers:{'Content-Type':'application/json'}});
+      const sd = await r.json();
+      const o = (sd.services||{}).organizer || {};
+      const parts = [_dotOrg(o.health_status), '<span>'+o.health_label+'</span>'];
+      parts.push('<span style="color:var(--muted)">On-demand · no background thread</span>');
+      if(!o.enabled) parts.push(_chipOrg('service paused — plan & auto-organize blocked','#f44336'));
+      else            parts.push(_chipOrg('ready to plan & organize','#22c55e'));
+      bar.innerHTML = parts.join(' ');
+    }catch(e){ bar.innerHTML='<span style="color:var(--muted);opacity:.5">Status unavailable</span>'; }
+  }
+
   window.toggleOrgService = async function(){
     try{
       const cur = await _svcApi(null);
@@ -700,10 +722,14 @@ function confirmMove(){
       const d = await _svcApi({ organizer: newVal });
       _applyOrg(d.organizer_enabled);
       if(typeof toast === 'function') toast('Organizer service ' + (d.organizer_enabled ? 'enabled' : 'paused'));
+      loadOrgLiveBar();
     }catch(e){
       if(typeof toast === 'function') toast('Failed: ' + e.message);
     }
   };
+
+  loadOrgLiveBar();
+  setInterval(loadOrgLiveBar, 15000);
 })();
 </script>
 {% endblock %}

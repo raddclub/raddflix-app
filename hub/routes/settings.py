@@ -458,6 +458,106 @@ def api_services():
     })
 
 
+@bp.route("/api/services/status")
+@auth.login_required
+def api_services_status():
+    """Live worker health for all three services: upload, scan, organizer."""
+    import threading as _th, time as _time
+    from .. import self_heal as _sh, scanner as _scanner
+
+    alive = {t.name for t in _th.enumerate()}
+    badges = _sh.get_health()
+    now = int(_time.time())
+
+    # ── Upload / Flix ─────────────────────────────────────────────────────────
+    upload_enabled = db.setting("UPLOAD_ENABLED", "1") == "1"
+    ub = badges.get("flix", {})
+    try:
+        with db.conn() as c:
+            rows = c.execute(
+                "SELECT is_ready, COUNT(*) AS n FROM files GROUP BY is_ready"
+            ).fetchall()
+        q = {r["is_ready"]: r["n"] for r in rows}
+        upload_queue = {
+            "pending":     q.get(0, 0),
+            "in_progress": q.get(-2, 0),
+            "uploaded":    q.get(1, 0),
+            "skipped":     q.get(2, 0),
+        }
+        with db.conn() as c:
+            last_row = c.execute(
+                "SELECT filename, uploaded_at FROM files "
+                "WHERE uploaded_at IS NOT NULL ORDER BY uploaded_at DESC LIMIT 1"
+            ).fetchone()
+        last_upload = ({"name": last_row["filename"], "ts": last_row["uploaded_at"]}
+                       if last_row else None)
+    except Exception:
+        upload_queue = {}
+        last_upload  = None
+
+    # ── Scan / JD Indexer ─────────────────────────────────────────────────────
+    scan_enabled = db.setting("SCAN_ENABLED", "1") == "1"
+    sb = badges.get("jd_indexer", {})
+    try:
+        with db.conn() as c:
+            accts = c.execute(
+                "SELECT id, msisdn, label FROM accounts WHERE role='scan'"
+            ).fetchall()
+        active_scans = []
+        for a in accts:
+            st = _scanner.scan_progress(a["id"])
+            if st.get("running"):
+                active_scans.append({
+                    "account_id":     a["id"],
+                    "label":          a.get("label") or a["msisdn"],
+                    "files_seen":     st.get("files_seen", 0),
+                    "files_mirrored": st.get("files_mirrored", 0),
+                    "started_at":     st.get("started_at"),
+                    "paused":         st.get("paused", False),
+                })
+        with db.conn() as c:
+            lr = c.execute("SELECT MAX(ts) AS last_ts FROM scan_log").fetchone()
+        last_scan_ts = lr["last_ts"] if lr and lr["last_ts"] else None
+    except Exception:
+        accts = []
+        active_scans  = []
+        last_scan_ts  = None
+
+    # ── Organizer (on-demand) ─────────────────────────────────────────────────
+    organizer_enabled = db.setting("ORGANIZER_ENABLED", "1") == "1"
+
+    return jsonify({
+        "ok": True,
+        "ts": now,
+        "services": {
+            "upload": {
+                "enabled":       upload_enabled,
+                "thread_alive":  "upload-watcher" in alive,
+                "health_status": ub.get("status", "unknown"),
+                "health_label":  ub.get("label", "…"),
+                "health_ts":     ub.get("ts", 0),
+                "queue":         upload_queue,
+                "last_upload":   last_upload,
+            },
+            "scan": {
+                "enabled":        scan_enabled,
+                "health_status":  sb.get("status", "unknown"),
+                "health_label":   sb.get("label", "…"),
+                "health_ts":      sb.get("ts", 0),
+                "accounts_total": len(accts),
+                "active_scans":   active_scans,
+                "last_scan_ts":   last_scan_ts,
+            },
+            "organizer": {
+                "enabled":       organizer_enabled,
+                "on_demand":     True,
+                "health_status": "ok" if organizer_enabled else "warn",
+                "health_label":  "Ready" if organizer_enabled else "Paused",
+            },
+        },
+    })
+
+
 @bp.route("/api/sapi-proxy", methods=["GET", "POST"])
 @auth.login_required
 def api_sapi_proxy():

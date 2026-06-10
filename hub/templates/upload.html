@@ -41,6 +41,10 @@
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 </style>
 
+<div id="upload-live-bar" style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--bg2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:8px;margin-bottom:14px;font-size:12px;flex-wrap:wrap;min-height:36px;color:var(--muted)">
+  <span style="opacity:.4">Loading status…</span>
+</div>
+
 {# ── OTP quick-login banner ── #}
 <div id="otp-banner" style="display:none;background:rgba(230,80,30,.12);border:1px solid #c04020;border-radius:8px;padding:12px 16px;margin-bottom:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
   <div>
@@ -399,6 +403,42 @@
     }
     if(rescanBtn) rescanBtn.disabled = !enabled;
   }
+  function _timeAgoUp(ts){
+    if(!ts) return 'never';
+    const s = Math.floor(Date.now()/1000-ts);
+    if(s<60) return s+'s ago';
+    if(s<3600) return Math.floor(s/60)+'m ago';
+    if(s<86400) return Math.floor(s/3600)+'h ago';
+    return Math.floor(s/86400)+'d ago';
+  }
+  function _dotUp(st){ const c={ok:'#22c55e',warn:'#fbbf24',err:'#f44336',unknown:'#6b7280'}[st]||'#6b7280'; return '<span style="width:8px;height:8px;border-radius:50%;background:'+c+';display:inline-block;flex-shrink:0"></span>'; }
+  function _chipUp(t,c){ return '<span style="font-size:11px;padding:1px 8px;border-radius:8px;background:'+c+'1a;border:1px solid '+c+'44;color:'+c+'">'+t+'</span>'; }
+
+  async function loadUploadLiveBar(){
+    const bar = document.getElementById('upload-live-bar');
+    if(!bar) return;
+    try{
+      const r = await fetch('/settings/api/services/status', {headers:{'Content-Type':'application/json'}});
+      const sd = await r.json();
+      const u = (sd.services||{}).upload || {};
+      const q = u.queue || {};
+      const parts = [_dotUp(u.health_status), '<span>'+u.health_label+'</span>'];
+      parts.push(u.thread_alive ? _chipUp('worker thread alive','#22c55e') : _chipUp('worker thread down','#f44336'));
+      if(q.in_progress > 0) parts.push(_chipUp(q.in_progress+' uploading now','#7ab4ff'));
+      if(q.pending > 0)     parts.push(_chipUp(q.pending+' pending','#fbbf24'));
+      if((q.uploaded||0) > 0) parts.push('<span style="color:var(--muted)">'+q.uploaded+' uploaded total</span>');
+      if(u.last_upload){
+        const ago = _timeAgoUp(u.last_upload.ts);
+        const fname = u.last_upload.name ? u.last_upload.name.split('/').pop() : '—';
+        parts.push('<span style="color:var(--muted)">last: '+ago+' · '+fname+'</span>');
+      } else {
+        parts.push('<span style="color:var(--muted)">no uploads yet</span>');
+      }
+      if(!u.enabled) parts.push(_chipUp('service paused','#f44336'));
+      bar.innerHTML = parts.join(' ');
+    }catch(e){ bar.innerHTML='<span style="color:var(--muted);opacity:.5">Status unavailable</span>'; }
+  }
+
   window.toggleUploadService = async function(){
     try{
       const cur = await _svcApi(null);
@@ -406,10 +446,14 @@
       const d = await _svcApi({ upload: newVal });
       _applyUpload(d.upload_enabled);
       if(typeof toast === 'function') toast('Upload service ' + (d.upload_enabled ? 'enabled' : 'paused'));
+      loadUploadLiveBar();
     }catch(e){
       if(typeof toast === 'function') toast('Failed: ' + e.message);
     }
   };
+
+  loadUploadLiveBar();
+  setInterval(loadUploadLiveBar, 15000);
 })();
 </script>
 {% endblock %}
