@@ -1,12 +1,15 @@
 """Smart background scheduler.
 
-Two independent loops run as daemon threads:
+Three independent loops run as daemon threads:
 
-1. rescan_ongoing      — checks 'ongoing' titles every 24 h for new episodes.
+1. rescan_ongoing     — checks 'ongoing' titles every 24 h for new episodes.
    Uses episode-number comparison (not count) to detect truly new content.
 
 2. scheduled_downloads — user-configured recurring downloads (e.g. "Game of Thrones S5,
    every Monday").  Stored in the `scheduled_downloads` DB table.
+
+3. delta_generation   — auto-generates and uploads delta.json every 24 h so
+   Jazz SIM users (zero-rated) always have fresh catalog metadata on JazzDrive.
 """
 from __future__ import annotations
 import logging
@@ -264,6 +267,101 @@ def run_scheduled_downloads(log_fn=None):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Delta JSON auto-generation (task 7.1 + 7.3)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_DELTA_INTERVAL_SECS = 86400  # 24 hours
+
+
+def run_delta_generation(log_fn=None):
+    """Auto-generate delta.json every 24h and attempt JazzDrive upload.
+
+    Tracks last run via settings key 'last_delta_generated_at'.
+    Metadata-only payload (no file_id, no share_url) so it is safe for JazzDrive.
+    """
+    def _log(msg):
+        if log_fn: log_fn(msg)
+        log.info(msg)
+
+    now = int(time.time())
+
+    # Check if 24h have elapsed since last generation
+    with db.conn() as c:
+        row = c.execute("SELECT v FROM settings WHERE k='last_delta_generated_at'").fetchone()
+    last_run = int(row["v"]) if row else 0
+
+    if now - last_run < _DELTA_INTERVAL_SECS:
+        remaining = _DELTA_INTERVAL_SECS - (now - last_run)
+        _log(f"Delta generation: skipping — next run in {remaining // 3600}h {(remaining % 3600) // 60}m")
+        return
+
+    _log("Delta generation: starting 24h auto-cycle…")
+
+    try:
+        from .routes.zero_rating import generate_delta_payload, _DELTA_PATH
+        import json as _json
+
+        payload = generate_delta_payload()
+        with open(_DELTA_PATH, "w", encoding="utf-8") as f:
+            _json.dump(payload, f, ensure_ascii=False, indent=2)
+        count = len(payload["titles"])
+        _log(f"Delta generation: wrote delta.json — {count} titles (metadata only)")
+
+        # Update last-run timestamp
+        with db.conn() as c:
+            c.execute("INSERT OR REPLACE INTO settings(k,v) VALUES('last_delta_generated_at',?)", (str(now),))
+
+        # Attempt JazzDrive upload
+        try:
+            from . import jazzdrive as jd
+
+            # Read previous remote_id before upload so we can delete it after
+            prev_remote_id = None
+            try:
+                with db.conn() as _c:
+                    pr = _c.execute("SELECT v FROM settings WHERE k='jd_delta_remote_id'").fetchone()
+                    if pr and str(pr["v"]).isdigit():
+                        prev_remote_id = int(pr["v"])
+            except Exception:
+                pass
+
+            result = jd.upload_json_to_jazzdrive(_DELTA_PATH)
+            if result.get("ok"):
+                share_url = result.get("share_url") or result.get("url") or ""
+                new_remote_id = str(result.get("remote_id") or "")
+                if share_url:
+                    with db.conn() as c:
+                        c.execute("INSERT OR REPLACE INTO settings(k,v) VALUES('jd_delta_url',?)", (share_url,))
+                    if new_remote_id:
+                        with db.conn() as c:
+                            c.execute("INSERT OR REPLACE INTO settings(k,v) VALUES('jd_delta_remote_id',?)", (new_remote_id,))
+
+                    # Trash the old delta file so only one copy exists in Radd-Delta folder
+                    if prev_remote_id:
+                        try:
+                            with db.conn() as _c:
+                                aid_row = _c.execute("SELECT id FROM accounts WHERE is_active=1 ORDER BY id LIMIT 1").fetchone()
+                            if aid_row:
+                                tr = jd.trash_files(aid_row["id"], [prev_remote_id], media_type="file")
+                                _log(f"Delta generation: trashed old delta remote_id={prev_remote_id} → {tr}")
+                            else:
+                                _log("Delta generation: no active account — skipping old-file cleanup")
+                        except Exception as _te:
+                            _log(f"Delta generation: could not trash old delta remote_id={prev_remote_id} — {_te}")
+
+                    _log(f"Delta generation: uploaded to JazzDrive → {share_url}")
+                else:
+                    _log("Delta generation: upload OK but no share URL returned — URL not updated")
+            else:
+                _log(f"Delta generation: JazzDrive upload failed — {result.get('error', 'unknown')} (delta.json still generated locally)")
+        except Exception as upload_err:
+            _log(f"Delta generation: JazzDrive upload error — {upload_err} (delta.json still generated locally)")
+
+    except Exception as e:
+        log.error("Delta generation error: %s", e)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Background loop
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -273,6 +371,10 @@ def scheduler_loop(stop_event: threading.Event):
         return
 
     while not stop_event.is_set():
+        if db.setting("SCHEDULER_ENABLED", "0") != "1":
+            if stop_event.wait(60):
+                break
+            continue
         try:
             rescan_ongoing_titles()
         except Exception as e:
@@ -282,6 +384,11 @@ def scheduler_loop(stop_event: threading.Event):
             run_scheduled_downloads()
         except Exception as e:
             log.error("Scheduled downloads error: %s", e)
+
+        try:
+            run_delta_generation()
+        except Exception as e:
+            log.error("Delta generation error: %s", e)
 
         # Check every 30 minutes (catches weekly/daily/12h windows)
         if stop_event.wait(1800):
@@ -294,4 +401,4 @@ def start(stop_event: threading.Event):
         daemon=True, name="hub-scheduler"
     )
     t.start()
-    log.info("Smart background scheduler started (30-min check interval)")
+    log.info("Smart background scheduler started (30-min check interval, delta every 24h)")
