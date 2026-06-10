@@ -22,6 +22,15 @@ from typing import Optional, List
 
 log = logging.getLogger("hub.proxy_pool")
 
+def _proxy_mode_active() -> bool:
+    """Return True only when admin has explicitly disabled the VPN bypass (JAZZDRIVE_PROXY_BYPASS=0).
+    Default is False — proxies are OFF, all traffic goes through VPN/direct."""
+    try:
+        from . import db as _db
+        return _db.setting("JAZZDRIVE_PROXY_BYPASS", "1") == "0"
+    except Exception:
+        return False  # if DB unavailable, stay safe — no proxies
+
 # ── Pakistani proxy seed list — 200+ across PTCL, StormFiber, Nayatel, Wateen ─
 _BUILTIN_SEEDS = [
     # ─ PTCL AS9541 SOCKS5 ─
@@ -337,7 +346,10 @@ class ProxyPool:
         threading.Thread(target=self._recovery_loop, daemon=True, name="proxy-recovery").start()
         # Auto-discoverer every 30 min
         threading.Thread(target=self._disc_loop, daemon=True, name="proxy-disc").start()
-        log.info("ProxyPool: started with %d proxies", len(self._pool))
+        if _proxy_mode_active():
+            log.info("ProxyPool: started with %d proxies (PROXY MODE — HC/discovery running)", len(self._pool))
+        else:
+            log.info("ProxyPool: started (%d proxies cached, INACTIVE — VPN/direct mode, no HC/discovery)", len(self._pool))
 
     # ── DB ──────────────────────────────────────────────────────────────────
     def _ensure_table(self):
@@ -608,6 +620,9 @@ class ProxyPool:
     def _hc_loop(self):
         time.sleep(60)
         while True:
+            if not _proxy_mode_active():
+                time.sleep(300)  # proxies off (VPN mode) — idle
+                continue
             try:
                 self._run_health_check()
             except Exception as e:
@@ -645,13 +660,16 @@ class ProxyPool:
 
     # ── fast recovery (every 5 min — re-test disabled proxies only) ──────────
     def _recovery_loop(self):
-        time.sleep(300)  # wait 5 min after startup
+        time.sleep(300)
         while True:
+            if not _proxy_mode_active():
+                time.sleep(300)  # proxies off (VPN mode) — idle
+                continue
             try:
                 self._run_recovery()
             except Exception as e:
                 log.warning("ProxyPool: recovery error: %s", e)
-            time.sleep(300)  # every 5 min
+            time.sleep(300)
 
     def _run_recovery(self):
         """Re-test disabled proxies. If alive, re-enable with fresh score."""
@@ -684,12 +702,15 @@ class ProxyPool:
     def _disc_loop(self):
         time.sleep(300)
         while True:
+            if not _proxy_mode_active():
+                time.sleep(600)  # proxies off (VPN mode) — idle
+                continue
             try:
                 result = self.discover_new()
                 log.info("ProxyPool: discovery added %d new working proxies", result.get("added", 0))
             except Exception as e:
                 log.warning("ProxyPool: discovery error: %s", e)
-            time.sleep(900)  # every 15 min (was 30)
+            time.sleep(900)
 
     def discover_new(self) -> dict:
         """Fetch proxies from 20+ sources: Pakistani ISPs + global GitHub lists.

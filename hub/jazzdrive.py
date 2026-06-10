@@ -234,7 +234,7 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
     # Enable this when Oracle IP is not geo-blocked; proxies only slow things down.
     # NOTE: SAPI LOGIN (geo-restricted) bypasses this via direct pool access in
     # _android_refresh_session_inner._s2_chain — NOT via resolve_proxies('sapi').
-    if db.setting('JAZZDRIVE_PROXY_BYPASS') == '1':
+    if db.setting('JAZZDRIVE_PROXY_BYPASS', '1') != '0':  # default=VPN/direct; set '0' to enable proxies
         return None
     if purpose == 'sapi':
         # Try the pool first (auto-rotating, health-checked)
@@ -294,7 +294,7 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
 
 def is_proxy_bypass() -> bool:
     """Return True when JAZZDRIVE_PROXY_BYPASS=1 — all calls go direct, skip pool."""
-    return db.setting("JAZZDRIVE_PROXY_BYPASS") == "1"
+    return db.setting('JAZZDRIVE_PROXY_BYPASS', '1') != '0'  # default=VPN/direct
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Auth Helpers
