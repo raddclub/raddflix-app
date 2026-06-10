@@ -9,6 +9,7 @@ _Last updated: 2026-06-10_
 | PERF-01 | proxy_pool.py, hub/db | Diagnosed proxy-pool CPU spike (99.9%). Throttled ThreadPoolExecutors (40→8, 80→10), extended HC/discovery intervals, VACUUM'd SQLite DB | dde746e |
 | PERF-02 | proxy_pool.py | Permanently removed all 4 background proxy threads (hc_loop, recovery_loop, disc_loop, test_seeds_bg) from ProxyPool.start() + _seed_if_empty(). CPU → ~2%, threads → 9 | 519f649 |
 | PERF-03 | mirror.py, downloader.py, keepalive.py, scheduler.py, routes/admin.py, templates/admin.html | Added per-service DB-toggle system + admin UI card with live switches. 8 services controlled (including WA bot via supervisorctl) | 81f0300–d529b1e |
+| PERF-05 | routes/admin.py, templates/admin.html | Service dependency logic: auto-enable deps when enabling a service, warnings when disabling a required service, visual missing/broken indicators in UI. Ordered services by dependency chain. | 2ba55de, 88be21e |
 | PERF-04 | downloader.py | Fixed DOWNLOAD_ENABLED check: was before thread reaping (skip cleanup on disable), moved to just before new-job dispatch. Active jobs now finish cleanly; hang watchdog always runs | 62407f7 |
 
 ## Previous Completed Tasks
