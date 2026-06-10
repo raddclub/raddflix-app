@@ -331,13 +331,8 @@ class ProxyPool:
         self._ensure_table()
         self._seed_if_empty()
         self._reload()
-        # Health checker every 10 min
-        threading.Thread(target=self._hc_loop, daemon=True, name="proxy-hc").start()
-        # Fast recovery: re-test dead proxies every 5 min
-        threading.Thread(target=self._recovery_loop, daemon=True, name="proxy-recovery").start()
-        # Auto-discoverer every 30 min
-        threading.Thread(target=self._disc_loop, daemon=True, name="proxy-disc").start()
-        log.info("ProxyPool: started with %d proxies", len(self._pool))
+        # Background scanning permanently disabled — admin can trigger manually via settings page
+        log.info("ProxyPool: started with %d proxies (background scanning OFF — manual only)", len(self._pool))
 
     # ── DB ──────────────────────────────────────────────────────────────────
     def _ensure_table(self):
@@ -384,8 +379,7 @@ class ProxyPool:
                 except Exception:
                     pass
         if added:
-            log.info("ProxyPool: merged %d new built-in seeds into DB", added)
-            threading.Thread(target=self._test_seeds_bg, daemon=True).start()
+            log.info("ProxyPool: merged %d new built-in seeds into DB (skipping auto-test — bg scanning OFF)", added)
         else:
             log.debug("ProxyPool: all %d built-in seeds already in DB", len(_BUILTIN_SEEDS))
 
