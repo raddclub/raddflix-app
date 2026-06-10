@@ -1061,3 +1061,29 @@ All methods kept intact in code — admin can still manually trigger via /api/po
 ### Result
 - Oracle Flask: 9 threads (was 161), ~2% CPU (was 99.9%), 85 MB RAM (was 4.4 GB)
 - Load average: 0.31 (was 7.0). Proxy scanning: PERMANENTLY OFF, manual-only.
+
+## Session 2026-06-10 — Background service control panel
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| PERF-03 | Per-service enable/disable toggles + admin panel UI | ✅ DONE |
+
+### What was done
+- mirror.py: MIRROR_ENABLED DB toggle in retry_loop
+- downloader.py: DOWNLOAD_ENABLED DB toggle in queue_loop
+- keepalive.py: KEEPALIVE_ENABLED DB toggle in loop
+- scheduler.py: SCHEDULER_ENABLED DB toggle in scheduler_loop
+- admin.py: GET/POST /admin/api/services + WA bot supervisorctl control
+- admin.html: "Background Services" card with live on/off toggle switches
+
+### How it works
+Each loop checks its DB setting on every iteration. When disabled it skips all work
+but stays alive — re-enabling instantly without a Flask restart.
+WA bot is controlled via supervisorctl start/stop.
+
+### State at end of session
+- Oracle Flask: RUNNING, ~2% CPU, 12 threads
+- All services: ENABLED (defaults)
+- Proxy scanning: OFF (manual-only, from PERF-02)
+- Account: ACTIVE
