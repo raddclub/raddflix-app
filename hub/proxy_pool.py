@@ -22,15 +22,6 @@ from typing import Optional, List
 
 log = logging.getLogger("hub.proxy_pool")
 
-def _proxy_mode_active() -> bool:
-    """Return True only when admin has explicitly disabled the VPN bypass (JAZZDRIVE_PROXY_BYPASS=0).
-    Default is False — proxies are OFF, all traffic goes through VPN/direct."""
-    try:
-        from . import db as _db
-        return _db.setting("JAZZDRIVE_PROXY_BYPASS", "1") == "0"
-    except Exception:
-        return False  # if DB unavailable, stay safe — no proxies
-
 # ── Pakistani proxy seed list — 200+ across PTCL, StormFiber, Nayatel, Wateen ─
 _BUILTIN_SEEDS = [
     # ─ PTCL AS9541 SOCKS5 ─
@@ -346,10 +337,7 @@ class ProxyPool:
         threading.Thread(target=self._recovery_loop, daemon=True, name="proxy-recovery").start()
         # Auto-discoverer every 30 min
         threading.Thread(target=self._disc_loop, daemon=True, name="proxy-disc").start()
-        if _proxy_mode_active():
-            log.info("ProxyPool: started with %d proxies (PROXY MODE — HC/discovery running)", len(self._pool))
-        else:
-            log.info("ProxyPool: started (%d proxies cached, INACTIVE — VPN/direct mode, no HC/discovery)", len(self._pool))
+        log.info("ProxyPool: started with %d proxies", len(self._pool))
 
     # ── DB ──────────────────────────────────────────────────────────────────
     def _ensure_table(self):
@@ -412,7 +400,7 @@ class ProxyPool:
             return
         log.info("ProxyPool: testing %d seed proxies in background…", len(untested))
         good = 0
-        with concurrent.futures.ThreadPoolExecutor(max_workers=40) as ex:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
             futs = {ex.submit(_test_proxy, url, 10): url for url in untested}
             for fut in concurrent.futures.as_completed(futs):
                 url = futs[fut]
@@ -587,7 +575,7 @@ class ProxyPool:
                                 (url,)).fetchone()
                 if row and row["fail_count"] >= 5:
                     _just_disabled = True
-                    log.debug("ProxyPool: disabled dead proxy %s (%d fails)",
+                    log.info("ProxyPool: disabled dead proxy %s (%d fails)",
                              url, row["fail_count"])
         except Exception:
             pass
@@ -618,16 +606,13 @@ class ProxyPool:
 
     # ── health checker (every 10 min) ─────────────────────────────────────────
     def _hc_loop(self):
-        time.sleep(60)
+        time.sleep(120)
         while True:
-            if not _proxy_mode_active():
-                time.sleep(300)  # proxies off (VPN mode) — idle
-                continue
             try:
                 self._run_health_check()
             except Exception as e:
                 log.warning("ProxyPool: HC error: %s", e)
-            time.sleep(600)
+            time.sleep(1800)
 
     def run_health_check_now(self) -> dict:
         return self._run_health_check()
@@ -636,13 +621,13 @@ class ProxyPool:
         from . import db
         with db.conn() as c:
             all_proxies = [r["url"] for r in c.execute(
-                "SELECT url FROM sapi_proxies ORDER BY last_ok_at ASC"
+                "SELECT url FROM sapi_proxies ORDER BY last_ok_at ASC LIMIT 300"
             ).fetchall()]
         if not all_proxies:
             return {"tested": 0, "alive": 0}
         log.info("ProxyPool: health-checking %d proxies…", len(all_proxies))
         alive = 0
-        with concurrent.futures.ThreadPoolExecutor(max_workers=40) as ex:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
             futs = {ex.submit(_test_proxy, url, 10): url for url in all_proxies}
             for fut in concurrent.futures.as_completed(futs):
                 url = futs[fut]
@@ -654,22 +639,18 @@ class ProxyPool:
                 except Exception:
                     pass
         self._reload()
-        log.info("ProxyPool HC: %d/%d proxies alive (circuit_open=%s)",
-                 alive, len(all_proxies), alive == 0)
+        log.info("ProxyPool: HC done — %d/%d alive", alive, len(all_proxies))
         return {"tested": len(all_proxies), "alive": alive}
 
     # ── fast recovery (every 5 min — re-test disabled proxies only) ──────────
     def _recovery_loop(self):
-        time.sleep(300)
+        time.sleep(600)  # wait 10 min after startup
         while True:
-            if not _proxy_mode_active():
-                time.sleep(300)  # proxies off (VPN mode) — idle
-                continue
             try:
                 self._run_recovery()
             except Exception as e:
                 log.warning("ProxyPool: recovery error: %s", e)
-            time.sleep(300)
+            time.sleep(900)  # every 15 min
 
     def _run_recovery(self):
         """Re-test disabled proxies. If alive, re-enable with fresh score."""
@@ -683,7 +664,7 @@ class ProxyPool:
             return
         log.info("ProxyPool: recovery — testing %d disabled proxies…", len(dead))
         recovered = 0
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
             futs = {ex.submit(_test_proxy, url, 10): url for url in dead}
             for fut in concurrent.futures.as_completed(futs):
                 url = futs[fut]
@@ -700,17 +681,14 @@ class ProxyPool:
 
     # ── auto-discovery (every 30 min) ────────────────────────────────────────
     def _disc_loop(self):
-        time.sleep(300)
+        time.sleep(1800)  # wait 30 min before first discovery run
         while True:
-            if not _proxy_mode_active():
-                time.sleep(600)  # proxies off (VPN mode) — idle
-                continue
             try:
                 result = self.discover_new()
                 log.info("ProxyPool: discovery added %d new working proxies", result.get("added", 0))
             except Exception as e:
                 log.warning("ProxyPool: discovery error: %s", e)
-            time.sleep(900)
+            time.sleep(3600)  # every 1 hour (was 15 min — too aggressive with 23k proxies)
 
     def discover_new(self) -> dict:
         """Fetch proxies from 20+ sources: Pakistani ISPs + global GitHub lists.
@@ -871,7 +849,7 @@ class ProxyPool:
                  len(new_candidates), len(candidates))
         added = 0
         now = int(time.time())
-        with concurrent.futures.ThreadPoolExecutor(max_workers=80) as ex:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
             futs = {ex.submit(_test_proxy, url, 10): (url, cc) for url, cc in new_candidates.items()}
             for fut in concurrent.futures.as_completed(futs):
                 url, cc = futs[fut]
@@ -971,7 +949,7 @@ class ProxyPool:
                 ).fetchall()]
             alive = 0
             if untested:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=30) as ex:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
                     futs = {ex.submit(_test_proxy, u, 10): u for u in untested}
                     for fut in concurrent.futures.as_completed(futs):
                         u = futs[fut]

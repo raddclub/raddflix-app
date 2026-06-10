@@ -151,3 +151,4 @@ _Last updated: 2026-06-10_
 - Backend process: `python3 radd_hub.py run --skip-setup` in `/opt/jazzmax/radd-hub/`
 - After ANY direct SQL change to `is_published`: regenerate `db_update.json` via Python script
 - Always append session summary to `agent-hub/history/TASK_LOG.md` before ending session
+| PERF-01 | ✅ DONE | Oracle proxy pool CPU fix — throttled HC/recovery/disc workers (40→8, 80→10), capped HC batch to 300/run, spaced intervals (10min→30min HC, 5min→15min recovery, 15min→60min disc), VACUUM'd DB | 2026-06-10 |

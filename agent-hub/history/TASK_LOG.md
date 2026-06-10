@@ -1019,3 +1019,30 @@ The remaining risk: session JSESSIONID expires and nobody knows until uploads st
 - Oracle Flask: RUNNING (healthz ok)
 - Android ID: `android-fcbf291eddd5d372` active in DB settings
 - Open tasks: see agent-hub/TASKS.md
+
+## Session 2026-06-10 — Oracle CPU / admin panel slowness fix
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| PERF-01 | Proxy pool CPU throttle + DB VACUUM | ✅ DONE |
+
+### Root cause
+ProxyPool background threads were hammering the CPU:
+- 23,815 proxies in DB; health-checker tested ALL with max_workers=40 every 10 min
+- Discovery loop ran max_workers=80 every 15 min
+- Flask process: 161 threads, 99.9% CPU, 4.4 GB RAM
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| hub/proxy_pool.py | Throttle max_workers (40→8, 80→10, 20→8, 30→8); HC LIMIT 300/run; HC 10m→30m; recovery 5m→15m; discovery 15m→60m; disc startup delay 5m→30m | see below |
+
+### DB maintenance
+- SQLite VACUUM: freed 280 freelist pages (25% fragmentation → 0%)
+
+### State at end of session
+- Oracle Flask: RUNNING (PID fresh, 12 threads, ~2% CPU, 83 MB RAM)
+- Load average: dropping (was 7.0, now 4.0 and falling)
+- Account: ACTIVE
+- Open tasks: see agent-hub/TASKS.md
