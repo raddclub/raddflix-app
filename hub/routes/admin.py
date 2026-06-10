@@ -73,6 +73,12 @@ def page():
                            admin_user=config.get_env("RADD_ADMIN_USER", "admin"))
 
 
+@bp.route("/services")
+@auth.login_required
+def services_page():
+    return render_template("services.html")
+
+
 # ---------------------------------------------------------------------------
 # Password change
 # ---------------------------------------------------------------------------

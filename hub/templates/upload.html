@@ -3,16 +3,14 @@
 {% block content %}
 
 {% if not upload_enabled %}
-<div id="upload-paused-banner" style="display:flex;align-items:center;gap:10px;background:rgba(244,67,54,.1);border:1px solid rgba(244,67,54,.4);border-radius:8px;padding:10px 16px;margin-bottom:14px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:10px;background:rgba(244,67,54,.1);border:1px solid rgba(244,67,54,.4);border-radius:8px;padding:10px 16px;margin-bottom:14px;flex-wrap:wrap">
   <span style="font-size:18px">⏸</span>
   <div style="flex:1">
     <strong style="color:var(--err,#f44336)">Upload service is paused</strong>
     <span class="muted" style="font-size:13px;margin-left:8px">The watch folder is not being processed and no heartbeat requests are sent to JazzDrive.</span>
   </div>
-  <button id="upload-toggle-btn" onclick="toggleUploadService()" style="font-size:13px;min-width:90px;background:rgba(34,197,94,.15);border:1px solid #22c55e;color:#22c55e;border-radius:6px;padding:5px 12px;cursor:pointer">▶ Enable</button>
+  <a href="/services" style="font-size:13px;color:var(--accent);text-decoration:none;white-space:nowrap">Enable in Services →</a>
 </div>
-{% else %}
-<div id="upload-paused-banner" style="display:none"></div>
 {% endif %}
 
 <div class="h-row">
@@ -33,26 +31,15 @@
       Worker paused
     </span>
     {% endif %}
-    <button id="upload-page-svc-btn" onclick="toggleUploadService()" style="min-width:90px;transition:background .2s;{% if upload_enabled %}background:rgba(34,197,94,.15);border-color:#22c55e;color:#22c55e{% else %}background:rgba(244,67,54,.15);border-color:#f44336;color:#f44336{% endif %}">{% if upload_enabled %}⏸ Pause{% else %}▶ Enable{% endif %}</button>
-    <button onclick="scanNow()" {% if not upload_enabled %}disabled title="Upload is paused"{% endif %}>Rescan folder</button>
+    <button onclick="scanNow()" {% if not upload_enabled %}disabled title="Upload is paused — enable in Settings"{% endif %}>Rescan folder</button>
   </div>
 </div>
 <style>
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 </style>
 
-<div id="upload-live-bar" style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--bg2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:8px;margin-bottom:14px;font-size:12px;flex-wrap:wrap;min-height:36px;color:var(--muted)">
-  <span style="opacity:.4">Loading status…</span>
-</div>
-
 {# ── OTP quick-login banner ── #}
-<!-- Session expiry warning (shown when ≤7 days until cookie expires) -->
-  <div id="session-expiry-banner" style="display:none;align-items:center;gap:.75rem;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:.75rem 1rem;margin-bottom:.75rem">
-    <span id="session-expiry-msg" style="flex:1;font-size:.85rem;color:#f59e0b"></span>
-    <a href="#" onclick="document.querySelector('[data-tab=flixcfg]').click();return false" style="font-size:.8rem;color:#f59e0b;text-decoration:underline;white-space:nowrap">Paste cookies</a>
-  </div>
-
-  <div id="otp-banner" style="display:none;background:rgba(230,80,30,.12);border:1px solid #c04020;border-radius:8px;padding:12px 16px;margin-bottom:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+<div id="otp-banner" style="display:none;background:rgba(230,80,30,.12);border:1px solid #c04020;border-radius:8px;padding:12px 16px;margin-bottom:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
   <div>
     <span style="font-weight:700;color:#e65020">⚠ JazzDrive session offline</span>
     <span class="muted" id="otp-banner-msg" style="margin-left:8px;font-size:13px">Uploads are paused until you log in.</span>
@@ -353,17 +340,6 @@
       </ol>
     </details>
   </div>
-
-  <div class="card" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
-    <div>
-      <h3 style="margin:0 0 3px">Restart Service</h3>
-      <div class="muted" style="font-size:13px">Apply all config changes by restarting the Oracle service. Page reloads automatically when it is back up.</div>
-    </div>
-    <button id="restart-svc-btn" onclick="restartService(this)"
-            style="min-width:130px;background:rgba(255,170,0,.12);border:1px solid rgba(255,170,0,.4);color:#ffaa00;padding:7px 16px;border-radius:7px;cursor:pointer;font-weight:600">
-      ↺ Restart Service
-    </button>
-  </div>
 </div>
 
 {# ══ TAB: Logs ══ #}
@@ -395,84 +371,6 @@
   </div>
 </div>
 
-
-<script>
-(function(){
-  async function _svcApi(body){
-    const r = await fetch('/settings/api/services', {
-      method: body ? 'POST' : 'GET',
-      headers: {'Content-Type':'application/json'},
-      body: body ? JSON.stringify(body) : undefined
-    });
-    return r.json();
-  }
-  function _applyUpload(enabled){
-    const banner    = document.getElementById('upload-paused-banner');
-    const pageBtn   = document.getElementById('upload-page-svc-btn');
-    const rescanBtn = document.querySelector('button[onclick="scanNow()"]');
-    const indicator = document.getElementById('bg-indicator');
-    if(banner) banner.style.display = enabled ? 'none' : 'flex';
-    if(pageBtn){
-      pageBtn.textContent = enabled ? '⏸ Pause' : '▶ Enable';
-      pageBtn.style.background  = enabled ? 'rgba(34,197,94,.15)' : 'rgba(244,67,54,.15)';
-      pageBtn.style.borderColor = enabled ? '#22c55e' : '#f44336';
-      pageBtn.style.color       = enabled ? '#22c55e' : '#f44336';
-    }
-    if(rescanBtn) rescanBtn.disabled = !enabled;
-  }
-  function _timeAgoUp(ts){
-    if(!ts) return 'never';
-    const s = Math.floor(Date.now()/1000-ts);
-    if(s<60) return s+'s ago';
-    if(s<3600) return Math.floor(s/60)+'m ago';
-    if(s<86400) return Math.floor(s/3600)+'h ago';
-    return Math.floor(s/86400)+'d ago';
-  }
-  function _dotUp(st){ const c={ok:'#22c55e',warn:'#fbbf24',err:'#f44336',unknown:'#6b7280'}[st]||'#6b7280'; return '<span style="width:8px;height:8px;border-radius:50%;background:'+c+';display:inline-block;flex-shrink:0"></span>'; }
-  function _chipUp(t,c){ return '<span style="font-size:11px;padding:1px 8px;border-radius:8px;background:'+c+'1a;border:1px solid '+c+'44;color:'+c+'">'+t+'</span>'; }
-
-  async function loadUploadLiveBar(){
-    const bar = document.getElementById('upload-live-bar');
-    if(!bar) return;
-    try{
-      const r = await fetch('/settings/api/services/status', {headers:{'Content-Type':'application/json'}});
-      const sd = await r.json();
-      const u = (sd.services||{}).upload || {};
-      const q = u.queue || {};
-      const parts = [_dotUp(u.health_status), '<span>'+u.health_label+'</span>'];
-      parts.push(u.thread_alive ? _chipUp('worker thread alive','#22c55e') : _chipUp('worker thread down','#f44336'));
-      if(q.in_progress > 0) parts.push(_chipUp(q.in_progress+' uploading now','#7ab4ff'));
-      if(q.pending > 0)     parts.push(_chipUp(q.pending+' pending','#fbbf24'));
-      if((q.uploaded||0) > 0) parts.push('<span style="color:var(--muted)">'+q.uploaded+' uploaded total</span>');
-      if(u.last_upload){
-        const ago = _timeAgoUp(u.last_upload.ts);
-        const fname = u.last_upload.name ? u.last_upload.name.split('/').pop() : '—';
-        parts.push('<span style="color:var(--muted)">last: '+ago+' · '+fname+'</span>');
-      } else {
-        parts.push('<span style="color:var(--muted)">no uploads yet</span>');
-      }
-      if(!u.enabled) parts.push(_chipUp('service paused','#f44336'));
-      bar.innerHTML = parts.join(' ');
-    }catch(e){ bar.innerHTML='<span style="color:var(--muted);opacity:.5">Status unavailable</span>'; }
-  }
-
-  window.toggleUploadService = async function(){
-    try{
-      const cur = await _svcApi(null);
-      const newVal = !cur.upload_enabled;
-      const d = await _svcApi({ upload: newVal });
-      _applyUpload(d.upload_enabled);
-      if(typeof toast === 'function') toast('Upload service ' + (d.upload_enabled ? 'enabled' : 'paused'));
-      loadUploadLiveBar();
-    }catch(e){
-      if(typeof toast === 'function') toast('Failed: ' + e.message);
-    }
-  };
-
-  loadUploadLiveBar();
-  setInterval(loadUploadLiveBar, 15000);
-})();
-</script>
 {% endblock %}
 
 {% block scripts %}<script>
@@ -544,28 +442,7 @@ async function loadStatus() {
 
     if (sess.logged_in) {
       if (statSess) statSess.innerHTML = '<span class="badge b-ok">Active</span>';
-      // Show days remaining with colour coding
-      const expDays = sess.expires_in_days || 0;
-      const expStr  = expDays > 0 ? `expires in ${expDays} day${expDays===1?'':'s'}` : 'active';
-      if (statSess) {
-        let colour = 'var(--ok,#22c55e)';
-        if (expDays > 0 && expDays <= 2) colour = 'var(--err,#ef4444)';
-        else if (expDays > 0 && expDays <= 7) colour = 'var(--warn,#f59e0b)';
-        statSess.innerHTML = `<span class="badge b-ok" style="background:${colour}20;color:${colour};border-color:${colour}40">Active</span>`;
-      }
-      if (statSessSub) statSessSub.textContent = expStr;
-      // Show expiry warning banner if ≤7 days
-      const expiryBanner = document.getElementById('session-expiry-banner');
-      if (expiryBanner) {
-        if (expDays > 0 && expDays <= 7) {
-          expiryBanner.style.display = 'flex';
-          const urgency = expDays <= 2 ? '🔴' : '🟡';
-          const expiryMsg = document.getElementById('session-expiry-msg');
-          if (expiryMsg) expiryMsg.textContent = `${urgency} Session expires in ${expDays} day${expDays===1?'':'s'} — paste new cookies soon!`;
-        } else {
-          expiryBanner.style.display = 'none';
-        }
-      }
+      if (statSessSub) statSessSub.textContent = sess.remaining_m ? 'exp in ' + sess.remaining_m + ' min' : 'active';
       if (btnRelogin) btnRelogin.style.display = 'none';
       if (banner) banner.style.display = 'none';
     } else {
@@ -883,31 +760,6 @@ async function loadJobs() {
 
 
 /* ── logs ── */
-/* ── Level icons and colors for upload log ──────────────────────────────── */
-const _UL_ICON  = {debug:'[dbg]', info:'[INF]', warn:'[WRN]', error:'[ERR]'};
-const _UL_COLOR = {debug:'#5a6270', info:'#c9d1db', warn:'#f59e0b', error:'#ef4444'};
-
-function _ulTs(ts) {
-  /* ts is a Unix float from record.created */
-  const d = ts ? new Date(ts * 1000) : new Date();
-  const hh = String(d.getHours()).padStart(2,'0');
-  const mm = String(d.getMinutes()).padStart(2,'0');
-  const ss = String(d.getSeconds()).padStart(2,'0');
-  return hh + ':' + mm + ':' + ss;
-}
-
-function _ulSource(logger) {
-  /* Strip "hub." prefix and shorten common names */
-  const aliases = {
-    'hub.uploader':   'uploader',
-    'hub.keepalive':  'keepalive',
-    'hub.jazzdrive':  'jazzdrive',
-    'hub.scanner':    'scanner',
-    'hub.downloader': 'downloader',
-  };
-  return (aliases[logger] || (logger || 'system').replace(/^hub\./, '')).slice(0, 12);
-}
-
 function appendLogEntries(entries) {
   const box = document.getElementById('log-box');
   if (!box) return;
@@ -918,45 +770,12 @@ function appendLogEntries(entries) {
   entries.forEach(e => {
     _logSeq = Math.max(_logSeq, e.seq);
     if (LEVELS.indexOf(e.level) < minIdx) return;
-
-    // Clear placeholder on first real entry
-    if (box.querySelector('.muted')) box.innerHTML = '';
-
-    const level  = e.level || 'info';
-    const icon   = _UL_ICON[level]  || '[INF]';
-    const color  = _UL_COLOR[level] || '#c9d1db';
-    const ts     = _ulTs(e.ts);
-    const src    = _ulSource(e.logger).padEnd(12, ' ');
-
-    // Add blank separator before warnings/errors for visibility
-    if ((level === 'warn' || level === 'error') && box.children.length > 0) {
-      const sep = document.createElement('div');
-      sep.style.cssText = 'height:4px';
-      box.appendChild(sep);
-    }
-
     const line = document.createElement('div');
-    line.style.cssText = (
-      'border-bottom:1px solid rgba(255,255,255,.03);padding:3px 0;color:' + color + ';' +
-      'font-family:monospace;font-size:12px;line-height:1.5;' +
-      (level === 'error' ? 'background:rgba(239,68,68,.06);padding:3px 6px;border-radius:3px;' : '') +
-      (level === 'warn'  ? 'background:rgba(245,158,11,.05);padding:3px 6px;border-radius:3px;' : '')
-    );
-
-    // Raw msg already has timestamp from Python formatter — strip it, rebuild clean
-    // Format: [HH:MM:SS] [TAG] source  message
-    const rawMsg = (e.msg || '').replace(/^\d{2}:\d{2}:\d{2} [AP]M \[.*?\] [\w.]+: /, '');
-    line.textContent = '[' + ts + '] ' + icon + ' ' + src + '  ' + rawMsg;
-
+    line.style.cssText = 'border-bottom:1px solid rgba(255,255,255,.04);padding:2px 0;color:' + ({debug:'#6b7280',info:'#e2e8f0',warn:'#f59e0b',error:'#ef4444'}[e.level]||'#eee');
+    line.textContent = e.msg;
+    if (box.querySelector('.muted')) box.innerHTML = '';
     box.appendChild(line);
-    if (box.children.length > 600) box.removeChild(box.firstChild);
-
-    // Closing separator after errors
-    if (level === 'error') {
-      const sep2 = document.createElement('div');
-      sep2.style.cssText = 'height:4px';
-      box.appendChild(sep2);
-    }
+    if (box.children.length > 500) box.removeChild(box.firstChild);
   });
   if (document.getElementById('log-autoscroll').checked) box.scrollTop = box.scrollHeight;
 }
@@ -972,16 +791,7 @@ function applyLogFilter() {
 
 function clearLogs() {
   const box = document.getElementById('log-box');
-  if (box) box.innerHTML = '<div class="muted" style="font-size:12px">Clearing…</div>';
-  fetch('/upload/api/clear-logs', {method:'POST', headers:{'Content-Type':'application/json'}})
-    .then(r => r.json())
-    .then(d => {
-      if (box) box.innerHTML = '<div class="muted" style="font-size:12px">Log cleared (' + (d.cleared||0) + ' entries removed).</div>';
-      _logSeq = 0;
-    })
-    .catch(() => {
-      if (box) box.innerHTML = '<div class="muted" style="font-size:12px">Log cleared.</div>';
-    });
+  if (box) box.innerHTML = '<div class="muted" style="font-size:12px">Log cleared.</div>';
 }
 
 function startLogStream() {
@@ -1344,27 +1154,6 @@ async function modalSaveFromJson() {
   }
 }
 
-
-/* ── restart service ── */
-async function restartService(btn) {
-  if (!confirm('Restart the Oracle service now?\nPage will reload automatically when it is back up (~8 sec).')) return;
-  if (btn) { btn.disabled = true; btn.textContent = 'Restarting…'; }
-  toast('Restarting service — page reloads in ~8 seconds');
-  try { await fetch('/admin/api/restart', {method:'POST'}); } catch(_) {}
-  let tries = 0;
-  const t = setInterval(async () => {
-    tries++;
-    try {
-      const r = await fetch('/api/otp/status', {signal: AbortSignal.timeout(2000)});
-      if (r.ok) { clearInterval(t); toast('✓ Service back — reloading'); setTimeout(() => location.reload(), 500); return; }
-    } catch(_) {}
-    if (tries > 20) {
-      clearInterval(t);
-      if (btn) { btn.disabled = false; btn.textContent = '↺ Restart Service'; }
-      toast('Timeout — reload the page manually');
-    }
-  }, 1200);
-}
 
 /* ── boot ── */
 startAutoRefresh();

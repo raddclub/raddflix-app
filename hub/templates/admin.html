@@ -2,13 +2,7 @@
 {% set active="admin" %}
 {% block content %}
 <style>
-.svc-toggle{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}
-.svc-toggle input{opacity:0;width:0;height:0;position:absolute}
-.svc-slider{position:absolute;cursor:pointer;inset:0;background:#555;border-radius:24px;transition:.2s}
-.svc-slider:before{content:'';position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
-input:checked+.svc-slider{background:var(--ok,#4caf50)}
-input:checked+.svc-slider:before{transform:translateX(20px)}
-input:disabled+.svc-slider{opacity:.5;cursor:not-allowed}
+
 @media(max-width:767px){
   .adm-wa-grid{grid-template-columns:1fr !important}
   .roles-display{grid-template-columns:1fr !important}
@@ -33,17 +27,7 @@ input:disabled+.svc-slider{opacity:.5;cursor:not-allowed}
   <button onclick="changePw()">Change password</button>
 </div>
 
-<!-- ── Background Services ─────────────────────────────────────────────── -->
-<div class="card" id="services-card">
-  <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px">
-    <h3 style="margin:0">Background Services</h3>
-    <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="loadServices()">&#8635; Refresh</button>
-  </div>
-  <div class="muted" style="font-size:12px;margin-bottom:14px">
-    Each service shows what it needs to run. Turning one ON will automatically enable any services it depends on first.
-  </div>
-  <div id="svc-list" style="display:grid;gap:10px"><div class="muted">Loading…</div></div>
-</div>
+
 
 <!-- WA QR / pairing -->
 <div class="card">
@@ -1519,108 +1503,6 @@ async function dsRestartOracle() {
 dsLoad();
 setInterval(dsLoad, 30000);
 
-// ── Background Services ───────────────────────────────────────────────────────
-function svcLabel(name) {
-  const map = {keepalive:'Keepalive', scan:'Scanner', upload:'Upload', scheduler:'Scheduler',
-                download:'Download', mirror:'Mirror', domain_doctor:'Domain Doctor', wa_bot:'WA Bot'};
-  return map[name] || name;
-}
 
-async function loadServices() {
-  const el = document.getElementById('svc-list');
-  if (!el) return;
-  try {
-    const r = await fetch('/admin/api/services');
-    const d = await r.json();
-    if (!d.ok) { el.innerHTML = '<div class="muted">Error loading services</div>'; return; }
-    el.innerHTML = d.services.map(svc => {
-      const isOn = svc.enabled;
-      const badge = isOn
-        ? '<span class="badge b-ok" style="font-size:11px;flex-shrink:0">ON</span>'
-        : '<span class="badge b-err" style="font-size:11px;flex-shrink:0">OFF</span>';
-
-      // Dependency pills
-      let depHtml = '';
-      if (svc.deps && svc.deps.length) {
-        depHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px">'
-          + '<span style="font-size:10px;color:var(--muted)">needs:</span>'
-          + svc.deps.map(d => {
-              const depOn = d.services ? true : false;
-              return '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:var(--panel3,#2a2a3a);color:var(--muted)">'
-                + svcLabel(d) + '</span>';
-            }).join('')
-          + '</div>';
-      }
-
-      // Warning: this service is ON but a dep is OFF
-      let warnHtml = '';
-      if (isOn && svc.missing_deps && svc.missing_deps.length) {
-        warnHtml = '<div style="margin-top:5px;font-size:11px;color:#f59e0b;display:flex;align-items:center;gap:4px">'
-          + '⚠ Needs <b>' + svc.missing_deps.map(svcLabel).join(', ') + '</b> ON to actually work</div>';
-      }
-
-      // Warning: this service is OFF but others depend on it
-      let rdepWarnHtml = '';
-      if (!isOn && svc.broken_rdeps && svc.broken_rdeps.length) {
-        rdepWarnHtml = '<div style="margin-top:5px;font-size:11px;color:#ef4444;display:flex;align-items:center;gap:4px">'
-          + '✗ <b>' + svc.broken_rdeps.map(svcLabel).join(', ') + '</b> need this to work</div>';
-      }
-
-      // Border color
-      let borderCol = 'transparent';
-      if (isOn && svc.missing_deps && svc.missing_deps.length) borderCol = '#f59e0b44';
-      if (!isOn && svc.broken_rdeps && svc.broken_rdeps.length) borderCol = '#ef444433';
-
-      return '<div id="svc-row-' + svc.name + '" style="display:flex;align-items:flex-start;justify-content:space-between;padding:12px 14px;background:var(--panel2);border-radius:10px;gap:12px;border:1px solid ' + borderCol + '">'
-        + '<div style="flex:1;min-width:0">'
-        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">'
-        + '<span style="font-weight:600;font-size:14px">' + svc.label + '</span>' + badge
-        + '</div>'
-        + '<div class="muted" style="font-size:12px">' + svc.desc + '</div>'
-        + depHtml + warnHtml + rdepWarnHtml
-        + '</div>'
-        + '<label class="svc-toggle" style="margin-top:2px;flex-shrink:0" title="' + (isOn ? 'Click to disable' : 'Click to enable') + '">'
-        + '<input type="checkbox"' + (isOn ? ' checked' : '') + ' onchange="toggleService('' + svc.name + '', this.checked, this)">'
-        + '<span class="svc-slider"></span></label></div>';
-    }).join('');
-  } catch(e) { el.innerHTML = '<div class="muted">Failed to load services: ' + e + '</div>'; }
-}
-
-async function toggleService(name, enabled, cb) {
-  cb.disabled = true;
-  try {
-    const r = await fetch('/admin/api/services/toggle', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({service: name, enabled: enabled})
-    });
-    const d = await r.json();
-    if (!d.ok) {
-      cb.checked = !enabled;
-      toast('Error: ' + (d.error || d.output || 'unknown'), 4000);
-    } else {
-      // Show auto-enabled deps notice
-      if (d.auto_enabled && d.auto_enabled.length) {
-        toast('Auto-enabled first: ' + d.auto_enabled.map(svcLabel).join(', '), 3500);
-      }
-      // Show warnings about broken dependents
-      if (d.warnings && d.warnings.length) {
-        d.warnings.forEach(w => toast('⚠ ' + w, 5000));
-      }
-      if (!d.auto_enabled || !d.auto_enabled.length) {
-        toast((enabled ? '✅ ' : '⏹ ') + name + ' ' + (enabled ? 'enabled' : 'disabled'));
-      }
-      setTimeout(loadServices, 800);
-    }
-  } catch(e) {
-    cb.checked = !enabled;
-    toast('Request failed: ' + e, 4000);
-  } finally {
-    cb.disabled = false;
-  }
-}
-
-loadServices();
-setInterval(loadServices, 15000);
 </script>
 </script>{% endblock %}

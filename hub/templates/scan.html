@@ -12,16 +12,14 @@
 </style>
 
 {% if not scan_enabled %}
-<div id="scan-paused-banner" style="display:flex;align-items:center;gap:10px;background:rgba(244,67,54,.1);border:1px solid rgba(244,67,54,.4);border-radius:8px;padding:10px 16px;margin-bottom:14px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:10px;background:rgba(244,67,54,.1);border:1px solid rgba(244,67,54,.4);border-radius:8px;padding:10px 16px;margin-bottom:14px;flex-wrap:wrap">
   <span style="font-size:18px">⏸</span>
   <div style="flex:1">
     <strong style="color:var(--err,#f44336)">Scan service is paused</strong>
     <span class="muted" style="font-size:13px;margin-left:8px">No heartbeat requests are being sent to JazzDrive. Scan buttons are disabled.</span>
   </div>
-  <button id="scan-toggle-btn" onclick="toggleScanService()" style="font-size:13px;min-width:90px;background:rgba(34,197,94,.15);border:1px solid #22c55e;color:#22c55e;border-radius:6px;padding:5px 12px;cursor:pointer">▶ Enable</button>
+  <a href="/services" style="font-size:13px;color:var(--accent);text-decoration:none;white-space:nowrap">Enable in Services →</a>
 </div>
-{% else %}
-<div id="scan-paused-banner" style="display:none"></div>
 {% endif %}
 
 <div class="h-row" style="margin-bottom:12px">
@@ -31,18 +29,9 @@
   </div>
   <div style="display:flex; gap:8px">
     <button class="ghost" onclick="showProxyModal()">Proxy Settings</button>
-    <button class="ghost" id="btn-scan-all" onclick="scanAll()" {% if not scan_enabled %}disabled title="Scan is paused"{% endif %}>⚡ Scan All</button>
-    <button id="scan-page-svc-btn" onclick="toggleScanService()" style="min-width:90px;transition:background .2s;{% if scan_enabled %}background:rgba(34,197,94,.15);border-color:#22c55e;color:#22c55e{% else %}background:rgba(244,67,54,.15);border-color:#f44336;color:#f44336{% endif %}">{% if scan_enabled %}⏸ Pause{% else %}▶ Enable{% endif %}</button>
+    <button class="ghost" id="btn-scan-all" onclick="scanAll()" {% if not scan_enabled %}disabled title="Scan is paused — enable in Settings"{% endif %}>⚡ Scan All</button>
     <button onclick="toggleAddForm()" id="btn-add-acct">+ Add account</button>
-    <button onclick="restartService(this)"
-            style="min-width:120px;background:rgba(255,170,0,.12);border:1px solid rgba(255,170,0,.4);color:#ffaa00;padding:6px 14px;border-radius:7px;cursor:pointer;font-weight:600">
-      ↺ Restart
-    </button>
   </div>
-</div>
-
-<div id="scan-live-bar" style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--bg2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:8px;margin-bottom:12px;font-size:12px;flex-wrap:wrap;min-height:36px;color:var(--muted)">
-  <span style="opacity:.4">Loading status…</span>
 </div>
 
 {% include "_proxy_manager.html" %}
@@ -394,7 +383,6 @@
       <button id="btn-resume" class="ghost" style="font-size:12px;padding:4px 10px;display:none" onclick="resumeScan()">Resume</button>
       <button id="btn-stop"   class="danger" style="font-size:12px;padding:4px 10px;display:none" onclick="stopScan()">Stop</button>
       <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="copyLog()">📋 Copy</button>
-      <button class="ghost" style="font-size:12px;padding:4px 10px;color:var(--err);border-color:var(--err)" id="btn-clear-log" onclick="clearScanLog()">Clear</button>
       <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="hideLogs()">Hide</button>
     </div>
   </div>
@@ -412,85 +400,6 @@
   <div id="scan-log"></div>
 </div>
 
-
-<script>
-(function(){
-  async function _svcApi(body){
-    const r = await fetch('/settings/api/services', {
-      method: body ? 'POST' : 'GET',
-      headers: {'Content-Type':'application/json'},
-      body: body ? JSON.stringify(body) : undefined
-    });
-    return r.json();
-  }
-  function _applyScan(enabled){
-    const banner = document.getElementById('scan-paused-banner');
-    const toggleBtn = document.getElementById('scan-toggle-btn');
-    const pageBtn   = document.getElementById('scan-page-svc-btn');
-    const scanAllBtn = document.getElementById('btn-scan-all');
-    if(banner)    banner.style.display = enabled ? 'none' : 'flex';
-    if(toggleBtn){ toggleBtn.textContent = '▶ Enable'; }
-    if(pageBtn){
-      pageBtn.textContent = enabled ? '⏸ Pause' : '▶ Enable';
-      pageBtn.style.background  = enabled ? 'rgba(34,197,94,.15)' : 'rgba(244,67,54,.15)';
-      pageBtn.style.borderColor = enabled ? '#22c55e' : '#f44336';
-      pageBtn.style.color       = enabled ? '#22c55e' : '#f44336';
-    }
-    if(scanAllBtn) scanAllBtn.disabled = !enabled;
-  }
-
-  function _timeAgoSc(ts){
-    if(!ts) return 'never';
-    const s = Math.floor(Date.now()/1000-ts);
-    if(s<60) return s+'s ago';
-    if(s<3600) return Math.floor(s/60)+'m ago';
-    if(s<86400) return Math.floor(s/3600)+'h ago';
-    return Math.floor(s/86400)+'d ago';
-  }
-  function _dotSc(st){ const c={ok:'#22c55e',warn:'#fbbf24',err:'#f44336',unknown:'#6b7280'}[st]||'#6b7280'; return '<span style="width:8px;height:8px;border-radius:50%;background:'+c+';display:inline-block;flex-shrink:0"></span>'; }
-  function _chipSc(t,c){ return '<span style="font-size:11px;padding:1px 8px;border-radius:8px;background:'+c+'1a;border:1px solid '+c+'44;color:'+c+'">'+t+'</span>'; }
-
-  async function loadScanLiveBar(){
-    const bar = document.getElementById('scan-live-bar');
-    if(!bar) return;
-    try{
-      const d = await _svcApi(null); // get toggle states
-      const r = await fetch('/settings/api/services/status', {headers:{'Content-Type':'application/json'}});
-      const sd = await r.json();
-      const sc = (sd.services||{}).scan || {};
-      const parts = [_dotSc(sc.health_status), '<span>'+sc.health_label+'</span>'];
-      if(sc.active_scans && sc.active_scans.length>0){
-        sc.active_scans.forEach(a=>{
-          const progress = a.paused ? ' (paused)' : '';
-          parts.push(_chipSc(a.label+': '+a.files_seen+' seen / '+a.files_mirrored+' mirrored'+progress,'#7ab4ff'));
-          if(a.started_at) parts.push('<span style="color:var(--muted)">started '+_timeAgoSc(a.started_at)+'</span>');
-        });
-      } else {
-        parts.push('<span style="color:var(--muted)">'+sc.accounts_total+' account'+(sc.accounts_total!==1?'s':'')+' · idle</span>');
-      }
-      if(sc.last_scan_ts) parts.push('<span style="color:var(--muted)">last scan: '+_timeAgoSc(sc.last_scan_ts)+'</span>');
-      if(!d.scan_enabled) parts.push(_chipSc('service paused','#f44336'));
-      bar.innerHTML = parts.join(' ');
-    }catch(e){ bar.innerHTML='<span style="color:var(--muted);opacity:.5">Status unavailable</span>'; }
-  }
-
-  window.toggleScanService = async function(){
-    try{
-      const cur = await _svcApi(null);
-      const newVal = !cur.scan_enabled;
-      const d = await _svcApi({ scan: newVal });
-      _applyScan(d.scan_enabled);
-      if(typeof toast === 'function') toast('Scan service ' + (d.scan_enabled ? 'enabled' : 'paused'));
-      loadScanLiveBar();
-    }catch(e){
-      if(typeof toast === 'function') toast('Failed: ' + e.message);
-    }
-  };
-
-  loadScanLiveBar();
-  setInterval(loadScanLiveBar, 15000);
-})();
-</script>
 {% endblock %}
 {% block scripts %}<script>
 let _wizAcctId = null;
@@ -545,33 +454,6 @@ const _SUPPRESS = [
   'TMDB direct',
 ];
 
-/* ── Scan start timestamp for elapsed time ──────────────────────────────── */
-let _scanStartTs = null;
-
-function _elapsedStr() {
-  if (!_scanStartTs) return new Date().toLocaleTimeString('en', {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  const s = Math.floor((Date.now() - _scanStartTs) / 1000);
-  const h = String(Math.floor(s / 3600)).padStart(2, '0');
-  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-  const sc = String(s % 60).padStart(2, '0');
-  return '+' + h + ':' + m + ':' + sc;
-}
-
-/* Icon tag + color per log kind */
-const _KIND_ICON = {
-  scan_start: '[RUN]', scan_done:  '[DONE]',
-  folder:     '[DIR] ', progress:   '[...] ',
-  info:       '[INF] ', error:      '[ERR] ',
-  warn:       '[WRN] ',
-  lookup:     '[???] ', found:      '[ OK] ',
-  not_found:  '[---] ',
-  tmdb:       '[???] ', tmdb_ok:    '[ OK] ', tmdb_miss:  '[---] ',
-  imdb_ok:    '[ OK] ', imdb_miss:  '[---] ',
-  enrich:     '[~~~] ', mirror:     '[UP ] ',
-  publish:    '[PUB] ', otp:        '[KEY] ',
-  debug:      '[dbg] ',
-};
-
 function _appendLog(kind, msg) {
   const el = document.getElementById('scan-log');
   if (!el) return;
@@ -581,46 +463,30 @@ function _appendLog(kind, msg) {
     if (msg.indexOf(s) !== -1) return;
   }
 
-  const cls  = _KIND_CLS[kind] || 'sl-info';
-  const icon = _KIND_ICON[kind] || '[INF] ';
-  const ts   = _elapsedStr();
-
-  // Set scan start time on first scan_start event
-  if (kind === 'scan_start' && !_scanStartTs) _scanStartTs = Date.now();
-  if (kind === 'scan_done') _scanStartTs = null; // reset for next scan
-
-  // Add a blank separator line before errors and warnings for visibility
-  if ((kind === 'error' || kind === 'warn') && el.children.length > 0) {
-    const sep = document.createElement('span');
-    sep.className = 'll sl-skip';
-    sep.textContent = '';
-    el.appendChild(sep);
-  }
-
-  const ln = document.createElement('span');
+  const cls   = _KIND_CLS[kind] || 'sl-info';
+  const label = _KIND_LABEL[kind];
+  const ts    = new Date().toLocaleTimeString('en', {hour12:false, minute:'2-digit', second:'2-digit'});
+  const ln    = document.createElement('span');
   ln.className = 'll ' + cls;
 
-  // Format: [+HH:MM:SS] [TAG]  message
-  ln.textContent = '[' + ts + '] ' + icon + ' ' + msg;
-  el.appendChild(ln);
-
-  // For errors, add a closing separator too
-  if (kind === 'error') {
-    const sep2 = document.createElement('span');
-    sep2.className = 'll sl-skip';
-    sep2.textContent = '';
-    el.appendChild(sep2);
+  // Build the display text — no raw [kind] noise, just a readable label
+  let display = '';
+  if (label) {
+    display = ts + '  ' + label + ': ' + msg;
+  } else {
+    display = ts + '  ' + msg;
   }
-
+  ln.textContent = display;
+  el.appendChild(ln);
   el.scrollTop = el.scrollHeight;
 
   // Update stats counters from log content
   if (kind === 'folder') _ssFolders++;
   if (kind === 'found' || kind === 'tmdb_ok' || kind === 'imdb_ok') _ssTitles++;
-  if (kind === 'scan_done' || kind === 'info' || kind === 'scan_done') {
-    const m = msg.match(/(\d+)\s+(?:media\s+)?file/i);
+  if (kind === 'scan_done' || kind === 'info') {
+    const m = msg.match(/(\d+)\s+files/i);
     if (m) { _ssFiles = Math.max(_ssFiles, parseInt(m[1])); }
-    const t = msg.match(/(\d+)\s+(?:new\s+)?title/i);
+    const t = msg.match(/(\d+)\s+(?:new )?titles?/i);
     if (t) { _ssTitles = Math.max(_ssTitles, parseInt(t[1])); }
   }
   _refreshStatsBar();
@@ -1103,34 +969,6 @@ async function viewLogs(id) {
     }
   } catch(e) {
     _appendLog('error', 'Failed to load logs: ' + e.message);
-  }
-}
-
-async function clearScanLog() {
-  const btn = document.getElementById("btn-clear-log");
-  if (!window._clearLogArmed) {
-    window._clearLogArmed = true;
-    if (btn) { btn.textContent = "Confirm?"; btn.style.background = "rgba(255,80,80,.15)"; }
-    setTimeout(() => {
-      window._clearLogArmed = false;
-      if (btn) { btn.textContent = "Clear"; btn.style.background = ""; }
-    }, 4000);
-    return;
-  }
-  window._clearLogArmed = false;
-  if (btn) { btn.textContent = "Clearing…"; btn.disabled = true; }
-  try {
-    const aid = _scanAcct;
-    if (!aid) { alert("No account selected."); return; }
-    const r = await fetch("/scan/api/accounts/" + aid + "/log", {method:"DELETE"});
-    const d = await r.json();
-    document.getElementById("scan-log").innerHTML = "";
-    _logAfter = 0;
-    if (btn) { btn.textContent = "Cleared (" + (d.deleted||0) + ")"; btn.disabled = false; }
-    setTimeout(() => { if (btn) btn.textContent = "Clear"; }, 2500);
-  } catch(e) {
-    if (btn) { btn.textContent = "Error"; btn.disabled = false; }
-    setTimeout(() => { if (btn) btn.textContent = "Clear"; }, 2500);
   }
 }
 
@@ -1638,28 +1476,6 @@ async function loadDuplicates() {
     msg.style.color = 'var(--err)';
     body.innerHTML = '';
   }
-}
-
-/* ── restart service ── */
-async function restartService(btn) {
-  if (!confirm('Restart the Oracle service now?\nPage will reload automatically when it is back up (~8 sec).')) return;
-  const orig = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = 'Restarting…'; }
-  toast('Restarting service — page reloads in ~8 seconds');
-  try { await fetch('/admin/api/restart', {method:'POST'}); } catch(_) {}
-  let tries = 0;
-  const t = setInterval(async () => {
-    tries++;
-    try {
-      const r = await fetch('/api/otp/status', {signal: AbortSignal.timeout(2000)});
-      if (r.ok) { clearInterval(t); toast('✓ Service back — reloading'); setTimeout(() => location.reload(), 500); return; }
-    } catch(_) {}
-    if (tries > 20) {
-      clearInterval(t);
-      if (btn) { btn.disabled = false; btn.textContent = orig || '↺ Restart'; }
-      toast('Timeout — reload the page manually');
-    }
-  }, 1200);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
