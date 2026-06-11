@@ -2,6 +2,7 @@
 {% set active="admin" %}
 {% block content %}
 <style>
+
 @media(max-width:767px){
   .adm-wa-grid{grid-template-columns:1fr !important}
   .roles-display{grid-template-columns:1fr !important}
@@ -10,7 +11,7 @@
 }
 </style>
 
-<div class="h-row"><h2>Admin</h2></div>
+<div class="h-row"><h2>👑 Admin</h2></div>
 
 <!-- password -->
 <div class="card">
@@ -25,6 +26,8 @@
   </div>
   <button onclick="changePw()">Change password</button>
 </div>
+
+
 
 <!-- WA QR / pairing -->
 <div class="card">
@@ -150,6 +153,15 @@
     <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="loadQuotaLeaderboard()">↺ Refresh</button>
   </div>
   <div id="quota-leaderboard-tbl"><div class="muted empty">Loading…</div></div>
+  <!-- Inline quota input (replaces prompt()) -->
+  <div id="quota-input-panel" style="display:none;align-items:center;gap:8px;margin-top:12px;padding:10px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;flex-wrap:wrap">
+    <span id="quota-lbl" style="font-size:13px;color:var(--muted)">Quota (MB/day):</span>
+    <input type="number" id="quota-mb-input" min="0" step="100" placeholder="e.g. 500"
+           style="width:110px;font-family:monospace"
+           onkeydown="if(event.key==='Enter') applyQuota()">
+    <button onclick="applyQuota()" style="padding:4px 14px;font-size:13px">Set</button>
+    <button class="ghost" onclick="document.getElementById('quota-input-panel').style.display='none'" style="font-size:12px;padding:4px 10px">Cancel</button>
+  </div>
 </div>
 
 <!-- Force User Sync -->
@@ -548,35 +560,6 @@ async function ssetSaveFlag(key) {
 ssetLoad();
 </script>
 
-<!-- Services on/off -->
-<div class="card">
-  <h3 style="margin-bottom:6px">Services</h3>
-  <div class="muted" style="font-size:12px;margin-bottom:14px">
-    Enable or pause the Scan and Upload services independently. When paused, no periodic heartbeat requests are sent to JazzDrive — reduces API traffic to near-zero between active sessions.
-  </div>
-  <div style="display:flex;gap:12px;flex-wrap:wrap">
-
-    <div style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-      <div>
-        <div style="font-weight:600;font-size:14px">📂 Scan</div>
-        <div class="muted" style="font-size:12px;margin-top:2px">JD Indexer — run monthly or weekly</div>
-        <span id="svc-scan-status" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(34,197,94,.15);color:var(--ok,#22c55e);display:inline-block;margin-top:5px">Enabled</span>
-      </div>
-      <button id="svc-scan-btn" class="ghost" onclick="svcToggle('scan')" style="white-space:nowrap">⏸ Disable</button>
-    </div>
-
-    <div style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-      <div>
-        <div style="font-weight:600;font-size:14px">☁ Upload (Flix)</div>
-        <div class="muted" style="font-size:12px;margin-top:2px">Watch folder + JazzDrive push — 1–2× daily</div>
-        <span id="svc-upload-status" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(34,197,94,.15);color:var(--ok,#22c55e);display:inline-block;margin-top:5px">Enabled</span>
-      </div>
-      <button id="svc-upload-btn" class="ghost" onclick="svcToggle('upload')" style="white-space:nowrap">⏸ Disable</button>
-    </div>
-
-  </div>
-</div>
-
 <!-- Database management -->
 <div class="card">
   <h3>Database Management</h3>
@@ -591,34 +574,6 @@ ssetLoad();
   <div id="db-mgmt-msg" class="muted" style="font-size:13px;min-height:20px"></div>
 </div>
 
-<!-- SAPI Proxy -->
-<div class="card">
-  <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px">
-    <div>
-      <h3 style="margin:0">SAPI Proxy</h3>
-      <div class="muted" style="font-size:12px;margin-top:3px">Routes the JazzDrive session-init call (<code>cloud.jazzdrive.com.pk/sapi/…</code>) through a Pakistani proxy — makes OTP login fully automatic with no manual paste.</div>
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <span id="sapi-proxy-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(128,128,128,.15);color:var(--muted)">Not set</span>
-      <button class="ghost" style="font-size:12px;padding:3px 10px" onclick="sapiProxyFind()">🔍 Find PK Proxies</button>
-    </div>
-  </div>
-
-  <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
-    <input id="sapi-proxy-url" placeholder="http://host:port  or  socks5://user:pass@host:port"
-           style="flex:1;min-width:200px;font-family:monospace;font-size:13px">
-    <button onclick="sapiProxySave()" style="white-space:nowrap">Save</button>
-    <button class="ghost" onclick="sapiProxyTest()" style="white-space:nowrap">Test</button>
-    <button class="ghost" style="color:var(--err);border-color:var(--err);font-size:12px;padding:3px 10px;white-space:nowrap" onclick="sapiProxyClear()">Clear</button>
-  </div>
-  <div id="sapi-proxy-msg" class="muted" style="font-size:13px;min-height:18px;margin-top:8px"></div>
-
-  {# Found proxies table #}
-  <div id="sapi-proxy-results" style="display:none;margin-top:14px">
-    <div style="font-weight:600;font-size:13px;margin-bottom:8px">Found Pakistani proxies — click a row to select it:</div>
-    <div id="sapi-proxy-table" style="display:flex;flex-direction:column;gap:4px"></div>
-  </div>
-</div>
 
 <!-- Domain Doctor -->
 <div class="card">
@@ -755,7 +710,13 @@ async function waAction(cmd){
 }
 
 async function waRelink(){
-  if(!confirm('Wipe WhatsApp auth and restart?')) return;
+  if (!window._armed_waRelink) {
+    window._armed_waRelink = true;
+    toast('⚠ Wipe WhatsApp auth and restart? — click again to confirm', 4000);
+    setTimeout(() => { window._armed_waRelink = false; }, 4000);
+    return;
+  }
+  window._armed_waRelink = false;
   try{ await api(WA_ADM+'/relink',{method:'POST'}); toast('Re-link triggered'); setTimeout(pollWa,1500); }
   catch(e){ toast('Failed: '+e.message); }
 }
@@ -804,12 +765,24 @@ async function loadBotUsers(){
   } catch(e){ cont.innerHTML='<div class="muted">Error: '+e.message+'</div>'; }
 }
 
-async function setQuota(num){
-  const mb=prompt('New daily quota in MB for '+num+':');
-  if(mb===null) return;
+var _quotaNum = '';
+function setQuota(num){
+  _quotaNum = num;
+  const panel = document.getElementById('quota-input-panel');
+  const lbl   = document.getElementById('quota-lbl');
+  if (panel) {
+    lbl.textContent = 'Quota (MB/day) for ' + num + ':';
+    document.getElementById('quota-mb-input').value = '';
+    panel.style.display = 'flex';
+    document.getElementById('quota-mb-input').focus();
+  }
+}
+async function applyQuota(){
+  const mb = parseInt(document.getElementById('quota-mb-input').value) || 0;
+  document.getElementById('quota-input-panel').style.display = 'none';
   try{
-    await api(WA_ADM+'/quota',{method:'POST',body:{number:num,mb:parseInt(mb)||0}});
-    toast('Quota updated'); loadBotUsers();
+    await api(WA_ADM+'/quota',{method:'POST',body:{number:_quotaNum,mb}});
+    toast('✔ Quota updated to ' + mb + ' MB/day'); loadBotUsers();
   } catch(e){ toast('Failed: '+e.message); }
 }
 
@@ -869,7 +842,13 @@ async function admSendBroadcast(){
   if(!msg){ toast('Enter a message first'); return; }
   const roles=[]; if(chkV) roles.push('verified'); if(chkA) roles.push('admins');
   if(!roles.length){ toast('Select at least one role'); return; }
-  if(!confirm('Send broadcast to all '+roles.join(' + ')+' users?')) return;
+  if (!window._armed_broadcast) {
+    window._armed_broadcast = true;
+    toast('⚠ Send broadcast to all ' + roles.join(' + ') + ' users? — click again to confirm', 4000);
+    setTimeout(() => { window._armed_broadcast = false; }, 4000);
+    return;
+  }
+  window._armed_broadcast = false;
   if(st) st.textContent='Sending…';
   try{
     const d=await api('/api/whatsapp/broadcast',{method:'POST',body:{message:msg,roles}});
@@ -877,119 +856,6 @@ async function admSendBroadcast(){
     if(st) st.textContent=info; toast(info);
     if(d.ok) document.getElementById('adm-bcast-msg').value='';
   } catch(e){ if(st) st.textContent='Error: '+e.message; toast('Failed: '+e.message); }
-}
-
-/* ── Services on/off ────────────────────────────────────────────────────── */
-async function servicesLoad() {
-  try {
-    const r = await api('/settings/api/services');
-    _svcRender(r);
-  } catch(_) {}
-}
-function _svcRender(r) {
-  _svcBtn('svc-scan-btn',   r.scan_enabled);
-  _svcBtn('svc-upload-btn', r.upload_enabled);
-  _svcStatus('svc-scan-status',   r.scan_enabled);
-  _svcStatus('svc-upload-status', r.upload_enabled);
-}
-function _svcBtn(id, on) {
-  const b = document.getElementById(id);
-  if (!b) return;
-  b.textContent = on ? '⏸ Disable' : '▶ Enable';
-  b.className   = on ? 'ghost' : '';
-  b.style.borderColor = on ? '' : 'var(--ok,#22c55e)';
-  b.style.color       = on ? '' : 'var(--ok,#22c55e)';
-}
-function _svcStatus(id, on) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent   = on ? 'Enabled' : 'Paused';
-  el.style.background = on ? 'rgba(34,197,94,.15)' : 'rgba(244,67,54,.12)';
-  el.style.color      = on ? 'var(--ok,#22c55e)'   : 'var(--err,#f44336)';
-}
-async function svcToggle(svc) {
-  try {
-    const cur = await api('/settings/api/services');
-    const was = svc === 'scan' ? cur.scan_enabled : cur.upload_enabled;
-    const body = svc === 'scan' ? {scan: !was} : {upload: !was};
-    const r = await api('/settings/api/services', {method:'POST', body});
-    _svcRender(r);
-    toast((svc === 'scan' ? 'Scan' : 'Upload') + ' ' + (!was ? 'enabled ✔' : 'paused ⏸'));
-  } catch(e) { toast('Error: '+e.message); }
-}
-
-/* ── SAPI Proxy ─────────────────────────────────────────────────────────── */
-async function sapiProxyLoad() {
-  try {
-    const r = await api('/settings/api/sapi-proxy');
-    const url = r.url || '';
-    document.getElementById('sapi-proxy-url').value = url;
-    _sapiProxyBadge(url ? 'Set' : 'Not set', !!url);
-  } catch(_) {}
-}
-function _sapiProxyBadge(text, active) {
-  const b = document.getElementById('sapi-proxy-badge');
-  if (!b) return;
-  b.textContent = text;
-  b.style.background = active ? 'rgba(34,197,94,.15)' : 'rgba(128,128,128,.15)';
-  b.style.color = active ? 'var(--ok,#22c55e)' : 'var(--muted)';
-}
-function _sapiMsg(msg, isErr) {
-  const el = document.getElementById('sapi-proxy-msg');
-  if (el) { el.textContent = msg; el.style.color = isErr ? 'var(--err,#f44)' : 'var(--ok,#22c55e)'; }
-}
-async function sapiProxySave() {
-  const url = document.getElementById('sapi-proxy-url').value.trim();
-  _sapiMsg('Saving…');
-  try {
-    const r = await api('/settings/api/sapi-proxy', {method:'POST', body:{url}});
-    if (r.ok) { _sapiMsg('✔ Saved'); _sapiProxyBadge(url ? 'Set' : 'Not set', !!url); }
-    else _sapiMsg('Error: '+(r.error||'?'), true);
-  } catch(e) { _sapiMsg('Error: '+e.message, true); }
-}
-async function sapiProxyClear() {
-  document.getElementById('sapi-proxy-url').value = '';
-  _sapiMsg('Clearing…');
-  try {
-    await api('/settings/api/sapi-proxy', {method:'POST', body:{url:''}});
-    _sapiMsg('Cleared'); _sapiProxyBadge('Not set', false);
-  } catch(e) { _sapiMsg('Error: '+e.message, true); }
-}
-async function sapiProxyTest() {
-  const url = document.getElementById('sapi-proxy-url').value.trim();
-  _sapiMsg('Testing…');
-  try {
-    const r = await api('/settings/api/sapi-proxy/test', {method:'POST', body: url ? {url} : {}});
-    _sapiMsg(r.message || (r.ok ? '✔ OK' : '✗ Failed'), !r.ok);
-  } catch(e) { _sapiMsg('Error: '+e.message, true); }
-}
-async function sapiProxyFind() {
-  _sapiMsg('Fetching fresh Pakistani proxies and testing each against SAPI…');
-  const resultsDiv = document.getElementById('sapi-proxy-results');
-  const tableDiv   = document.getElementById('sapi-proxy-table');
-  if (resultsDiv) resultsDiv.style.display = 'none';
-  try {
-    const r = await api('/settings/api/sapi-proxy/find', {method:'POST', body:{}});
-    if (!r.ok) { _sapiMsg('✗ '+(r.error||'find failed'), true); return; }
-    _sapiMsg(`Tested ${r.tested} proxies — found ${r.found} working`, r.found === 0);
-    if (r.found > 0 && resultsDiv && tableDiv) {
-      tableDiv.innerHTML = r.working.map(p => `
-        <div onclick="sapiProxySelect('${p.url}')" style="cursor:pointer;padding:6px 10px;border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:12px;background:rgba(34,197,94,.05)" onmouseover="this.style.background='rgba(34,197,94,.12)'" onmouseout="this.style.background='rgba(34,197,94,.05)'">
-          <span style="color:var(--ok,#22c55e);font-weight:700">✔</span>
-          <code style="flex:1">${p.url}</code>
-          <span class="muted">IP: ${p.ip||'?'}</span>
-          <span class="muted">SAPI: ${p.sapi_status||'?'}</span>
-          <span class="muted">${p.ping_ms||'?'} ms</span>
-          <button onclick="event.stopPropagation();sapiProxySelect('${p.url}')" style="font-size:11px;padding:2px 8px">Use</button>
-        </div>`).join('');
-      resultsDiv.style.display = 'block';
-    }
-  } catch(e) { _sapiMsg('Error: '+e.message, true); }
-}
-async function sapiProxySelect(url) {
-  document.getElementById('sapi-proxy-url').value = url;
-  await sapiProxySave();
-  _sapiMsg('✔ Proxy selected and saved — test it now to confirm', false);
 }
 
 /* ── DB management ─────────────────────────────────────────────────────── */
@@ -1006,9 +872,18 @@ function _dangerMsg(msg, isErr){
 async function dbReset(){
   const chk = document.getElementById('chk-db-reset');
   if(!chk || !chk.checked){ toast('Please check the confirmation box first'); return; }
-  if(!confirm('ARE YOU SURE? All local titles, files, and scan logs will be DELETED.')) return;
-
   const btn = document.getElementById('btn-db-reset');
+  // Two-step: first click arms, second click fires
+  if(!btn._armed){
+    btn._armed = true;
+    btn.textContent = '⚠️ Click again to confirm';
+    btn.style.background = '#c0392b';
+    setTimeout(()=>{ btn._armed=false; btn.textContent='Reset Tables'; btn.style.background=''; }, 4000);
+    return;
+  }
+  btn._armed = false;
+  btn.style.background = '';
+
   const resultEl = document.getElementById('db-reset-result');
   if(btn){ btn.disabled=true; btn.textContent='Resetting…'; }
   if(resultEl){ resultEl.style.display='none'; }
@@ -1124,8 +999,16 @@ async function dbRestore(){
 async function dbFullWipe(){
   const chk = document.getElementById('chk-db-wipe');
   if(!chk || !chk.checked){ toast('Please check the confirmation box first'); return; }
-  if(!confirm('CRITICAL WARNING: This will delete the entire database file including all accounts and settings. You will be logged out. Continue?')) return;
-  
+  const btn = document.querySelector('#chk-db-wipe').closest('div').querySelector('button');
+  if(btn && !btn._armed){
+    btn._armed = true;
+    btn.textContent = '⚠️ Click again — THIS CANNOT BE UNDONE';
+    btn.style.background = '#7b0000';
+    setTimeout(()=>{ btn._armed=false; btn.textContent='Wipe Database'; btn.style.background=''; }, 5000);
+    return;
+  }
+  if(btn){ btn._armed=false; btn.style.background=''; }
+
   _dangerMsg('Wiping entire database…');
   try{
     const r = await api('/admin/api/db/full-delete',{method:'POST'});
@@ -1157,8 +1040,13 @@ async function dbSync(mode){
 }
 
 async function dbClearGithub(){
-  if(!confirm('DANGER: This will wipe your GitHub JSON database file. Are you sure?')) return;
-  if(!confirm('FINAL CONFIRMATION: Are you absolutely sure? This cannot be undone.')) return;
+  if (!window._armed_clearGh) {
+    window._armed_clearGh = true;
+    toast('⚠ DANGER: Wipe GitHub JSON database? — click again to confirm', 4000);
+    setTimeout(() => { window._armed_clearGh = false; }, 4000);
+    return;
+  }
+  window._armed_clearGh = false;
   _dangerMsg('Clearing GitHub…');
   try{
     const r=await api('/admin/api/db/clear-github',{method:'POST'});
@@ -1167,8 +1055,13 @@ async function dbClearGithub(){
 }
 
 async function dbClearSheets(){
-  if(!confirm('DANGER: This will delete all rows from your Google Sheet. Are you sure?')) return;
-  if(!confirm('FINAL CONFIRMATION: Are you absolutely sure? This cannot be undone.')) return;
+  if (!window._armed_clearGs) {
+    window._armed_clearGs = true;
+    toast('⚠ DANGER: Delete all rows from Google Sheet? — click again to confirm', 4000);
+    setTimeout(() => { window._armed_clearGs = false; }, 4000);
+    return;
+  }
+  window._armed_clearGs = false;
   _dangerMsg('Clearing Google Sheets…');
   try{
     const r=await api('/admin/api/db/clear-gsheets',{method:'POST'});
@@ -1215,8 +1108,6 @@ loadBotUsers();
 loadUserRoles();
 loadJdAccounts();
 loadQuotaLeaderboard();
-sapiProxyLoad();
-servicesLoad();
 
 /* ── Domain Doctor ─────────────────────────────────────────────────────── */
 function _ddMsg(msg, isErr){
@@ -1412,8 +1303,13 @@ async function dsTriggerNow() {
 }
 
 async function dsRestartOracle() {
-  if (!confirm('Restart Oracle server?
-All active connections will drop for ~5 seconds.')) return;
+  if (!window._armed_restartOracle) {
+    window._armed_restartOracle = true;
+    toast('⚠ Restart Oracle server? All connections drop for ~5s — click again to confirm', 4000);
+    setTimeout(() => { window._armed_restartOracle = false; }, 4000);
+    return;
+  }
+  window._armed_restartOracle = false;
   const btn = document.getElementById('ds-restart-btn');
   btn.disabled = true; btn.textContent = 'Restarting…';
   _dsMsg('Sending restart signal…');
@@ -1434,5 +1330,7 @@ All active connections will drop for ~5 seconds.')) return;
 // Auto-refresh status every 30 s and load on page init
 dsLoad();
 setInterval(dsLoad, 30000);
+
+
 </script>
 </script>{% endblock %}

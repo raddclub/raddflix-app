@@ -53,13 +53,6 @@ def app_config():
     No auth required — Flutter fetches this before the user logs in."""
     from .. import config as _cfg
     from .. import db as _db
-    jd_delta_row = None
-    try:
-        with _db.conn() as _c:
-            jd_delta_row = _c.execute("SELECT v FROM settings WHERE k='jd_delta_url'").fetchone()
-    except Exception:
-        pass
-    jd_delta_url = (jd_delta_row["v"] if jd_delta_row else None) or ""
     support_whatsapp = _db.setting("SUPPORT_WHATSAPP_NUMBER", "923257719165") or "923257719165"
     # Brand config — read from DB settings set by Brand Studio admin panel
     _all_brand_keys = [
@@ -90,7 +83,6 @@ def app_config():
         'api_base_url': 'http://92.4.95.252',
         'min_version_code': 1,
         'update_url': 'https://github.com/raddclub/raddflix-app/releases/latest',
-        'jd_delta_url': jd_delta_url,
         'support_whatsapp': support_whatsapp,
         # Brand Studio — all 14 brand_ fields for full theme control
         'brand_primary_color':      brand_cfg['brand_primary_color'],

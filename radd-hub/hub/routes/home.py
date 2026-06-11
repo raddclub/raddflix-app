@@ -31,4 +31,5 @@ def home():
         accounts=db.list_accounts(),
         recent_files=db.list_files(limit=20),
         access_url=_get_access_url(),
+        csrf_token=auth.get_csrf_token(),
     )

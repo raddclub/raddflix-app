@@ -551,9 +551,11 @@ class LocalDb {
       if (rows.isNotEmpty) return rows.map(_rowToItem).toList();
     } catch (_) {}
     // Fallback: plain LIKE (used on first install before FTS index is populated)
+    // FIX-LIKE-01: escape % and _ so they match literally, not as LIKE wildcards.
+    final safeQ = query.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
     final rows = await db.query('titles',
-        where: 'title LIKE ?',
-        whereArgs: ['%$query%'],
+        where: "title LIKE ? ESCAPE '\\'",
+        whereArgs: ['%$safeQ%'],
         orderBy: 'title ASC',
         limit: 50);
     return rows.map(_rowToItem).toList();
@@ -929,6 +931,30 @@ class LocalDb {
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
+
+  // ── Catalog pruning ──────────────────────────────────────────────────────
+
+  /// Delete any title (and its orphaned episodes) whose id is NOT in [validIds].
+  /// Called after a full Oracle sync to remove stale entries left over from a
+  /// DB rebuild where title IDs changed (BUG-STALE-IDS fix).
+  /// Returns the number of titles deleted.
+  static Future<int> pruneStaleIds(List<int> validIds) async {
+    if (validIds.isEmpty) return 0;
+    final db = await instance;
+    final placeholders = validIds.map((_) => '?').join(',');
+    final deleted = await db.rawDelete(
+      'DELETE FROM titles WHERE id NOT IN ($placeholders)',
+      validIds,
+    );
+    if (deleted > 0) {
+      await db.rawDelete(
+        'DELETE FROM episodes WHERE title_id NOT IN ($placeholders)',
+        validIds,
+      );
+      await rebuildFtsIndex();
+    }
+    return deleted;
+  }
 
   // ── URL Scrambling Helpers ────────────────────────────────────────────────
 

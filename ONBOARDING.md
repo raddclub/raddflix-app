@@ -34,13 +34,15 @@ ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
 
 Expected response:
 ```json
-{"status": "ok", "version": "3.0.0", "titles": 24}
+{"ok": true, "version": "3.0.0"}
 ```
 
 If this fails:
-- Check Oracle is running: `ssh ... "supervisorctl status"`
-- Check logs: `ssh ... "tail -50 /var/log/supervisor/raddflix_radd.log"`
-- If process is stopped: `ssh ... "supervisorctl start raddflix_radd"`
+- Check Oracle is running: `ssh ... "sudo supervisorctl status"`
+- Check logs: `ssh ... "sudo supervisorctl tail -50 raddflix_radd"`
+- If process is stopped: `ssh ... "sudo supervisorctl start raddflix_radd"`
+
+**Supervisor process name: `raddflix_radd`** (NOT `radd-hub` — that name does not exist)
 
 ---
 
@@ -80,8 +82,12 @@ console.log(r.name ? 'Token OK — repo: '+r.full_name : 'Token FAIL: '+r.messag
 | XOR padding | Server strips `=` from base64. Client must add back: `b64 += '=' * ((4 - len%4)%4)` |
 | VideoController | Never add `androidAttachSurfaceAfterVideoParameters: true` |
 | Oracle test | Always via SSH tunnel to localhost:5000, NOT direct port |
-| Push method | GitHub Contents API via Node.js `https` module only |
+| Push method | GitHub Contents API via Node.js `https` module only (or Trees API for multi-file) |
 | Script files | Use Replit `write` tool to create .js files, then `node file.js` — no heredocs |
+| Supervisor name | `raddflix_radd` — NOT `radd-hub` |
+| Dart semicolons | Semicolons MUST come BEFORE inline comments: `expr); // comment` not `expr) // comment;` |
+| db.py API | `db.setting(k)` to read settings — `db.get_setting()` does NOT exist |
+| Real DB path | `/opt/jazzmax/radd-hub/data/radd_hub.db` — all other .db files are empty/stale |
 
 ---
 

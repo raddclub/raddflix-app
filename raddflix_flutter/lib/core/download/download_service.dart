@@ -10,6 +10,7 @@ import '../api/api_client.dart';
 class DownloadService {
   static final Dio _dio = Dio();
   static final _cancelTokens = <String, CancelToken>{};
+  static int _lastProgressPct5 = -1; // FIX-DL-THROTTLE: tracks last 5% bucket written to DB
 
   static Future<void> _checkDownloadQuota() async {
     try {
@@ -50,11 +51,17 @@ class DownloadService {
     await _checkDownloadQuota();
 
     String resolvedUrl = streamUrl;
+
+    // Path A: shareUrl passed in from caller (may be RF1:xxx scrambled from
+    // CatalogItem.shareUrl — decode it before handing to JazzDriveService).
+    // FIX-BUG2: CatalogItem.shareUrl carries raw RF1:xxx from _rowToItem;
+    // _extractShareKey regex fails on scrambled URLs → decode first.
     if (shareUrl != null && shareUrl.isNotEmpty) {
+      final decodedShareUrl = await LocalDb.decodeShareUrl(shareUrl) ?? shareUrl;
       try {
         final link = await JazzDriveService.getStreamLink(
           fileId,
-          shareUrl,
+          decodedShareUrl,
           targetFilename: targetFilename,
           remoteId: remoteId,
         );
@@ -64,14 +71,24 @@ class DownloadService {
         DebugLogger.logWarn('DOWNLOAD', 'JazzDrive link failed, using provided URL: $e');
       }
     } else {
-      final dbShareUrl = await LocalDb.getShareUrl(fileId);
+      // Path B: no shareUrl passed — look up in SQLite.
+      // FIX-BUG1: was using getShareUrl() which only returns the URL string,
+      // losing filename and remote_id. For folder-share TV episodes this caused
+      // getStreamLink to skip Pass 0 (remote_id) and Passes 1-3 (filename),
+      // always falling back to records.first — downloading the wrong episode.
+      // Fix: use getShareInfo() which returns all three fields in one query.
+      final shareInfo      = await LocalDb.getShareInfo(fileId);
+      final dbShareUrl     = shareInfo['share_url'] as String?;
+      final dbFilename     = shareInfo['filename']  as String?;
+      final dbRemoteId     = shareInfo['remote_id'] as int? ?? 0;
+
       if (dbShareUrl != null && dbShareUrl.isNotEmpty) {
         try {
           final link = await JazzDriveService.getStreamLink(
             fileId,
             dbShareUrl,
-            targetFilename: targetFilename,
-            remoteId: remoteId,
+            targetFilename: dbFilename ?? targetFilename,
+            remoteId: dbRemoteId > 0 ? dbRemoteId : remoteId,
           );
           resolvedUrl = link.streamUrl;
           DebugLogger.log('DOWNLOAD', 'Using DB JazzDrive URL for $fileId');
@@ -93,6 +110,7 @@ class DownloadService {
 
     final cancelToken = CancelToken();
     _cancelTokens[fileId] = cancelToken;
+    _lastProgressPct5 = -1; // reset throttle bucket for new download
     try {
       await _dio.download(
         resolvedUrl,
@@ -101,7 +119,13 @@ class DownloadService {
         onReceiveProgress: (received, total) {
           final progress = total > 0 ? received / total : 0.0;
           onProgress(progress);
-          LocalDb.updateDownloadProgress(fileId, progress);
+          // FIX-DL-THROTTLE: only write to DB when progress crosses a 5% boundary
+          // to avoid flooding SQLite with hundreds of UPDATE calls per second.
+          final pct5 = (progress * 20).floor();
+          if (pct5 != _lastProgressPct5) {
+            _lastProgressPct5 = pct5;
+            LocalDb.updateDownloadProgress(fileId, progress);
+          }
         },
         options: Options(
           responseType: ResponseType.stream,

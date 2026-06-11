@@ -707,3 +707,28 @@ def admin_reimport_status(job_id: str):
     if not job:
         return jsonify({"ok": False, "error": f"job {job_id} not found (expires on server restart)"}), 404
     return jsonify({"ok": True, **job})
+
+
+@bp.route("/api/schema-health")
+@auth.login_required
+def schema_health():
+    """Return a full schema health report.
+
+    Checks every critical table + column against the live SQLite DB.
+    Any MISSING entry indicates a schema drift that will cause bugs in prod.
+
+    Response::
+
+        {
+          "ok": true,
+          "issue_count": 0,
+          "issues": [],
+          "checks": {"app_subscriptions.is_active": true, ...},
+          "checked_at": 1234567890
+        }
+    """
+    from .. import db as _db
+    result = _db.validate_schema()
+    status = 200 if result["ok"] else 207  # 207 = partial — some checks failed
+    return jsonify(result), status
+

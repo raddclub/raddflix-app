@@ -131,6 +131,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       final f = args?['initialFilter'] as String?;
       if (f != null && f != 'All' && mounted) {
         setState(() => _filters = _filters.copyWith(type: f));
+        // FIX-SEARCH-INIT: trigger search immediately so results appear
+        // with the filter applied, not waiting for user to type.
+        _doSearch();
       }
     });
   }

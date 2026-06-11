@@ -1,114 +1,113 @@
 /// RaddFlix — JazzDrive Link Generation Integration Test
-/// Makes REAL HTTP calls to cloud.jazzdrive.com.pk using real share URLs
-/// from the Oracle DB. Tests the exact same logic as jazzdrive_service.dart.
 ///
-/// Run: dart run jazzdrive_dart_test.dart
-/// CI:  dart run raddflix_flutter/test_suite/jazzdrive_dart_test.dart
-///
+/// Tests the EXACT same logic as jazzdrive_service.dart against real JazzDrive API.
 /// No Flutter, no packages — only dart:io + dart:convert.
 ///
-/// IMPORTANT FINDINGS (discovered 2026-06-07):
-/// - JazzDrive stores files with their ORIGINAL upload filenames.
-///   Files uploaded as "Vncenz0 S01E01.mp4" (corrupted name) are stored
-///   as "Vncenz0" on JazzDrive, NOT "Vincenzo". Pass 1/2 substring match
-///   will NEVER work for these — only Pass 0 (remote_id) or Pass 3 (episode
-///   code) can find the correct episode.
-/// - Some "movie" shares actually contain multiple files (e.g. Luka Chuppi
-///   has a duplicate). remote_id is essential to pick the correct one.
+/// Run: dart run raddflix_flutter/test_suite/jazzdrive_dart_test.dart
+///
+/// ══ CONFIRMED WORKING FLOW (matches Node.js reference script) ══
+///
+/// Step 1: POST /sapi/link/login?action=login
+///   Body: { data: { accesstoken: <shareKey> } }
+///   Returns: { data: { validationkey, jsessionid } }
+///
+/// Step 2: GET /sapi/media/video?action=get&shared=true&key=<key>&validationkey=<vk>
+///   Headers: validation_key: <vk>, Cookie: JSESSIONID=<jsid>
+///   Returns: { data: { list: [ { id, name, url, thumbnails } ] } }
+///
+/// Step 3: Build CDN URL:
+///   <rawUrl>?validationkey=<vk>&filename=<name>
+///   ^^^ validationkey MUST be in the final URL — CDN auth fails without it.
+///   This was wrong in previous service versions (had a "DO NOT add" comment).
+///
+/// ══ MED-1011 NOTES ══
+/// If ALL shares return MED-1011 → JazzDrive SAPI session expired on Oracle.
+/// This is NOT geo-blocking. Fix: OTP re-login from Oracle admin panel.
+/// Share URLs themselves never expire.
 
 import 'dart:convert';
 import 'dart:io';
 
 const String _cloudBase = 'https://cloud.jazzdrive.com.pk';
 
-// =============================================================================
-// Test cases — real data from Oracle radd_hub.db (queried 2026-06-07)
-// Filenames use the ACTUAL JazzDrive names (verified from live API responses)
-// =============================================================================
+// ══════════════════════════════════════════════════════════════════════════════
+// Test cases — update share URLs from Oracle:
+//   sqlite3 data/radd_hub.db
+//   'SELECT f.id, t.title, f.filename, f.remote_id, f.share_url
+//    FROM files f JOIN titles t ON t.id=f.title_id
+//    WHERE f.share_url!="" AND f.is_ready=1 ORDER BY f.id'
+// ══════════════════════════════════════════════════════════════════════════════
 final List<Map<String, dynamic>> _tests = [
 
-  // ── Movies ────────────────────────────────────────────────────────────────
+  // ── Movies ─────────────────────────────────────────────────────────────────
   {
-    'name': 'Movie | Swapped (2026) — Pass 0 by remote_id',
-    'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/WGSUU9PgTLaxqqQHYGHjhTc1MjIwNTczNTg3NzFfMjYyMTAwMA',
-    'targetFilename': 'Swapped (2026).mp4',
-    'remoteId': 242518532,
-    'expectFilenameContains': 'swapped',
-    'note': 'Single-file movie — Pass 0 by remote_id',
+    'name': 'Movie | Interstellar — Pass 0 by remote_id',
+    'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/lTzy2wdJQDqnsHSZNJGMBjA0NzE3MTIzNzE2NzFfMjYwMzgwMA',
+    'targetFilename': 'Interstellar (2014).mkv',
+    'remoteId': 242373442,
+    'expectFilenameContains': 'interstellar',
   },
   {
-    'name': 'Movie | Swapped (2026) — Pass 1 substring (no remote_id)',
-    'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/WGSUU9PgTLaxqqQHYGHjhTc1MjIwNTczNTg3NzFfMjYyMTAwMA',
-    'targetFilename': 'Swapped (2026).mp4',
+    'name': 'Movie | Interstellar — Pass 1 substring (no remote_id)',
+    'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/lTzy2wdJQDqnsHSZNJGMBjA0NzE3MTIzNzE2NzFfMjYwMzgwMA',
+    'targetFilename': 'Interstellar (2014).mkv',
     'remoteId': 0,
-    'expectFilenameContains': 'swapped',
-    'note': 'Same movie, no remote_id — Pass 1 substring must match',
+    'expectFilenameContains': 'interstellar',
   },
   {
-    'name': 'Movie | Luka Chuppi (2019) — Pass 0 by remote_id (2-file folder)',
+    'name': 'Movie | Luka Chuppi — Pass 0 by remote_id (2-file folder)',
     'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/fTDjCGqPTwS0_Mq6G-LtIzc1MjIwNTczNTg3NzFfMjYyMTAwMA',
     'targetFilename': 'Luka Chuppi (2019).mp4',
     'remoteId': 242527434,
     'expectFilenameContains': 'luka',
-    'note': 'Folder has 2 files (original + duplicate) — remote_id picks the right one',
   },
 
-  // ── TV Episodes: Vincenzo season folder (4 files on JazzDrive) ────────────
-  // IMPORTANT: JazzDrive stores these as "Vncenz0" (corrupted upload name),
-  // NOT "Vincenzo". Pass 1/2 cannot match. Only Pass 0 and Pass 3 work.
+  // ── TV Episodes ─────────────────────────────────────────────────────────────
   {
     'name': 'TV | Vincenzo S01E01 — Pass 0 by remote_id',
     'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/sVvWxQoMSlqKoPZvlt7zUzc1MjIwNTczNTg3NzFfMjYyMTAwMA',
     'targetFilename': 'Vincenzo S01E01.mp4',
     'remoteId': 242518574,
-    'expectFilenameContains': 'vncenz0',   // actual JazzDrive filename (corrupted upload)
+    'expectFilenameContains': 'vncenz0',
     'mustContainEpisodeCode': 's01e01',
-    'note': '4-file folder — Pass 0 picks E01 by remote_id',
   },
   {
-    'name': 'TV | Vincenzo S01E02 — Pass 0 by remote_id (CRITICAL: must NOT return E01)',
+    'name': 'TV | Vincenzo S01E02 — Pass 0 by remote_id (must NOT return E01)',
     'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/sVvWxQoMSlqKoPZvlt7zUzc1MjIwNTczNTg3NzFfMjYyMTAwMA',
     'targetFilename': 'Vincenzo S01E02.mp4',
     'remoteId': 242531168,
-    'expectFilenameContains': 'vncenz0',   // actual JazzDrive filename (corrupted upload)
+    'expectFilenameContains': 'vncenz0',
     'mustContainEpisodeCode': 's01e02',
-    'note': '4-file folder — Pass 0 must return E02, NOT E01 or the two (1)/(2) duplicates',
   },
   {
     'name': 'TV | Vincenzo S01E02 — Pass 3 episode code (no remote_id)',
     'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/sVvWxQoMSlqKoPZvlt7zUzc1MjIwNTczNTg3NzFfMjYyMTAwMA',
     'targetFilename': 'Vincenzo S01E02.mp4',
     'remoteId': 0,
-    'expectFilenameContains': 'vncenz0',   // actual JazzDrive filename
+    'expectFilenameContains': 'vncenz0',
     'mustContainEpisodeCode': 's01e02',
-    'note': 'No remote_id — Pass 1/2 cannot match (app sends "Vincenzo", JazzDrive has "Vncenz0"). '
-            'Pass 3 must extract s01e02 and find E02, not E01.',
   },
-
-  // ── TV Episodes: Spider-Noir season folder ─────────────────────────────────
   {
-    'name': 'TV | Spider-Noir S01E01 — Pass 3 episode code (no remote_id)',
+    'name': 'TV | Spider-Noir S01E01 — Pass 3 episode code',
     'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/hoIyg7SgSFiDPHltBZOl8zc1MjIwNTczNTg3NzFfMjYyMTAwMA',
     'targetFilename': 'Spider Noir S01E01.mp4',
     'remoteId': 0,
     'expectFilenameContains': 'spider',
     'mustContainEpisodeCode': 's01e01',
-    'note': 'Season folder — no remote_id, Pass 3 picks E01 by episode code',
   },
   {
-    'name': 'TV | Spider-Noir S01E02 — Pass 3 episode code (no remote_id, CRITICAL)',
+    'name': 'TV | Spider-Noir S01E02 — Pass 3 episode code (must NOT return E01)',
     'shareUrl': 'https://cloud.jazzdrive.com.pk/share/f/hoIyg7SgSFiDPHltBZOl8zc1MjIwNTczNTg3NzFfMjYyMTAwMA',
     'targetFilename': 'Spider Noir S01E02.mp4',
     'remoteId': 0,
     'expectFilenameContains': 'spider',
     'mustContainEpisodeCode': 's01e02',
-    'note': 'No remote_id — Pass 3 must pick E02, NOT E01 (records.first fallback)',
   },
 ];
 
-// =============================================================================
-// Core logic — mirrors jazzdrive_service.dart exactly
-// =============================================================================
+// ══════════════════════════════════════════════════════════════════════════════
+// Core logic — mirrors jazzdrive_service.dart exactly (including the fix)
+// ══════════════════════════════════════════════════════════════════════════════
 
 String? _extractShareKey(String shareUrl) {
   final m = RegExp(r'/(?:share-landing/f|share/f|f)/([^/?#]+)').firstMatch(shareUrl);
@@ -143,25 +142,45 @@ Future<Map<String, String>> _loginShare(String shareKey) async {
     final data = jsonDecode(respBody) as Map<String, dynamic>;
     final inner = (data['data'] as Map<String, dynamic>?) ?? data;
 
-    final vk = (inner['validationkey'] ??
-            inner['validationKey'] ??
-            inner['validation_key'] ??
-            data['validationkey'] ??
-            data['validationKey']) as String?;
-
-    if (vk == null || vk.isEmpty) {
-      throw Exception('no validationkey in login response');
+    // Detect JazzDrive error codes (MED-1011 = share invalid, FOL-1004 = folder deleted)
+    final errorObj = data['error'] as Map<String, dynamic>?;
+    if (errorObj != null && (errorObj['code'] as String? ?? '').isNotEmpty) {
+      final errCode = errorObj['code'] as String? ?? 'UNKNOWN';
+      final errMsg  = errorObj['message'] as String? ?? '';
+      throw Exception(
+        'JazzDrive error ($errCode: $errMsg).\n'
+        '    If MED-1011 on ALL shares → Oracle JazzDrive session expired.\n'
+        '    Fix: OTP re-login from Oracle admin panel (Settings → JazzDrive Login).'
+      );
     }
 
+    final vk = (inner['validationkey'] ?? inner['validationKey'] ?? inner['validation_key']
+               ?? data['validationkey'] ?? data['validationKey']) as String?;
+    if (vk == null || vk.isEmpty) {
+      throw Exception('no validationkey in login response. Keys: ${data.keys.toList()}');
+    }
+
+    // Check JSON body for JSESSIONID first (primary on Android — Set-Cookie may be absorbed)
     String cookie = '';
-    resp.headers.forEach((name, values) {
-      if (name.toLowerCase() == 'set-cookie') {
-        for (final v in values) {
-          final m = RegExp(r'JSESSIONID=([^;]+)').firstMatch(v);
-          if (m != null && cookie.isEmpty) cookie = 'JSESSIONID=${m.group(1)}';
+    final bodyJsid = (inner['jsessionid'] ?? inner['JSESSIONID']
+                     ?? data['jsessionid'] ?? data['JSESSIONID']) as String?;
+    if (bodyJsid != null && bodyJsid.isNotEmpty) {
+      final jsidPart = bodyJsid.contains('.') ? bodyJsid.split('.').first : bodyJsid;
+      cookie = 'JSESSIONID=$jsidPart';
+    } else {
+      resp.headers.forEach((name, values) {
+        if (name.toLowerCase() == 'set-cookie') {
+          for (final v in values) {
+            final m = RegExp(r'JSESSIONID=([^;]+)').firstMatch(v);
+            if (m != null && cookie.isEmpty) {
+              final raw = m.group(1)!;
+              final stripped = raw.contains('.') ? raw.split('.').first : raw;
+              cookie = 'JSESSIONID=$stripped';
+            }
+          }
         }
-      }
-    });
+      });
+    }
 
     return {'validationKey': vk, 'cookie': cookie};
   } finally {
@@ -170,11 +189,8 @@ Future<Map<String, String>> _loginShare(String shareKey) async {
 }
 
 Future<Map<String, dynamic>> _getMedia(
-  String shareKey,
-  String validationKey,
-  String cookie, {
-  String? targetFilename,
-  int remoteId = 0,
+  String shareKey, String validationKey, String cookie, {
+  String? targetFilename, int remoteId = 0,
 }) async {
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 20);
   try {
@@ -196,13 +212,11 @@ Future<Map<String, dynamic>> _getMedia(
 
     final resp = await req.close();
     final respBody = await resp.transform(utf8.decoder).join();
-
     if (resp.statusCode != 200) {
       throw Exception('media HTTP ${resp.statusCode}: ${respBody.substring(0, respBody.length.clamp(0, 300))}');
     }
 
-    final Map<String, dynamic> body = jsonDecode(respBody) as Map<String, dynamic>;
-
+    final body = jsonDecode(respBody) as Map<String, dynamic>;
     List<dynamic> records = [];
     final rawBody = body['data'] ?? body;
     final d = rawBody is Map<String, dynamic> ? rawBody : body;
@@ -217,172 +231,134 @@ Future<Map<String, dynamic>> _getMedia(
       if (records.isEmpty && (d['url'] != null || d['id'] != null)) records = [d];
     }
 
-    if (records.isEmpty) throw Exception('no video records found in response');
+    if (records.isEmpty) throw Exception('no video records found');
 
     String rname(dynamic r) =>
         ((r as Map<String, dynamic>)['name'] ?? r['filename'] ?? '') as String;
 
-    print('    records in folder: ${records.length} → [${records.map(rname).join(', ')}]');
+    print('    folder has ${records.length} file(s): [${records.map(rname).join(', ')}]');
 
-    // Pass 0: match by JazzDrive remote_id
     Map<String, dynamic>? rec;
+
     if (remoteId > 0) {
       for (final r in records) {
         final m = r as Map<String, dynamic>;
-        final rid = (m['id'] ?? m['fileId'] ?? m['file_id'] ?? 0);
+        final rid = m['id'] ?? m['fileId'] ?? m['file_id'] ?? 0;
         final ridInt = rid is int ? rid : int.tryParse(rid.toString()) ?? 0;
-        if (ridInt == remoteId) {
-          rec = m;
-          print('    Pass 0 → matched by remote_id=$remoteId: "${rname(m)}"');
-          break;
-        }
+        if (ridInt == remoteId) { rec = m; print('    Pass 0 → remote_id=$remoteId: "${rname(m)}"'); break; }
       }
     }
 
     if (rec == null && targetFilename != null && targetFilename.isNotEmpty) {
       final tgt = targetFilename.toLowerCase();
-
-      // Pass 1: case-insensitive substring
       for (final r in records) {
         final n = rname(r).toLowerCase();
-        if (n.contains(tgt) || tgt.contains(n)) {
-          rec = r as Map<String, dynamic>;
-          print('    Pass 1 → substring match: "${rname(r)}"');
-          break;
-        }
+        if (n.contains(tgt) || tgt.contains(n)) { rec = r as Map<String, dynamic>; print('    Pass 1 → substring: "${rname(r)}"'); break; }
       }
-
-      // Pass 2: dots/underscores → spaces
       if (rec == null) {
         String norm(String s) => s.replaceAll(RegExp(r'[._]'), ' ').toLowerCase();
         for (final r in records) {
           final n = norm(rname(r));
-          if (n.contains(norm(tgt)) || norm(tgt).contains(n)) {
-            rec = r as Map<String, dynamic>;
-            print('    Pass 2 → normalised match: "${rname(r)}"');
-            break;
-          }
+          if (n.contains(norm(tgt)) || norm(tgt).contains(n)) { rec = r as Map<String, dynamic>; print('    Pass 2 → normalised: "${rname(r)}"'); break; }
         }
       }
-
-      // Pass 3: episode code e.g. "s01e04"
       if (rec == null) {
         final em = RegExp(r's(\d{1,2})e(\d{1,2})', caseSensitive: false).firstMatch(tgt);
         if (em != null) {
-          final s = em.group(1)!.padLeft(2, '0');
-          final e = em.group(2)!.padLeft(2, '0');
-          final code = 's' + s + 'e' + e;
-          print('    Pass 3 → looking for episode code "$code"');
+          final code = 's${em.group(1)!.padLeft(2,'0')}e${em.group(2)!.padLeft(2,'0')}';
           for (final r in records) {
-            if (rname(r).toLowerCase().contains(code)) {
-              rec = r as Map<String, dynamic>;
-              print('    Pass 3 → matched: "${rname(r)}"');
-              break;
-            }
+            if (rname(r).toLowerCase().contains(code)) { rec = r as Map<String, dynamic>; print('    Pass 3 → episode code "$code": "${rname(r)}"'); break; }
           }
         }
       }
     }
 
-    if (rec == null) {
-      rec = records.first as Map<String, dynamic>;
-      print('    Fallback → records.first: "${rname(rec)}"');
-    }
+    if (rec == null) { rec = records.first as Map<String, dynamic>; print('    Fallback → first: "${rname(rec)}"'); }
 
     final rawUrl   = (rec['url'] ?? rec['downloadUrl'] ?? rec['download_url'] ?? '') as String;
     final filename = (rec['name'] ?? rec['filename'] ?? 'video.mkv') as String;
 
-    var streamUrl = rawUrl.startsWith('/') ? '$_cloudBase$rawUrl' : rawUrl;
-    if (!streamUrl.contains('filename=')) {
-      final sep = streamUrl.contains('?') ? '&' : '?';
-      streamUrl = '$streamUrl${sep}filename=${Uri.encodeComponent(filename)}';
-    }
-
-    return {
-      'filename': filename,
-      'streamUrl': streamUrl,
-      'recordCount': records.length,
-    };
+    return {'rawUrl': rawUrl, 'filename': filename, 'recordCount': records.length};
   } finally {
     client.close();
   }
 }
 
-// =============================================================================
+/// Build final CDN URL — validationkey MUST be appended (CDN auth requirement).
+/// Matches working Node.js reference script exactly.
+String _buildStreamUrl(String rawUrl, String filename, String validationKey) {
+  var url = rawUrl.startsWith('/') ? '$_cloudBase$rawUrl' : rawUrl;
+  final sep = url.contains('?') ? '&' : '?';
+  url = '${url}${sep}validationkey=${Uri.encodeComponent(validationKey)}'
+        '&filename=${Uri.encodeComponent(filename)}';
+  return url;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // Runner
-// =============================================================================
+// ══════════════════════════════════════════════════════════════════════════════
 
 Future<void> main() async {
-  int passed = 0;
-  int failed = 0;
+  int passed = 0, failed = 0;
   final List<String> failures = [];
 
   print('');
   print('══════════════════════════════════════════════════════════════');
   print('  RaddFlix — JazzDrive Dart Integration Tests');
-  print('  Real HTTP calls to $_cloudBase');
-  print('  Tests: ${_tests.length} (movies + TV seasons)');
+  print('  Endpoint: $_cloudBase');
+  print('  Tests: ${_tests.length}');
+  print('  NOTE: MED-1011 on ALL tests = Oracle OTP re-login needed.');
   print('══════════════════════════════════════════════════════════════');
   print('');
 
   for (int i = 0; i < _tests.length; i++) {
-    final t            = _tests[i];
-    final name         = t['name'] as String;
-    final shareUrl     = t['shareUrl'] as String;
-    final filename     = t['targetFilename'] as String?;
-    final remoteId     = (t['remoteId'] as int?) ?? 0;
-    final expectContains = (t['expectFilenameContains'] as String?)?.toLowerCase();
-    final mustCode       = (t['mustContainEpisodeCode'] as String?)?.toLowerCase();
-    final note         = t['note'] as String? ?? '';
+    final t               = _tests[i];
+    final name            = t['name'] as String;
+    final shareUrl        = t['shareUrl'] as String;
+    final filename        = t['targetFilename'] as String?;
+    final remoteId        = (t['remoteId'] as int?) ?? 0;
+    final expectContains  = (t['expectFilenameContains'] as String?)?.toLowerCase();
+    final mustCode        = (t['mustContainEpisodeCode'] as String?)?.toLowerCase();
 
     print('[${i + 1}/${_tests.length}] $name');
-    print('    $note');
 
     try {
-      final shareKey = _extractShareKey(shareUrl);
-      if (shareKey == null) throw Exception('could not extract share key from URL');
+      final shareKey = _extractShareKey(shareUrl)
+          ?? (throw Exception('could not extract share key'));
 
       final session = await _loginShare(shareKey);
-      print('    login OK | vk=${session['validationKey']!.substring(0, 12)}…');
+      print('    login OK | vk=${session['validationKey']!.substring(0, 12)}… | cookie=${session['cookie']!.isNotEmpty ? "present" : "MISSING"}');
 
-      final result = await _getMedia(
-        shareKey,
-        session['validationKey']!,
-        session['cookie']!,
-        targetFilename: filename,
-        remoteId: remoteId,
-      );
+      final result = await _getMedia(shareKey, session['validationKey']!, session['cookie']!,
+          targetFilename: filename, remoteId: remoteId);
 
       final matched    = result['filename'] as String;
       final matchedLow = matched.toLowerCase();
-      final streamUrl  = result['streamUrl'] as String;
+      final rawUrl     = result['rawUrl'] as String;
       final count      = result['recordCount'] as int;
 
-      // Validate 1: got a real HTTP URL
+      // Build final URL exactly as the service does
+      final streamUrl = _buildStreamUrl(rawUrl, matched, session['validationKey']!);
+
+      // Validate 1: is a real HTTP URL
       if (streamUrl.isEmpty || !streamUrl.startsWith('http')) {
         throw Exception('stream URL empty or not HTTP: "$streamUrl"');
       }
-
-      // Validate 2: validationkey must NOT be in the final URL
-      if (streamUrl.toLowerCase().contains('validationkey=')) {
-        throw Exception('CRITICAL: validationkey in stream URL — breaks playback!');
+      // Validate 2: validationkey MUST be in final URL (CDN auth requirement)
+      if (!streamUrl.contains('validationkey=')) {
+        throw Exception('CRITICAL: validationkey missing from stream URL — CDN will reject playback!');
       }
-
       // Validate 3: matched file contains expected title fragment
       if (expectContains != null && !matchedLow.contains(expectContains)) {
         throw Exception('wrong file: "$matched" does not contain "$expectContains"');
       }
-
-      // Validate 4: episode code is correct (no wrong-episode bugs)
+      // Validate 4: correct episode (no wrong-episode bug)
       if (mustCode != null && !matchedLow.contains(mustCode)) {
-        throw Exception(
-          'WRONG EPISODE from $count-file folder: '
-          '"$matched" does not contain "$mustCode" — app would play wrong episode!'
-        );
+        throw Exception('WRONG EPISODE from $count-file folder: "$matched" missing "$mustCode"');
       }
 
-      print('    PASS | records=$count | matched="$matched"');
-      print('    URL: ${streamUrl.substring(0, streamUrl.length.clamp(0, 85))}…');
+      print('    PASS | files=$count | matched="$matched"');
+      print('    URL: ${streamUrl.substring(0, streamUrl.length.clamp(0, 90))}…');
       print('');
       passed++;
 
@@ -399,15 +375,11 @@ Future<void> main() async {
   print('══════════════════════════════════════════════════════════════');
 
   if (failures.isNotEmpty) {
-    print('');
-    print('FAILURES:');
+    print('\nFAILURES:');
     for (final f in failures) print('  • $f');
     print('');
     exit(1);
   }
-
-  print('');
-  print('All ${_tests.length} tests passed.');
-  print('');
+  print('\nAll ${_tests.length} tests passed.\n');
   exit(0);
 }

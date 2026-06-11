@@ -17,13 +17,37 @@
 .health-dot.warn{background:var(--warn)}
 .health-dot.err{background:var(--err)}
 .health-dot.mut{background:var(--muted);opacity:.5}
+.btn-tid-ok{background:rgba(92,214,111,.12);color:var(--ok);border:1px solid rgba(92,214,111,.3);padding:3px 9px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-tid-ok:hover{background:rgba(92,214,111,.25)}
+.btn-tid-ok:disabled{opacity:.45;cursor:default}
+.btn-tid-err{background:rgba(255,107,107,.08);color:var(--err);border:1px solid rgba(255,107,107,.25);padding:3px 9px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-tid-err:hover{background:rgba(255,107,107,.2)}
+.btn-tid-err:disabled{opacity:.45;cursor:default}
+#tid-alert-banner{display:none;align-items:center;gap:12px;background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.35);border-radius:10px;padding:12px 16px;margin-bottom:16px;animation:tid-fadein .3s ease}
+@keyframes tid-fadein{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+#tid-alert-banner .tid-icon{font-size:20px;flex-shrink:0}
+#tid-alert-banner .tid-msg{flex:1;font-size:13px;font-weight:600;color:var(--err)}
+#tid-alert-banner .tid-msg span{font-weight:400;color:var(--text);margin-left:6px}
+#tid-alert-banner .tid-dismiss{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:0 4px;flex-shrink:0}
+#tid-alert-banner .tid-dismiss:hover{color:var(--text)}
 </style>
 
+<script>const CSRF_TOKEN="{{ csrf_token }}";</script>
 <div class="h-row">
   <h2>Dashboard</h2>
   <div class="row" style="gap:8px">
     <button class="ghost" style="font-size:12px;padding:5px 12px" onclick="refreshAll()">↺ Refresh</button>
   </div>
+</div>
+
+<!-- ── Pending TID alert banner ─────────────────────────────────────── -->
+<div id="tid-alert-banner" role="alert">
+  <div class="tid-icon">🔔</div>
+  <div class="tid-msg">
+    <span id="tid-banner-count">0</span> pending TID payment<span id="tid-banner-plural">s</span> awaiting review
+    <span><a href="/tid/" style="color:var(--err);font-weight:700">Review now →</a></span>
+  </div>
+  <button class="tid-dismiss" onclick="document.getElementById('tid-alert-banner').style.display='none'" title="Dismiss">×</button>
 </div>
 
 <!-- ── Stats grid ─────────────────────────────────────────────────────── -->
@@ -125,6 +149,11 @@
         <div class="health-dot mut" id="dot-keys"></div>
         <div style="flex:1"><strong>API Keys</strong></div>
         <span class="badge b-mut" id="h-keys">checking…</span>
+      </div>
+      <div class="health-item" id="schema-health-row">
+        <div class="health-dot mut" id="dot-schema"></div>
+        <div style="flex:1"><strong>DB Schema</strong> <span class="muted" id="schema-detail" style="font-size:11px"></span></div>
+        <span class="badge b-mut" id="h-schema" style="cursor:default">checking…</span>
       </div>
     </div>
   </div>
@@ -286,6 +315,31 @@ async function loadHealth(){
       if(el){ el.textContent='unknown'; el.className='badge b-mut'; }
     });
   }
+  // always refresh schema health when health panel refreshes
+  loadSchemaHealth();
+}
+
+async function loadSchemaHealth(){
+  const dot   = document.getElementById('dot-schema');
+  const badge = document.getElementById('h-schema');
+  const detail = document.getElementById('schema-detail');
+  try {
+    const d = await api('/admin/api/schema-health');
+    const ok = d.ok === true;
+    if(dot){   dot.className   = 'health-dot ' + (ok ? 'ok' : 'err'); }
+    if(badge){ badge.textContent = ok
+      ? d.checks ? Object.keys(d.checks).length + ' OK' : 'all OK'
+      : d.issue_count + ' issue' + (d.issue_count===1?'':'s');
+      badge.className = 'badge ' + (ok ? 'b-ok' : 'b-err');
+      badge.title = ok ? 'All critical DB columns present' : (d.issues||[]).join('\n');
+    }
+    if(detail && !ok && d.issues && d.issues.length){
+      detail.textContent = d.issues.slice(0,2).join(', ') + (d.issues.length>2?' …':'');
+    } else if(detail){ detail.textContent = ''; }
+  } catch(e){
+    if(dot)   dot.className   = 'health-dot mut';
+    if(badge){ badge.textContent='unknown'; badge.className='badge b-mut'; }
+  }
 }
 
 async function loadUserStats(){
@@ -295,6 +349,20 @@ async function loadUserStats(){
     setTxt('st-app-users', d.total ?? '—');
     setTxt('st-active-subs', d.active_subs ?? '—');
     setTxt('st-pending-tids', d.pending_tids ?? '—');
+    // TID alert banner
+    const tidN = parseInt(d.pending_tids) || 0;
+    const banner = document.getElementById('tid-alert-banner');
+    const tidCnt = document.getElementById('tid-banner-count');
+    const tidPlural = document.getElementById('tid-banner-plural');
+    if(banner){
+      if(tidN > 0){
+        if(tidCnt) tidCnt.textContent = tidN;
+        if(tidPlural) tidPlural.textContent = tidN === 1 ? '' : 's';
+        banner.style.display = 'flex';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
   } catch(e){
     ['st-app-users','st-active-subs','st-pending-tids'].forEach(id=>{
       const el=document.getElementById(id);
@@ -351,7 +419,10 @@ async function loadRecentTids(){
         <td>${r.phone||r.username||'—'}</td>
         <td>${r.amount ? 'PKR '+r.amount : '—'}</td>
         <td><span class="badge b-warn">pending</span></td>
-        <td><a href="/tid/" style="font-size:12px;color:var(--accent)">Review →</a></td>
+        <td style="display:flex;gap:5px;align-items:center">
+          <button class="btn-tid-ok" id="tid-ok-${r.id}" onclick="tidApprove(${r.id})">✓ Approve</button>
+          <button class="btn-tid-err" id="tid-err-${r.id}" onclick="tidReject(${r.id})">✗ Reject</button>
+        </td>
       </tr>`).join('') +
       '</tbody></table></div>';
   } catch(e){
@@ -360,8 +431,44 @@ async function loadRecentTids(){
   }
 }
 
+async function tidApprove(id){
+  const okBtn  = document.getElementById('tid-ok-'+id);
+  const errBtn = document.getElementById('tid-err-'+id);
+  if(okBtn)  { okBtn.disabled=true;  okBtn.textContent='…'; }
+  if(errBtn)   errBtn.disabled=true;
+  try{
+    const fd = new FormData();
+    fd.append('_csrf_token', CSRF_TOKEN);
+    fd.append('force_approve', '1');
+    const r = await fetch('/tid/'+id+'/approve', {method:'POST', credentials:'include', body:fd});
+    if(r.ok){
+      toast('Payment approved ✓');
+      loadRecentTids(); loadUserStats();
+    } else { toast('Approve failed (HTTP '+r.status+')'); if(okBtn){okBtn.disabled=false;okBtn.textContent='✓ Approve';} if(errBtn) errBtn.disabled=false; }
+  }catch(e){ toast('Approve error'); if(okBtn){okBtn.disabled=false;okBtn.textContent='✓ Approve';} if(errBtn) errBtn.disabled=false; }
+}
+
+async function tidReject(id){
+  const note = window.prompt('Reason for rejection (optional, press OK to skip):');
+  if(note === null) return;
+  const okBtn  = document.getElementById('tid-ok-'+id);
+  const errBtn = document.getElementById('tid-err-'+id);
+  if(okBtn)  okBtn.disabled=true;
+  if(errBtn) { errBtn.disabled=true; errBtn.textContent='…'; }
+  try{
+    const fd = new FormData();
+    fd.append('_csrf_token', CSRF_TOKEN);
+    fd.append('note', note||'');
+    const r = await fetch('/tid/'+id+'/reject', {method:'POST', credentials:'include', body:fd});
+    if(r.ok){
+      toast('Payment rejected');
+      loadRecentTids(); loadUserStats();
+    } else { toast('Reject failed (HTTP '+r.status+')'); if(errBtn){errBtn.disabled=false;errBtn.textContent='✗ Reject';} if(okBtn) okBtn.disabled=false; }
+  }catch(e){ toast('Reject error'); if(errBtn){errBtn.disabled=false;errBtn.textContent='✗ Reject';} if(okBtn) okBtn.disabled=false; }
+}
+
 async function refreshAll(){
-  refreshStats(); refreshJobs(); loadHealth(); loadUserStats(); loadJdSessions(); loadRecentTids();
+  refreshStats(); refreshJobs(); loadHealth(); loadUserStats(); loadJdSessions(); loadRecentTids(); loadSchemaHealth();
 }
 
 // Boot sequence
@@ -374,4 +481,5 @@ setTimeout(loadRecentTids, 1400);
 setInterval(refreshJobs, 30000);
 setInterval(loadHealth, 60000);
 setInterval(loadUserStats, 60000);
+setInterval(loadSchemaHealth, 300000);  // re-check schema every 5 min
 </script>{% endblock %}

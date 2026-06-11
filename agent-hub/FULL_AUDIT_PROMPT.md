@@ -1,6 +1,6 @@
 # RaddFlix — Full System Audit Prompt
 > **For a new Replit agent account starting fresh.**
-> Date written: 2026-06-08. Copy this entire file as your task prompt.
+> Date written: 2026-06-08. Last updated: 2026-06-08 (TASK-057 completed). Copy this entire file as your task prompt.
 > Work through every section in order. Fix everything you find.
 
 ---
@@ -96,14 +96,19 @@ curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub
 
 ---
 
-## Step 2 — Known Discrepancies (Verify and Fix These First)
+
+> ✅ **TASK-057 COMPLETED 2026-06-08.** All 8 bugs found and fixed. See BUG_TRACKER.md.
+> The discrepancies below (DISC-01 through DISC-09) have been verified and fixed.
+> A new agent running this audit should start fresh from Step 1 and look for NEW issues.
+
+## Step 2 — Known Discrepancies (Verified and Fixed in TASK-057)
 
 These gaps were found during audit on 2026-06-08. **Verify each one against actual code,
 then fix the code or docs as appropriate.**
 
 ---
 
-### DISCREPANCY-01 — RequestEncoder.enabled: docs say false, code says true
+### DISCREPANCY-01 ✅ FIXED — RequestEncoder.enabled: docs updated to reflect enabled=true
 
 **What docs say** (`SECURITY_ARCHITECTURE.md`, Layer 5 status table):
 > XOR API encoding — Flutter side: `enabled=false`
@@ -137,7 +142,7 @@ static bool enabled = true;
 
 ---
 
-### DISCREPANCY-02 — MainActivity.kt: docs say security channel not wired, but it IS
+### DISCREPANCY-02 ✅ VERIFIED — MainActivity.kt security channel IS wired
 
 **What docs say** (`SECURITY_ARCHITECTURE.md`, Native Channel TODO section):
 > "The following MethodChannel handlers need to be added to `MainActivity.kt`"
@@ -159,7 +164,7 @@ All three handlers ARE fully implemented:
 
 ---
 
-### DISCREPANCY-03 — AppGuard fingerprint placeholder: enforcement is still OFF
+### DISCREPANCY-03 ⚠️ PENDING USER ACTION — AppGuard fingerprint placeholder (needs real signed APK)
 
 **Current state** (`lib/core/security/app_guard.dart`):
 ```dart
@@ -183,7 +188,7 @@ The signature check correctly skips itself when this placeholder is detected.
 
 ---
 
-### DISCREPANCY-04 — PRODUCT_CONTEXT.md: "Delta JSON — NO share URLs, NO file IDs"
+### DISCREPANCY-04 ✅ FIXED — PRODUCT_CONTEXT.md updated: delta DOES include share_urls
 
 **What docs say** (`PRODUCT_CONTEXT.md`, Security Architecture table):
 > Delta JSON on JazzDrive: Metadata only — NO share folder URLs, NO file IDs
@@ -199,7 +204,7 @@ Update `PRODUCT_CONTEXT.md` Security Architecture section. The correct descripti
 
 ---
 
-### DISCREPANCY-05 — PRODUCT_CONTEXT.md: "Every day after" flow is outdated
+### DISCREPANCY-05 ✅ FIXED — PRODUCT_CONTEXT.md updated with correct Oracle-first sync flow
 
 **What docs say** (`PRODUCT_CONTEXT.md`, "Every day after (zero-rated mode possible)"):
 > App opens → reads local SQLite → shows full catalog instantly
@@ -259,6 +264,32 @@ Also: existing rows in SQLite have plain URLs. `unscrambleUrl()` handles this:
 it passes through any URL that doesn't start with `RF1:` (backward compatible).
 
 ---
+
+
+---
+
+## Step 2b — TASK-057 Results (Added 2026-06-08)
+
+The following bugs were found and fixed during TASK-057 A-Z audit:
+
+### Oracle Python (commit 41fcc63)
+- **FIX-ISONGOING** (HIGH): zero_rating.py — `is_ongoing` string "0" is truthy in Python → cast to int()
+- **FIX-XOR-NEXTHR** (MEDIUM): request_encoding.py — `_candidate_keys` missing +1 hour for forward-clock edge
+
+### Flutter Dart (commits 3a68806, bf50cd6)
+- **BUG-TAB-01** (HIGH): show_detail_screen.dart — TabController memory leak on pull-to-refresh
+- **BUG-DL-THROTTLE** (MEDIUM): download_service.dart — SQLite progress DB flooded 100s writes/sec
+- **FIX-URI-01** (MEDIUM): splash_screen.dart — uri.split('/').last drops query params
+- **FIX-LIKE-01** (MEDIUM): local_db.dart — LIKE query didn't escape % / _ meta-chars
+- **FIX-SEARCH-INIT** (LOW): search_screen.dart — initialFilter didn't trigger _doSearch()
+- **FIX-ID-CAST** (LOW): catalog_item.dart — json['id'] as int throws TypeError on null
+
+### New rule discovered
+**Dart semicolons must come BEFORE inline comments.** Placing ';' after '// comment' causes
+"Expected ';' after this" parse error at build time. See .agents/memory/dart-semicolons.md.
+
+### APK
+Build 1034 — RaddFlix-1.0.0+1-build1034.apk — run 27156269376 — expires 2026-07-08
 
 ## Step 3 — Systematic Code Audit (File by File)
 

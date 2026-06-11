@@ -151,31 +151,57 @@ def list_videos(sess: requests.Session, tokens: dict, folder_id: int, account_id
         _jid = tokens.get('jsessionid') if tokens else None
         _tok = {"validationkey": _vk, "jsessionid": _jid} if _vk else None
 
-        data = jazzdrive.sapi_request(
-            endpoint="/media/video",
-            action="get",
-            params={"parentId": folder_id, "folderId": folder_id},
-            account_id=account_id,
-            tokens=_tok,
-        )
-        if data.get('error'):
-            return []
+        # Paginate until more=false (GetMediaWrapper.more from Android RE)
         items = []
-        if isinstance(data, dict):
-            for key in ('data', 'videos', 'items', 'result'):
-                v = data.get(key)
-                if isinstance(v, list):
-                    items = v
-                    break
-                if isinstance(v, dict):
-                    for sub in ('videos', 'items', 'files'):
-                        if isinstance(v.get(sub), list):
-                            items = v[sub]
-                            break
-                    if items:
+        _offset = 0
+        _MAX_PAGES = 50
+        for _page in range(_MAX_PAGES):
+            _params = {"parentId": folder_id, "folderId": folder_id}
+            if _offset > 0:
+                _params["offset"] = _offset
+            data = jazzdrive.sapi_request(
+                endpoint="/media/video",
+                action="get",
+                params=_params,
+                account_id=account_id,
+                tokens=_tok,
+            )
+            if data.get('error'):
+                break
+            _page_items = []
+            if isinstance(data, dict):
+                for key in ('data', 'videos', 'items', 'result'):
+                    v = data.get(key)
+                    if isinstance(v, list):
+                        _page_items = v
                         break
-        elif isinstance(data, list):
-            items = data
+                    if isinstance(v, dict):
+                        for sub in ('videos', 'items', 'files'):
+                            if isinstance(v.get(sub), list):
+                                _page_items = v[sub]
+                                break
+                        if _page_items:
+                            break
+            elif isinstance(data, list):
+                _page_items = data
+            if not _page_items:
+                break
+            items.extend(_page_items)
+            _offset += len(_page_items)
+            # Check more flag (GetMediaWrapper.more / hasMore)
+            _more = False
+            if isinstance(data, dict):
+                for _dk in ('data', 'result'):
+                    _dv = data.get(_dk)
+                    if isinstance(_dv, dict):
+                        _more = bool(_dv.get('more') or _dv.get('hasMore'))
+                        break
+                if not _more:
+                    _more = bool(data.get('more') or data.get('hasMore'))
+            if not _more:
+                break
+            log.debug("list_videos folder=%s page=%d: %d items, more=True offset=%d",
+                      folder_id, _page+1, len(_page_items), _offset)
             
         # Non-video extensions we always skip (docs, archives, misc images).
         # .jpg / .jpeg are handled explicitly below so we can distinguish

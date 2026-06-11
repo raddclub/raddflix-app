@@ -73,6 +73,12 @@ def page():
                            admin_user=config.get_env("RADD_ADMIN_USER", "admin"))
 
 
+@bp.route("/services")
+@auth.login_required
+def services_page():
+    return render_template("services.html")
+
+
 # ---------------------------------------------------------------------------
 # Password change
 # ---------------------------------------------------------------------------
@@ -248,6 +254,97 @@ def admin_accounts_list():
         return jsonify({"accounts": rows})
     except Exception as e:
         return jsonify({"accounts": [], "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# JazzDrive Device Identity Management
+# GET  /api/jazzdrive/device        — list accounts with device_id / device_name
+# POST /api/jazzdrive/device        — set device_id and/or device_name per account
+# POST /api/jazzdrive/handshake     — trigger startup handshake (read-only test)
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/jazzdrive/device", methods=["GET"])
+@auth.login_required
+def jd_device_list():
+    with db.conn() as c:
+        rows = c.execute(
+            "SELECT id, msisdn, label, device_id, device_name, is_active, role "
+            "FROM accounts ORDER BY id"
+        ).fetchall()
+    return jsonify({"ok": True, "accounts": [dict(r) for r in rows]})
+
+
+@bp.route("/api/jazzdrive/device", methods=["POST"])
+@auth.login_required
+def jd_device_update():
+    data = request.get_json(force=True) or {}
+    aid  = data.get("account_id")
+    did  = data.get("device_id")
+    dn   = data.get("device_name")
+    if not aid:
+        return jsonify({"ok": False, "error": "account_id required"}), 400
+    updates = {}
+    if did is not None:
+        updates["device_id"]   = did.strip() or None
+    if dn is not None:
+        updates["device_name"] = dn.strip() or None
+    if not updates:
+        return jsonify({"ok": False, "error": "device_id and/or device_name required"}), 400
+    set_clause = ", ".join(f"{k}=?" for k in updates)
+    with db.conn() as c:
+        c.execute(f"UPDATE accounts SET {set_clause} WHERE id=?",
+                  list(updates.values()) + [aid])
+    return jsonify({"ok": True, "updated": updates, "account_id": aid})
+
+
+@bp.route("/api/jazzdrive/device/apply-default", methods=["POST"])
+@auth.login_required
+def jd_device_apply_default():
+    """Apply DEFAULT_ANDROID_ID and JAZZDRIVE_DEVICE_NAME settings to all accounts
+    that don't already have a per-account device_id set."""
+    default_did = db.setting("DEFAULT_ANDROID_ID") or ""
+    default_dn  = db.setting("JAZZDRIVE_DEVICE_NAME") or ""
+    updated = 0
+    with db.conn() as c:
+        if default_did:
+            r = c.execute(
+                "UPDATE accounts SET device_id=? WHERE device_id IS NULL OR device_id=''",
+                (default_did,)
+            )
+            updated = r.rowcount
+        if default_dn:
+            c.execute(
+                "UPDATE accounts SET device_name=? WHERE device_name IS NULL OR device_name=''",
+                (default_dn,)
+            )
+    return jsonify({"ok": True, "accounts_updated": updated,
+                    "device_id": default_did, "device_name": default_dn})
+
+
+@bp.route("/api/jazzdrive/handshake", methods=["POST"])
+@auth.login_required
+def jd_startup_handshake():
+    from .. import jazzdrive as _jd
+    data = request.get_json(force=True) or {}
+    aid  = data.get("account_id")
+    try:
+        with db.conn() as c:
+            if aid:
+                row = c.execute("SELECT * FROM accounts WHERE id=?", (aid,)).fetchone()
+            else:
+                row = c.execute(
+                    "SELECT * FROM accounts WHERE is_active=1 AND role='flix' LIMIT 1"
+                ).fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "no active flix account"}), 404
+        r = dict(row)
+        result = _jd.startup_handshake(
+            r.get("validation_key", ""), r.get("jsessionid", ""),
+            msisdn=r.get("msisdn"), account_id=r.get("id")
+        )
+        return jsonify({"ok": True, "result": result})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -486,44 +583,20 @@ def db_reset():
         return jsonify({"ok": False, "error": str(exc)}), 500
 
 
-@bp.route("/api/db/restore", methods=["POST"])
+@bp.route("/api/restart", methods=["POST"])
 @auth.login_required
-def db_restore():
-    """Trigger a JazzDrive re-scan for all accounts to rebuild the catalog.
-    Safe to call after a db/reset. Launches background scans and returns
-    immediately. Check /scan/ page for live progress.
+def admin_restart():
+    """Fire-and-forget restart of the raddflix_radd supervisor service.
+    Spawns a background thread so the HTTP response is sent before the
+    process dies, giving the browser time to receive the 200 OK.
     """
-    try:
-        from .. import scanner as _scan
-        accounts = db.list_accounts()
-        started, skipped, errors = [], [], []
-        for a in accounts:
-            aid = a["id"]
-            if not a.get("token_expires_at"):
-                skipped.append({"id": aid, "msisdn": a.get("msisdn", ""),
-                                 "reason": "no active session"})
-                continue
-            r = _scan.start_scan(aid)
-            if r.get("ok"):
-                started.append({"id": aid, "msisdn": a.get("msisdn", "")})
-            elif "already running" in (r.get("error") or "").lower():
-                skipped.append({"id": aid, "msisdn": a.get("msisdn", ""),
-                                 "reason": "already running"})
-            else:
-                errors.append({"id": aid, "msisdn": a.get("msisdn", ""),
-                                "error": r.get("error")})
-        n = len(started)
-        return jsonify({
-            "ok": True,
-            "started": started,
-            "skipped": skipped,
-            "errors":  errors,
-            "message": (f"Restore started: {n} scan(s) launched"
-                        + (f", {len(skipped)} skipped" if skipped else "")
-                        + (f", {len(errors)} error(s)" if errors else "") + "."),
-        })
-    except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+    import subprocess as _sp, threading as _th, time as _ti
+    def _do():
+        _ti.sleep(0.6)   # let response flush
+        _sp.run(["sudo", "supervisorctl", "restart", "raddflix_radd"],
+                capture_output=True)
+    _th.Thread(target=_do, daemon=True, name="admin-restart").start()
+    return jsonify({"ok": True, "message": "Restart initiated — service will be back in ~4 seconds"})
 
 
 @bp.route("/api/db/sync", methods=["POST"])
@@ -748,101 +821,208 @@ def admin_reimport_status(job_id: str):
         return jsonify({"ok": False, "error": f"job {job_id} not found (expires on server restart)"}), 404
     return jsonify({"ok": True, **job})
 
-# ---------------------------------------------------------------------------
-# Re-scan missing metadata — runs enrich_and_save on files with no title_id
-# ---------------------------------------------------------------------------
 
-_rescan_meta_jobs: dict = {}  # job_id -> {status, total, matched, still_missing, ...}
-
-
-@bp.route("/api/admin/rescan-metadata", methods=["POST"])
+@bp.route("/api/schema-health")
 @auth.login_required
-def admin_rescan_metadata_start():
-    """Find all files saved without a metadata match (title_id IS NULL) and
-    re-run the full IMDb-first enrichment chain on them.  Faster than a full
-    catalog restore — only touches unmatched files.
-    Returns {"ok": true, "job_id": "..."}, poll GET /api/admin/rescan-metadata/<job_id>.
+def schema_health():
+    """Return a full schema health report.
+
+    Checks every critical table + column against the live SQLite DB.
+    Any MISSING entry indicates a schema drift that will cause bugs in prod.
+
+    Response::
+
+        {
+          "ok": true,
+          "issue_count": 0,
+          "issues": [],
+          "checks": {"app_subscriptions.is_active": true, ...},
+          "checked_at": 1234567890
+        }
     """
-    import threading as _threading
-    import uuid as _uuid_mod
-    import time as _time_mod
-    import sqlite3 as _sqlite3
-
-    job_id = _uuid_mod.uuid4().hex[:12]
-    job = {
-        "status": "running", "total": 0,
-        "matched": 0, "still_missing": 0,
-        "started_at": int(_time_mod.time()), "finished_at": None,
-    }
-    _rescan_meta_jobs[job_id] = job
-
-    def _run():
-        try:
-            from hub._legacy import scanner as _sc, schema as _sch
-
-            conn = _sqlite3.connect(_sch.DB_PATH, check_same_thread=False)
-            conn.row_factory = _sqlite3.Row
-
-            rows = conn.execute(
-                "SELECT * FROM files WHERE title_id IS NULL ORDER BY account_id, folder_path, filename"
-            ).fetchall()
-            job["total"] = len(rows)
-
-            if not rows:
-                job["status"] = "done"
-                job["finished_at"] = int(_time_mod.time())
-                return
-
-            # Group by account_id — enrich_and_save handles per-folder grouping internally
-            accounts = {}
-            for row in rows:
-                d = dict(row)
-                accounts.setdefault(d["account_id"], []).append(d)
-
-            fingerprints = [dict(r)["fingerprint"] for r in rows]
-
-            for acct_id, file_list in accounts.items():
-                try:
-                    _sc.enrich_and_save(file_list, acct_id)
-                except Exception as eg:
-                    log.warning("rescan-metadata error (account %s): %s", acct_id, eg)
-
-            # Count how many were matched
-            if fingerprints:
-                ph = ','.join('?' * len(fingerprints))
-                matched = conn.execute(
-                    f"SELECT COUNT(*) FROM files WHERE fingerprint IN ({ph}) AND title_id IS NOT NULL",
-                    fingerprints
-                ).fetchone()[0]
-                job["matched"] = matched
-                job["still_missing"] = len(fingerprints) - matched
-
-            job["status"] = "done"
-            log.info("rescan-metadata job %s done — %d/%d matched",
-                     job_id, job["matched"], job["total"])
-        except Exception as e:
-            job["status"] = "error"
-            job["error"] = str(e)
-            log.warning("rescan-metadata job %s error: %s", job_id, e)
-        finally:
-            job["finished_at"] = int(_time_mod.time())
-
-    _threading.Thread(
-        target=_run, daemon=True, name=f"rescan-meta-{job_id}"
-    ).start()
-    return jsonify({
-        "ok": True,
-        "job_id": job_id,
-        "message": f"Metadata re-scan started for {len(list(db.list_accounts()))} account(s). Poll GET /api/admin/rescan-metadata/{job_id} for progress.",
-    })
+    from .. import db as _db
+    result = _db.validate_schema()
+    status = 200 if result["ok"] else 207  # 207 = partial — some checks failed
+    return jsonify(result), status
 
 
-@bp.route("/api/admin/rescan-metadata/<job_id>", methods=["GET"])
+# ─────────────────────────────────────────────────────────────────────────────
+# Background Service Control
+# GET  /admin/api/services          — list all services + enabled/running state
+# POST /admin/api/services/toggle   — enable or disable a service
+# ─────────────────────────────────────────────────────────────────────────────
+
+# deps = services that MUST be ON before this one works
+_SERVICES = [
+    {
+        "key": "KEEPALIVE_ENABLED", "name": "keepalive", "label": "JazzDrive Keepalive",
+        "desc": "Keeps Jazz SIM sessions alive every 15 min. FOUNDATION — Scanner, Upload Watcher and Smart Scheduler all need this ON.",
+        "default": "1", "deps": [],
+    },
+    {
+        "key": "SCAN_ENABLED", "name": "scan", "label": "Scanner",
+        "desc": "Scans JazzDrive accounts for new content. Needs Keepalive ON first.",
+        "default": "1", "deps": ["keepalive"],
+    },
+    {
+        "key": "UPLOAD_ENABLED", "name": "upload", "label": "Upload Watcher",
+        "desc": "Watches for new files and uploads them to JazzDrive. Needs Keepalive ON first.",
+        "default": "1", "deps": ["keepalive"],
+    },
+    {
+        "key": "SCHEDULER_ENABLED", "name": "scheduler", "label": "Smart Scheduler",
+        "desc": "Rescans ongoing series, triggers delta generation. Needs Keepalive + Scanner both ON first.",
+        "default": "0", "deps": ["keepalive", "scan"],
+    },
+    {
+        "key": "DOWNLOAD_ENABLED", "name": "download", "label": "Download Queue",
+        "desc": "Processes queued download jobs from the internet. Works independently.",
+        "default": "1", "deps": [],
+    },
+    {
+        "key": "MIRROR_ENABLED", "name": "mirror", "label": "Mirror Retry",
+        "desc": "Retries failed GitHub mirror pushes every 60s. Works independently.",
+        "default": "1", "deps": [],
+    },
+    {
+        "key": "DOMAIN_DOCTOR_ENABLED", "name": "domain_doctor", "label": "Domain Doctor",
+        "desc": "Auto-discovers working mirror domains every 24h. Works independently.",
+        "default": "1", "deps": [],
+    },
+]
+
+def _svc_by_name(name):
+    return next((s for s in _SERVICES if s["name"] == name), None)
+
+def _is_enabled(name):
+    svc = _svc_by_name(name)
+    if not svc:
+        return False
+    return db.setting(svc["key"], svc["default"]) == "1"
+
+def _enable_svc(name):
+    svc = _svc_by_name(name)
+    if svc:
+        db.set_setting(svc["key"], "1")
+        log.info("Service %s auto-enabled as dependency", name)
+
+
+@bp.route("/api/services", methods=["GET"])
 @auth.login_required
-def admin_rescan_metadata_status(job_id: str):
-    """Poll a metadata re-scan job started by POST /api/admin/rescan-metadata."""
-    job = _rescan_meta_jobs.get(job_id)
-    if not job:
-        return jsonify({"ok": False, "error": f"job {job_id} not found (expires on server restart)"}), 404
-    return jsonify({"ok": True, **job})
+def services_list():
+    """Return enabled/running state with dependency metadata."""
+    import subprocess as _sp
+
+    # Build reverse-dep map: who depends on me?
+    rdeps_map = {s["name"]: [] for s in _SERVICES}
+    for svc in _SERVICES:
+        for dep in svc["deps"]:
+            if dep in rdeps_map:
+                rdeps_map[dep].append(svc["name"])
+
+    # Read all states first
+    states = {}
+    for svc in _SERVICES:
+        states[svc["name"]] = db.setting(svc["key"], svc["default"]) == "1"
+
+    result = []
+    for svc in _SERVICES:
+        enabled = states[svc["name"]]
+        missing_deps  = [d for d in svc["deps"] if not states.get(d, False)]
+        broken_rdeps  = [r for r in rdeps_map[svc["name"]] if states.get(r, False)] if not enabled else []
+        result.append({
+            "name":         svc["name"],
+            "label":        svc["label"],
+            "desc":         svc["desc"],
+            "enabled":      enabled,
+            "key":          svc["key"],
+            "deps":         svc["deps"],
+            "rdeps":        rdeps_map[svc["name"]],
+            "missing_deps": missing_deps,
+            "broken_rdeps": broken_rdeps,
+        })
+
+    # WhatsApp bot via supervisor
+    wa_running = False
+    try:
+        out = _sp.run(["sudo", "supervisorctl", "status", "raddflix_wa_bot"],
+                      capture_output=True, text=True, timeout=5).stdout
+        wa_running = "RUNNING" in out
+    except Exception:
+        pass
+    result.append({
+        "name": "wa_bot", "label": "WhatsApp Bot",
+        "desc": "WhatsApp bot for user interactions and file delivery. Works independently.",
+        "enabled": wa_running, "supervisor": True,
+        "deps": [], "rdeps": [], "missing_deps": [], "broken_rdeps": [],
+    })
+    return jsonify({"ok": True, "services": result})
+
+
+@bp.route("/api/services/toggle", methods=["POST"])
+@auth.login_required
+def services_toggle():
+    """Enable or disable a background service.
+    Body: {"service": "upload", "enabled": true}
+    """
+    import subprocess as _sp
+    data    = request.get_json(force=True, silent=True) or {}
+    name    = data.get("service", "")
+    enabled = bool(data.get("enabled", False))
+
+    # ── WhatsApp bot — supervisor control ────────────────────────────────────
+    if name == "wa_bot":
+        cmd = ["sudo", "supervisorctl", "start" if enabled else "stop", "raddflix_wa_bot"]
+        try:
+            r = _sp.run(cmd, capture_output=True, text=True, timeout=15)
+            ok  = r.returncode == 0
+            out = (r.stdout + r.stderr).strip()
+            log.info("WhatsApp bot %s by admin (rc=%d): %s", "started" if enabled else "stopped", r.returncode, out)
+            return jsonify({"ok": ok, "service": "wa_bot", "enabled": enabled, "output": out})
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+    # ── DB-controlled services ────────────────────────────────────────────────
+    mapping = {svc["name"]: svc for svc in _SERVICES}
+    svc = mapping.get(name)
+    if not svc:
+        return jsonify({"ok": False, "error": f"unknown service: {name}"}), 400
+
+    auto_enabled = []
+    warnings     = []
+
+    if enabled:
+        # Auto-enable all dependencies first (depth-first)
+        visited = set()
+        def _resolve(svc_name):
+            if svc_name in visited:
+                return
+            visited.add(svc_name)
+            s = mapping.get(svc_name)
+            if not s:
+                return
+            for dep_name in s.get("deps", []):
+                _resolve(dep_name)
+                if not _is_enabled(dep_name):
+                    _enable_svc(dep_name)
+                    auto_enabled.append(dep_name)
+        _resolve(name)
+    else:
+        # Warn about dependents that are still ON
+        for other in _SERVICES:
+            if name in other.get("deps", []) and _is_enabled(other["name"]):
+                warnings.append(
+                    f"{other['label']} is ON and needs {svc['label']} — it will stop working"
+                )
+
+    db.set_setting(svc["key"], "1" if enabled else "0")
+    log.info("Service %s (%s) -> %s by admin (auto_enabled=%s warnings=%s)",
+             name, svc["key"], "ON" if enabled else "OFF", auto_enabled, warnings)
+    return jsonify({
+        "ok":           True,
+        "service":      name,
+        "enabled":      enabled,
+        "auto_enabled": auto_enabled,
+        "warnings":     warnings,
+    })
 

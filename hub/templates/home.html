@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+{% set active="home" %}
+{% block content %}
+<style>
+.qa-card{transition:border-color .18s,transform .18s,box-shadow .18s;
+  background:var(--panel2) !important;border:1px solid var(--border) !important}
+.qa-card:hover{border-color:var(--accent) !important;transform:translateY(-3px);
+  box-shadow:0 8px 24px #7c5cff18 !important}
+@media(max-width:767px){
+  .dash-actions.grid-4{grid-template-columns:repeat(2,1fr)}
+  .home-mirror-grid{grid-template-columns:1fr !important}
+  .home-health-grid.grid-4{grid-template-columns:repeat(2,1fr) !important}
+}
+.mirror-notcfg{opacity:.6;font-style:italic}
+.health-item{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)}
+.health-item:last-child{border-bottom:none}
+.health-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.health-dot.ok{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.health-dot.warn{background:var(--warn)}
+.health-dot.err{background:var(--err)}
+.health-dot.mut{background:var(--muted);opacity:.5}
+/* Quick-action icon glow */
+.qa-icon{font-size:30px;margin-bottom:10px;display:block;
+  transition:transform .18s;filter:drop-shadow(0 0 0 transparent)}
+.qa-card:hover .qa-icon{transform:scale(1.12);
+  filter:drop-shadow(0 0 8px var(--accent))}
+</style>
+
+<div class="h-row">
+  <h2 style="display:flex;align-items:center;gap:10px">🏠 Dashboard</h2>
+  <div class="row" style="gap:8px">
+    <button class="ghost" style="font-size:12px;padding:5px 12px" onclick="refreshAll()">↺ Refresh</button>
+  </div>
+</div>
+
+<!-- ── Stats grid ─────────────────────────────────────────────────────── -->
+<div class="grid grid-4">
+  <div class="stat"><div class="k">Titles</div><div class="v" id="st-titles">{{ stats.titles }}</div></div>
+  <div class="stat"><div class="k">Files</div><div class="v" id="st-files">{{ stats.files }}</div></div>
+  <div class="stat"><div class="k">Total size</div><div class="v" id="st-size">…</div></div>
+  <div class="stat"><div class="k">JD Accounts</div><div class="v" id="st-accounts">{{ accounts|length }}</div></div>
+</div>
+
+<div class="grid grid-3" style="margin-top:14px">
+  <div class="stat">
+    <div class="k">App Users</div>
+    <div class="v" id="st-app-users">…</div>
+    <div class="muted" style="margin-top:4px;font-size:12px">total registered</div>
+  </div>
+  <div class="stat">
+    <div class="k">Active Subs</div>
+    <div class="v" id="st-active-subs">…</div>
+    <div class="muted" style="margin-top:4px;font-size:12px">paying subscribers</div>
+  </div>
+  <div class="stat">
+    <div class="k">Pending TIDs</div>
+    <div class="v" id="st-pending-tids">…</div>
+    <div class="muted" style="margin-top:4px;font-size:12px">awaiting approval</div>
+  </div>
+</div>
+
+<!-- ── Quick actions ──────────────────────────────────────────────────── -->
+<div style="margin-top:18px">
+  <h3 style="margin:0 0 12px;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Quick actions</h3>
+  <div class="grid grid-4 dash-actions">
+    <a href="/stream/" style="text-decoration:none">
+      <div class="card qa-card" style="text-align:center;padding:18px 12px;cursor:pointer;border:1px solid var(--border)">
+        <span class="qa-icon">⬇</span>
+        <div style="font-weight:700;font-size:13px">Download Movie</div>
+        <div class="muted" style="font-size:11px;margin-top:4px">Queue a new download</div>
+      </div>
+    </a>
+    <a href="/scan/" style="text-decoration:none">
+      <div class="card qa-card" style="text-align:center;padding:18px 12px;cursor:pointer;border:1px solid var(--border)">
+        <span class="qa-icon">🔍</span>
+        <div style="font-weight:700;font-size:13px">Scan JazzDrive</div>
+        <div class="muted" style="font-size:11px;margin-top:4px">Find media in cloud</div>
+      </div>
+    </a>
+    <a href="/library/" style="text-decoration:none">
+      <div class="card qa-card" style="text-align:center;padding:18px 12px;cursor:pointer;border:1px solid var(--border)">
+        <span class="qa-icon">🎬</span>
+        <div style="font-weight:700;font-size:13px">Browse Library</div>
+        <div class="muted" style="font-size:11px;margin-top:4px">{{ stats.titles }} titles available</div>
+      </div>
+    </a>
+    <a href="/app-users/" style="text-decoration:none">
+      <div class="card qa-card" style="text-align:center;padding:18px 12px;cursor:pointer;border:1px solid var(--border)">
+        <span class="qa-icon">👤</span>
+        <div style="font-weight:700;font-size:13px">App Users</div>
+        <div class="muted" style="font-size:11px;margin-top:4px">Manage subscriptions</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<!-- ── Active downloads widget ───────────────────────────────────────── -->
+<div class="card" style="margin-top:18px">
+  <div class="row" style="justify-content:space-between;margin-bottom:12px">
+    <h3 style="margin:0">Active Downloads</h3>
+    <a href="/stream/" style="font-size:12px;color:var(--accent);text-decoration:none;flex-shrink:0">View all →</a>
+  </div>
+  <div id="active-jobs">
+    <div class="muted" style="font-size:13px">Loading…</div>
+  </div>
+</div>
+
+<!-- ── System health ─────────────────────────────────────────────────── -->
+<div class="grid grid-2" style="margin-top:18px;gap:16px">
+  <div class="card" style="margin:0">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0">System Health</h3>
+      <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="loadHealth()">↺ Check</button>
+    </div>
+    <div id="health-list">
+      <div class="health-item">
+        <div class="health-dot ok"></div>
+        <div style="flex:1"><strong>Server</strong></div>
+        <span class="badge b-ok">online</span>
+      </div>
+      <div class="health-item">
+        <div class="health-dot mut" id="dot-watch"></div>
+        <div style="flex:1"><strong>Watch Service</strong> <span class="muted" style="font-size:11px">(port 6000)</span></div>
+        <span class="badge b-mut" id="h-watch">checking…</span>
+      </div>
+      <div class="health-item">
+        <div class="health-dot mut" id="dot-db"></div>
+        <div style="flex:1"><strong>Database</strong></div>
+        <span class="badge b-mut" id="h-db">checking…</span>
+      </div>
+      <div class="health-item">
+        <div class="health-dot mut" id="dot-keys"></div>
+        <div style="flex:1"><strong>API Keys</strong></div>
+        <span class="badge b-mut" id="h-keys">checking…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- JazzDrive sessions -->
+  <div class="card" style="margin:0">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <h3 style="margin:0">JazzDrive Sessions</h3>
+      <a href="/scan/" style="font-size:12px;color:var(--accent);text-decoration:none">Manage →</a>
+    </div>
+    <div id="jd-session-list">
+      <div class="muted" style="font-size:13px">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Recent TID payments ────────────────────────────────────────────── -->
+<div class="card" style="margin-top:18px">
+  <div class="row" style="justify-content:space-between;margin-bottom:12px">
+    <h3 style="margin:0">Recent TID Payments</h3>
+    <a href="/tid/" style="font-size:12px;color:var(--accent);text-decoration:none;flex-shrink:0">Review all →</a>
+  </div>
+  <div id="recent-tids">
+    <div class="muted" style="font-size:13px">Loading…</div>
+  </div>
+</div>
+
+<!-- ── Recent files ──────────────────────────────────────────────────── -->
+<div class="card" style="margin-top:18px">
+  <div class="row" style="justify-content:space-between;margin-bottom:12px">
+    <h3 style="margin:0">Recently Added Files</h3>
+    <a href="/library/" style="font-size:12px;color:var(--accent);text-decoration:none;flex-shrink:0">View library →</a>
+  </div>
+  {% if recent_files %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>File</th>
+      <th style="width:70px">Source</th>
+      <th style="width:80px">Size</th>
+      <th style="width:130px">Added</th>
+    </tr></thead>
+    <tbody>
+    {% for f in recent_files %}
+      <tr>
+        <td style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+          {{ f.filename }}</td>
+        <td><span class="badge {{ 'b-info' if f.source=='scan' else 'b-ok' }}">{{ f.source }}</span></td>
+        <td class="muted">{{ '%0.1f MB' % ((f.size_bytes or 0) / 1048576) if f.size_bytes else '—' }}</td>
+        <td class="muted" style="font-size:12px">
+          <span data-ts="{{ f.scanned_at or f.uploaded_at or '' }}">
+            {{ f.scanned_at or f.uploaded_at or '—' }}
+          </span>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    Library is empty. Add a JazzDrive account in <a href="/scan/">Scan</a>,
+    or drop files in the <code>media/</code> folder.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}<script>
+document.getElementById('st-size').textContent = fmtSize({{ stats.total_size }});
+
+document.querySelectorAll('[data-ts]').forEach(el=>{
+  const ts = parseInt(el.getAttribute('data-ts'));
+  if(ts > 1000000000) el.textContent = fmtTime(ts);
+});
+
+async function refreshStats(){
+  try {
+    const d = await api('/api/status');
+    const s = d.stats || {};
+    const setTxt = (id, v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+    setTxt('st-titles', s.titles ?? '—');
+    setTxt('st-files', s.files ?? '—');
+    setTxt('st-size', fmtSize(s.total_size || 0));
+    setTxt('st-accounts', d.accounts ?? '—');
+  } catch(e){}
+}
+
+const STATUS_COLOR = {
+  done:'b-ok', error:'b-err', failed:'b-err',
+  processing:'b-info', searching:'b-info', downloading:'b-info',
+  generating:'b-warn', paused:'b-warn', queued:'b-mut', cancelled:'b-mut',
+};
+async function refreshJobs(){
+  try {
+    const rows = await api('/stream/api/queue');
+    const active = rows.filter(r=>['processing','searching','downloading','queued','paused','generating'].includes(r.status));
+    const el = document.getElementById('active-jobs');
+    if(!active.length){
+      el.innerHTML = '<div class="muted" style="font-size:13px">No active downloads right now. <a href="/stream/">Start one →</a></div>';
+      return;
+    }
+    el.innerHTML = active.slice(0,6).map(r=>{
+      const pct = Math.round(r.progress||0);
+      const sc  = STATUS_COLOR[r.status] || 'b-info';
+      const msg = (r.message||'').slice(0,60);
+      const speedM = msg.match(/Speed:\s*([\d.]+\s*[KMGT]?B\/s)/i);
+      const etaM   = msg.match(/ETA:\s*(\S+)/i);
+      const speedTxt = speedM ? `<span class="muted" style="font-size:11px">⚡ ${speedM[1]}</span>` : '';
+      const etaTxt  = etaM   ? `<span class="muted" style="font-size:11px">⏱ ${etaM[1]}</span>` : '';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.movie||'—'}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">
+            <span class="badge ${sc}">${r.status}</span>
+            <div style="flex:1;background:var(--border);height:4px;border-radius:2px;min-width:60px;max-width:120px">
+              <div style="width:${pct}%;height:100%;background:var(--accent);border-radius:2px"></div>
+            </div>
+            <span class="muted" style="font-size:11px">${pct}%</span>
+            ${speedTxt} ${etaTxt}
+          </div>
+          ${msg ? `<div class="muted" style="font-size:11px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${msg}</div>` : ''}
+        </div>
+        <a href="/stream/" style="font-size:11px;color:var(--accent);text-decoration:none;flex-shrink:0">Details →</a>
+      </div>`;
+    }).join('');
+    if(active.length > 6)
+      el.innerHTML += `<div style="text-align:center;margin-top:8px"><a href="/stream/" style="font-size:12px;color:var(--accent)">+${active.length-6} more →</a></div>`;
+  } catch(e){}
+}
+
+async function loadHealth(){
+  try {
+    const d = await api('/api/health');
+
+    const setH = (dotId, badgeId, ok, label) => {
+      const dot = document.getElementById(dotId);
+      const badge = document.getElementById(badgeId);
+      if(dot) dot.className = 'health-dot ' + (ok === null ? 'mut' : ok ? 'ok' : 'err');
+      if(badge){ badge.textContent = label; badge.className = 'badge ' + (ok === null ? 'b-mut' : ok ? 'b-ok' : 'b-err'); }
+    };
+
+    setH('dot-watch', 'h-watch', null, 'decommissioned');
+
+    const dbOk = d.db_ok !== false;
+    const dbSz = d.db_size_mb ? d.db_size_mb + ' MB' : 'ok';
+    setH('dot-db', 'h-db', dbOk, dbOk ? dbSz : 'error');
+
+    const ai = d.ai_providers || {};
+    const tmdbCount = d.tmdb_keys || 0;
+    const omdbCount = d.omdb_keys || 0;
+    const aiOk = Object.values(ai).some(Boolean) || tmdbCount > 0 || omdbCount > 0;
+    const keyCount = Object.values(ai).filter(Boolean).length + (tmdbCount > 0 ? 1 : 0) + (omdbCount > 0 ? 1 : 0);
+    setH('dot-keys', 'h-keys', aiOk, aiOk ? keyCount + ' configured' : 'no keys');
+
+  } catch(e){
+    ['h-watch','h-db','h-keys'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el){ el.textContent='unknown'; el.className='badge b-mut'; }
+    });
+  }
+}
+
+async function loadUserStats(){
+  try {
+    const d = await api('/app-users/api/stats');
+    const setTxt = (id, v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+    setTxt('st-app-users', d.total ?? '—');
+    setTxt('st-active-subs', d.active_subs ?? '—');
+    setTxt('st-pending-tids', d.pending_tids ?? '—');
+  } catch(e){
+    ['st-app-users','st-active-subs','st-pending-tids'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.textContent='—';
+    });
+  }
+}
+
+async function loadJdSessions(){
+  try {
+    const d = await api('/api/keepalive/status');
+    const accounts = d.accounts || {};
+    const ids = Object.keys(accounts);
+    const el = document.getElementById('jd-session-list');
+    if(!el) return;
+    if(!ids.length){
+      el.innerHTML = '<div class="muted" style="font-size:13px">No JazzDrive accounts added. <a href="/scan/">Add account →</a></div>';
+      return;
+    }
+    const STATUS_MAP = {
+      ok:['b-ok','live'], refreshing:['b-warn','refreshing'], expired:['b-err','expired'],
+      error:['b-err','error'], unknown:['b-mut','unknown']
+    };
+    el.innerHTML = ids.map(id=>{
+      const a = accounts[id];
+      const st = a.status || 'unknown';
+      const [cls, lbl] = STATUS_MAP[st] || ['b-mut','unknown'];
+      const name = a.label || a.username || id;
+      return `<div class="health-item">
+        <div class="health-dot ${st==='ok'?'ok':st==='error'||st==='expired'?'err':'warn'}"></div>
+        <div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</div>
+        <span class="badge ${cls}">${lbl}</span>
+      </div>`;
+    }).join('');
+  } catch(e){
+    const el=document.getElementById('jd-session-list');
+    if(el) el.innerHTML='<div class="muted" style="font-size:13px">Could not load sessions.</div>';
+  }
+}
+
+async function loadRecentTids(){
+  try {
+    const d = await api('/api/tid/list?status=pending&limit=5');
+    const el = document.getElementById('recent-tids');
+    if(!el) return;
+    const rows = d.rows || d.tids || d || [];
+    if(!rows.length){
+      el.innerHTML = '<div class="muted" style="font-size:13px">No pending TID payments. <a href="/tid/">View history →</a></div>';
+      return;
+    }
+    el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>TID</th><th>User</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>' +
+      rows.slice(0,5).map(r=>`<tr>
+        <td style="font-family:monospace;font-size:12px">${r.tid||r.id||'—'}</td>
+        <td>${r.phone||r.username||'—'}</td>
+        <td>${r.amount ? 'PKR '+r.amount : '—'}</td>
+        <td><span class="badge b-warn">pending</span></td>
+        <td><a href="/tid/" style="font-size:12px;color:var(--accent)">Review →</a></td>
+      </tr>`).join('') +
+      '</tbody></table></div>';
+  } catch(e){
+    const el=document.getElementById('recent-tids');
+    if(el) el.innerHTML='<div class="muted" style="font-size:13px">No pending TID payments. <a href="/tid/">View history →</a></div>';
+  }
+}
+
+async function refreshAll(){
+  refreshStats(); refreshJobs(); loadHealth(); loadUserStats(); loadJdSessions(); loadRecentTids();
+}
+
+// Boot sequence
+refreshStats();
+setTimeout(refreshJobs, 500);
+setTimeout(loadHealth, 800);
+setTimeout(loadUserStats, 1000);
+setTimeout(loadJdSessions, 1200);
+setTimeout(loadRecentTids, 1400);
+setInterval(refreshJobs, 30000);
+setInterval(loadHealth, 60000);
+setInterval(loadUserStats, 60000);
+</script>{% endblock %}

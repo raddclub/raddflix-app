@@ -111,3 +111,43 @@ TimeoutException → caught by `sync()` → falls immediately to JazzDrive delta
 - Open tasks: none
 
 ---
+
+---
+
+## Session 2026-06-08 (TASK-057) — A-Z Full Audit
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-057 | A-Z full line-by-line code audit + all bugs fixed + APK build | ✅ DONE |
+
+### Oracle Python fixes (commit 41fcc63)
+- FIX-ISONGOING: zero_rating.py — is_ongoing checked string "0" (truthy in Python) → int() cast
+- FIX-XOR-NEXTHR: request_encoding.py — _candidate_keys missing +1 hour for forward-clock edge
+
+### Flutter fixes (commits 3a68806, bf50cd6)
+- BUG-TAB-01: show_detail_screen.dart — TabController memory leak on pull-to-refresh
+- BUG-DL-THROTTLE: download_service.dart — SQLite progress DB flooded (100s writes/sec)
+- FIX-URI-01: splash_screen.dart — uri.split('/').last drops query params → pathSegments.last
+- FIX-LIKE-01: local_db.dart — LIKE query didn't escape % / _ meta-chars in user search
+- FIX-SEARCH-INIT: search_screen.dart — initialFilter didn't trigger _doSearch() → empty results
+- FIX-ID-CAST: catalog_item.dart — json['id'] as int throws TypeError on null id
+
+### Note: Dart semicolon syntax error (commit 3a68806 → fixed bf50cd6)
+Initial commit placed semicolon AFTER an inline comment in splash_screen.dart.
+Dart requires semicolons BEFORE comments. Fixed in bf50cd6. APK build1034 succeeded.
+Rule added to memory and all docs: Dart semicolons must come BEFORE inline comments.
+
+### APK
+RaddFlix-1.0.0+1-build1034.apk — run 27156269376 — 56.7 MB — expires 2026-07-08
+
+### Oracle Flask restart
+Restarted raddflix_radd (correct supervisor name — NOT radd-hub).
+New PID: 3008136, status: RUNNING.
+
+### State at end of session
+- Oracle Flask: ✅ RUNNING (pid 3008136)
+- v3 DB: 17 titles / 28 files — all Live
+- APK: build1034 ✅ — latest
+- All 8 audit bugs: ✅ FIXED
+- Open: DATA-01 (AOUA Dead E03-05/E09), DATA-02 (9 movies need re-upload)

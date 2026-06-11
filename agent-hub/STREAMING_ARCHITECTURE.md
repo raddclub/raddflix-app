@@ -155,3 +155,33 @@ Player `_jazzAutoRetry()` detects expired links and refreshes transparently duri
 
 **Key insight:** First-time setup (login + catalog sync) requires a bundle or WiFi once.
 After that, Jazz SIM users stream freely without any bundle.
+
+---
+
+## File Identification — How JazzDrive Picks the Right File
+
+When a show has multiple episodes in the same folder share, `getStreamLink` must pick
+the correct file from a list returned by JazzDrive. It uses a 4-pass strategy:
+
+```
+Pass 0: Match by remote_id (JD permanent file ID — e.g. 242518443)
+  - Checks: m['id'] == remoteId  (exact integer match, O(n))
+  - Only runs when remoteId > 0 (i.e. stored in episodes.remote_id after sync)
+  - Most reliable — survives renames and folder moves
+
+Pass 1: Exact case-insensitive substring match against filename
+Pass 2: Normalised match (dots/underscores → spaces)
+Pass 3: Episode code match — e.g. "s01e04" anywhere in filename
+
+Fallback: records[0] (first file in share — only if all passes fail)
+```
+
+**Why Pass 0 matters:** Spider-Noir S01E01 and S01E02 both share the same folder share URL
+(`hoIyg7SgSFi...`). JazzDrive returns both files in the SAPI response. Without Pass 0,
+S01E01 would always return `records[0]` (whichever is first alphabetically). With Pass 0,
+`remote_id=242518443` picks S01E01 and `remote_id=242518530` picks S01E02 — exactly correct.
+
+**Chain:** Oracle DB `files.remote_id` → Oracle `/sync` response → Flutter SQLite
+`episodes.remote_id` → `getShareInfo()` → Player `_openMedia()` → `getStreamLink(remoteId:)` → Pass 0.
+
+**All components verified correct (audit 2026-06-09). No bugs found in this chain.**

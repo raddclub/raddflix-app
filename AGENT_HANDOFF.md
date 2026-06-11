@@ -1,6 +1,6 @@
 # AGENT_HANDOFF.md
 > **Read this file first — every session, every agent, no exceptions.**
-> Last updated: 2026-06-06
+> Last updated: 2026-06-09
 
 ---
 
@@ -320,21 +320,59 @@ to create script files, then run with `node /path/to/script.js`.
 ## Current State (2026-06-08)
 
 All code bugs fixed. Uploads fully working. 17 titles / 28 files — all Live.
+Latest APK: **RaddFlix-1.0.0+1-build1034.apk** (run 27156269376, expires 2026-07-08).
+> **Next build needed: 1035** — includes `pruneStaleIds()` permanent stale-entry cleanup (Flutter commits on GitHub, not yet built).
 
-### Completed 2026-06-08 (TASK-048 → TASK-051)
-- **TASK-048**: `upload_to_jazzdrive()` JazzDrive-side duplicate guard — checks `/media/video` before upload
-- **TASK-049**: Radd-Delta folder accumulation fix — `list_all_files_in_folder()` + `delete_files_permanent()` purge; 26 orphaned delta files cleaned
-- **TASK-050**: `_upload_pending()` (scheduler path) duplicate guard — injected after folder resolution; also renamed `Vncenz0` → `Vincenzo` on JazzDrive, deleted 2 leftover duplicate files
-- **TASK-051**: Bug audit found 3 more issues: poster duplicate accumulation (library.py), `_get_or_create_folder()` race condition (added lock+retry), `_upload_pending()` missing `rename_video()` post-upload
+### Completed 2026-06-09 (TASK-058) — Fix: Flutter stale catalog after DB rebuild (BUG-STALE-IDS)
+
+**Root cause:** Oracle DB was rebuilt with new title IDs (1–20). Flutter's cached `localVersion`
+(1780929441) exactly matched the server version → Flutter said "Already up to date" → never
+re-synced → kept stale entries (e.g. Spider-Noir `id=28`, `file_id=31` which no longer exists
+→ 404 "Jazz SIM Required"). Even when sync ran, `/sync` is additive only, so old IDs remained.
+
+**Server fixes (live immediately, affect build1034 now):**
+- `POST /api/catalog/force-version-bump` → version bumped to `1781003205`
+  (forced_ts > localVersion → every device triggers full re-sync on next app open)
+- `/api/catalog/sync` now returns `valid_title_ids` list in response body
+  (`hub/routes/catalog_api.py`)
+
+**Flutter fixes (GitHub commits — next build 1035):**
+| Commit | File | Change |
+|--------|------|--------|
+| e9107cb6 | `lib/core/api/catalog_api.dart` | `syncFull()` returns `SyncFullResult{items, validTitleIds}` |
+| cb32f9ba | `lib/core/db/local_db.dart` | `pruneStaleIds(List<int> validIds)` — deletes titles+orphaned episodes not in valid set |
+| b523de28 | `lib/core/db/sync_service.dart` | Full sync calls `pruneStaleIds()` after persisting items |
+| 338ad31b | `lib/core/db/local_db.dart` | Fix `$placeholders` in pruneStaleIds SQL (bash heredoc ate the Dart variable) |
+
+**Encryption/Decryption audit (2026-06-09) — all PASS:**
+- Flutter `RequestEncoder` + `_XorInterceptor`: ✅ no issues
+- Server `request_encoding.py`: ✅ no issues (±1h candidate keys, padding, fallback)
+- `CatalogItem.fromJson()`: ✅ all fields safe-cast
+- `scrambleUrl`/`unscrambleUrl`: ✅ RF1: prefix guard, passthrough for legacy plain URLs
+
+### Completed 2026-06-08 (TASK-057) — A-Z Full Audit
+- **FIX-ISONGOING**: zero_rating.py — `is_ongoing` string "0" truthy in Python → int() cast
+- **FIX-XOR-NEXTHR**: request_encoding.py — `_candidate_keys` missing +1 hour window
+- **BUG-TAB-01**: show_detail_screen.dart — TabController memory leak on pull-to-refresh
+- **BUG-DL-THROTTLE**: download_service.dart — SQLite progress DB flooded (100s writes/sec)
+- **FIX-URI-01**: splash_screen.dart — URI deep-link parse drops query params
+- **FIX-LIKE-01**: local_db.dart — LIKE query didn't escape % / _ meta-chars
+- **FIX-SEARCH-INIT**: search_screen.dart — initialFilter didn't trigger _doSearch()
+- **FIX-ID-CAST**: catalog_item.dart — json['id'] as int throws TypeError on null
+
+### Completed 2026-06-08 (TASK-048 → TASK-056)
+- TASK-048/050/051: JazzDrive duplicate upload guards (all paths)
+- TASK-053/055/056: Data flow verification (all checks A–J passed)
 
 ### Previously completed (2026-06-07)
 - Full proxy audit, BUG-A03a–e fixed, agent-hub docs created, GitHub synced
 
 ### Previously completed (2026-06-06)
-- BUG-A01/A02 fixed, IMDbAPI URL fix, Admin reimport endpoint, WARP tunnel, proxy pool cleanup, keepalive fix
+- BUG-A01/A02 fixed, IMDbAPI URL fix, Admin reimport endpoint, WARP tunnel, proxy pool
 
 ### Open (data gap — not code bugs)
 - **DATA-01**: All Of Us Are Dead missing E03/E04/E05/E09 — need JazzDrive upload + sync
+- **DATA-02**: 9 movies with deleted JD files — need admin re-upload to JazzDrive
 
 ### JazzDrive — critical notes
 
@@ -349,6 +387,38 @@ All code bugs fixed. Uploads fully working. 17 titles / 28 files — all Live.
   - Run anywhere: `node jazzdrive_logic_test.js`
   - Full network test on Jazz SIM: `node jazzdrive_logic_test.js --live <shareUrl> [target]`
 
-**MED-1011 error**: Solved by WARP tunnel on Oracle. Jazz SIM still required for Flutter app testing (zero-rating only on Jazz network).
-
 See `.agents/tasks/BUG_TRACKER.md` for full bug table.
+
+
+## Session 2026-06-09 (2nd) — JD File ID Audit: VERIFIED CORRECT
+
+### Question Investigated
+How does JazzDrive identify files (for delete, rename, play)? Is there a permanent ID?
+Are we using the correct ID throughout the Flutter → Oracle → JazzDrive chain?
+
+### Answer: YES — system uses `remote_id` correctly everywhere
+
+**JD permanent file ID = `remote_id`** (called `id` in JD SAPI responses, e.g. `242518443`)
+- Assigned at upload, **never changes** — survives renames and folder moves
+- Oracle uses it in `rename_video()` and `delete_files_permanent()` ✅
+
+**Full verified chain (all PASS):**
+
+| Layer | Component | Status |
+|-------|-----------|--------|
+| Oracle DB | `files.remote_id` stores JD permanent file ID | ✅ |
+| Oracle API | `/api/catalog/sync` returns `remote_id` per episode | ✅ |
+| Flutter sync | `_persistItems()` writes `remote_id` to SQLite episodes table | ✅ |
+| Flutter DB | `episodes.remote_id INTEGER` column exists (via ALTER TABLE) | ✅ |
+| Flutter DB | `getShareInfo()` reads and returns `remote_id` | ✅ |
+| Flutter player | `remoteId = shareInfo['remote_id']` → passed to `getStreamLink` | ✅ |
+| Flutter JD service | Pass 0 in `_getMedia()`: `m['id'] == remoteId` → exact file match | ✅ |
+
+**Folder share pattern (Spider-Noir, Vincenzo):**
+Both episodes of a show share the same folder share URL. JD returns both files in the
+SAPI media response. Pass 0 uses `remote_id` to pick the correct one:
+- Spider-Noir S01E01: remote_id=242518443 → `m['id']==242518443` → S01E01 ✅
+- Spider-Noir S01E02: remote_id=242518530 → `m['id']==242518530` → S01E02 ✅
+- Cache keys are separate ("37" vs "36") → each episode gets its own CDN URL ✅
+
+### No code changes needed. System was already correct.

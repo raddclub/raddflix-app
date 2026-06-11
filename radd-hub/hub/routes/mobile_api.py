@@ -1122,7 +1122,6 @@ def app_config():
         return _s(k, default).lower() in ("1", "true", "yes")
 
     try:
-        jd_delta_url     = _s("jd_delta_url", "")
         support_whatsapp = _s("SUPPORT_WHATSAPP_NUMBER", "923257719165")
         current_version  = _s("app_current_version", "1.0.0")
         min_code         = int(_s("app_min_version_code", "0") or 0)
@@ -1161,7 +1160,6 @@ def app_config():
         return jsonify({
             "ok":               True,
             "api_base_url":     db.setting("api_base_url", "") or "http://92.4.95.252",
-            "jd_delta_url":     jd_delta_url,
             "support_whatsapp": support_whatsapp,
             "current_version":  current_version,
             "min_version_code": min_code,
@@ -1176,7 +1174,6 @@ def app_config():
         return jsonify({
             "ok":               True,
             "api_base_url":     db.setting("api_base_url", "") or "http://92.4.95.252",
-            "jd_delta_url":     "",
             "support_whatsapp": "923257719165",
             "current_version":  "1.0.0",
             "min_version_code": 0,

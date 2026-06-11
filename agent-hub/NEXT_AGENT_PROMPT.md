@@ -51,11 +51,11 @@ curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub
 
 ---
 
-## Current System State (as of 2026-06-08 — post TASK-046)
+## Current System State (as of 2026-06-08 — post TASK-057)
 
 | Component | State |
 |-----------|-------|
-| Oracle Flask | ✅ RUNNING — PID 2978797, HTTP 302 |
+| Oracle Flask | ✅ RUNNING — PID 3008136 (raddflix_radd) |
 | v3 DB | ✅ 17 titles / 28 files — all Live (`is_published=1`) |
 | Library UI | ✅ Publish All / Unpublish All / bulk controls / bulk delete working |
 | Admin UI | ✅ All confirm()/prompt() replaced with two-step arm+fire toasts |
@@ -112,6 +112,8 @@ settings columns: k and v (NOT key / value)
 14. share_url scrambling: unscrambleUrl() passes through non-RF1: URLs (backward compat)
 15. No confirm()/prompt() in Flask templates — use two-step arm+fire toast instead
 16. Template GitHub path: radd-hub/hub/templates/ — push sequentially (not parallel)
+17. Dart semicolons MUST come BEFORE inline comments: `expr); // comment` (never after)
+18. Never suggest new features — user is burnt out; only fix bugs when asked
 ```
 
 ---

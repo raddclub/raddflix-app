@@ -221,6 +221,42 @@ def _save_session(data: dict):
 def _is_replit() -> bool:
     return bool(os.environ.get("REPL_ID") or os.environ.get("REPLIT_DEPLOYMENT"))
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WG0 VPN enforcement — ALL JazzDrive calls MUST route via wg0
+# ─────────────────────────────────────────────────────────────────────────────
+
+class JDVPNRequired(RuntimeError):
+    """Raised when wg0 VPN is not routing one or more JazzDrive IPs.
+
+    Used to hard-fail any JazzDrive network call that would otherwise leak
+    via Oracle's direct IP — which risks account suspension on Jazz SIM.
+    """
+
+_JD_ROUTED_IPS = ["54.179.95.148", "54.254.59.168", "175.41.133.62"]
+
+
+def require_wg0() -> None:
+    """Abort (raise JDVPNRequired) if wg0 is not routing all JazzDrive IPs.
+
+    Called at the start of every function that sends a JazzDrive network
+    request so that no call can ever leak via Oracle's direct public IP.
+    """
+    import subprocess as _sp
+    try:
+        out = _sp.check_output(["ip", "route", "show", "dev", "wg0"],
+                               text=True, timeout=2)
+    except Exception as _e:
+        raise JDVPNRequired(
+            f"wg0 route check failed — VPN interface may be down: {_e}"
+        )
+    missing = [ip for ip in _JD_ROUTED_IPS if ip not in out]
+    if missing:
+        raise JDVPNRequired(
+            f"wg0 is NOT routing JazzDrive IPs {missing} — "
+            "refusing to leak call via Oracle direct IP"
+        )
+
 def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
     """Return a requests-compatible proxies dict.
 
@@ -228,6 +264,7 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
                      Falls back to JAZZDRIVE_SAPI_PROXY setting if pool empty.
     purpose='otp'  — uses the general JAZZDRIVE_PROXY slot (OTP / refresh_token).
     Always returns None on Replit because proxy traffic violates ToS."""
+    require_wg0()  # Hard-fail if wg0 not routing JD IPs
     if _is_replit():
         return None
     # Global proxy bypass — when JAZZDRIVE_PROXY_BYPASS=1 all traffic goes direct.
@@ -480,7 +517,7 @@ def list_all_files_in_folder(account_id: int, folder_id: int) -> list:
     """List all non-video files (mediatype=file) in a JazzDrive folder.
 
     Uses /media/file?action=get — the correct endpoint for .txt/.json uploads.
-    /media/video ONLY returns video-type items and will miss delta.json/txt files.
+    /media/video ONLY returns video-type items and will miss non-video uploads.
 
     Returns list of dicts: {"id": int, "name": str, "size": int}
     Only includes non-softdeleted items whose folder matches folder_id.
@@ -793,6 +830,7 @@ def sapi_request(endpoint: str, action: str,
     if action:
         req_params["action"] = action
     req_params["validationkey"] = vk
+    req_params["responsetime"] = "true"
     
     req_headers = get_auth_headers(vk, jid or "", msisdn=tokens.get("msisdn"))
     if not jid:
@@ -1058,6 +1096,7 @@ def get_status() -> dict:
 
 def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     """Step 1: trigger OTP via jazzdrive_login (from _legacy/scanner.py)."""
+    require_wg0()  # Hard-fail if wg0 down — never leak OTP call
     if not msisdn:
         msisdn = db.setting("JAZZDRIVE_MSISDN") or ""
 
@@ -1154,6 +1193,7 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
 
 def resend_otp() -> dict:
     """Trigger a resend of the OTP using the official 'resendpin' POST trick."""
+    require_wg0()  # Hard-fail if wg0 down — never leak OTP resend
     if not _OTP_STATE_FILE.exists():
         return {"ok": False, "error": "No pending OTP — trigger one first"}
     try:
@@ -1242,6 +1282,7 @@ def resend_otp() -> dict:
 
 def submit_otp(otp: str) -> dict:
     """Step 2: verify OTP and persist session."""
+    require_wg0()  # Hard-fail if wg0 down — never leak OTP submit
     if not _OTP_STATE_FILE.exists():
         return {"ok": False, "error": "No pending OTP — request a new OTP first"}
     try:
@@ -1406,6 +1447,12 @@ def submit_otp(otp: str) -> dict:
                                  int(time.time()), existing["id"])
                             )
                             log.info("Updated accounts table for id=%s", existing["id"])
+                            # Clear 30-min SAPI backoff immediately — new OTP tokens are live.
+                            # Without this the uploader burns the fresh token within seconds.
+                            try:
+                                clear_sapi_backoff(existing["id"])
+                            except Exception:
+                                pass
                         else:
                             _c.execute(
                                 "INSERT INTO accounts (msisdn, label, validation_key, "
@@ -1688,6 +1735,7 @@ def _android_refresh_session_inner(refresh_token: str,
     import base64 as _b64
     import urllib.parse as _up
 
+    require_wg0()  # Hard-fail if wg0 down — never leak OAuth2
     log.info("android_refresh_session: exchanging refresh_token (acct=%s)...", account_id)
 
     # ── Step 1: POST to /oauth2/refresh_token.php ─────────────────────────────
@@ -1816,12 +1864,18 @@ def _android_refresh_session_inner(refresh_token: str,
         try:
             with _lock:
                 with db.conn() as _c:
+                    # FIX: only persist the rotated refresh_token here.
+                    # Do NOT overwrite raw_accesstoken yet — the OAuth2-derived raw_at
+                    # is frequently rejected by SAPI (/login/oauth?keytype=accesstoken).
+                    # The OTP-issued raw_accesstoken (already in DB) is the proven working
+                    # one; it will be overwritten only after SAPI login succeeds below.
                     _c.execute(
-                        "UPDATE accounts SET raw_accesstoken=?, refresh_token=? WHERE id=?",
-                        (raw_at, new_rt, account_id),
+                        "UPDATE accounts SET refresh_token=? WHERE id=?",
+                        (new_rt, account_id),
                     )
             log.info(
-                "android_refresh_session: persisted rotated refresh_token early (acct=%s)",
+                "android_refresh_session: persisted rotated refresh_token early "
+                "(raw_accesstoken preserved — acct=%s)",
                 account_id,
             )
             # Crash-safe backup: write to emergency file OUTSIDE the DB transaction
@@ -1931,6 +1985,80 @@ def _android_refresh_session_inner(refresh_token: str,
         sr = None  # reset for next proxy
 
     if not sr or sr.status_code != 200:
+        # ── Fallback: refresh_jsessionid() uses web headers (proven working path) ──
+        # Android/Dalvik candidates above got 401 — try the same token with the
+        # standard web User-Agent + auth headers that refresh_jsessionid uses.
+        log.info(
+            "android_refresh_session: all Android candidates failed (%s) "
+            "— falling back to refresh_jsessionid() web path with raw_at",
+            last_err,
+        )
+        try:
+            # BUG-FIX: read the OTP-issued raw_accesstoken from DB (preserved by FIX-B),
+            # NOT raw_at (the OAuth2-decoded one that SAPI just rejected with 401).
+            # Falls back to raw_at only if DB has nothing.
+            _fb_at = ""
+            if account_id is not None:
+                try:
+                    with db.conn() as _c:
+                        _fb_row = _c.execute(
+                            "SELECT raw_accesstoken FROM accounts WHERE id=?", (account_id,)
+                        ).fetchone()
+                        if _fb_row:
+                            _fb_at = (_fb_row["raw_accesstoken"] or "").strip()
+                except Exception:
+                    pass
+            if not _fb_at:
+                _fb_at = raw_at or ""   # last-resort: OAuth2 raw_at
+            if _fb_at:
+                _fb_jid, _fb_body = refresh_jsessionid(
+                    "",           # validation_key (positional)
+                    raw_accesstoken=_fb_at,
+                )
+                if _fb_jid:
+                    log.info(
+                        "android_refresh_session: web-path fallback succeeded "
+                        "(refresh_jsessionid) — jid obtained"
+                    )
+                    # Build a minimal result dict that the caller expects
+                    _fb_vk = ""
+                    if isinstance(_fb_body, dict):
+                        _d = _fb_body.get("data", _fb_body)
+                        _fb_vk = (_d.get("validationkey") or _d.get("validation_key") or "")
+                    # Persist the new jid + vk.
+                    # Write _fb_at (the raw_accesstoken that actually worked) not raw_at.
+                    _fb_exp = 86400 * 30 if new_rt else 3300
+                    if account_id is not None:
+                        try:
+                            with _lock:
+                                with db.conn() as _c:
+                                    _c.execute(
+                                        "UPDATE accounts SET validation_key=?, jsessionid=?, "
+                                        "raw_accesstoken=?, refresh_token=?, "
+                                        "token_expires_at=? WHERE id=?",
+                                        (_fb_vk, _fb_jid, _fb_at, new_rt,
+                                         int(time.time() + _fb_exp), account_id),
+                                    )
+                        except Exception as _fbe:
+                            log.warning("android_refresh_session: fallback DB save failed: %s", _fbe)
+                    _old = _load_session()
+                    _old.update({
+                        "validationkey":   _fb_vk,
+                        "jsessionid":      _fb_jid,
+                        "raw_accesstoken": _fb_at,
+                        "refresh_token":   new_rt,
+                        "created_at":      time.time(),
+                        "expires_at":      time.time() + _fb_exp,
+                    })
+                    _save_session(_old)
+                    return {
+                        "ok":           True,
+                        "validation_key": _fb_vk,
+                        "jsessionid":   _fb_jid,
+                        "message":      "Android OAuth2 + web-path fallback (refresh_jsessionid)",
+                    }
+        except Exception as _fb_err:
+            log.warning("android_refresh_session: web-path fallback error: %s", _fb_err)
         return {"ok": False, "error": f"SAPI re-login failed: {last_err}"}
 
     try:
@@ -2218,196 +2346,6 @@ def upload_file_to_jazzdrive(file_path: str | Path) -> dict:
         log.error("upload_file_to_jazzdrive error: %s", e)
         return {"ok": False, "error": str(e)}
 
-
-def upload_json_to_jazzdrive(file_path) -> dict:
-    """Upload a JSON file (e.g. delta.json) to JazzDrive for zero-rated catalog sync.
-
-    Uses /sapi/upload?action=save with text/plain MIME (same endpoint as uploader.py
-    for video files). The /sapi/media/document endpoint returns COM-1005 (unsupported)
-    and the video media endpoint returns HTTP 200 with empty body (silent reject).
-    /sapi/upload accepts any MIME type when a real folderid is provided.
-
-    After upload, creates a folder-level share link (/sapi/link/folder?action=save) —
-    JazzDrive does not support individual-file share links.
-
-    Returns {"ok": True, "share_url": "...", "remote_id": "...", "folder_id": N}.
-    """
-    import json as _json_mod
-    import uuid as _uuid_mod
-    import urllib.parse as _ulp
-    import requests as _req
-
-    CRLF = b"\r\n"
-
-    file_path = Path(file_path)
-    if not file_path.exists():
-        return {"ok": False, "error": f"File not found: {file_path}"}
-
-    tokens = _load_session()
-    vk  = tokens.get("validationkey") or tokens.get("validation_key", "")
-    jid = tokens.get("jsessionid", "")
-
-    if not vk or not jid:
-        try:
-            with db.conn() as _c:
-                row = _c.execute(
-                    "SELECT validation_key, jsessionid FROM accounts "
-                    "WHERE is_active=1 ORDER BY id LIMIT 1"
-                ).fetchone()
-                if row:
-                    vk  = row["validation_key"] or ""
-                    jid = row["jsessionid"] or ""
-        except Exception:
-            pass
-
-    if not vk or not jid:
-        return {"ok": False, "error": "No active JazzDrive session — log in via Settings first"}
-
-    # Get or create the dedicated "Radd-Delta" folder (never mixed with movie files)
-    folder_id = 0
-    try:
-        # Check cached folder_id first
-        with db.conn() as _c:
-            frow = _c.execute(
-                "SELECT v FROM settings WHERE k='jd_delta_folder_id'"
-            ).fetchone()
-            if frow and frow["v"] and str(frow["v"]).isdigit():
-                folder_id = int(frow["v"])
-    except Exception:
-        pass
-
-    if not folder_id:
-        # Create/find "Radd-Delta" folder at root — same pattern as Radd-Heartbeat
-        try:
-            from . import uploader as _up
-            import requests as _req_sess
-            with _req_sess.Session() as _sess:
-                _sess.headers.update(get_auth_headers(vk, jid))
-                folder_id = _up._get_or_create_folder(
-                    _sess, vk, jid, "Radd-Delta", parent_id=0
-                )
-            if folder_id:
-                db.set_setting("jd_delta_folder_id", str(folder_id))
-                log.info("upload_json_to_jazzdrive: Radd-Delta folder_id=%d", folder_id)
-        except Exception as _fe:
-            log.warning("upload_json_to_jazzdrive: could not get Radd-Delta folder: %s", _fe)
-
-    if not folder_id:
-        return {"ok": False, "error": "Could not find or create Radd-Delta folder on JazzDrive"}
-
-    proxies  = resolve_proxies()
-    content  = file_path.read_bytes()
-    filename = file_path.stem + ".txt"
-    mime     = "text/plain"
-
-    # Build multipart exactly as _streaming_multipart does (no streaming — file is < 1 MB)
-    boundary = ("----RaddHubBoundary" + _uuid_mod.uuid4().hex[:16]).encode()
-    data_json = _json_mod.dumps({
-        "data": {
-            "name":        filename,
-            "size":        len(content),
-            "contenttype": mime,
-            "folderid":    folder_id,
-        }
-    }).encode("utf-8")
-    disp_hdr = (
-        "Content-Disposition: form-data; "
-        'name="file"; filename="' + filename + '"'
-    ).encode()
-    body = (
-        b"--" + boundary + CRLF +
-        b"Content-Disposition: form-data; name=\"data\"" + CRLF + CRLF +
-        data_json + CRLF +
-        b"--" + boundary + CRLF +
-        disp_hdr + CRLF +
-        ("Content-Type: " + mime).encode() + CRLF + CRLF +
-        content + CRLF +
-        b"--" + boundary + b"--" + CRLF
-    )
-    ct_header = "multipart/form-data; boundary=" + boundary.decode()
-
-    hdrs = get_auth_headers(vk, jid)
-    hdrs["Content-Type"]   = ct_header
-    hdrs["Content-Length"] = str(len(body))
-
-    vk_q = _ulp.quote(vk, safe="")
-    upload_url = (
-        f"{CLOUD_BASE}/sapi/upload"
-        f"?action=save&validationkey={vk_q}&acceptasynchronous=true"
-    )
-
-    try:
-        r = _req.post(upload_url, data=body, headers=hdrs, timeout=120, proxies=proxies)
-    except Exception as exc:
-        return {"ok": False, "error": f"Upload request error: {exc}"}
-
-    try:
-        resp = r.json()
-    except Exception:
-        return {"ok": False, "error": f"Upload non-JSON HTTP {r.status_code}: {r.text[:200]}"}
-
-    if "error" in resp and not resp.get("success"):
-        return {"ok": False, "error": f"JazzDrive upload error: {resp}"}
-
-    # Parse remote_id from response
-    remote_id = str(resp.get("id") or "")
-    if not remote_id:
-        files_list = (resp.get("metadata") or {}).get("files") or []
-        if files_list:
-            remote_id = str(files_list[0].get("id") or "")
-    if not remote_id:
-        return {"ok": False, "error": f"Upload OK but no remote_id: {resp}"}
-
-    log.info("upload_json_to_jazzdrive: uploaded %s → remote_id=%s folder_id=%d",
-             filename, remote_id, folder_id)
-
-    # Create folder-level share link (JazzDrive only supports folder share links)
-    share_url = ""
-    try:
-        from ._legacy.jazz_share import create_folder_share_link as _cfs, get_or_create_folder_share as _gofs
-        with _req.Session() as _sess:
-            _sess.headers.update(get_auth_headers(vk, jid))
-            _tokens = {"validation_key": vk, "validationkey": vk, "jsessionid": jid}
-            # Try get_or_create first (returns existing link if one exists)
-            rec = _gofs(_sess, _tokens, folder_id)
-            share_url = rec.get("share_url") or ""
-            if not share_url:
-                rec = _cfs(_sess, _tokens, folder_id)
-                share_url = rec.get("share_url") or ""
-    except Exception as exc:
-        log.warning("upload_json_to_jazzdrive: jazz_share link failed: %s", exc)
-
-    if not share_url:
-        # Fallback: direct sapi_request to /link/folder?action=save
-        try:
-            _tokens = {"validationkey": vk, "jsessionid": jid}
-            data = sapi_request(
-                endpoint="/link/folder",
-                action="save",
-                method="POST",
-                json_data={"data": {"folderid": folder_id, "folderId": folder_id}},
-                tokens=_tokens,
-            )
-            if not data.get("error"):
-                d = data.get("data") if isinstance(data, dict) else data
-                if isinstance(d, dict):
-                    sk = d.get("shareKey") or d.get("sharedKey") or d.get("share_key") or ""
-                    url_v = d.get("url") or d.get("share_url") or ""
-                    if sk:
-                        share_url = f"{CLOUD_BASE}/share/f/{sk}"
-                    elif url_v and url_v.startswith("http"):
-                        share_url = url_v
-        except Exception as exc:
-            log.warning("upload_json_to_jazzdrive: sapi_request share link failed: %s", exc)
-
-    log.info("upload_json_to_jazzdrive: folder_id=%d share_url=%s", folder_id, share_url or "(none)")
-    return {
-        "ok":        True,
-        "remote_id": remote_id,
-        "share_url": share_url,
-        "url":       share_url,
-        "folder_id": folder_id,
-    }
 
 def generate_folder_image_link(folder_share_url: str, filename_hint: str = "poster") -> dict:
     """Fetch a direct download URL for a poster/image file inside a shared JazzDrive folder.

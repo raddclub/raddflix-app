@@ -335,66 +335,16 @@ def get_storage_info(sess: requests.Session, tokens: dict, account_id: Optional[
     except Exception:
         pass
     return {'used': 0, 'free': 0}
-def _parse_episode_info(filename: str, folder_name: str = ''):
-    """Parse (season, episode) from a filename, using folder_name for season context.
-
-    Handles every known real-world pattern:
-      1. SxxExx / sxex          → "The.Boys.S02E04.mkv", "v!ncenz0.S01E01.mkv"
-      2. Season X Episode Y     → "Season 1 Episode 3"  (both present)
-      3. NxNN                   → "2x14"
-      4. Episode N / Ep N / EP.N → "Episode 5", "Ep.03", "ep07"  — Pakistani/Korean drama style
-         season inferred from folder name ("Season 5" in folder → season 5) or defaults to 1
-      5. E01 / e01 alone        → "E05.mkv", "E12 1080p.mkv"
-         season inferred from folder or defaults to 1
-      6. Numeric-only filename  → "1.mp4", "01.mp4", "001.mp4"
-         season inferred from folder or defaults to 1
-    """
-    # Pattern 1: S01E02 — most common, try first
+def _parse_episode_info(filename: str):
     m = re.search(r'[Ss](\d{1,2})[Ee](\d{1,3})', filename)
     if m:
         return int(m.group(1)), int(m.group(2))
-
-    # Pattern 2: Season 1 Episode 2 (both keywords present)
     m = re.search(r'[Ss]eason\s*(\d{1,2})\s*[Ee]pisode\s*(\d{1,3})', filename, re.IGNORECASE)
     if m:
         return int(m.group(1)), int(m.group(2))
-
-    # Pattern 3: 1x02
-    m = re.search(r'\b(\d{1,2})x(\d{1,2})\b', filename)
+    m = re.search(r'(\d{1,2})x(\d{1,2})', filename)
     if m:
         return int(m.group(1)), int(m.group(2))
-
-    # Helper: infer season number from folder name
-    # e.g. "The Boys Season 05" → 5,  "Show S03" → 3
-    def _season_from_folder(fn: str) -> int:
-        if not fn:
-            return 1
-        ms = re.search(r'[Ss]eason\s*(\d{1,2})', fn, re.IGNORECASE)
-        if ms:
-            return int(ms.group(1))
-        ms2 = re.search(r'\bS(\d{1,2})\b', fn)
-        if ms2:
-            return int(ms2.group(1))
-        return 1
-
-    # Pattern 4: "Episode N" / "Ep N" / "Ep.N" — Pakistani/Indian/Korean dramas
-    # e.g. "Meri Zindagi Hai Tu Episode 1 _ 7 Nov 2025...mp4"
-    m = re.search(r'\b[Ee]p(?:isode)?[\s._\-]*(\d{1,3})\b', filename)
-    if m:
-        return _season_from_folder(folder_name), int(m.group(1))
-
-    # Pattern 5: E01 / e01 alone (no season digit before it)
-    # e.g. "E01.1080p.mkv"
-    m = re.search(r'\bE(\d{1,3})\b', filename)
-    if m:
-        return _season_from_folder(folder_name), int(m.group(1))
-
-    # Pattern 6: Numeric-only filename (1.mp4, 01.mp4, 001.mp4)
-    # Only if the base name is PURELY digits and ≤ 3 digits (avoids matching "1080" etc.)
-    base = re.sub(r'\.[a-zA-Z0-9]{2,4}$', '', filename).strip()
-    if re.match(r'^\d{1,3}$', base) and int(base) <= 500:
-        return _season_from_folder(folder_name), int(base)
-
     return None, None
 def _parse_quality(filename: str) -> str:
     patterns = [
@@ -506,7 +456,13 @@ def scan_account(account_id: int, progress_cb=None, extra_skip_folders=None) -> 
             all_folders_flat[fid] = {**f, 'path': full_path}
             if fid not in visited:
                 queue.append(fid)
-        time.sleep(0.05)
+        # Rate-limit the BFS folder listing to avoid triggering Jazz rate-limits
+        try:
+            from .. import db as _hub_db
+            _bfs_delay = float(_hub_db.setting('scan_request_delay') or '0.8')
+        except Exception:
+            _bfs_delay = 0.8
+        time.sleep(_bfs_delay)
 
     emit('info', f"Found {len(all_folders_flat)} folders. Scanning for videos in parallel...")
     
@@ -559,9 +515,16 @@ def scan_account(account_id: int, progress_cb=None, extra_skip_folders=None) -> 
 
         emit('folder', f"📁 {folder_path} ({len(videos)} files)")
 
+        # Per-request rate limit inside each thread
+        try:
+            from .. import db as _hub_db3
+            _req_delay = float(_hub_db3.setting('scan_request_delay') or '0.8')
+        except Exception:
+            _req_delay = 0.8
+
         folder_files = []
         for video in videos:
-            season, episode = _parse_episode_info(video['filename'], folder_name)
+            season, episode = _parse_episode_info(video['filename'])
             quality = _parse_quality(video['filename'])
             fp = _generate_fingerprint(video['remote_id'], account_id)
             folder_files.append({
@@ -584,8 +547,13 @@ def scan_account(account_id: int, progress_cb=None, extra_skip_folders=None) -> 
             })
         return folder_files
 
-    # Use 10 threads for crawling
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    # Thread count from settings (default 3 — keep low to avoid Jazz suspension)
+    try:
+        from .. import db as _hub_db
+        _scan_workers = max(1, min(10, int(_hub_db.setting('scan_threads') or '3')))
+    except Exception:
+        _scan_workers = 3
+    with ThreadPoolExecutor(max_workers=_scan_workers) as executor:
         futures = {executor.submit(scan_folder, fid, info): fid for fid, info in all_folders_flat.items()}
         for future in as_completed(futures):
             try:
@@ -596,6 +564,13 @@ def scan_account(account_id: int, progress_cb=None, extra_skip_folders=None) -> 
                     emit('progress', f"Files found so far: {len(all_files)}")
             except Exception as e:
                 log.warning("Parallel folder scan error: %s", e)
+            # Small inter-folder delay — spread load across time
+            try:
+                from .. import db as _hub_db2
+                _fd = float(_hub_db2.setting('scan_request_delay') or '0.8')
+            except Exception:
+                _fd = 0.8
+            time.sleep(_fd * 0.5)  # half the per-request delay between folders
 
     # ── Root-level loose file scan ─────────────────────────────────────────────
     # Some JazzDrive accounts keep files directly at parentId=0 (not inside any
@@ -622,7 +597,7 @@ def scan_account(account_id: int, progress_cb=None, extra_skip_folders=None) -> 
                 if rid in seen_ids:
                     continue
                 seen_ids.add(rid)
-                season, episode = _parse_episode_info(video['filename'], '')
+                season, episode = _parse_episode_info(video['filename'])
                 quality = _parse_quality(video['filename'])
                 fp = _generate_fingerprint(video['remote_id'], account_id)
                 root_found.append({
@@ -658,29 +633,18 @@ def scan_account(account_id: int, progress_cb=None, extra_skip_folders=None) -> 
         'folder_poster_map': _folder_poster_map,
     }
 def enrich_and_save(files: list, account_id: int, progress_cb=None) -> int:
-    """Enrich files with metadata and save to DB.
-
-    Lookup order (IMDb-first, TMDB is a fallback — not the primary):
-      1. IMDbAPI.dev  — free, no key, full IMDb catalogue (primary)
-      2. OMDB         — IMDb-backed supplement (requires omdb vault key)
-      3. TMDB         — best poster quality (requires tmdb vault key)
-      4. AI           — Groq/Gemini/OpenAI/OpenRouter for regional content
-      5. YouTube      — poster-only last resort
-      6. enricher.fetch_full_metadata — TMDB direct (final safety net)
-    """
     def emit(event, msg):
         schema.log_scan(account_id, event, msg)
         if progress_cb:
             progress_cb(event, msg)
-
     grouped = {}
     for f in files:
         folder = f.get('folder_path', '')
         grouped.setdefault(folder, []).append(f)
 
-    # Per-scan dedup cache: (clean_name, prefer) → (metadata, title_id)
-    # Prevents hitting APIs 35× for the same show spread across nested folders.
-    _lookup_cache: dict = {}
+    # Per-scan TMDB dedup cache: filename → (metadata, title_id)
+    # Prevents calling TMDB 35× for the same file spread across nested archive folders.
+    _tmdb_cache: dict = {}
 
     titles_done = 0
     for folder_path, folder_files in grouped.items():
@@ -692,142 +656,27 @@ def enrich_and_save(files: list, account_id: int, progress_cb=None) -> int:
             for f in folder_files
         ) else 'auto'
 
+        # Use cache key = (lowercase filename, prefer_type) so identical files in
+        # different nested folders never hit TMDB more than once per scan.
         cache_key = (sample.lower(), prefer)
-        if cache_key in _lookup_cache:
-            metadata, title_id = _lookup_cache[cache_key]
+        if cache_key in _tmdb_cache:
+            metadata, title_id = _tmdb_cache[cache_key]
         else:
-            # ── Clean filename: strip extension, quality tags, dots/underscores ──
-            _clean_name, _clean_year = enricher._clean_filename(sample)
-
-            # ── Build search name ──────────────────────────────────────────────────
-            # Strip every possible suffix that would confuse a title search API.
-            # Works for all known patterns:
-            #   S01E02 style:        "The.Boys.S02E04.mkv"        → "The Boys"
-            #   Season N folder:     "The Boys Season 2"           → "The Boys"
-            #   Episode N drama:     "Meri Zindagi Hai Tu Ep 1"   → "Meri Zindagi Hai Tu"
-            #   Pipe-sep metadata:   "Drama Title _ 7 Nov 2025 _…"→ "Drama Title"
-            #   Corrupted name:      "V!ncenz0.S01E01…"           → use folder "Vincenzo"
-            #   Numeric-only files:  "1.mp4" in "The Boys Season 5"→ use folder "The Boys"
-
-            # Extract folder's base name (last path segment) for fallback searches
-            _folder_base = folder_path.rstrip('/').rsplit('/', 1)[-1].strip() if folder_path else ''
-            # Strip "Season N" suffix from folder base for clean title search
-            _folder_clean = re.sub(r'\s*[Ss]eason\s*\d+.*$', '', _folder_base, flags=re.IGNORECASE).strip()
-            _folder_clean = re.sub(r'\s*[Ss]\d{1,2}\s*$', '', _folder_clean).strip()
-
-            _search_name = _clean_name
-            if prefer == 'tv':
-                # 1. Strip SxxExx and everything after
-                _search_name = re.sub(r'\s*[Ss]\d{1,2}[Ee]\d{1,3}.*$', '', _search_name).strip()
-                # 2. Strip "Season N" and everything after
-                _search_name = re.sub(r'\s*[Ss]eason\s*\d+.*$', '', _search_name, flags=re.IGNORECASE).strip()
-                # 3. Strip "Episode N" / "Ep N" and everything after — Pakistani/Korean drama style
-                _search_name = re.sub(r'\s*[Ee]p(?:isode)?[\s._\-]*\d+.*$', '', _search_name).strip()
-                # 4. Strip pipe/underscore + date patterns (e.g. "_ 7 Nov 2025 _ Actor Name")
-                _search_name = re.sub(
-                    r'\s*[_|]\s*\d+\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*.*$',
-                    '', _search_name, flags=re.IGNORECASE).strip()
-                # 5. Strip any remaining pipe/underscore separators and everything after
-                _search_name = re.sub(r'\s*[_|].*$', '', _search_name).strip()
-
-            # ── Corrupted/numeric filename fallback ────────────────────────────
-            # If the clean name is too short, empty, or contains special chars that
-            # corrupt the real title (e.g. "V!ncenz0" instead of "Vincenzo"),
-            # fall back to the folder name which is usually the clean show title.
-            _has_special = bool(re.search(r'[!@#$%^&*+=\[\]{}|<>?]', _search_name))
-            _too_short = len(_search_name) < 3
-            if (_too_short or _has_special) and _folder_clean:
-                log.debug("enrich_and_save: filename %r gave corrupt/short search %r → using folder %r",
-                          sample, _search_name, _folder_clean)
-                _search_name = _folder_clean
-
-            _display = _search_name or _clean_name or sample
-            emit('lookup', f"🔍 Searching: {_display}")
-            log.debug("enrich_and_save: lookup %r prefer=%s year=%s folder=%r",
-                      _display, prefer, _clean_year, _folder_base)
-
-            metadata = None
+            emit('tmdb', f"🔍 TMDB lookup: {sample}")
+            metadata = enricher.fetch_full_metadata(sample, prefer_type=prefer)
             title_id = None
-
-            # ── Helper: run the full metadata chain for a given title string ──
-            def _run_lookup(title_str: str, yr_int, media_prefer: str):
-                """Try metadata_lookup.enrich() then enricher fallback. Returns (metadata_dict, src_label) or (None, '')."""
-                try:
-                    from hub import metadata_lookup as _ml
-                    _p = {'title': title_str, 'year': yr_int,
-                          'media_type': media_prefer if media_prefer in ('movie', 'tv') else 'movie'}
-                    _r = _ml.enrich(_p, config={})
-                    if _r and _r.get('title'):
-                        _src = _r.get('source', 'unknown')
-                        _lbl = {'imdbapi': 'IMDb', 'omdb': 'OMDB', 'tmdb': 'TMDB', 'ai': 'AI',
-                                'youtube_api': 'YouTube', 'youtube_scrape': 'YouTube',
-                                'google_kg': 'Google'}.get(_src, _src.upper())
-                        _iid = _r.get('imdb_id') or ''
-                        _tid = _r.get('tmdb_id')
-                        _ck  = (f"imdb:{_iid}" if _iid else
-                                f"tmdb:{_tid}" if _tid else
-                                f"imdb_{title_str[:40]}")
-                        md = {
-                            'content_key':    _ck,
-                            'title':          _r.get('title') or title_str,
-                            'original_title': _r.get('original_title') or _r.get('title', ''),
-                            'year':           str(_r.get('year') or _clean_year or ''),
-                            'media_type':     _r.get('media_type') or (media_prefer if media_prefer in ('movie', 'tv') else 'movie'),
-                            'rating':         _r.get('rating'),
-                            'vote_count':     _r.get('vote_count') or 0,
-                            'poster':         _r.get('poster') or '',
-                            'overview':       _r.get('overview') or _r.get('plot') or '',
-                            'genres_csv':     _r.get('genres_csv') or '',
-                            'cast_names':     _r.get('cast_names') or '',
-                            'cast_json':      _r.get('cast_json') or _r.get('cast') or '[]',
-                            'director':       _r.get('director') or '',
-                            'imdb_id':        _iid,
-                            'tmdb_id':        _tid,
-                            'runtime':        _r.get('runtime'),
-                            '_source':        _src,
-                        }
-                        return md, _lbl
-                except Exception as _e:
-                    log.debug("metadata_lookup.enrich failed for %r: %s", title_str, _e)
-                # TMDB direct safety-net
-                try:
-                    _tr = enricher.fetch_full_metadata(sample if title_str == _search_name else title_str,
-                                                       prefer_type=media_prefer)
-                    if _tr and _tr.get('title') and _tr.get('content_key'):
-                        return _tr, 'TMDB'
-                except Exception as _e2:
-                    log.debug("TMDB direct failed for %r: %s", title_str, _e2)
-                return None, ''
-
-            _yr_int = None
-            if _clean_year and str(_clean_year).isdigit():
-                _yr_int = int(_clean_year)
-            _media_pref = prefer if prefer in ('movie', 'tv') else 'movie'
-
-            # ── PRIMARY: search with filename-derived title ────────────────────
-            metadata, _src_label = _run_lookup(_search_name, _yr_int, _media_pref)
-            if metadata:
+            if metadata and metadata.get('title') and metadata.get('content_key'):
                 title_id = schema.upsert_title(metadata)
+                emit('tmdb_ok', f"✅ {metadata['title']} ({metadata.get('year','')})")
                 titles_done += 1
-                emit('found', f"✅ {metadata['title']} ({metadata.get('year','')}) — via {_src_label}")
-
-            # ── SECONDARY: search with folder name (if filename search failed) ──
-            # Handles: corrupted filenames ("V!ncenz0" → folder "Vincenzo"),
-            #          numeric-only files ("1.mp4" in folder "The Boys Season 5"),
-            #          long drama titles where _clean_name lost the real title.
-            if metadata is None and _folder_clean and _folder_clean.lower() != _search_name.lower():
-                log.debug("enrich_and_save: primary failed, trying folder name %r", _folder_clean)
-                metadata, _src_label = _run_lookup(_folder_clean, _yr_int, _media_pref)
-                if metadata:
-                    title_id = schema.upsert_title(metadata)
-                    titles_done += 1
-                    emit('found', f"✅ {metadata['title']} ({metadata.get('year','')}) — via {_src_label} (folder name)")
-
-            if metadata is None:
-                emit('not_found', f"⚠️ No match found for: {_display} — saved without metadata")
-
-            _lookup_cache[cache_key] = (metadata, title_id)
-            time.sleep(0.05)
+            else:
+                emit('tmdb_miss', f"⚠️ No TMDB match for: {sample}")
+            _tmdb_cache[cache_key] = (metadata, title_id)
+            try:
+                from .. import db as _hub_db4
+                time.sleep(float(_hub_db4.setting('scan_request_delay') or '0.8') * 0.25)
+            except Exception:
+                time.sleep(0.2)
 
         for file_rec in folder_files:
             file_rec['title_id'] = title_id

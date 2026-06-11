@@ -678,6 +678,63 @@ def _get_or_create_folder(sess, vk: str, jsid: str,
 # Upload
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _pre_upload_save_metadata(vk: str, jsid: str, name: str, mime: str, size: int,
+                               parent_id: int, media_type: str = "video",
+                               account_id=None):
+    """Pre-upload save-metadata: registers file on JazzDrive, returns server-assigned GUID.
+
+    Matches Android app upload flow:
+      InterfaceC33222a.mo107994a(item) -> POST /sapi/upload/{mediaType}?action=save-metadata
+      Response: UploadSaveMetadataResponse -> id (String) = the file GUID
+
+    Body: form-encoded  data=<url-encoded JSON UploadSaveMetadataRequest>
+    Response JSON: {"data": {"id": "<guid>", "status": "...", "success": "..."}}
+
+    Returns the file GUID as int, or None on any failure (binary upload will proceed anyway).
+    """
+    import json as _j
+    import urllib.parse as _up
+    now_ms = str(int(time.time() * 1000))
+    payload = {"data": {
+        "name": name,
+        "creationdate": now_ms,
+        "modificationdate": now_ms,
+        "contenttype": mime,
+        "size": size,
+        "folderid": parent_id,
+        "favorite": False,
+        "id": None,
+        "clientproperties": [],
+    }}
+    encoded_body = "data=" + _up.quote(_j.dumps(payload))
+    try:
+        resp = jazzdrive.sapi_request(
+            endpoint=f"/upload/{media_type}",
+            action="save-metadata",
+            method="POST",
+            data=encoded_body,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            tokens={"validationkey": vk, "jsessionid": jsid},
+            account_id=account_id,
+            timeout=30,
+        )
+        if resp.get("error"):
+            log.debug("_pre_upload_save_metadata: server error %s", resp["error"])
+            return None
+        d = resp.get("data") or resp
+        if isinstance(d, dict):
+            guid_str = d.get("id") or d.get("guid") or d.get("fileId")
+            if guid_str:
+                try:
+                    return int(guid_str)
+                except (ValueError, TypeError):
+                    return None
+        return None
+    except Exception as e:
+        log.debug("_pre_upload_save_metadata failed (non-fatal): %s", e)
+        return None
+
+
 def _upload_file(sess, vk: str, jsid: str,
                  file_path: Path, parent_id: int = 0,
                  max_bps: float = 0,
@@ -704,6 +761,16 @@ def _upload_file(sess, vk: str, jsid: str,
     log.info("JD upload: %s (%.1f MB) → folder %d", target_name,
              size / 1_048_576, parent_id)
 
+    # Pre-upload: register file metadata with JazzDrive to get the GUID.
+    # Matches Android flow: mo107994a(item) -> UploadSaveMetadataResponse.id.
+    # If successful, we have the real file ID before the binary upload starts.
+    _pre_guid = _pre_upload_save_metadata(
+        vk, jsid, target_name, mime, size, parent_id,
+        account_id=account_id,
+    )
+    if _pre_guid:
+        log.info("JD upload: pre-upload save-metadata assigned GUID=%d", _pre_guid)
+
     body_gen, ct_header, content_length = _streaming_multipart(
         file_path, mime, parent_id,
         max_bps=max_bps,
@@ -725,6 +792,7 @@ def _upload_file(sess, vk: str, jsid: str,
         f"?action=save"
         f"&validationkey={vk_q}"
         f"&acceptasynchronous=true"
+        f"&responsetime=true"
     )
     msisdn = None
     if account_id:
@@ -813,9 +881,24 @@ def _upload_file(sess, vk: str, jsid: str,
                 return {"id": int(fid), "name": file_path.name,
                         "parent_id": int(pid) if pid else parent_id, "raw": rec}
 
-        # JazzDrive upload endpoint sometimes returns empty body on success (HTTP 200).
-        if data.get("ok"):
-            log.info("JD upload: empty-body 200 — listing parent folder to confirm file id")
+            # UploadResponse never contains an id field (Android gets it from
+            # pre-upload save-metadata; binary upload response only has status/etag/lastupdate).
+            # If we got the GUID via pre-upload registration, use it now.
+            if _pre_guid:
+                log.info("JD upload: using pre-upload GUID=%d (no id in upload response)", _pre_guid)
+                return {"id": _pre_guid, "name": file_path.name,
+                        "parent_id": parent_id, "raw": rec or {}}
+
+        # Fallback: list parent folder to find file by name.
+        # Triggers on any HTTP 200 (UploadResponse has no id field).
+        _rec_status = (rec.get("status") or "") if isinstance(rec, dict) else ""
+        _upload_ok = (
+            data.get("ok")                                 # empty-body 200
+            or _rec_status in ("U", "C", "A", "V", "I")  # upload success statuses
+            or raw_resp.status_code == 200                 # any HTTP 200
+        )
+        if _upload_ok:
+            log.info("JD upload: no id in response (status=%r) — listing parent folder for id", _rec_status)
             try:
                 media_resp = jazzdrive.sapi_request(
                     endpoint="/media/video", action="get",

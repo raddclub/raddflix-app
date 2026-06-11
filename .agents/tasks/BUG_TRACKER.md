@@ -1,11 +1,11 @@
 # BUG_TRACKER.md
-Last updated: 2026-06-06
+Last updated: 2026-06-10
 
 ## Status Key
 - ✅ FIXED — committed and verified on live server
 - 🔄 IN PROGRESS
 - ❌ OPEN
-- 🚫 WONT FIX / INTENTIONAL
+- 🚫 WONT FIX / INTENTIONAL / DROPPED
 
 ---
 
@@ -46,12 +46,6 @@ Two characters (`==`) caused 5 critical bugs.
 
 ---
 
-## Open Bugs
-
-See DATA-01 below — all code bugs are fixed.
-
----
-
 ## Session 2026-06-04 (continued) — Additional bugs found and fixed
 
 | ID | Severity | Title | Root Cause | Fix Applied | File |
@@ -73,14 +67,6 @@ the committed Dart file undetected because the fallback always returned a playab
 
 **Rule:** Any Dart string built in a generator script must use concatenation for dynamic
 parts, never `\$` — or use raw strings (`r'...'`).
-
----
-
-## Data Gap (not a code bug)
-
-| ID | Title | Status | Notes |
-|----|-------|--------|-------|
-| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB episodes table. Need upload to JazzDrive + sync. |
 
 ---
 
@@ -208,9 +194,110 @@ OTP re-login no longer needed on Flask restart. Session auto-recovers via Androi
 
 ---
 
-## Open Issues (requires user action, not code fixes)
+## Session 2026-06-08 (TASK-057) — A-Z Full Audit + Fix + APK Build
 
-| ID | Title | Status | Notes |
-|----|-------|--------|-------|
-| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | ❌ OPEN | Episodes not in Oracle DB. Need JazzDrive upload + sync. |
-| OPS-01 | Account 03286829827 session | ✅ RESOLVED 2026-06-07 | BUG-A03 fixed. Session auto-recovers via Android OAuth2 + PK proxy. No OTP needed. |
+### Oracle Python bugs fixed (commit 41fcc63)
+
+| ID | Severity | Title | Root Cause | Fix Applied | File |
+|----|---------|-------|-----------|-------------|------|
+| FIX-ISONGOING | HIGH | Events never marked as not-ongoing | is_ongoing compared string "0" which is truthy in Python | Cast to int() before comparison | hub/routes/zero_rating.py |
+| FIX-XOR-NEXTHR | MEDIUM | XOR decode fails near hour boundary | _candidate_keys() only tried current UTC hour | Added utc_hour + 1 as second candidate | hub/request_encoding.py |
+
+### Flutter bugs fixed (commits 3a68806, bf50cd6)
+
+| ID | Severity | Title | Root Cause | Fix Applied | File |
+|----|---------|-------|-----------|-------------|------|
+| BUG-TAB-01 | HIGH | TabController memory leak on pull-to-refresh | _initTabs() recreated controller without disposing old one | Dispose old controller before replacing | screens/show_detail_screen.dart |
+| BUG-DL-THROTTLE | MEDIUM | SQLite DB flood during download | Progress updated on every byte callback — 100s writes/sec | Throttled to 5% boundary | core/download/download_service.dart |
+| FIX-URI-01 | MEDIUM | Deep-link URI parse drops query params | uri.split('/').last discards ?queryParams | Uri.parse(uri).pathSegments.last with fallback | screens/splash_screen.dart |
+| FIX-LIKE-01 | MEDIUM | Search LIKE matches wrong items | % and _ in search input act as SQL wildcards | Escape meta-chars before LIKE | core/db/local_db.dart |
+| FIX-SEARCH-INIT | LOW | Search screen empty with initialFilter | initialFilter set text field but didn't call _doSearch() | Call _doSearch() in initState when initialFilter non-empty | screens/search_screen.dart |
+| FIX-ID-CAST | LOW | TypeError crash on catalog item with null id | json['id'] as int throws TypeError when null | Safe cast: (json['id'] as int?) | models/catalog_item.dart |
+
+### Build note
+Initial commit 3a68806 had a Dart syntax error: semicolon placed AFTER an inline comment.
+Rule: Dart semicolons MUST come BEFORE inline comments — expr); // comment (never after).
+Fixed in commit bf50cd6. APK build1034 succeeded.
+
+### APK
+Build 1034 — RaddFlix-1.0.0+1-build1034.apk — run 27156269376 — 56.7 MB — expires 2026-07-08
+
+---
+
+## Session 2026-06-09 — BUG-STALE-IDS: Flutter stale catalog after DB rebuild
+
+| ID | Severity | Title | Root Cause | Fix Applied | File |
+|----|---------|-------|-----------|-------------|------|
+| BUG-STALE-IDS | CRITICAL | Spider-Noir "Jazz SIM Required", Animal/Interstellar no play button, downloads FAILED | Oracle DB rebuilt with new title IDs (1-20), but Flutter's cached localVersion (1780929441) exactly matched server version → Flutter skipped re-sync → kept stale entries (id=28 file_id=31 → 404) | Server: force-bumped catalog_forced_version to 1781003205 (all devices full-sync on next open). Added valid_title_ids to /sync. Flutter (build1035): syncFull returns SyncFullResult; pruneStaleIds() deletes stale title IDs after full sync | catalog_api.py / catalog_api.dart / local_db.dart / sync_service.dart |
+| BUG-PRUNE-SQL | CRITICAL | pruneStaleIds SQL had empty NOT IN () — would delete ALL titles | Dart $placeholders variable in pruneStaleIds SQL was stripped by bash heredoc variable expansion (bash double-quoted the SSH command) | Rewrote push via Python file + scp to avoid bash expansion. Restored NOT IN ($placeholders) | lib/core/db/local_db.dart (commit 338ad31b) |
+
+### Encryption/Decryption Audit (2026-06-09) — All PASS
+
+| Component | Check | Result |
+|-----------|-------|--------|
+| Flutter RequestEncoder | XOR encode/decode symmetric, padding restoration, RF1: passthrough | ✅ PASS |
+| Flutter _XorInterceptor | Session key stored before body encode, auth paths excluded, octet-stream decode, error body decode | ✅ PASS |
+| Server request_encoding.py | XOR symmetric, ±1h candidate keys, padding re-add, device_id from header/JWT fallback | ✅ PASS |
+| CatalogItem.fromJson | All fields safe-cast, no TypeError on null id | ✅ PASS |
+| scrambleUrl/unscrambleUrl | RF1: prefix guard, passthrough for legacy plain URLs, deviceId key fallback | ✅ PASS |
+
+---
+
+## Session 2026-06-09 (2nd) — JD File ID Audit (AUDIT-JD-ID)
+
+### Investigation: Does JazzDrive use a permanent file ID? Are we using it correctly?
+
+**Trigger:** User question — how does JazzDrive identify files for delete/rename, and are we using the right ID?
+
+### Findings
+
+| Finding | Detail |
+|---------|--------|
+| JD permanent file ID | `id` field in SAPI responses = Oracle `files.remote_id` (e.g. 242518443). Never changes on rename/move. |
+| Oracle server ops | `rename_video(account_id, video_id, ...)` and `delete_files_permanent(account_id, file_ids)` both accept `remote_id` — **CORRECT** |
+| Oracle `/sync` | Returns `remote_id` per episode in response body — **CORRECT** |
+| Flutter `_persistItems` | Explicitly passes `'remote_id': ep['remote_id'] as int? ?? 0` to `upsertEpisode` — **CORRECT** |
+| Flutter SQLite | `episodes` table has `remote_id INTEGER DEFAULT 0` column (via ALTER TABLE migration) — **CORRECT** |
+| Flutter `getShareInfo` | Reads `remote_id` from DB and returns in result map — **CORRECT** |
+| Flutter player | Reads `remoteId` from shareInfo and passes to `getStreamLink(remoteId: remoteId)` — **CORRECT** |
+| Flutter Pass 0 | `_getMedia()` checks `m['id'] == remoteId` before filename fallback — **CORRECT** |
+| Folder shares | Spider-Noir S01E01 (242518443) and S01E02 (242518530) share same folder URL — Pass 0 disambiguates correctly |
+
+### Verdict: NO BUGS — system already correct
+
+**No code changes were required.** The `remote_id` (JD permanent file ID) is correctly
+stored in Oracle, returned via `/sync`, persisted in Flutter SQLite, read by the player,
+and used as Pass 0 in `_getMedia()` for exact file matching.
+
+| ID | Status | Title |
+|----|--------|-------|
+| AUDIT-JD-ID | ✅ CLOSED — NO BUGS | JazzDrive file identification audit — full chain verified correct |
+
+---
+
+## Session 2026-06-09 (3rd) — Download service bugs found by line-by-line code audit
+
+| ID | Severity | Title | Root Cause | Fix Applied | File | Commit |
+|----|---------|-------|-----------|-------------|------|--------|
+| BUG-DL-PATH-B | HIGH | Download Path B always downloads wrong TV episode (always episode 1) | `getShareUrl(fileId)` only returns the decoded URL string — `filename` and `remote_id` are lost. `JazzDriveService.getStreamLink` was called with `targetFilename: null, remoteId: 0`. Pass 0 (remote_id exact match) and Passes 1–3 (filename matching) were both skipped. Fell back to `records.first` — always the first file in the JazzDrive folder, regardless of which episode was requested. | Replaced `LocalDb.getShareUrl()` with `LocalDb.getShareInfo()` which returns all three fields `{share_url, filename, remote_id}` in a single DB query. Pass `dbFilename` and `dbRemoteId` through to `getStreamLink()`. | `core/download/download_service.dart` | `1cbec5a` |
+| BUG-DL-RF1 | MEDIUM | Download Path A fails silently when called with scrambled `CatalogItem.shareUrl` | `_rowToItem` in `local_db.dart` returns `shareUrl: row['share_url'] as String?` — the raw `RF1:xxx` scrambled value from SQLite, not decoded. Any caller passing `item.shareUrl` directly to `downloadFile` as the `shareUrl` param sends a scrambled string. `_extractShareKey` regex `/(?:share-landing\/f\|share\/f\|f)\/([^/?#]+)/` cannot match `RF1:xxx` → returns `null` → throws `Exception('Invalid JazzDrive share URL')` → `catch` in Path A swallows the error silently and falls back to the original `streamUrl` param (which may be wrong or empty). | Added `await LocalDb.decodeShareUrl(shareUrl)` at the start of Path A before passing to `JazzDriveService`. If the URL is `RF1:xxx` it is decoded to the plain JazzDrive URL first; plain URLs pass through unchanged. | `core/download/download_service.dart` | `1cbec5a` |
+
+### Discovery method
+Both bugs found by reading the actual Dart source code line-by-line. No docs or comments consulted.
+Previous AUDIT-JD-ID session (2026-06-09 2nd) audited the player path correctly but did not audit the download service Path B, which used a different (simpler) DB lookup function.
+
+---
+
+## Open Bugs
+
+_No open code bugs. All known issues resolved._
+
+## Dropped / Won't Fix
+
+| ID | Title | Reason | Date |
+|----|-------|--------|------|
+| DATA-01 | All Of Us Are Dead — missing E03/E04/E05/E09 | Dropped by user — no longer needed | 2026-06-10 |
+| DATA-02 | 9 movies with deleted JD files (Animal, Dune, Inception, etc.) | Dropped by user — no longer needed | 2026-06-10 |
+| BUG-CATALOG-REGEN | db_update.json doesn't auto-regen on direct SQL changes | Dropped by user — no longer needed | 2026-06-10 |
+| BUG-DELTA-PUSH | delta_push pipeline broken — upload_file_to_jazzdrive attr missing | Dropped by user — no longer needed | 2026-06-10 |
+| BUG-DUNE-FILE | Dune Part Two / Inception have no files scanned | Dropped by user — no longer needed | 2026-06-10 |
