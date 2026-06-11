@@ -29,6 +29,12 @@ def create_app() -> Flask:
     config.load_env()
     config.first_run_bootstrap()
     config.setup_logging("raddhub")
+    # Attach JazzDrive dedicated activity log AFTER Flask logging is configured
+    try:
+        from . import jazzdrive as _jd
+        _jd._setup_jd_activity_log()
+    except Exception:
+        pass
     db.init_db()
 
     # Background scheduler (ongoing series rescan) — off by default, enable via ENABLE_SCHEDULER=1

@@ -29,6 +29,8 @@ import time
 import re as _re
 from flask import Blueprint, jsonify, request
 from .. import db, keys, auth, mirror, installer, config
+import logging as _logging
+_jdlog = _logging.getLogger("hub.jazzdrive")  # share JD activity log + file handler
 
 bp = Blueprint("api", __name__)
 
@@ -1115,20 +1117,32 @@ def jd_status():
 def jd_otp_trigger():
     data   = request.get_json(silent=True) or {}
     msisdn = data.get("msisdn", "").strip() or db.setting("JAZZDRIVE_MSISDN") or ""
+    _m = msisdn
+    _mdisp = (_m[:4]+"****"+_m[-2:]) if len(_m)>=6 else (_m or "(not set)")
+    _jdlog.info("[JD:ROUTE] ► POST /otp/trigger  MSISDN=%s  ip=%s", _mdisp, request.remote_addr)
+    _t0 = time.time()
     try:
         from ..jazzdrive import trigger_otp_flow
-        return jsonify(trigger_otp_flow(msisdn))
+        result = trigger_otp_flow(msisdn)
+        _jdlog.info("[JD:ROUTE] ◄ trigger  ok=%s  %.0fms", result.get("ok"), (time.time()-_t0)*1000)
+        return jsonify(result)
     except Exception as e:
+        _jdlog.error("[JD:ROUTE] ◄ trigger  EXCEPTION %.0fms: %s", (time.time()-_t0)*1000, e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @bp.route("/jazzdrive/otp/resend", methods=["POST"])
 @auth.login_required
 def jd_otp_resend():
+    _jdlog.info("[JD:ROUTE] ► POST /otp/resend  ip=%s", request.remote_addr)
+    _t0 = time.time()
     try:
         from ..jazzdrive import resend_otp
-        return jsonify(resend_otp())
+        result = resend_otp()
+        _jdlog.info("[JD:ROUTE] ◄ resend  ok=%s  %.0fms", result.get("ok"), (time.time()-_t0)*1000)
+        return jsonify(result)
     except Exception as e:
+        _jdlog.error("[JD:ROUTE] ◄ resend  EXCEPTION %.0fms: %s", (time.time()-_t0)*1000, e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -1137,12 +1151,24 @@ def jd_otp_resend():
 def jd_otp_verify():
     data = request.get_json(silent=True) or {}
     otp  = str(data.get("otp", "")).strip()
+    _otp_disp = (otp[:1]+"*"*max(0,len(otp)-1)) if otp else "(empty)"
     if not otp:
+        _jdlog.warning("[JD:ROUTE] ► POST /otp/verify  OTP=empty  ip=%s  REJECTED", request.remote_addr)
         return jsonify({"ok": False, "error": "OTP is required"}), 400
+    _jdlog.info("[JD:ROUTE] ► POST /otp/verify  OTP=%s  len=%d  ip=%s",
+                _otp_disp, len(otp), request.remote_addr)
+    _t0 = time.time()
     try:
         from ..jazzdrive import submit_otp
-        return jsonify(submit_otp(otp))
+        result = submit_otp(otp)
+        if result.get("ok"):
+            _jdlog.info("[JD:ROUTE] ◄ verify  SUCCESS  %.0fms", (time.time()-_t0)*1000)
+        else:
+            _jdlog.warning("[JD:ROUTE] ◄ verify  FAILED  %.0fms: %s",
+                           (time.time()-_t0)*1000, result.get("error",""))
+        return jsonify(result)
     except Exception as e:
+        _jdlog.error("[JD:ROUTE] ◄ verify  EXCEPTION  %.0fms: %s", (time.time()-_t0)*1000, e)
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
