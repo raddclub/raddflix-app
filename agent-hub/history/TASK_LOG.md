@@ -706,3 +706,42 @@ Priority order:
 1. Fix upload ID extraction (Bug 1) — highest impact, prevents share URL creation
 2. Fix scan pagination (Bug 5) — large libraries get partial scans
 3. Add  to sapi_request (Bug 4) — minor
+
+
+---
+
+## Session 2026-06-11 — JazzDrive Identity Hardening (Full APK parity)
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| JD-IDENTITY-01 | jazzdrive.py: fix X-deviceid prefix fac- + add X-devicename | ✅ DONE |
+| JD-IDENTITY-02 | jazzdrive.py: update validationkey from every SAPI response body | ✅ DONE |
+| JD-IDENTITY-03 | jazzdrive.py: omh android client UA + x-request-id + Authorization oauth header | ✅ DONE |
+| JD-IDENTITY-04 | jd_auth.py: POST /api/jd/oauth2/token + POST /api/jd/mobileconnect/validate + GET /api/jd/oauth2/authorize_url | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| radd-hub/hub/jazzdrive.py | 6 patches: fac- prefix, omh UA, x-request-id, X-devicename, Authorization, validationkey-from-body | 3cd109c |
+| radd-hub/hub/routes/jd_auth.py | New file — /api/jd/oauth2/token, /api/jd/mobileconnect/validate, /api/jd/oauth2/authorize_url | 330d479 |
+| radd-hub/hub/app.py | Register jd_auth blueprint at /api/jd/* | 5131e32 |
+
+### What changed in jazzdrive.py (6 patches)
+1. **get_x_deviceid()**: prefix changed from `android-raddhub-` → `fac-` (matches APK `fac-<ANDROID_ID>`)
+2. **get_auth_headers()**: `User-Agent` changed from Dalvik UA → `omh android client` (APK strings.xml `app_user_agent_prefix`); added `x-request-id: UUID` per request (C30920a interceptor); added `X-devicename` (C30924e interceptor); added `Authorization: oauth <Base64(token)>` when raw_accesstoken provided (C12815c interceptor)
+3. **sapi_request()**: passes `raw_accesstoken` from tokens to `get_auth_headers()` so every authenticated SAPI call carries the Authorization header
+4. **sapi_request()**: after every successful (2xx) SAPI response, reads `data.validationkey` from the JSON body and persists it — mirrors `AbstractC12813a.m51847w()` in the APK
+5. **_android_refresh_session_inner()**: SAPI re-login step now uses correct Android headers via `get_auth_headers()`
+6. **refresh_jsessionid()**: passes `raw_accesstoken` to `get_auth_headers()` for Authorization header on login calls
+
+### What changed in jd_auth.py (new file)
+- **GET /api/jd/oauth2/authorize_url**: returns full OAuth2 authorize URL with fnbroot client_id + state
+- **POST /api/jd/oauth2/token**: exchanges auth code via `jazzdrive.com.pk/oauth2/token.php` with fnbroot/f&rW23 credentials in body (oauth2_authentication_in_body=true). Verified: reaches JazzDrive, gets "invalid_grant" on fake code (correct behavior).
+- **POST /api/jd/mobileconnect/validate**: forwards code+state to `/sapi/credential/mobileconnect?action=validate` for Jazz SIM zero-rated login
+
+### State at end of session
+- Oracle Flask: RUNNING (`{"ok":true,"version":"3.0.0"}`)
+- Account: ACTIVE (auto-recovers via Android OAuth2)
+- Open tasks: none — all handoff tasks complete
+- JazzDrive identity: 100% parity with Android APK (all 4 OkHttp interceptors + Authorization header + validationkey lifecycle)
