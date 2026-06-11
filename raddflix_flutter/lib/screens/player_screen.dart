@@ -1925,6 +1925,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }
       }
 
+
+      // Step 2b: Oracle fallback — fetch share_url from server when both local DB
+      // and inline route args are empty. Covers fresh-install edge cases where the
+      // local SQLite hasn't been seeded yet (BUG-SHARE-MISSING).
+      if ((shareUrl == null || shareUrl.isEmpty) && fileId.isNotEmpty) {
+        DebugLogger.log('PLAYER', 'Step2b: fetching share_url from Oracle for $fileId');
+        final fetched = await CatalogApi.getShareUrl(fileId);
+        if (fetched != null && fetched.isNotEmpty) {
+          shareUrl = fetched;
+          DebugLogger.log('PLAYER', 'Step2b: Oracle returned share_url for $fileId');
+        }
+      }
+
       // Step 3: Generate direct CDN stream URL via JazzDrive (zero-rated on Jazz SIM).
       // The share_url is a permanent JazzDrive share — it never expires.
       // Only the final CDN URL expires (3h cache). Calling JazzDrive again with the
