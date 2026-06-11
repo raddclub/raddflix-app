@@ -2,6 +2,15 @@
 
 _Last updated: 2026-06-11_
 
+## Current Session — ⏳ IN PROGRESS
+
+| ID | Task | Status |
+|----|------|--------|
+| JD-IDENTITY-01 | jazzdrive.py: fix all 4 OkHttp interceptor headers (x-request-id, User-Agent: omh android client, X-deviceid: fac-*, X-devicename) | ⏳ IN PROGRESS |
+| JD-IDENTITY-02 | jazzdrive.py: update validationkey from every SAPI response body (AbstractC12813a.m51847w) | ⏳ IN PROGRESS |
+| JD-IDENTITY-03 | jazzdrive.py: add Authorization: oauth <base64(token)> to all authenticated SAPI calls | ⏳ IN PROGRESS |
+| JD-IDENTITY-04 | jd_auth.py: new route file — POST /api/jd/oauth2/token + POST /api/jd/mobileconnect/validate | ⏳ IN PROGRESS |
+
 ## Completed This Session
 
 | ID | Changed | Summary | Ref |
@@ -55,9 +64,10 @@ _Last updated: 2026-06-11_
 | Build | Status | Fixes included | Size | Expires |
 |-------|--------|----------------|------|---------|
 | 1023 | OLD — do not use | none of our fixes | 56MB | — |
-| 1025 | LATEST — install this | FIX-PLAYER-01 + FIX-VAULT-01 | 56MB | 2026-07-07 |
+| 1025 | OLD | FIX-PLAYER-01 + FIX-VAULT-01 | 56MB | 2026-07-07 |
+| 1034 | LATEST — install this | All fixes through 2026-06-08 | 56.7MB | 2026-07-08 |
 
-GitHub Actions run: https://github.com/raddclub/raddflix-app/actions/runs/27100948120
+GitHub Actions run: https://github.com/raddclub/raddflix-app/actions/runs/27156269376
 
 ## Backlog
 
