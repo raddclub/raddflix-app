@@ -661,3 +661,48 @@ GitHub tree/blob API rejects base64 payloads over ~50 MB. Used GitHub Releases A
 - Account: ACTIVE (auto-recovers via Android OAuth2 + PK proxy)
 - Open tasks: none — backlog clean
 - APK: https://github.com/raddclub/raddflix-app/releases/download/jazzdrive-apks-v1/Jazz_Drive_8.0.1.xapk
+
+---
+
+## Session: 2026-06-11 — Jazz Drive 8.0.1 Reverse Engineering (jazzdrive_research/)
+
+**Goal**: Fully reverse-engineer Jazz Drive 8.0.1 XAPK to diagnose broken JD scan and upload in Oracle backend. Compile all findings into  on GitHub.
+
+### Completed
+
+1. **XAPK Fully Decompiled on Oracle**: 29,381 Java source files via jadx 1.5.1. Base APK 61 MB at .
+
+2. **Key RE Discoveries**:
+   - Upload endpoint:  (mediaType = video/picture/document)
+   - Upload response has **NO uid=1000(runner) gid=1000(runner) groups=1000(runner) field** — Oracle must list parent folder to get file ID post-upload
+   - Token endpoint:  (canonical, not refresh_token.php)
+   -  — credentials in POST body, NOT Authorization header
+   - Authorization header format:  (lowercase )
+   - No SSL pinning on 
+   - Scan pagination:  field requires offset loop
+   - Status codes: U=done, C=complete, A=processing, I=invalid, V=validating
+
+3. **Research Documents Published to GitHub** ():
+   -  — Server config, auth scheme, error codes, Item model
+   -  — Two-step upload, UploadResponse model, Oracle bugs
+   -  — All SAPI endpoints from MediaSapi.java
+   -  — Full OAuth2 + validationkey + JSESSIONID flow
+   -  — 6 specific bugs in Oracle backend with fix code
+   -  — New-agent orientation guide
+   -  — Updated index with key discoveries
+
+4. **6 Bugs Diagnosed in Oracle Backend** (see ):
+   - Upload response has no uid=1000(runner) gid=1000(runner) groups=1000(runner) → folder listing needed (partially handled in existing fallback)
+   - Folder listing endpoint possibly wrong ( vs )
+   -  param missing from SAPI requests
+   - Scan doesn't handle  pagination
+   - Token endpoint URL (minor — both work)
+   - Scanner uses legacy SAPI paths
+
+### Next Steps for Implementing Fixes
+
+See  for detailed fix code.
+Priority order:
+1. Fix upload ID extraction (Bug 1) — highest impact, prevents share URL creation
+2. Fix scan pagination (Bug 5) — large libraries get partial scans
+3. Add  to sapi_request (Bug 4) — minor
