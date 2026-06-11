@@ -485,3 +485,24 @@ Confirmed supervisor name is `raddflix_radd` (NOT `radd-hub`).
 - Flask: ✅ RUNNING (pid 3008136)
 - DB: 17 titles / 28 files — all Live
 - All code bugs resolved — see .agents/tasks/BUG_TRACKER.md for full list
+
+---
+
+## Session 2026-06-10 (FIX-WG0-ENFORCE)
+
+### Objective
+Hard-block ALL JazzDrive network calls from leaking via Oracle's direct public IP. Any call that bypasses wg0 risks Jazz SIM account suspension.
+
+### Work Done
+1. **Audited wg0 routes** — confirmed 54.179.95.148, 54.254.59.168, 175.41.133.62 all in AllowedIPs ✅
+2. **Added  exception class** — raised whenever wg0 is not routing JD IPs
+3. **Added  function** — runs , checks all 3 JD IPs, raises JDVPNRequired if any missing
+4. **Injected  into 5 call sites**: resolve_proxies(), _android_refresh_session_inner(), trigger_otp_flow(), resend_otp(), submit_otp()
+5. **Resolved git stash-pop conflict** in hub/routes/zero_rating.py (delta pipeline was dropped — kept GitHub version)
+6. **Verified**: syntax OK, Flask restarted healthy, healthz ✅, 6 require_wg0() call sites confirmed in live file
+
+### State After Session
+- Flask: ✅ RUNNING, healthz OK
+- JD session: DEAD — refresh_token invalid (HTTP 400), raw_accesstoken 401. OTP required for 03257719165.
+- wg0: ✅ all 3 JD IPs routed
+- Git: conflict resolved; jazzdrive.py patched in-place (stash pop clobbered GitHub version, v2 patch re-applied directly)

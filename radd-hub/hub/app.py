@@ -260,6 +260,35 @@ def create_app() -> Flask:
                         acct.get("msisdn")
                     )
                     continue
+                # FIX: probe the existing JSESSIONID before trying to refresh.
+                # If it is still alive, skip the refresh entirely — attempting an
+                # unnecessary OAuth2 exchange rotates the refresh_token chain and
+                # overwrites working tokens with potentially-rejected OAuth2 ones.
+                _jid = (acct.get("jsessionid") or "").strip()
+                _jid_alive = False
+                if _jid:
+                    try:
+                        import requests as _rq
+                        _kp = _rq.get(
+                            "https://cloud.jazzdrive.com.pk/sapi/login/keepalive",
+                            headers={
+                                "Cookie": f"JSESSIONID={_jid}",
+                                "X-Requested-With": "com.jazz.drive",
+                                "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)",
+                                "X-deviceid": _jd.get_x_deviceid(acct.get("msisdn")),
+                            },
+                            timeout=8,
+                        )
+                        _jid_alive = _kp.status_code == 200
+                        if _jid_alive:
+                            log.info(
+                                "startup_refresh: JSESSIONID still alive for %s — skipping refresh",
+                                acct.get("msisdn"),
+                            )
+                    except Exception as _kp_err:
+                        log.debug("startup_refresh: keepalive probe failed: %s", _kp_err)
+                if _jid_alive:
+                    continue
                 result = _jd.refresh_session(account_id=acct["id"])
                 if result.get("ok"):
                     msg = result.get("message", "")

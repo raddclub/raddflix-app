@@ -111,6 +111,43 @@
   </div>
 </div>
 
+<!-- JazzDrive Session Status -->
+<div class="card" id="jd-session-card">
+  <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div>
+      <h3 style="margin:0">JazzDrive Session</h3>
+      <div class="muted" style="font-size:12px;margin-top:3px">Stored tokens for <code id="jds-msisdn">…</code></div>
+    </div>
+    <div class="row" style="gap:8px;flex-wrap:wrap">
+      <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="jdsLoad()">↺ Check</button>
+      <button id="jds-refresh-btn" onclick="jdsForceRefresh()" style="padding:4px 14px;font-size:12px">🔄 Force Refresh Tokens</button>
+    </div>
+  </div>
+
+  <!-- Token status badges -->
+  <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+      <span class="muted">JSESSIONID</span>
+      <span id="jds-b-jid" class="badge b-mut">…</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+      <span class="muted">refresh_token</span>
+      <span id="jds-b-rt" class="badge b-mut">…</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+      <span class="muted">raw_accesstoken</span>
+      <span id="jds-b-at" class="badge b-mut">…</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:12px">
+      <span class="muted">token_expires_at</span>
+      <span id="jds-b-exp" class="badge b-mut">…</span>
+    </div>
+  </div>
+
+  <!-- Result / OTP warning -->
+  <div id="jds-result" style="font-size:13px;min-height:18px"></div>
+</div>
+
 <!-- JazzDrive accounts -->
 <div class="card">
   <div class="row" style="justify-content:space-between;margin-bottom:12px">
