@@ -372,15 +372,20 @@ def _streaming_multipart(file_path: Path, mime: str, parent_id: int,
 
 def _auth_headers(vk: str, jsid: str, account_id: Optional[int] = None) -> dict:
     msisdn = None
+    raw_accesstoken = None
     if account_id:
         try:
             with db.conn() as c:
-                row = c.execute("SELECT msisdn FROM accounts WHERE id=?", (account_id,)).fetchone()
+                row = c.execute(
+                    "SELECT msisdn, raw_accesstoken FROM accounts WHERE id=?",
+                    (account_id,)
+                ).fetchone()
                 if row:
-                    msisdn = row["msisdn"]
+                    msisdn          = row["msisdn"]
+                    raw_accesstoken = row["raw_accesstoken"]
         except Exception:
             pass
-    return jazzdrive.get_auth_headers(vk, jsid, msisdn=msisdn)
+    return jazzdrive.get_auth_headers(vk, jsid, msisdn=msisdn, raw_accesstoken=raw_accesstoken)
 
 
 def _auth_qs(vk: str) -> str:
@@ -714,7 +719,9 @@ def _pre_upload_save_metadata(vk: str, jsid: str, name: str, mime: str, size: in
             method="POST",
             data=encoded_body,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
-            tokens={"validationkey": vk, "jsessionid": jsid},
+            # When account_id is provided let sapi_request load the full
+            # token set (incl. raw_accesstoken for Authorization header).
+            tokens=None if account_id else {"validationkey": vk, "jsessionid": jsid},
             account_id=account_id,
             timeout=30,
         )
@@ -795,16 +802,21 @@ def _upload_file(sess, vk: str, jsid: str,
         f"&responsetime=true"
     )
     msisdn = None
+    raw_accesstoken = None
     if account_id:
         try:
             with db.conn() as _c:
-                _row = _c.execute("SELECT msisdn FROM accounts WHERE id=?", (account_id,)).fetchone()
+                _row = _c.execute(
+                    "SELECT msisdn, raw_accesstoken FROM accounts WHERE id=?",
+                    (account_id,)
+                ).fetchone()
                 if _row:
-                    msisdn = _row["msisdn"]
+                    msisdn          = _row["msisdn"]
+                    raw_accesstoken = _row["raw_accesstoken"]
         except Exception:
             pass
 
-    hdrs = jazzdrive.get_auth_headers(vk, jsid, msisdn=msisdn)
+    hdrs = jazzdrive.get_auth_headers(vk, jsid, msisdn=msisdn, raw_accesstoken=raw_accesstoken)
     hdrs.update({
         "Content-Type":   ct_header,
         "Content-Length": str(content_length),
