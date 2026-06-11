@@ -2,16 +2,11 @@
 
 _Last updated: 2026-06-11_
 
-## In Progress
-
-| ID | Changed | Summary | Ref |
-|----|---------|---------|-----|
-| FIX-DEVICE-NAME | hub/keepalive.py + DB | Fix garbled device name on JazzDrive website + human-like keepalive behavior | ⏳ IN PROGRESS |
-
 ## Completed This Session
 
 | ID | Changed | Summary | Ref |
 |----|---------|---------|-----|
+| FIX-DEVICE-NAME | hub/keepalive.py + Oracle DB | Fix garbled device name (InfinixInfinix→Infinix X680F) + human-like keepalive (PKT active hours, jitter, skip, varied payload) | fed423f |
 | JD-IDENTITY-01..03 | hub/jazzdrive.py | fac- deviceid, omh UA, x-request-id, X-devicename, Authorization oauth, validationkey-from-response-body | 3cd109c |
 | JD-IDENTITY-04 | hub/routes/jd_auth.py (new), hub/app.py | GET /api/jd/oauth2/authorize_url + POST /api/jd/oauth2/token + POST /api/jd/mobileconnect/validate | 330d479, 5131e32 |
 | FIX-WG0-ENFORCE | hub/jazzdrive.py | Hard-block ALL JazzDrive network calls if wg0 not routing JD IPs | pending |
@@ -35,7 +30,7 @@ _Last updated: 2026-06-11_
 | Upload Watcher | UPLOAD_ENABLED | OFF | Watches for new files, uploads to JazzDrive |
 | Download Queue | DOWNLOAD_ENABLED | ON | Processes queued download jobs |
 | Mirror Retry | MIRROR_ENABLED | ON | Retries failed GitHub mirror pushes every 60s |
-| JazzDrive Keepalive | KEEPALIVE_ENABLED | ON | Heartbeat pings every 15 min |
+| JazzDrive Keepalive | KEEPALIVE_ENABLED | ON | Human-like heartbeat — 8am–11pm PKT, ±25% jitter |
 | Scanner | SCAN_ENABLED | OFF | Scans JazzDrive accounts for new content |
 | Smart Scheduler | SCHEDULER_ENABLED | OFF | Rescans ongoing series + delta generation |
 | Domain Doctor | DOMAIN_DOCTOR_ENABLED | ON | Finds working mirror domains every 24h |
@@ -73,3 +68,4 @@ _No open backlog items._
 - Add tasks to TASKS.md BEFORE making changes
 - Proxy background scanning permanently removed — do NOT re-add threads to ProxyPool
 - git stash gotcha: if git pull fails, && skips stash pop. Pop manually if needed.
+- Keepalive human-like: active hours 8am–11pm PKT, ±25% jitter, 8% skip, varied payload

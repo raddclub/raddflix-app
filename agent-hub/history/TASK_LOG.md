@@ -745,3 +745,49 @@ Priority order:
 - Account: ACTIVE (auto-recovers via Android OAuth2)
 - Open tasks: none — all handoff tasks complete
 - JazzDrive identity: 100% parity with Android APK (all 4 OkHttp interceptors + Authorization header + validationkey lifecycle)
+
+---
+
+## Session 2026-06-11 — Device Name Fix + Human-Like Keepalive Behavior
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| FIX-DEVICE-NAME | Fix JAZZDRIVE_DEVICE_NAME (InfinixInfinix → Infinix X680F) + human-like keepalive | ✅ DONE |
+
+### Root causes found
+
+**Device name bug (`"w0,H❤❤❤❤` on JazzDrive website):**
+- DB had `JAZZDRIVE_DEVICE_NAME = InfinixInfinix X680F` (manufacturer duplicated)
+- The garbled website name was registered before identity headers (X-devicename) were being sent. JazzDrive stores the device name at registration time associated with X-deviceid. Now that X-devicename is sent on every SAPI request, the display will update.
+- Fix: corrected DB value to `Infinix X680F`
+
+**Upload/scan behavior not human-like:**
+- Keepalive ran on a perfectly mechanical 360-min schedule, 24/7, with no quiet hours, no randomness, and always same filename/payload — easy to fingerprint as a bot.
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| radd-hub/hub/keepalive.py | Human-like timing: PKT active hours 8am-11pm, ±25% jitter, 8% skip chance, varied filename/size, 2-8s startup delay | fed423f |
+| Oracle DB | JAZZDRIVE_DEVICE_NAME: InfinixInfinix X680F → Infinix X680F | direct SQL |
+
+### What changed in keepalive.py
+
+1. **PKT active hours gate** — `_is_active_hours()` checks Pakistan Standard Time (UTC+5). Outside 8am–11pm PKT the loop skips and sleeps until next 8am + random 1–20 min offset. No SAPI traffic at 2am, 4am, etc.
+
+2. **Interval jitter** — Each cycle applies ±25% random jitter to the base interval (read live from `keepalive_interval_min` DB setting). E.g. base=360 min → actual gap 270–450 min. Activity never looks perfectly mechanical.
+
+3. **8% probabilistic skip** — Per-account, per-cycle: 8% chance of skipping the heartbeat. Mirrors real user behavior (you don't open the app every single time on the dot).
+
+4. **Variable heartbeat payload** — Filename rotates through 6 options (`sync_note.txt`, `backup_list.txt`, etc.). Payload size varies 800–1400 bytes with varied message text. Same file was always uploaded before.
+
+5. **App-startup delay** — `time.sleep(random.uniform(2.0, 8.0))` before the first SAPI request per heartbeat. Real users take a few seconds to open the app; the first request at exactly T+0 is a bot fingerprint.
+
+6. **Interval read from DB live** — Base interval is read from `keepalive_interval_min` each cycle, not once at startup. Admin changes take effect without Flask restart.
+
+### State at end of session
+- Oracle Flask: RUNNING (`{"ok":true,"version":"3.0.0"}`)
+- Account 03257719165: ACTIVE — Android OAuth2 session auto-restored on startup
+- JAZZDRIVE_DEVICE_NAME: `Infinix X680F` (fixed)
+- Keepalive: human-like mode active (PKT hours 8am–11pm, ±25% jitter)
+- Open tasks: none
