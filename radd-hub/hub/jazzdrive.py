@@ -347,18 +347,37 @@ def get_x_deviceid(msisdn: Optional[str] = None) -> str:
     m = str(msisdn or db.setting("JAZZDRIVE_MSISDN") or "").strip()
     m = m.replace("+", "").replace(" ", "").replace("-", "")
     suffix = m[-10:] if len(m) >= 10 else "raddhub"
-    return f"android-raddhub-{suffix}"
+    return f"fac-{suffix}"
 
-def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None) -> dict:
-    """Return standard headers for any SAPI/Cloud request."""
-    return {
+def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
+                     raw_accesstoken: Optional[str] = None,
+                     _request_id: Optional[str] = None) -> dict:
+    """Return standard headers for any SAPI/Cloud request.
+
+    Mirrors the 4 OkHttp interceptors in the JazzDrive Android APK exactly:
+      1. x-request-id     — new UUID per request  (C30920a AddRequestIdInterceptor)
+      2. User-Agent       — "omh android client"   (C30921b AddUserAgentInterceptor)
+      3. X-deviceid       — fac-<suffix>           (C30924e DeviceInterceptor)
+      4. X-devicename     — device model           (C30924e DeviceInterceptor)
+      5. Authorization    — oauth <Base64(token)>  (C12815c OAuth2AuthenticatorInterceptor)
+    """
+    import base64 as _b64_ah
+    device_name = db.setting("JAZZDRIVE_DEVICE_NAME") or "Samsung Galaxy A51"
+    headers = {
         "Accept":           "application/json, text/plain, */*",
-        "User-Agent":       "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)",
+        "User-Agent":       "omh android client",
+        "x-request-id":     _request_id or str(_uuid.uuid4()),
         "X-deviceid":       get_x_deviceid(msisdn),
+        "X-devicename":     device_name,
         "X-Requested-With": "com.jazz.drive",
-        "Cookie":           f"JSESSIONID={jid}",
-        "validation_key":   vk,
     }
+    if jid:
+        headers["Cookie"] = f"JSESSIONID={jid}"
+    if vk:
+        headers["validation_key"] = vk
+    if raw_accesstoken:
+        headers["Authorization"] = "oauth " + _b64_ah.b64encode(raw_accesstoken.encode()).decode()
+    return headers
 
 
 def refresh_jsessionid(validation_key: str,
@@ -375,7 +394,7 @@ def refresh_jsessionid(validation_key: str,
     msisdn = str(db.setting('JAZZDRIVE_MSISDN') or "")
     dev_suffix = msisdn[-10:] if len(msisdn) >= 10 else _uuid.uuid4().hex[:10]
 
-    headers = get_auth_headers("", "", msisdn=msisdn)
+    headers = get_auth_headers("", "", msisdn=msisdn, raw_accesstoken=raw_accesstoken)
     headers.pop("Cookie", None)
     headers.pop("validation_key", None)
     headers.update({
@@ -832,7 +851,7 @@ def sapi_request(endpoint: str, action: str,
     req_params["validationkey"] = vk
     req_params["responsetime"] = "true"
     
-    req_headers = get_auth_headers(vk, jid or "", msisdn=tokens.get("msisdn"))
+    req_headers = get_auth_headers(vk, jid or "", msisdn=tokens.get("msisdn"), raw_accesstoken=tokens.get("raw_accesstoken"))
     if not jid:
         req_headers.pop("Cookie", None)
     if headers:
@@ -935,6 +954,19 @@ def sapi_request(endpoint: str, action: str,
             if 200 <= r.status_code < 300:
                 return {"ok": True, "text": r.text[:1000]}
             return {"error": {"code": "HTTP-" + str(r.status_code), "message": r.text[:200]}}
+
+        # 5b. Update validationkey from response body (AbstractC12813a.m51847w).
+        # The real Android app reads data.validationkey from EVERY SAPI response
+        # and stores the latest — this keeps the session alive indefinitely.
+        if isinstance(resp_data, dict) and 200 <= r.status_code < 300:
+            _resp_d = resp_data.get("data", {})
+            if isinstance(_resp_d, dict):
+                _new_vk_body = (_resp_d.get("validationkey") or _resp_d.get("validation_key"))
+                if _new_vk_body and _new_vk_body != vk:
+                    log.debug("sapi_request: validationkey refreshed from response body")
+                    tokens["validationkey"] = _new_vk_body
+                    vk = _new_vk_body
+                    _update_token_storage(account_id, tokens)
 
         # 6. Handle SEC-1003 (Rolling Key Rotation)
         err = resp_data.get("error")
@@ -1901,15 +1933,14 @@ def _android_refresh_session_inner(refresh_token: str,
     if not _msisdn_for_dev:
         _msisdn_for_dev = str(db.setting("JAZZDRIVE_MSISDN") or "")
 
-    _UA_ANDROID = "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)"
     sess = _req.Session()
+    # Use the same headers as the real Android app (all 4 OkHttp interceptors)
+    _sess_headers = get_auth_headers("", "", msisdn=_msisdn_for_dev)
+    # raw_at may be unusable at this point — Authorization added per-request below if needed
+    _sess_headers.pop("Cookie", None)
+    _sess_headers.pop("validation_key", None)
     device_id = get_x_deviceid(_msisdn_for_dev)
-    sess.headers.update({
-        "Accept":           "application/json, text/plain, */*",
-        "User-Agent":       _UA_ANDROID,
-        "X-deviceid":       device_id,
-        "X-Requested-With": "com.jazz.drive",
-    })
+    sess.headers.update(_sess_headers)
     
     at_json_1    = json.dumps({"data": {"accesstoken": raw_at}})
     at_json_2    = json.dumps({"accesstoken": raw_at})

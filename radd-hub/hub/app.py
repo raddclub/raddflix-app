@@ -110,6 +110,8 @@ def create_app() -> Flask:
     app.register_blueprint(mobile_api.bp_app,          url_prefix="/api/app")
     app.register_blueprint(mobile_api.bp_rec,          url_prefix="/api")  # BUG-A26: prefix changed from /api/recommend to /api to fix no-slash 401 redirect
     # ── Catalog / Search / Poster (migrated from _watch_prototype) ────────
+    from .routes import jd_auth as jd_auth_route
+    app.register_blueprint(jd_auth_route.bp)     # /api/jd/*  JazzDrive auth proxy
     app.register_blueprint(catalog_api.bp)        # url_prefix in blueprint: /api/catalog
     app.register_blueprint(catalog_api.bp_watch)  # BUG-A35: /watch/api/play/<file_id>
     app.register_blueprint(search_api.bp)    # url_prefix in blueprint: /api/search
