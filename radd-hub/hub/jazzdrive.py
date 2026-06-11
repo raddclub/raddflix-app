@@ -342,7 +342,7 @@ def get_x_deviceid(msisdn: Optional[str] = None) -> str:
 
     JazzDrive sessions are tied to the X-deviceid. Using a stable one
     prevents 'invalid session' errors when switching between uploader/keepalive.
-    Prefixing with android-raddhub- to mimic Android app without kicking the real app's session.
+    Prefix fac- matches APK strings.xml app_device_id_prefix (C30924e DeviceInterceptor).
     """
     m = str(msisdn or db.setting("JAZZDRIVE_MSISDN") or "").strip()
     m = m.replace("+", "").replace(" ", "").replace("-", "")
