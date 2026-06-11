@@ -2,6 +2,12 @@
 
 _Last updated: 2026-06-11_
 
+## In Progress
+
+| ID | Changed | Summary | Ref |
+|----|---------|---------|-----|
+| FIX-DEVICE-NAME | hub/keepalive.py + DB | Fix garbled device name on JazzDrive website + human-like keepalive behavior | ⏳ IN PROGRESS |
+
 ## Completed This Session
 
 | ID | Changed | Summary | Ref |
