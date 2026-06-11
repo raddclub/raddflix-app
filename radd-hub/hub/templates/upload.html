@@ -626,7 +626,8 @@ function uploadAutoParseJson(raw) {
   const d = parsed.data || parsed;
   const vk  = d.validationkey || d.validation_key || '';
   const jid = d.jsessionid    || d.JSESSIONID      || '';
-  const at  = d.access_token  || d.accesstoken     || '';
+  const at  = d.access_token  || d.accesstoken     || d.raw_accesstoken || '';
+  window._uploadPtAt = at;  // stash for pasteTokens()
   let filled = 0;
   if (vk)  { document.getElementById('pt-vk').value  = vk;  filled++; }
   if (jid) { document.getElementById('pt-jid').value = jid; filled++; }
@@ -681,8 +682,10 @@ async function pasteTokens() {
   if (!vk || !jid) { msg.textContent = 'Enter validation_key and JSESSIONID (or paste full JSON above)'; return; }
   msg.textContent = 'Saving…';
   try {
-    const d = await api('/api/jazzdrive/tokens', {method:'POST',
-      body:{validation_key:vk, jsessionid:jid, msisdn:msisdn||undefined}});
+    const at  = window._uploadPtAt || '';
+    const d = await api('/upload/api/jazzdrive/tokens', {method:'POST',
+      body:{validation_key:vk, jsessionid:jid, msisdn:msisdn||undefined,
+            ...(at ? {raw_accesstoken: at} : {})}});
     if (d.ok === false) { msg.textContent = 'Failed: ' + (d.error || 'unknown'); return; }
     msg.textContent = '✔ Tokens saved — reloading…';
     /* Reset card styling */
@@ -1122,12 +1125,13 @@ async function modalSaveFromJson() {
   const sapiMsg = document.getElementById('modal-sapi-msg');
   const btn     = document.getElementById('modal-sapi-save-btn');
   const msisdn  = window._modalSapiMsisdn || document.getElementById('modal-msisdn').value.trim();
-  let vk = '', jid = '';
+  let vk = '', jid = '', at = '';
   try {
     const d = JSON.parse(jsonStr);
     const data = (d && d.data) ? d.data : d;
     vk  = data.validationkey  || data.validation_key  || data.ValidationKey  || '';
     jid = data.jsessionid     || data.JSESSIONID       || '';
+    at  = data.access_token   || data.accesstoken      || data.raw_accesstoken || '';
   } catch(e) {
     sapiMsg.innerHTML = '<span style="color:var(--err,#f44)">Invalid JSON — ' + e.message + '</span>';
     return;
@@ -1139,7 +1143,8 @@ async function modalSaveFromJson() {
   btn.disabled = true; btn.textContent = 'Saving…';
   sapiMsg.textContent = '';
   try {
-    const r = await api('/upload/api/jazzdrive/tokens', {method:'POST', body:{msisdn, validation_key: vk, jsessionid: jid}});
+    const r = await api('/upload/api/jazzdrive/tokens', {method:'POST',
+      body:{msisdn, validation_key: vk, jsessionid: jid, ...(at ? {raw_accesstoken: at} : {})}});
     if (r.ok) {
       sapiMsg.innerHTML = '<span style="color:var(--ok,#22c55e)">✔ Session active! Reloading…</span>';
       toast('✔ JazzDrive session activated');

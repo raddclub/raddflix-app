@@ -555,17 +555,48 @@ def api_paste_tokens():
     if not acct:
         return jsonify({"ok": False, "error": "No JazzDrive account found — send OTP first"}), 404
 
-    aid = acct["id"]
-    exp = int(_time.time()) + 86400 * 30  # treat as valid for 30 days
+    aid  = acct["id"]
+    exp  = int(_time.time()) + 86400 * 30  # treat as valid for 30 days
+    raw_at = (data.get("raw_accesstoken") or data.get("access_token") or "").strip()
 
     try:
         with db.conn() as c:
-            c.execute(
-                "UPDATE accounts SET validation_key=?, jsessionid=?, "
-                "token_expires_at=?, is_active=1 WHERE id=?",
-                (vk, jid, exp, aid),
-            )
-        return jsonify({"ok": True, "message": "Tokens saved — session active", "account_id": aid})
+            if raw_at:
+                c.execute(
+                    "UPDATE accounts SET validation_key=?, jsessionid=?, "
+                    "raw_accesstoken=?, token_expires_at=?, last_scan_at=?, is_active=1 WHERE id=?",
+                    (vk, jid, raw_at, exp, int(_time.time()), aid),
+                )
+            else:
+                c.execute(
+                    "UPDATE accounts SET validation_key=?, jsessionid=?, "
+                    "token_expires_at=?, last_scan_at=?, is_active=1 WHERE id=?",
+                    (vk, jid, exp, int(_time.time()), aid),
+                )
+
+        # Mirror scan page: verify session is alive + resume uploads immediately.
+        try:
+            from .. import keepalive as _ka
+            _ka.trigger_heartbeat(aid)
+        except Exception as _hb_err:
+            import logging
+            logging.getLogger("hub.upload").debug("trigger_heartbeat failed: %s", _hb_err)
+        try:
+            from .. import jazzdrive as _jd
+            _jd.clear_sapi_backoff(aid)
+        except Exception:
+            pass
+        try:
+            from .. import uploader as _up
+            _up.clear_refresh_backoff(aid)
+        except Exception:
+            pass
+
+        return jsonify({
+            "ok":        True,
+            "message":   "Tokens saved — session verification triggered in background",
+            "account_id": aid,
+        })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 

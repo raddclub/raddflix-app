@@ -826,12 +826,13 @@ function scanInlineAutoParseJson(id, val) {
     if (msgEl) { msgEl.textContent = '✗ Paste the full JSON response (starts with {)'; msgEl.style.color = 'var(--err,#f55)'; }
     return;
   }
-  let vk = '', jid = '', filled = 0;
+  let vk = '', jid = '', at = '', filled = 0;
   try {
     const d = JSON.parse(val);
     const data = (d && d.data) ? d.data : d;
     vk  = data.validationkey || data.validation_key || '';
     jid = data.jsessionid    || data.JSESSIONID     || '';
+    at  = data.access_token  || data.accesstoken    || data.raw_accesstoken || '';
     if (vk)  filled++;
     if (jid) filled++;
   } catch(e) {
@@ -839,6 +840,9 @@ function scanInlineAutoParseJson(id, val) {
     if (msgEl) { msgEl.textContent = '✗ Invalid JSON — ' + e.message; msgEl.style.color = 'var(--err,#f55)'; }
     return;
   }
+  // stash raw_accesstoken keyed by account id for saveInlineOtpSapi
+  if (!window._scanAt) window._scanAt = {};
+  window._scanAt[id] = at;
   if (saveBtn) saveBtn.disabled = filled < 2;
   if (msgEl) {
     if (filled === 2) {
@@ -871,8 +875,10 @@ async function saveInlineOtpSapi(id) {
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   if (saveMsg) saveMsg.textContent = '';
   try {
+    const _at = (window._scanAt && window._scanAt[id]) || '';
     const r = await api('/scan/api/accounts/' + id + '/tokens',
-                        {method:'POST', body:{validation_key:vk, jsessionid:jid}});
+                        {method:'POST', body:{validation_key:vk, jsessionid:jid,
+                          ...(_at ? {raw_accesstoken: _at} : {})}});
     if (r.ok) {
       if (saveMsg) saveMsg.innerHTML = '<span style="color:var(--ok,#22c55e)">✔ Session active! Reloading…</span>';
       toast('✔ Account activated');
