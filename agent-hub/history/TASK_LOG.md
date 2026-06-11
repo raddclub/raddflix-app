@@ -637,3 +637,27 @@ Both correct.
 - Oracle Flask: RUNNING (`{"ok":true,"version":"3.0.0"}`)
 - Account: ACTIVE (auto-recovers via Android OAuth2 + PK proxy)
 - Open tasks: none — backlog is clean
+
+---
+
+## Session 2026-06-11 — Upload JazzDrive 8.0.1 XAPK to GitHub
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| UPLOAD-XAPK-01 | Upload Jazz_Drive_8.0.1.xapk (41.8 MB) to jazzdrive_research/ | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| jazzdrive_research/README.md | New file — links to release asset download | bc1eebe |
+| GitHub Release: jazzdrive-apks-v1 | Created release, uploaded Jazz_Drive_8.0.1.xapk as asset | release id 337923458 |
+
+### Notes
+GitHub tree/blob API rejects base64 payloads over ~50 MB. Used GitHub Releases API (upload.github.com) instead — supports up to 2 GB. README.md added to jazzdrive_research/ folder with direct download link.
+
+### State at end of session
+- Oracle Flask: RUNNING (`{"ok":true,"version":"3.0.0"}`)
+- Account: ACTIVE (auto-recovers via Android OAuth2 + PK proxy)
+- Open tasks: none — backlog clean
+- APK: https://github.com/raddclub/raddflix-app/releases/download/jazzdrive-apks-v1/Jazz_Drive_8.0.1.xapk
