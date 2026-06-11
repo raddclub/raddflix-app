@@ -791,3 +791,46 @@ Priority order:
 - JAZZDRIVE_DEVICE_NAME: `Infinix X680F` (fixed)
 - Keepalive: human-like mode active (PKT hours 8am–11pm, ±25% jitter)
 - Open tasks: none
+
+
+## Session 2026-06-11 — BUG-DUP-GUARD: Duplicate guard silent failure fix
+
+### Root cause investigated
+Spider-Noir S01E01 had no row in the files table despite being successfully uploaded to JazzDrive (remote_id=242576277). Full log trace revealed a 3-step failure chain:
+
+1. **Flask restarted mid-upload** (07:28:47) right between JazzDrive upload success and DB write
+2. **Startup watcher reset** the file row back to "pending" (`watcher_loop: reset 1 stuck in-progress file`)
+3. **Duplicate guard on retry** detected file already on JazzDrive, ran `UPDATE files SET is_ready=1 WHERE id=file_id` — but either `file_id=None` (queue context lost after restart) or WAL lock → 0 rows updated
+4. **Exception handler used `log.debug`** → completely invisible in production log level → silent failure
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| BUG-DUP-GUARD | Fix both duplicate guards in uploader.py: UPDATE→upsert fallback + log.warning | ✅ DONE |
+| BUG-DUP-GUARD-DATA | Insert missing Spider-Noir S01E01 DB row (id=3, remote_id=242576277) | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| radd-hub/hub/uploader.py | Guard 1 (upload_to_jazzdrive): check rowcount after UPDATE, fall back to upsert_file if 0 rows; log.debug→log.warning. Guard 2 (upload_pending): same pattern + full upsert with plan.season/episode/filename | this session |
+| Oracle DB files table | UPDATE files id=3: set title_id=3, season=1, episode=1, source, account_id, remote_folder_id | direct SQL |
+
+### What changed in uploader.py
+
+**Both duplicate guards** (one in `upload_to_jazzdrive()`, one in `upload_pending()`) now follow this pattern:
+
+```
+1. Try UPDATE WHERE id=file_id, capture rowcount
+2. If file_id is None OR rowcount==0:
+   - Log WARNING (was: log.debug — invisible in prod)
+   - Call db.upsert_file({...}) — INSERT OR REPLACE by fingerprint
+3. File row is guaranteed to exist regardless of restart timing
+```
+
+Previously: if the DB row was deleted or never committed (Flask restart mid-upload), the UPDATE hit 0 rows, the `except` handler logged at DEBUG level only, and the file was permanently lost from the DB even though it existed fine on JazzDrive.
+
+### State at end of session
+- Oracle Flask: RUNNING (`{"ok":true,"version":"3.0.0"}`)
+- Account: ACTIVE
+- Spider-Noir: S01E01 ✅ E02 ✅ both rows present with correct remote_id + share_url
+- Duplicate guard: hardened — upsert fallback guarantees DB row even after Flask restart

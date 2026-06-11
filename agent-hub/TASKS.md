@@ -6,6 +6,7 @@ _Last updated: 2026-06-11_
 
 | ID | Changed | Summary | Ref |
 |----|---------|---------|-----|
+| BUG-DUP-GUARD | hub/uploader.py + Oracle DB | Fix duplicate guard silent failure: UPDATE→upsert fallback + log.warning, insert missing Spider-Noir S01E01 DB row | this session |
 | FIX-DEVICE-NAME | hub/keepalive.py + Oracle DB | Fix garbled device name (InfinixInfinix→Infinix X680F) + human-like keepalive (PKT active hours, jitter, skip, varied payload) | fed423f |
 | JD-IDENTITY-01..03 | hub/jazzdrive.py | fac- deviceid, omh UA, x-request-id, X-devicename, Authorization oauth, validationkey-from-response-body | 3cd109c |
 | JD-IDENTITY-04 | hub/routes/jd_auth.py (new), hub/app.py | GET /api/jd/oauth2/authorize_url + POST /api/jd/oauth2/token + POST /api/jd/mobileconnect/validate | 330d479, 5131e32 |
@@ -69,3 +70,4 @@ _No open backlog items._
 - Proxy background scanning permanently removed — do NOT re-add threads to ProxyPool
 - git stash gotcha: if git pull fails, && skips stash pop. Pop manually if needed.
 - Keepalive human-like: active hours 8am–11pm PKT, ±25% jitter, 8% skip, varied payload
+- Duplicate guard must upsert (not just UPDATE) — row may be missing after Flask restart

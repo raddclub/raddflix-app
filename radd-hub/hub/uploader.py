@@ -1465,15 +1465,22 @@ def upload_to_jazzdrive(
                     except Exception as _sl_err:
                         log.debug("duplicate-guard share link failed: %s", _sl_err)
                     try:
+                        _dup_rows = 0
                         if _claimed_file_id:
                             with db.conn() as _dc:
-                                _dc.execute(
+                                _dup_rows = _dc.execute(
                                     "UPDATE files SET is_ready=1, remote_id=?, share_url=?,"
                                     " remote_folder_id=?, fingerprint=?, uploaded_at=? WHERE id=?",
                                     (str(_exist_id), _exist_share or "", folder_id,
                                      "scan:" + str(_exist_id), int(time.time()), _claimed_file_id),
+                                ).rowcount
+                        if not _claimed_file_id or _dup_rows == 0:
+                            if _dup_rows == 0 and _claimed_file_id:
+                                log.warning(
+                                    "duplicate-guard: UPDATE hit 0 rows for file_id=%s"
+                                    " (row deleted by restart?) — falling back to upsert",
+                                    _claimed_file_id,
                                 )
-                        else:
                             db.upsert_file({
                                 "fingerprint":      "scan:" + str(_exist_id),
                                 "source":           "upload",
@@ -1488,7 +1495,7 @@ def upload_to_jazzdrive(
                                 "is_ready":         1,
                             })
                     except Exception as _db_err:
-                        log.debug("duplicate-guard DB update failed: %s", _db_err)
+                        log.warning("duplicate-guard DB update failed: %s", _db_err)
                     _unclaim()
                     return {
                         "ok": True,
@@ -1968,15 +1975,37 @@ def _upload_pending() -> None:
                         except Exception as _dup_sl_err:
                             log.debug("upload_pending dup-guard share link failed: %s", _dup_sl_err)
                         try:
-                            with db.conn() as _dup_dc:
-                                _dup_dc.execute(
-                                    "UPDATE files SET is_ready=1, remote_id=?, share_url=?,"
-                                    " remote_folder_id=?, fingerprint=?, uploaded_at=? WHERE id=?",
-                                    (str(_dup_exist_id), _dup_share or "", folder_id,
-                                     "scan:" + str(_dup_exist_id), int(time.time()), file_id),
-                                )
+                            _dup_rows = 0
+                            if file_id:
+                                with db.conn() as _dup_dc:
+                                    _dup_rows = _dup_dc.execute(
+                                        "UPDATE files SET is_ready=1, remote_id=?, share_url=?,"
+                                        " remote_folder_id=?, fingerprint=?, uploaded_at=? WHERE id=?",
+                                        (str(_dup_exist_id), _dup_share or "", folder_id,
+                                         "scan:" + str(_dup_exist_id), int(time.time()), file_id),
+                                    ).rowcount
+                            if not file_id or _dup_rows == 0:
+                                if _dup_rows == 0 and file_id:
+                                    log.warning(
+                                        "upload_pending dup-guard: UPDATE hit 0 rows for"
+                                        " file_id=%s (row missing after restart?) — falling back to upsert",
+                                        file_id,
+                                    )
+                                db.upsert_file({
+                                    "fingerprint":      "scan:" + str(_dup_exist_id),
+                                    "source":           "upload",
+                                    "account_id":       acct["id"],
+                                    "filename":         plan.filename,
+                                    "season":           plan.season,
+                                    "episode":          plan.episode,
+                                    "remote_id":        str(_dup_exist_id),
+                                    "remote_folder_id": folder_id,
+                                    "share_url":        _dup_share or "",
+                                    "uploaded_at":      int(time.time()),
+                                    "is_ready":         1,
+                                })
                         except Exception as _dup_db_err:
-                            log.debug("upload_pending dup-guard DB update failed: %s", _dup_db_err)
+                            log.warning("upload_pending dup-guard DB update failed: %s", _dup_db_err)
                         clear_live_stat(file_id)
                         return  # already on JazzDrive — no local delete, no upload
             except Exception as _jd_dup_err:

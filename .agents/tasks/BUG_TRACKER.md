@@ -288,6 +288,37 @@ Previous AUDIT-JD-ID session (2026-06-09 2nd) audited the player path correctly 
 
 ---
 
+
+---
+
+## Session 2026-06-11 — BUG-DUP-GUARD: Duplicate guard silent DB write failure
+
+| ID | Severity | Title | Root Cause | Fix Applied | File |
+|----|---------|-------|-----------|-------------|------|
+| BUG-DUP-GUARD | HIGH | Spider-Noir S01E01 missing from DB after successful JazzDrive upload | Flask restart at 07:28:47 interrupted upload mid-write. Retry duplicate guard did `UPDATE WHERE id=file_id` — file_id was None or row missing → 0 rows updated. Exception handler used `log.debug` → completely silent | Both duplicate guards now: (1) check `rowcount` after UPDATE, (2) fall back to `db.upsert_file()` if 0 rows, (3) log at WARNING level | `hub/uploader.py` |
+
+### Failure Chain
+```
+Flask restart mid-upload (07:28:47)
+  → watcher_loop resets file to pending
+  → retry triggers duplicate guard
+  → UPDATE WHERE id=file_id → 0 rows (file_id=None or row gone)
+  → log.debug swallows it — no trace in prod logs
+  → DB row never written, file stuck with no DB entry forever
+```
+
+### Fix Pattern (applied to both guards)
+```python
+_rows = 0
+if file_id:
+    _rows = db.execute("UPDATE ... WHERE id=?", (..., file_id)).rowcount
+if not file_id or _rows == 0:
+    log.warning("... UPDATE hit 0 rows — falling back to upsert")
+    db.upsert_file({...})   # INSERT OR REPLACE by fingerprint — always succeeds
+```
+
+---
+
 ## Open Bugs
 
 _No open code bugs. All known issues resolved._
