@@ -22,6 +22,7 @@ import logging
 import time
 import uuid as _uuid
 from pathlib import Path
+import subprocess as _subprocess
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file
 from .. import db, auth, config
 
@@ -814,3 +815,172 @@ def jd_force_refresh():
             "vpn_error":   vpn,
             "otp_required": not vpn,
         }), 500
+
+
+# ---------------------------------------------------------------------------
+# Background Services page
+# ---------------------------------------------------------------------------
+
+_SERVICES = [
+    {
+        "name":  "keepalive",
+        "label": "JazzDrive Keepalive",
+        "desc":  "Periodically pings JazzDrive to keep accounts active and tokens fresh.",
+        "db_key": "KEEPALIVE_ENABLED",
+        "deps":  [],
+    },
+    {
+        "name":  "scan",
+        "label": "Scanner",
+        "desc":  "Walks JazzDrive folders and indexes new content into the library.",
+        "db_key": "SCAN_ENABLED",
+        "deps":  ["keepalive"],
+    },
+    {
+        "name":  "upload",
+        "label": "Upload Watcher",
+        "desc":  "Monitors staging folder and uploads finished encodes to JazzDrive.",
+        "db_key": "UPLOAD_ENABLED",
+        "deps":  ["keepalive"],
+    },
+    {
+        "name":  "scheduler",
+        "label": "Smart Scheduler",
+        "desc":  "Generates download deltas and triggers scan/upload on a schedule.",
+        "db_key": "SCHEDULER_ENABLED",
+        "deps":  ["scan", "upload"],
+    },
+    {
+        "name":  "download",
+        "label": "Download Queue",
+        "desc":  "Processes the download queue and fetches content from source sites.",
+        "db_key": "DOWNLOAD_ENABLED",
+        "deps":  [],
+    },
+    {
+        "name":  "mirror",
+        "label": "Mirror Retry",
+        "desc":  "Re-attempts failed mirrors and syncs library to GitHub / Google Sheets.",
+        "db_key": "MIRROR_ENABLED",
+        "deps":  [],
+    },
+    {
+        "name":  "domain_doctor",
+        "label": "Domain Doctor",
+        "desc":  "Auto-discovers working domain URLs for content sources.",
+        "db_key": "DOMAIN_DOCTOR_ENABLED",
+        "deps":  [],
+    },
+    {
+        "name":      "wa_bot",
+        "label":     "WhatsApp Bot",
+        "desc":      "WhatsApp chat bot for user requests and status notifications.",
+        "db_key":    None,
+        "supervisor": "raddflix_wa_bot",
+        "deps":      [],
+    },
+]
+
+
+def _svc_enabled(svc: dict) -> bool:
+    if svc.get("supervisor"):
+        try:
+            out = _subprocess.check_output(
+                ["sudo", "supervisorctl", "status", svc["supervisor"]],
+                stderr=_subprocess.DEVNULL, timeout=5,
+            ).decode()
+            return "RUNNING" in out
+        except Exception:
+            return False
+    return db.setting(svc["db_key"], "1") == "1"
+
+
+@bp.route("/services")
+@auth.login_required
+def services_page():
+    return render_template("services.html")
+
+
+@bp.route("/api/services", methods=["GET"])
+@auth.login_required
+def services_list():
+    enabled_map = {s["name"]: _svc_enabled(s) for s in _SERVICES}
+    result = []
+    for svc in _SERVICES:
+        is_on = enabled_map[svc["name"]]
+        deps  = svc.get("deps", [])
+        missing_deps = [d for d in deps if not enabled_map.get(d, True)] if is_on else []
+        broken_rdeps = (
+            [s["name"] for s in _SERVICES
+             if svc["name"] in s.get("deps", []) and enabled_map.get(s["name"])]
+            if not is_on else []
+        )
+        result.append({
+            "name":         svc["name"],
+            "label":        svc["label"],
+            "desc":         svc["desc"],
+            "enabled":      is_on,
+            "deps":         deps,
+            "missing_deps": missing_deps,
+            "broken_rdeps": broken_rdeps,
+            "supervisor":   svc.get("supervisor"),
+        })
+    return jsonify({"ok": True, "services": result})
+
+
+@bp.route("/api/services/toggle", methods=["POST"])
+@auth.login_required
+def services_toggle():
+    body    = request.get_json(silent=True) or {}
+    name    = body.get("service", "").strip()
+    enabled = bool(body.get("enabled", True))
+
+    svc = next((s for s in _SERVICES if s["name"] == name), None)
+    if not svc:
+        return jsonify({"ok": False, "error": f"Unknown service: {name}"}), 404
+
+    auto_enabled: list[str] = []
+    warnings:     list[str] = []
+
+    # Auto-enable dependencies first when turning ON
+    if enabled:
+        enabled_map = {s["name"]: _svc_enabled(s) for s in _SERVICES}
+        for dep in svc.get("deps", []):
+            if not enabled_map.get(dep):
+                dep_svc = next((s for s in _SERVICES if s["name"] == dep), None)
+                if dep_svc:
+                    if dep_svc.get("supervisor"):
+                        try:
+                            _subprocess.check_call(
+                                ["sudo", "supervisorctl", "start", dep_svc["supervisor"]],
+                                timeout=10,
+                            )
+                        except Exception as e:
+                            warnings.append(f"Could not auto-start {dep}: {e}")
+                    else:
+                        db.set_setting(dep_svc["db_key"], "1")
+                    auto_enabled.append(dep)
+
+    # Apply the toggle
+    if svc.get("supervisor"):
+        cmd = "start" if enabled else "stop"
+        try:
+            _subprocess.check_call(
+                ["sudo", "supervisorctl", cmd, svc["supervisor"]],
+                timeout=10,
+            )
+        except _subprocess.CalledProcessError as e:
+            return jsonify({"ok": False, "error": f"supervisorctl {cmd} failed (exit {e.returncode})"}), 500
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+    else:
+        db.set_setting(svc["db_key"], "1" if enabled else "0")
+
+    # Warn about rdeps that will now be unsatisfied
+    if not enabled:
+        enabled_map = {s["name"]: _svc_enabled(s) for s in _SERVICES}
+        for other in _SERVICES:
+            if name in other.get("deps", []) and enabled_map.get(other["name"]):
+                warnings.append(f"{other['label']} depends on {svc['label']}")
+
+    return jsonify({"ok": True, "auto_enabled": auto_enabled, "warnings": warnings})
