@@ -593,3 +593,40 @@ On every silent session refresh, JazzDrive received no device name → stored ga
 - Master switch: shown on Services page, defaults ON for safe existing-install compatibility
 - To use: go to Admin → Services → flip "JazzDrive Master Switch" OFF when done with JD work
 - Open tasks: see agent-hub/TASKS.md
+
+## Session 2026-06-12 — FIX-JD-MASTER-ENFORCE: Master switch wasn't blocking actual JD calls
+
+### Root Cause
+FEAT-JD-MASTER (commit a279900) only blocked startup session recovery (app.py).
+The actual network chokepoints — sapi_request(), _upload_file(), refresh_session(),
+_android_refresh_session_inner(), keepalive loop, watcher_loop — had NO check.
+Toggling the master OFF left all background JD activity running freely.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| FIX-JD-MASTER-ENFORCE | Enforce master switch at all 7 JD network chokepoints | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| radd-hub/hub/jazzdrive.py | Added JDDisabled exception + is_jd_enabled() + require_jd_active() at module level; called from sapi_request() (first line), _android_refresh_session_inner() (before require_wg0), refresh_session() (returns {ok:False} immediately) | 4612b6d |
+| radd-hub/hub/uploader.py | require_jd_active() as first line of _upload_file() (blocks direct HTTP upload before any bytes sent); JAZZDRIVE_ENABLED gate at top of watcher_loop() before UPLOAD_ENABLED | 4612b6d |
+| radd-hub/hub/keepalive.py | JAZZDRIVE_ENABLED gate at top of loop() before KEEPALIVE_ENABLED | 4612b6d |
+
+### Live test results (7/7 PASS)
+| Test | Path | Result |
+|------|------|--------|
+| T1 | require_jd_active() when OFF | ✅ JDDisabled raised |
+| T2 | sapi_request() when OFF | ✅ JDDisabled raised |
+| T3 | refresh_session() when OFF | ✅ {ok:False, error:'master switch is OFF'} |
+| T4 | _upload_file() when OFF | ✅ JDDisabled raised before any HTTP |
+| T5 | watcher_loop JAZZDRIVE_ENABLED=0 | ✅ would skip (static check) |
+| T6 | require_jd_active() when ON | ✅ no exception |
+| T7 | sapi_request() when ON | ✅ passes guard, hits auth layer |
+
+### State at end of session
+- Oracle Flask: RUNNING (healthz OK)
+- JAZZDRIVE_ENABLED: 1 (master switch ON — restored after testing)
+- JazzDrive session: ACTIVE
+- Open tasks: none

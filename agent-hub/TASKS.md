@@ -6,6 +6,7 @@ _Last updated: 2026-06-12_
 
 | ID | Changed | Summary | Ref |
 |----|---------|---------|-----|
+| ✅ FIX-JD-MASTER-ENFORCE | radd-hub/hub/jazzdrive.py, uploader.py, keepalive.py | Master switch was only blocking startup recovery — NOT actual network calls. Fixed 7 chokepoints: JDDisabled+require_jd_active() in sapi_request/refresh_session/_android_refresh; JAZZDRIVE_ENABLED gate in watcher_loop+keepalive loop; require_jd_active() in _upload_file(). Verified 7/7 tests pass live | 4612b6d |
 | ✅ FEAT-JD-MASTER | hub/jazzdrive.py, hub/app.py, hub/routes/admin.py, hub/templates/services.html | Added JAZZDRIVE_ENABLED master kill switch — blocks all JD calls incl. startup session recovery when OFF | a279900 |
 | ✅ FIX-UPLOAD-VISIBLE | hub/uploader.py | Promote paused-tick log from DEBUG→INFO (throttled) so Services toggle is visible in upload log stream | this |
 | ✅ FIX-SVC-TOGGLE | mirror.py, scheduler.py, downloader.py, keepalive.py, domain_doctor.py | Add *_ENABLED DB-key checks to all background service loops so Services page toggle actually pauses work | this |
