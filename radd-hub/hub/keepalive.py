@@ -200,6 +200,12 @@ def loop(stop_event: threading.Event, interval_min: int = 15) -> None:
     log.info("JazzDrive keep-alive worker started (human-like mode, PKT active hours 08:00–23:00)")
 
     while True:
+        # ── Enabled gate ──────────────────────────────────────────────────────
+        if db.setting("KEEPALIVE_ENABLED", "1") != "1":
+            log.debug("keepalive: KEEPALIVE_ENABLED=0, sleeping 60s")
+            if stop_event.wait(60):
+                break
+            continue
         # ── Active-hours gate ─────────────────────────────────────────────────
         if not _is_active_hours():
             secs = _seconds_until_active()

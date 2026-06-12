@@ -448,6 +448,10 @@ def queue_loop(stop_event: threading.Event) -> None:
                 del active_threads[jid]
             _unregister_job(jid)
 
+        if db.setting("DOWNLOAD_ENABLED", "1") != "1":
+            log.debug("queue_loop: DOWNLOAD_ENABLED=0, skipping job dispatch")
+            continue
+
         if len(active_threads) >= _max_parallel():
             continue
 

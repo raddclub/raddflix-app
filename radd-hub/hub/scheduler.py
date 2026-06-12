@@ -371,6 +371,11 @@ def scheduler_loop(stop_event: threading.Event):
         return
 
     while not stop_event.is_set():
+        if db.setting("SCHEDULER_ENABLED", "1") != "1":
+            log.debug("scheduler_loop: SCHEDULER_ENABLED=0, skipping tick")
+            if stop_event.wait(60):
+                break
+            continue
         try:
             rescan_ongoing_titles()
         except Exception as e:

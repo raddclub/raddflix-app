@@ -164,6 +164,9 @@ def _enqueue_retry(target: str, action: str, ref: str, payload: dict,
 
 def retry_loop(stop_event: threading.Event, interval_s: int = 60) -> None:
     while not stop_event.wait(interval_s):
+        if db.setting("MIRROR_ENABLED", "1") != "1":
+            log.debug("retry_loop: MIRROR_ENABLED=0, skipping tick")
+            continue
         try:
             now = int(time.time())
             with db.conn() as c:

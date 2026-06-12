@@ -159,6 +159,9 @@ def loop(stop_event: threading.Event):
     Does NOT run immediately on startup — first run is after 24 hours.
     Use POST /admin/api/domain-doctor/run to trigger on demand."""
     while not stop_event.wait(24 * 3600):
+        if db.setting("DOMAIN_DOCTOR_ENABLED", "1") != "1":
+            log.debug("domain_doctor: DOMAIN_DOCTOR_ENABLED=0, skipping run")
+            continue
         try:
             probe_all()
         except Exception as e:
