@@ -401,7 +401,7 @@ def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
       5. Authorization    — oauth <Base64(token)>  (C12815c OAuth2AuthenticatorInterceptor)
     """
     import base64 as _b64_ah
-    device_name = db.setting("JAZZDRIVE_DEVICE_NAME") or "Samsung Galaxy A51"
+    device_name = db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix X680F"
     headers = {
         "Accept":           "application/json, text/plain, */*",
         "User-Agent":       "omh android client",

@@ -541,3 +541,33 @@ healthz: {"ok":true,"version":"3.0.0"} ✅
 - DB: JazzDrive account 03257719165 recovered; keys/users/plans still empty
 - Proxy system: fully removed from all 4 files
 - Git: main at 1473481
+
+---
+
+## Session 2026-06-12 — FIX-DEVICE-NAME-2: Garbled JazzDrive device name
+
+### Root Cause
+JazzDrive's "My Devices" page showed corrupted text ("I◆◆◆x jV◆◆ u") instead of "Infinix X680F".
+Two bugs caused this:
+1. JAZZDRIVE_DEVICE_NAME was missing from settings table (wiped in DB-RECOVERY-01) → fallback "Samsung Galaxy A51" used
+2. Strategy 2 OAuth2 refresh path (refresh_session() around line 2393) built headers manually WITHOUT X-devicename header
+On every silent session refresh, JazzDrive received no device name → stored garbled/empty bytes
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| FIX-DEVICE-NAME-2 | Fix garbled JazzDrive device name | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| radd-hub/hub/jazzdrive.py | Added X-devicename + User-Agent: omh android client to Strategy 2 headers; fixed get_auth_headers fallback "Samsung Galaxy A51" → "Infinix X680F" | 91b3aef + this |
+| agent-hub/TASKS.md | Task logged and marked DONE | this |
+| radd_hub.db settings | INSERT JAZZDRIVE_DEVICE_NAME=Infinix X680F (direct SQL) | SQL |
+
+### State at end of session
+- Oracle Flask: RUNNING (supervisorctl restart confirmed, healthz OK)
+- Session: ACTIVE — Android OAuth2 refresh on restart succeeded, new JSESSIONID issued
+- Device name: Infinix X680F now in DB and sent on all OAuth2 paths
+- JazzDrive My Devices: will update to "Infinix X680F" on next authenticated request
+- Open tasks: none
