@@ -2392,9 +2392,10 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
     sess = _req.Session()
     device_id = get_x_deviceid(acct.get("msisdn"))
     sess.headers.update({
-        "Accept":     "application/json, text/javascript, */*",
-        "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)",
-        "X-deviceid": device_id,
+        "Accept":       "application/json, text/javascript, */*",
+        "User-Agent":   "omh android client",
+        "X-deviceid":   device_id,
+        "X-devicename": db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix X680F",
         "X-Requested-With": "com.jazz.drive",
     })
 
