@@ -759,6 +759,10 @@ def _upload_file(sess, vk: str, jsid: str,
     forced_proxy: if provided, uses this proxy dict instead of resolve_proxies().
     Used by the retry loop to inject a fresh proxy from get_proxy_chain() on each attempt.
     """
+    # ── Master kill switch — hard-block before any bytes leave Oracle ────────
+    from . import jazzdrive as _jd
+    _jd.require_jd_active()
+
     size = file_path.stat().st_size
     ext  = file_path.suffix.lower()
     mime = {"mkv": "video/x-matroska", "avi": "video/x-msvideo",
@@ -2162,6 +2166,12 @@ def watcher_loop(stop_event: threading.Event, interval_s: int = 30) -> None:
 
     _paused_ticks = 0
     while not stop_event.wait(interval_s):
+        # ── Master kill switch — highest priority check ───────────────────────
+        if db.setting("JAZZDRIVE_ENABLED", "1") != "1":
+            _paused_ticks += 1
+            if _paused_ticks == 1 or _paused_ticks % 10 == 0:
+                log.info("Upload Watcher BLOCKED — JazzDrive master switch is OFF")
+            continue
         # Respect the UPLOAD_ENABLED toggle — pause all file processing when
         # the upload service is disabled so we don't hammer JazzDrive while
         # the admin has intentionally paused uploads (e.g. between daily runs).

@@ -151,6 +151,27 @@ _SAPI_BACKOFF_SECS = 1800  # 30 minutes
 # has already changed and returns early without making a second network call.
 _refresh_locks: "dict[int, threading.Lock]" = {}
 _refresh_locks_mutex = threading.Lock()
+
+# ── JazzDrive Master Kill Switch ──────────────────────────────────────────────
+# When JAZZDRIVE_ENABLED=0 in DB settings, ALL JD network activity must stop —
+# no SAPI calls, no OAuth2 refreshes, no uploads, no keepalive pings.
+# This is enforced at every network chokepoint via require_jd_active().
+
+class JDDisabled(RuntimeError):
+    """Raised when the JazzDrive master kill switch is OFF."""
+    pass
+
+def is_jd_enabled() -> bool:
+    """Return True if JazzDrive master switch is ON (default: ON)."""
+    return db.setting("JAZZDRIVE_ENABLED", "1") == "1"
+
+def require_jd_active():
+    """Raise JDDisabled if the master switch is OFF.
+    Call this as the very first line of any function that makes a JD network call.
+    """
+    if not is_jd_enabled():
+        raise JDDisabled("JazzDrive master switch is OFF — all JD calls blocked")
+
 # Cooldown: after a successful refresh, suppress all further exchange attempts
 # for this many seconds. Prevents sapi_request's internal retry loop from
 # burning through the refresh-token chain (token A -> B -> C -> invalid_grant).
@@ -842,6 +863,9 @@ def sapi_request(endpoint: str, action: str,
     """
     import requests as _req
     import urllib.parse as _up
+
+    # ── Master kill switch — blocks ALL JD calls when switch is OFF ──────────
+    require_jd_active()
 
     if _retry_count > 3:
         return {"error": {"code": "AUTH-ERR", "message": "Max retries exceeded"}}
@@ -1898,6 +1922,7 @@ def _android_refresh_session_inner(refresh_token: str,
     import base64 as _b64
     import urllib.parse as _up
 
+    require_jd_active()  # Hard-fail if master switch is OFF
     log.info("[JD:OAUTH2] ==========================================")
     log.info("[JD:OAUTH2] ANDROID TOKEN REFRESH  acct=%s  has_rt=%s", account_id, bool(refresh_token))
     require_wg0()  # Hard-fail if wg0 down — never leak OAuth2
@@ -2315,6 +2340,10 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
 
     Returns {"ok": True, ...} on success, {"ok": False, "error": ...} otherwise.
     """
+    # ── Master kill switch ────────────────────────────────────────────────────
+    if not is_jd_enabled():
+        return {"ok": False, "error": "JazzDrive master switch is OFF"}
+
     import requests as _req
     import urllib.parse as _up
     import base64 as _b64
