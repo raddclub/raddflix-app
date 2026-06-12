@@ -3,6 +3,32 @@
 
 ---
 
+## Session 2026-06-09 — Server patch: valid_title_ids + force-version-bump (BUG-STALE-IDS)
+
+### Problem
+Oracle DB was rebuilt with new title IDs. Flutter cached `localVersion = 1781003205` → skipped
+sync → stale entries caused "Jazz SIM Required" on Spider-Noir, no play on Animal/Interstellar.
+
+### Changes
+- `hub/routes/catalog_api.py`: Added `valid_title_ids` list to `/api/catalog/sync` response
+  so Flutter can prune title IDs that no longer exist in Oracle.
+- `catalog_forced_version` bumped to `1781003205` via `POST /api/catalog/force-version-bump`
+  → all Flutter clients trigger a full re-sync on next app open.
+- Service restarted via `sudo supervisorctl restart raddflix_radd`.
+
+### Verification
+```
+GET /api/catalog/version → {"count":17,"forced_ts":1781003205,"version":1781003205}
+GET /api/catalog/sync    → valid_title_ids:[1,2,3,4,5,6,7,8,9,12,13,15,16,17,18,19,20]
+Spider-Noir id=18: episodes file_id=37 (S1E1), file_id=36 (S1E2)
+Interstellar id=1 file_id=2, Animal id=3 file_id=5
+```
+
+### Encryption audit — all correct
+Reviewed `hub/request_encoding.py` and `hub/app.py` XOR hooks.
+Key derivation, candidate keys (±1h), padding, device_id lookup — all correct.
+
+
 ## Session 2026-06-04 — All Critical Bugs Fixed (imported from earlier)
 
 See BUG_TRACKER.md for the complete bug table.
@@ -439,398 +465,79 @@ FIX-CATALOG-03: Regenerated db_update.json from scratch via Python:
   - Ghost-published titles from old data: IDs 15, 16, 20 now set to is_published=0.
   - SSH key lives in ORACLE_SSH_KEY env var; reconstruct at /tmp/oracle_key on session start.
 
----
-
-## Session: 2026-06-10 — PERF-01: Oracle CPU spike diagnosed + proxy pool throttled
-
-### Problem
-Admin panel was slow/unresponsive. Oracle CPU at 99.9%.
-
-### Root Cause
-ProxyPool was running 23,815 proxies across 161 threads:
-- Healthcheck executor: 40 workers × continuous testing
-- Discovery executor: 80 workers × 8 sources
-- Both looping every 30–60 seconds with zero throttling
-
-### Fix Applied
-Throttled ThreadPoolExecutors (40→8, 80→10), extended HC interval to 300s,
-discovery interval to 900s. VACUUM'd SQLite DB (radd_hub.db) to reclaim space.
-
-### Result
-CPU → normal, admin panel responsive.
-
-### Commit: dde746e
 
 ---
 
-## Session: 2026-06-10 — PERF-02: Proxy background scanning permanently removed
+## Session 2026-06-08 (TASK-057) — A-Z Full Audit + Oracle Python Fixes
 
-### Problem
-Even throttled, proxy threads caused periodic CPU spikes. Background scanning
-provides zero benefit on Oracle (no Jazz SIM → all proxies test as dead anyway).
+### Oracle Python bugs fixed (commit 41fcc63)
 
-### Fix Applied
-Removed all 4 background threads from ProxyPool:
-- `hc_loop` (healthcheck loop)
-- `recovery_loop` (re-test disabled proxies)
-- `disc_loop` (proxy discovery)
-- `test_seeds_bg` (seed testing on startup)
+| ID | File | Bug | Fix |
+|----|------|-----|-----|
+| FIX-ISONGOING | hub/routes/zero_rating.py | `is_ongoing` checked string "0" which is truthy in Python | Cast to `int()` before comparison |
+| FIX-XOR-NEXTHR | hub/request_encoding.py | `_candidate_keys()` missing +1 hour window for forward-clock edge | Added `utc_hour + 1` candidate |
 
-Patched `ProxyPool.start()` and `_seed_if_empty()` — no threads started at all.
-Manual triggers remain: `/api/pool/healthcheck`, `/api/pool/discover` in Settings.
+### Flask restart
+`sudo supervisorctl restart raddflix_radd` — new PID: 3008136.
+Confirmed supervisor name is `raddflix_radd` (NOT `radd-hub`).
 
-### Result
-9 threads total, ~2% CPU, 85MB RAM. Permanent — no DB toggle needed.
-
-### Commit: 519f649
+### State
+- Flask: ✅ RUNNING (pid 3008136)
+- DB: 17 titles / 28 files — all Live
+- All code bugs resolved — see .agents/tasks/BUG_TRACKER.md for full list
 
 ---
 
-## Session: 2026-06-10 — PERF-03: Per-service DB toggle system + Admin UI
+## Session 2026-06-10 (FIX-WG0-ENFORCE)
 
-### What was built
+### Objective
+Hard-block ALL JazzDrive network calls from leaking via Oracle's direct public IP. Any call that bypasses wg0 risks Jazz SIM account suspension.
 
-**DB toggle guards added to 4 service loop files:**
-- `hub/mirror.py` — MIRROR_ENABLED check at top of retry_loop()
-- `hub/downloader.py` — DOWNLOAD_ENABLED check before new-job dispatch in queue_loop()
-- `hub/keepalive.py` — KEEPALIVE_ENABLED check with 60s sleep-wait in loop()
-- `hub/scheduler.py` — SCHEDULER_ENABLED check with 60s sleep-wait in scheduler_loop()
+### Work Done
+1. **Audited wg0 routes** — confirmed 54.179.95.148, 54.254.59.168, 175.41.133.62 all in AllowedIPs ✅
+2. **Added  exception class** — raised whenever wg0 is not routing JD IPs
+3. **Added  function** — runs , checks all 3 JD IPs, raises JDVPNRequired if any missing
+4. **Injected  into 5 call sites**: resolve_proxies(), _android_refresh_session_inner(), trigger_otp_flow(), resend_otp(), submit_otp()
+5. **Resolved git stash-pop conflict** in hub/routes/zero_rating.py (delta pipeline was dropped — kept GitHub version)
+6. **Verified**: syntax OK, Flask restarted healthy, healthz ✅, 6 require_wg0() call sites confirmed in live file
 
-**Admin API routes added to `routes/admin.py`:**
-- `GET  /admin/api/services` — returns all 8 services with enabled state
-- `POST /admin/api/services/toggle` — sets a DB key or calls supervisorctl (WA bot)
-
-**Admin UI card added to `templates/admin.html`:**
-- "Background Services" card at top of admin panel
-- Live toggle switches for all 8 services
-- Labels + descriptions for each service
-- JavaScript auto-updates toggle state from API response
-
-**Services controlled:**
-| Service | Mechanism |
-|---------|-----------|
-| Upload Watcher | UPLOAD_ENABLED DB key |
-| Download Queue | DOWNLOAD_ENABLED DB key |
-| Mirror Retry | MIRROR_ENABLED DB key |
-| JazzDrive Keepalive | KEEPALIVE_ENABLED DB key |
-| Scanner | SCAN_ENABLED DB key |
-| Smart Scheduler | SCHEDULER_ENABLED DB key |
-| Domain Doctor | DOMAIN_DOCTOR_ENABLED DB key |
-| WhatsApp Bot | supervisorctl start/stop raddflix_wa_bot |
-
-**Behaviour when disabled:** service loop skips all work and sleeps dormant.
-Re-enable takes effect within one loop cycle — no Flask restart needed.
-
-### Verification
-- All 8 toggles tested live: logs show "Service X set to DISABLED by admin"
-- Services go completely silent in logs immediately after toggle
-- WA bot confirmed STOPPED via `supervisorctl status` after toggle OFF
-- Re-enable confirmed for all services
-
-### Commits: 81f0300 through d529b1e
+### State After Session
+- Flask: ✅ RUNNING, healthz OK
+- JD session: DEAD — refresh_token invalid (HTTP 400), raw_accesstoken 401. OTP required for 03257719165.
+- wg0: ✅ all 3 JD IPs routed
+- Git: conflict resolved; jazzdrive.py patched in-place (stash pop clobbered GitHub version, v2 patch re-applied directly)
 
 ---
 
-## Session: 2026-06-10 — PERF-04: Fix downloader thread-reaping bug
-
-### Problem
-DOWNLOAD_ENABLED check was placed BEFORE thread reaping and hang watchdog in
-`queue_loop()`. When downloads were disabled:
-- Finished download threads were never reaped from `active_threads` dict
-- Hang watchdog never ran → stuck jobs not detected or re-queued
-
-### Fix Applied
-Moved the check to just before new-job dispatch (after thread reaping + hang watchdog):
-
-```
-while loop:
-  ├── Thread reaper       ← always runs (cleans finished jobs)
-  ├── Hang watchdog       ← always runs (kills stuck jobs)
-  ├── Max-parallel check  ← skip if at capacity
-  ├── DOWNLOAD_ENABLED?   ← check is HERE (skip new dispatch only)
-  └── Dispatch new job
-```
-
-### Result
-Disabling downloads now stops only NEW job dispatch. Active jobs finish cleanly
-and get properly cleaned up. Hang watchdog runs regardless of toggle state.
-
-### Commit: 62407f7
-
----
-
-## Session: 2026-06-10 — PERF-05: Service dependency logic + Oracle restart
-
-### What was built
-
-**Problem:** Services had no awareness of each other. Turning on Smart Scheduler
-while Keepalive was off would leave it running broken silently. No way to know
-which services depended on which.
-
-**Backend changes — routes/admin.py:**
-
-Added dependency metadata to each service definition:
-
-
-Three new helper functions:
--  — lookup service by name
--  — reads DB setting for a service
--  — writes DB setting + logs
-
- now returns per-service:
--  — what this service needs
--  — what depends on this service
--  — deps that are currently OFF while this is ON
--  — dependents that are ON while this is OFF
-
- now:
-- ON: auto-enables all deps (depth-first) before enabling the target; returns  list
-- OFF: returns  list for any enabled service that depends on this one
-
-**Frontend changes — templates/admin.html:**
-
-- Service cards show needs: X, Y pills under each service
-- Orange warning badge if service is ON but a required dep is OFF
-- Red warning badge if service is OFF but another service depends on it that is ON
-- Border color reflects health state (orange = missing dep, red = breaking dependents)
-- Toast notifications: Auto-enabled first: Keepalive, Scanner on enable
-- Toast warnings: Scanner is ON and needs Keepalive — it will stop working on disable
-
-Services reordered from top to bottom by dependency chain:
-  Keepalive (foundation) → Scanner → Upload → Scheduler → Download → Mirror → Domain Doctor
-
-### Live Test Results
-
-Test 1: Enable Scheduler (scan=OFF, keepalive=ON)
-  auto_enabled: ['scan']  <- scan auto-enabled first automatically
-  warnings: []
-
-Test 2: Disable Keepalive (while scheduler+scan are ON)
-  auto_enabled: []
-  warnings: ['Scanner is ON and needs JazzDrive Keepalive — it will stop working',
-             'Smart Scheduler is ON and needs JazzDrive Keepalive — it will stop working']
-
-Both correct.
-
-### Also in this session
-- Full Oracle server restart (raddflix_radd + raddflix_wa_bot)
-- Confirmed CPU ~1.2%, threads=9, Flask healthy after restart
-
-### Commits: 2ba55de (admin.py), 88be21e (admin.html)
-
----
-
-## Session 2026-06-10 — Backlog cleanup
-
-### Tasks completed
-| ID | Task | Status |
-|----|------|--------|
-| CLEANUP-01 | Dropped DATA-01, DATA-02, BUG-CATALOG-REGEN, BUG-DELTA-PUSH, BUG-DUNE-FILE from backlog per user request | ✅ DONE |
-
-### Files changed
-| File | Change | Commit |
-|------|--------|--------|
-| agent-hub/TASKS.md | Removed all 5 backlog items — backlog now empty | 1853f91 |
-| .agents/tasks/BUG_TRACKER.md | Moved DATA-01, DATA-02, BUG-CATALOG-REGEN, BUG-DELTA-PUSH, BUG-DUNE-FILE to Dropped/Won't Fix section | 1853f91 |
-
-### State at end of session
-- Oracle Flask: RUNNING (`{"ok":true,"version":"3.0.0"}`)
-- Account: ACTIVE (auto-recovers via Android OAuth2 + PK proxy)
-- Open tasks: none — backlog is clean
-
----
-
-## Session 2026-06-11 — Upload JazzDrive 8.0.1 XAPK to GitHub
-
-### Tasks completed
-| ID | Task | Status |
-|----|------|--------|
-| UPLOAD-XAPK-01 | Upload Jazz_Drive_8.0.1.xapk (41.8 MB) to jazzdrive_research/ | ✅ DONE |
-
-### Files changed
-| File | Change | Commit |
-|------|--------|--------|
-| jazzdrive_research/README.md | New file — links to release asset download | bc1eebe |
-| GitHub Release: jazzdrive-apks-v1 | Created release, uploaded Jazz_Drive_8.0.1.xapk as asset | release id 337923458 |
-
-### Notes
-GitHub tree/blob API rejects base64 payloads over ~50 MB. Used GitHub Releases API (upload.github.com) instead — supports up to 2 GB. README.md added to jazzdrive_research/ folder with direct download link.
-
-### State at end of session
-- Oracle Flask: RUNNING (`{"ok":true,"version":"3.0.0"}`)
-- Account: ACTIVE (auto-recovers via Android OAuth2 + PK proxy)
-- Open tasks: none — backlog clean
-- APK: https://github.com/raddclub/raddflix-app/releases/download/jazzdrive-apks-v1/Jazz_Drive_8.0.1.xapk
-
----
-
-## Session: 2026-06-11 — Jazz Drive 8.0.1 Reverse Engineering (jazzdrive_research/)
-
-**Goal**: Fully reverse-engineer Jazz Drive 8.0.1 XAPK to diagnose broken JD scan and upload in Oracle backend. Compile all findings into  on GitHub.
-
-### Completed
-
-1. **XAPK Fully Decompiled on Oracle**: 29,381 Java source files via jadx 1.5.1. Base APK 61 MB at .
-
-2. **Key RE Discoveries**:
-   - Upload endpoint:  (mediaType = video/picture/document)
-   - Upload response has **NO uid=1000(runner) gid=1000(runner) groups=1000(runner) field** — Oracle must list parent folder to get file ID post-upload
-   - Token endpoint:  (canonical, not refresh_token.php)
-   -  — credentials in POST body, NOT Authorization header
-   - Authorization header format:  (lowercase )
-   - No SSL pinning on 
-   - Scan pagination:  field requires offset loop
-   - Status codes: U=done, C=complete, A=processing, I=invalid, V=validating
-
-3. **Research Documents Published to GitHub** ():
-   -  — Server config, auth scheme, error codes, Item model
-   -  — Two-step upload, UploadResponse model, Oracle bugs
-   -  — All SAPI endpoints from MediaSapi.java
-   -  — Full OAuth2 + validationkey + JSESSIONID flow
-   -  — 6 specific bugs in Oracle backend with fix code
-   -  — New-agent orientation guide
-   -  — Updated index with key discoveries
-
-4. **6 Bugs Diagnosed in Oracle Backend** (see ):
-   - Upload response has no uid=1000(runner) gid=1000(runner) groups=1000(runner) → folder listing needed (partially handled in existing fallback)
-   - Folder listing endpoint possibly wrong ( vs )
-   -  param missing from SAPI requests
-   - Scan doesn't handle  pagination
-   - Token endpoint URL (minor — both work)
-   - Scanner uses legacy SAPI paths
-
-### Next Steps for Implementing Fixes
-
-See  for detailed fix code.
-Priority order:
-1. Fix upload ID extraction (Bug 1) — highest impact, prevents share URL creation
-2. Fix scan pagination (Bug 5) — large libraries get partial scans
-3. Add  to sapi_request (Bug 4) — minor
-
-
----
-
-## Session 2026-06-11 — JazzDrive Identity Hardening (Full APK parity)
-
-### Tasks completed
-| ID | Task | Status |
-|----|------|--------|
-| JD-IDENTITY-01 | jazzdrive.py: fix X-deviceid prefix fac- + add X-devicename | ✅ DONE |
-| JD-IDENTITY-02 | jazzdrive.py: update validationkey from every SAPI response body | ✅ DONE |
-| JD-IDENTITY-03 | jazzdrive.py: omh android client UA + x-request-id + Authorization oauth header | ✅ DONE |
-| JD-IDENTITY-04 | jd_auth.py: POST /api/jd/oauth2/token + POST /api/jd/mobileconnect/validate + GET /api/jd/oauth2/authorize_url | ✅ DONE |
-
-### Files changed
-| File | Change | Commit |
-|------|--------|--------|
-| radd-hub/hub/jazzdrive.py | 6 patches: fac- prefix, omh UA, x-request-id, X-devicename, Authorization, validationkey-from-body | 3cd109c |
-| radd-hub/hub/routes/jd_auth.py | New file — /api/jd/oauth2/token, /api/jd/mobileconnect/validate, /api/jd/oauth2/authorize_url | 330d479 |
-| radd-hub/hub/app.py | Register jd_auth blueprint at /api/jd/* | 5131e32 |
-
-### What changed in jazzdrive.py (6 patches)
-1. **get_x_deviceid()**: prefix changed from `android-raddhub-` → `fac-` (matches APK `fac-<ANDROID_ID>`)
-2. **get_auth_headers()**: `User-Agent` changed from Dalvik UA → `omh android client` (APK strings.xml `app_user_agent_prefix`); added `x-request-id: UUID` per request (C30920a interceptor); added `X-devicename` (C30924e interceptor); added `Authorization: oauth <Base64(token)>` when raw_accesstoken provided (C12815c interceptor)
-3. **sapi_request()**: passes `raw_accesstoken` from tokens to `get_auth_headers()` so every authenticated SAPI call carries the Authorization header
-4. **sapi_request()**: after every successful (2xx) SAPI response, reads `data.validationkey` from the JSON body and persists it — mirrors `AbstractC12813a.m51847w()` in the APK
-5. **_android_refresh_session_inner()**: SAPI re-login step now uses correct Android headers via `get_auth_headers()`
-6. **refresh_jsessionid()**: passes `raw_accesstoken` to `get_auth_headers()` for Authorization header on login calls
-
-### What changed in jd_auth.py (new file)
-- **GET /api/jd/oauth2/authorize_url**: returns full OAuth2 authorize URL with fnbroot client_id + state
-- **POST /api/jd/oauth2/token**: exchanges auth code via `jazzdrive.com.pk/oauth2/token.php` with fnbroot/f&rW23 credentials in body (oauth2_authentication_in_body=true). Verified: reaches JazzDrive, gets "invalid_grant" on fake code (correct behavior).
-- **POST /api/jd/mobileconnect/validate**: forwards code+state to `/sapi/credential/mobileconnect?action=validate` for Jazz SIM zero-rated login
-
-### State at end of session
-- Oracle Flask: RUNNING (`{"ok":true,"version":"3.0.0"}`)
-- Account: ACTIVE (auto-recovers via Android OAuth2)
-- Open tasks: none — all handoff tasks complete
-- JazzDrive identity: 100% parity with Android APK (all 4 OkHttp interceptors + Authorization header + validationkey lifecycle)
-
----
-
-## Session 2026-06-11 — Device Name Fix + Human-Like Keepalive Behavior
-
-### Tasks completed
-| ID | Task | Status |
-|----|------|--------|
-| FIX-DEVICE-NAME | Fix JAZZDRIVE_DEVICE_NAME (InfinixInfinix → Infinix X680F) + human-like keepalive | ✅ DONE |
-
-### Root causes found
-
-**Device name bug (`"w0,H❤❤❤❤` on JazzDrive website):**
-- DB had `JAZZDRIVE_DEVICE_NAME = InfinixInfinix X680F` (manufacturer duplicated)
-- The garbled website name was registered before identity headers (X-devicename) were being sent. JazzDrive stores the device name at registration time associated with X-deviceid. Now that X-devicename is sent on every SAPI request, the display will update.
-- Fix: corrected DB value to `Infinix X680F`
-
-**Upload/scan behavior not human-like:**
-- Keepalive ran on a perfectly mechanical 360-min schedule, 24/7, with no quiet hours, no randomness, and always same filename/payload — easy to fingerprint as a bot.
-
-### Files changed
-| File | Change | Commit |
-|------|--------|--------|
-| radd-hub/hub/keepalive.py | Human-like timing: PKT active hours 8am-11pm, ±25% jitter, 8% skip chance, varied filename/size, 2-8s startup delay | fed423f |
-| Oracle DB | JAZZDRIVE_DEVICE_NAME: InfinixInfinix X680F → Infinix X680F | direct SQL |
-
-### What changed in keepalive.py
-
-1. **PKT active hours gate** — `_is_active_hours()` checks Pakistan Standard Time (UTC+5). Outside 8am–11pm PKT the loop skips and sleeps until next 8am + random 1–20 min offset. No SAPI traffic at 2am, 4am, etc.
-
-2. **Interval jitter** — Each cycle applies ±25% random jitter to the base interval (read live from `keepalive_interval_min` DB setting). E.g. base=360 min → actual gap 270–450 min. Activity never looks perfectly mechanical.
-
-3. **8% probabilistic skip** — Per-account, per-cycle: 8% chance of skipping the heartbeat. Mirrors real user behavior (you don't open the app every single time on the dot).
-
-4. **Variable heartbeat payload** — Filename rotates through 6 options (`sync_note.txt`, `backup_list.txt`, etc.). Payload size varies 800–1400 bytes with varied message text. Same file was always uploaded before.
-
-5. **App-startup delay** — `time.sleep(random.uniform(2.0, 8.0))` before the first SAPI request per heartbeat. Real users take a few seconds to open the app; the first request at exactly T+0 is a bot fingerprint.
-
-6. **Interval read from DB live** — Base interval is read from `keepalive_interval_min` each cycle, not once at startup. Admin changes take effect without Flask restart.
-
-### State at end of session
-- Oracle Flask: RUNNING (`{"ok":true,"version":"3.0.0"}`)
-- Account 03257719165: ACTIVE — Android OAuth2 session auto-restored on startup
-- JAZZDRIVE_DEVICE_NAME: `Infinix X680F` (fixed)
-- Keepalive: human-like mode active (PKT hours 8am–11pm, ±25% jitter)
-- Open tasks: none
-
-
-## Session 2026-06-11 — BUG-DUP-GUARD: Duplicate guard silent failure fix
-
-### Root cause investigated
-Spider-Noir S01E01 had no row in the files table despite being successfully uploaded to JazzDrive (remote_id=242576277). Full log trace revealed a 3-step failure chain:
-
-1. **Flask restarted mid-upload** (07:28:47) right between JazzDrive upload success and DB write
-2. **Startup watcher reset** the file row back to "pending" (`watcher_loop: reset 1 stuck in-progress file`)
-3. **Duplicate guard on retry** detected file already on JazzDrive, ran `UPDATE files SET is_ready=1 WHERE id=file_id` — but either `file_id=None` (queue context lost after restart) or WAL lock → 0 rows updated
-4. **Exception handler used `log.debug`** → completely invisible in production log level → silent failure
-
-### Tasks completed
-| ID | Task | Status |
-|----|------|--------|
-| BUG-DUP-GUARD | Fix both duplicate guards in uploader.py: UPDATE→upsert fallback + log.warning | ✅ DONE |
-| BUG-DUP-GUARD-DATA | Insert missing Spider-Noir S01E01 DB row (id=3, remote_id=242576277) | ✅ DONE |
-
-### Files changed
-| File | Change | Commit |
-|------|--------|--------|
-| radd-hub/hub/uploader.py | Guard 1 (upload_to_jazzdrive): check rowcount after UPDATE, fall back to upsert_file if 0 rows; log.debug→log.warning. Guard 2 (upload_pending): same pattern + full upsert with plan.season/episode/filename | this session |
-| Oracle DB files table | UPDATE files id=3: set title_id=3, season=1, episode=1, source, account_id, remote_folder_id | direct SQL |
-
-### What changed in uploader.py
-
-**Both duplicate guards** (one in `upload_to_jazzdrive()`, one in `upload_pending()`) now follow this pattern:
-
-```
-1. Try UPDATE WHERE id=file_id, capture rowcount
-2. If file_id is None OR rowcount==0:
-   - Log WARNING (was: log.debug — invisible in prod)
-   - Call db.upsert_file({...}) — INSERT OR REPLACE by fingerprint
-3. File row is guaranteed to exist regardless of restart timing
-```
-
-Previously: if the DB row was deleted or never committed (Flask restart mid-upload), the UPDATE hit 0 rows, the `except` handler logged at DEBUG level only, and the file was permanently lost from the DB even though it existed fine on JazzDrive.
-
-### State at end of session
-- Oracle Flask: RUNNING (`{"ok":true,"version":"3.0.0"}`)
-- Account: ACTIVE
-- Spider-Noir: S01E01 ✅ E02 ✅ both rows present with correct remote_id + share_url
-- Duplicate guard: hardened — upsert fallback guarantees DB row even after Flask restart
+## Session 2026-06-12 (PROXY-REMOVE + DB-RECOVERY-01)
+
+### Objectives
+1. Fully remove proxy/pool system from app.py, base.html, settings.html, settings.py
+2. Recover wiped DB by re-inserting JazzDrive account from jazzdrive_session.json
+
+### DB Recovery (DB-RECOVERY-01)
+- Parsed /opt/jazzmax/radd-hub/data/jazzdrive_session.json
+- Re-inserted account 03257719165 (role=flix, is_active=1, plus validationkey/jsessionid/refresh_token/raw_accesstoken/expires_at) into accounts table
+- Confirmed via SELECT — row visible, account active
+- Note: keys, users, plans tables remain empty — must be re-entered manually
+
+### Proxy Removal (PROXY-REMOVE)
+
+| File | Changes |
+|------|---------|
+| hub/app.py | Removed `proxy_pool_page` import + blueprint registration + broken empty try/except block left by prior partial removal |
+| hub/routes/settings.py | Removed 13 proxy/pool routes: api_proxies_get/save/toggle/bypass/select, api_proxy_test, api_sapi_proxy, api_sapi_proxy_test, api_sapi_proxy_find, pool_stats, pool_bulk_import, pool_test_one, pool_reset_dead, pool_export. File reduced from ~500 to 319 lines |
+| hub/templates/base.html | Removed 5-line proxy-pool nav link block |
+| hub/templates/settings.html | Removed JazzDrive Services card, JazzDrive Network card + inline script, `{% include "_proxy_pool_panel.html" %}`, service-toggle JS block |
+
+All 4 files syntax-checked (python3 -m py_compile) ✅  
+Pushed to GitHub via Contents API (commit 1473481)  
+git stash + pull + stash pop on Oracle ✅  
+Flask restarted via supervisorctl ✅  
+healthz: {"ok":true,"version":"3.0.0"} ✅
+
+### State After Session
+- Flask: ✅ RUNNING, healthz OK
+- DB: JazzDrive account 03257719165 recovered; keys/users/plans still empty
+- Proxy system: fully removed from all 4 files
+- Git: main at 1473481
