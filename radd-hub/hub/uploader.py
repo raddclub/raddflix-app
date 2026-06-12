@@ -2160,13 +2160,19 @@ def watcher_loop(stop_event: threading.Event, interval_s: int = 30) -> None:
     except Exception as _se:
         log.warning("watcher_loop: startup recovery failed: %s", _se)
 
+    _paused_ticks = 0
     while not stop_event.wait(interval_s):
         # Respect the UPLOAD_ENABLED toggle — pause all file processing when
         # the upload service is disabled so we don't hammer JazzDrive while
         # the admin has intentionally paused uploads (e.g. between daily runs).
         if db.setting("UPLOAD_ENABLED", "1") != "1":
-            log.debug("watcher_loop: UPLOAD_ENABLED=0, skipping tick")
+            _paused_ticks += 1
+            if _paused_ticks == 1 or _paused_ticks % 10 == 0:  # first + every ~5 min
+                log.info("Upload Watcher is PAUSED (disabled from Services page)")
             continue
+        if _paused_ticks > 0:
+            log.info("Upload Watcher RESUMED")
+            _paused_ticks = 0
         try:
             _release_stuck_uploads()
         except Exception as e:

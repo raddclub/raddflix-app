@@ -6,6 +6,7 @@ _Last updated: 2026-06-12_
 
 | ID | Changed | Summary | Ref |
 |----|---------|---------|-----|
+| ✅ FIX-UPLOAD-VISIBLE | hub/uploader.py | Promote paused-tick log from DEBUG→INFO (throttled) so Services toggle is visible in upload log stream | this |
 | ✅ FIX-SVC-TOGGLE | mirror.py, scheduler.py, downloader.py, keepalive.py, domain_doctor.py | Add *_ENABLED DB-key checks to all background service loops so Services page toggle actually pauses work | this |
 | ✅ FEAT-SERVICES-ROUTES | hub/routes/admin.py | Added /services page + /api/services GET + /api/services/toggle POST to admin blueprint | this |
 | ✅ FIX-SERVICES-NAV | hub/templates/base.html | Re-added Services nav link to SYSTEM sidebar section (dropped during PROXY-REMOVE) | this |
