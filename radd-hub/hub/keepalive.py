@@ -161,6 +161,8 @@ def _try_refresh(acct: dict) -> bool:
          Fallback for accounts set up before the Android OAuth2 upgrade.
          Works for ~1 h between refreshes (keepalive fires every 15 min so OK).
 
+    NOTE: check is BEFORE the try/except so JDDisabled propagates cleanly.
+
     Returns True if refresh succeeded and DB was updated.
     """
     aid    = acct["id"]
@@ -168,6 +170,9 @@ def _try_refresh(acct: dict) -> bool:
     rt     = (acct.get("refresh_token") or "").strip()
     raw_at = (acct.get("raw_accesstoken") or "").strip()
     vk     = (acct.get("validation_key") or "").strip()
+
+    # ── Master kill switch — BEFORE try/except so JDDisabled is not swallowed ─
+    jazzdrive.require_jd_active()
 
     if not rt and not raw_at and not vk:
         log.debug("No credentials for %s — OTP required", msisdn)
@@ -286,6 +291,9 @@ def trigger_heartbeat(account_id: int) -> None:
 # ── Heartbeat ─────────────────────────────────────────────────────────────────
 
 def _run_heartbeat(acct: dict) -> None:
+    # ── Master kill switch — BEFORE try/except so JDDisabled is not swallowed ─
+    jazzdrive.require_jd_active()
+
     aid    = acct["id"]
     msisdn = acct["msisdn"]
     exp_at = acct.get("token_expires_at")
