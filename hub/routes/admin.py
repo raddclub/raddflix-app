@@ -821,17 +821,16 @@ def jd_force_refresh():
 # Background Services page
 # ---------------------------------------------------------------------------
 
-# JazzDrive services — all gated behind the master kill switch
 _JD_SERVICE_NAMES = {"keepalive", "scan", "upload", "scheduler"}
 
 _SERVICES = [
     {
-        "name":    "jazzdrive_master",
-        "label":   "JazzDrive Master Switch",
-        "desc":    "Master kill switch for ALL JazzDrive activity — blocks session recovery on startup, keepalive pings, scanning and uploads. Turn OFF when you are done using JazzDrive to protect your Jazz account.",
-        "db_key":  "JAZZDRIVE_ENABLED",
-        "deps":    [],
-        "master":  True,
+        "name":   "jazzdrive_master",
+        "label":  "JazzDrive Master Switch",
+        "desc":   "Master kill switch for ALL JazzDrive activity — blocks session recovery on startup, keepalive pings, scanning and uploads. Turn OFF when you are done using JazzDrive to protect your Jazz account.",
+        "db_key": "JAZZDRIVE_ENABLED",
+        "deps":   [],
+        "master": True,
     },
     {
         "name":  "keepalive",
@@ -957,7 +956,6 @@ def services_toggle():
     if name == "jazzdrive_master":
         db.set_setting("JAZZDRIVE_ENABLED", "1" if enabled else "0")
         if not enabled:
-            # Auto-disable all JazzDrive services when master goes OFF
             for s in _SERVICES:
                 if s["name"] in _JD_SERVICE_NAMES and s.get("db_key"):
                     db.set_setting(s["db_key"], "0")
@@ -970,14 +968,13 @@ def services_toggle():
             log.info("JazzDrive master switch ON — JD calls unblocked")
             return jsonify({
                 "ok": True, "auto_enabled": [],
-                "warnings": ["JazzDrive is now enabled. Turn on individual services (Keepalive, etc.) as needed."]
+                "warnings": ["JazzDrive is now enabled. Turn on individual services (Keepalive etc.) as needed."]
             })
 
-    # Block any JD service from being enabled when master is OFF
+    # Block JD services from enabling while master is OFF
     if name in _JD_SERVICE_NAMES and enabled:
-        master_on = db.setting("JAZZDRIVE_ENABLED", "1") == "1"
-        if not master_on:
-            return jsonify({"ok": False, "error": "JazzDrive Master Switch is OFF. Enable it first before turning on individual JD services."}), 400
+        if db.setting("JAZZDRIVE_ENABLED", "1") != "1":
+            return jsonify({"ok": False, "error": "JazzDrive Master Switch is OFF — enable it first."}), 400
 
     # Auto-enable dependencies first when turning ON
     if enabled:
