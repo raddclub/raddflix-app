@@ -205,6 +205,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _slowConnectionShown = false;
   Timer? _slowConnTimer;
   bool _playing = false;
+  bool _videoSurfaceReady = false; // FIX-PLAYER-02: set true on first playing=true to avoid transient black screen
   bool _ended = false;
   DateTime? _sessionStartTime; // track watch-time for usage reporting
   Duration _bufferedPosition = Duration.zero;
@@ -1782,7 +1783,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
     _player.stream.playing.listen((p) {
       if (!mounted) return;
-      setState(() => _playing = p);
+      setState(() {
+        _playing = p;
+        if (p) _videoSurfaceReady = true; // FIX-PLAYER-02: latch on first frame
+      });
       if (p) {
         _bingeGuardCtrl?.onPlay();
         _sessionStartTime ??= DateTime.now();
@@ -2716,7 +2720,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       // _duration stays >0 once the file loads; _position can transiently reset to zero
                       // mid-play on Infinix/MediaTek, causing the surface to go black. Using _duration
                       // prevents that false-trigger while still hiding the surface before any frame loads.
-                      opacity: (_isLocalFile && !_playing && _duration == Duration.zero) ? 0.0 : 1.0,
+                      opacity: (_isLocalFile && !_videoSurfaceReady) ? 0.0 : 1.0, // FIX-PLAYER-02: use surface-ready latch, not transient _playing flag
                       duration: const Duration(milliseconds: 400),
                       child: Video(
                         controller: _videoCtrl,
