@@ -571,3 +571,25 @@ On every silent session refresh, JazzDrive received no device name → stored ga
 - Device name: Infinix X680F now in DB and sent on all OAuth2 paths
 - JazzDrive My Devices: will update to "Infinix X680F" on next authenticated request
 - Open tasks: none
+
+## Session 2026-06-12 — JazzDrive Master Kill Switch
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| FEAT-JD-MASTER | JAZZDRIVE_ENABLED master kill switch | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| hub/jazzdrive.py | Added JDDisabled exception + require_jd_active() — called first in resolve_proxies() to block all JD network calls when master is OFF | a279900 |
+| hub/app.py | startup_refresh thread now checks JAZZDRIVE_ENABLED=0 and skips session recovery entirely | a279900 |
+| hub/routes/admin.py | jazzdrive_master entry added to _SERVICES (top); toggle logic auto-disables keepalive/scan/upload/scheduler when master goes OFF; blocks individual JD services from enabling while master is OFF | a279900 |
+| hub/templates/services.html | Prominent full-width master card at top of Services page — green when ACTIVE, red when BLOCKED | a279900 |
+
+### State at end of session
+- Oracle Flask: RUNNING
+- JazzDrive session: ACTIVE (JAZZDRIVE_ENABLED not in DB → defaults to "1")
+- Master switch: shown on Services page, defaults ON for safe existing-install compatibility
+- To use: go to Admin → Services → flip "JazzDrive Master Switch" OFF when done with JD work
+- Open tasks: see agent-hub/TASKS.md
