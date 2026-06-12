@@ -88,6 +88,23 @@
   font-size: 10px; padding: 2px 7px; border-radius: 8px;
   background: #1d2a3d; color: var(--blue); font-weight: 600;
 }
+
+/* Master kill switch card */
+.svc-card.master-on {
+  border-color: #22c55e; background: #0a1f10;
+  box-shadow: 0 0 0 1px #22c55e33;
+}
+.svc-card.master-off {
+  border-color: #ef4444; background: #1a0808;
+  box-shadow: 0 0 0 1px #ef444433;
+}
+.master-badge {
+  font-size: 10px; padding: 2px 9px; border-radius: 8px;
+  background: #2d1a00; color: #f59e0b; font-weight: 700;
+  border: 1px solid #f59e0b55; letter-spacing: .04em;
+}
+.master-status-on  { color: #22c55e; font-size: 13px; font-weight: 700; }
+.master-status-off { color: #ef4444; font-size: 13px; font-weight: 700; }
 </style>
 
 <div class="h-row">
@@ -111,6 +128,7 @@
 
 <script>
 const SVC_ICONS = {
+  jazzdrive_master: '🔌',
   keepalive:    '❤️',
   scan:         '🔍',
   upload:       '☁️',
@@ -162,6 +180,31 @@ function renderSvcs(services) {
     const isOn = svc.enabled;
     const icon = SVC_ICONS[svc.name] || '⚙️';
     const isSupervisor = !!svc.supervisor;
+
+    // ── Master kill switch — special full-width card ──────────────────────
+    if (svc.name === 'jazzdrive_master') {
+      const masterClass = isOn ? 'master-on' : 'master-off';
+      const statusHtml  = isOn
+        ? '<span class="master-status-on">🟢 ACTIVE — JazzDrive calls allowed</span>'
+        : '<span class="master-status-off">🔴 BLOCKED — All JazzDrive calls stopped</span>';
+      return `
+        <div class="svc-card ${masterClass}" id="svc-card-jazzdrive_master" style="grid-column:1/-1;padding:22px 26px;">
+          <div class="svc-icon" style="font-size:32px">🔌</div>
+          <div class="svc-body">
+            <div class="svc-title" style="font-size:18px">
+              JazzDrive Master Switch
+              <span class="master-badge">MASTER</span>
+            </div>
+            <div style="margin-top:6px">${statusHtml}</div>
+            <div class="svc-desc" style="margin-top:8px">${svc.desc}</div>
+          </div>
+          <label class="big-toggle" title="${isOn ? 'Click to block all JazzDrive calls' : 'Click to allow JazzDrive calls'}" style="margin-top:8px;width:64px;height:34px">
+            <input type="checkbox" ${isOn ? 'checked' : ''}
+                   onchange="toggleSvc('jazzdrive_master', this.checked, this)">
+            <span class="big-slider"></span>
+          </label>
+        </div>`;
+    }
 
     // State class
     let stateClass = isOn ? 'state-on' : '';

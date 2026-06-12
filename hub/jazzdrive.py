@@ -50,7 +50,8 @@ def _auth_headers(tokens: dict) -> dict:
     vk = tokens.get("validationkey") or tokens.get("validation_key") or ""
     jid = tokens.get("jsessionid") or tokens.get("JSESSIONID") or ""
     msisdn = tokens.get("msisdn")
-    return get_auth_headers(vk, jid, msisdn=msisdn)
+    raw_at = tokens.get("raw_accesstoken")
+    return get_auth_headers(vk, jid, msisdn=msisdn, raw_accesstoken=raw_at)
 
 def _auth_params(*args, **kwargs):
     return _scanner()._auth_params(*args, **kwargs)
@@ -91,6 +92,38 @@ except Exception:
 
 log = logging.getLogger("hub.jazzdrive")
 
+# -- JazzDrive activity log
+def _setup_jd_activity_log():
+    """Install a [JD:]-filtered RotatingFileHandler on the ROOT logger.
+    Must be called AFTER config.setup_logging() so it is not cleared by
+    the root.handlers[:] = [h] reset that setup_logging performs.
+    """
+    import logging.handlers as _lhh
+    _root = logging.getLogger()
+    # Guard: only add once (marker attribute prevents duplicates)
+    if any(getattr(_h, "_jd_activity_marker", False) for _h in _root.handlers):
+        return
+    try:
+        _fh = _lhh.RotatingFileHandler(
+            "/opt/jazzmax/jazzdrive_activity.log",
+            maxBytes=5*1024*1024, backupCount=5, encoding="utf-8")
+        _fh._jd_activity_marker = True
+        _fh.setLevel(logging.DEBUG)
+        _fh.setFormatter(logging.Formatter("%(asctime)s  %(message)s", "%Y-%m-%d %H:%M:%S"))
+        # Filter: only write lines that contain [JD: prefix
+        class _JDFilter(logging.Filter):
+            def filter(self, r): return "[JD:" in r.getMessage()
+        _fh.addFilter(_JDFilter())
+        _root.addHandler(_fh)
+        logging.getLogger("hub.jazzdrive").setLevel(logging.DEBUG)
+    except Exception as _fh_e:
+        import sys
+        print("[JD-LOG-SETUP] FAILED to attach activity log:", _fh_e, file=sys.stderr)
+try:
+    _setup_jd_activity_log()
+except Exception:
+    pass
+
 SESSION_FILE = config.DATA_DIR / "jazzdrive_session.json"
 
 # Android OAuth2 credentials — decrypted from APK (AES/CBC/PKCS7, classes2.dex C4622a / C3912s)
@@ -107,47 +140,6 @@ _lock = threading.Lock()
 _SAPI_BACKOFF: "dict[int, float]" = {}
 _SAPI_BACKOFF_LOCK = threading.Lock()
 _SAPI_BACKOFF_SECS = 1800  # 30 minutes
-
-# ── SAPI backoff persistence (survives Flask restarts) ──────────────────────
-def _backoff_file():
-    try:
-        from . import config as _cfg
-        return _cfg.TEMP_DIR / 'sapi_backoff.json'
-    except Exception:
-        import pathlib, tempfile
-        return pathlib.Path(tempfile.gettempdir()) / 'sapi_backoff.json'
-
-def _load_persisted_backoff():
-    """Load SAPI backoff timestamps from disk on startup."""
-    try:
-        import json as _json
-        bf = _backoff_file()
-        if bf.exists():
-            data = _json.loads(bf.read_text())
-            now  = __import__('time').time()
-            with _SAPI_BACKOFF_LOCK:
-                for k, v in data.items():
-                    if now - v < _SAPI_BACKOFF_SECS:  # still valid
-                        _SAPI_BACKOFF[int(k)] = v
-            if _SAPI_BACKOFF:
-                import logging as _lg
-                _lg.getLogger('hub.jazzdrive').info(
-                    'Reloaded SAPI backoff for %d account(s) from disk', len(_SAPI_BACKOFF))
-    except Exception:
-        pass
-
-def _save_persisted_backoff():
-    """Persist SAPI backoff timestamps to disk so restarts don't reset them."""
-    try:
-        import json as _json
-        with _SAPI_BACKOFF_LOCK:
-            data = {str(k): v for k, v in _SAPI_BACKOFF.items()}
-        _backoff_file().write_text(_json.dumps(data))
-    except Exception:
-        pass
-
-# Load on import (runs once per process)
-_load_persisted_backoff()
 
 # ── Per-account refresh-token lock ────────────────────────────────────────────
 # JazzDrive rotates the refresh_token on every /oauth2/refresh_token.php call.
@@ -180,8 +172,7 @@ def clear_sapi_backoff(account_id: int) -> None:
     with _SAPI_BACKOFF_LOCK:
         removed = _SAPI_BACKOFF.pop(account_id, None)
     if removed is not None:
-        _save_persisted_backoff()  # update disk so cleared backoff survives restart
-        log.info("JazzDrive account %s: session backoff lifted — auto-refresh re-enabled. Account can now upload and stream again.", account_id)
+        log.info("SAPI backoff cleared for account %s — auto-refresh re-enabled", account_id)
 
 
 def _is_sapi_backed_off(account_id: Optional[int]) -> bool:
@@ -208,10 +199,9 @@ def _mark_sapi_backed_off(account_id: Optional[int]) -> None:
         return
     with _SAPI_BACKOFF_LOCK:
         _SAPI_BACKOFF[account_id] = time.time()
-    _save_persisted_backoff()  # persist so Flask restart doesn't reset this
     log.warning(
-        "JazzDrive account %s is LOGGED OUT — auto-refresh suppressed for 30 min to protect the token. "
-        "Action required: open the admin panel -> Settings -> JazzDrive Scan -> send OTP for this account.",
+        "account %s: SAPI auto-refresh suppressed for 30 min — OTP re-login required. "
+        "Open Scan/Upload page and re-activate session via phone.",
         account_id
     )
 
@@ -264,212 +254,196 @@ def _save_session(data: dict):
 def _is_replit() -> bool:
     return bool(os.environ.get("REPL_ID") or os.environ.get("REPLIT_DEPLOYMENT"))
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WG0 VPN enforcement — ALL JazzDrive calls MUST route via wg0
+# ─────────────────────────────────────────────────────────────────────────────
+
+class JDVPNRequired(RuntimeError):
+    """Raised when wg0 VPN is not routing one or more JazzDrive IPs.
+
+    Used to hard-fail any JazzDrive network call that would otherwise leak
+    via Oracle's direct IP — which risks account suspension on Jazz SIM.
+    """
+
+
+class JDDisabled(RuntimeError):
+    """Raised when JAZZDRIVE_ENABLED=0 — all JazzDrive network calls are
+    blocked by the admin master kill switch on the Services page."""
+
+
+def require_jd_active() -> None:
+    """Hard-fail if the admin has disabled JazzDrive via the master kill switch.
+
+    Call this BEFORE require_wg0() so that when JD is intentionally OFF
+    we get a clean, clear error rather than a VPN error.
+    """
+    from . import db as _db
+    if _db.setting("JAZZDRIVE_ENABLED", "1") != "1":
+        raise JDDisabled(
+            "JazzDrive is disabled (JAZZDRIVE_ENABLED=0). "
+            "Enable it on the Admin → Services page before making JD calls."
+        )
+
+_JD_ROUTED_IPS = ["54.179.95.148", "54.254.59.168", "175.41.133.62"]
+
+
+def require_wg0() -> None:
+    """Abort (raise JDVPNRequired) if wg0 is not routing all JazzDrive IPs.
+
+    Called at the start of every function that sends a JazzDrive network
+    request so that no call can ever leak via Oracle's direct public IP.
+    """
+    import subprocess as _sp
+    log.debug("[JD:VPN] checking wg0 for IPs: %s", _JD_ROUTED_IPS)
+    try:
+        out = _sp.check_output(["ip", "route", "show", "dev", "wg0"],
+                               text=True, timeout=2)
+    except Exception as _e:
+        log.error("[JD:VPN] BLOCKED -- wg0 interface error: %s", _e)
+        raise JDVPNRequired(
+            f"wg0 route check failed — VPN interface may be down: {_e}"
+        )
+    missing = [ip for ip in _JD_ROUTED_IPS if ip not in out]
+    if missing:
+        log.error("[JD:VPN] BLOCKED -- wg0 NOT routing IPs: %s", missing)
+        raise JDVPNRequired(
+            f"wg0 is NOT routing JazzDrive IPs {missing} — "
+            "refusing to leak call via Oracle direct IP"
+        )
+    log.debug("[JD:VPN] OK -- all JD IPs via wg0")
+
 def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
-    """Always returns None — JazzDrive traffic routes via wg0 VPN at OS level.
-    Raises JDVPNRequired if wg0 is not routing JD IPs.
-    NEVER allows JD traffic to leak via Oracle direct IP — account would be suspended."""
-    require_wg0()
+    log.debug("[JD:PROXY] resolve_proxies purpose=%s", purpose)
+    """Return a requests-compatible proxies dict.
+
+    purpose='sapi' — uses the SAPI proxy POOL (auto-rotating, health-checked).
+                     Falls back to JAZZDRIVE_SAPI_PROXY setting if pool empty.
+    purpose='otp'  — uses the general JAZZDRIVE_PROXY slot (OTP / refresh_token).
+    Always returns None on Replit because proxy traffic violates ToS."""
+    require_jd_active()  # Hard-fail if master kill switch is OFF
+    require_wg0()  # Hard-fail if wg0 not routing JD IPs
+    log.info("[JD:PROXY] VPN enforced OK")
+    if _is_replit():
+        return None
+    # Global proxy bypass — when JAZZDRIVE_PROXY_BYPASS=1 all traffic goes direct.
+    # Enable this when Oracle IP is not geo-blocked; proxies only slow things down.
+    # NOTE: SAPI LOGIN (geo-restricted) bypasses this via direct pool access in
+    # _android_refresh_session_inner._s2_chain — NOT via resolve_proxies('sapi').
+    if db.setting('JAZZDRIVE_PROXY_BYPASS') == '1':
+        return None
+    if purpose == 'sapi':
+        # Try the pool first (auto-rotating, health-checked)
+        try:
+            from . import proxy_pool as _pp
+            px = _pp.pool.get_best()
+            if px:
+                return px
+        except Exception:
+            pass
+        # Fallback to single-proxy setting
+        sapi_url = (db.setting("JAZZDRIVE_SAPI_PROXY") or "").strip()
+        if sapi_url:
+            return {"http": sapi_url, "https": sapi_url, "_url": sapi_url}
+        return None
+    # OTP / general proxy — manual setting takes priority
+    manual_enabled = db.setting("JAZZDRIVE_PROXY_ENABLED") == "1"
+    url = (db.setting("JAZZDRIVE_PROXY") or "").strip()
+    if manual_enabled and url:
+        # Dead-proxy guard: if this URL was disabled by mark_fail (>= 5 fails),
+        # skip it and fall through to the pool rather than hammering the same
+        # broken host on every OTP request.
+        _manual_alive = True
+        try:
+            with db.conn() as _rc:
+                _pr = _rc.execute(
+                    "SELECT is_enabled FROM sapi_proxies WHERE url=?", (url,)
+                ).fetchone()
+            if _pr is not None and not _pr["is_enabled"]:
+                _manual_alive = False
+                log.warning(
+                    "resolve_proxies(otp): JAZZDRIVE_PROXY '%s' is disabled "
+                    "(too many fails) — falling through to pool", url)
+        except Exception:
+            pass  # pool DB unavailable — trust the manual setting
+        if _manual_alive:
+            return {"http": url, "https": url, "_url": url}
+    # No live manual proxy — fall back to SAPI pool automatically.
+    # This ensures OTP always goes through a Pakistani IP.
+    try:
+        from . import proxy_pool as _pp
+        px = _pp.pool.get_best()
+        if px:
+            return px
+        # Circuit open (>80% dead) but OTP MUST use a proxy.
+        # Direct connection from Oracle's non-PK IP always returns MED-1011.
+        # Use the least-dead proxy from the chain as a last resort.
+        chain = _pp.pool.get_proxy_chain(n=1)
+        if chain:
+            log.warning("resolve_proxies(otp): circuit open — using least-dead proxy as OTP fallback")
+            return chain[0]
+    except Exception:
+        pass
     return None
 
 
 
 def is_proxy_bypass() -> bool:
-    """Always True — all JD traffic goes direct/VPN.  No proxy pool."""
-    return True
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# VPN / Direct Fallback Helpers
-# ─────────────────────────────────────────────────────────────────────────────
-
-_JD_IPS = ["54.179.95.148", "54.254.59.168", "175.41.133.62"]
-_wg0_lock = __import__('threading').Lock()
-
-
-def _wg0_route_ips() -> list:
-    """Return the JD IPs that currently have an explicit wg0 route."""
-    try:
-        import subprocess as _sp
-        out = _sp.check_output(["ip", "route", "show", "dev", "wg0"],
-                               text=True, timeout=2)
-        return [ip for ip in _JD_IPS if ip in out]
-    except Exception:
-        return []
-
-
-def _wg0_alive() -> bool:
-    """Quick TCP probe: can we reach any JD IP on port 443 via wg0 in < 3 s?"""
-    import socket as _sock
-    for ip in _JD_IPS:
-        try:
-            s = _sock.create_connection((ip, 443), timeout=3)
-            s.close()
-            return True
-        except OSError:
-            pass
-    return False
-
-
-def _remove_wg0_routes(ips: list) -> None:
-    """Temporarily delete wg0 routes so traffic uses the default interface."""
-    import subprocess as _sp
-    for ip in ips:
-        _sp.run(["sudo", "ip", "route", "del", ip, "dev", "wg0"],
-                capture_output=True, timeout=3)
-
-
-def _restore_wg0_routes(ips: list) -> None:
-    """Re-add wg0 routes after a direct-fallback attempt."""
-    import subprocess as _sp
-    for ip in ips:
-        _sp.run(["sudo", "ip", "route", "add", ip, "dev", "wg0", "scope", "link"],
-                capture_output=True, timeout=3)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# wg0 VPN Enforcement — hard-fail if JD IPs are not routed via wg0
-# ─────────────────────────────────────────────────────────────────────────────
-
-class JDVPNRequired(RuntimeError):
-    """Raised when a JazzDrive network call is blocked because wg0 is not
-    routing the JazzDrive IPs.  NEVER allow JD traffic via Oracle's direct IP
-    — account suspension risk."""
-    pass
-
-
-def require_wg0() -> None:
-    """Hard-fail if wg0 is not currently routing ALL JazzDrive IPs.
-
-    Must be called at the entry point of every function that makes a JazzDrive
-    network request.  If any JD IP route is missing (VPN down / peer unreachable),
-    we raise JDVPNRequired instead of letting the request fall through to Oracle's
-    direct IP — which would expose a non-PK IP to JazzDrive and risk account suspension.
-
-    This is a zero-tolerance rule: no JD call ever goes out without wg0.
-    """
-    routed = _wg0_route_ips()
-    missing = [ip for ip in _JD_IPS if ip not in routed]
-    if missing:
-        msg = (
-            f"wg0 VPN not routing JazzDrive IPs {missing} — "
-            f"JazzDrive call BLOCKED (refusing to leak via Oracle direct IP, "
-            f"account suspension risk)"
-        )
-        log.error("require_wg0: %s", msg)
-        raise JDVPNRequired(msg)
-    log.debug("require_wg0: OK — all JD IPs routed via wg0 %s", routed)
-
+    """Return True when JAZZDRIVE_PROXY_BYPASS=1 — all calls go direct, skip pool."""
+    return db.setting("JAZZDRIVE_PROXY_BYPASS") == "1"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Auth Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_x_deviceid(msisdn: Optional[str] = None, account_id: Optional[int] = None) -> str:
-    """Return the X-deviceid for this account.
+def get_x_deviceid(msisdn: Optional[str] = None) -> str:
+    """Return a deterministic X-deviceid based on the MSISDN.
 
-    Priority:
-      1. Stored device_id in accounts table (set via admin or from real APK login).
-      2. Deterministic fallback: android-{last10_msisdn} — looks like a real Android app ID.
-
-    Jazz ties sessions to device_id — keeping it stable prevents session invalidation.
+    JazzDrive sessions are tied to the X-deviceid. Using a stable one
+    prevents 'invalid session' errors when switching between uploader/keepalive.
+    Prefix fac- matches APK strings.xml app_device_id_prefix (C30924e DeviceInterceptor).
     """
-    # 1. Per-account stored device_id
-    if account_id:
-        try:
-            with db.conn() as _c:
-                row = _c.execute(
-                    "SELECT device_id FROM accounts WHERE id=?", (account_id,)
-                ).fetchone()
-                if row and row["device_id"]:
-                    return row["device_id"]
-        except Exception:
-            pass
-    # 2. Try by MSISDN
     m = str(msisdn or db.setting("JAZZDRIVE_MSISDN") or "").strip()
     m = m.replace("+", "").replace(" ", "").replace("-", "")
-    if m:
-        try:
-            with db.conn() as _c:
-                row = _c.execute(
-                    "SELECT device_id FROM accounts WHERE msisdn=?", (m,)
-                ).fetchone()
-                if row and row and row["device_id"]:
-                    return row["device_id"]
-        except Exception:
-            pass
-    # 3. Global default set via admin panel (DEFAULT_ANDROID_ID setting)
-    default_did = db.setting("DEFAULT_ANDROID_ID") or ""
-    if default_did:
-        return default_did
-    # 4. Deterministic fallback — looks like real Android device ID format
     suffix = m[-10:] if len(m) >= 10 else "raddhub"
-    return f"android-{suffix}"
-
-
-def get_x_devicename(msisdn: Optional[str] = None, account_id: Optional[int] = None) -> str:
-    """Return X-devicename for this account.
-
-    Default: InfinixInfinix X680F (the real registered Android device from My Devices page).
-    Can be overridden per-account via the device_name column.
-    """
-    # 1. Per-account stored device_name
-    if account_id:
-        try:
-            with db.conn() as _c:
-                row = _c.execute(
-                    "SELECT device_name FROM accounts WHERE id=?", (account_id,)
-                ).fetchone()
-                if row and row["device_name"]:
-                    return row["device_name"]
-        except Exception:
-            pass
-    # 2. Try by MSISDN
-    m = str(msisdn or db.setting("JAZZDRIVE_MSISDN") or "").strip().replace("+","").replace(" ","").replace("-","")
-    if m:
-        try:
-            with db.conn() as _c:
-                row = _c.execute(
-                    "SELECT device_name FROM accounts WHERE msisdn=?", (m,)
-                ).fetchone()
-                if row and row["device_name"]:
-                    return row["device_name"]
-        except Exception:
-            pass
-    # 3. Global setting override
-    override = db.setting("JAZZDRIVE_DEVICE_NAME") or ""
-    if override:
-        return override
-    # 4. Default: real registered Android device name from My Devices screenshot
-    return "InfinixInfinix X680F"
+    return f"fac-{suffix}"
 
 def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
-                    account_id: Optional[int] = None) -> dict:
+                     raw_accesstoken: Optional[str] = None,
+                     _request_id: Optional[str] = None) -> dict:
     """Return standard headers for any SAPI/Cloud request.
 
-    Device identity is sourced from the accounts table (device_id / device_name columns).
-    Defaults to the real registered device observed in My Devices:
-      - X-devicename:  InfinixInfinix X680F  (Android: {manufacturer}{model})
-      - User-Agent:    Dalvik/2.1.0 ... Infinix X680F (matching the real phone)
-      - X-deviceid:    stored per-account or android-{last10_msisdn}
-      - X-request-id:  fresh UUID per request (logged by Jazz servers)
-
-    Headers confirmed from Windows binary strings analysis (Jazz Drive.exe, 2025).
+    Mirrors the 4 OkHttp interceptors in the JazzDrive Android APK exactly:
+      1. x-request-id     — new UUID per request  (C30920a AddRequestIdInterceptor)
+      2. User-Agent       — "omh android client"   (C30921b AddUserAgentInterceptor)
+      3. X-deviceid       — fac-<suffix>           (C30924e DeviceInterceptor)
+      4. X-devicename     — device model           (C30924e DeviceInterceptor)
+      5. Authorization    — oauth <Base64(token)>  (C12815c OAuth2AuthenticatorInterceptor)
     """
-    return {
+    import base64 as _b64_ah
+    device_name = db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix X680F"
+    headers = {
         "Accept":           "application/json, text/plain, */*",
-        "Accept-Language":  "en-US,en;q=0.9",
-        "User-Agent":       "Dalvik/2.1.0 (Linux; U; Android 12; Infinix X680F Build/SP1A.210812.016)",
-        "X-deviceid":       get_x_deviceid(msisdn, account_id=account_id),
-        "X-devicename":     get_x_devicename(msisdn, account_id=account_id),
+        "User-Agent":       "omh android client",
+        "x-request-id":     _request_id or str(_uuid.uuid4()),
+        "X-deviceid":       get_x_deviceid(msisdn),
+        "X-devicename":     device_name,
         "X-Requested-With": "com.jazz.drive",
-        "X-request-id":     _uuid.uuid4().hex,
-        "Cookie":           f"JSESSIONID={jid}",
-        "validation_key":   vk,
     }
+    if jid:
+        headers["Cookie"] = f"JSESSIONID={jid}"
+    if vk:
+        headers["validation_key"] = vk
+    if raw_accesstoken:
+        headers["Authorization"] = "oauth " + _b64_ah.b64encode(raw_accesstoken.encode()).decode()
+    return headers
 
 
 def refresh_jsessionid(validation_key: str,
                        raw_accesstoken: str = "") -> tuple[Optional[str], Optional[dict]]:
     """Use the stored raw_accesstoken to silently obtain a fresh JSESSIONID."""
+    log.info("[JD:REFRESH] ==========================================")
+    log.info("[JD:REFRESH] refresh_jsessionid has_token=%s", bool(raw_accesstoken))
     import requests as _req
     import urllib.parse as _up
     import base64 as _b64
@@ -481,16 +455,7 @@ def refresh_jsessionid(validation_key: str,
     msisdn = str(db.setting('JAZZDRIVE_MSISDN') or "")
     dev_suffix = msisdn[-10:] if len(msisdn) >= 10 else _uuid.uuid4().hex[:10]
 
-    # Find account_id for this msisdn so device_id/device_name are correctly resolved
-    _aid_for_refresh = None
-    try:
-        with db.conn() as _c:
-            _ar = _c.execute("SELECT id FROM accounts WHERE msisdn=?", (m,)).fetchone()
-            if _ar:
-                _aid_for_refresh = _ar["id"]
-    except Exception:
-        pass
-    headers = get_auth_headers("", "", msisdn=msisdn, account_id=_aid_for_refresh)
+    headers = get_auth_headers("", "", msisdn=msisdn, raw_accesstoken=raw_accesstoken)
     headers.pop("Cookie", None)
     headers.pop("validation_key", None)
     headers.update({
@@ -508,12 +473,12 @@ def refresh_jsessionid(validation_key: str,
         at_b64   = _b64.b64encode(at_json.encode()).decode()
         at_b64_q = _up.quote(at_b64, safe='')
         candidates.append(
-            f"{CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android"
+            f"{CLOUD_BASE}/sapi/login/oauth?action=login&platform=web"
             f"&keytype=accesstoken&key={at_b64_q}"
         )
 
     if not candidates:
-        log.debug("refresh_jsessionid: no raw_accesstoken stored — OTP re-login required")
+        log.warning("[JD:REFRESH] no raw_accesstoken -- OTP re-login required")
         return None, None
 
     r = None
@@ -521,7 +486,7 @@ def refresh_jsessionid(validation_key: str,
         for url_candidate in candidates:
             try:
                 r = _req.get(url_candidate, headers=headers, timeout=20, proxies=proxies)
-                log.debug("refresh_jsessionid: HTTP %d @ %s", r.status_code, url_candidate[:90])
+                log.info("[JD:REFRESH] url=%s  HTTP=%d", url_candidate[:100], r.status_code)
                 if r.status_code == 200:
                     try:
                         body = r.json()
@@ -532,11 +497,12 @@ def refresh_jsessionid(validation_key: str,
                         body = None
                         jsid = r.cookies.get("JSESSIONID") or ""
                     if jsid:
-                        log.info("refresh_jsessionid: fresh JSESSIONID obtained via raw_accesstoken")
+                        log.info("[JD:REFRESH] JSESSIONID obtained via raw_accesstoken")
+                        log.info("[JD:REFRESH] ==========================================")
                         return jsid, body
-                    log.debug("refresh_jsessionid: 200 but no JSESSIONID in response")
+                    log.warning("[JD:REFRESH] HTTP 200 but no JSESSIONID in response")
                 else:
-                    log.debug("refresh_jsessionid: HTTP %d — credentials rejected or session dead",
+                    log.warning("[JD:REFRESH] HTTP %d -- credentials rejected or session dead",
                               r.status_code)
             except Exception as _e:
                 log.debug("refresh_jsessionid candidate error: %s", _e)
@@ -876,77 +842,6 @@ def rename_folder(account_id: int, folder_id: int, new_name: str,
         account_id=account_id
     )
 
-
-# ---------------------------------------------------------------------------
-# Startup handshake - real JazzDrive app sequence on login / session restore
-# ---------------------------------------------------------------------------
-
-def startup_handshake(vk: str, jid: str, msisdn=None, account_id=None) -> dict:
-    import time as _t, random as _r, requests as _req
-    results = {}
-    hdrs = get_auth_headers(vk, jid, msisdn=msisdn, account_id=account_id)
-    px = resolve_proxies()
-
-    def _get(endpoint, action=None, extra=""):
-        params = ("action=" + action) if action else ""
-        if extra:
-            params += ("&" if params else "") + extra
-        url = CLOUD_BASE + "/sapi" + endpoint + ("?" + params if params else "")
-        try:
-            _t.sleep(_r.uniform(0.4, 1.2))
-            r = _req.get(url, headers=hdrs, timeout=15, proxies=px, verify=False)
-            return r.json() if r.status_code == 200 else {"_http": r.status_code}
-        except Exception as e:
-            return {"_error": str(e)}
-
-    results["features"]     = _get("/features")
-    results["profile"]      = _get("/profile", action="get")
-    results["subscription"] = _get("/subscription", action="get")
-    results["storage"]      = _get("/media", action="get-storage-space", extra="softdeleted=true")
-    # Real app also loads folder tree and checks for app updates on startup
-    results["folder_root"]  = _get("/media/folder/root", action="get")
-    results["folder_list"]  = _get("/media/folder", action="get")
-    results["client_info"]  = _get("/profile/client",
-                                   action="get-update-info",
-                                   extra="component=android")
-
-    ok_count = sum(1 for v in results.values() if "_error" not in v and "_http" not in v)
-    log.info("startup_handshake done: %d/%d endpoints OK", ok_count, len(results))
-    return results
-
-
-# ---------------------------------------------------------------------------
-# Post-upload validation polling
-# ---------------------------------------------------------------------------
-
-def post_upload_validate(vk: str, jid: str, msisdn=None, account_id=None,
-                         max_polls: int = 8, poll_interval: float = 3.0) -> dict:
-    import time as _t, random as _r, requests as _req
-    hdrs = get_auth_headers(vk, jid, msisdn=msisdn, account_id=account_id)
-    url  = CLOUD_BASE + "/sapi/media?action=get-validation-status"
-    px   = resolve_proxies()
-
-    log.info("post_upload_validate: polling max=%d interval=%.1fs", max_polls, poll_interval)
-    for poll_num in range(1, max_polls + 1):
-        _t.sleep(poll_interval + _r.uniform(0, 1.0))
-        try:
-            r = _req.get(url, headers=hdrs, timeout=15, proxies=px, verify=False)
-            if r.status_code != 200:
-                break
-            data  = r.json()
-            items = data.get("data") or data.get("items") or []
-            if isinstance(items, list) and len(items) == 0:
-                log.info("post_upload_validate: complete after %d poll(s)", poll_num)
-                return {"ok": True, "polls": poll_num}
-            status = data.get("status") or ""
-            if status in ("done", "complete", "finished"):
-                return {"ok": True, "polls": poll_num, "status": status}
-        except Exception as e:
-            log.debug("post_upload_validate poll %d error: %s", poll_num, e)
-            break
-    return {"ok": True, "polls": max_polls, "note": "max polls reached"}
-
-
 def sapi_request(endpoint: str, action: str, 
                  method: str = "GET", 
                  params: Optional[dict] = None, 
@@ -1016,34 +911,50 @@ def sapi_request(endpoint: str, action: str,
     if action:
         req_params["action"] = action
     req_params["validationkey"] = vk
+    req_params["responsetime"] = "true"
     
-    req_headers = get_auth_headers(vk, jid or "", msisdn=tokens.get("msisdn"), account_id=account_id)
+    req_headers = get_auth_headers(vk, jid or "", msisdn=tokens.get("msisdn"), raw_accesstoken=tokens.get("raw_accesstoken"))
     if not jid:
         req_headers.pop("Cookie", None)
     if headers:
         req_headers.update(headers)
 
     # 3. Execute request
-    # proxies is always None (VPN handled at OS routing level)
-    _req_proxies = None
+    _proxy_url = (proxies or {}).get("_url") or (proxies or {}).get("https")
+    # Strip private key before passing to requests
+    _req_proxies = {k: v for k, v in (proxies or {}).items() if k in ("http", "https")} if proxies else None
+    _t0_sapi = time.time() if _proxy_url else None
     try:
-        r = _req.request(method, url, params=req_params, json=json_data, data=data, headers=req_headers, timeout=timeout)
+        _t0r = time.time()
+        r = _req.request(method, url, params=req_params, json=json_data, data=data, headers=req_headers, timeout=timeout, proxies=_req_proxies)
+        log.info("[JD:SAPI] RSP  HTTP %d  %.0fms  %s", r.status_code, (time.time()-_t0r)*1000, endpoint.lstrip("/"))
 
         # 3b. Capture any fresh JSESSIONID issued by the server on SUCCESSFUL responses.
         # Only save on 2xx — a 401 response may carry a guest/unauthenticated JSESSIONID
         # which would break subsequent authenticated calls if saved.
+        # Mark proxy success/fail
+        if _proxy_url:
+            try:
+                _elapsed_ms = int((time.time() - _t0_sapi) * 1000) if _t0_sapi else None
+                from . import proxy_pool as _pp
+                if r.status_code in (200, 400, 401, 403, 500):
+                    _pp.pool.mark_success(_proxy_url, _elapsed_ms)
+                else:
+                    _pp.pool.mark_fail(_proxy_url)
+            except Exception:
+                pass
         if 200 <= r.status_code < 300:
             new_jid_from_cookie = r.cookies.get("JSESSIONID")
             new_vk_from_header = r.headers.get("X-Funambol-ValidationKey")
             
             needs_update = False
             if new_jid_from_cookie and new_jid_from_cookie != jid:
-                log.debug("sapi_request: server issued new JSESSIONID on success — saving")
+                log.info("[JD:SAPI] server issued new JSESSIONID -- saving")
                 tokens["jsessionid"] = new_jid_from_cookie
                 needs_update = True
             
             if new_vk_from_header and new_vk_from_header != vk:
-                log.info("sapi_request: server rotated validationkey in header — saving")
+                log.info("[JD:SAPI] server rotated validationkey in header -- saving")
                 tokens["validationkey"] = new_vk_from_header
                 vk = new_vk_from_header  # update local vk for subsequent logic
                 needs_update = True
@@ -1055,24 +966,20 @@ def sapi_request(endpoint: str, action: str,
         # Strategy A: refresh_token (Android app flow — months-long sessions)
         # Strategy B: validationKey → fresh JSESSIONID via web re-login endpoint
         if r.status_code == 401 and vk:
-            log.warning("JazzDrive: session rejected (401) for account %s — trying auto-refresh (no OTP needed)...", account_id)
+            log.info("[JD:SAPI] 401 -- starting session recovery  acct=%s", account_id)
 
             # Skip costly refresh attempts if account is already in OTP backoff.
             # This prevents uploader/bulk_links/keepalive from hammering JazzDrive
             # with 8 failed API calls every 40 s when the session is dead.
             if _is_sapi_backed_off(account_id):
-                log.debug("JazzDrive: account %s is in OTP backoff — auto-refresh suppressed (waiting for manual OTP)", account_id)
-                log.warning(
-                    "JazzDrive ACCOUNT LOGGED OUT — account %s: session expired, OTP re-login required. "
-                    "Auto-refresh is paused for 30 min to prevent token burn. "
-                    "Go to Settings -> JazzDrive Scan -> Send OTP.",
-                    account_id)
+                log.debug("SAPI 401 — account %s in OTP backoff, skipping refresh", account_id)
+                log.warning("SAPI 401 — both strategies failed. OTP re-login required.")
             else:
                 # Strategy A: use refresh_token (Android approach)
                 try:
                     refresh_result = refresh_session(account_id)
                     if refresh_result.get("ok"):
-                        log.info("JazzDrive: session auto-renewed for account %s via refresh_token — logged in OK", account_id)
+                        log.info("[JD:SAPI] strategy A (refresh_token) succeeded -- retrying")
                         new_tokens = tokens.copy()
                         if account_id:
                             try:
@@ -1096,15 +1003,13 @@ def sapi_request(endpoint: str, action: str,
                 # Strategy B: validationKey → fresh JSESSIONID (web re-login, no OTP needed)
                 new_jid_b, _ = refresh_jsessionid(vk, raw_accesstoken=tokens.get("raw_accesstoken", ""))
                 if new_jid_b:
-                    log.info("JazzDrive: session auto-renewed for account %s via validationKey — logged in OK", account_id)
+                    log.info("[JD:SAPI] strategy B (refresh_jsessionid) succeeded -- retrying")
                     tokens["jsessionid"] = new_jid_b
                     _update_token_storage(account_id, tokens)
                     return sapi_request(endpoint, action, method, params, json_data, data, headers, account_id, tokens, timeout, _retry_count + 1)
 
-                log.warning(
-                    "JazzDrive ACCOUNT LOGGED OUT — account %s: both auto-refresh strategies failed. "
-                    "Manual OTP re-login required: go to Settings -> JazzDrive Scan -> Send OTP.",
-                    account_id)
+                log.error("[JD:SAPI] 401 recovery FAILED -- both strategies exhausted  acct=%s", account_id)
+                log.error("[JD:SAPI] OTP re-login required")
                 _mark_sapi_backed_off(account_id)
 
         # 5. Handle JSON responses
@@ -1115,12 +1020,25 @@ def sapi_request(endpoint: str, action: str,
                 return {"ok": True, "text": r.text[:1000]}
             return {"error": {"code": "HTTP-" + str(r.status_code), "message": r.text[:200]}}
 
+        # 5b. Update validationkey from response body (AbstractC12813a.m51847w).
+        # The real Android app reads data.validationkey from EVERY SAPI response
+        # and stores the latest — this keeps the session alive indefinitely.
+        if isinstance(resp_data, dict) and 200 <= r.status_code < 300:
+            _resp_d = resp_data.get("data", {})
+            if isinstance(_resp_d, dict):
+                _new_vk_body = (_resp_d.get("validationkey") or _resp_d.get("validation_key"))
+                if _new_vk_body and _new_vk_body != vk:
+                    log.debug("sapi_request: validationkey refreshed from response body")
+                    tokens["validationkey"] = _new_vk_body
+                    vk = _new_vk_body
+                    _update_token_storage(account_id, tokens)
+
         # 6. Handle SEC-1003 (Rolling Key Rotation)
         err = resp_data.get("error")
         if isinstance(err, dict) and err.get("code") == "SEC-1003":
             new_vk = err.get("data") or err.get("validationkey")
             if new_vk:
-                log.info("SEC-1003: validationKey rotated. Updating and retrying...")
+                log.info("[JD:SAPI] SEC-1003 -- validationKey rotated by server, retrying")
                 tokens["validationkey"] = new_vk
                 # Also capture a fresh JSESSIONID the server may have included
                 sec_jid = r.cookies.get("JSESSIONID")
@@ -1132,35 +1050,13 @@ def sapi_request(endpoint: str, action: str,
         return resp_data
 
     except Exception as e:
-        import requests as _rq_exc
-        _is_conn = isinstance(e, (_rq_exc.ConnectionError, _rq_exc.Timeout))
-        if _is_conn:
-            # VPN-with-direct fallback: wg0 may be UP but tunnel peer unreachable.
-            # Temporarily remove wg0 routes so the default interface is used, retry
-            # the request once, then restore the routes.
-            with _wg0_lock:
-                _routed = _wg0_route_ips()
-                if _routed:
-                    log.warning("sapi_request: connection failed via wg0 (%s) — retrying direct", str(e)[:80])
-                    _remove_wg0_routes(_routed)
-                    try:
-                        r = _req.request(method, url, params=req_params, json=json_data,
-                                         data=data, headers=req_headers, timeout=timeout)
-                        log.info("sapi_request: direct fallback succeeded (HTTP %d)", r.status_code)
-                        # Don't return here — fall through to normal response handling below
-                        # by re-raising so the outer retry loop in callers picks it up.
-                        # Actually parse and return directly since we're past the try block.
-                        try:
-                            resp_data = r.json()
-                        except Exception:
-                            resp_data = {"_raw": r.text, "_status": r.status_code}
-                        return resp_data
-                    except Exception as e2:
-                        log.error("sapi_request: direct fallback also failed: %s", e2)
-                        return {"error": {"code": "EXC", "message": str(e2)}}
-                    finally:
-                        _restore_wg0_routes(_routed)
         log.error("sapi_request exception: %s", e)
+        if _proxy_url:
+            try:
+                from . import proxy_pool as _pp
+                _pp.pool.mark_fail(_proxy_url)
+            except Exception:
+                pass
         return {"error": {"code": "EXC", "message": str(e)}}
 
 
@@ -1297,8 +1193,14 @@ def get_status() -> dict:
 
 def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     """Step 1: trigger OTP via jazzdrive_login (from _legacy/scanner.py)."""
+    log.info("[JD:OTP] ==========================================")
+    log.info("[JD:OTP] STEP 1 -- TRIGGER OTP")
+    log.info("[JD:OTP] ==========================================")
+    require_wg0()  # Hard-fail if wg0 down — never leak OTP call
+    log.info("[JD:OTP] VPN check passed")
     if not msisdn:
         msisdn = db.setting("JAZZDRIVE_MSISDN") or ""
+        log.info("[JD:OTP] MSISDN from DB: %s", msisdn or "(none)")
 
     # Normalize to 03xxxxxxxxx for the API (local format is more reliable for OTP)
     m = msisdn.strip().replace(" ", "").replace("-", "").replace("+", "")
@@ -1309,12 +1211,34 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     else:
         msisdn_local = m
 
+    log.info("[JD:OTP] MSISDN raw=%s  normalized=%s", msisdn, msisdn_local)
     if not msisdn_local:
+        log.error("[JD:OTP] FAILED -- no MSISDN")
         return {"ok": False, "error": "No MSISDN provided or configured"}
 
-    require_wg0()  # Hard-fail if wg0 down — never leak OTP call via Oracle direct IP
-    # Always direct — VPN (wg0) routes JD traffic at OS level.
-    _proxies_chain: list = [None]
+    # Build proxy chain — bypass check first.
+    _proxies_chain: list = []
+    _seen_proxy_urls: set = set()
+    if is_proxy_bypass():
+        _proxies_chain = [None]  # direct — Oracle IP is not geo-blocked
+    else:
+        primary = resolve_proxies()
+        if primary:
+            _proxies_chain.append(primary)
+            _seen_proxy_urls.add(primary.get("_url", ""))
+        try:
+            from . import proxy_pool as _pp
+            for p in _pp.pool.get_proxy_chain(n=4):
+                _p_url = p.get("_url", "")
+                if _p_url and _p_url not in _seen_proxy_urls:
+                    _seen_proxy_urls.add(_p_url)
+                    _proxies_chain.append(p)
+        except Exception:
+            pass
+        if not _proxies_chain:
+            log.warning("trigger_otp_flow: proxy chain empty — direct connection "
+                        "will likely fail (MED-1011 from non-PK IP)")
+            _proxies_chain = [None]
 
     last_err: Exception = Exception("No proxies available")
     for proxies in _proxies_chain:
@@ -1328,12 +1252,18 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 "Accept": "text/html,application/xhtml+xml,*/*",
             })
+            _trig_px_label = proxies.get("_url") if proxies else "direct/wg0"
+            log.info("[JD:OTP] trigger attempt via: %s", _trig_px_label)
             # Use v2 radd_flix if available (richer implementation)
             rf = _flix()
             use_android = True  # always try Android flow to get long-lived refresh_token
             if rf:
-                verify_url = rf.trigger_otp(session, msisdn_local)
-            else:
+                try:
+                    verify_url = rf.trigger_otp(session, msisdn_local)
+                except Exception as _rf_trig_e:
+                    log.warning("[JD:OTP] radd_flix trigger_otp failed: %s -- falling back to scanner", _rf_trig_e)
+                    rf = None
+            if rf is None:
                 _result = jazzdrive_login(msisdn_local, use_android=use_android, proxies=proxies)
                 session    = _result["session"]
                 verify_url = _result["verify_url"]
@@ -1349,23 +1279,46 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
             }
             _OTP_STATE_FILE.write_text(json.dumps(state))
             db.set_setting("JAZZDRIVE_MSISDN", msisdn)
-            log.info("JazzDrive: OTP SMS sent to %s (proxy: %s) — waiting for user to submit code", msisdn, proxies.get("_url") if proxies else "direct")
+            _plabel = proxies.get("_url") if proxies else "direct via wg0"
+            log.info("[JD:OTP] OTP triggered for %s via %s", msisdn, _plabel)
+            try:
+                from urllib.parse import urlparse as _urlp
+                _vurl_host = _urlp(verify_url).netloc
+            except Exception:
+                _vurl_host = "?"
+            log.info("[JD:OTP] verify_url host=%s  url=%s",
+                     _vurl_host, (verify_url or "")[:90])
+            log.info("[JD:OTP] ==========================================")
             return {"ok": True, "msisdn": msisdn, "message": f"OTP sent to {msisdn}. Check SMS then submit below."}
         except Exception as e:
             last_err = e
             err_s = str(e).lower()
-            is_conn = any(x in err_s for x in ('connection', 'timeout', 'refused', 'reset', 'max retries', 'newconnection'))
-            if is_conn:
-                log.warning("OTP: connection error (%s)", str(e)[:80])
-            break
+            is_conn = any(x in err_s for x in ('connection', 'timeout', 'refused', 'reset', 'socks', 'proxy', 'max retries', 'newconnection'))
+            if is_conn and proxies:
+                url = proxies.get("_url") or proxies.get("https") or ""
+                try:
+                    from . import proxy_pool as _pp
+                    if url:
+                        _pp.pool.mark_fail(url)
+                        log.warning("OTP: proxy %s failed (%s), trying next in chain", url, str(e)[:80])
+                except Exception:
+                    pass
+                continue  # try next proxy in chain
+            break  # non-connection error — don't retry with different proxy
 
-    log.error("trigger_otp error (all proxies exhausted): %s", last_err)
+    log.error("[JD:OTP] TRIGGER FAILED -- all proxies exhausted: %s", last_err)
+    log.info("[JD:OTP] ==========================================")
     return {"ok": False, "error": str(last_err)}
 
 
 def resend_otp() -> dict:
     """Trigger a resend of the OTP using the official 'resendpin' POST trick."""
+    log.info("[JD:OTP] ==========================================")
+    log.info("[JD:OTP] RESEND OTP REQUESTED")
+    require_wg0()  # Hard-fail if wg0 down — never leak OTP resend
+    log.info("[JD:OTP] VPN check passed")
     if not _OTP_STATE_FILE.exists():
+        log.warning("[JD:OTP] No pending OTP state -- resend aborted")
         return {"ok": False, "error": "No pending OTP — trigger one first"}
     try:
         state = json.loads(_OTP_STATE_FILE.read_text())
@@ -1378,9 +1331,39 @@ def resend_otp() -> dict:
         _OTP_STATE_FILE.unlink(missing_ok=True)
         return {"ok": False, "error": "OTP session expired (>10 min) — trigger a new OTP first"}
 
-    require_wg0()  # Hard-fail if wg0 down — never leak OTP resend via Oracle direct IP
-    # Always direct — VPN (wg0) routes JD traffic at OS level.
-    _proxies_chain: list = [None]
+    _resend_num = state.get("resend_count", 0) + 1
+    state["resend_count"] = _resend_num
+    try:
+        _OTP_STATE_FILE.write_text(__import__("json").dumps(state))
+    except Exception:
+        pass
+    log.info("[JD:OTP] ==========================================")
+    log.info("[JD:OTP] RESEND #%d  MSISDN=%s  age=%.0fs since trigger",
+             _resend_num, state.get("msisdn"), _resend_age)
+
+    # Build proxy chain — bypass check first.
+    _proxies_chain: list = []
+    _seen_proxy_urls: set = set()
+    if is_proxy_bypass():
+        _proxies_chain = [None]  # direct — Oracle IP is not geo-blocked
+    else:
+        primary = resolve_proxies()
+        if primary:
+            _proxies_chain.append(primary)
+            _seen_proxy_urls.add(primary.get("_url", ""))
+        try:
+            from . import proxy_pool as _pp
+            for p in _pp.pool.get_proxy_chain(n=4):
+                _p_url = p.get("_url", "")
+                if _p_url and _p_url not in _seen_proxy_urls:
+                    _seen_proxy_urls.add(_p_url)
+                    _proxies_chain.append(p)
+        except Exception:
+            pass
+        if not _proxies_chain:
+            log.warning("resend_otp: proxy chain empty — direct connection "
+                        "will likely fail (MED-1011 from non-PK IP)")
+            _proxies_chain = [None]
 
     last_err: Exception = Exception("No proxies available")
     for proxies in _proxies_chain:
@@ -1408,37 +1391,101 @@ def resend_otp() -> dict:
                 timeout=30,
                 proxies=proxies,
             )
-            log.info("OTP resend triggered for %s via %s (status=%d)",
+            log.info("[JD:OTP] OTP resend sent for %s via %s  HTTP=%d",
                      state.get("msisdn"), proxies.get("_url") if proxies else "direct", r.status_code)
+            _resend_body = (r.text or "").strip()[:300]
+            log.info("[JD:OTP] Jazz resend response: %s", _resend_body or "(empty body)")
+            if r.status_code == 200:
+                log.info("[JD:OTP] RESEND OK -- SMS should be dispatched")
+            else:
+                log.warning("[JD:OTP] RESEND WARNING -- unexpected HTTP %d", r.status_code)
             return {"ok": True, "message": "OTP resend request sent. Please check your SMS."}
         except Exception as e:
             last_err = e
             err_s = str(e).lower()
+            is_conn = any(x in err_s for x in ('connection', 'timeout', 'refused', 'reset', 'socks', 'proxy', 'max retries', 'newconnection'))
+            if is_conn and proxies:
+                url = proxies.get("_url") or proxies.get("https") or ""
+                try:
+                    from . import proxy_pool as _pp
+                    if url:
+                        _pp.pool.mark_fail(url)
+                        log.warning("OTP resend: proxy %s failed, trying next", url)
+                except Exception:
+                    pass
+                continue
             break
 
-    log.error("resend_otp error (all proxies exhausted): %s", last_err)
+    log.error("[JD:OTP] RESEND FAILED -- all proxies exhausted: %s", last_err)
     return {"ok": False, "error": str(last_err)}
 
 
 def submit_otp(otp: str) -> dict:
     """Step 2: verify OTP and persist session."""
+    log.info("[JD:OTP] ==========================================")
+    log.info("[JD:OTP] STEP 2 -- SUBMIT OTP  len=%d", len(otp.strip()))
+    log.info("[JD:OTP] ==========================================")
+    require_wg0()  # Hard-fail if wg0 down — never leak OTP submit
+    log.info("[JD:OTP] VPN check passed")
     if not _OTP_STATE_FILE.exists():
+        log.error("[JD:OTP] No OTP state file -- submit aborted")
         return {"ok": False, "error": "No pending OTP — request a new OTP first"}
     try:
         state = json.loads(_OTP_STATE_FILE.read_text())
     except Exception:
+        log.error("[JD:OTP] OTP state file is corrupt")
         return {"ok": False, "error": "Corrupt OTP state — request a new OTP"}
     age = time.time() - state.get("created_at", 0)
+    log.info("[JD:OTP] state loaded -- MSISDN=%s  age=%.0fs  use_android=%s",
+             state.get("msisdn"), age, state.get("use_android"))
     if age > 600:
+        log.warning("[JD:OTP] OTP expired (age=%.0fs > 600s)", age)
         _OTP_STATE_FILE.unlink(missing_ok=True)
         return {"ok": False, "error": "OTP expired (>10 min) — request a new OTP"}
 
-    require_wg0()  # Hard-fail if wg0 down — never leak OTP submit via Oracle direct IP
-    # Always direct — VPN (wg0) routes JD traffic at OS level.
-    _sub_chain: list = [None]
+    _attempt_num = state.get("submit_attempts", 0) + 1
+    state["submit_attempts"] = _attempt_num
+    try:
+        _OTP_STATE_FILE.write_text(__import__("json").dumps(state))
+    except Exception:
+        pass
+    _otp_masked = (otp.strip()[:1] + "*" * max(0, len(otp.strip())-1)) if otp.strip() else "(empty)"
+    log.info("[JD:OTP] ==========================================")
+    log.info("[JD:OTP] SUBMIT ATTEMPT #%d  code=%s  len=%d",
+             _attempt_num, _otp_masked, len(otp.strip()))
+
+    # Build proxy chain for submit_otp.
+    # JazzDrive is globally accessible — no geo-restriction.
+    # With PROXY_BYPASS=1, wg0 routes cloud.jazzdrive.com.pk directly; go direct.
+    # Only use proxy pool in non-bypass environments.
+    _sub_chain: list = []
+    _sub_seen: set = set()
+    if is_proxy_bypass():
+        # PROXY_BYPASS=1 — wg0 routes cloud.jazzdrive.com.pk directly.
+        # Skip pool entirely — proxies are unused/dead in bypass mode.
+        _sub_chain = [None]
+    else:
+        _sub_primary = resolve_proxies()
+        if _sub_primary:
+            _sub_chain.append(_sub_primary)
+            _sub_seen.add(_sub_primary.get("_url", ""))
+        try:
+            from . import proxy_pool as _pp
+            for _subp in _pp.pool.get_proxy_chain(n=4):
+                _subp_url = _subp.get("_url", "")
+                if _subp_url and _subp_url not in _sub_seen:
+                    _sub_seen.add(_subp_url)
+                    _sub_chain.append(_subp)
+        except Exception:
+            pass
+        if not _sub_chain:
+            log.warning("submit_otp: proxy chain empty — using direct connection")
+            _sub_chain = [None]
 
     _sub_last_err: Exception = Exception("No proxies available")
     for proxies in _sub_chain:
+        _sub_px_label = proxies.get("_url") if proxies else "direct/wg0"
+        log.info("[JD:OTP] submit via proxy: %s", _sub_px_label)
         try:
             vk = jid = ""
             tokens: dict = {}
@@ -1461,14 +1508,15 @@ def submit_otp(otp: str) -> dict:
             session.cookies = pickle.loads(base64.b64decode(state["cookies"].encode()))
             rf = _flix()
             if rf:
+                log.info("[JD:OTP] strategy: radd_flix verify_otp")
                 try:
                     code = rf.verify_otp(session, state["verify_url"], otp.strip())
                     tokens = rf.exchange_code_for_tokens(session, code)
                     vk = tokens.get("validationkey") or tokens.get("validation_key") or ""
                     jid = tokens.get("jsessionid") or tokens.get("JSESSIONID") or ""
-                    log.info("submit_otp: radd_flix OK vk=%s jid=%s", bool(vk), bool(jid))
+                    log.info("[JD:OTP] radd_flix OK -- vk=%s  jid=%s", bool(vk), bool(jid))
                 except Exception as _rf_e:
-                    log.info("submit_otp: radd_flix failed (%s) — falling back to scanner", _rf_e)
+                    log.warning("[JD:OTP] radd_flix failed (%s) -- falling back to scanner", _rf_e)
 
             if not vk:
                 tokens = jazzdrive_verify_otp(
@@ -1480,7 +1528,7 @@ def submit_otp(otp: str) -> dict:
 
                 vk  = tokens.get("validation_key", "")
                 jid = tokens.get("jsessionid", "")
-                log.info("submit_otp: scanner verify_otp OK use_android=%s vk=%s rt=%s",
+                log.info("[JD:OTP] scanner verify_otp OK  use_android=%s  vk=%s  rt=%s",
                          use_android, bool(vk), bool(tokens.get("refresh_token")))
 
             # ── Extract raw_accesstoken + refresh_token from verified-guide token dict ──
@@ -1515,7 +1563,7 @@ def submit_otp(otp: str) -> dict:
                                      bool(raw_at), bool(rt))
                         except Exception as _at_err:
                             log.warning("submit_otp: access_token decode failed: %s", _at_err)
-            log.info("submit_otp: tokens — vk=%s jid=%s raw_at=%s rt=%s",
+            log.info("[JD:OTP] tokens extracted -- vk=%s  jid=%s  raw_at=%s  rt=%s",
                      bool(vk), bool(jid), bool(raw_at), bool(rt))
 
             # Session lifetime: JSESSIONID expires after 3600 s idle. But refresh_token lasts
@@ -1542,7 +1590,10 @@ def submit_otp(otp: str) -> dict:
                 "cookies":         cookies_b64,
             }
             _save_session(save_data)
+            _expiry_str = ("%dd" % (expires_offset//86400)) if expires_offset>=86400 else ("%dmin" % (expires_offset//60))
+            log.info("[JD:OTP] session saved -- expires in %s", _expiry_str)
             _OTP_STATE_FILE.unlink(missing_ok=True)
+            log.info("[JD:OTP] OTP state file cleared")
             # ── Sync tokens to the accounts DB table (used by uploader) ──────────
             try:
                 msisdn_display = state.get("msisdn_display") or state["msisdn"]
@@ -1561,7 +1612,13 @@ def submit_otp(otp: str) -> dict:
                                  int(time.time() + expires_offset),
                                  int(time.time()), existing["id"])
                             )
-                            log.info("Updated accounts table for id=%s", existing["id"])
+                            log.info("[JD:OTP] DB updated -- id=%s  msisdn=%s", existing["id"], state.get("msisdn"))
+                            # Clear 30-min SAPI backoff immediately — new OTP tokens are live.
+                            # Without this the uploader burns the fresh token within seconds.
+                            try:
+                                clear_sapi_backoff(existing["id"])
+                            except Exception:
+                                pass
                         else:
                             _c.execute(
                                 "INSERT INTO accounts (msisdn, label, validation_key, "
@@ -1572,9 +1629,9 @@ def submit_otp(otp: str) -> dict:
                                  vk, jid, rt or None, raw_at or None,
                                  int(time.time() + expires_offset), int(time.time()))
                             )
-                            log.info("Inserted new account for %s", state["msisdn"])
+                            log.info("[JD:OTP] DB new account -- msisdn=%s", state["msisdn"])
             except Exception as _dbe:
-                log.warning("submit_otp: DB accounts sync failed: %s", _dbe)
+                log.warning("[JD:OTP] DB sync failed: %s", _dbe)
             # ── Sync back to v2 config ────────────────────────────────────────────
             if rf:
                 try:
@@ -1585,15 +1642,46 @@ def submit_otp(otp: str) -> dict:
                     rf.save_config(cfg)
                 except Exception:
                     pass
-            log.info("JazzDrive: account %s successfully logged in — session is active and ready", state["msisdn"])
+            log.info("[JD:OTP] ==========================================")
+            log.info("[JD:OTP] LOGIN SUCCESS  MSISDN=%s  attempt=#%d",
+                     state.get("msisdn"), state.get("submit_attempts", 1))
+            log.info("[JD:OTP] tokens: vk_len=%d  jid_len=%d  raw_at_len=%d  rt_len=%d",
+                     len(vk), len(jid), len(raw_at), len(rt))
+            log.info("[JD:OTP] ==========================================")
             return {"ok": True, "message": "JazzDrive connected successfully!"}
         except Exception as e:
             _sub_last_err = e
             _sub_err_s = str(e).lower()
-            log.error("submit_otp error: %s", e)
-            return {"ok": False, "error": str(e)}
+            _sub_is_conn = any(x in _sub_err_s for x in (
+                "connection", "timeout", "refused", "reset", "socks",
+                "proxy", "max retries", "newconnection", "failed to reach"))
+            if _sub_is_conn and proxies:
+                _sub_fail_url = proxies.get("_url") or proxies.get("https") or ""
+                try:
+                    from . import proxy_pool as _pp
+                    if _sub_fail_url:
+                        _pp.pool.mark_fail(_sub_fail_url)
+                        log.warning("submit_otp: proxy %s failed (%s), trying next",
+                                    _sub_fail_url, str(e)[:80])
+                except Exception:
+                    pass
+                continue  # retry with next proxy in chain
+            _sub_estr = str(e)
+            _sub_el   = _sub_estr.lower()
+            if any(x in _sub_el for x in ("otp", "pin", "code", "invalid", "wrong",
+                                           "incorrect", "mismatch", "expired",
+                                           "verification", "unauthori")):
+                log.error("[JD:OTP] WRONG/INVALID OTP on attempt #%d -- %s",
+                          state.get("submit_attempts", 1), _sub_estr)
+            else:
+                log.error("[JD:OTP] SUBMIT ERROR on attempt #%d (non-network) -- %s",
+                          state.get("submit_attempts", 1), _sub_estr)
+            return {"ok": False, "error": _sub_estr}
 
-    log.error("submit_otp: all proxies exhausted: %s", _sub_last_err)
+    log.error("[JD:OTP] ALL PROXIES EXHAUSTED on attempt #%d -- %s",
+              state.get("submit_attempts", 1) if "_attempt_num" not in dir() else _attempt_num,
+              _sub_last_err)
+    log.info("[JD:OTP] ==========================================")
     return {"ok": False, "error": str(_sub_last_err)}
 
 
@@ -1830,7 +1918,10 @@ def _android_refresh_session_inner(refresh_token: str,
     import base64 as _b64
     import urllib.parse as _up
 
-    require_wg0()  # Hard-fail if wg0 down — never leak OAuth2/SAPI via Oracle direct IP
+    log.info("[JD:OAUTH2] ==========================================")
+    log.info("[JD:OAUTH2] ANDROID TOKEN REFRESH  acct=%s  has_rt=%s", account_id, bool(refresh_token))
+    require_wg0()  # Hard-fail if wg0 down — never leak OAuth2
+    log.info("[JD:OAUTH2] VPN check passed")
     log.info("android_refresh_session: exchanging refresh_token (acct=%s)...", account_id)
 
     # ── Step 1: POST to /oauth2/refresh_token.php ─────────────────────────────
@@ -1840,11 +1931,47 @@ def _android_refresh_session_inner(refresh_token: str,
     #
     # Build proxy chain (OTP/OAuth2 domain — jazzdrive.com.pk).
     # Same retry pattern as trigger_otp_flow / submit_otp: primary first,
-    # Always direct — VPN (wg0) routes jazzdrive.com.pk at OS level.
-    _ar_chain: list = [None]
+    # then pool fallbacks, mark_fail on connection error and try the next.
+    _ar_chain: list = []
+    _ar_seen: set = set()
+    if is_proxy_bypass():
+        # VPN/direct mode — wg0 already routes jazzdrive.com.pk (54.179.95.148)
+        # at OS level. No proxy needed; pool proxies are dead and waste 4×25 s.
+        _ar_chain = [None]
+    else:
+        _ar_primary = resolve_proxies()
+        if _ar_primary:
+            _ar_chain.append(_ar_primary)
+            _ar_seen.add(_ar_primary.get("_url", ""))
+        try:
+            from . import proxy_pool as _pp
+            for _ar_p in _pp.pool.get_proxy_chain(n=4):
+                _ar_pu = _ar_p.get("_url", "")
+                if _ar_pu and _ar_pu not in _ar_seen:
+                    _ar_seen.add(_ar_pu)
+                    _ar_chain.append(_ar_p)
+        except Exception:
+            pass
+        if not _ar_chain:
+            log.warning("android_refresh_session: proxy chain empty — direct connection "
+                        "will likely fail (MED-1011 from non-PK IP)")
+            _ar_chain = [None]
 
-    # sapi_proxies always None — wg0 VPN routes cloud.jazzdrive.com.pk at OS level.
+    # SAPI proxy for Step 2 (cloud.jazzdrive.com.pk).
+    # JazzDrive is globally accessible — no geo-restriction.
+    # With PROXY_BYPASS=1, wg0 routes cloud.jazzdrive.com.pk directly; no proxy needed.
+    # Only build sapi_proxies when bypass is NOT set (non-VPN environments).
     sapi_proxies = None
+    if not is_proxy_bypass():
+        try:
+            from . import proxy_pool as _pp
+            sapi_proxies = _pp.pool.get_best()
+        except Exception:
+            pass
+        if sapi_proxies is None:
+            _sapi_setting = (db.setting("JAZZDRIVE_SAPI_PROXY") or "").strip()
+            if _sapi_setting:
+                sapi_proxies = {"http": _sapi_setting, "https": _sapi_setting, "_url": _sapi_setting}
 
     import urllib3 as _urllib3
     _urllib3.disable_warnings(_urllib3.exceptions.InsecureRequestWarning)
@@ -1868,7 +1995,15 @@ def _android_refresh_session_inner(refresh_token: str,
             break  # connected — exit retry loop
         except Exception as _ar_e:
             _ar_last_err = _ar_e
-            log.warning("android_refresh_session: OAuth2 refresh failed: %s", str(_ar_e)[:80])
+            _ar_fail_url = (_ar_px.get("_url", "") if _ar_px else "")
+            if _ar_fail_url:
+                try:
+                    from . import proxy_pool as _pp
+                    _pp.pool.mark_fail(_ar_fail_url)
+                    log.warning("android_refresh_session: proxy %s failed (%s), trying next",
+                                _ar_fail_url, str(_ar_e)[:80])
+                except Exception:
+                    pass
             continue
 
     if r is None:
@@ -1915,12 +2050,18 @@ def _android_refresh_session_inner(refresh_token: str,
         try:
             with _lock:
                 with db.conn() as _c:
+                    # FIX: only persist the rotated refresh_token here.
+                    # Do NOT overwrite raw_accesstoken yet — the OAuth2-derived raw_at
+                    # is frequently rejected by SAPI (/login/oauth?keytype=accesstoken).
+                    # The OTP-issued raw_accesstoken (already in DB) is the proven working
+                    # one; it will be overwritten only after SAPI login succeeds below.
                     _c.execute(
-                        "UPDATE accounts SET raw_accesstoken=?, refresh_token=? WHERE id=?",
-                        (raw_at, new_rt, account_id),
+                        "UPDATE accounts SET refresh_token=? WHERE id=?",
+                        (new_rt, account_id),
                     )
             log.info(
-                "android_refresh_session: persisted rotated refresh_token early (acct=%s)",
+                "android_refresh_session: persisted rotated refresh_token early "
+                "(raw_accesstoken preserved — acct=%s)",
                 account_id,
             )
             # Crash-safe backup: write to emergency file OUTSIDE the DB transaction
@@ -1946,68 +2087,162 @@ def _android_refresh_session_inner(refresh_token: str,
     if not _msisdn_for_dev:
         _msisdn_for_dev = str(db.setting("JAZZDRIVE_MSISDN") or "")
 
-    _UA_ANDROID = "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)"
     sess = _req.Session()
+    # Use the same headers as the real Android app (all 4 OkHttp interceptors)
+    _sess_headers = get_auth_headers("", "", msisdn=_msisdn_for_dev)
+    # raw_at may be unusable at this point — Authorization added per-request below if needed
+    _sess_headers.pop("Cookie", None)
+    _sess_headers.pop("validation_key", None)
     device_id = get_x_deviceid(_msisdn_for_dev)
-    sess.headers.update({
-        "Accept":           "application/json, text/plain, */*",
-        "User-Agent":       _UA_ANDROID,
-        "X-deviceid":       device_id,
-        "X-Requested-With": "com.jazz.drive",
-    })
+    sess.headers.update(_sess_headers)
     
     at_json_1    = json.dumps({"data": {"accesstoken": raw_at}})
     at_json_2    = json.dumps({"accesstoken": raw_at})
     at_b64_1     = _up.quote(_b64.b64encode(at_json_1.encode()).decode(), safe='')
     at_b64_2     = _up.quote(_b64.b64encode(at_json_2.encode()).decode(), safe='')
     
-    # Android-only: consistent with Android User-Agent / X-Requested-With headers.
-    # Web variants removed — platform=web with Android headers is a mismatch
-    # Jazz security systems can flag as suspicious (credential stuffing).
-    # Max 2 attempts: Android-Nested first (real app format), Android-Flat only
-    # if server returns HTTP 5xx (Jazz server glitch). 401/403 stops immediately.
+    # We try multiple candidates to avoid HTTP 500
     candidates = [
+        # Nested "data" format
         (f"{_CLOUD}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_1}", "Android-Nested"),
+        (f"{_CLOUD}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_1}", "Web-Nested"),
+        # Flat format
         (f"{_CLOUD}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_2}", "Android-Flat"),
+        (f"{_CLOUD}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_2}", "Web-Flat"),
     ]
     
-    # Always direct — wg0 routes cloud.jazzdrive.com.pk at OS level.
-    _s2_chain: list = [None]
+    # Build SAPI proxy chain for Step 2 re-login.
+    # Inner loop: tries different URL formats with the same SAPI proxy.
+    # Outer loop: if ALL formats fail with connection errors → mark proxy dead,
+    # pick the next SAPI proxy from the pool, and retry all formats.
+    _s2_chain: list = []
+    _s2_seen: set = set()
+    if is_proxy_bypass():
+        # PROXY_BYPASS=1 — wg0 routes cloud.jazzdrive.com.pk directly.
+        # JazzDrive is globally accessible; no proxy needed. Skip pool entirely.
+        _s2_chain = [None]
+    else:
+        if sapi_proxies:
+            _s2_chain.append(sapi_proxies)
+            _s2_seen.add(sapi_proxies.get("_url", ""))
+        try:
+            from . import proxy_pool as _pp
+            for _s2p in _pp.pool.get_proxy_chain(n=4):
+                _s2p_url = _s2p.get("_url", "")
+                if _s2p_url and _s2p_url not in _s2_seen:
+                    _s2_seen.add(_s2p_url)
+                    _s2_chain.append(_s2p)
+        except Exception:
+            pass
+        if not _s2_chain:
+            _s2_chain = [None]
 
     last_err = "No candidates tried"
     sr = None
-    _s2_auth_failed = False  # 401/403 = token invalid; stop all retries immediately
     for _s2_px in _s2_chain:
-        if _s2_auth_failed:
-            break
         _s2_conn_errs = 0
         for url, label in candidates:
             try:
-                log.info("android_refresh_session: trying %s @ %s", label, url[:100])
+                log.info("[JD:OAUTH2] trying %s  url=%s", label, url[:100])
                 sr = sess.get(url, timeout=30, proxies=_s2_px)
                 if sr.status_code == 200:
-                    log.info("✓ %s login succeeded", label)
+                    log.info("[JD:OAUTH2] %s succeeded (HTTP 200)", label)
                     break
                 last_err = f"[{label}] HTTP {sr.status_code}: {sr.text[:200]}"
-                if sr.status_code in (401, 403):
-                    log.debug("android_refresh_session: %s auth error — token invalid, no more retries", label)
-                    _s2_auth_failed = True
-                    sr = None
-                    break  # token bad — Android-Flat won't help either
-                log.debug("android_refresh_session: %s failed (HTTP 5xx) — trying next format", label)
+                log.warning("[JD:OAUTH2] %s failed  HTTP=%d: %s", label, sr.status_code, sr.text[:120])
             except Exception as _se:
                 last_err = str(_se)
                 _s2_conn_errs += 1
                 log.debug("android_refresh_session: %s network error: %s", label, last_err)
         if sr and sr.status_code == 200:
             break  # success — stop trying proxies
-        if _s2_auth_failed:
-            break
-        if _s2_conn_errs == len(candidates):
-            log.warning("android_refresh_session: all SAPI URL formats failed with connection errors")
+        # If every format failed with a connection error, this SAPI proxy is dead
+        if _s2_conn_errs == len(candidates) and _s2_px:
+            _s2_fail_url = _s2_px.get("_url", "")
+            if _s2_fail_url:
+                try:
+                    from . import proxy_pool as _pp
+                    _pp.pool.mark_fail(_s2_fail_url)
+                    log.warning("android_refresh_session: SAPI proxy %s unreachable, trying next",
+                                _s2_fail_url)
+                except Exception:
+                    pass
         sr = None  # reset for next proxy
 
     if not sr or sr.status_code != 200:
+        # ── Fallback: refresh_jsessionid() uses web headers (proven working path) ──
+        # Android/Dalvik candidates above got 401 — try the same token with the
+        # standard web User-Agent + auth headers that refresh_jsessionid uses.
+        log.info(
+            "android_refresh_session: all Android candidates failed (%s) "
+            "— falling back to refresh_jsessionid() web path with raw_at",
+            last_err,
+        )
+        try:
+            # BUG-FIX: read the OTP-issued raw_accesstoken from DB (preserved by FIX-B),
+            # NOT raw_at (the OAuth2-decoded one that SAPI just rejected with 401).
+            # Falls back to raw_at only if DB has nothing.
+            _fb_at = ""
+            if account_id is not None:
+                try:
+                    with db.conn() as _c:
+                        _fb_row = _c.execute(
+                            "SELECT raw_accesstoken FROM accounts WHERE id=?", (account_id,)
+                        ).fetchone()
+                        if _fb_row:
+                            _fb_at = (_fb_row["raw_accesstoken"] or "").strip()
+                except Exception:
+                    pass
+            if not _fb_at:
+                _fb_at = raw_at or ""   # last-resort: OAuth2 raw_at
+            if _fb_at:
+                _fb_jid, _fb_body = refresh_jsessionid(
+                    "",           # validation_key (positional)
+                    raw_accesstoken=_fb_at,
+                )
+                if _fb_jid:
+                    log.info("[JD:OAUTH2] web-path fallback (refresh_jsessionid) succeeded -- jid obtained")
+                    # Build a minimal result dict that the caller expects
+                    _fb_vk = ""
+                    if isinstance(_fb_body, dict):
+                        _d = _fb_body.get("data", _fb_body)
+                        _fb_vk = (_d.get("validationkey") or _d.get("validation_key") or "")
+                    # Persist the new jid + vk.
+                    # Write _fb_at (the raw_accesstoken that actually worked) not raw_at.
+                    _fb_exp = 86400 * 30 if new_rt else 3300
+                    if account_id is not None:
+                        try:
+                            with _lock:
+                                with db.conn() as _c:
+                                    _c.execute(
+                                        "UPDATE accounts SET validation_key=?, jsessionid=?, "
+                                        "raw_accesstoken=?, refresh_token=?, "
+                                        "token_expires_at=? WHERE id=?",
+                                        (_fb_vk, _fb_jid, _fb_at, new_rt,
+                                         int(time.time() + _fb_exp), account_id),
+                                    )
+                        except Exception as _fbe:
+                            log.warning("android_refresh_session: fallback DB save failed: %s", _fbe)
+                    _old = _load_session()
+                    _old.update({
+                        "validationkey":   _fb_vk,
+                        "jsessionid":      _fb_jid,
+                        "raw_accesstoken": _fb_at,
+                        "refresh_token":   new_rt,
+                        "created_at":      time.time(),
+                        "expires_at":      time.time() + _fb_exp,
+                    })
+                    _save_session(_old)
+                    return {
+                        "ok":           True,
+                        "validation_key": _fb_vk,
+                        "jsessionid":   _fb_jid,
+                        "message":      "Android OAuth2 + web-path fallback (refresh_jsessionid)",
+                    }
+        except Exception as _fb_err:
+            log.warning("android_refresh_session: web-path fallback error: %s", _fb_err)
+        log.error("[JD:OAUTH2] ALL STRATEGIES FAILED: %s", last_err)
+        log.info("[JD:OAUTH2] ==========================================")
         return {"ok": False, "error": f"SAPI re-login failed: {last_err}"}
 
     try:
@@ -2078,7 +2313,7 @@ def _android_refresh_session_inner(refresh_token: str,
     })
     _save_session(old_sess)
 
-    log.info("android_refresh_session: OK for acct=%s (new_jid=%s rt_rotated=%s)",
+    log.info("[JD:OAUTH2] TOKEN REFRESH OK  acct=%s  new_jid=%s  rt_rotated=%s",
              account_id, bool(new_jid), new_rt != refresh_token)
     return {"ok": True, "validation_key": new_vk, "jsessionid": new_jid,
             "message": "Android OAuth2 session refreshed (no OTP required)"}
@@ -2177,9 +2412,10 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
     sess = _req.Session()
     device_id = get_x_deviceid(acct.get("msisdn"))
     sess.headers.update({
-        "Accept":     "application/json, text/javascript, */*",
-        "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)",
-        "X-deviceid": device_id,
+        "Accept":       "application/json, text/javascript, */*",
+        "User-Agent":   "omh android client",
+        "X-deviceid":   device_id,
+        "X-devicename": db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix X680F",
         "X-Requested-With": "com.jazz.drive",
     })
 
@@ -2194,11 +2430,12 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
     at_b64_2   = _up.quote(_b64.b64encode(at_json_2.encode()).decode(), safe='')
     
     # We try multiple candidates to avoid HTTP 500
-    # Android-only: consistent with Android User-Agent / X-Requested-With headers.
-    # Web variants removed — platform=web with Android headers is a suspicious mismatch.
-    # Max 2 attempts: Android-Nested first, Android-Flat only if HTTP 5xx.
     candidates = [
+        # Format 1: Nested (Standard)
+        (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_1}", "Web-Nested"),
         (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_1}", "Android-Nested"),
+        # Format 2: Flat
+        (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_2}", "Web-Flat"),
         (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_2}", "Android-Flat"),
     ]
 
@@ -2209,14 +2446,10 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
             log.info("refresh_session: trying %s @ %s", label, url[:100])
             r = sess.get(url, timeout=30, proxies=proxies)
             if r.status_code == 200:
-                log.info("✓ %s login succeeded", label)
+                log.info("✓ %s candidate succeeded", label)
                 break
             last_err = f"[{label}] HTTP {r.status_code}: {r.text[:200]}"
-            if r.status_code in (401, 403):
-                log.debug("refresh_session: %s auth error — token invalid, no more retries", label)
-                r = None
-                break  # token bad — Android-Flat won't help
-            log.debug("refresh_session: %s failed (HTTP 5xx) — trying next format", label)
+            log.debug("refresh_session: %s candidate failed: %s", label, last_err)
         except Exception as _e:
             last_err = str(_e)
             log.debug("refresh_session: %s network error: %s", label, last_err)

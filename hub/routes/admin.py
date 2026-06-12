@@ -22,6 +22,7 @@ import logging
 import time
 import uuid as _uuid
 from pathlib import Path
+import subprocess as _subprocess
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file
 from .. import db, auth, config
 
@@ -71,12 +72,6 @@ def _norm_num(s) -> str:
 def page():
     return render_template("admin.html",
                            admin_user=config.get_env("RADD_ADMIN_USER", "admin"))
-
-
-@bp.route("/services")
-@auth.login_required
-def services_page():
-    return render_template("services.html")
 
 
 # ---------------------------------------------------------------------------
@@ -254,97 +249,6 @@ def admin_accounts_list():
         return jsonify({"accounts": rows})
     except Exception as e:
         return jsonify({"accounts": [], "error": str(e)}), 500
-
-
-# ---------------------------------------------------------------------------
-# JazzDrive Device Identity Management
-# GET  /api/jazzdrive/device        — list accounts with device_id / device_name
-# POST /api/jazzdrive/device        — set device_id and/or device_name per account
-# POST /api/jazzdrive/handshake     — trigger startup handshake (read-only test)
-# ---------------------------------------------------------------------------
-
-@bp.route("/api/jazzdrive/device", methods=["GET"])
-@auth.login_required
-def jd_device_list():
-    with db.conn() as c:
-        rows = c.execute(
-            "SELECT id, msisdn, label, device_id, device_name, is_active, role "
-            "FROM accounts ORDER BY id"
-        ).fetchall()
-    return jsonify({"ok": True, "accounts": [dict(r) for r in rows]})
-
-
-@bp.route("/api/jazzdrive/device", methods=["POST"])
-@auth.login_required
-def jd_device_update():
-    data = request.get_json(force=True) or {}
-    aid  = data.get("account_id")
-    did  = data.get("device_id")
-    dn   = data.get("device_name")
-    if not aid:
-        return jsonify({"ok": False, "error": "account_id required"}), 400
-    updates = {}
-    if did is not None:
-        updates["device_id"]   = did.strip() or None
-    if dn is not None:
-        updates["device_name"] = dn.strip() or None
-    if not updates:
-        return jsonify({"ok": False, "error": "device_id and/or device_name required"}), 400
-    set_clause = ", ".join(f"{k}=?" for k in updates)
-    with db.conn() as c:
-        c.execute(f"UPDATE accounts SET {set_clause} WHERE id=?",
-                  list(updates.values()) + [aid])
-    return jsonify({"ok": True, "updated": updates, "account_id": aid})
-
-
-@bp.route("/api/jazzdrive/device/apply-default", methods=["POST"])
-@auth.login_required
-def jd_device_apply_default():
-    """Apply DEFAULT_ANDROID_ID and JAZZDRIVE_DEVICE_NAME settings to all accounts
-    that don't already have a per-account device_id set."""
-    default_did = db.setting("DEFAULT_ANDROID_ID") or ""
-    default_dn  = db.setting("JAZZDRIVE_DEVICE_NAME") or ""
-    updated = 0
-    with db.conn() as c:
-        if default_did:
-            r = c.execute(
-                "UPDATE accounts SET device_id=? WHERE device_id IS NULL OR device_id=''",
-                (default_did,)
-            )
-            updated = r.rowcount
-        if default_dn:
-            c.execute(
-                "UPDATE accounts SET device_name=? WHERE device_name IS NULL OR device_name=''",
-                (default_dn,)
-            )
-    return jsonify({"ok": True, "accounts_updated": updated,
-                    "device_id": default_did, "device_name": default_dn})
-
-
-@bp.route("/api/jazzdrive/handshake", methods=["POST"])
-@auth.login_required
-def jd_startup_handshake():
-    from .. import jazzdrive as _jd
-    data = request.get_json(force=True) or {}
-    aid  = data.get("account_id")
-    try:
-        with db.conn() as c:
-            if aid:
-                row = c.execute("SELECT * FROM accounts WHERE id=?", (aid,)).fetchone()
-            else:
-                row = c.execute(
-                    "SELECT * FROM accounts WHERE is_active=1 AND role='flix' LIMIT 1"
-                ).fetchone()
-        if not row:
-            return jsonify({"ok": False, "error": "no active flix account"}), 404
-        r = dict(row)
-        result = _jd.startup_handshake(
-            r.get("validation_key", ""), r.get("jsessionid", ""),
-            msisdn=r.get("msisdn"), account_id=r.get("id")
-        )
-        return jsonify({"ok": True, "result": result})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -581,22 +485,6 @@ def db_reset():
         })
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
-
-
-@bp.route("/api/restart", methods=["POST"])
-@auth.login_required
-def admin_restart():
-    """Fire-and-forget restart of the raddflix_radd supervisor service.
-    Spawns a background thread so the HTTP response is sent before the
-    process dies, giving the browser time to receive the 200 OK.
-    """
-    import subprocess as _sp, threading as _th, time as _ti
-    def _do():
-        _ti.sleep(0.6)   # let response flush
-        _sp.run(["sudo", "supervisorctl", "restart", "raddflix_radd"],
-                capture_output=True)
-    _th.Thread(target=_do, daemon=True, name="admin-restart").start()
-    return jsonify({"ok": True, "message": "Restart initiated — service will be back in ~4 seconds"})
 
 
 @bp.route("/api/db/sync", methods=["POST"])
@@ -846,183 +734,290 @@ def schema_health():
     return jsonify(result), status
 
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Background Service Control
-# GET  /admin/api/services          — list all services + enabled/running state
-# POST /admin/api/services/toggle   — enable or disable a service
+# JazzDrive Session — status + force-refresh
 # ─────────────────────────────────────────────────────────────────────────────
 
-# deps = services that MUST be ON before this one works
+@bp.route("/api/jd-session", methods=["GET"])
+@auth.login_required
+def jd_session_status():
+    """Return current JazzDrive token state from the accounts DB row."""
+    import time as _t
+    try:
+        with db.conn() as c:
+            row = c.execute(
+                "SELECT id, msisdn, label, jsessionid, refresh_token, raw_accesstoken, "
+                "token_expires_at, last_keepalive_at, is_active "
+                "FROM accounts WHERE role=\'flix\' AND is_active=1 LIMIT 1"
+            ).fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "No active flix account found"})
+        row = dict(row)
+        now  = int(_t.time())
+        kpa  = row.get("last_keepalive_at") or 0
+        exp  = row.get("token_expires_at") or 0
+        return jsonify({
+            "ok":                  True,
+            "account_id":          row["id"],
+            "msisdn":              row["msisdn"],
+            "label":               row["label"] or "",
+            "has_jsessionid":      bool((row.get("jsessionid")      or "").strip()),
+            "has_refresh_token":   bool((row.get("refresh_token")   or "").strip()),
+            "has_raw_accesstoken": bool((row.get("raw_accesstoken") or "").strip()),
+            "token_expires_at":    exp,
+            "token_expired":       bool(exp and exp < now),
+            "last_keepalive_at":   kpa or None,
+            "is_active":           bool(row["is_active"]),
+        })
+    except Exception as e:
+        log.exception("jd_session_status error")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@bp.route("/api/jd-force-refresh", methods=["POST"])
+@auth.login_required
+def jd_force_refresh():
+    """Try to refresh the JazzDrive session using stored tokens.
+
+    Returns {ok, error?, otp_required?}.
+    If all silent strategies fail → {ok:false, otp_required:true}.
+    """
+    try:
+        from .. import jazzdrive as _jd
+        # Always resolve the active flix account from DB so we use the current
+        # DB tokens (not the potentially-stale jazzdrive_session.json file).
+        _acct_id = None
+        try:
+            with db.conn() as _c:
+                _r = _c.execute(
+                    "SELECT id FROM accounts WHERE role=\'flix\' AND is_active=1 LIMIT 1"
+                ).fetchone()
+                if _r:
+                    _acct_id = _r["id"]
+        except Exception:
+            pass
+        result = _jd.refresh_session(account_id=_acct_id)
+        if not result.get("ok"):
+            err = result.get("error", "")
+            # Detect OTP-required signal from various failure messages
+            otp_needed = any(x in err.lower() for x in [
+                "otp", "401", "silent login failed", "invalid_grant", "re-login"
+            ])
+            result["otp_required"] = otp_needed
+        return jsonify(result)
+    except Exception as e:
+        cls = type(e).__name__
+        vpn = "JDVPNRequired" in cls
+        return jsonify({
+            "ok":          False,
+            "error":       str(e),
+            "vpn_error":   vpn,
+            "otp_required": not vpn,
+        }), 500
+
+
+# ---------------------------------------------------------------------------
+# Background Services page
+# ---------------------------------------------------------------------------
+
+# JazzDrive services — all gated behind the master kill switch
+_JD_SERVICE_NAMES = {"keepalive", "scan", "upload", "scheduler"}
+
 _SERVICES = [
     {
-        "key": "KEEPALIVE_ENABLED", "name": "keepalive", "label": "JazzDrive Keepalive",
-        "desc": "Keeps Jazz SIM sessions alive every 15 min. FOUNDATION — Scanner, Upload Watcher and Smart Scheduler all need this ON.",
-        "default": "1", "deps": [],
+        "name":    "jazzdrive_master",
+        "label":   "JazzDrive Master Switch",
+        "desc":    "Master kill switch for ALL JazzDrive activity — blocks session recovery on startup, keepalive pings, scanning and uploads. Turn OFF when you are done using JazzDrive to protect your Jazz account.",
+        "db_key":  "JAZZDRIVE_ENABLED",
+        "deps":    [],
+        "master":  True,
     },
     {
-        "key": "SCAN_ENABLED", "name": "scan", "label": "Scanner",
-        "desc": "Scans JazzDrive accounts for new content. Needs Keepalive ON first.",
-        "default": "1", "deps": ["keepalive"],
+        "name":  "keepalive",
+        "label": "JazzDrive Keepalive",
+        "desc":  "Periodically pings JazzDrive to keep accounts active and tokens fresh.",
+        "db_key": "KEEPALIVE_ENABLED",
+        "deps":  [],
     },
     {
-        "key": "UPLOAD_ENABLED", "name": "upload", "label": "Upload Watcher",
-        "desc": "Watches for new files and uploads them to JazzDrive. Needs Keepalive ON first.",
-        "default": "1", "deps": ["keepalive"],
+        "name":  "scan",
+        "label": "Scanner",
+        "desc":  "Walks JazzDrive folders and indexes new content into the library.",
+        "db_key": "SCAN_ENABLED",
+        "deps":  ["keepalive"],
     },
     {
-        "key": "SCHEDULER_ENABLED", "name": "scheduler", "label": "Smart Scheduler",
-        "desc": "Rescans ongoing series, triggers delta generation. Needs Keepalive + Scanner both ON first.",
-        "default": "0", "deps": ["keepalive", "scan"],
+        "name":  "upload",
+        "label": "Upload Watcher",
+        "desc":  "Monitors staging folder and uploads finished encodes to JazzDrive.",
+        "db_key": "UPLOAD_ENABLED",
+        "deps":  ["keepalive"],
     },
     {
-        "key": "DOWNLOAD_ENABLED", "name": "download", "label": "Download Queue",
-        "desc": "Processes queued download jobs from the internet. Works independently.",
-        "default": "1", "deps": [],
+        "name":  "scheduler",
+        "label": "Smart Scheduler",
+        "desc":  "Generates download deltas and triggers scan/upload on a schedule.",
+        "db_key": "SCHEDULER_ENABLED",
+        "deps":  ["scan", "upload"],
     },
     {
-        "key": "MIRROR_ENABLED", "name": "mirror", "label": "Mirror Retry",
-        "desc": "Retries failed GitHub mirror pushes every 60s. Works independently.",
-        "default": "1", "deps": [],
+        "name":  "download",
+        "label": "Download Queue",
+        "desc":  "Processes the download queue and fetches content from source sites.",
+        "db_key": "DOWNLOAD_ENABLED",
+        "deps":  [],
     },
     {
-        "key": "DOMAIN_DOCTOR_ENABLED", "name": "domain_doctor", "label": "Domain Doctor",
-        "desc": "Auto-discovers working mirror domains every 24h. Works independently.",
-        "default": "1", "deps": [],
+        "name":  "mirror",
+        "label": "Mirror Retry",
+        "desc":  "Re-attempts failed mirrors and syncs library to GitHub / Google Sheets.",
+        "db_key": "MIRROR_ENABLED",
+        "deps":  [],
+    },
+    {
+        "name":  "domain_doctor",
+        "label": "Domain Doctor",
+        "desc":  "Auto-discovers working domain URLs for content sources.",
+        "db_key": "DOMAIN_DOCTOR_ENABLED",
+        "deps":  [],
+    },
+    {
+        "name":      "wa_bot",
+        "label":     "WhatsApp Bot",
+        "desc":      "WhatsApp chat bot for user requests and status notifications.",
+        "db_key":    None,
+        "supervisor": "raddflix_wa_bot",
+        "deps":      [],
     },
 ]
 
-def _svc_by_name(name):
-    return next((s for s in _SERVICES if s["name"] == name), None)
 
-def _is_enabled(name):
-    svc = _svc_by_name(name)
-    if not svc:
-        return False
-    return db.setting(svc["key"], svc["default"]) == "1"
+def _svc_enabled(svc: dict) -> bool:
+    if svc.get("supervisor"):
+        try:
+            out = _subprocess.check_output(
+                ["sudo", "supervisorctl", "status", svc["supervisor"]],
+                stderr=_subprocess.DEVNULL, timeout=5,
+            ).decode()
+            return "RUNNING" in out
+        except Exception:
+            return False
+    return db.setting(svc["db_key"], "1") == "1"
 
-def _enable_svc(name):
-    svc = _svc_by_name(name)
-    if svc:
-        db.set_setting(svc["key"], "1")
-        log.info("Service %s auto-enabled as dependency", name)
+
+@bp.route("/services")
+@auth.login_required
+def services_page():
+    return render_template("services.html")
 
 
 @bp.route("/api/services", methods=["GET"])
 @auth.login_required
 def services_list():
-    """Return enabled/running state with dependency metadata."""
-    import subprocess as _sp
-
-    # Build reverse-dep map: who depends on me?
-    rdeps_map = {s["name"]: [] for s in _SERVICES}
-    for svc in _SERVICES:
-        for dep in svc["deps"]:
-            if dep in rdeps_map:
-                rdeps_map[dep].append(svc["name"])
-
-    # Read all states first
-    states = {}
-    for svc in _SERVICES:
-        states[svc["name"]] = db.setting(svc["key"], svc["default"]) == "1"
-
+    enabled_map = {s["name"]: _svc_enabled(s) for s in _SERVICES}
     result = []
     for svc in _SERVICES:
-        enabled = states[svc["name"]]
-        missing_deps  = [d for d in svc["deps"] if not states.get(d, False)]
-        broken_rdeps  = [r for r in rdeps_map[svc["name"]] if states.get(r, False)] if not enabled else []
+        is_on = enabled_map[svc["name"]]
+        deps  = svc.get("deps", [])
+        missing_deps = [d for d in deps if not enabled_map.get(d, True)] if is_on else []
+        broken_rdeps = (
+            [s["name"] for s in _SERVICES
+             if svc["name"] in s.get("deps", []) and enabled_map.get(s["name"])]
+            if not is_on else []
+        )
         result.append({
             "name":         svc["name"],
             "label":        svc["label"],
             "desc":         svc["desc"],
-            "enabled":      enabled,
-            "key":          svc["key"],
-            "deps":         svc["deps"],
-            "rdeps":        rdeps_map[svc["name"]],
+            "enabled":      is_on,
+            "deps":         deps,
             "missing_deps": missing_deps,
             "broken_rdeps": broken_rdeps,
+            "supervisor":   svc.get("supervisor"),
         })
-
-    # WhatsApp bot via supervisor
-    wa_running = False
-    try:
-        out = _sp.run(["sudo", "supervisorctl", "status", "raddflix_wa_bot"],
-                      capture_output=True, text=True, timeout=5).stdout
-        wa_running = "RUNNING" in out
-    except Exception:
-        pass
-    result.append({
-        "name": "wa_bot", "label": "WhatsApp Bot",
-        "desc": "WhatsApp bot for user interactions and file delivery. Works independently.",
-        "enabled": wa_running, "supervisor": True,
-        "deps": [], "rdeps": [], "missing_deps": [], "broken_rdeps": [],
-    })
     return jsonify({"ok": True, "services": result})
 
 
 @bp.route("/api/services/toggle", methods=["POST"])
 @auth.login_required
 def services_toggle():
-    """Enable or disable a background service.
-    Body: {"service": "upload", "enabled": true}
-    """
-    import subprocess as _sp
-    data    = request.get_json(force=True, silent=True) or {}
-    name    = data.get("service", "")
-    enabled = bool(data.get("enabled", False))
+    body    = request.get_json(silent=True) or {}
+    name    = body.get("service", "").strip()
+    enabled = bool(body.get("enabled", True))
 
-    # ── WhatsApp bot — supervisor control ────────────────────────────────────
-    if name == "wa_bot":
-        cmd = ["sudo", "supervisorctl", "start" if enabled else "stop", "raddflix_wa_bot"]
+    svc = next((s for s in _SERVICES if s["name"] == name), None)
+    if not svc:
+        return jsonify({"ok": False, "error": f"Unknown service: {name}"}), 404
+
+    auto_enabled: list[str] = []
+    warnings:     list[str] = []
+
+    # ── Master kill switch — special handling ─────────────────────────────────
+    if name == "jazzdrive_master":
+        db.set_setting("JAZZDRIVE_ENABLED", "1" if enabled else "0")
+        if not enabled:
+            # Auto-disable all JazzDrive services when master goes OFF
+            for s in _SERVICES:
+                if s["name"] in _JD_SERVICE_NAMES and s.get("db_key"):
+                    db.set_setting(s["db_key"], "0")
+            log.info("JazzDrive master switch OFF — all JD services disabled")
+            return jsonify({
+                "ok": True, "auto_enabled": [],
+                "warnings": ["All JazzDrive services have been turned OFF. Session recovery on next restart is also blocked."]
+            })
+        else:
+            log.info("JazzDrive master switch ON — JD calls unblocked")
+            return jsonify({
+                "ok": True, "auto_enabled": [],
+                "warnings": ["JazzDrive is now enabled. Turn on individual services (Keepalive, etc.) as needed."]
+            })
+
+    # Block any JD service from being enabled when master is OFF
+    if name in _JD_SERVICE_NAMES and enabled:
+        master_on = db.setting("JAZZDRIVE_ENABLED", "1") == "1"
+        if not master_on:
+            return jsonify({"ok": False, "error": "JazzDrive Master Switch is OFF. Enable it first before turning on individual JD services."}), 400
+
+    # Auto-enable dependencies first when turning ON
+    if enabled:
+        enabled_map = {s["name"]: _svc_enabled(s) for s in _SERVICES}
+        for dep in svc.get("deps", []):
+            if not enabled_map.get(dep):
+                dep_svc = next((s for s in _SERVICES if s["name"] == dep), None)
+                if dep_svc:
+                    if dep_svc.get("supervisor"):
+                        try:
+                            _subprocess.check_call(
+                                ["sudo", "supervisorctl", "start", dep_svc["supervisor"]],
+                                timeout=10,
+                            )
+                        except Exception as e:
+                            warnings.append(f"Could not auto-start {dep}: {e}")
+                    else:
+                        db.set_setting(dep_svc["db_key"], "1")
+                    auto_enabled.append(dep)
+
+    # Apply the toggle
+    if svc.get("supervisor"):
+        cmd = "start" if enabled else "stop"
         try:
-            r = _sp.run(cmd, capture_output=True, text=True, timeout=15)
-            ok  = r.returncode == 0
-            out = (r.stdout + r.stderr).strip()
-            log.info("WhatsApp bot %s by admin (rc=%d): %s", "started" if enabled else "stopped", r.returncode, out)
-            return jsonify({"ok": ok, "service": "wa_bot", "enabled": enabled, "output": out})
+            _subprocess.check_call(
+                ["sudo", "supervisorctl", cmd, svc["supervisor"]],
+                timeout=10,
+            )
+        except _subprocess.CalledProcessError as e:
+            return jsonify({"ok": False, "error": f"supervisorctl {cmd} failed (exit {e.returncode})"}), 500
         except Exception as e:
             return jsonify({"ok": False, "error": str(e)}), 500
-
-    # ── DB-controlled services ────────────────────────────────────────────────
-    mapping = {svc["name"]: svc for svc in _SERVICES}
-    svc = mapping.get(name)
-    if not svc:
-        return jsonify({"ok": False, "error": f"unknown service: {name}"}), 400
-
-    auto_enabled = []
-    warnings     = []
-
-    if enabled:
-        # Auto-enable all dependencies first (depth-first)
-        visited = set()
-        def _resolve(svc_name):
-            if svc_name in visited:
-                return
-            visited.add(svc_name)
-            s = mapping.get(svc_name)
-            if not s:
-                return
-            for dep_name in s.get("deps", []):
-                _resolve(dep_name)
-                if not _is_enabled(dep_name):
-                    _enable_svc(dep_name)
-                    auto_enabled.append(dep_name)
-        _resolve(name)
     else:
-        # Warn about dependents that are still ON
+        db.set_setting(svc["db_key"], "1" if enabled else "0")
+
+    # Warn about rdeps that will now be unsatisfied
+    if not enabled:
+        enabled_map = {s["name"]: _svc_enabled(s) for s in _SERVICES}
         for other in _SERVICES:
-            if name in other.get("deps", []) and _is_enabled(other["name"]):
-                warnings.append(
-                    f"{other['label']} is ON and needs {svc['label']} — it will stop working"
-                )
+            if name in other.get("deps", []) and enabled_map.get(other["name"]):
+                warnings.append(f"{other['label']} depends on {svc['label']}")
 
-    db.set_setting(svc["key"], "1" if enabled else "0")
-    log.info("Service %s (%s) -> %s by admin (auto_enabled=%s warnings=%s)",
-             name, svc["key"], "ON" if enabled else "OFF", auto_enabled, warnings)
-    return jsonify({
-        "ok":           True,
-        "service":      name,
-        "enabled":      enabled,
-        "auto_enabled": auto_enabled,
-        "warnings":     warnings,
-    })
-
+    return jsonify({"ok": True, "auto_enabled": auto_enabled, "warnings": warnings})

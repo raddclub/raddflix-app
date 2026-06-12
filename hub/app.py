@@ -246,6 +246,9 @@ def create_app() -> Flask:
     def _startup_refresh():
         import time as _t
         _t.sleep(3)  # let DB init settle
+        if db.setting("JAZZDRIVE_ENABLED", "1") != "1":
+            log.info("startup_refresh: JAZZDRIVE_ENABLED=0 — JazzDrive master switch is OFF, skipping session recovery")
+            return
         try:
             from . import jazzdrive as _jd
             accounts = db.list_accounts(hide_secrets=False)
