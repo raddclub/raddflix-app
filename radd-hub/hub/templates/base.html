@@ -517,13 +517,13 @@ body.sb-col .nav a span.nav-label{display:none}
 
       <div class="nav-section">SYSTEM</div>
 
+      <a href="/admin/services" class="{{ 'active' if active=='services' }}" onclick="closeSidebar()">
+        <span class="icon">⚡</span>
+        <span class="nav-label"><span class="nav-title">Services</span><span class="nav-sub">Enable / disable background jobs</span></span>
+      </a>
       <a href="/settings/" class="{{ 'active' if active=='settings' }}" onclick="closeSidebar()">
         <span class="icon">⚙</span>
         <span class="nav-label"><span class="nav-title">Settings</span><span class="nav-sub">API keys &amp; config</span></span>
-      </a>
-      <a href="/proxy-pool/" class="{{ 'active' if active=='proxy_pool' }}" onclick="closeSidebar()">
-        <span class="icon">🔀</span>
-        <span class="nav-label"><span class="nav-title">Proxy Pool</span><span class="nav-sub">SAPI rotating proxies</span></span>
       </a>
       <a href="/admin/" class="{{ 'active' if active=='admin' }}" onclick="closeSidebar()">
         <span class="icon">♛</span>

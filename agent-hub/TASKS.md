@@ -6,6 +6,7 @@ _Last updated: 2026-06-12_
 
 | ID | Changed | Summary | Ref |
 |----|---------|---------|-----|
+| ✅ FIX-SERVICES-NAV | hub/templates/base.html | Re-added Services nav link to SYSTEM sidebar section (dropped during PROXY-REMOVE) | this |
 | ✅ FIX-DEVICE-NAME-2 | hub/jazzdrive.py, radd_hub.db settings | Fixed garbled JazzDrive device name: (1) set JAZZDRIVE_DEVICE_NAME=Infinix X680F in settings; (2) added X-devicename + corrected User-Agent in Strategy 2 OAuth2 refresh; (3) fixed get_auth_headers fallback | 91b3aef + this |
 | PROXY-REMOVE | hub/app.py, hub/routes/settings.py, hub/templates/base.html, hub/templates/settings.html | Fully removed proxy/pool system: stripped proxy_pool_page blueprint + broken try/except from app.py; all 13 pool routes from settings.py; proxy-pool nav from base.html; JazzDrive Network/Services cards + pool panel include + JS from settings.html | 1473481 |
 | DB-RECOVERY-01 | radd_hub.db accounts table | Recovered wiped DB: re-inserted JazzDrive account 03257719165 (role=flix, is_active=1) from jazzdrive_session.json | SQL |
