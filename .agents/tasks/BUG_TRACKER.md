@@ -332,3 +332,19 @@ _No open code bugs. All known issues resolved._
 | BUG-CATALOG-REGEN | db_update.json doesn't auto-regen on direct SQL changes | Dropped by user — no longer needed | 2026-06-10 |
 | BUG-DELTA-PUSH | delta_push pipeline broken — upload_file_to_jazzdrive attr missing | Dropped by user — no longer needed | 2026-06-10 |
 | BUG-DUNE-FILE | Dune Part Two / Inception have no files scanned | Dropped by user — no longer needed | 2026-06-10 |
+
+
+---
+
+## Session 2026-06-13
+
+| ID | Severity | Title | Root Cause | Fix | File | Commit |
+|----|---------|-------|-----------|-----|------|--------|
+| BUG-UA-ALL | HIGH | All 10 UA strings using Samsung SM-A515F/Android12 | Copy-paste error | Replaced all with Infinix X680F/Android10/QP1A.190711.020 | scanner.py, jazzdrive.py, proxy_pool.py, app.py | db30e8bf |
+| BUG-UPLOAD-HANG | HIGH | Upload hangs at 0% "queued" when JD session dead | verify_jd_session() silently fails; job stays queued indefinitely | Pre-flight check in _run() → state=session_dead immediately with clear re-login message | hub/uploader.py, hub/templates/upload.html | 0f133ce5 |
+| BUG-OTP-VK | CRITICAL | OTP login always gives vk=False → all SAPI calls fail with AUTH-001 | jazzdrive_verify_otp() returned early with JSESSIONID from cookies but empty VK. keytype=accesstoken endpoint returns 401 for fnbroot hex tokens (format mismatch, not geo issue) | After OAuth2 gives vk=False, call mobile_direct_verify_otp() with same OTP via keytype=otp (geo-unrestricted). Merge VK into OAuth2 tokens. Fix _legacy early-return to require both JID+VK | hub/scanner.py, hub/_legacy/scanner.py | 0ceb1544 |
+
+### Investigation notes — BUG-OTP-VK
+- `/sapi/login/oauth?keytype=accesstoken` expects `base64({"data":{"accesstoken":"<hex>"}})`. fnbroot hex token wrapped → eyJ... JWT-looking → always 401. Not fixable — wrong token type.
+- `/sapi/login/oauth?keytype=otp` accepts raw OTP integer directly → returns VK+JSESSIONID. Geo-unrestricted.
+- Both endpoints are independent: consuming OTP on OAuth2 (verify.php) does NOT invalidate it on SAPI direct endpoint. Both calls can be made in the same login flow.
