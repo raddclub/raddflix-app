@@ -168,6 +168,9 @@
                 onclick="quickRole({{ a.id }}, '{{ a.role }}')">
           {% if a.role == 'flix' %}↩ Use for Scan{% else %}⚡ Use for Flix{% endif %}
         </button>
+        <button style="font-size:12px;padding:4px 10px;border:1px solid rgba(251,146,60,.4);background:rgba(251,146,60,.08);color:#fb923c;border-radius:5px;cursor:pointer"
+                onclick="clearCookies({{ a.id }}, '{{ a.msisdn }}', this)"
+                title="Wipe JSESSIONID + validation_key only — keeps refresh_token so silent re-auth can work">🍪 Clear Cookies</button>
         <button style="font-size:12px;padding:4px 10px;border:1px solid rgba(239,68,68,.35);background:transparent;color:#ef4444;border-radius:5px;cursor:pointer"
                 onclick="logoutAcct({{ a.id }}, '{{ a.msisdn }}', this)">Logout JD</button>
         <button class="danger" style="font-size:12px;padding:4px 10px"
@@ -1492,6 +1495,33 @@ document.addEventListener('DOMContentLoaded', () => {
   refreshKeepaliveStatus();
   setInterval(refreshKeepaliveStatus, 30000);
 });
+
+async function clearCookies(id, msisdn, btn) {
+  if (!confirm(
+    'Clear session cookies for ' + msisdn + '?\n\n' +
+    'This removes JSESSIONID and validation_key only.\n' +
+    'Your refresh_token is kept so the app can try a silent re-login automatically.\n\n' +
+    'Use this when the session is stale/dead but you do NOT want to fully log out.'
+  )) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Clearing…';
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/clear-cookies', {method:'POST'});
+    if (r.ok) {
+      const note = r.has_refresh_token
+        ? '\nRefresh token kept — keepalive will try silent re-auth automatically.'
+        : '\nNo refresh token — you will need to re-login with OTP.';
+      toast('🍪 Cookies cleared — ' + msisdn + note);
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      toast('Error: ' + (r.error || 'clear failed'));
+      btn.disabled = false; btn.textContent = orig;
+    }
+  } catch(e) {
+    toast('Error: ' + e.message);
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
 
 async function logoutAcct(id, msisdn, btn) {
   if (!confirm('Log out ' + msisdn + ' from JazzDrive?\n\nThis clears all session tokens. You will need to re-login with OTP to use this account again.')) return;
