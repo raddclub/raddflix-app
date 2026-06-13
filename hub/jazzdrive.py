@@ -151,6 +151,27 @@ _SAPI_BACKOFF_SECS = 1800  # 30 minutes
 # has already changed and returns early without making a second network call.
 _refresh_locks: "dict[int, threading.Lock]" = {}
 _refresh_locks_mutex = threading.Lock()
+
+# ── JazzDrive Master Kill Switch ──────────────────────────────────────────────
+# When JAZZDRIVE_ENABLED=0 in DB settings, ALL JD network activity must stop —
+# no SAPI calls, no OAuth2 refreshes, no uploads, no keepalive pings.
+# This is enforced at every network chokepoint via require_jd_active().
+
+class JDDisabled(RuntimeError):
+    """Raised when the JazzDrive master kill switch is OFF."""
+    pass
+
+def is_jd_enabled() -> bool:
+    """Return True if JazzDrive master switch is ON (default: ON)."""
+    return db.setting("JAZZDRIVE_ENABLED", "1") == "1"
+
+def require_jd_active():
+    """Raise JDDisabled if the master switch is OFF.
+    Call this as the very first line of any function that makes a JD network call.
+    """
+    if not is_jd_enabled():
+        raise JDDisabled("JazzDrive master switch is OFF — all JD calls blocked")
+
 # Cooldown: after a successful refresh, suppress all further exchange attempts
 # for this many seconds. Prevents sapi_request's internal retry loop from
 # burning through the refresh-token chain (token A -> B -> C -> invalid_grant).
@@ -266,25 +287,6 @@ class JDVPNRequired(RuntimeError):
     via Oracle's direct IP — which risks account suspension on Jazz SIM.
     """
 
-
-class JDDisabled(RuntimeError):
-    """Raised when JAZZDRIVE_ENABLED=0 — all JazzDrive network calls are
-    blocked by the admin master kill switch on the Services page."""
-
-
-def require_jd_active() -> None:
-    """Hard-fail if the admin has disabled JazzDrive via the master kill switch.
-
-    Call this BEFORE require_wg0() so that when JD is intentionally OFF
-    we get a clean, clear error rather than a VPN error.
-    """
-    from . import db as _db
-    if _db.setting("JAZZDRIVE_ENABLED", "1") != "1":
-        raise JDDisabled(
-            "JazzDrive is disabled (JAZZDRIVE_ENABLED=0). "
-            "Enable it on the Admin → Services page before making JD calls."
-        )
-
 _JD_ROUTED_IPS = ["54.179.95.148", "54.254.59.168", "175.41.133.62"]
 
 
@@ -312,6 +314,37 @@ def require_wg0() -> None:
             "refusing to leak call via Oracle direct IP"
         )
     log.debug("[JD:VPN] OK -- all JD IPs via wg0")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JAZZDRIVE_ENABLED master kill switch
+# ─────────────────────────────────────────────────────────────────────────────
+
+class JDDisabled(RuntimeError):
+    """Raised when JAZZDRIVE_ENABLED=0 in DB (master kill switch is OFF).
+
+    Any function that makes JazzDrive network calls must call
+    require_jd_active() first so it hard-fails immediately instead of
+    leaking a request against the Jazz account.
+    """
+
+
+def require_jd_active() -> None:
+    """Raise JDDisabled if the master kill switch is OFF (JAZZDRIVE_ENABLED!=1).
+
+    Call this at the top of every function that touches JazzDrive APIs so
+    that toggling the switch in the admin Services panel immediately stops
+    all JazzDrive activity without a Flask restart.
+    """
+    val = db.setting("JAZZDRIVE_ENABLED", "1")
+    if val != "1":
+        log.warning("[JD:MASTER] BLOCKED — JAZZDRIVE_ENABLED=%s, master switch is OFF", val)
+        raise JDDisabled(
+            "JAZZDRIVE_ENABLED master switch is OFF — all JazzDrive calls blocked. "
+            "Enable via Admin > Services to resume."
+        )
+
+
 
 def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
     log.debug("[JD:PROXY] resolve_proxies purpose=%s", purpose)
@@ -397,12 +430,17 @@ def is_proxy_bypass() -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_x_deviceid(msisdn: Optional[str] = None) -> str:
-    """Return a deterministic X-deviceid based on the MSISDN.
+    """Return the X-deviceid sent in every JazzDrive request.
 
-    JazzDrive sessions are tied to the X-deviceid. Using a stable one
-    prevents 'invalid session' errors when switching between uploader/keepalive.
-    Prefix fac- matches APK strings.xml app_device_id_prefix (C30924e DeviceInterceptor).
+    Priority:
+      1. JAZZDRIVE_DEVICE_ID setting — user's real Android device ID
+         (makes server appear as the same device as their phone, bypassing
+         JazzDrive's single-active-Android-device limit)
+      2. fac-<last-10-of-MSISDN> — original fallback
     """
+    stored = (db.setting("JAZZDRIVE_DEVICE_ID") or "").strip()
+    if stored:
+        return stored
     m = str(msisdn or db.setting("JAZZDRIVE_MSISDN") or "").strip()
     m = m.replace("+", "").replace(" ", "").replace("-", "")
     suffix = m[-10:] if len(m) >= 10 else "raddhub"
@@ -421,7 +459,7 @@ def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
       5. Authorization    — oauth <Base64(token)>  (C12815c OAuth2AuthenticatorInterceptor)
     """
     import base64 as _b64_ah
-    device_name = db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix X680F"
+    device_name = db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix Hot 9 Play"
     headers = {
         "Accept":           "application/json, text/plain, */*",
         "User-Agent":       "omh android client",
@@ -863,6 +901,9 @@ def sapi_request(endpoint: str, action: str,
     import requests as _req
     import urllib.parse as _up
 
+    # ── Master kill switch — blocks ALL JD calls when switch is OFF ──────────
+    require_jd_active()
+
     if _retry_count > 3:
         return {"error": {"code": "AUTH-ERR", "message": "Max retries exceeded"}}
 
@@ -1186,6 +1227,166 @@ def get_status() -> dict:
         "validationkey_prefix": (db_acct or s).get("validation_key", (db_acct or s).get("validationkey", ""))[:12] + "...",
     }
 
+
+
+def jd_clear_cookies(account_id: int) -> dict:
+    """Clear only the JazzDrive session cookies (JSESSIONID + validationkey) for an account.
+
+    Unlike jd_logout_account(), this keeps:
+      - refresh_token  (so the app can silently obtain a new session via OTP-free refresh)
+      - raw_accesstoken
+      - token_expires_at
+      - is_active = 1
+
+    Use this when you want to flush a stale/dead browser session without losing the
+    long-lived refresh_token.  After clearing, the keepalive will attempt a silent
+    refresh on its next cycle.  If the refresh_token is also dead the user will be
+    prompted to re-login with OTP.
+    """
+    log.info("[JD:CLEAR-COOKIES] account_id=%s", account_id)
+
+    # 1. Read current account
+    try:
+        with db.conn() as _c:
+            row = _c.execute("SELECT * FROM accounts WHERE id=?", (account_id,)).fetchone()
+            row = dict(row) if row else None
+    except Exception as _e:
+        return {"ok": False, "error": f"DB read error: {_e}"}
+
+    if not row:
+        return {"ok": False, "error": f"Account {account_id} not found"}
+
+    msisdn = row.get("msisdn", "")
+    had_vk  = bool((row.get("validation_key") or "").strip())
+    had_jid = bool((row.get("jsessionid") or "").strip())
+    has_rt  = bool((row.get("refresh_token") or "").strip())
+
+    # 2. Wipe only session cookies — keep refresh_token, raw_accesstoken, is_active
+    try:
+        with db.conn() as _c:
+            _c.execute(
+                "UPDATE accounts SET validation_key=NULL, jsessionid=NULL, node=NULL "
+                "WHERE id=?",
+                (account_id,)
+            )
+        log.info(
+            "[JD:CLEAR-COOKIES] session cookies wiped for account %s (%s) "
+            "— had_vk=%s had_jid=%s has_rt=%s",
+            account_id, msisdn, had_vk, had_jid, has_rt,
+        )
+    except Exception as _de:
+        return {"ok": False, "error": f"DB error: {_de}"}
+
+    # 3. Also wipe validationkey + jsessionid from jazzdrive_session.json,
+    #    but preserve refresh_token and raw_accesstoken so silent refresh works.
+    try:
+        if SESSION_FILE.exists():
+            import json as _sj
+            sess_data = _sj.loads(SESSION_FILE.read_text())
+            if str(sess_data.get("msisdn") or "").replace("+92", "0") == str(msisdn).replace("+92", "0"):
+                sess_data["validationkey"] = ""
+                sess_data["jsessionid"]    = ""
+                sess_data["node"]          = ""
+                SESSION_FILE.write_text(_sj.dumps(sess_data, indent=2))
+                log.info("[JD:CLEAR-COOKIES] jazzdrive_session.json cookies cleared")
+    except Exception as _sf:
+        log.debug("[JD:CLEAR-COOKIES] session file update skipped: %s", _sf)
+
+    # 4. Clear in-memory SAPI backoff so the next keepalive/refresh attempt is immediate
+    try:
+        clear_sapi_backoff(account_id)
+    except Exception:
+        pass
+
+    # 5. Clear upload refresh backoff
+    try:
+        from . import uploader as _up
+        _up.clear_refresh_backoff(account_id)
+    except Exception:
+        pass
+
+    return {
+        "ok":        True,
+        "msisdn":    msisdn,
+        "has_refresh_token": has_rt,
+        "message": (
+            f"Session cookies cleared for {msisdn}. "
+            + ("Keepalive will attempt a silent refresh using the stored refresh_token."
+               if has_rt else
+               "No refresh_token stored — you will need to re-login with OTP.")
+        ),
+    }
+
+
+def jd_logout_account(account_id: int) -> dict:
+    """Clear all JazzDrive session tokens for an account and mark it inactive.
+
+    - Wipes validation_key, jsessionid, node, refresh_token, raw_accesstoken
+    - Sets is_active=0, token_expires_at=0
+    - Best-effort: tries to notify JazzDrive server to revoke the session
+    - Does NOT delete the account row (use db.delete_account() for that)
+    """
+    import requests as _req
+    log.info("[JD:LOGOUT] account_id=%s", account_id)
+
+    # 1. Read current tokens before wiping (needed for server-side revoke)
+    row = None
+    try:
+        with db.conn() as _c:
+            row = _c.execute("SELECT * FROM accounts WHERE id=?", (account_id,)).fetchone()
+            if row:
+                row = dict(row)
+    except Exception as _e:
+        log.warning("[JD:LOGOUT] could not read account: %s", _e)
+
+    if not row:
+        return {"ok": False, "error": f"Account {account_id} not found"}
+
+    msisdn = row.get("msisdn", "")
+    vk     = row.get("validation_key") or ""
+    jid    = row.get("jsessionid")     or ""
+    rt     = row.get("refresh_token")  or ""
+
+    # 2. Best-effort server-side logout (fire-and-forget, never block on failure)
+    if jid or rt:
+        try:
+            proxies = resolve_proxies(purpose="otp")
+            hdrs = get_auth_headers(vk, jid, msisdn=msisdn)
+            _req.post(
+                f"{CLOUD_BASE}/sapi/logout",
+                headers=hdrs, timeout=10, proxies=proxies
+            )
+            log.info("[JD:LOGOUT] server-side logout sent for %s", msisdn)
+        except Exception as _le:
+            log.warning("[JD:LOGOUT] server-side logout skipped (no network or session already dead): %s", _le)
+
+    # 3. Wipe all tokens in DB, mark inactive
+    try:
+        with db.conn() as _c:
+            _c.execute(
+                "UPDATE accounts SET validation_key=NULL, jsessionid=NULL, node=NULL, "
+                "refresh_token=NULL, raw_accesstoken=NULL, token_expires_at=0, is_active=0 "
+                "WHERE id=?",
+                (account_id,)
+            )
+        log.info("[JD:LOGOUT] tokens wiped for account %s (%s)", account_id, msisdn)
+    except Exception as _de:
+        log.error("[JD:LOGOUT] DB wipe failed: %s", _de)
+        return {"ok": False, "error": f"DB error: {_de}"}
+
+    # 4. Clear OTP state file if it belongs to this account's MSISDN
+    try:
+        if _OTP_STATE_FILE.exists():
+            state = json.loads(_OTP_STATE_FILE.read_text())
+            _norm = lambda n: str(n).strip().replace("+92","0").replace(" ","")
+            if _norm(state.get("msisdn","")) == _norm(msisdn):
+                _OTP_STATE_FILE.unlink(missing_ok=True)
+                log.info("[JD:LOGOUT] OTP state file cleared for %s", msisdn)
+    except Exception:
+        pass
+
+    return {"ok": True, "msisdn": msisdn,
+            "message": f"Logged out — session cleared for {msisdn}"}
 
 # ---------------------------------------------------------------------------
 # OTP flow
@@ -1918,6 +2119,7 @@ def _android_refresh_session_inner(refresh_token: str,
     import base64 as _b64
     import urllib.parse as _up
 
+    require_jd_active()  # Hard-fail if master switch is OFF
     log.info("[JD:OAUTH2] ==========================================")
     log.info("[JD:OAUTH2] ANDROID TOKEN REFRESH  acct=%s  has_rt=%s", account_id, bool(refresh_token))
     require_wg0()  # Hard-fail if wg0 down — never leak OAuth2
@@ -2335,6 +2537,10 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
 
     Returns {"ok": True, ...} on success, {"ok": False, "error": ...} otherwise.
     """
+    # ── Master kill switch ────────────────────────────────────────────────────
+    if not is_jd_enabled():
+        return {"ok": False, "error": "JazzDrive master switch is OFF"}
+
     import requests as _req
     import urllib.parse as _up
     import base64 as _b64
@@ -2415,7 +2621,7 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
         "Accept":       "application/json, text/javascript, */*",
         "User-Agent":   "omh android client",
         "X-deviceid":   device_id,
-        "X-devicename": db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix X680F",
+        "X-devicename": db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix Hot 9 Play",
         "X-Requested-With": "com.jazz.drive",
     })
 
@@ -2555,7 +2761,7 @@ def generate_folder_image_link(folder_share_url: str, filename_hint: str = "post
         "Accept": "application/json, text/plain, */*",
         "Origin": CLOUD_BASE,
         "Referer": f"{CLOUD_BASE}/share/f/{share_key}",
-        "User-Agent": "Mozilla/5.0 (Linux; Android 12; SM-A515F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Linux; Android 10; Infinix X680F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
         "X-Requested-With": "com.jazz.drive",
     }
 
@@ -2661,7 +2867,7 @@ def generate_direct_link(share_url: str, target_filename: str = "", remote_id: i
         "Accept": "application/json, text/plain, */*",
         "Origin": CLOUD_BASE,
         "Referer": f"{CLOUD_BASE}/share/f/{share_key}",
-        "User-Agent": "Mozilla/5.0 (Linux; Android 12; SM-A515F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Linux; Android 10; Infinix X680F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
         "X-Requested-With": "com.jazz.drive"
     }
 
