@@ -401,13 +401,25 @@ function fmtTsShort(ts) {
   } catch { return ts; }
 }
 function badgeState(state) {
-  if (state === 'done')      return '<span class="badge b-ok">done</span>';
-  if (state === 'failed')    return '<span class="badge b-err">failed</span>';
-  if (state === 'uploading') return '<span class="badge b-warn" style="animation:pulse 1.5s infinite">uploading…</span>';
-  if (state === 'queued')    return '<span class="badge b-mut">queued</span>';
+  if (state === 'done')         return '<span class="badge b-ok">done</span>';
+  if (state === 'failed')       return '<span class="badge b-err">failed</span>';
+  if (state === 'session_dead') return '<span class="badge b-err" style="background:#2d0808">⚡ session dead</span>';
+  if (state === 'uploading')    return '<span class="badge b-warn" style="animation:pulse 1.5s infinite">uploading…</span>';
+  if (state === 'checking')     return '<span class="badge b-warn">checking session…</span>';
+  if (state === 'queued')       return '<span class="badge b-mut">queued</span>';
   return '<span class="badge b-mut">' + (state || '?') + '</span>';
 }
 
+
+function sessionDeadBanner(job) {
+  if (job.state !== 'session_dead') return '';
+  return '<div style="margin-top:8px;padding:8px 12px;border-radius:7px;background:#1e0808;border:1px solid #ef444444;font-size:11px;color:#ef4444">' +
+    '<b>⚡ JazzDrive session expired</b> — ' +
+    '<a href="/scan" style="color:#f87171;text-decoration:underline">go to Scan page → Send OTP → re-login</a>, ' +
+    'then delete this file and re-upload it.' +
+    (job.error ? '<div style="margin-top:4px;color:#f87171;opacity:.7">' + job.error + '</div>' : '') +
+    '</div>';
+}
 /* ── tabs ── */
 function switchTab(tab, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => {
@@ -511,7 +523,7 @@ async function loadStatus() {
 async function loadPendingCount() {
   try {
     const r = await api('/upload/api/jobs');
-    const pending = (r.jobs || []).filter(j => j.state === 'queued' || j.state === 'uploading').length;
+    const pending = (r.jobs || []).filter(j => j.state === 'queued' || j.state === 'uploading' || j.state === 'checking').length;
     document.getElementById('stat-pending').textContent = pending;
   } catch {}
 }
@@ -757,7 +769,7 @@ async function loadJobs() {
           + '</tr>';
       }).join('');
     }
-    document.getElementById('stat-pending').textContent = rows.filter(j => j.state === 'queued' || j.state === 'uploading').length;
+    document.getElementById('stat-pending').textContent = rows.filter(j => j.state === 'queued' || j.state === 'uploading' || j.state === 'checking').length;
   } catch {}
 }
 

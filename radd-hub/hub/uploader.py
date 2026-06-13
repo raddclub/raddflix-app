@@ -1220,6 +1220,54 @@ def queue_manual_upload(file_path: str, parent_id: int = 0,
     def _run():
         with _jobs_lock:
             if job_id in _manual_jobs:
+                _manual_jobs[job_id]["state"] = "checking"
+        # ── Pre-flight: verify session before starting upload ─────────────────
+        # Fail fast with a clear message so the UI shows the real reason
+        # instead of staying "queued" forever with 0 bytes uploaded.
+        try:
+            _pre_acct = get_active_account() if not account_id else None
+            if account_id:
+                with db.conn() as _pc:
+                    _pr = _pc.execute("SELECT * FROM accounts WHERE id=? AND is_active=1",
+                                      (account_id,)).fetchone()
+                    _pre_acct = dict(_pr) if _pr else None
+            if not _pre_acct:
+                raise RuntimeError(
+                    "No active JazzDrive account — go to Settings and link an account."
+                )
+            _pre_vk   = (_pre_acct.get("validation_key") or "").strip()
+            _pre_jsid = (_pre_acct.get("jsessionid") or "").strip()
+            if not _pre_vk or not _pre_jsid:
+                raise RuntimeError(
+                    "JazzDrive not logged in — go to Scan page, tap Send OTP, enter the code."
+                )
+            if not verify_jd_session(_pre_vk, _pre_jsid, account_id=_pre_acct["id"]):
+                # Session dead — try one silent refresh before giving up
+                _refreshed = False
+                try:
+                    from . import jazzdrive as _jd_pre
+                    _res_pre = _jd_pre.refresh_session(account_id=_pre_acct["id"])
+                    _refreshed = _res_pre.get("ok", False)
+                except Exception:
+                    pass
+                if not _refreshed:
+                    raise RuntimeError(
+                        "JazzDrive session expired — please re-login: "
+                        "go to Scan page → Send OTP → enter code. "
+                        "Your file is safe and can be re-uploaded after login."
+                    )
+        except RuntimeError as _pre_err:
+            with _jobs_lock:
+                if job_id in _manual_jobs:
+                    _manual_jobs[job_id]["state"] = "session_dead"
+                    _manual_jobs[job_id]["error"] = str(_pre_err)
+            return
+        except Exception as _pre_exc:
+            log.warning("queue_manual_upload pre-flight error: %s", _pre_exc)
+            # Don't block upload on unexpected pre-flight errors — let upload_to_jazzdrive handle it
+
+        with _jobs_lock:
+            if job_id in _manual_jobs:
                 _manual_jobs[job_id]["state"] = "uploading"
         try:
             result = upload_to_jazzdrive(
