@@ -743,6 +743,117 @@ def schema_health():
 
 
 
+
+
+# ---------------------------------------------------------------------------
+# Keepalive Health API — rich per-account status + event log
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/keepalive-health", methods=["GET"])
+@auth.login_required
+def keepalive_health():
+    """Rich keepalive status for all accounts with health classification and event log."""
+    import time as _t
+    try:
+        from .. import keepalive as _ka
+        status = _ka.get_status()
+        events = _ka.get_events(30)
+    except Exception as _ke:
+        status = {}
+        events = []
+        log.warning("keepalive_health: could not import keepalive: %s", _ke)
+
+    now      = int(_t.time())
+    accounts = db.list_accounts(hide_secrets=False)
+    result   = []
+
+    for acct in accounts:
+        aid       = acct["id"]
+        ka_st     = (status.get("accounts") or {}).get(str(aid), {})
+        exp       = acct.get("token_expires_at") or 0
+        last_ok   = ka_st.get("last_ok_at")
+        fails     = ka_st.get("consecutive_failures", 0)
+        err_class = ka_st.get("last_error_class") or ""
+        conflict  = ka_st.get("last_conflict_at")
+        has_token = bool((acct.get("validation_key") or "").strip())
+
+        # ── Health classification ─────────────────────────────────────────────
+        if not has_token:
+            health = "not_linked"
+        elif err_class == "device_conflict" or (conflict and (now - conflict) < 7200):
+            health = "device_conflict"
+        elif fails >= 3:
+            health = "dead"
+        elif fails >= 1 and err_class == "session_expired":
+            health = "needs_otp"
+        elif fails >= 1:
+            health = "degraded"
+        elif exp and exp < now:
+            health = "expired"
+        elif exp and (exp - now) < 21600:   # < 6h
+            health = "expiring_soon"
+        elif exp and (exp - now) < 86400:   # < 24h
+            health = "expiring_today"
+        elif last_ok:
+            health = "healthy"
+        else:
+            health = "unknown"
+
+        secs_left = max(0, exp - now) if exp else None
+
+        result.append({
+            "id":                   aid,
+            "msisdn":               acct["msisdn"],
+            "label":                acct.get("label") or "",
+            "role":                 acct.get("role", "scan"),
+            "is_active":            bool(acct.get("is_active")),
+            "health":               health,
+            "token_expires_at":     exp or None,
+            "secs_until_expiry":    secs_left,
+            "last_ok_at":           last_ok,
+            "last_fail_at":         ka_st.get("last_fail_at"),
+            "last_error":           ka_st.get("last_error"),
+            "last_error_class":     err_class,
+            "last_conflict_at":     conflict,
+            "last_refresh_at":      ka_st.get("last_refresh_at"),
+            "consecutive_failures": fails,
+            "device_id":            db.setting("JAZZDRIVE_DEVICE_ID") or "",
+            "device_name":          db.setting("JAZZDRIVE_DEVICE_NAME") or "",
+        })
+
+    # Sort: flix first, then by health severity
+    _health_order = {
+        "device_conflict": 0, "dead": 1, "needs_otp": 2, "degraded": 3,
+        "expired": 4, "expiring_soon": 5, "expiring_today": 6,
+        "healthy": 7, "unknown": 8, "not_linked": 9,
+    }
+    result.sort(key=lambda a: (
+        0 if a["role"] == "flix" else 1,
+        _health_order.get(a["health"], 99)
+    ))
+
+    return jsonify({
+        "ok":               True,
+        "accounts":         result,
+        "events":           events,
+        "worker_started_at": status.get("worker_started_at"),
+        "now":              now,
+        "keepalive_on":     db.setting("KEEPALIVE_ENABLED", "1") == "1",
+        "jd_enabled":       db.setting("JAZZDRIVE_ENABLED", "1") == "1",
+    })
+
+
+@bp.route("/api/keepalive-health/trigger/<int:aid>", methods=["POST"])
+@auth.login_required
+def keepalive_trigger(aid):
+    """Trigger an immediate heartbeat for the given account (runs in background thread)."""
+    try:
+        from .. import keepalive as _ka
+        _ka.trigger_heartbeat(aid)
+        return jsonify({"ok": True, "message": f"Heartbeat triggered for account {aid}"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 # ─────────────────────────────────────────────────────────────────────────────
 # JazzDrive Session — status + force-refresh
 # ─────────────────────────────────────────────────────────────────────────────

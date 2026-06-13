@@ -23,6 +23,7 @@ Human-like behavior rules:
   - 2–8 second random "app startup" delay before each heartbeat upload.
 """
 from __future__ import annotations
+import json
 import random
 import time
 import logging
@@ -116,10 +117,75 @@ def _delete_remote_file(sess, vk: str, jsid: str, file_id: int) -> bool:
         log.debug("delete POST failed: %s", exc)
     return False
 
-# ── In-memory status registry ─────────────────────────────────────────────────
+# ── In-memory status + event log ──────────────────────────────────────────────
 _STATUS: dict[int, dict] = {}
 _STATUS_LOCK = threading.Lock()
 _started_at: Optional[float] = None
+
+# Load any persisted events from last run on import
+_EVENTS: list[dict] = []
+try:
+    _persisted = db.setting("KEEPALIVE_EVENT_LOG")
+    if _persisted:
+        _EVENTS = json.loads(_persisted)[-_MAX_EVENTS:]
+except Exception:
+    pass
+_EVENTS_LOCK = threading.Lock()
+_MAX_EVENTS = 100
+
+
+def _log_event(event_type: str, msisdn: str, detail: str = "") -> None:
+    """Append a timestamped event to the in-memory + DB-persisted event log."""
+    entry = {"ts": int(time.time()), "type": event_type,
+             "msisdn": msisdn, "detail": str(detail)[:200]}
+    with _EVENTS_LOCK:
+        _EVENTS.append(entry)
+        if len(_EVENTS) > _MAX_EVENTS:
+            del _EVENTS[:-_MAX_EVENTS]
+    # Persist last 50 events to DB so log survives Flask restarts
+    try:
+        with _EVENTS_LOCK:
+            snapshot = list(_EVENTS[-50:])
+        db.set_setting("KEEPALIVE_EVENT_LOG", json.dumps(snapshot))
+    except Exception:
+        pass
+
+
+def get_events(n: int = 20) -> list[dict]:
+    """Return the last N keepalive events."""
+    with _EVENTS_LOCK:
+        return list(_EVENTS[-n:])
+
+
+def _classify_error(error_str: str) -> str:
+    """Classify a keepalive error for smarter handling and display.
+
+    Returns one of:
+      'device_conflict'  — another Android device kicked our session
+      'session_expired'  — token expired, OTP re-login required
+      'network_error'    — transient connectivity/proxy failure
+      'unknown'          — unclassified
+    """
+    e = str(error_str).lower()
+    # Device conflict — token was revoked by a new login on another device
+    if any(x in e for x in [
+        "invalid_grant", "another device", "device_conflict",
+        "session invalidated", "forced logout", "kicked", "revoked",
+    ]):
+        return "device_conflict"
+    # Session fully expired — needs OTP
+    if any(x in e for x in [
+        "otp", "re-login", "expired", "401", "unauthorized",
+        "invalid_client", "session dead",
+    ]):
+        return "session_expired"
+    # Transient network / proxy failures — do NOT alert admins
+    if any(x in e for x in [
+        "timeout", "connection", "refused", "network", "dns",
+        "proxy", "socks", "unreachable", "connecttimeout",
+    ]):
+        return "network_error"
+    return "unknown"
 
 
 def _set_status(account_id: int, **kw) -> None:
@@ -129,6 +195,8 @@ def _set_status(account_id: int, **kw) -> None:
                 "last_ok_at":           None,
                 "last_fail_at":         None,
                 "last_error":           None,
+                "last_error_class":     None,
+                "last_conflict_at":     None,
                 "consecutive_failures": 0,
                 "token_expires_at":     None,
                 "token_status":         "unknown",
@@ -139,13 +207,17 @@ def _set_status(account_id: int, **kw) -> None:
 
 
 def get_status() -> dict:
-    """Return a snapshot of all account keepalive statuses."""
+    """Return a snapshot of all account keepalive statuses + recent events."""
     with _STATUS_LOCK:
-        return {
-            "accounts":          {str(aid): dict(v) for aid, v in _STATUS.items()},
-            "worker_started_at": _started_at,
-            "now":               int(time.time()),
-        }
+        accounts = {str(aid): dict(v) for aid, v in _STATUS.items()}
+    with _EVENTS_LOCK:
+        events = list(_EVENTS[-20:])
+    return {
+        "accounts":          accounts,
+        "events":            events,
+        "worker_started_at": _started_at,
+        "now":               int(time.time()),
+    }
 
 
 # ── Token refresh helper ───────────────────────────────────────────────────────
@@ -189,6 +261,7 @@ def _try_refresh(acct: dict) -> bool:
             msg = result.get("message", "")
             log.info("✓ Session refreshed for %s — %s", msisdn, msg)
             _set_status(aid, last_refresh_at=int(time.time()), token_status="ok")
+            _log_event("token_refreshed", msisdn, msg[:120])
             return True
         log.warning("Session refresh failed for %s: %s", msisdn, result.get("error"))
         return False
@@ -438,21 +511,97 @@ def _run_heartbeat(acct: dict) -> None:
                 "UPDATE accounts SET last_keepalive_at=?, token_expires_at=? WHERE id=?",
                 (now, now + expires_offset, aid)
             )
-        _set_status(aid, last_ok_at=now, last_error=None, consecutive_failures=0,
-                    token_status="ok")
+        _set_status(aid, last_ok_at=now, last_error=None, last_error_class=None,
+                    consecutive_failures=0, token_status="ok")
+        _log_event("heartbeat_ok", msisdn,
+                   f"Session alive — expiry +{'30d' if has_rt else '55m'}")
         log.info("✓ Heartbeat OK for %s (session alive, expiry rolled +%s)",
                  msisdn, "30d" if has_rt else "55m")
 
     except Exception as e:
-        prev  = _STATUS.get(aid, {}).get("consecutive_failures", 0)
-        fails = prev + 1
-        _set_status(aid, last_fail_at=now, last_error=str(e)[:200],
-                    consecutive_failures=fails)
-        log.warning("✗ Heartbeat FAILED for %s (#%d): %s", msisdn, fails, e)
-        db.append_scan_log(aid, "keepalive_fail", str(e))
+        prev      = _STATUS.get(aid, {}).get("consecutive_failures", 0)
+        fails     = prev + 1
+        err_str   = str(e)[:400]
+        err_class = _classify_error(err_str)
 
-        if fails >= 2:
-            _notify_admins(f"⚠️ JazzDrive heartbeat failed {fails}× for {msisdn}: {e}")
+        status_update = dict(
+            last_fail_at=now,
+            last_error=err_str,
+            last_error_class=err_class,
+            consecutive_failures=fails,
+        )
+
+        # ── Device conflict — another Android device kicked our session ───────
+        if err_class == "device_conflict":
+            status_update["last_conflict_at"] = now
+            log.warning(
+                "⚡ DEVICE CONFLICT detected for %s (#%d) — another device "
+                "invalidated our JazzDrive session: %s", msisdn, fails, err_str
+            )
+            _log_event("device_conflict", msisdn,
+                       f"Session kicked by another device: {err_str[:120]}")
+            db.append_scan_log(aid, "device_conflict", err_str)
+            # Auto-pause keepalive after 2 consecutive conflicts
+            if fails >= 2:
+                log.warning(
+                    "Auto-pausing keepalive after %d device conflicts for %s",
+                    fails, msisdn
+                )
+                try:
+                    db.set_setting("KEEPALIVE_ENABLED", "0")
+                    _log_event("auto_paused", msisdn,
+                               f"Keepalive auto-paused after {fails} device conflicts")
+                except Exception:
+                    pass
+                _notify_admins(
+                    f"⚡ JazzDrive device conflict detected for {msisdn}!
+"
+                    f"Another Android device is using this account simultaneously.
+"
+                    f"Keepalive has been AUTO-PAUSED after {fails} conflicts.
+"
+                    f"Turn it back ON once the other device is logged out."
+                )
+            else:
+                _notify_admins(
+                    f"⚡ JazzDrive device conflict for {msisdn} — "
+                    f"another device may have taken this session. "
+                    f"(conflict #{fails})"
+                )
+
+        # ── Session expired ────────────────────────────────────────────────────
+        elif err_class == "session_expired":
+            log.warning("✗ Session EXPIRED for %s (#%d): %s", msisdn, fails, err_str)
+            _log_event("session_expired", msisdn, err_str[:120])
+            db.append_scan_log(aid, "keepalive_fail", err_str)
+            if fails >= 2:
+                _notify_admins(
+                    f"⚠️ JazzDrive session EXPIRED for {msisdn} after {fails} failures. "
+                    f"OTP re-login required via Scan page."
+                )
+
+        # ── Transient network error ────────────────────────────────────────────
+        elif err_class == "network_error":
+            log.warning("✗ Network error for %s (#%d): %s", msisdn, fails, err_str)
+            _log_event("network_error", msisdn, err_str[:120])
+            # Don't alert admins for single network blips — only on sustained failures
+            if fails >= 3:
+                db.append_scan_log(aid, "keepalive_fail", err_str)
+                _notify_admins(
+                    f"⚠️ JazzDrive keepalive network errors ×{fails} for {msisdn}: {err_str[:100]}"
+                )
+
+        # ── Unknown error ──────────────────────────────────────────────────────
+        else:
+            log.warning("✗ Heartbeat FAILED for %s (#%d): %s", msisdn, fails, err_str)
+            _log_event("heartbeat_fail", msisdn, err_str[:120])
+            db.append_scan_log(aid, "keepalive_fail", err_str)
+            if fails >= 2:
+                _notify_admins(
+                    f"⚠️ JazzDrive heartbeat failed {fails}× for {msisdn}: {err_str[:100]}"
+                )
+
+        _set_status(aid, **status_update)
 
 
 # ── Bot notification helper ───────────────────────────────────────────────────
