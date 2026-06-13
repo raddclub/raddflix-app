@@ -313,18 +313,24 @@ def verify_otp(account_id: int, otp: str) -> dict:
     if tokens.get("_sapi_blocked"):
         rt  = tokens.get("refresh_token") or ""
         rat = tokens.get("raw_accesstoken") or ""
+        jid_partial = tokens.get("jsessionid") or ""  # FIX-JD-LOGIN-1: now populated
+        node_partial = tokens.get("node") or ""
         log.info(
-            "verify_otp: SAPI geo-blocked for account %s — saving refresh_token=%s "
-            "raw_at=%s, prompting paste-cookies",
-            account_id, bool(rt), bool(rat),
+            "verify_otp: SAPI geo-blocked for account %s — saving partial tokens "
+            "vk=False jid=%s rt=%s rat=%s",
+            account_id, bool(jid_partial), bool(rt), bool(rat),
         )
-        # Persist what we have
+        # FIX-JD-LOGIN-2: Persist partial tokens including JSESSIONID (fixed by FIX-1).
+        # Then immediately try android_refresh_session which uses the OAuth2 refresh
+        # path + platform=web keytype=accesstoken to get VK — this works from Oracle
+        # unlike platform=Android which is geo-restricted.
+        _exp = int(time.time() + (86400 * 30 if rt else 3300))
         db.update_account_session(
             account_id,
             validation_key="",
-            jsessionid="",
-            node="",
-            expires_at=int(time.time() + (86400 * 30 if rt else 3300)),
+            jsessionid=jid_partial,
+            node=node_partial,
+            expires_at=_exp,
             refresh_token=rt,
         )
         if rat:
@@ -336,13 +342,41 @@ def verify_otp(account_id: int, otp: str) -> dict:
                     )
             except Exception as _dbe:
                 log.debug("verify_otp: raw_accesstoken DB write (partial): %s", _dbe)
+
+        # Try android_refresh_session to get VK via OAuth2 refresh path.
+        # This is the same path used by keepalive and it CAN get VK from Oracle
+        # via the platform=web keytype=accesstoken endpoint (not geo-restricted).
+        _refresh_vk = ""
+        try:
+            from . import jazzdrive as _jd_mod
+            log.info("verify_otp: SAPI blocked — trying android_refresh_session "
+                     "for account %s to obtain VK via OAuth2 refresh path", account_id)
+            _ar = _jd_mod.android_refresh_session(account_id=account_id)
+            if _ar.get("ok"):
+                _refresh_vk = _ar.get("validation_key") or _ar.get("vk") or ""
+                log.info("verify_otp: android_refresh_session OK — vk=%s jid=%s",
+                         bool(_refresh_vk), bool(_ar.get("jsessionid")))
+            else:
+                log.info("verify_otp: android_refresh_session returned not-ok: %s",
+                         _ar.get("error", "?")[:100])
+        except Exception as _ar_e:
+            log.warning("verify_otp: android_refresh_session attempt failed: %s", _ar_e)
+
         db.append_scan_log(
             account_id, "otp",
-            f"OTP accepted by JazzDrive (refresh_token saved), but SAPI session "
-            f"init blocked from this server IP. Paste browser cookies to activate."
+            f"OTP accepted (jid={'yes' if jid_partial else 'no'} rt={'yes' if rt else 'no'} "
+            f"vk_via_refresh={'yes' if _refresh_vk else 'no'}). "
+            + ("Session fully activated via OAuth2 refresh." if _refresh_vk
+               else "VK missing — SAPI calls will fail until cookies are pasted.")
         )
         with _otp_lock:
             _otp_sessions.pop(account_id, None)
+
+        if _refresh_vk:
+            # Full success via refresh path — no user action needed
+            log.info("verify_otp: SAPI-blocked path recovered VK via refresh for account %s", account_id)
+            return {"ok": True, "account_id": account_id}
+
         msisdn_hint = sess.get("msisdn", "")
         return {
             "ok": False,
@@ -350,9 +384,9 @@ def verify_otp(account_id: int, otp: str) -> dict:
             "msisdn": msisdn_hint,
             "account_id": account_id,
             "error": (
-                "OTP accepted — JazzDrive confirmed your login. "
-                "However, the server cannot initialize the session from this IP. "
-                "Open the activation link on your Jazz phone and paste the JSON below."
+                "OTP accepted — JazzDrive confirmed your login and JSESSIONID was saved. "
+                "However, the validation_key could not be obtained from this server IP. "
+                "Open the activation link on your Jazz phone and paste the session JSON below."
             ),
         }
 
@@ -363,53 +397,40 @@ def verify_otp(account_id: int, otp: str) -> dict:
     log.info("verify_otp: Android OAuth2 succeeded for account %s "
              "(has_vk=%s has_rt=%s)", account_id, bool(vk), bool(rt))
 
-    # ── If OAuth2 gave no VK, try SAPI direct-OTP path for VK ────────────────
-    # mobile_direct_verify_otp hits /sapi/login/oauth?keytype=otp directly
-    # (does NOT go through verify.php), so the same OTP works for both paths.
-    # This is the reliable way to get validationkey from non-PK servers because
-    # the SAPI keytype=otp endpoint is geo-unrestricted unlike keytype=accesstoken.
-    _otp_for_md = otp  # captured before _otp_sessions is popped below
-    if not vk and _otp_for_md:
-        log.info("verify_otp: OAuth2 gave no VK — trying mobile_direct_verify_otp "
-                 "with same OTP for VK (keytype=otp, geo-unrestricted)...")
-        _md_msisdn = sess.get("msisdn", "")
-        for _vproxy in _chain[:3]:
-            try:
-                _md_tokens = _scanner.mobile_direct_verify_otp(
-                    _md_msisdn,
-                    _otp_for_md,
-                    proxies=_vproxy,
-                )
-                _md_vk  = _md_tokens.get("validation_key") or _md_tokens.get("validationkey") or ""
-                _md_jid = _md_tokens.get("jsessionid") or ""
-                _md_rt  = _md_tokens.get("refresh_token") or _md_tokens.get("refreshtoken") or ""
-                if _md_vk:
-                    log.info(
-                        "verify_otp: mobile_direct gave VK (len=%d) — merging with OAuth2 tokens. "
-                        "jid=%s rt=%s",
-                        len(_md_vk), bool(_md_jid), bool(_md_rt),
-                    )
-                    vk = _md_vk
-                    if _md_jid:
-                        jid = _md_jid  # SAPI JSESSIONID is more reliable for SAPI calls
-                    if _md_rt and not rt:
-                        rt = _md_rt
+    # ── FIX-JD-LOGIN-2b: If OAuth2 gave no VK, call android_refresh_session ─────
+    # mobile_direct_verify_otp (keytype=otp) was the old fallback here, but
+    # keytype=otp is the Jazz MobileConnect endpoint (network-injected SIM OTP),
+    # NOT the SMS OTP the user entered. It will never work for SMS-OTP logins.
+    #
+    # android_refresh_session uses the OAuth2 refresh_token path + platform=web
+    # keytype=accesstoken which IS accessible from Oracle wg0 (not geo-restricted
+    # in the same way as platform=Android). This is also what keepalive uses.
+    if not vk:
+        try:
+            from . import jazzdrive as _jd_mod
+            log.info("verify_otp: OAuth2 gave no VK — trying android_refresh_session "
+                     "for account %s (OAuth2 refresh path, platform=web)", account_id)
+            _ar2 = _jd_mod.android_refresh_session(account_id=account_id)
+            if _ar2.get("ok"):
+                _ar2_vk  = _ar2.get("validation_key") or _ar2.get("vk") or ""
+                _ar2_jid = _ar2.get("jsessionid") or ""
+                log.info("verify_otp: android_refresh_session OK — vk=%s jid=%s",
+                         bool(_ar2_vk), bool(_ar2_jid))
+                if _ar2_vk:
+                    vk = _ar2_vk
                     tokens["validation_key"] = vk
-                    tokens["jsessionid"]     = jid
-                    break
-                else:
-                    log.debug("verify_otp: mobile_direct 200 but no VK in response")
-            except Exception as _md_e:
-                log.debug(
-                    "verify_otp: mobile_direct VK attempt failed (proxy=%s): %s",
-                    (_vproxy or {}).get("_url", "direct")[:40] if _vproxy else "direct",
-                    _md_e,
-                )
+                if _ar2_jid:
+                    jid = _ar2_jid
+                    tokens["jsessionid"] = jid
+            else:
+                log.info("verify_otp: android_refresh_session not-ok: %s",
+                         _ar2.get("error", "?")[:100])
+        except Exception as _ar2_e:
+            log.warning("verify_otp: android_refresh_session (post-OAuth2) failed: %s", _ar2_e)
         if not vk:
             log.warning(
-                "verify_otp: mobile_direct also failed to get VK — account %s will have "
-                "JSESSIONID=%s but NO VK. SAPI calls will fail. User must re-login or "
-                "paste cookies manually.",
+                "verify_otp: android_refresh_session also gave no VK — account %s "
+                "has JSESSIONID=%s but NO VK. SAPI calls will fail until cookies pasted.",
                 account_id, bool(jid),
             )
 

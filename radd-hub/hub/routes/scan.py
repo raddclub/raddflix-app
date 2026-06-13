@@ -92,6 +92,14 @@ def logout_acct(aid):
     return jsonify(jd.jd_logout_account(aid))
 
 
+@bp.route("/api/accounts/<int:aid>/clear-cookies", methods=["POST"])
+@auth.login_required
+def clear_cookies(aid):
+    """Wipe only JSESSIONID + validationkey; keep refresh_token so silent re-auth works."""
+    from .. import jazzdrive as jd
+    return jsonify(jd.jd_clear_cookies(aid))
+
+
 @bp.route("/api/accounts/<int:aid>/scan", methods=["POST"])
 @auth.login_required
 def scan(aid):
@@ -305,18 +313,33 @@ def sapi_activate_url(aid):
             }), 400
 
         at_json = _json.dumps({"data": {"accesstoken": raw_at}})
-        at_b64e = _up.quote(_b64.b64encode(at_json.encode()).decode(), safe="")
+        at_b64   = _b64.b64encode(at_json.encode()).decode()
+        at_b64e  = _up.quote(at_b64, safe="")
 
-        sapi_url = (
+        # FIX-JD-LOGIN-5: provide BOTH platform variants.
+        # platform=web  — used by android_refresh_session (refresh_jsessionid),
+        #                  documented as "verified working" from non-PK IPs.
+        # platform=Android — original variant, may work from Jazz phone (PK IP)
+        #                    but was geo-restricted + broken for Infinix UA from Oracle.
+        sapi_url_web = (
+            f"{CLOUD_BASE}/sapi/login/oauth"
+            f"?action=login&platform=web&keytype=accesstoken&key={at_b64e}"
+        )
+        sapi_url_android = (
             f"{CLOUD_BASE}/sapi/login/oauth"
             f"?action=login&platform=Android&keytype=accesstoken&key={at_b64e}"
         )
 
         return jsonify({
             "ok": True,
-            "sapi_url": sapi_url,
+            "sapi_url": sapi_url_web,
+            "sapi_url_android": sapi_url_android,
             "msisdn": row.get("msisdn", ""),
             "account_id": aid,
+            "note": (
+                "Open sapi_url on your Jazz phone. It returns JSON — "
+                "copy validationkey and jsessionid from the response."
+            ),
         })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500

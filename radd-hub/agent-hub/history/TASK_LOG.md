@@ -541,3 +541,112 @@ healthz: {"ok":true,"version":"3.0.0"} ✅
 - DB: JazzDrive account 03257719165 recovered; keys/users/plans still empty
 - Proxy system: fully removed from all 4 files
 - Git: main at 1473481
+
+---
+
+## Session 2026-06-13 — Device name fix + JD logout
+
+### Problem 1: Garbled device name  on JazzDrive
+**Root cause**:  in  was using
+ (different every login) and sending NO
+ header. JazzDrive auto-generated a garbled UTF-8 name.
+
+**Fix (commit 93481609)**:
+- : removed random UUID; now reads  and
+   from DB; adds  header; updated
+  User-Agent to 
+- DB: , 
+- :  now checks  first
+
+### Problem 2: Single-active-Android-session conflict
+**Root cause**: Every OTP login registered a NEW random device ID → JazzDrive
+saw multiple Android devices and kicked one out when the other logged in.
+
+**Fix**: Using the user's real phone device ID () makes the
+server appear as the same device as the Infinix Hot 9 Play. JazzDrive sees
+one Android device — no conflict between server and real phone.
+
+### Feature: Per-account Logout button
+**Added**:
+- :  — wipes all tokens from DB,
+  attempts server-side POST /sapi/logout (fire-and-forget), clears OTP state file
+- : 
+- : 
+- : Logout JD button on every account card
+- : Logout JD button in accounts table (shown only when linked)
+
+### Verification
+- Flask restarts clean, healthz OK
+- All new routes registered (302 redirect = auth required, as expected)
+- Device ID/name confirmed in DB and in get_auth_headers() output
+- GitHub commit: 93481609
+
+---
+
+## Session 2026-06-13 — JazzDrive Login Root-Cause Fix (5 bugs)
+
+### Problem
+After the device-name fix (Samsung to Infinix) and logout feature addition, JazzDrive
+login stopped working. After OTP: system showed "paste validationkey/jsessionid box"
+and the activation URL was dead. Root cause was 5 compounding bugs found by tracing
+every line of the OTP verify flow.
+
+### Root Causes Found
+
+**Bug 1 — JSESSIONID discarded in _sapi_blocked path**
+`jazzdrive_verify_otp` in `_legacy/scanner.py`: when SAPI login fails (geo-restricted
+from non-PK Oracle IP), the return dict hardcoded `jsessionid: ""`. But a valid
+JSESSIONID WAS captured from `clientoauth.html` redirect cookies (`_jid_from_chain`).
+That value was silently thrown away, leaving the DB with no JID at all.
+
+**Bug 2 — `mobile_direct_verify_otp` used wrong OTP type**
+The fallback for VK called `/sapi/login/oauth?keytype=otp` with the SMS OTP code.
+But `keytype=otp` is the Jazz MobileConnect endpoint (network-injected SIM OTP),
+NOT the SMS OTP the user typed. It will never return VK for SMS-OTP logins.
+
+**Bug 3 — Logout did not clear jazzdrive_session.json**
+JazzDrive bug: after logout, any request with the old dead JSESSIONID cookie puts
+the server in a broken state refusing re-login. `jd_logout_account` wiped DB tokens
+but left `jazzdrive_session.json` with stale pickled cookies. This is the browser
+"clear cookies" equivalent that was missing.
+
+**Bug 4 — trigger_otp_flow did not clear session before fresh login**
+Same as Bug 3: starting a new OTP flow without clearing the session file meant
+the next login could send stale JSESSIONID cookies.
+
+**Bug 5 — SAPI activate URL used wrong platform**
+`sapi-activate-url` generated `platform=Android&keytype=accesstoken`. After Infinix
+UA change, JazzDrive stopped returning VK for this. `platform=web` is what
+`refresh_jsessionid` uses ("verified working" comment in code).
+
+### Fixes Applied
+
+| Fix | File | Change |
+|-----|------|--------|
+| FIX-JD-LOGIN-1 | hub/_legacy/scanner.py | _sapi_blocked return: jsessionid=_jid_from_chain instead of hardcoded "" |
+| FIX-JD-LOGIN-2a | hub/scanner.py | _sapi_blocked path: save partial tokens then call android_refresh_session for VK |
+| FIX-JD-LOGIN-2b | hub/scanner.py | Replaced mobile_direct_verify_otp fallback with android_refresh_session |
+| FIX-JD-LOGIN-3 | hub/jazzdrive.py | jd_logout_account step 5: delete jazzdrive_session.json completely |
+| FIX-JD-LOGIN-4 | hub/jazzdrive.py | trigger_otp_flow: pre-clear jazzdrive_session.json before starting new login |
+| FIX-JD-LOGIN-5 | hub/routes/scan.py | sapi-activate-url: platform=web as primary URL, Android as secondary |
+
+### Login Flow After Fix
+1. trigger_otp_flow clears session file → fresh login → OTP sent
+2. User enters OTP → submit_otp → jazzdrive_verify_otp → token.php gives RT + RAT
+3. SAPI silent login blocked (geo-restricted from Oracle) → _sapi_blocked=True
+4. FIX-1: _jid_from_chain (clientoauth.html cookies) now returned in partial tokens
+5. FIX-2a: saves JID+RT+RAT, then calls android_refresh_session to get VK
+6. android_refresh_session → OAuth2 refresh → refresh_jsessionid(platform=web) → VK
+7. Session fully activated — no user paste needed
+8. If step 6 fails: paste-cookies box shown + working platform=web URL
+
+### Verification
+All 4 modified files syntax-checked (python3 -m py_compile): PASS
+Flask restarted via supervisorctl: OK
+Health check response: auth required (= Flask is running and auth gate active)
+
+### State After Session
+- Login flow: VK now obtained via android_refresh_session after OTP
+- Logout: properly clears session file (browser cookies equivalent)
+- OTP trigger: always starts with clean session state
+- SAPI activate URL: platform=web as primary (working), Android as secondary

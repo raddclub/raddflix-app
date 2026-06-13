@@ -1229,6 +1229,95 @@ def get_status() -> dict:
 
 
 
+def jd_clear_cookies(account_id: int) -> dict:
+    """Clear only the JazzDrive session cookies (JSESSIONID + validationkey) for an account.
+
+    Unlike jd_logout_account(), this keeps:
+      - refresh_token  (so the app can silently obtain a new session via OTP-free refresh)
+      - raw_accesstoken
+      - token_expires_at
+      - is_active = 1
+
+    Use this when you want to flush a stale/dead browser session without losing the
+    long-lived refresh_token.  After clearing, the keepalive will attempt a silent
+    refresh on its next cycle.  If the refresh_token is also dead the user will be
+    prompted to re-login with OTP.
+    """
+    log.info("[JD:CLEAR-COOKIES] account_id=%s", account_id)
+
+    # 1. Read current account
+    try:
+        with db.conn() as _c:
+            row = _c.execute("SELECT * FROM accounts WHERE id=?", (account_id,)).fetchone()
+            row = dict(row) if row else None
+    except Exception as _e:
+        return {"ok": False, "error": f"DB read error: {_e}"}
+
+    if not row:
+        return {"ok": False, "error": f"Account {account_id} not found"}
+
+    msisdn = row.get("msisdn", "")
+    had_vk  = bool((row.get("validation_key") or "").strip())
+    had_jid = bool((row.get("jsessionid") or "").strip())
+    has_rt  = bool((row.get("refresh_token") or "").strip())
+
+    # 2. Wipe only session cookies — keep refresh_token, raw_accesstoken, is_active
+    try:
+        with db.conn() as _c:
+            _c.execute(
+                "UPDATE accounts SET validation_key=NULL, jsessionid=NULL, node=NULL "
+                "WHERE id=?",
+                (account_id,)
+            )
+        log.info(
+            "[JD:CLEAR-COOKIES] session cookies wiped for account %s (%s) "
+            "— had_vk=%s had_jid=%s has_rt=%s",
+            account_id, msisdn, had_vk, had_jid, has_rt,
+        )
+    except Exception as _de:
+        return {"ok": False, "error": f"DB error: {_de}"}
+
+    # 3. Also wipe validationkey + jsessionid from jazzdrive_session.json,
+    #    but preserve refresh_token and raw_accesstoken so silent refresh works.
+    try:
+        if SESSION_FILE.exists():
+            import json as _sj
+            sess_data = _sj.loads(SESSION_FILE.read_text())
+            if str(sess_data.get("msisdn") or "").replace("+92", "0") == str(msisdn).replace("+92", "0"):
+                sess_data["validationkey"] = ""
+                sess_data["jsessionid"]    = ""
+                sess_data["node"]          = ""
+                SESSION_FILE.write_text(_sj.dumps(sess_data, indent=2))
+                log.info("[JD:CLEAR-COOKIES] jazzdrive_session.json cookies cleared")
+    except Exception as _sf:
+        log.debug("[JD:CLEAR-COOKIES] session file update skipped: %s", _sf)
+
+    # 4. Clear in-memory SAPI backoff so the next keepalive/refresh attempt is immediate
+    try:
+        clear_sapi_backoff(account_id)
+    except Exception:
+        pass
+
+    # 5. Clear upload refresh backoff
+    try:
+        from . import uploader as _up
+        _up.clear_refresh_backoff(account_id)
+    except Exception:
+        pass
+
+    return {
+        "ok":        True,
+        "msisdn":    msisdn,
+        "has_refresh_token": has_rt,
+        "message": (
+            f"Session cookies cleared for {msisdn}. "
+            + ("Keepalive will attempt a silent refresh using the stored refresh_token."
+               if has_rt else
+               "No refresh_token stored — you will need to re-login with OTP.")
+        ),
+    }
+
+
 def jd_logout_account(account_id: int) -> dict:
     """Clear all JazzDrive session tokens for an account and mark it inactive.
 
@@ -1296,6 +1385,18 @@ def jd_logout_account(account_id: int) -> dict:
     except Exception:
         pass
 
+    # 5. FIX-JD-LOGIN-3: Clear jazzdrive_session.json — equivalent to clearing
+    #    browser cookies. JazzDrive has a server-side bug: after logout, if any
+    #    request is made with the old (now-dead) JSESSIONID cookie, it enters a
+    #    broken state that refuses re-login. Deleting the file removes all stale
+    #    pickled cookies so the next OTP login starts completely clean.
+    try:
+        if SESSION_FILE.exists():
+            SESSION_FILE.unlink(missing_ok=True)
+            log.info("[JD:LOGOUT] jazzdrive_session.json deleted (stale cookies cleared) for %s", msisdn)
+    except Exception as _sf_e:
+        log.debug("[JD:LOGOUT] session file delete skipped: %s", _sf_e)
+
     return {"ok": True, "msisdn": msisdn,
             "message": f"Logged out — session cleared for {msisdn}"}
 
@@ -1313,6 +1414,17 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     if not msisdn:
         msisdn = db.setting("JAZZDRIVE_MSISDN") or ""
         log.info("[JD:OTP] MSISDN from DB: %s", msisdn or "(none)")
+
+    # FIX-JD-LOGIN-4: clear jazzdrive_session.json before triggering a new OTP.
+    # This is the equivalent of clearing browser cookies. JazzDrive refuses
+    # re-login when it receives the old (logged-out) JSESSIONID cookie from a
+    # previous session. A clean session file guarantees a fresh login flow.
+    try:
+        if SESSION_FILE.exists():
+            SESSION_FILE.unlink(missing_ok=True)
+            log.info("[JD:OTP] jazzdrive_session.json cleared before OTP trigger (clean slate)")
+    except Exception as _sf_e:
+        log.debug("[JD:OTP] session file pre-clear skipped: %s", _sf_e)
 
     # Normalize to 03xxxxxxxxx for the API (local format is more reliable for OTP)
     m = msisdn.strip().replace(" ", "").replace("-", "").replace("+", "")

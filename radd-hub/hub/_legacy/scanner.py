@@ -1265,8 +1265,12 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
         )
         return {
             "validation_key":  "",
-            "jsessionid":      "",
-            "node":            "",
+            # FIX-JD-LOGIN-1: preserve JSESSIONID captured from clientoauth.html.
+            # Previously hardcoded "" discarded a valid working JSESSIONID.
+            # Without it submit_otp saves no JID and android_refresh_session
+            # has nothing to work with for the keepalive/VK-refresh cycle.
+            "jsessionid":      _jid_from_chain,
+            "node":            (_jid_from_chain.split(".")[-1] if "." in _jid_from_chain else ""),
             "refresh_token":   raw_rt,
             "raw_accesstoken": raw_at,
             "access_token":    raw_at,
