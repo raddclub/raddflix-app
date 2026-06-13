@@ -12,27 +12,29 @@
 </style>
 
 {% if not scan_enabled %}
-<div style="display:flex;align-items:center;gap:12px;background:#1e0808;border:1px solid #5a1a1a;border-radius:10px;padding:12px 18px;margin-bottom:16px;flex-wrap:wrap">
-  <span style="font-size:20px;flex-shrink:0">⏸</span>
+<div style="display:flex;align-items:center;gap:10px;background:rgba(244,67,54,.1);border:1px solid rgba(244,67,54,.4);border-radius:8px;padding:10px 16px;margin-bottom:14px;flex-wrap:wrap">
+  <span style="font-size:18px">⏸</span>
   <div style="flex:1">
-    <strong style="color:var(--err)">Scan service is paused</strong>
+    <strong style="color:var(--err,#f44336)">Scan service is paused</strong>
     <span class="muted" style="font-size:13px;margin-left:8px">No heartbeat requests are being sent to JazzDrive. Scan buttons are disabled.</span>
   </div>
-  <a href="/admin/services" style="font-size:12px;font-weight:600;color:#fff;background:var(--err);padding:5px 12px;border-radius:6px;white-space:nowrap;text-decoration:none">Enable in Services →</a>
+  <a href="/settings" style="font-size:13px;color:var(--accent);text-decoration:none;white-space:nowrap">Enable in Settings →</a>
 </div>
 {% endif %}
 
 <div class="h-row" style="margin-bottom:12px">
   <div>
-    <h2>🔍 JD Indexer</h2>
+    <h2>JD Indexer</h2>
     <div class="muted" style="font-size:13px;margin-top:2px">Scan multiple JazzDrive accounts to index existing files and build the media database.</div>
   </div>
   <div style="display:flex; gap:8px">
-    <button class="ghost" id="btn-scan-all" onclick="scanAll()" {% if not scan_enabled %}disabled title="Scan is paused — enable in Services"{% endif %}>⚡ Scan All</button>
+    <button class="ghost" onclick="showProxyModal()">Proxy Settings</button>
+    <button class="ghost" id="btn-scan-all" onclick="scanAll()" {% if not scan_enabled %}disabled title="Scan is paused — enable in Settings"{% endif %}>⚡ Scan All</button>
     <button onclick="toggleAddForm()" id="btn-add-acct">+ Add account</button>
   </div>
 </div>
 
+{% include "_proxy_manager.html" %}
 
 {% if flix_msisdn %}
 <div style="background:rgba(124,92,255,.1);border:1px solid rgba(124,92,255,.35);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;display:flex;align-items:center;gap:8px">
@@ -166,6 +168,11 @@
                 onclick="quickRole({{ a.id }}, '{{ a.role }}')">
           {% if a.role == 'flix' %}↩ Use for Scan{% else %}⚡ Use for Flix{% endif %}
         </button>
+        <button style="font-size:12px;padding:4px 10px;border:1px solid rgba(251,146,60,.4);background:rgba(251,146,60,.08);color:#fb923c;border-radius:5px;cursor:pointer"
+                onclick="clearCookies({{ a.id }}, '{{ a.msisdn }}', this)"
+                title="Wipe JSESSIONID + validation_key only — keeps refresh_token so silent re-auth can work">🍪 Clear Cookies</button>
+        <button style="font-size:12px;padding:4px 10px;border:1px solid rgba(239,68,68,.35);background:transparent;color:#ef4444;border-radius:5px;cursor:pointer"
+                onclick="logoutAcct({{ a.id }}, '{{ a.msisdn }}', this)">Logout JD</button>
         <button class="danger" style="font-size:12px;padding:4px 10px"
                 onclick="delAcct({{ a.id }}, this)">Remove</button>
       </div>
@@ -824,12 +831,13 @@ function scanInlineAutoParseJson(id, val) {
     if (msgEl) { msgEl.textContent = '✗ Paste the full JSON response (starts with {)'; msgEl.style.color = 'var(--err,#f55)'; }
     return;
   }
-  let vk = '', jid = '', filled = 0;
+  let vk = '', jid = '', at = '', filled = 0;
   try {
     const d = JSON.parse(val);
     const data = (d && d.data) ? d.data : d;
     vk  = data.validationkey || data.validation_key || '';
     jid = data.jsessionid    || data.JSESSIONID     || '';
+    at  = data.access_token  || data.accesstoken    || data.raw_accesstoken || '';
     if (vk)  filled++;
     if (jid) filled++;
   } catch(e) {
@@ -837,6 +845,9 @@ function scanInlineAutoParseJson(id, val) {
     if (msgEl) { msgEl.textContent = '✗ Invalid JSON — ' + e.message; msgEl.style.color = 'var(--err,#f55)'; }
     return;
   }
+  // stash raw_accesstoken keyed by account id for saveInlineOtpSapi
+  if (!window._scanAt) window._scanAt = {};
+  window._scanAt[id] = at;
   if (saveBtn) saveBtn.disabled = filled < 2;
   if (msgEl) {
     if (filled === 2) {
@@ -869,8 +880,10 @@ async function saveInlineOtpSapi(id) {
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   if (saveMsg) saveMsg.textContent = '';
   try {
+    const _at = (window._scanAt && window._scanAt[id]) || '';
     const r = await api('/scan/api/accounts/' + id + '/tokens',
-                        {method:'POST', body:{validation_key:vk, jsessionid:jid}});
+                        {method:'POST', body:{validation_key:vk, jsessionid:jid,
+                          ...(_at ? {raw_accesstoken: _at} : {})}});
     if (r.ok) {
       if (saveMsg) saveMsg.innerHTML = '<span style="color:var(--ok,#22c55e)">✔ Session active! Reloading…</span>';
       toast('✔ Account activated');
@@ -1482,4 +1495,50 @@ document.addEventListener('DOMContentLoaded', () => {
   refreshKeepaliveStatus();
   setInterval(refreshKeepaliveStatus, 30000);
 });
+
+async function clearCookies(id, msisdn, btn) {
+  if (!confirm(
+    'Clear session cookies for ' + msisdn + '?\n\n' +
+    'This removes JSESSIONID and validation_key only.\n' +
+    'Your refresh_token is kept so the app can try a silent re-login automatically.\n\n' +
+    'Use this when the session is stale/dead but you do NOT want to fully log out.'
+  )) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Clearing…';
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/clear-cookies', {method:'POST'});
+    if (r.ok) {
+      const note = r.has_refresh_token
+        ? '\nRefresh token kept — keepalive will try silent re-auth automatically.'
+        : '\nNo refresh token — you will need to re-login with OTP.';
+      toast('🍪 Cookies cleared — ' + msisdn + note);
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      toast('Error: ' + (r.error || 'clear failed'));
+      btn.disabled = false; btn.textContent = orig;
+    }
+  } catch(e) {
+    toast('Error: ' + e.message);
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+async function logoutAcct(id, msisdn, btn) {
+  if (!confirm('Log out ' + msisdn + ' from JazzDrive?\n\nThis clears all session tokens. You will need to re-login with OTP to use this account again.')) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Logging out…';
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/logout', {method:'POST'});
+    if (r.ok) {
+      toast('✅ Logged out — ' + msisdn);
+      setTimeout(() => location.reload(), 800);
+    } else {
+      toast('Error: ' + (r.error || 'logout failed'));
+      btn.disabled = false; btn.textContent = orig;
+    }
+  } catch(e) {
+    toast('Error: ' + e.message);
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
 </script>{% endblock %}
