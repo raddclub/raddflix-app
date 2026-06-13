@@ -554,19 +554,15 @@ def _run_heartbeat(acct: dict) -> None:
                 except Exception:
                     pass
                 _notify_admins(
-                    f"⚡ JazzDrive device conflict detected for {msisdn}!
-"
-                    f"Another Android device is using this account simultaneously.
-"
-                    f"Keepalive has been AUTO-PAUSED after {fails} conflicts.
-"
-                    f"Turn it back ON once the other device is logged out."
+                    f"[CONFLICT] JazzDrive device conflict for {msisdn}!\n"
+                    f"Another Android device invalidated our session.\n"
+                    f"Keepalive AUTO-PAUSED after {fails} conflicts.\n"
+                    f"Re-enable once the other device logs out."
                 )
             else:
                 _notify_admins(
-                    f"⚡ JazzDrive device conflict for {msisdn} — "
-                    f"another device may have taken this session. "
-                    f"(conflict #{fails})"
+                    f"[CONFLICT] JazzDrive device conflict for {msisdn} "
+                    f"- another device took the session. (#{fails})"
                 )
 
         # ── Session expired ────────────────────────────────────────────────────
