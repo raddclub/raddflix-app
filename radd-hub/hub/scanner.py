@@ -354,7 +354,7 @@ def verify_otp(account_id: int, otp: str) -> dict:
             from . import jazzdrive as _jd_mod
             log.info("verify_otp: SAPI blocked — trying android_refresh_session "
                      "for account %s to obtain VK via OAuth2 refresh path", account_id)
-            _ar = _jd_mod.android_refresh_session(account_id=account_id)
+            _ar = _jd_mod.android_refresh_session(rt, account_id=account_id)
             if _ar.get("ok"):
                 _refresh_vk = _ar.get("validation_key") or _ar.get("vk") or ""
                 log.info("verify_otp: android_refresh_session OK — vk=%s jid=%s",
@@ -412,7 +412,7 @@ def verify_otp(account_id: int, otp: str) -> dict:
             from . import jazzdrive as _jd_mod
             log.info("verify_otp: OAuth2 gave no VK — trying android_refresh_session "
                      "for account %s (OAuth2 refresh path, platform=web)", account_id)
-            _ar2 = _jd_mod.android_refresh_session(account_id=account_id)
+            _ar2 = _jd_mod.android_refresh_session(rt, account_id=account_id)
             if _ar2.get("ok"):
                 _ar2_vk  = _ar2.get("validation_key") or _ar2.get("vk") or ""
                 _ar2_jid = _ar2.get("jsessionid") or ""

@@ -441,8 +441,9 @@ def upload_sapi_activate_url():
             return jsonify({"ok": False, "error": "No access token stored — send OTP first"}), 400
         at_json  = _json.dumps({"data": {"accesstoken": raw_at}})
         at_b64e  = _up.quote(_b64.b64encode(at_json.encode()).decode(), safe="")
-        sapi_url = (f"{CLOUD_BASE}/sapi/login/oauth"
-                    f"?action=login&platform=Android&keytype=accesstoken&key={at_b64e}")
+        sapi_url_web = (f"{CLOUD_BASE}/sapi/login/oauth"
+                        f"?action=login&platform=web&keytype=accesstoken&key={at_b64e}")
+        sapi_url = sapi_url_web  # platform=web — works from Jazz phone (IP not banned)
         return jsonify({"ok": True, "sapi_url": sapi_url,
                         "msisdn": row.get("msisdn", ""), "account_id": row["id"]})
     except Exception as e:
