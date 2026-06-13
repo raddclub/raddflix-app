@@ -66,7 +66,8 @@ def send_otp(account_id: int) -> dict:
         return {"ok": False, "error": "no msisdn on account"}
     msisdn = acct["msisdn"]
 
-    from .jazzdrive import resolve_proxies, is_proxy_bypass
+    from .jazzdrive import resolve_proxies, is_proxy_bypass, require_wg0
+    require_wg0()  # Hard-fail if wg0 down — never leak JD call via Oracle raw IP
     from . import proxy_pool as _pp
 
     # Build proxy chain — bypass check first.
@@ -136,7 +137,8 @@ def resend_otp(account_id: int) -> dict:
     if not sess:
         return {"ok": False, "error": "no pending OTP for account"}
 
-    from .jazzdrive import resolve_proxies, is_proxy_bypass
+    from .jazzdrive import resolve_proxies, is_proxy_bypass, require_wg0
+    require_wg0()  # Hard-fail if wg0 down — never leak JD call via Oracle raw IP
     from . import proxy_pool as _pp
 
     # Build proxy chain — bypass check first.
@@ -209,7 +211,8 @@ def verify_otp(account_id: int, otp: str) -> dict:
     if time.time() - sess["ts"] > 600:
         return {"ok": False, "error": "OTP session expired, request again"}
 
-    from .jazzdrive import resolve_proxies, is_proxy_bypass
+    from .jazzdrive import resolve_proxies, is_proxy_bypass, require_wg0
+    require_wg0()  # Hard-fail if wg0 down — never leak JD call via Oracle raw IP
     from . import proxy_pool as _pp
 
     # ── Build proxy chain — bypass check first ───────────────────────────────
