@@ -907,19 +907,32 @@ async function removeUserRole(){
   } catch(e){ toast('Failed: '+e.message); }
 }
 
+
+async function admLogoutAcct(id, msisdn, btn) {
+  if (!confirm('Log out ' + msisdn + ' from JazzDrive?\n\nThis clears all session tokens. Re-login via Scan page will be needed.')) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await api(WA_ADM + '/accounts/' + id + '/logout', {method:'POST'});
+    if (r.ok) { toast('✅ Logged out — ' + msisdn); loadJdAccounts(); }
+    else { toast('Error: ' + (r.error || '?')); btn.disabled = false; btn.textContent = orig; }
+  } catch(e) { toast('Error: ' + e.message); btn.disabled = false; btn.textContent = orig; }
+}
+
 async function loadJdAccounts(){
   const cont=document.getElementById('jd-accounts-tbl');
   try{
     const d=await api(WA_ADM+'/accounts');
     const accts=d.accounts||[];
     if(!accts.length){ cont.innerHTML='<div class="muted empty">No JazzDrive accounts. Add them in JazzDrive Scan.</div>'; return; }
-    cont.innerHTML='<div class="table-wrap"><table><thead><tr><th>MSISDN</th><th>Label</th><th>Notes</th><th>Active</th><th>Last scan</th></tr></thead><tbody>'+
+    cont.innerHTML='<div class="table-wrap"><table><thead><tr><th>MSISDN</th><th>Label</th><th>Role</th><th>Active</th><th>Last scan</th><th></th></tr></thead><tbody>'+
       accts.map(a=>'<tr>'+
         '<td><code>'+a.msisdn+'</code></td>'+
         '<td>'+(a.label||'—')+'</td>'+
-        '<td class="muted">'+(a.notes||'—')+'</td>'+
+        '<td><span class="badge" style="font-size:10px;font-weight:700;'+(a.role==='flix'?'background:rgba(255,170,0,.15);color:#ffaa00':'background:rgba(124,92,255,.15);color:#a78bfa')+'">'+(a.role||'scan').toUpperCase()+'</span></td>'+
         '<td>'+(a.is_active?'<span class="badge b-ok">yes</span>':'<span class="badge b-mut">no</span>')+'</td>'+
         '<td class="muted">'+(a.last_scan_at?new Date(a.last_scan_at*1000).toLocaleString():'never')+'</td>'+
+        '<td>'+(a.token_expires_at?`<button onclick="admLogoutAcct(${a.id},'${a.msisdn}',this)" style="font-size:11px;padding:2px 8px;border:1px solid rgba(239,68,68,.4);background:transparent;color:#ef4444;border-radius:4px;cursor:pointer">Logout JD</button>`:'<span class="muted" style="font-size:11px">not linked</span>')+'</td>'+
         '</tr>'
       ).join('')+'</tbody></table></div>';
   } catch(e){ cont.innerHTML='<div class="muted">Error: '+e.message+'</div>'; }

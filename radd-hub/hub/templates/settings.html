@@ -353,133 +353,6 @@ window.gsCloseProgress=function(){
   </div>
 </div>
 
-<div class="card">
-  <h3>JazzDrive Services</h3>
-  <div class="muted" style="margin:-6px 0 14px">
-    Pause services when they are not needed to avoid unnecessary requests to JazzDrive.
-    JazzDrive rate-limits and blocks accounts that send too many requests.
-  </div>
-
-  <div style="display:flex;flex-direction:column;gap:12px">
-
-    <div style="display:flex;align-items:flex-start;gap:14px;padding:14px;background:var(--bg2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:8px">
-      <button id="svc-upload-btn" onclick="toggleService('upload')"
-              style="min-width:80px;flex-shrink:0;transition:background .2s">…</button>
-      <div style="flex:1">
-        <div style="font-weight:600;margin-bottom:3px">Upload Service</div>
-        <div class="muted" style="font-size:12px">
-          Controls whether the background worker sends files to JazzDrive and sends keepalive heartbeats.
-          Enable only when you need to upload — typically <strong>1–2 times per day</strong> at most.
-          Disable when not uploading to eliminate all JazzDrive traffic.
-        </div>
-      </div>
-    </div>
-
-    <div style="display:flex;align-items:flex-start;gap:14px;padding:14px;background:var(--bg2,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:8px">
-      <button id="svc-scan-btn" onclick="toggleService('scan')"
-              style="min-width:80px;flex-shrink:0;transition:background .2s">…</button>
-      <div style="flex:1">
-        <div style="font-weight:600;margin-bottom:3px">Scan Service</div>
-        <div class="muted" style="font-size:12px">
-          Controls whether the system scans JazzDrive accounts for new files.
-          Scans are <strong>very infrequent</strong> — once a week, month, or even once a year is enough.
-          Disable between scan runs to send zero requests to JazzDrive accounts.
-        </div>
-      </div>
-    </div>
-
-  </div>
-  <div id="svc-status" class="muted" style="font-size:12px;margin-top:10px;min-height:16px"></div>
-</div>
-
-<div class="card" id="network-mode-card">
-  <h3>JazzDrive Network</h3>
-  <div class="muted" style="margin:-6px 0 14px">
-    Choose how JazzDrive requests leave the server.
-    <strong>VPN / Direct</strong> sends all traffic through the WireGuard tunnel at OS level — no proxy code runs.
-    <strong>Proxy</strong> routes requests through the HTTP/SOCKS proxy pool.
-  </div>
-
-  <div style="display:flex;gap:12px;align-items:stretch;flex-wrap:wrap;margin-bottom:14px">
-
-    <div id="net-vpn-card" onclick="setNetworkMode(true)"
-         style="flex:1;min-width:180px;padding:16px 18px;border-radius:10px;border:2px solid transparent;
-                background:var(--bg2,rgba(255,255,255,.03));cursor:pointer;transition:border-color .2s,background .2s">
-      <div style="font-size:1.5rem;margin-bottom:8px">&#128274;</div>
-      <div style="font-weight:700;font-size:.92rem;color:#e7eaf2;margin-bottom:4px">VPN / Direct</div>
-      <div style="font-size:.78rem;color:#7e859b;line-height:1.4">
-        All JazzDrive IPs routed through <code style="font-size:.75rem">wg0</code> WireGuard tunnel.
-        Recommended — zero proxy overhead.
-      </div>
-    </div>
-
-    <div id="net-proxy-card" onclick="setNetworkMode(false)"
-         style="flex:1;min-width:180px;padding:16px 18px;border-radius:10px;border:2px solid transparent;
-                background:var(--bg2,rgba(255,255,255,.03));cursor:pointer;transition:border-color .2s,background .2s">
-      <div style="font-size:1.5rem;margin-bottom:8px">&#127760;</div>
-      <div style="font-weight:700;font-size:.92rem;color:#e7eaf2;margin-bottom:4px">Proxy</div>
-      <div style="font-size:.78rem;color:#7e859b;line-height:1.4">
-        Python proxy pool used for each JazzDrive request.
-        Use only if the VPN tunnel is down.
-      </div>
-    </div>
-
-  </div>
-
-  <div id="net-status" style="font-size:.82rem;color:#7e859b;min-height:18px"></div>
-</div>
-
-<script>
-(function(){
-  var VPN_COLOR   = '#22c55e';
-  var PROXY_COLOR = '#7c5cff';
-
-  function applyNetworkMode(bypass){
-    var vpnCard   = document.getElementById('net-vpn-card');
-    var proxyCard = document.getElementById('net-proxy-card');
-    var status    = document.getElementById('net-status');
-    if(!vpnCard || !proxyCard) return;
-    if(bypass){
-      vpnCard.style.borderColor   = VPN_COLOR;
-      vpnCard.style.background    = 'rgba(34,197,94,.08)';
-      proxyCard.style.borderColor = 'transparent';
-      proxyCard.style.background  = 'var(--bg2,rgba(255,255,255,.03))';
-      if(status) status.innerHTML = '<span style="color:#22c55e">&#10003; Active: VPN / Direct</span> &mdash; JazzDrive IPs route through <code>wg0</code> tunnel';
-    } else {
-      proxyCard.style.borderColor = PROXY_COLOR;
-      proxyCard.style.background  = 'rgba(124,92,255,.08)';
-      vpnCard.style.borderColor   = 'transparent';
-      vpnCard.style.background    = 'var(--bg2,rgba(255,255,255,.03))';
-      if(status) status.innerHTML = '<span style="color:#7c5cff">&#10003; Active: Proxy</span> &mdash; Python proxy pool handles JazzDrive requests';
-    }
-  }
-
-  async function loadNetworkMode(){
-    try{
-      var d = await api('/settings/api/proxies/bypass');
-      applyNetworkMode(d.bypass);
-    }catch(e){ console.warn('network mode load failed', e); }
-  }
-
-  window.setNetworkMode = async function(bypassEnabled){
-    var status = document.getElementById('net-status');
-    if(status) status.textContent = 'Saving…';
-    try{
-      var d = await api('/settings/api/proxies/bypass', {
-        method: 'POST',
-        body: { bypass: bypassEnabled }
-      });
-      applyNetworkMode(d.bypass);
-      toast(d.bypass ? 'Network: VPN/Direct ✓' : 'Network: Proxy ✓');
-    }catch(e){
-      if(status) status.textContent = 'Failed: ' + e.message;
-      toast('Failed: ' + e.message);
-    }
-  };
-
-  loadNetworkMode();
-})();
-</script>
 
 
 {% if jd_bot_grouped.whatsapp %}
@@ -620,7 +493,6 @@ window.gsCloseProgress=function(){
 
 <div class="card">
   
-{% include "_proxy_pool_panel.html" %}
 
 <h3>Upload Configuration</h3>
   <div class="muted" style="margin:-6px 0 12px">
@@ -1028,52 +900,6 @@ window._delSig=function(id){
 loadAV();
 })();
 
-// ── JazzDrive service toggles (Upload & Scan) ────────────────────────────
-(async function initServiceToggles(){
-  function applyState(uploadEnabled, scanEnabled){
-    const uploadBtn = document.getElementById('svc-upload-btn');
-    const scanBtn   = document.getElementById('svc-scan-btn');
-    if(uploadBtn){
-      uploadBtn.textContent  = uploadEnabled ? '⏸ Pause' : '▶ Enable';
-      uploadBtn.style.background = uploadEnabled ? 'rgba(34,197,94,.15)' : 'rgba(244,67,54,.15)';
-      uploadBtn.style.borderColor = uploadEnabled ? '#22c55e' : '#f44336';
-      uploadBtn.style.color = uploadEnabled ? '#22c55e' : '#f44336';
-    }
-    if(scanBtn){
-      scanBtn.textContent  = scanEnabled ? '⏸ Pause' : '▶ Enable';
-      scanBtn.style.background = scanEnabled ? 'rgba(34,197,94,.15)' : 'rgba(244,67,54,.15)';
-      scanBtn.style.borderColor = scanEnabled ? '#22c55e' : '#f44336';
-      scanBtn.style.color = scanEnabled ? '#22c55e' : '#f44336';
-    }
-  }
-  try{
-    const d = await api('/settings/api/services');
-    applyState(d.upload_enabled, d.scan_enabled);
-  }catch(e){ console.warn('service toggle load failed', e); }
-
-  window.toggleService = async function(type){
-    const st = document.getElementById('svc-status');
-    if(st) st.textContent = 'Saving…';
-    try{
-      const current = await api('/settings/api/services');
-      const newUpload = type === 'upload' ? !current.upload_enabled : current.upload_enabled;
-      const newScan   = type === 'scan'   ? !current.scan_enabled   : current.scan_enabled;
-      const d = await api('/settings/api/services', {
-        method:'POST',
-        body:{ upload: newUpload, scan: newScan }
-      });
-      applyState(d.upload_enabled, d.scan_enabled);
-      const label = type === 'upload' ? 'Upload' : 'Scan';
-      const state = (type === 'upload' ? d.upload_enabled : d.scan_enabled) ? 'enabled' : 'paused';
-      if(st) st.textContent = label + ' service ' + state + ' ✓';
-      toast(label + ' service ' + state);
-      setTimeout(()=>{ if(st) st.textContent=''; }, 4000);
-    }catch(e){
-      if(st) st.textContent = 'Failed: ' + e.message;
-      toast('Failed: ' + e.message);
-    }
-  };
-})();
 
 // ── Bot settings lock overlay ─────────────────────────────────────────────
 // Loads bot enable state from /bots/api/status and shows a lock overlay

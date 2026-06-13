@@ -84,6 +84,14 @@ def refresh_session(aid):
     return jsonify(jd.refresh_session(account_id=aid))
 
 
+@bp.route("/api/accounts/<int:aid>/logout", methods=["POST"])
+@auth.login_required
+def logout_acct(aid):
+    """Clear all JazzDrive session tokens and mark the account inactive."""
+    from .. import jazzdrive as jd
+    return jsonify(jd.jd_logout_account(aid))
+
+
 @bp.route("/api/accounts/<int:aid>/scan", methods=["POST"])
 @auth.login_required
 def scan(aid):

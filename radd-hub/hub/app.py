@@ -85,7 +85,7 @@ def create_app() -> Flask:
                         tid_panel, app_users_panel, analytics, subscriptions, broadcast, zero_rating, \
                         plans_panel, payment_gateway, mobile_api, \
                         catalog_api, search_api, poster_proxy, \
-                        brand_studio, proxy_pool_page as proxy_pool_page_route
+                        brand_studio
     app.register_blueprint(auth.bp,                    url_prefix="/auth")
     app.register_blueprint(home.bp)
     app.register_blueprint(settings_route.bp,          url_prefix="/settings")
@@ -124,7 +124,6 @@ def create_app() -> Flask:
     app.register_blueprint(poster_proxy.poster_proxy_bp)  # /api/poster/*
     # ── Brand Studio (P6) ──────────────────────────────────────────────────────
     app.register_blueprint(brand_studio.bp)  # /brand/ + /api/brand/*
-    app.register_blueprint(proxy_pool_page_route.bp, url_prefix="/proxy-pool")
     # ── Security telemetry (Phase 25.6) ──────────────────────────────────────
     from .routes.security_telemetry import bp_security
     app.register_blueprint(bp_security)   # POST /api/security/tamper-report
@@ -224,12 +223,6 @@ def create_app() -> Flask:
         self_heal.register_thread("mirror-retry", mirror.retry_loop,
                                   (_BG_STOP,), _BG_STOP)
 
-    # ── Proxy pool startup (auto-rotating SAPI proxies) ──────────────────────
-    try:
-        from . import proxy_pool as _proxy_pool
-        _proxy_pool.pool.start()
-    except Exception as _pp_err:
-        pass  # non-fatal
 
     if config.get_env_bool("ENABLE_UPLOAD_WATCHER", True):
         threading.Thread(target=uploader.watcher_loop,
@@ -253,6 +246,9 @@ def create_app() -> Flask:
     def _startup_refresh():
         import time as _t
         _t.sleep(3)  # let DB init settle
+        if db.setting("JAZZDRIVE_ENABLED", "1") != "1":
+            log.info("startup_refresh: JAZZDRIVE_ENABLED=0 — JazzDrive master switch is OFF, skipping session recovery")
+            return
         try:
             from . import jazzdrive as _jd
             accounts = db.list_accounts(hide_secrets=False)

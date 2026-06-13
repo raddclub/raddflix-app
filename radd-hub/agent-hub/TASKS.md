@@ -1,11 +1,13 @@
 # RaddFlix Agent Task Board
 
-_Last updated: 2026-06-10_
+_Last updated: 2026-06-12_
 
 ## Completed This Session
 
 | ID | Changed | Summary | Ref |
 |----|---------|---------|-----|
+| PROXY-REMOVE | hub/app.py, hub/routes/settings.py, hub/templates/base.html, hub/templates/settings.html | Fully removed proxy/pool system: stripped proxy_pool_page blueprint + broken try/except from app.py; all 13 pool routes from settings.py; proxy-pool nav from base.html; JazzDrive Network/Services cards + pool panel include + JS from settings.html | 1473481 |
+| DB-RECOVERY-01 | radd_hub.db accounts table | Recovered wiped DB: re-inserted JazzDrive account 03257719165 (role=flix, is_active=1) from jazzdrive_session.json | SQL |
 | FIX-WG0-ENFORCE | hub/jazzdrive.py | Hard-block ALL JazzDrive network calls if wg0 not routing JD IPs. Added JDVPNRequired exception + require_wg0() — called from resolve_proxies(), _android_refresh_session_inner(), trigger_otp_flow(), resend_otp(), submit_otp(). No JD call ever leaks via Oracle direct IP. | 23988eb (GitHub); wg0v2 applied direct |
 | FEAT-SERVICES-01 | admin.py, services.html (new), base.html, admin.html, settings.html, scan.html, upload.html | Consolidated all 8 service toggles to dedicated /admin/services page. Removed service cards from admin.html + settings.html. Updated paused-banners in scan.html + upload.html to link /admin/services. | b55df7f, 46122dc |
 | PERF-01 | proxy_pool.py, hub/db | Diagnosed proxy-pool CPU spike (99.9%). Throttled ThreadPoolExecutors (40→8, 80→10), extended HC/discovery intervals, VACUUM'd SQLite DB | dde746e |

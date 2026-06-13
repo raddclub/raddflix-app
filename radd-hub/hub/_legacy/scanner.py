@@ -683,16 +683,22 @@ def enrich_and_save(files: list, account_id: int, progress_cb=None) -> int:
 
 def mobile_direct_verify_otp(msisdn: str, otp: str, proxies: Optional[dict] = None) -> dict:
     """Verify OTP via JazzDrive Android mobile API."""
-    import uuid as _uuid2
-    device_id      = _uuid2.uuid4().hex[:16]
+    from .. import db as _db
+    # Use the stored device ID/name so every login registers the SAME device on
+    # JazzDrive. This eliminates the one-active-Android-device conflict with the
+    # real phone — JazzDrive sees both as the same device.
+    _m = str(msisdn).strip().replace("+92", "0").replace("+", "").replace(" ", "")
+    device_id   = (_db.setting("JAZZDRIVE_DEVICE_ID") or "").strip() or f"fac-{_m[-10:]}"
+    device_name = (_db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix Hot 9 Play").strip()
     encoded_otp    = urllib.parse.quote(str(otp).strip(),    safe='')
     encoded_msisdn = urllib.parse.quote(str(msisdn).strip(), safe='')
 
     sess = requests.Session()
     hdrs = {
-        'User-Agent':       'Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)',
+        'User-Agent':       'Dalvik/2.1.0 (Linux; U; Android 11; Infinix X680F Build/RP1A.200720.011)',
         'Accept':           'application/json, */*',
-        'X-deviceid':       f'android-{device_id}',
+        'X-deviceid':       device_id,
+        'X-devicename':     device_name,
         'X-Requested-With': 'com.jazz.drive',
     }
 

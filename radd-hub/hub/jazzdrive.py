@@ -315,6 +315,37 @@ def require_wg0() -> None:
         )
     log.debug("[JD:VPN] OK -- all JD IPs via wg0")
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# JAZZDRIVE_ENABLED master kill switch
+# ─────────────────────────────────────────────────────────────────────────────
+
+class JDDisabled(RuntimeError):
+    """Raised when JAZZDRIVE_ENABLED=0 in DB (master kill switch is OFF).
+
+    Any function that makes JazzDrive network calls must call
+    require_jd_active() first so it hard-fails immediately instead of
+    leaking a request against the Jazz account.
+    """
+
+
+def require_jd_active() -> None:
+    """Raise JDDisabled if the master kill switch is OFF (JAZZDRIVE_ENABLED!=1).
+
+    Call this at the top of every function that touches JazzDrive APIs so
+    that toggling the switch in the admin Services panel immediately stops
+    all JazzDrive activity without a Flask restart.
+    """
+    val = db.setting("JAZZDRIVE_ENABLED", "1")
+    if val != "1":
+        log.warning("[JD:MASTER] BLOCKED — JAZZDRIVE_ENABLED=%s, master switch is OFF", val)
+        raise JDDisabled(
+            "JAZZDRIVE_ENABLED master switch is OFF — all JazzDrive calls blocked. "
+            "Enable via Admin > Services to resume."
+        )
+
+
+
 def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
     log.debug("[JD:PROXY] resolve_proxies purpose=%s", purpose)
     """Return a requests-compatible proxies dict.
@@ -323,6 +354,7 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
                      Falls back to JAZZDRIVE_SAPI_PROXY setting if pool empty.
     purpose='otp'  — uses the general JAZZDRIVE_PROXY slot (OTP / refresh_token).
     Always returns None on Replit because proxy traffic violates ToS."""
+    require_jd_active()  # Hard-fail if master kill switch is OFF
     require_wg0()  # Hard-fail if wg0 not routing JD IPs
     log.info("[JD:PROXY] VPN enforced OK")
     if _is_replit():
@@ -398,12 +430,17 @@ def is_proxy_bypass() -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_x_deviceid(msisdn: Optional[str] = None) -> str:
-    """Return a deterministic X-deviceid based on the MSISDN.
+    """Return the X-deviceid sent in every JazzDrive request.
 
-    JazzDrive sessions are tied to the X-deviceid. Using a stable one
-    prevents 'invalid session' errors when switching between uploader/keepalive.
-    Prefix fac- matches APK strings.xml app_device_id_prefix (C30924e DeviceInterceptor).
+    Priority:
+      1. JAZZDRIVE_DEVICE_ID setting — user's real Android device ID
+         (makes server appear as the same device as their phone, bypassing
+         JazzDrive's single-active-Android-device limit)
+      2. fac-<last-10-of-MSISDN> — original fallback
     """
+    stored = (db.setting("JAZZDRIVE_DEVICE_ID") or "").strip()
+    if stored:
+        return stored
     m = str(msisdn or db.setting("JAZZDRIVE_MSISDN") or "").strip()
     m = m.replace("+", "").replace(" ", "").replace("-", "")
     suffix = m[-10:] if len(m) >= 10 else "raddhub"
@@ -1190,6 +1227,77 @@ def get_status() -> dict:
         "validationkey_prefix": (db_acct or s).get("validation_key", (db_acct or s).get("validationkey", ""))[:12] + "...",
     }
 
+
+
+def jd_logout_account(account_id: int) -> dict:
+    """Clear all JazzDrive session tokens for an account and mark it inactive.
+
+    - Wipes validation_key, jsessionid, node, refresh_token, raw_accesstoken
+    - Sets is_active=0, token_expires_at=0
+    - Best-effort: tries to notify JazzDrive server to revoke the session
+    - Does NOT delete the account row (use db.delete_account() for that)
+    """
+    import requests as _req
+    log.info("[JD:LOGOUT] account_id=%s", account_id)
+
+    # 1. Read current tokens before wiping (needed for server-side revoke)
+    row = None
+    try:
+        with db.conn() as _c:
+            row = _c.execute("SELECT * FROM accounts WHERE id=?", (account_id,)).fetchone()
+            if row:
+                row = dict(row)
+    except Exception as _e:
+        log.warning("[JD:LOGOUT] could not read account: %s", _e)
+
+    if not row:
+        return {"ok": False, "error": f"Account {account_id} not found"}
+
+    msisdn = row.get("msisdn", "")
+    vk     = row.get("validation_key") or ""
+    jid    = row.get("jsessionid")     or ""
+    rt     = row.get("refresh_token")  or ""
+
+    # 2. Best-effort server-side logout (fire-and-forget, never block on failure)
+    if jid or rt:
+        try:
+            proxies = resolve_proxies(purpose="otp")
+            hdrs = get_auth_headers(vk, jid, msisdn=msisdn)
+            _req.post(
+                f"{CLOUD_BASE}/sapi/logout",
+                headers=hdrs, timeout=10, proxies=proxies
+            )
+            log.info("[JD:LOGOUT] server-side logout sent for %s", msisdn)
+        except Exception as _le:
+            log.warning("[JD:LOGOUT] server-side logout skipped (no network or session already dead): %s", _le)
+
+    # 3. Wipe all tokens in DB, mark inactive
+    try:
+        with db.conn() as _c:
+            _c.execute(
+                "UPDATE accounts SET validation_key=NULL, jsessionid=NULL, node=NULL, "
+                "refresh_token=NULL, raw_accesstoken=NULL, token_expires_at=0, is_active=0 "
+                "WHERE id=?",
+                (account_id,)
+            )
+        log.info("[JD:LOGOUT] tokens wiped for account %s (%s)", account_id, msisdn)
+    except Exception as _de:
+        log.error("[JD:LOGOUT] DB wipe failed: %s", _de)
+        return {"ok": False, "error": f"DB error: {_de}"}
+
+    # 4. Clear OTP state file if it belongs to this account's MSISDN
+    try:
+        if _OTP_STATE_FILE.exists():
+            state = json.loads(_OTP_STATE_FILE.read_text())
+            _norm = lambda n: str(n).strip().replace("+92","0").replace(" ","")
+            if _norm(state.get("msisdn","")) == _norm(msisdn):
+                _OTP_STATE_FILE.unlink(missing_ok=True)
+                log.info("[JD:LOGOUT] OTP state file cleared for %s", msisdn)
+    except Exception:
+        pass
+
+    return {"ok": True, "msisdn": msisdn,
+            "message": f"Logged out — session cleared for {msisdn}"}
 
 # ---------------------------------------------------------------------------
 # OTP flow

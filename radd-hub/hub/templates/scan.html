@@ -168,6 +168,8 @@
                 onclick="quickRole({{ a.id }}, '{{ a.role }}')">
           {% if a.role == 'flix' %}↩ Use for Scan{% else %}⚡ Use for Flix{% endif %}
         </button>
+        <button style="font-size:12px;padding:4px 10px;border:1px solid rgba(239,68,68,.35);background:transparent;color:#ef4444;border-radius:5px;cursor:pointer"
+                onclick="logoutAcct({{ a.id }}, '{{ a.msisdn }}', this)">Logout JD</button>
         <button class="danger" style="font-size:12px;padding:4px 10px"
                 onclick="delAcct({{ a.id }}, this)">Remove</button>
       </div>
@@ -1490,4 +1492,23 @@ document.addEventListener('DOMContentLoaded', () => {
   refreshKeepaliveStatus();
   setInterval(refreshKeepaliveStatus, 30000);
 });
+
+async function logoutAcct(id, msisdn, btn) {
+  if (!confirm('Log out ' + msisdn + ' from JazzDrive?\n\nThis clears all session tokens. You will need to re-login with OTP to use this account again.')) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Logging out…';
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/logout', {method:'POST'});
+    if (r.ok) {
+      toast('✅ Logged out — ' + msisdn);
+      setTimeout(() => location.reload(), 800);
+    } else {
+      toast('Error: ' + (r.error || 'logout failed'));
+      btn.disabled = false; btn.textContent = orig;
+    }
+  } catch(e) {
+    toast('Error: ' + e.message);
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
 </script>{% endblock %}
