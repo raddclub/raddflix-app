@@ -200,28 +200,36 @@
         </div>
 
         {# ── Inline SAPI activation — shown when needs_paste_cookies ── #}
-        <div id="otp-sapi-{{ a.id }}" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
-          <div style="color:var(--ok,#22c55e);font-weight:600;font-size:13px;margin-bottom:10px">
-            ✔ OTP accepted — one more step to activate the session from your Jazz phone
+        <div id="otp-sapi-{{ a.id }}" style="display:none;margin-top:12px;border-top:1px solid rgba(99,102,241,.3);padding-top:12px;background:rgba(99,102,241,.04);border-radius:6px;padding:12px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px">
+            ✔ OTP confirmed — one more step (~30 sec on your Jazz phone)
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">
+            JazzDrive requires the session to be activated from a Jazz mobile network connection.
+            Our server cannot do this automatically — your Jazz phone must open the link below.
           </div>
 
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
-            <button id="otp-sapi-link-btn-{{ a.id }}" style="font-size:12px;padding:4px 12px"
-                    onclick="getSapiActivateUrlInline({{ a.id }})">🔗 Get Phone Activation Link</button>
-            <span id="otp-sapi-link-msg-{{ a.id }}" class="muted" style="font-size:12px"></span>
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--muted)">
+            1. Tap this link on your Jazz phone <span style="font-weight:400">(must be on Jazz mobile data):</span>
           </div>
-          <div id="otp-sapi-link-box-{{ a.id }}" style="display:none;margin-bottom:10px">
-            <div style="display:flex;gap:6px;align-items:flex-start">
+          <div id="otp-sapi-link-box-{{ a.id }}" style="margin-bottom:10px">
+            <div style="display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap">
+              <span id="otp-sapi-link-msg-{{ a.id }}" class="muted" style="font-size:12px">Generating link…</span>
               <a id="otp-sapi-url-{{ a.id }}" href="#" target="_blank" rel="noopener"
-                 style="color:var(--ok,#5cd66f);text-decoration:underline;word-break:break-all;font-size:11px;flex:1"></a>
+                 style="color:var(--ok,#5cd66f);text-decoration:underline;word-break:break-all;font-size:12px;font-weight:600;flex:1;min-width:0;display:none">
+                Tap here to open on your Jazz phone →
+              </a>
               <button id="otp-sapi-copy-btn-{{ a.id }}" class="ghost"
                       onclick="copyInlineSapiLink({{ a.id }})"
-                      style="font-size:11px;padding:2px 8px;white-space:nowrap;flex-shrink:0">Copy</button>
+                      style="font-size:11px;padding:2px 8px;white-space:nowrap;flex-shrink:0;display:none">Copy</button>
+              <button id="otp-sapi-link-btn-{{ a.id }}" class="ghost"
+                      onclick="getSapiActivateUrlInline({{ a.id }})"
+                      style="font-size:11px;padding:2px 8px;white-space:nowrap;flex-shrink:0;display:none">↻ Refresh link</button>
             </div>
           </div>
 
-          <div style="font-size:12px;color:var(--muted);margin-bottom:4px">
-            Paste the <strong>full JSON response</strong> from your phone (values extracted automatically):
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px;color:var(--muted)">
+            2. Your phone shows JSON — paste the full response here <span style="font-weight:400">(values extracted automatically):</span>
           </div>
           <textarea id="otp-sapi-json-{{ a.id }}" rows="3"
                     placeholder='{"data":{"validationkey":"...","jsessionid":"...","access_token":"..."}}'
@@ -234,6 +242,7 @@
                     style="font-size:12px;padding:4px 12px">Save &amp; Connect</button>
             <span id="otp-sapi-save-msg-{{ a.id }}" class="muted" style="font-size:12px"></span>
           </div>
+        </div>
         </div>
 
       </div>
@@ -253,8 +262,10 @@
           font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px">ACTION REQUIRED</span>
   </div>
   <div id="pt-instructions" class="muted" style="margin:4px 0 12px;font-size:13px">
-    OTP accepted — but this server IP is outside Pakistan so JazzDrive blocked the session.
-    Use your <strong>Jazz phone</strong> to complete activation (no PC or DevTools needed).
+    OTP confirmed ✔ — but our server IP cannot get the <em>validation key</em> from JazzDrive
+    (JazzDrive requires a Jazz mobile network connection for this step — it's not a geo-block,
+    it's our specific Oracle IP that is banned for session activation).
+    Use your <strong>Jazz phone on Jazz mobile data</strong> — takes about 30 seconds.
   </div>
   <div id="pt-alert" style="display:none;background:rgba(255,160,0,.12);border:1px solid var(--warn,#f90);
        border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;line-height:1.5"></div>
@@ -282,11 +293,13 @@
       or copy the two values and enter them manually below.
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-      <button id="btn-get-sapi-url" onclick="getSapiActivateUrl()">🔗 Get Phone Activation Link</button>
+      <button id="btn-get-sapi-url" onclick="getSapiActivateUrl()">🔗 Get activation link</button>
       <span id="sapi-url-msg" class="muted" style="font-size:12px"></span>
     </div>
     <div id="sapi-url-box" style="display:none;margin-top:6px">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Open this link in your Jazz phone browser:</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px">
+        Tap this link on your <strong>Jazz phone</strong> (must be on Jazz mobile data):
+      </div>
       <a id="sapi-url-link" href="#" target="_blank" rel="noopener"
          style="color:var(--ok,#5cd66f);text-decoration:underline;word-break:break-all;font-size:11px"></a>
       <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7">
@@ -629,6 +642,8 @@ function _showPasteCookiesNeeded(msisdn, message, accountId) {
   }
   if (accountId) _ptAccountId = accountId;
   if (card) card.scrollIntoView({behavior:'smooth', block:'center'});
+  // Auto-generate the activation link so the user doesn't need to click a button
+  setTimeout(() => getSapiActivateUrl(), 400);
 }
 
 async function getSapiActivateUrl() {
@@ -668,7 +683,7 @@ async function getSapiActivateUrl() {
     msgEl.textContent = 'Error: ' + e.message;
     msgEl.style.color = 'var(--err,#f55)';
   } finally {
-    btn.disabled = false; btn.textContent = '🔗 Get Phone Activation Link';
+    btn.disabled = false; btn.textContent = '↻ Refresh link';
   }
 }
 
@@ -691,7 +706,7 @@ async function wizVerifyOtp() {
       setTimeout(() => location.reload(), 1000);
     } else if (r.needs_paste_cookies) {
       btn.disabled = false; btn.textContent = 'Verify & Link';
-      msgEl.innerHTML = '<span style="color:var(--warn,#f90)">⚠ OTP accepted — scroll down to activate from Jazz phone</span>';
+      msgEl.innerHTML = '<span style="color:var(--ok,#22c55e)">✔ OTP confirmed — activation link generated below ↓</span>';
       _showPasteCookiesNeeded(r.msisdn, r.error, r.account_id || _wizAcctId);
     } else {
       btn.disabled = false; btn.textContent = 'Verify & Link';
@@ -784,24 +799,30 @@ function showOtpSapiRow(id, msisdn) {
 async function getSapiActivateUrlInline(id) {
   const btn    = document.getElementById('otp-sapi-link-btn-' + id);
   const msgEl  = document.getElementById('otp-sapi-link-msg-' + id);
-  const box    = document.getElementById('otp-sapi-link-box-' + id);
+  const copyBtn = document.getElementById('otp-sapi-copy-btn-' + id);
   const link   = document.getElementById('otp-sapi-url-' + id);
-  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
-  if (msgEl) msgEl.textContent = '';
-  if (box) box.style.display = 'none';
+  if (btn)  { btn.disabled = true; }
+  if (msgEl) { msgEl.textContent = 'Generating link…'; msgEl.style.color = 'var(--muted)'; }
   try {
     const r = await api('/scan/api/accounts/' + id + '/sapi-activate-url');
     if (!r.ok) {
-      if (msgEl) { msgEl.textContent = 'Error: ' + (r.error || 'unknown'); msgEl.style.color = 'var(--err,#f55)'; }
+      if (msgEl) { msgEl.textContent = '⚠ Error: ' + (r.error || 'unknown'); msgEl.style.color = 'var(--err,#f55)'; }
+      if (btn) { btn.style.display = 'inline-block'; btn.disabled = false; }
       return;
     }
-    if (link) { link.href = r.sapi_url; link.textContent = r.sapi_url; }
-    if (box) box.style.display = 'block';
-    if (msgEl) { msgEl.textContent = '✔ Link ready — open on Jazz phone'; msgEl.style.color = 'var(--ok,#22c55e)'; }
+    // Show the URL directly in the <a> tag and unhide copy + refresh buttons
+    if (link) {
+      link.href = r.sapi_url;
+      link.textContent = 'Tap here to open on your Jazz phone →';
+      link.title = r.sapi_url;
+      link.style.display = 'inline';
+    }
+    if (msgEl) { msgEl.style.display = 'none'; }
+    if (copyBtn) copyBtn.style.display = 'inline-block';
+    if (btn) { btn.style.display = 'inline-block'; btn.disabled = false; btn.textContent = '↻ Refresh link'; }
   } catch(e) {
-    if (msgEl) { msgEl.textContent = 'Error: ' + e.message; msgEl.style.color = 'var(--err,#f55)'; }
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🔗 Get Phone Activation Link'; }
+    if (msgEl) { msgEl.textContent = '⚠ Error: ' + e.message; msgEl.style.color = 'var(--err,#f55)'; }
+    if (btn) { btn.style.display = 'inline-block'; btn.disabled = false; }
   }
 }
 
