@@ -84,6 +84,22 @@ def refresh_session(aid):
     return jsonify(jd.refresh_session(account_id=aid))
 
 
+@bp.route("/api/accounts/<int:aid>/logout", methods=["POST"])
+@auth.login_required
+def logout_acct(aid):
+    """Clear all JazzDrive session tokens and mark the account inactive."""
+    from .. import jazzdrive as jd
+    return jsonify(jd.jd_logout_account(aid))
+
+
+@bp.route("/api/accounts/<int:aid>/clear-cookies", methods=["POST"])
+@auth.login_required
+def clear_cookies(aid):
+    """Wipe only JSESSIONID + validationkey; keep refresh_token so silent re-auth works."""
+    from .. import jazzdrive as jd
+    return jsonify(jd.jd_clear_cookies(aid))
+
+
 @bp.route("/api/accounts/<int:aid>/scan", methods=["POST"])
 @auth.login_required
 def scan(aid):
@@ -205,9 +221,10 @@ def save_account_tokens(aid):
     Body: { "validation_key": str, "jsessionid": str }
     """
     import time as _t
-    data = request.get_json(force=True, silent=True) or {}
-    vk  = (data.get("validation_key") or data.get("validationkey") or "").strip()
-    jid = (data.get("jsessionid") or data.get("JSESSIONID") or "").strip()
+    data   = request.get_json(force=True, silent=True) or {}
+    vk     = (data.get("validation_key") or data.get("validationkey") or "").strip()
+    jid    = (data.get("jsessionid") or data.get("JSESSIONID") or "").strip()
+    raw_at = (data.get("raw_accesstoken") or data.get("access_token") or "").strip()
     if not vk or not jid:
         return jsonify({"ok": False, "error": "validation_key and jsessionid are required"}), 400
     try:
@@ -215,11 +232,18 @@ def save_account_tokens(aid):
             row = c.execute("SELECT id, msisdn FROM accounts WHERE id=?", (aid,)).fetchone()
             if not row:
                 return jsonify({"ok": False, "error": "Account not found"}), 404
-            c.execute(
-                "UPDATE accounts SET validation_key=?, jsessionid=?, "
-                "token_expires_at=?, last_scan_at=? WHERE id=?",
-                (vk, jid, int(_t.time() + 86400 * 30), int(_t.time()), aid)
-            )
+            if raw_at:
+                c.execute(
+                    "UPDATE accounts SET validation_key=?, jsessionid=?, raw_accesstoken=?, "
+                    "token_expires_at=?, last_scan_at=? WHERE id=?",
+                    (vk, jid, raw_at, int(_t.time() + 86400 * 30), int(_t.time()), aid)
+                )
+            else:
+                c.execute(
+                    "UPDATE accounts SET validation_key=?, jsessionid=?, "
+                    "token_expires_at=?, last_scan_at=? WHERE id=?",
+                    (vk, jid, int(_t.time() + 86400 * 30), int(_t.time()), aid)
+                )
         msisdn = dict(row)["msisdn"]
 
         # Immediately verify the new JSESSIONID is alive + start keepalive coverage.
@@ -377,22 +401,3 @@ def del_excluded_folder(name):
     lst = [x for x in _load_excluded() if x != name]
     _save_excluded(lst)
     return jsonify({"ok": True, "folders": lst})
-
-
-@bp.route('/api/accounts/<int:aid>/log', methods=['DELETE'])
-@auth.login_required
-def clear_log(aid):
-    """Delete all scan log entries for this account from the DB."""
-    import sqlite3 as _sq3
-    db_path = '/opt/jazzmax/radd-hub/data/radd_hub.db'
-    try:
-        con = _sq3.connect(db_path, timeout=10)
-        con.execute('PRAGMA journal_mode=WAL')
-        con.execute('BEGIN IMMEDIATE')
-        n = con.execute('DELETE FROM scan_log WHERE account_id=?', (aid,)).rowcount
-        con.execute('COMMIT')
-        con.execute('PRAGMA wal_checkpoint(TRUNCATE)')
-        con.close()
-        return __import__('flask').jsonify({'ok': True, 'deleted': n})
-    except Exception as e:
-        return __import__('flask').jsonify({'ok': False, 'error': str(e)}), 500
