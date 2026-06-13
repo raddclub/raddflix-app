@@ -105,6 +105,105 @@
 }
 .master-status-on  { color: #22c55e; font-size: 13px; font-weight: 700; }
 .master-status-off { color: #ef4444; font-size: 13px; font-weight: 700; }
+
+/* ── JD Health Panel ── */
+.jdh-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 22px;
+  margin-bottom: 18px;
+}
+.jdh-panel-title {
+  font-size: 15px; font-weight: 700;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.jdh-account-row {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  transition: border-color .2s;
+}
+.jdh-account-row.health-healthy      { border-color: #22c55e44; }
+.jdh-account-row.health-device_conflict { border-color: #ef4444; background: #180a0a; animation: pulse-red 2s infinite; }
+.jdh-account-row.health-dead          { border-color: #ef444488; background: #150808; }
+.jdh-account-row.health-needs_otp     { border-color: #f59e0b88; background: #1a1300; }
+.jdh-account-row.health-degraded      { border-color: #f59e0b44; }
+.jdh-account-row.health-expiring_soon { border-color: #f59e0b66; background: #1a1200; }
+.jdh-account-row.health-expiring_today { border-color: #f59e0b33; }
+.jdh-account-row.health-not_linked    { border-color: var(--border); opacity: .6; }
+@keyframes pulse-red { 0%,100%{border-color:#ef444477} 50%{border-color:#ef4444} }
+
+.jdh-row1 { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.jdh-row2 { display:flex; gap:18px; flex-wrap:wrap; margin-top:8px; font-size:12px; color:var(--muted); }
+.jdh-row3 { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.jdh-label { font-size:14px; font-weight:700; }
+
+.health-badge {
+  font-size:10px; font-weight:700; padding:2px 9px;
+  border-radius:10px; letter-spacing:.04em;
+}
+.hb-healthy       { background:#0d2010; color:#22c55e; border:1px solid #22c55e44; }
+.hb-device_conflict { background:#1e0808; color:#ef4444; border:1px solid #ef444444; }
+.hb-dead          { background:#1e0808; color:#ef4444; border:1px solid #ef444422; }
+.hb-needs_otp     { background:#1a1100; color:#f59e0b; border:1px solid #f59e0b44; }
+.hb-degraded      { background:#1a1100; color:#f59e0b; border:1px solid #f59e0b33; }
+.hb-expiring_soon { background:#1a1100; color:#f59e0b; border:1px solid #f59e0b33; }
+.hb-expiring_today{ background:#161000; color:#fbbf24; border:1px solid #fbbf2433; }
+.hb-expired       { background:#1e0808; color:#ef4444; border:1px solid #ef444433; }
+.hb-not_linked    { background:var(--panel2); color:var(--muted); border:1px solid var(--border); }
+.hb-unknown       { background:var(--panel2); color:var(--muted); border:1px solid var(--border); }
+
+.jdh-stat { display:flex; flex-direction:column; gap:1px; }
+.jdh-stat-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+.jdh-stat-val   { font-size:12px; font-weight:600; }
+
+.jdh-btn {
+  font-size:11px; padding:4px 12px; border-radius:7px;
+  border:1px solid var(--border); background:var(--panel); color:var(--fg);
+  cursor:pointer; transition:.15s; font-weight:600;
+}
+.jdh-btn:hover { background:var(--panel2); border-color:var(--blue); color:var(--blue); }
+.jdh-btn:disabled { opacity:.4; cursor:not-allowed; }
+.jdh-btn-danger { border-color:#ef444433; color:#ef4444; }
+.jdh-btn-danger:hover { background:#1a0808; border-color:#ef4444; color:#ef4444; }
+
+.jdh-events { margin-top:18px; border-top:1px solid var(--border); padding-top:14px; }
+.jdh-events-title { font-size:12px; font-weight:700; color:var(--muted); margin-bottom:8px; text-transform:uppercase; letter-spacing:.05em; }
+.jdh-event-row {
+  display:flex; align-items:flex-start; gap:10px;
+  font-size:11px; padding:4px 0; border-bottom:1px solid var(--border2,#1e2228);
+}
+.jdh-event-ts { color:var(--muted); flex-shrink:0; width:45px; }
+.jdh-event-type { font-weight:700; flex-shrink:0; width:110px; }
+.jdh-event-detail { color:var(--muted); word-break:break-all; }
+.evt-heartbeat_ok    { color:#22c55e; }
+.evt-token_refreshed { color:#3b82f6; }
+.evt-device_conflict { color:#ef4444; }
+.evt-session_expired { color:#f59e0b; }
+.evt-network_error   { color:#94a3b8; }
+.evt-heartbeat_fail  { color:#f59e0b; }
+.evt-auto_paused     { color:#ef4444; }
+
+.jdh-expiry-bar {
+  height: 3px; border-radius: 2px; margin-top:6px;
+  background: var(--border); overflow:hidden;
+}
+.jdh-expiry-fill {
+  height:100%; border-radius:2px; transition:width .5s;
+}
+
+.conflict-banner {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 14px; border-radius:8px;
+  background:#1e0808; border:1px solid #ef4444;
+  font-size:12px; color:#ef4444; font-weight:600;
+  margin-bottom:14px;
+}
+.conflict-banner-icon { font-size:18px; flex-shrink:0; }
 </style>
 
 <div class="h-row">
@@ -120,6 +219,22 @@
   <span class="muted" style="font-size:12px" id="last-refresh-lbl">Loading…</span>
 </div>
 
+<div id="jdh-conflict-banner" style="display:none"></div>
+<div id="jdh-panel" style="display:none" class="jdh-panel">
+  <div class="jdh-panel-title">
+    📡 JazzDrive Session Health
+    <span id="jdh-status-dot" style="width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block"></span>
+    <span id="jdh-status-lbl" class="muted" style="font-size:11px;font-weight:400">Loading…</span>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="jdh-btn" onclick="loadHealth()">↻ Refresh health</button>
+    </div>
+  </div>
+  <div id="jdh-accounts"></div>
+  <div class="jdh-events" id="jdh-events-section">
+    <div class="jdh-events-title">Recent Events</div>
+    <div id="jdh-events-list"><div class="muted" style="font-size:11px">No events yet.</div></div>
+  </div>
+</div>
 <div class="svc-grid" id="svc-grid">
   <div class="svc-card" style="grid-column:1/-1">
     <div class="muted" style="padding:10px 0">Loading services…</div>
@@ -305,5 +420,252 @@ async function toggleSvc(name, enabled, cb) {
 // Load on page open + auto-refresh every 15s
 loadSvcs();
 setInterval(loadSvcs, 15000);
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// JazzDrive Health Panel
+// ═══════════════════════════════════════════════════════════════════════════
+
+const HEALTH_LABELS = {
+  healthy:        '🟢 HEALTHY',
+  device_conflict:'⚡ DEVICE CONFLICT',
+  dead:           '💀 DEAD',
+  needs_otp:      '🔑 NEEDS OTP',
+  degraded:       '⚠️ DEGRADED',
+  expiring_soon:  '⏰ EXPIRING SOON',
+  expiring_today: '⚠️ EXPIRING TODAY',
+  expired:        '❌ EXPIRED',
+  not_linked:     '🔗 NOT LINKED',
+  unknown:        '❓ UNKNOWN',
+};
+const EVT_ICONS = {
+  heartbeat_ok: '✓', token_refreshed:'🔄', device_conflict:'⚡',
+  session_expired:'🔑', network_error:'📡', heartbeat_fail:'✗',
+  auto_paused:'⏸', keepalive_fail:'✗',
+};
+
+function fmtAgo(ts) {
+  if (!ts) return '—';
+  const secs = Math.floor(Date.now()/1000) - ts;
+  if (secs < 5)   return 'just now';
+  if (secs < 60)  return secs + 's ago';
+  if (secs < 3600) return Math.floor(secs/60) + ' min ago';
+  const h = Math.floor(secs/3600);
+  return h + 'h ' + Math.floor((secs%3600)/60) + 'm ago';
+}
+
+function fmtExpiry(secs) {
+  if (secs === null || secs === undefined) return '—';
+  if (secs <= 0) return '❌ EXPIRED';
+  const d = Math.floor(secs/86400);
+  const h = Math.floor((secs%86400)/3600);
+  const m = Math.floor((secs%3600)/60);
+  if (d > 0)  return `${d}d ${h}h`;
+  if (h > 0)  return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function fmtTs(ts) {
+  if (!ts) return '??:??';
+  const d = new Date(ts * 1000);
+  return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+}
+
+async function loadHealth() {
+  const dot = document.getElementById('jdh-status-dot');
+  const lbl = document.getElementById('jdh-status-lbl');
+  if (dot) dot.style.background = '#f59e0b';
+  try {
+    const r = await fetch('/admin/api/keepalive-health', { credentials:'include' });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'load failed');
+    renderHealth(d);
+    if (lbl) lbl.textContent = 'updated ' + new Date().toLocaleTimeString();
+    if (dot) dot.style.background = '#22c55e';
+
+    const panel = document.getElementById('jdh-panel');
+    if (panel) panel.style.display = '';
+  } catch(e) {
+    if (lbl) lbl.textContent = 'failed: ' + e.message;
+    if (dot) dot.style.background = '#ef4444';
+  }
+}
+
+function renderHealth(d) {
+  // ── Conflict banner ────────────────────────────────────────────────────────
+  const banner = document.getElementById('jdh-conflict-banner');
+  const conflicts = (d.accounts || []).filter(a => a.health === 'device_conflict');
+  if (banner) {
+    if (conflicts.length) {
+      banner.style.display = '';
+      banner.innerHTML = `
+        <div class="conflict-banner">
+          <div class="conflict-banner-icon">⚡</div>
+          <div>
+            <div>DEVICE CONFLICT — another Android device kicked our JazzDrive session!</div>
+            <div style="font-weight:400;margin-top:2px;font-size:11px">
+              Keepalive may have been auto-paused. Log the other device out, then re-enable Keepalive below.
+            </div>
+          </div>
+        </div>`;
+    } else {
+      banner.style.display = 'none';
+      banner.innerHTML = '';
+    }
+  }
+
+  // ── Account cards ──────────────────────────────────────────────────────────
+  const container = document.getElementById('jdh-accounts');
+  if (!container) return;
+
+  const now = d.now || Math.floor(Date.now()/1000);
+
+  container.innerHTML = (d.accounts || [])
+    .filter(a => a.is_active)
+    .map(a => {
+      const h       = a.health || 'unknown';
+      const label   = HEALTH_LABELS[h] || h.toUpperCase();
+      const devName = a.device_name || '—';
+      const devId   = a.device_id ? a.device_id.substring(0,8)+'…' : '—';
+      const fails   = a.consecutive_failures || 0;
+
+      // Token expiry bar (max 30 days)
+      const maxSecs  = 30 * 86400;
+      const left     = a.secs_until_expiry || 0;
+      const pct      = Math.min(100, Math.round(left / maxSecs * 100));
+      const barColor = left < 21600 ? '#ef4444' : left < 86400 ? '#f59e0b' : '#22c55e';
+
+      const conflictNote = a.last_conflict_at
+        ? `<div style="color:#ef4444;font-size:11px;margin-top:4px">
+             ⚡ Last conflict: ${fmtAgo(a.last_conflict_at)}
+           </div>` : '';
+
+      const failBadge = fails > 0
+        ? `<span class="health-badge" style="background:#1e0808;color:#ef4444;border:1px solid #ef444433">
+             ✗ ${fails} fail${fails>1?'s':''}
+           </span>` : '';
+
+      const roleBadge = `<span class="svc-pill" style="font-size:10px">${a.role}</span>`;
+
+      return `
+      <div class="jdh-account-row health-${h}" id="jdh-acct-${a.id}">
+        <div class="jdh-row1">
+          <div class="jdh-label">${a.msisdn}</div>
+          ${roleBadge}
+          <span class="health-badge hb-${h}">${label}</span>
+          ${failBadge}
+        </div>
+        <div class="jdh-row2">
+          <div class="jdh-stat">
+            <div class="jdh-stat-label">Device</div>
+            <div class="jdh-stat-val" title="${a.device_id}">${devName} (${devId})</div>
+          </div>
+          <div class="jdh-stat">
+            <div class="jdh-stat-label">Last Heartbeat</div>
+            <div class="jdh-stat-val">${fmtAgo(a.last_ok_at)}</div>
+          </div>
+          <div class="jdh-stat">
+            <div class="jdh-stat-label">Token Expires</div>
+            <div class="jdh-stat-val" style="color:${left<21600?'#ef4444':left<86400?'#f59e0b':'inherit'}">${fmtExpiry(a.secs_until_expiry)}</div>
+          </div>
+          ${a.last_refresh_at ? `<div class="jdh-stat">
+            <div class="jdh-stat-label">Last Refresh</div>
+            <div class="jdh-stat-val">${fmtAgo(a.last_refresh_at)}</div>
+          </div>` : ''}
+          ${a.last_error ? `<div class="jdh-stat" style="max-width:280px">
+            <div class="jdh-stat-label">Last Error</div>
+            <div class="jdh-stat-val" style="color:#ef4444;font-size:11px;word-break:break-all">${a.last_error.substring(0,120)}</div>
+          </div>` : ''}
+        </div>
+        <div class="jdh-expiry-bar">
+          <div class="jdh-expiry-fill" style="width:${pct}%;background:${barColor}"></div>
+        </div>
+        ${conflictNote}
+        <div class="jdh-row3">
+          <button class="jdh-btn" onclick="triggerHeartbeat(${a.id}, this)">⚡ Force Heartbeat</button>
+          <button class="jdh-btn" onclick="forceRefreshFromHealth(${a.id}, this)">🔄 Force Refresh</button>
+          ${h === 'device_conflict' ? `<button class="jdh-btn jdh-btn-danger" onclick="clearConflict(${a.id}, this)">✕ Clear Conflict</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+  // ── Event log ───────────────────────────────────────────────────────────────
+  const evList = document.getElementById('jdh-events-list');
+  if (evList && d.events && d.events.length) {
+    const sorted = [...d.events].reverse();
+    evList.innerHTML = sorted.slice(0, 15).map(ev => {
+      const icon = EVT_ICONS[ev.type] || '•';
+      const ago  = fmtTs(ev.ts);
+      return `<div class="jdh-event-row">
+        <div class="jdh-event-ts">${ago}</div>
+        <div class="jdh-event-type evt-${ev.type}">${icon} ${ev.type}</div>
+        <div class="jdh-event-detail">${ev.msisdn} — ${ev.detail || ''}</div>
+      </div>`;
+    }).join('');
+  } else if (evList) {
+    evList.innerHTML = '<div class="muted" style="font-size:11px;padding:4px 0">No events recorded yet.</div>';
+  }
+}
+
+async function triggerHeartbeat(aid, btn) {
+  btn.disabled = true;
+  btn.textContent = '⏳ Triggering…';
+  try {
+    const r = await fetch(`/admin/api/keepalive-health/trigger/${aid}`, {
+      method: 'POST', credentials: 'include'
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast('⚡ Heartbeat triggered — checking in background…', 3000);
+      setTimeout(loadHealth, 5000);
+    } else {
+      toast('Error: ' + (d.error || 'unknown'), 4000);
+    }
+  } catch(e) {
+    toast('Failed: ' + e.message, 4000);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⚡ Force Heartbeat';
+  }
+}
+
+async function forceRefreshFromHealth(aid, btn) {
+  btn.disabled = true;
+  btn.textContent = '⏳ Refreshing…';
+  try {
+    const r = await fetch('/admin/api/jd-force-refresh', {
+      method: 'POST', credentials: 'include'
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast('🔄 Session refreshed!', 3000);
+      setTimeout(loadHealth, 2000);
+    } else if (d.otp_required) {
+      toast('🔑 OTP required — go to Scan page to re-login', 5000);
+    } else {
+      toast('Refresh failed: ' + (d.error || 'unknown'), 4000);
+    }
+  } catch(e) {
+    toast('Failed: ' + e.message, 4000);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Force Refresh';
+  }
+}
+
+async function clearConflict(aid, btn) {
+  // Just reload health — it will reclassify once the conflict_at window expires
+  btn.disabled = true;
+  btn.textContent = '…';
+  await triggerHeartbeat(aid, { disabled: false, textContent: '' });
+  setTimeout(loadHealth, 5000);
+  btn.disabled = false;
+  btn.textContent = '✕ Clear Conflict';
+}
+
+// Load health on page open + auto-refresh every 30s
+loadHealth();
+setInterval(loadHealth, 30000);
+
 </script>
 {% endblock %}
