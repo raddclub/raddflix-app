@@ -196,7 +196,7 @@ _SAPI_TEST_URL = (
     "&key=" + _up.quote(_b64.b64encode(_json.dumps({"data": {"accesstoken": "a" * 40}}).encode()).decode(), safe="")
 )
 _SAPI_TEST_HEADERS = {
-    "User-Agent":       "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)",
+    "User-Agent":       "Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)",
     "X-Requested-With": "com.jazz.drive",
     "Accept":           "application/json",
 }

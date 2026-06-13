@@ -459,7 +459,7 @@ def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
       5. Authorization    — oauth <Base64(token)>  (C12815c OAuth2AuthenticatorInterceptor)
     """
     import base64 as _b64_ah
-    device_name = db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix X680F"
+    device_name = db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix Hot 9 Play"
     headers = {
         "Accept":           "application/json, text/plain, */*",
         "User-Agent":       "omh android client",
@@ -2532,7 +2532,7 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
         "Accept":       "application/json, text/javascript, */*",
         "User-Agent":   "omh android client",
         "X-deviceid":   device_id,
-        "X-devicename": db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix X680F",
+        "X-devicename": db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix Hot 9 Play",
         "X-Requested-With": "com.jazz.drive",
     })
 
@@ -2672,7 +2672,7 @@ def generate_folder_image_link(folder_share_url: str, filename_hint: str = "post
         "Accept": "application/json, text/plain, */*",
         "Origin": CLOUD_BASE,
         "Referer": f"{CLOUD_BASE}/share/f/{share_key}",
-        "User-Agent": "Mozilla/5.0 (Linux; Android 12; SM-A515F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Linux; Android 10; Infinix X680F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
         "X-Requested-With": "com.jazz.drive",
     }
 
@@ -2778,7 +2778,7 @@ def generate_direct_link(share_url: str, target_filename: str = "", remote_id: i
         "Accept": "application/json, text/plain, */*",
         "Origin": CLOUD_BASE,
         "Referer": f"{CLOUD_BASE}/share/f/{share_key}",
-        "User-Agent": "Mozilla/5.0 (Linux; Android 12; SM-A515F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Linux; Android 10; Infinix X680F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
         "X-Requested-With": "com.jazz.drive"
     }
 

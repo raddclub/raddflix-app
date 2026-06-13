@@ -695,7 +695,7 @@ def mobile_direct_verify_otp(msisdn: str, otp: str, proxies: Optional[dict] = No
 
     sess = requests.Session()
     hdrs = {
-        'User-Agent':       'Dalvik/2.1.0 (Linux; U; Android 11; Infinix X680F Build/RP1A.200720.011)',
+        'User-Agent':       'Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)',
         'Accept':           'application/json, */*',
         'X-deviceid':       device_id,
         'X-devicename':     device_name,
@@ -759,7 +759,7 @@ def jazzdrive_login(msisdn: str, use_android: bool = True, proxies: Optional[dic
     else:
         msisdn_local = m
 
-    _UA_ANDROID = "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)"
+    _UA_ANDROID = "Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)"
     _UA_WEB     = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
                    "Chrome/124.0.0.0 Safari/537.36")
@@ -944,7 +944,7 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
       Step 4b: Wrap raw_at in base64-JSON, GET /sapi/login/oauth?keytype=accesstoken
                → fresh validationkey + JSESSIONID.
     """
-    _UA_ANDROID = "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)"
+    _UA_ANDROID = "Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)"
     _UA_WEB     = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
                    "Chrome/124.0.0.0 Safari/537.36")
@@ -1217,7 +1217,7 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
         "Accept":             "application/json, text/javascript, */*; q=0.01",
         "X-Requested-With":   "com.jazz.drive",
         "X-deviceid":         device_id,
-        "User-Agent":         "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)",
+        "User-Agent":         "Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)",
     })
     # Remove browser headers for pure app look
     sess.headers.pop("Origin", None)
