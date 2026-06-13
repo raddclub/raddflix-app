@@ -73,7 +73,7 @@ def send_otp(account_id: int) -> dict:
     _chain: list = []
     _seen: set = set()
     if is_proxy_bypass():
-        _chain = [None]  # direct — Oracle IP is not geo-blocked
+        _chain = [None]  # direct via wg0 — wg0 exit IP is not banned by JazzDrive
     else:
         _primary = resolve_proxies()
         if _primary:
@@ -143,7 +143,7 @@ def resend_otp(account_id: int) -> dict:
     _chain: list = []
     _seen: set = set()
     if is_proxy_bypass():
-        _chain = [None]  # direct — Oracle IP is not geo-blocked
+        _chain = [None]  # direct via wg0 — wg0 exit IP is not banned by JazzDrive
     else:
         _primary = resolve_proxies()
         if _primary:
@@ -216,7 +216,7 @@ def verify_otp(account_id: int, otp: str) -> dict:
     _chain: list = []
     _seen: set = set()
     if is_proxy_bypass():
-        _chain = [None]  # direct — Oracle IP is not geo-blocked
+        _chain = [None]  # direct via wg0 — wg0 exit IP is not banned by JazzDrive
     else:
         _primary = resolve_proxies(purpose='otp')
         if _primary:
@@ -305,7 +305,7 @@ def verify_otp(account_id: int, otp: str) -> dict:
 
     # ── Handle SAPI-blocked partial result ────────────────────────────────────
     # jazzdrive_verify_otp returns _sapi_blocked=True when the SAPI silent-login
-    # endpoint returns 401 (JazzDrive geo-restricts keytype=accesstoken to PK IPs).
+    # endpoint returns 401 (JazzDrive has banned Oracle's IP for SAPI silent-login).
     # The OTP was accepted and we have a valid refresh_token + raw_accesstoken,
     # but we cannot get a JSESSIONID/validationkey from this server IP.
     # Save the tokens so keepalive can attempt refresh, and tell the UI to prompt
@@ -316,14 +316,14 @@ def verify_otp(account_id: int, otp: str) -> dict:
         jid_partial = tokens.get("jsessionid") or ""  # FIX-JD-LOGIN-1: now populated
         node_partial = tokens.get("node") or ""
         log.info(
-            "verify_otp: SAPI geo-blocked for account %s — saving partial tokens "
+            "verify_otp: SAPI blocked (Oracle IP banned) for account %s — saving partial tokens "
             "vk=False jid=%s rt=%s rat=%s",
             account_id, bool(jid_partial), bool(rt), bool(rat),
         )
         # FIX-JD-LOGIN-2: Persist partial tokens including JSESSIONID (fixed by FIX-1).
         # Then immediately try android_refresh_session which uses the OAuth2 refresh
         # path + platform=web keytype=accesstoken to get VK — this works from Oracle
-        # unlike platform=Android which is geo-restricted.
+        # unlike platform=Android which doesn't always work via wg0.
         _exp = int(time.time() + (86400 * 30 if rt else 3300))
         db.update_account_session(
             account_id,
@@ -345,7 +345,7 @@ def verify_otp(account_id: int, otp: str) -> dict:
 
         # Try android_refresh_session to get VK via OAuth2 refresh path.
         # This is the same path used by keepalive and it CAN get VK from Oracle
-        # via the platform=web keytype=accesstoken endpoint (not geo-restricted).
+        # via the platform=web keytype=accesstoken endpoint (works via wg0).
         _refresh_vk = ""
         try:
             from . import jazzdrive as _jd_mod
@@ -403,8 +403,7 @@ def verify_otp(account_id: int, otp: str) -> dict:
     # NOT the SMS OTP the user entered. It will never work for SMS-OTP logins.
     #
     # android_refresh_session uses the OAuth2 refresh_token path + platform=web
-    # keytype=accesstoken which IS accessible from Oracle wg0 (not geo-restricted
-    # in the same way as platform=Android). This is also what keepalive uses.
+    # keytype=accesstoken which IS accessible via wg0. This is also what keepalive uses.
     if not vk:
         try:
             from . import jazzdrive as _jd_mod

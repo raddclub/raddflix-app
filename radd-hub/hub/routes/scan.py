@@ -318,9 +318,9 @@ def sapi_activate_url(aid):
 
         # FIX-JD-LOGIN-5: provide BOTH platform variants.
         # platform=web  — used by android_refresh_session (refresh_jsessionid),
-        #                  documented as "verified working" from non-PK IPs.
-        # platform=Android — original variant, may work from Jazz phone (PK IP)
-        #                    but was geo-restricted + broken for Infinix UA from Oracle.
+        #                  works via wg0 VPN (all JD calls route through wg0).
+        # platform=Android — original variant; also works via wg0 (JazzDrive is not
+        #                    geo-blocked; Oracle's raw IP was banned). Kept as fallback.
         sapi_url_web = (
             f"{CLOUD_BASE}/sapi/login/oauth"
             f"?action=login&platform=web&keytype=accesstoken&key={at_b64e}"

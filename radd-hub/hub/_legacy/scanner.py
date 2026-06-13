@@ -1150,7 +1150,7 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
             'access_token':    raw_at,
         }
     elif _jid_from_chain:
-        # JSESSIONID found in cookies but VK is missing (common from non-PK servers).
+        # JSESSIONID found in cookies but VK is missing (Oracle IP banned for SAPI silent-login).
         # Do NOT return early — fall through to the SAPI step below which may get VK.
         # If SAPI also fails, that code sets _sapi_blocked=True and the caller in
         # scanner.py will try mobile_direct_verify_otp (keytype=otp) for VK.
@@ -1161,7 +1161,7 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
 
     # Cookies not set yet — try fetching clientoauth.html explicitly.
     # This is what a real browser does after the OTP redirect; it sets JSESSIONID
-    # on cloud.jazzdrive.com.pk naturally without any geo-restricted SAPI endpoint.
+    # on cloud.jazzdrive.com.pk naturally without hitting the Oracle-IP-blocked SAPI endpoint.
     if current_url and "cloud.jazzdrive" in current_url and "clientoauth" in current_url:
         try:
             log.info("Fetching clientoauth.html to obtain session cookies: %s", current_url[:100])
@@ -1192,8 +1192,9 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
             log.debug("clientoauth.html fetch failed: %s", _coe)
 
     # Last resort: SAPI silent-login using the raw_accesstoken.
-    # This endpoint is geo-restricted by JazzDrive to PK IPs, so it may fail
-    # from non-Pakistani servers.  Clear any stale cloud.jazzdrive cookies first.
+    # This endpoint is blocked for Oracle's IP by JazzDrive (IP ban, not geo-block).
+    # JazzDrive works globally; it's Oracle's specific IP that is banned.
+    # All calls go through wg0 VPN. Clear any stale cloud.jazzdrive cookies first.
     _stale = [
         (c.domain, c.path, c.name)
         for c in sess.cookies
@@ -1254,7 +1255,7 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
     sess.verify = _prev_verify
 
     if not r4b or r4b.status_code != 200:
-        # SAPI silent login is blocked on non-Pakistani IPs (JazzDrive geo-restricts
+        # SAPI silent login is blocked for Oracle's IP (JazzDrive has an IP ban —
         # the keytype=accesstoken endpoint to PK network ranges).
         # Return a partial result so the caller can persist refresh_token + raw_at,
         # and prompt the user to paste browser cookies instead.

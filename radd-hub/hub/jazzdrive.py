@@ -360,8 +360,10 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
     if _is_replit():
         return None
     # Global proxy bypass — when JAZZDRIVE_PROXY_BYPASS=1 all traffic goes direct.
-    # Enable this when Oracle IP is not geo-blocked; proxies only slow things down.
-    # NOTE: SAPI LOGIN (geo-restricted) bypasses this via direct pool access in
+    # JazzDrive is NOT geo-blocked — it works globally.
+    # Oracle's raw IP is banned by JazzDrive, but all calls go through wg0 VPN
+    # (which uses a non-banned exit IP). Enable PROXY_BYPASS when you trust wg0.
+    # NOTE: SAPI LOGIN (needs non-Oracle-IP path) bypasses this via direct pool access in
     # _android_refresh_session_inner._s2_chain — NOT via resolve_proxies('sapi').
     if db.setting('JAZZDRIVE_PROXY_BYPASS') == '1':
         return None
@@ -409,7 +411,7 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
         if px:
             return px
         # Circuit open (>80% dead) but OTP MUST use a proxy.
-        # Direct connection from Oracle's non-PK IP always returns MED-1011.
+        # Direct connection from Oracle's raw IP (banned by JazzDrive) returns MED-1011.
         # Use the least-dead proxy from the chain as a last resort.
         chain = _pp.pool.get_proxy_chain(n=1)
         if chain:
@@ -486,7 +488,7 @@ def refresh_jsessionid(validation_key: str,
     import urllib.parse as _up
     import base64 as _b64
 
-    # Resolve Proxy — SAPI endpoint may be geo-restricted; use dedicated SAPI proxy slot
+    # Resolve Proxy — SAPI endpoint blocked for Oracle's raw IP; use SAPI proxy slot
     proxies = resolve_proxies(purpose='sapi')
 
     CLOUD_BASE = "https://cloud.jazzdrive.com.pk"
@@ -1444,7 +1446,7 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     _proxies_chain: list = []
     _seen_proxy_urls: set = set()
     if is_proxy_bypass():
-        _proxies_chain = [None]  # direct — Oracle IP is not geo-blocked
+        _proxies_chain = [None]  # direct via wg0 — wg0 exit IP is not banned by JazzDrive
     else:
         primary = resolve_proxies()
         if primary:
@@ -1461,7 +1463,7 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
             pass
         if not _proxies_chain:
             log.warning("trigger_otp_flow: proxy chain empty — direct connection "
-                        "will likely fail (MED-1011 from non-PK IP)")
+                        "will likely fail (MED-1011 — Oracle raw IP is banned by JazzDrive)")
             _proxies_chain = [None]
 
     last_err: Exception = Exception("No proxies available")
@@ -1569,7 +1571,7 @@ def resend_otp() -> dict:
     _proxies_chain: list = []
     _seen_proxy_urls: set = set()
     if is_proxy_bypass():
-        _proxies_chain = [None]  # direct — Oracle IP is not geo-blocked
+        _proxies_chain = [None]  # direct via wg0 — wg0 exit IP is not banned by JazzDrive
     else:
         primary = resolve_proxies()
         if primary:
@@ -1586,7 +1588,7 @@ def resend_otp() -> dict:
             pass
         if not _proxies_chain:
             log.warning("resend_otp: proxy chain empty — direct connection "
-                        "will likely fail (MED-1011 from non-PK IP)")
+                        "will likely fail (MED-1011 — Oracle raw IP is banned by JazzDrive)")
             _proxies_chain = [None]
 
     last_err: Exception = Exception("No proxies available")
@@ -2179,7 +2181,7 @@ def _android_refresh_session_inner(refresh_token: str,
             pass
         if not _ar_chain:
             log.warning("android_refresh_session: proxy chain empty — direct connection "
-                        "will likely fail (MED-1011 from non-PK IP)")
+                        "will likely fail (MED-1011 — Oracle raw IP is banned by JazzDrive)")
             _ar_chain = [None]
 
     # SAPI proxy for Step 2 (cloud.jazzdrive.com.pk).
@@ -2266,9 +2268,9 @@ def _android_refresh_session_inner(refresh_token: str,
     except Exception:
         pass  # use access_token as-is
 
-    # ── Persist refreshed tokens early (before SAPI step that may be geo-blocked) ─
+    # ── Persist refreshed tokens early (before SAPI step that may be Oracle-IP-blocked) ─
     # JazzDrive refresh_token.php rotates the token on each call.  If we wait until
-    # after the SAPI login to persist, a geo-blocked SAPI step will discard the new
+    # after the SAPI login to persist, an Oracle-IP-blocked SAPI step will discard the new
     # token and break the rotation chain.  Save new_rt + raw_at now so the chain
     # is never lost even if Step 2 fails.
     if account_id is not None and new_rt and new_rt != refresh_token:
