@@ -1134,9 +1134,10 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
     _vk_from_chain  = (_cloud_cookies.get("validation_key") or
                        _cloud_cookies.get("validationkey") or "")
 
-    if _jid_from_chain:
+    if _jid_from_chain and _vk_from_chain:
+        # Got both JSESSIONID and VK from cookies — fully done, no SAPI call needed
         log.info(
-            "JSESSIONID obtained directly from OAuth redirect chain (no SAPI call needed) "
+            "JSESSIONID and VK both obtained from OAuth redirect chain — done. "
             "jid=%s... vk=%s", _jid_from_chain[:16], bool(_vk_from_chain)
         )
         _node = _jid_from_chain.split('.')[-1] if '.' in _jid_from_chain else ''
@@ -1148,6 +1149,15 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
             'raw_accesstoken': raw_at,
             'access_token':    raw_at,
         }
+    elif _jid_from_chain:
+        # JSESSIONID found in cookies but VK is missing (common from non-PK servers).
+        # Do NOT return early — fall through to the SAPI step below which may get VK.
+        # If SAPI also fails, that code sets _sapi_blocked=True and the caller in
+        # scanner.py will try mobile_direct_verify_otp (keytype=otp) for VK.
+        log.info(
+            "JSESSIONID obtained from OAuth redirect chain but VK missing — "
+            "continuing to SAPI step for VK. jid=%s...", _jid_from_chain[:16]
+        )
 
     # Cookies not set yet — try fetching clientoauth.html explicitly.
     # This is what a real browser does after the OTP redirect; it sets JSESSIONID
@@ -1164,8 +1174,8 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
                                _cloud_cookies.get("jsessionid") or "")
             _vk_from_chain  = (_cloud_cookies.get("validation_key") or
                                _cloud_cookies.get("validationkey") or "")
-            if _jid_from_chain:
-                log.info("JSESSIONID obtained via clientoauth.html fetch: jid=%s...", _jid_from_chain[:16])
+            if _jid_from_chain and _vk_from_chain:
+                log.info("JSESSIONID and VK from clientoauth.html fetch — done. jid=%s...", _jid_from_chain[:16])
                 _node = _jid_from_chain.split('.')[-1] if '.' in _jid_from_chain else ''
                 return {
                     'validation_key':  _vk_from_chain,
@@ -1175,6 +1185,9 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
                     'raw_accesstoken': raw_at,
                     'access_token':    raw_at,
                 }
+            elif _jid_from_chain:
+                # JSESSIONID from clientoauth.html but VK missing — fall through to SAPI
+                log.info("JSESSIONID from clientoauth.html but VK missing — continuing to SAPI. jid=%s...", _jid_from_chain[:16])
         except Exception as _coe:
             log.debug("clientoauth.html fetch failed: %s", _coe)
 

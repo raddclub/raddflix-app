@@ -363,6 +363,56 @@ def verify_otp(account_id: int, otp: str) -> dict:
     log.info("verify_otp: Android OAuth2 succeeded for account %s "
              "(has_vk=%s has_rt=%s)", account_id, bool(vk), bool(rt))
 
+    # ── If OAuth2 gave no VK, try SAPI direct-OTP path for VK ────────────────
+    # mobile_direct_verify_otp hits /sapi/login/oauth?keytype=otp directly
+    # (does NOT go through verify.php), so the same OTP works for both paths.
+    # This is the reliable way to get validationkey from non-PK servers because
+    # the SAPI keytype=otp endpoint is geo-unrestricted unlike keytype=accesstoken.
+    _otp_for_md = otp  # captured before _otp_sessions is popped below
+    if not vk and _otp_for_md:
+        log.info("verify_otp: OAuth2 gave no VK — trying mobile_direct_verify_otp "
+                 "with same OTP for VK (keytype=otp, geo-unrestricted)...")
+        _md_msisdn = sess.get("msisdn", "")
+        for _vproxy in _chain[:3]:
+            try:
+                _md_tokens = _scanner.mobile_direct_verify_otp(
+                    _md_msisdn,
+                    _otp_for_md,
+                    proxies=_vproxy,
+                )
+                _md_vk  = _md_tokens.get("validation_key") or _md_tokens.get("validationkey") or ""
+                _md_jid = _md_tokens.get("jsessionid") or ""
+                _md_rt  = _md_tokens.get("refresh_token") or _md_tokens.get("refreshtoken") or ""
+                if _md_vk:
+                    log.info(
+                        "verify_otp: mobile_direct gave VK (len=%d) — merging with OAuth2 tokens. "
+                        "jid=%s rt=%s",
+                        len(_md_vk), bool(_md_jid), bool(_md_rt),
+                    )
+                    vk = _md_vk
+                    if _md_jid:
+                        jid = _md_jid  # SAPI JSESSIONID is more reliable for SAPI calls
+                    if _md_rt and not rt:
+                        rt = _md_rt
+                    tokens["validation_key"] = vk
+                    tokens["jsessionid"]     = jid
+                    break
+                else:
+                    log.debug("verify_otp: mobile_direct 200 but no VK in response")
+            except Exception as _md_e:
+                log.debug(
+                    "verify_otp: mobile_direct VK attempt failed (proxy=%s): %s",
+                    (_vproxy or {}).get("_url", "direct")[:40] if _vproxy else "direct",
+                    _md_e,
+                )
+        if not vk:
+            log.warning(
+                "verify_otp: mobile_direct also failed to get VK — account %s will have "
+                "JSESSIONID=%s but NO VK. SAPI calls will fail. User must re-login or "
+                "paste cookies manually.",
+                account_id, bool(jid),
+            )
+
     # ── Extract raw_accesstoken ────────────────────────────────────────────────
     # jazzdrive_verify_otp returns it directly as 'raw_accesstoken' (40-char hex).
     # Fall back to decoding 'access_token' if the field is base64-JSON or raw hex.
