@@ -630,3 +630,52 @@ Toggling the master OFF left all background JD activity running freely.
 - JAZZDRIVE_ENABLED: 1 (master switch ON — restored after testing)
 - JazzDrive session: ACTIVE
 - Open tasks: none
+
+
+---
+
+## Session 2026-06-13 — UA fix, conflict detector, session health, OTP VK fix, Clear Cookies
+
+### FIX-UA-STRINGS ✅ (commit db30e8bf)
+All 10 User-Agent strings corrected across scanner.py, jazzdrive.py, proxy_pool.py, app.py:
+- Wrong:   `SM-A515F/Android12` (Samsung)
+- Correct: `Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)`
+
+### FEAT-CONFLICT-DETECTOR ✅ (commits b2e7bc5f, 05c73576)
+keepalive.py: `_classify_error()` detects JD device conflict pattern; `_log_event()` / `get_events()` 100-entry ring buffer; auto-pause on 2+ conflicts in 10 min; WhatsApp alert on detection.
+
+### FEAT-KEEPALIVE-HEALTH-API ✅
+admin.py: `GET /admin/api/keepalive-health` — health cards, event log, conflict stats.
+`POST /admin/api/keepalive-health/trigger/<aid>` — force one heartbeat.
+
+### FEAT-SESSION-HEALTH-PANEL ✅
+services.html: JazzDrive Session Health panel — per-account health cards, expiry countdown bar, Force Heartbeat / Refresh buttons, event log, conflict banner.
+
+### FIX-UPLOAD-HANG ✅ (commit 0f133ce5)
+Root cause: account 03257719165 had dead JSESSIONID (60-min idle timeout). refresh_token rotated but not saved. raw_accesstoken (hex) rejected by `keytype=accesstoken` SAPI (401). No proxy. Job sat at 0% "queued" indefinitely.
+Fix: uploader.py `_run()` pre-flight session check → state=`session_dead` immediately with re-login message.
+upload.html: `session_dead` badge + banner + link to Scan page.
+
+### FIX-OTP-VK-MISSING ✅ (commit 0ceb1544)
+Root cause: `jazzdrive_verify_otp()` in `_legacy/scanner.py` returned early when JSESSIONID found in cookies, even with `validation_key=""`. Without VK, every SAPI call fails AUTH-001. `keytype=accesstoken` endpoint always returns 401 for fnbroot OAuth2 hex tokens (fundamental format mismatch, not geo).
+Fix 1 — hub/scanner.py verify_otp(): after OAuth2 gives vk=False → call mobile_direct_verify_otp() with same OTP (keytype=otp endpoint, geo-unrestricted). Merge VK into OAuth2 tokens.
+Fix 2 — hub/_legacy/scanner.py jazzdrive_verify_otp(): early-return guards now require BOTH JSESSIONID AND VK. If only JSESSIONID → falls through to SAPI step.
+Key insight: OTP can be used on BOTH endpoints simultaneously. jazzdrive.com.pk/verify.php (OAuth2) and cloud.jazzdrive.com.pk/sapi/login/oauth (SAPI direct) are independent — consuming one does NOT invalidate the other.
+
+### FEAT-CLEAR-COOKIES ✅ (2026-06-13)
+New "🍪 Clear Cookies" button on every account card in Scan page.
+- Wipes: JSESSIONID, validation_key, node (session cookies only)
+- Keeps: refresh_token, raw_accesstoken, is_active=1, token_expires_at
+- Also clears jazzdrive_session.json validationkey + jsessionid fields
+- Clears SAPI backoff so keepalive retries immediately
+- API: POST /scan/api/accounts/<id>/clear-cookies
+- Function: jd_clear_cookies(account_id) in hub/jazzdrive.py
+- JS: clearCookies() in scan.html — toast shows whether refresh_token was kept
+Contrast with "Logout JD": logout wipes ALL tokens and marks is_active=0. Clear Cookies is gentler — use when session is stale but account should stay active.
+
+### State at End of Session
+- Oracle Flask: ✅ RUNNING (healthz OK, version 3.0.0)
+- Account id=4 (03257719165): JSESSIONID+RT present, VK MISSING — user must re-OTP once
+- Code fix deployed (0ceb1544): next OTP will get VK correctly
+- All 7 features/fixes from this session: ✅ deployed to Oracle + pushed to GitHub
+- Stuck upload file (Karuppu.2026.480p, files.id=37): waiting on user OTP then delete+re-upload
