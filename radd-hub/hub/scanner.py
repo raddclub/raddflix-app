@@ -379,50 +379,35 @@ def verify_otp(account_id: int, otp: str) -> dict:
             log.info("verify_otp: SAPI-blocked android_refresh gave VK for account %s", account_id)
             return {"ok": True, "account_id": account_id}
 
-        # android_refresh failed — try mobile_direct_verify_otp (keytype=otp).
-        # keytype=otp IS geo-restricted: returns 401 from Cloudflare/wg0 exit (non-PK IP).
-        # Must use Pakistani proxy from pool directly — ignore PROXY_BYPASS for this step.
-        # Same pattern as _s2_chain which also bypasses resolve_proxies() for geo-gated login.
+        # android_refresh failed — try mobile_direct_verify_otp (keytype=otp) via wg0.
+        # NOTE: SAPI login endpoints (/sapi/login/oauth) are Apache-blocked for both
+        # Oracle's raw IP and Cloudflare WARP exit (since Feb 11 2026 static block).
+        # This call will return 401 — it is here as a fast diagnostic + future-proof path.
+        # The real path is the activation link the user opens on their Jazz phone.
         _md3_msisdn = sess.get("msisdn", "")
-        _md3_pk_chain: list = []
-        try:
-            _pk_best = _pp.pool.get_best()
-            if _pk_best:
-                _md3_pk_chain.append(_pk_best)
-            for _pkp in _pp.pool.get_proxy_chain(n=4):
-                if _pkp not in _md3_pk_chain:
-                    _md3_pk_chain.append(_pkp)
-        except Exception:
-            pass
-        if not _md3_pk_chain:
-            _md3_pk_chain = [None]  # last resort direct — will 401 (non-PK exit)
         log.info("verify_otp: SAPI-blocked — trying mobile_direct_verify_otp "
-                 "(keytype=otp, needs PK proxy) for account %s — %d proxy(s)",
-                 account_id, len(_md3_pk_chain))
-        for _md3_proxy in _md3_pk_chain:
-            try:
-                _md3_tokens = _scanner.mobile_direct_verify_otp(
-                    _md3_msisdn, otp, proxies=_md3_proxy,
+                 "(keytype=otp, direct via wg0) for account %s", account_id)
+        try:
+            _md3_tokens = _scanner.mobile_direct_verify_otp(
+                _md3_msisdn, otp, proxies=None,
+            )
+            _md3_vk  = _md3_tokens.get("validation_key") or _md3_tokens.get("validationkey") or ""
+            _md3_jid = _md3_tokens.get("jsessionid") or ""
+            if _md3_vk:
+                log.info("verify_otp: SAPI-blocked mobile_direct gave VK — fully activated!")
+                db.update_account_session(
+                    account_id,
+                    validation_key=_md3_vk,
+                    jsessionid=_md3_jid or jid_partial,
+                    node=node_partial,
+                    expires_at=_exp,
+                    refresh_token=rt,
                 )
-                _md3_vk  = _md3_tokens.get("validation_key") or _md3_tokens.get("validationkey") or ""
-                _md3_jid = _md3_tokens.get("jsessionid") or ""
-                if _md3_vk:
-                    log.info("verify_otp: SAPI-blocked mobile_direct gave VK — fully activated!")
-                    db.update_account_session(
-                        account_id,
-                        validation_key=_md3_vk,
-                        jsessionid=_md3_jid or jid_partial,
-                        node=node_partial,
-                        expires_at=_exp,
-                        refresh_token=rt,
-                    )
-                    return {"ok": True, "account_id": account_id}
-                log.warning("verify_otp: SAPI-blocked mobile_direct 200 but no VK (proxy=%s)",
-                            (_md3_proxy or {}).get("_url", "direct")[:60] if _md3_proxy else "direct")
-            except Exception as _md3_e:
-                log.warning("verify_otp: SAPI-blocked mobile_direct failed (proxy=%s): %s",
-                            (_md3_proxy or {}).get("_url", "direct")[:60] if _md3_proxy else "direct",
-                            _md3_e)
+                return {"ok": True, "account_id": account_id}
+            log.warning("verify_otp: SAPI-blocked mobile_direct 200 but no VK")
+        except Exception as _md3_e:
+            log.warning("verify_otp: SAPI-blocked mobile_direct failed (expected — SAPI login blocked): %s",
+                        str(_md3_e)[:100])
 
         msisdn_hint = sess.get("msisdn", "")
         return {
@@ -453,48 +438,31 @@ def verify_otp(account_id: int, otp: str) -> dict:
     # simultaneously — they are independent Jazz endpoints.
     if not vk:
         _md_msisdn = sess.get("msisdn", "")
-        # keytype=otp IS geo-restricted — must use PK proxy, ignore PROXY_BYPASS.
-        _md_pk_chain: list = []
-        try:
-            _md_best = _pp.pool.get_best()
-            if _md_best:
-                _md_pk_chain.append(_md_best)
-            for _mdp in _pp.pool.get_proxy_chain(n=4):
-                if _mdp not in _md_pk_chain:
-                    _md_pk_chain.append(_mdp)
-        except Exception:
-            pass
-        if not _md_pk_chain:
-            _md_pk_chain = [None]
+        # SAPI login endpoints blocked from Oracle/Cloudflare — try anyway for diagnostics.
         log.info("verify_otp: OAuth2 gave no VK — trying mobile_direct_verify_otp "
-                 "with same OTP (keytype=otp, needs PK proxy) for account %s — %d proxy(s)",
-                 account_id, len(_md_pk_chain))
-        for _vproxy in _md_pk_chain:
-            try:
-                _md_tokens = _scanner.mobile_direct_verify_otp(
-                    _md_msisdn, otp, proxies=_vproxy,
-                )
-                _md_vk  = _md_tokens.get("validation_key") or _md_tokens.get("validationkey") or ""
-                _md_jid = _md_tokens.get("jsessionid") or ""
-                _md_rt  = _md_tokens.get("refresh_token") or _md_tokens.get("refreshtoken") or ""
-                if _md_vk:
-                    log.info("verify_otp: mobile_direct gave VK (len=%d) — merging. jid=%s rt=%s",
-                             len(_md_vk), bool(_md_jid), bool(_md_rt))
-                    vk = _md_vk
-                    tokens["validation_key"] = vk
-                    if _md_jid:
-                        jid = _md_jid
-                        tokens["jsessionid"] = jid
-                    if _md_rt and not rt:
-                        rt = _md_rt
-                    break
-                else:
-                    log.warning("verify_otp: mobile_direct 200 but no VK (proxy=%s)",
-                                (_vproxy or {}).get("_url", "direct")[:60] if _vproxy else "direct")
-            except Exception as _md_e:
-                log.warning("verify_otp: mobile_direct VK attempt failed (proxy=%s): %s",
-                            (_vproxy or {}).get("_url", "direct")[:60] if _vproxy else "direct",
-                            _md_e)
+                 "(keytype=otp, direct via wg0) for account %s", account_id)
+        try:
+            _md_tokens = _scanner.mobile_direct_verify_otp(
+                _md_msisdn, otp, proxies=None,
+            )
+            _md_vk  = _md_tokens.get("validation_key") or _md_tokens.get("validationkey") or ""
+            _md_jid = _md_tokens.get("jsessionid") or ""
+            _md_rt  = _md_tokens.get("refresh_token") or _md_tokens.get("refreshtoken") or ""
+            if _md_vk:
+                log.info("verify_otp: mobile_direct gave VK (len=%d) — merging. jid=%s rt=%s",
+                         len(_md_vk), bool(_md_jid), bool(_md_rt))
+                vk = _md_vk
+                tokens["validation_key"] = vk
+                if _md_jid:
+                    jid = _md_jid
+                    tokens["jsessionid"] = jid
+                if _md_rt and not rt:
+                    rt = _md_rt
+            else:
+                log.warning("verify_otp: mobile_direct 200 but no VK")
+        except Exception as _md_e:
+            log.warning("verify_otp: mobile_direct failed (expected — SAPI blocked): %s",
+                        str(_md_e)[:100])
         if not vk:
             log.warning("verify_otp: mobile_direct also gave no VK — account %s "
                         "has JSESSIONID=%s but NO VK. SAPI calls will fail.",
