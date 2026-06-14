@@ -242,8 +242,8 @@ def verify_otp(account_id: int, otp: str) -> dict:
     # SAPI keytype=otp is an INDEPENDENT Jazz endpoint — the same OTP works on both.
     # By calling mobile_direct_verify_otp() HERE (before verify.php POST), we get VK
     # while the OTP is still fresh. The captured VK is injected after OAuth2 completes.
-    # Requires a PK IP (Pakistani proxy) — blocked via Cloudflare/Oracle raw IP.
-    # When no PK proxy is available this is a no-op and the rest of the flow continues.
+    # Works from any IP with the correct Android headers (User-Agent: omh android client).
+    # Direct connection (None proxy) is tried last and will also succeed with the correct UA.
     _pre_vk  = ""
     _pre_jid = ""
     _sapi_pre_chain: list = []
@@ -299,7 +299,7 @@ def verify_otp(account_id: int, otp: str) -> dict:
     if _pre_vk:
         log.info("verify_otp: PRE-SAPI succeeded — VK will be merged after OAuth2 token exchange")
     else:
-        log.info("verify_otp: PRE-SAPI gave no VK (no working PK proxy) — proceeding with OAuth2 only")
+        log.info("verify_otp: PRE-SAPI gave no VK — proceeding with OAuth2 only")
 
     # ── Android OAuth2 code exchange ──────────────────────────────────────────
     # jazzdrive_verify_otp always uses client_id=fnbroot (Android credentials).
@@ -370,11 +370,11 @@ def verify_otp(account_id: int, otp: str) -> dict:
                   account_id, _last_std_err, _last_mobile_err)
         return {"ok": False, "error": f"Verification failed. Primary error: {_last_std_err}. Fallback error: {_last_mobile_err}"}
 
-    # ── Handle SAPI-blocked partial result ────────────────────────────────────
+    # ── Handle partial result (SAPI keytype=accesstoken did not return VK) ────
     # jazzdrive_verify_otp returns _sapi_blocked=True when the SAPI silent-login
-    # endpoint returns 401 (JazzDrive has banned Oracle's IP for SAPI silent-login).
+    # (keytype=accesstoken) step did not return a validationkey.
     # The OTP was accepted and we have a valid refresh_token + raw_accesstoken,
-    # but we cannot get a JSESSIONID/validationkey from this server IP.
+    # but the SAPI step did not produce a JSESSIONID/validationkey.
     # Save the tokens so keepalive can attempt refresh, and tell the UI to prompt
     # the user to paste cookies from their local browser session.
     if tokens.get("_sapi_blocked"):
@@ -383,7 +383,7 @@ def verify_otp(account_id: int, otp: str) -> dict:
         jid_partial = tokens.get("jsessionid") or ""  # FIX-JD-LOGIN-1: now populated
         node_partial = tokens.get("node") or ""
         log.info(
-            "verify_otp: SAPI blocked (Oracle IP banned) for account %s — saving partial tokens "
+            "verify_otp: SAPI keytype=accesstoken did not return VK for account %s — saving partial tokens "
             "vk=False jid=%s rt=%s rat=%s",
             account_id, bool(jid_partial), bool(rt), bool(rat),
         )
@@ -416,7 +416,7 @@ def verify_otp(account_id: int, otp: str) -> dict:
         _refresh_vk = ""
         try:
             from . import jazzdrive as _jd_mod
-            log.info("verify_otp: SAPI blocked — trying android_refresh_session "
+            log.info("verify_otp: SAPI step failed — trying android_refresh_session "
                      "for account %s to obtain VK via OAuth2 refresh path", account_id)
             _ar = _jd_mod.android_refresh_session(rt, account_id=account_id)
             if _ar.get("ok"):
@@ -440,16 +440,15 @@ def verify_otp(account_id: int, otp: str) -> dict:
             _otp_sessions.pop(account_id, None)
 
         if _refresh_vk:
-            log.info("verify_otp: SAPI-blocked android_refresh gave VK for account %s", account_id)
+            log.info("verify_otp: android_refresh gave VK for account %s", account_id)
             return {"ok": True, "account_id": account_id}
 
         # android_refresh failed — try mobile_direct_verify_otp (keytype=otp) via wg0.
-        # NOTE: SAPI login endpoints (/sapi/login/oauth) are Apache-blocked for both
-        # Oracle's raw IP and Cloudflare WARP exit (since Feb 11 2026 static block).
-        # This call will return 401 — it is here as a fast diagnostic + future-proof path.
+        # NOTE: mobile_direct_verify_otp now uses the correct Android UA (omh android client).
+        # The SAPI endpoint responds from any IP with the correct headers.
         # The real path is the activation link the user opens on their Jazz phone.
         _md3_msisdn = sess.get("msisdn", "")
-        log.info("verify_otp: SAPI-blocked — trying mobile_direct_verify_otp "
+        log.info("verify_otp: trying mobile_direct_verify_otp "
                  "(keytype=otp, direct via wg0) for account %s", account_id)
         try:
             _md3_tokens = _scanner.mobile_direct_verify_otp(
@@ -458,7 +457,7 @@ def verify_otp(account_id: int, otp: str) -> dict:
             _md3_vk  = _md3_tokens.get("validation_key") or _md3_tokens.get("validationkey") or ""
             _md3_jid = _md3_tokens.get("jsessionid") or ""
             if _md3_vk:
-                log.info("verify_otp: SAPI-blocked mobile_direct gave VK — fully activated!")
+                log.info("verify_otp: mobile_direct gave VK — fully activated!")
                 db.update_account_session(
                     account_id,
                     validation_key=_md3_vk,
@@ -468,9 +467,9 @@ def verify_otp(account_id: int, otp: str) -> dict:
                     refresh_token=rt,
                 )
                 return {"ok": True, "account_id": account_id}
-            log.warning("verify_otp: SAPI-blocked mobile_direct 200 but no VK")
+            log.warning("verify_otp: mobile_direct 200 but no VK")
         except Exception as _md3_e:
-            log.warning("verify_otp: SAPI-blocked mobile_direct failed (expected — SAPI login blocked): %s",
+            log.warning("verify_otp: mobile_direct failed: %s",
                         str(_md3_e)[:100])
 
         msisdn_hint = sess.get("msisdn", "")
@@ -511,14 +510,12 @@ def verify_otp(account_id: int, otp: str) -> dict:
 
     # ── If OAuth2 gave no VK, try mobile_direct_verify_otp with the same OTP ──
     # mobile_direct_verify_otp hits /sapi/login/oauth?keytype=otp directly.
-    # keytype=otp is GEO-UNRESTRICTED — works from Oracle server IP unlike
-    # keytype=accesstoken (android_refresh_session) which always returns 401
-    # from non-Jazz-SIM IPs. Commit 0ceb154 proved this approach works.
+    # keytype=otp works from any IP with the correct Android headers (User-Agent: omh android client).
+    # FIX-OTP-UA-GATE confirmed this works from Oracle directly (commit c8490d9).
     # The same SMS OTP works for BOTH verify.php (OAuth2) AND keytype=otp (SAPI)
     # simultaneously — they are independent Jazz endpoints.
     if not vk:
         _md_msisdn = sess.get("msisdn", "")
-        # SAPI login endpoints blocked from Oracle/Cloudflare — try anyway for diagnostics.
         log.info("verify_otp: OAuth2 gave no VK — trying mobile_direct_verify_otp "
                  "(keytype=otp, direct via wg0) for account %s", account_id)
         try:
@@ -541,7 +538,7 @@ def verify_otp(account_id: int, otp: str) -> dict:
             else:
                 log.warning("verify_otp: mobile_direct 200 but no VK")
         except Exception as _md_e:
-            log.warning("verify_otp: mobile_direct failed (expected — SAPI blocked): %s",
+            log.warning("verify_otp: mobile_direct failed: %s",
                         str(_md_e)[:100])
         if not vk:
             log.warning("verify_otp: mobile_direct also gave no VK — account %s "
