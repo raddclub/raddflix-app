@@ -188,6 +188,14 @@ def acct_log(aid):
     return jsonify(db.get_scan_log(aid, after=after))
 
 
+@bp.route("/api/accounts/<int:aid>/log", methods=["DELETE"])
+@auth.login_required
+def clear_acct_log(aid):
+    """Delete all scan log rows for this account from the DB."""
+    n = db.clear_scan_log(aid)
+    return jsonify({"ok": True, "deleted": n})
+
+
 @bp.route("/api/files")
 @auth.login_required
 def all_files():
