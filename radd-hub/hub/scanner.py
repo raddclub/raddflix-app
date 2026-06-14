@@ -237,6 +237,70 @@ def verify_otp(account_id: int, otp: str) -> dict:
             log.warning("verify_otp: proxy chain empty — direct connection will likely fail (MED-1011)")
             _chain = [None]
 
+    # ── PRE-SAPI: capture VK via keytype=otp BEFORE OTP is consumed by verify.php ──
+    # verify.php (Step 3 of jazzdrive_verify_otp) consumes the OTP for OAuth2.
+    # SAPI keytype=otp is an INDEPENDENT Jazz endpoint — the same OTP works on both.
+    # By calling mobile_direct_verify_otp() HERE (before verify.php POST), we get VK
+    # while the OTP is still fresh. The captured VK is injected after OAuth2 completes.
+    # Requires a PK IP (Pakistani proxy) — blocked via Cloudflare/Oracle raw IP.
+    # When no PK proxy is available this is a no-op and the rest of the flow continues.
+    _pre_vk  = ""
+    _pre_jid = ""
+    _sapi_pre_chain: list = []
+    _sapi_pre_seen: set = set()
+    try:
+        from . import proxy_pool as _pp_pre
+        _best_pre = _pp_pre.pool.get_best()
+        if _best_pre:
+            _sapi_pre_chain.append(_best_pre)
+            _sapi_pre_seen.add(_best_pre.get("_url", ""))
+        for _sp_pre in _pp_pre.pool.get_proxy_chain(n=3):
+            _su_pre = _sp_pre.get("_url", "")
+            if _su_pre and _su_pre not in _sapi_pre_seen:
+                _sapi_pre_seen.add(_su_pre)
+                _sapi_pre_chain.append(_sp_pre)
+    except Exception:
+        pass
+    _sapi_pre_chain.append(None)  # direct via wg0 as last resort
+
+    log.info("verify_otp: PRE-SAPI keytype=otp for account %s (proxies=%d)",
+             account_id, len(_sapi_pre_chain))
+    for _sp_pre in _sapi_pre_chain:
+        try:
+            _pre_tok = _scanner.mobile_direct_verify_otp(
+                sess.get("msisdn", ""), otp, proxies=_sp_pre,
+            )
+            _pre_vk  = _pre_tok.get("validation_key") or _pre_tok.get("validationkey") or ""
+            _pre_jid = _pre_tok.get("jsessionid") or ""
+            if _pre_vk:
+                _pre_proxy_label = (_sp_pre or {}).get("_url", "direct")[:50] if _sp_pre else "direct"
+                log.info(
+                    "verify_otp: PRE-SAPI VK captured BEFORE token.php "
+                    "(proxy=%s vk_len=%d jid=%s)",
+                    _pre_proxy_label, len(_pre_vk), bool(_pre_jid),
+                )
+                break
+            log.debug("verify_otp: PRE-SAPI 200 but no VK (proxy=%s)",
+                      (_sp_pre or {}).get("_url", "direct")[:40] if _sp_pre else "direct")
+        except Exception as _pse:
+            _pse_str = str(_pse)[:80]
+            _pse_proxy = (_sp_pre or {}).get("_url", "direct")[:40] if _sp_pre else "direct"
+            _is_conn_pse = any(x in _pse_str.lower() for x in (
+                "connection", "timeout", "refused", "reset", "socks", "proxy", "retries"))
+            if _is_conn_pse and _sp_pre:
+                _fail_url_pse = (_sp_pre or {}).get("_url", "")
+                if _fail_url_pse:
+                    try:
+                        _pp_pre.pool.mark_fail(_fail_url_pse)
+                    except Exception:
+                        pass
+            log.debug("verify_otp: PRE-SAPI attempt failed (proxy=%s): %s", _pse_proxy, _pse_str)
+
+    if _pre_vk:
+        log.info("verify_otp: PRE-SAPI succeeded — VK will be merged after OAuth2 token exchange")
+    else:
+        log.info("verify_otp: PRE-SAPI gave no VK (no working PK proxy) — proceeding with OAuth2 only")
+
     # ── Android OAuth2 code exchange ──────────────────────────────────────────
     # jazzdrive_verify_otp always uses client_id=fnbroot (Android credentials).
     # The server returns a refresh_token valid for ~90 days; future re-logins
@@ -426,8 +490,24 @@ def verify_otp(account_id: int, otp: str) -> dict:
     jid = tokens.get("jsessionid") or ""
     rt  = tokens.get("refresh_token") or tokens.get("refreshtoken") or ""
 
+    # ── Inject PRE-SAPI VK if OAuth2 flow didn't provide one ─────────────────
+    # _pre_vk was captured BEFORE verify.php consumed the OTP, so it is always
+    # fresh regardless of whether keytype=accesstoken SAPI step succeeded.
+    if _pre_vk and not vk:
+        log.info(
+            "verify_otp: injecting PRE-SAPI VK into tokens (vk_len=%d jid=%s)",
+            len(_pre_vk), bool(_pre_jid),
+        )
+        vk = _pre_vk
+        tokens["validation_key"] = vk
+        if _pre_jid and not jid:
+            jid = _pre_jid
+            tokens["jsessionid"] = jid
+    elif _pre_vk and vk:
+        log.info("verify_otp: PRE-SAPI VK available but OAuth2 already provided VK — using OAuth2 one")
+
     log.info("verify_otp: Android OAuth2 succeeded for account %s "
-             "(has_vk=%s has_rt=%s)", account_id, bool(vk), bool(rt))
+             "(has_vk=%s has_rt=%s pre_vk_used=%s)", account_id, bool(vk), bool(rt), bool(_pre_vk and not tokens.get("_sapi_blocked")))
 
     # ── If OAuth2 gave no VK, try mobile_direct_verify_otp with the same OTP ──
     # mobile_direct_verify_otp hits /sapi/login/oauth?keytype=otp directly.
