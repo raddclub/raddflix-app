@@ -736,3 +736,51 @@ every OTP login will automatically get VK+JID+AT+RT in a single flow.
 - FIX-PRE-SAPI-VK deployed: next OTP login will capture VK first IF a working PK proxy is in pool
 - All 8 PK SOCKS proxies: DEAD — must add fresh Pakistani proxies for VK capture to work
 - Open: ADD-PK-PROXIES (HIGH), DELETE-STUCK-FILE (HIGH, needs VK first)
+
+---
+
+## Session 2026-06-14 (2nd) — FIX-OTP-UA-GATE: User-Agent gate discovery
+
+### Root cause found: NOT geo-blocked, NOT IP-blocked — User-Agent gate
+
+Full live endpoint mapping from both Replit (non-PK) and Oracle (India/Oracle Mumbai) proved:
+- `/sapi/login/oauth` without Android UA → 401 size:0 (static empty file, Last-Modified Feb 11 2026)
+- `/sapi/login/oauth` with `User-Agent: omh android client` → 400/200 (app alive)
+- Same response from ALL IPs: Replit, Oracle, any country — purely a UA check
+
+Oracle's own IP is 92.4.95.252 (India). wg0 only routes 3 specific Jazz datacenter IPs
+(175.41.133.62, 54.179.95.148, 54.254.59.168) — not a full VPN. JazzDrive traffic from
+Oracle goes direct as Indian IP. Still works with correct UA.
+
+### Bug fixed: FIX-OTP-UA-GATE
+
+`mobile_direct_verify_otp()` in `hub/_legacy/scanner.py` was sending:
+  `User-Agent: Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)`
+→ Hit the static file UA gate → 401 empty → VK never captured
+
+Fixed to:
+  `User-Agent: omh android client`   (the real Android app UA from APK decompile)
+  `x-request-id: <UUID>`             (per-request, as C30920a AddRequestIdInterceptor does)
+  `responsetime=true` added to all candidate URLs
+
+Verified on Oracle: omh UA → HTTP 400 (app responds, rejects fake OTP — correct)
+                    Dalvik UA → HTTP 401 size:0 (gate — old broken behavior)
+
+ADD-PK-PROXIES task closed — root cause was wrong (UA, not IP).
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| FIX-OTP-UA-GATE | mobile_direct_verify_otp UA fix + responsetime=true | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| radd-hub/hub/_legacy/scanner.py | UA Dalvik→omh android client + x-request-id + responsetime=true | c8490d9 |
+| agent-hub/TASKS.md | ADD-PK-PROXIES closed, FIX-OTP-UA-GATE added as done | c8490d9 |
+
+### State at end of session
+- Oracle Flask: RUNNING (healthz OK, version 3.0.0)
+- keytype=otp endpoint: now reachable from Oracle with correct UA — will return VK on next real OTP
+- No PK proxy needed — UA fix is sufficient
+- Open: DELETE-STUCK-FILE (needs valid VK first), MONITOR-VK-REFRESH (WATCH)
