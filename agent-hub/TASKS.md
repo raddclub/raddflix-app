@@ -6,6 +6,7 @@ _Last updated: 2026-06-14_
 
 | ID | Changed | Summary |
 |----|---------|---------|
+| ✅ FIX-OTP-UA-GATE | hub/_legacy/scanner.py | mobile_direct_verify_otp: UA Dalvik→"omh android client" + x-request-id + responsetime=true. Not geo-blocked — was a User-Agent gate all along. No PK proxy needed. |
 | ✅ FIX-PRE-SAPI-VK | hub/scanner.py | PRE-SAPI: call mobile_direct_verify_otp() BEFORE verify.php consumes OTP — VK captured while OTP is fresh, injected into tokens after OAuth2 exchange |
 | ✅ DIAG-JD-LOGIN | (test only) | Full JazzDrive login diagnostic from Replit IP: confirmed NOT geo-blocked. action=login Apache-blocked from all non-PK IPs. All 8 PK SOCKS proxies dead. DB refresh_token rotated, updated in DB |
 
@@ -37,6 +38,6 @@ _Last updated: 2026-06-14_
 
 | ID | Priority | Status | Notes |
 |----|---------|--------|-------|
-| ADD-PK-PROXIES | HIGH | OPEN | All 8 PK SOCKS proxies in pool are dead. Need fresh Pakistani proxies for action=login SAPI gate. FIX-PRE-SAPI-VK is ready and will work automatically once proxies are added |
 | DELETE-STUCK-FILE | HIGH | OPEN | Delete Karuppu.2026.480p... (files.id=37) → re-upload. Needs valid VK first |
 | MONITOR-VK-REFRESH | MEDIUM | WATCH | VK cannot be renewed via silent refresh. If it expires, user must do OTP again |
+

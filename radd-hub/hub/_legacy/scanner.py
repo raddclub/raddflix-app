@@ -695,18 +695,19 @@ def mobile_direct_verify_otp(msisdn: str, otp: str, proxies: Optional[dict] = No
 
     sess = requests.Session()
     hdrs = {
-        'User-Agent':       'Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)',
+        'User-Agent':       'omh android client',
         'Accept':           'application/json, */*',
         'X-deviceid':       device_id,
         'X-devicename':     device_name,
         'X-Requested-With': 'com.jazz.drive',
+        'x-request-id':     str(uuid.uuid4()),
     }
 
     candidates = [
-        f'{CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=otp&key={encoded_otp}&msisdn={encoded_msisdn}',
-        f'{CLOUD_BASE}/sapi/login?action=login&platform=Android&keytype=otp&key={encoded_otp}&msisdn={encoded_msisdn}',
-        f'{CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=otp&key={encoded_otp}',
-        f'{CLOUD_BASE}/sapi/login/oauth?keytype=otp&key={encoded_otp}&msisdn={encoded_msisdn}',
+        f'{CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=otp&key={encoded_otp}&msisdn={encoded_msisdn}&responsetime=true',
+        f'{CLOUD_BASE}/sapi/login?action=login&platform=Android&keytype=otp&key={encoded_otp}&msisdn={encoded_msisdn}&responsetime=true',
+        f'{CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=otp&key={encoded_otp}&responsetime=true',
+        f'{CLOUD_BASE}/sapi/login/oauth?keytype=otp&key={encoded_otp}&msisdn={encoded_msisdn}&responsetime=true',
     ]
 
     for url in candidates:
