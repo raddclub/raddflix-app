@@ -147,6 +147,14 @@ def get_log_entries(since_seq: int = 0) -> list:
     with _LOG_RING_LOCK:
         return [e for e in _LOG_RING if e["seq"] > since_seq]
 
+
+def clear_log_entries() -> int:
+    """Clear the in-memory log ring buffer. Returns number of entries deleted."""
+    with _LOG_RING_LOCK:
+        n = len(_LOG_RING)
+        _LOG_RING.clear()
+        return n
+
 # Upload config defaults — all can be overridden via DB settings
 _DEFAULT_UPLOAD_CFG = {
     "parallel_uploads":      1,
