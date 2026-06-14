@@ -804,9 +804,18 @@ function applyLogFilter() {
   clearLogs(); // Simplify: clear when filter changes to avoid complexity
 }
 
-function clearLogs() {
+async function clearLogs() {
   const box = document.getElementById('log-box');
-  if (box) box.innerHTML = '<div class="muted" style="font-size:12px">Log cleared.</div>';
+  if (box) box.innerHTML = '<div class="muted" style="font-size:12px">Clearing…</div>';
+  try {
+    const r = await fetch('/upload/api/log-clear', {method: 'POST',
+      headers: {'X-Requested-With': 'XMLHttpRequest'}});
+    const d = await r.json();
+    if (box) box.innerHTML = '<div class="muted" style="font-size:12px">Log cleared (' + (d.deleted||0) + ' entries deleted).</div>';
+    _logSeq = 0;
+  } catch(e) {
+    if (box) box.innerHTML = '<div class="muted" style="font-size:12px">Log cleared (offline).</div>';
+  }
 }
 
 function startLogStream() {
