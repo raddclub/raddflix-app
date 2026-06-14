@@ -280,64 +280,110 @@ def save_account_tokens(aid):
 @bp.route("/api/accounts/<int:aid>/sapi-activate-url", methods=["GET"])
 @auth.login_required
 def sapi_activate_url(aid):
-    """Generate a JazzDrive SAPI activation URL from the stored raw_accesstoken.
+    """Generate a fresh JazzDrive SAPI activation URL.
 
-    The returned URL can be opened in a phone browser on a Pakistani IP (Jazz network).
-    The phone browser will display JSON containing validationkey and jsessionid which
-    the user then pastes into the activation form — no PC/DevTools needed.
+    Refreshes the OAuth2 access token first (refresh_token.php is NOT IP-blocked)
+    so the URL always contains a live token.  The URL must be opened on a Jazz phone
+    using Jazz mobile data (NOT WiFi) — it returns JSON with validationkey + jsessionid.
     """
     import json as _json
     import base64 as _b64
     import urllib.parse as _up
+    import requests as _req
+    import urllib3 as _u3
+    _u3.disable_warnings(_u3.exceptions.InsecureRequestWarning)
 
     CLOUD_BASE = "https://cloud.jazzdrive.com.pk"
 
     try:
         with db.conn() as c:
             row = c.execute(
-                "SELECT id, msisdn, raw_accesstoken FROM accounts WHERE id=?", (aid,)
+                "SELECT id, msisdn, raw_accesstoken, refresh_token FROM accounts WHERE id=?",
+                (aid,)
             ).fetchone()
         if not row:
             return jsonify({"ok": False, "error": "Account not found"}), 404
 
         row = dict(row)
-        raw_at = row.get("raw_accesstoken") or ""
+        raw_at       = row.get("raw_accesstoken") or ""
+        refresh_tok  = row.get("refresh_token") or ""
 
-        if not raw_at:
+        if not raw_at and not refresh_tok:
             return jsonify({
                 "ok": False,
-                "error": (
-                    "No access token stored for account %s. "
-                    "Please send an OTP first." % aid
-                )
+                "error": "No tokens stored for account %s — please send an OTP first." % aid
             }), 400
 
-        at_json = _json.dumps({"data": {"accesstoken": raw_at}})
-        at_b64   = _b64.b64encode(at_json.encode()).decode()
-        at_b64e  = _up.quote(at_b64, safe="")
+        # ── Step 1: Refresh the access token so the link is never stale ──────────
+        # refresh_token.php (jazzdrive.com.pk) is NOT IP-blocked from Oracle.
+        # We get a fresh AT even though the SAPI step is blocked from this server.
+        _fresh_at = ""
+        if refresh_tok:
+            try:
+                from .jazzdrive import ANDROID_CLIENT_ID, ANDROID_CLIENT_SECRET
+                _r = _req.post(
+                    "https://jazzdrive.com.pk/oauth2/refresh_token.php",
+                    data={
+                        "grant_type":    "refresh_token",
+                        "client_id":     ANDROID_CLIENT_ID,
+                        "client_secret": ANDROID_CLIENT_SECRET,
+                        "refresh_token": refresh_tok,
+                    },
+                    timeout=20,
+                    verify=False,
+                )
+                if _r.status_code == 200:
+                    _resp = _r.json()
+                    _at_raw = _resp.get("access_token", "")
+                    # Decode if base64-JSON wrapped
+                    try:
+                        _pad  = "=" * ((4 - len(_at_raw) % 4) % 4)
+                        _dec  = _json.loads(_b64.b64decode(_at_raw + _pad).decode())
+                        _fresh_at = _dec.get("data", {}).get("accesstoken") or _at_raw
+                    except Exception:
+                        _fresh_at = _at_raw
+                    # Persist new refresh_token if rotated
+                    _new_rt = _resp.get("refresh_token") or ""
+                    if _new_rt and _new_rt != refresh_tok:
+                        try:
+                            with db.conn() as _c:
+                                _c.execute(
+                                    "UPDATE accounts SET refresh_token=? WHERE id=?",
+                                    (_new_rt, aid)
+                                )
+                        except Exception:
+                            pass
+            except Exception as _re:
+                pass  # fall through to stored raw_at
 
-        # platform=Android — login flow uses Android credentials (fnbroot/com.jazz.drive).
-        # keytype=accesstoken with fnbroot hex token only works from a Pakistani IP.
-        # Opening this URL on a Jazz phone (Pakistani mobile data) should return VK+JID JSON.
-        sapi_url_android = (
+        # Use fresh AT if we got one, otherwise fall back to stored AT
+        final_at = _fresh_at or raw_at
+        if not final_at:
+            return jsonify({
+                "ok": False,
+                "error": "Could not obtain a valid access token. Re-send OTP to get a new one."
+            }), 400
+
+        # ── Step 2: Build the activation URL ─────────────────────────────────────
+        # platform=Android — must match the fnbroot Android OAuth2 credentials.
+        # Open ONLY on Jazz phone with Jazz mobile data (NOT WiFi) — server-side
+        # SAPI login endpoints are IP-blocked from Oracle; Jazz phone bypasses this.
+        at_json = _json.dumps({"data": {"accesstoken": final_at}})
+        at_b64e = _up.quote(_b64.b64encode(at_json.encode()).decode(), safe="")
+
+        sapi_url = (
             f"{CLOUD_BASE}/sapi/login/oauth"
             f"?action=login&platform=Android&keytype=accesstoken&key={at_b64e}"
         )
-        sapi_url_web = (
-            f"{CLOUD_BASE}/sapi/login/oauth"
-            f"?action=login&platform=web&keytype=accesstoken&key={at_b64e}"
-        )
 
         return jsonify({
-            "ok": True,
-            "sapi_url": sapi_url_android,
-            "sapi_url_android": sapi_url_android,
-            "msisdn": row.get("msisdn", ""),
-            "account_id": aid,
-            "note": (
-                "Open sapi_url on your Jazz phone. It returns JSON — "
-                "copy validationkey and jsessionid from the response."
-            ),
+            "ok":           True,
+            "sapi_url":     sapi_url,
+            "sapi_url_android": sapi_url,
+            "token_fresh":  bool(_fresh_at),
+            "msisdn":       row.get("msisdn", ""),
+            "account_id":   aid,
+            "note":         "Open on Jazz phone with Jazz mobile data (NOT WiFi). Returns JSON — paste validationkey + jsessionid.",
         })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
