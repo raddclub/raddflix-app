@@ -662,6 +662,14 @@ def api_log_entries():
                     "count": len(entries)})
 
 
+@bp.route("/api/log-clear", methods=["POST"])
+@auth.login_required
+def api_log_clear():
+    """Delete all in-memory upload log entries."""
+    n = uploader.clear_log_entries()
+    return jsonify({"ok": True, "deleted": n})
+
+
 # ---------------------------------------------------------------------------
 # Heartbeat history
 # ---------------------------------------------------------------------------
