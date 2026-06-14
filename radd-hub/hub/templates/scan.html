@@ -402,6 +402,7 @@
       <button id="btn-resume" class="ghost" style="font-size:12px;padding:4px 10px;display:none" onclick="resumeScan()">Resume</button>
       <button id="btn-stop"   class="danger" style="font-size:12px;padding:4px 10px;display:none" onclick="stopScan()">Stop</button>
       <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="copyLog()">📋 Copy</button>
+      <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="clearScanLog()">🗑 Clear Logs</button>
       <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="hideLogs()">Hide</button>
     </div>
   </div>
@@ -1009,6 +1010,19 @@ function hideLogs() {
   _disconnectSSE();
   document.getElementById('scan-card').style.display = 'none';
   _scanAcct = null;
+}
+
+async function clearScanLog() {
+  if (!_scanAcct) return;
+  if (!confirm('Delete all saved log entries for this account from the database?')) return;
+  try {
+    const r = await fetch('/scan/api/accounts/' + _scanAcct + '/log', {method: 'DELETE',
+      headers: {'X-Requested-With': 'XMLHttpRequest'}});
+    const d = await r.json();
+    document.getElementById('scan-log').innerHTML =
+      '<span style="color:var(--muted);font-size:12px">Log cleared (' + (d.deleted||0) + ' entries deleted).</span>';
+    toast('✔ Log cleared — ' + (d.deleted||0) + ' entries deleted');
+  } catch(e) { toast('Error: ' + e.message); }
 }
 
 async function pauseScan() {
