@@ -404,15 +404,14 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
         if _manual_alive:
             return {"http": url, "https": url, "_url": url}
     # No live manual proxy — fall back to SAPI pool automatically.
-    # This ensures OTP always goes through a Pakistani IP.
+    # Fallback to SAPI proxy pool if no manual proxy is configured.
     try:
         from . import proxy_pool as _pp
         px = _pp.pool.get_best()
         if px:
             return px
-        # Circuit open (>80% dead) but OTP MUST use a proxy.
-        # Direct connection from Oracle's raw IP (banned by JazzDrive) returns MED-1011.
-        # Use the least-dead proxy from the chain as a last resort.
+        # Circuit open (>80% dead) — use the least-dead proxy as a last resort.
+        # Direct connection works with the correct Android UA if no proxy is available.
         chain = _pp.pool.get_proxy_chain(n=1)
         if chain:
             log.warning("resolve_proxies(otp): circuit open — using least-dead proxy as OTP fallback")
@@ -488,7 +487,7 @@ def refresh_jsessionid(validation_key: str,
     import urllib.parse as _up
     import base64 as _b64
 
-    # Resolve Proxy — SAPI endpoint blocked for Oracle's raw IP; use SAPI proxy slot
+    # Resolve Proxy — use SAPI proxy slot if configured
     proxies = resolve_proxies(purpose='sapi')
 
     CLOUD_BASE = "https://cloud.jazzdrive.com.pk"
@@ -2268,9 +2267,9 @@ def _android_refresh_session_inner(refresh_token: str,
     except Exception:
         pass  # use access_token as-is
 
-    # ── Persist refreshed tokens early (before SAPI step that may be Oracle-IP-blocked) ─
+    # ── Persist refreshed tokens early (before SAPI step) ───────────────────────────────
     # JazzDrive refresh_token.php rotates the token on each call.  If we wait until
-    # after the SAPI login to persist, an Oracle-IP-blocked SAPI step will discard the new
+    # after the SAPI login to persist, a failed SAPI step will discard the new
     # token and break the rotation chain.  Save new_rt + raw_at now so the chain
     # is never lost even if Step 2 fails.
     if account_id is not None and new_rt and new_rt != refresh_token:
