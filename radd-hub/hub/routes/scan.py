@@ -316,23 +316,21 @@ def sapi_activate_url(aid):
         at_b64   = _b64.b64encode(at_json.encode()).decode()
         at_b64e  = _up.quote(at_b64, safe="")
 
-        # FIX-JD-LOGIN-5: provide BOTH platform variants.
-        # platform=web  — used by android_refresh_session (refresh_jsessionid),
-        #                  works via wg0 VPN (all JD calls route through wg0).
-        # platform=Android — original variant; also works via wg0 (JazzDrive is not
-        #                    geo-blocked; Oracle's raw IP was banned). Kept as fallback.
-        sapi_url_web = (
-            f"{CLOUD_BASE}/sapi/login/oauth"
-            f"?action=login&platform=web&keytype=accesstoken&key={at_b64e}"
-        )
+        # platform=Android — login flow uses Android credentials (fnbroot/com.jazz.drive).
+        # keytype=accesstoken with fnbroot hex token only works from a Pakistani IP.
+        # Opening this URL on a Jazz phone (Pakistani mobile data) should return VK+JID JSON.
         sapi_url_android = (
             f"{CLOUD_BASE}/sapi/login/oauth"
             f"?action=login&platform=Android&keytype=accesstoken&key={at_b64e}"
         )
+        sapi_url_web = (
+            f"{CLOUD_BASE}/sapi/login/oauth"
+            f"?action=login&platform=web&keytype=accesstoken&key={at_b64e}"
+        )
 
         return jsonify({
             "ok": True,
-            "sapi_url": sapi_url_web,
+            "sapi_url": sapi_url_android,
             "sapi_url_android": sapi_url_android,
             "msisdn": row.get("msisdn", ""),
             "account_id": aid,
