@@ -282,9 +282,9 @@ def save_account_tokens(aid):
 def sapi_activate_url(aid):
     """Generate a fresh JazzDrive SAPI activation URL.
 
-    Refreshes the OAuth2 access token first (refresh_token.php is NOT IP-blocked)
-    so the URL always contains a live token.  The URL must be opened on a Jazz phone
-    using Jazz mobile data (NOT WiFi) — it returns JSON with validationkey + jsessionid.
+    Refreshes the OAuth2 access token first so the URL always contains a live token.
+    The URL must be opened on a Jazz phone using Jazz mobile data (NOT WiFi) —
+    it returns JSON with validationkey + jsessionid.
     """
     import json as _json
     import base64 as _b64
@@ -315,8 +315,7 @@ def sapi_activate_url(aid):
             }), 400
 
         # ── Step 1: Refresh the access token so the link is never stale ──────────
-        # refresh_token.php (jazzdrive.com.pk) is NOT IP-blocked from Oracle.
-        # We get a fresh AT even though the SAPI step is blocked from this server.
+        # refresh_token.php rotates/refreshes the access token before building the URL.
         _fresh_at = ""
         if refresh_tok:
             try:
@@ -366,8 +365,8 @@ def sapi_activate_url(aid):
 
         # ── Step 2: Build the activation URL ─────────────────────────────────────
         # platform=Android — must match the fnbroot Android OAuth2 credentials.
-        # Open ONLY on Jazz phone with Jazz mobile data (NOT WiFi) — server-side
-        # SAPI login endpoints are IP-blocked from Oracle; Jazz phone bypasses this.
+        # Open on a Jazz phone with Jazz mobile data (NOT WiFi) to receive the JSON
+        # response containing validationkey + jsessionid.
         at_json = _json.dumps({"data": {"accesstoken": final_at}})
         at_b64e = _up.quote(_b64.b64encode(at_json.encode()).decode(), safe="")
 
@@ -383,7 +382,7 @@ def sapi_activate_url(aid):
             "token_fresh":  bool(_fresh_at),
             "msisdn":       row.get("msisdn", ""),
             "account_id":   aid,
-            "note":         "Open on Jazz phone with Jazz mobile data (NOT WiFi). Returns JSON — paste validationkey + jsessionid.",
+            "note":         "Open on a Jazz phone with Jazz mobile data (NOT WiFi). The page returns JSON — paste validationkey + jsessionid.",
         })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
