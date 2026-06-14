@@ -1209,6 +1209,13 @@ def get_scan_log(account_id: int, after: int = 0, limit: int = 200) -> list:
     return [dict(r) for r in rows]
 
 
+
+def clear_scan_log(account_id: int) -> int:
+    """Delete all scan log rows for an account. Returns number of rows deleted."""
+    with conn() as c:
+        cur = c.execute("DELETE FROM scan_log WHERE account_id=?", (account_id,))
+        return cur.rowcount
+
 def find_duplicates(limit: int = 500) -> list:
     """Return files that share the same title_id, appearing more than once.
 
