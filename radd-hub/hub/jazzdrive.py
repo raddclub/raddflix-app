@@ -51,7 +51,8 @@ def _auth_headers(tokens: dict) -> dict:
     jid = tokens.get("jsessionid") or tokens.get("JSESSIONID") or ""
     msisdn = tokens.get("msisdn")
     raw_at = tokens.get("raw_accesstoken")
-    return get_auth_headers(vk, jid, msisdn=msisdn, raw_accesstoken=raw_at)
+    rt = tokens.get("refresh_token") or tokens.get("refreshtoken") or ""
+    return get_auth_headers(vk, jid, msisdn=msisdn, raw_accesstoken=raw_at, refresh_token=rt)
 
 def _auth_params(*args, **kwargs):
     return _scanner()._auth_params(*args, **kwargs)
@@ -449,7 +450,8 @@ def get_x_deviceid(msisdn: Optional[str] = None) -> str:
 
 def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
                      raw_accesstoken: Optional[str] = None,
-                     _request_id: Optional[str] = None) -> dict:
+                     _request_id: Optional[str] = None,
+                     refresh_token: Optional[str] = None) -> dict:
     """Return standard headers for any SAPI/Cloud request.
 
     Mirrors the 4 OkHttp interceptors in the JazzDrive Android APK exactly:
@@ -457,7 +459,8 @@ def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
       2. User-Agent       — "omh android client"   (C30921b AddUserAgentInterceptor)
       3. X-deviceid       — fac-<suffix>           (C30924e DeviceInterceptor)
       4. X-devicename     — device model           (C30924e DeviceInterceptor)
-      5. Authorization    — oauth <Base64(token)>  (C12815c OAuth2AuthenticatorInterceptor)
+      5. Authorization    — oauth <Base64(JSON_cred)>  (C12815c OAuth2AuthenticatorInterceptor)
+       JSON = {"data":{"accesstoken":"","refreshtoken":"","platform":"android","expiresin":"","lastrefreshdate":<ms>,"msisdn":""}})
     """
     import base64 as _b64_ah
     device_name = db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix Hot 9 Play"
@@ -474,7 +477,21 @@ def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
     if vk:
         headers["validation_key"] = vk
     if raw_accesstoken:
-        headers["Authorization"] = "oauth " + _b64_ah.b64encode(raw_accesstoken.encode()).decode()
+        # APK confirmed (nk/c.java OAuth2Credentials.d()): Authorization header must be
+        # oauth <Base64(JSON)> where JSON = {"data":{"accesstoken":"...","refreshtoken":"...",
+        # "platform":"android","expiresin":"...","lastrefreshdate":<ms>,"msisdn":"..."}}
+        import json as _json_ah
+        _cred_obj = {"data": {
+            "accesstoken":    raw_accesstoken,
+            "refreshtoken":   (refresh_token or ""),
+            "platform":       "android",
+            "expiresin":      "3600",
+            "lastrefreshdate": int(time.time() * 1000),
+            "msisdn":         (msisdn or ""),
+        }}
+        headers["Authorization"] = "oauth " + _b64_ah.b64encode(
+            _json_ah.dumps(_cred_obj, separators=(",", ":")).encode()
+        ).decode()
     return headers
 
 
@@ -882,7 +899,7 @@ def sapi_request(endpoint: str, action: str,
     req_params["validationkey"] = vk
     req_params["responsetime"] = "true"
     
-    req_headers = get_auth_headers(vk, jid or "", msisdn=tokens.get("msisdn"), raw_accesstoken=tokens.get("raw_accesstoken"))
+    req_headers = get_auth_headers(vk, jid or "", msisdn=tokens.get("msisdn"), raw_accesstoken=tokens.get("raw_accesstoken"), refresh_token=tokens.get("refresh_token") or tokens.get("refreshtoken") or "")
     if not jid:
         req_headers.pop("Cookie", None)
     if headers:
@@ -2126,7 +2143,10 @@ def _android_refresh_session_inner(refresh_token: str,
     for _ar_px in _ar_chain:
         try:
             r = _req.post(
-                "https://jazzdrive.com.pk/oauth2/refresh_token.php",
+                # APK strings.xml oauth2_access_token_uri = token.php (both grants).
+                # refresh_token.php is proprietary (returns raw hex, not OAuth2 JSON).
+                # Try standard token.php first, fall back to refresh_token.php.
+                "https://jazzdrive.com.pk/oauth2/token.php",
                 data={
                     "grant_type":    "refresh_token",
                     "client_id":     ANDROID_CLIENT_ID,
