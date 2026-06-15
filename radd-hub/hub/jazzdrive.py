@@ -1042,15 +1042,7 @@ def sapi_request(endpoint: str, action: str,
                 except Exception as _re:
                     log.debug("refresh_session fallback failed: %s", _re)
 
-                # Strategy B: validationKey → fresh JSESSIONID (web re-login, no OTP needed)
-                new_jid_b, _ = refresh_jsessionid(vk, raw_accesstoken=tokens.get("raw_accesstoken", ""))
-                if new_jid_b:
-                    log.info("[JD:SAPI] strategy B (refresh_jsessionid) succeeded -- retrying")
-                    tokens["jsessionid"] = new_jid_b
-                    _update_token_storage(account_id, tokens)
-                    return sapi_request(endpoint, action, method, params, json_data, data, headers, account_id, tokens, timeout, _retry_count + 1)
-
-                log.error("[JD:SAPI] 401 recovery FAILED -- both strategies exhausted  acct=%s", account_id)
+                log.error("[JD:SAPI] 401 recovery FAILED — Android refresh exhausted  acct=%s", account_id)
                 log.error("[JD:SAPI] OTP re-login required")
                 _mark_sapi_backed_off(account_id)
 
@@ -2327,14 +2319,9 @@ def _android_refresh_session_inner(refresh_token: str,
     at_b64_1     = _up.quote(_b64.b64encode(at_json_1.encode()).decode(), safe='')
     at_b64_2     = _up.quote(_b64.b64encode(at_json_2.encode()).decode(), safe='')
     
-    # We try multiple candidates to avoid HTTP 500
+    # Android-Nested is the only login method — matches the real APK behavior.
     candidates = [
-        # Nested "data" format
         (f"{_CLOUD}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_1}", "Android-Nested"),
-        (f"{_CLOUD}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_1}", "Web-Nested"),
-        # Flat format
-        (f"{_CLOUD}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_2}", "Android-Flat"),
-        (f"{_CLOUD}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_2}", "Web-Flat"),
     ]
     
     # Build SAPI proxy chain for Step 2 re-login.
@@ -2396,78 +2383,7 @@ def _android_refresh_session_inner(refresh_token: str,
         sr = None  # reset for next proxy
 
     if not sr or sr.status_code != 200:
-        # ── Fallback: refresh_jsessionid() uses web headers (proven working path) ──
-        # Android/Dalvik candidates above got 401 — try the same token with the
-        # standard web User-Agent + auth headers that refresh_jsessionid uses.
-        log.info(
-            "android_refresh_session: all Android candidates failed (%s) "
-            "— falling back to refresh_jsessionid() web path with raw_at",
-            last_err,
-        )
-        try:
-            # BUG-FIX: read the OTP-issued raw_accesstoken from DB (preserved by FIX-B),
-            # NOT raw_at (the OAuth2-decoded one that SAPI just rejected with 401).
-            # Falls back to raw_at only if DB has nothing.
-            _fb_at = ""
-            if account_id is not None:
-                try:
-                    with db.conn() as _c:
-                        _fb_row = _c.execute(
-                            "SELECT raw_accesstoken FROM accounts WHERE id=?", (account_id,)
-                        ).fetchone()
-                        if _fb_row:
-                            _fb_at = (_fb_row["raw_accesstoken"] or "").strip()
-                except Exception:
-                    pass
-            if not _fb_at:
-                _fb_at = raw_at or ""   # last-resort: OAuth2 raw_at
-            if _fb_at:
-                _fb_jid, _fb_body = refresh_jsessionid(
-                    "",           # validation_key (positional)
-                    raw_accesstoken=_fb_at,
-                )
-                if _fb_jid:
-                    log.info("[JD:OAUTH2] web-path fallback (refresh_jsessionid) succeeded -- jid obtained")
-                    # Build a minimal result dict that the caller expects
-                    _fb_vk = ""
-                    if isinstance(_fb_body, dict):
-                        _d = _fb_body.get("data", _fb_body)
-                        _fb_vk = (_d.get("validationkey") or _d.get("validation_key") or "")
-                    # Persist the new jid + vk.
-                    # Write _fb_at (the raw_accesstoken that actually worked) not raw_at.
-                    _fb_exp = 86400 * 30 if new_rt else 3300
-                    if account_id is not None:
-                        try:
-                            with _lock:
-                                with db.conn() as _c:
-                                    _c.execute(
-                                        "UPDATE accounts SET validation_key=?, jsessionid=?, "
-                                        "raw_accesstoken=?, refresh_token=?, "
-                                        "token_expires_at=? WHERE id=?",
-                                        (_fb_vk, _fb_jid, _fb_at, new_rt,
-                                         int(time.time() + _fb_exp), account_id),
-                                    )
-                        except Exception as _fbe:
-                            log.warning("android_refresh_session: fallback DB save failed: %s", _fbe)
-                    _old = _load_session()
-                    _old.update({
-                        "validationkey":   _fb_vk,
-                        "jsessionid":      _fb_jid,
-                        "raw_accesstoken": _fb_at,
-                        "refresh_token":   new_rt,
-                        "created_at":      time.time(),
-                        "expires_at":      time.time() + _fb_exp,
-                    })
-                    _save_session(_old)
-                    return {
-                        "ok":           True,
-                        "validation_key": _fb_vk,
-                        "jsessionid":   _fb_jid,
-                        "message":      "Android OAuth2 + web-path fallback (refresh_jsessionid)",
-                    }
-        except Exception as _fb_err:
-            log.warning("android_refresh_session: web-path fallback error: %s", _fb_err)
-        log.error("[JD:OAUTH2] ALL STRATEGIES FAILED: %s", last_err)
+        log.error("[JD:OAUTH2] Android-Nested failed (%s) — OTP re-login required", last_err)
         log.info("[JD:OAUTH2] ==========================================")
         return {"ok": False, "error": f"SAPI re-login failed: {last_err}"}
 
