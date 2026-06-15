@@ -51,7 +51,8 @@ def _auth_headers(tokens: dict) -> dict:
     jid = tokens.get("jsessionid") or tokens.get("JSESSIONID") or ""
     msisdn = tokens.get("msisdn")
     raw_at = tokens.get("raw_accesstoken")
-    return get_auth_headers(vk, jid, msisdn=msisdn, raw_accesstoken=raw_at)
+    rt = tokens.get("refresh_token") or tokens.get("refreshtoken") or ""
+    return get_auth_headers(vk, jid, msisdn=msisdn, raw_accesstoken=raw_at, refresh_token=rt)
 
 def _auth_params(*args, **kwargs):
     return _scanner()._auth_params(*args, **kwargs)
@@ -360,8 +361,10 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
     if _is_replit():
         return None
     # Global proxy bypass — when JAZZDRIVE_PROXY_BYPASS=1 all traffic goes direct.
-    # Enable this when Oracle IP is not geo-blocked; proxies only slow things down.
-    # NOTE: SAPI LOGIN (geo-restricted) bypasses this via direct pool access in
+    # JazzDrive is NOT geo-blocked — it works globally.
+    # Oracle's raw IP is banned by JazzDrive, but all calls go through wg0 VPN
+    # (which uses a non-banned exit IP). Enable PROXY_BYPASS when you trust wg0.
+    # NOTE: SAPI LOGIN (needs non-Oracle-IP path) bypasses this via direct pool access in
     # _android_refresh_session_inner._s2_chain — NOT via resolve_proxies('sapi').
     if db.setting('JAZZDRIVE_PROXY_BYPASS') == '1':
         return None
@@ -402,15 +405,14 @@ def resolve_proxies(purpose: str = 'otp') -> Optional[dict]:
         if _manual_alive:
             return {"http": url, "https": url, "_url": url}
     # No live manual proxy — fall back to SAPI pool automatically.
-    # This ensures OTP always goes through a Pakistani IP.
+    # Fallback to SAPI proxy pool if no manual proxy is configured.
     try:
         from . import proxy_pool as _pp
         px = _pp.pool.get_best()
         if px:
             return px
-        # Circuit open (>80% dead) but OTP MUST use a proxy.
-        # Direct connection from Oracle's non-PK IP always returns MED-1011.
-        # Use the least-dead proxy from the chain as a last resort.
+        # Circuit open (>80% dead) — use the least-dead proxy as a last resort.
+        # Direct connection works with the correct Android UA if no proxy is available.
         chain = _pp.pool.get_proxy_chain(n=1)
         if chain:
             log.warning("resolve_proxies(otp): circuit open — using least-dead proxy as OTP fallback")
@@ -448,7 +450,8 @@ def get_x_deviceid(msisdn: Optional[str] = None) -> str:
 
 def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
                      raw_accesstoken: Optional[str] = None,
-                     _request_id: Optional[str] = None) -> dict:
+                     _request_id: Optional[str] = None,
+                     refresh_token: Optional[str] = None) -> dict:
     """Return standard headers for any SAPI/Cloud request.
 
     Mirrors the 4 OkHttp interceptors in the JazzDrive Android APK exactly:
@@ -456,7 +459,8 @@ def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
       2. User-Agent       — "omh android client"   (C30921b AddUserAgentInterceptor)
       3. X-deviceid       — fac-<suffix>           (C30924e DeviceInterceptor)
       4. X-devicename     — device model           (C30924e DeviceInterceptor)
-      5. Authorization    — oauth <Base64(token)>  (C12815c OAuth2AuthenticatorInterceptor)
+      5. Authorization    — oauth <Base64(JSON_cred)>  (C12815c OAuth2AuthenticatorInterceptor)
+       JSON = {"data":{"accesstoken":"","refreshtoken":"","platform":"android","expiresin":"","lastrefreshdate":<ms>,"msisdn":""}})
     """
     import base64 as _b64_ah
     device_name = db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix Hot 9 Play"
@@ -473,82 +477,23 @@ def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
     if vk:
         headers["validation_key"] = vk
     if raw_accesstoken:
-        headers["Authorization"] = "oauth " + _b64_ah.b64encode(raw_accesstoken.encode()).decode()
+        # APK confirmed (nk/c.java OAuth2Credentials.d()): Authorization header must be
+        # oauth <Base64(JSON)> where JSON = {"data":{"accesstoken":"...","refreshtoken":"...",
+        # "platform":"android","expiresin":"...","lastrefreshdate":<ms>,"msisdn":"..."}}
+        import json as _json_ah
+        _cred_obj = {"data": {
+            "accesstoken":    raw_accesstoken,
+            "refreshtoken":   (refresh_token or ""),
+            "platform":       "android",
+            "expiresin":      "3600",
+            "lastrefreshdate": int(time.time() * 1000),
+            "msisdn":         (msisdn or ""),
+        }}
+        headers["Authorization"] = "oauth " + _b64_ah.b64encode(
+            _json_ah.dumps(_cred_obj, separators=(",", ":")).encode()
+        ).decode()
     return headers
 
-
-def refresh_jsessionid(validation_key: str,
-                       raw_accesstoken: str = "") -> tuple[Optional[str], Optional[dict]]:
-    """Use the stored raw_accesstoken to silently obtain a fresh JSESSIONID."""
-    log.info("[JD:REFRESH] ==========================================")
-    log.info("[JD:REFRESH] refresh_jsessionid has_token=%s", bool(raw_accesstoken))
-    import requests as _req
-    import urllib.parse as _up
-    import base64 as _b64
-
-    # Resolve Proxy — SAPI endpoint may be geo-restricted; use dedicated SAPI proxy slot
-    proxies = resolve_proxies(purpose='sapi')
-
-    CLOUD_BASE = "https://cloud.jazzdrive.com.pk"
-    msisdn = str(db.setting('JAZZDRIVE_MSISDN') or "")
-    dev_suffix = msisdn[-10:] if len(msisdn) >= 10 else _uuid.uuid4().hex[:10]
-
-    headers = get_auth_headers("", "", msisdn=msisdn, raw_accesstoken=raw_accesstoken)
-    headers.pop("Cookie", None)
-    headers.pop("validation_key", None)
-    headers.update({
-        "Accept": "application/json, text/javascript, */*",
-        "Origin": CLOUD_BASE,
-        "Referer": CLOUD_BASE + "/",
-    })
-
-    candidates = []
-
-    # Primary: raw_accesstoken (verified working — returns HTTP 200)
-    at = (raw_accesstoken or "").strip()
-    if at:
-        at_json  = json.dumps({"data": {"accesstoken": at}})
-        at_b64   = _b64.b64encode(at_json.encode()).decode()
-        at_b64_q = _up.quote(at_b64, safe='')
-        candidates.append(
-            f"{CLOUD_BASE}/sapi/login/oauth?action=login&platform=web"
-            f"&keytype=accesstoken&key={at_b64_q}"
-        )
-
-    if not candidates:
-        log.warning("[JD:REFRESH] no raw_accesstoken -- OTP re-login required")
-        return None, None
-
-    r = None
-    try:
-        for url_candidate in candidates:
-            try:
-                r = _req.get(url_candidate, headers=headers, timeout=20, proxies=proxies)
-                log.info("[JD:REFRESH] url=%s  HTTP=%d", url_candidate[:100], r.status_code)
-                if r.status_code == 200:
-                    try:
-                        body = r.json()
-                        d    = body.get("data", body) if isinstance(body, dict) else {}
-                        jsid = (d.get("jsessionid") or d.get("JSESSIONID")
-                                or r.cookies.get("JSESSIONID") or "")
-                    except Exception:
-                        body = None
-                        jsid = r.cookies.get("JSESSIONID") or ""
-                    if jsid:
-                        log.info("[JD:REFRESH] JSESSIONID obtained via raw_accesstoken")
-                        log.info("[JD:REFRESH] ==========================================")
-                        return jsid, body
-                    log.warning("[JD:REFRESH] HTTP 200 but no JSESSIONID in response")
-                else:
-                    log.warning("[JD:REFRESH] HTTP %d -- credentials rejected or session dead",
-                              r.status_code)
-            except Exception as _e:
-                log.debug("refresh_jsessionid candidate error: %s", _e)
-
-        return None, None
-    except Exception as e:
-        log.debug("refresh_jsessionid error: %s", e)
-        return None, None
 
 
 def rename_video(account_id: int, video_id: int, new_name: str,
@@ -954,7 +899,7 @@ def sapi_request(endpoint: str, action: str,
     req_params["validationkey"] = vk
     req_params["responsetime"] = "true"
     
-    req_headers = get_auth_headers(vk, jid or "", msisdn=tokens.get("msisdn"), raw_accesstoken=tokens.get("raw_accesstoken"))
+    req_headers = get_auth_headers(vk, jid or "", msisdn=tokens.get("msisdn"), raw_accesstoken=tokens.get("raw_accesstoken"), refresh_token=tokens.get("refresh_token") or tokens.get("refreshtoken") or "")
     if not jid:
         req_headers.pop("Cookie", None)
     if headers:
@@ -1041,15 +986,7 @@ def sapi_request(endpoint: str, action: str,
                 except Exception as _re:
                     log.debug("refresh_session fallback failed: %s", _re)
 
-                # Strategy B: validationKey → fresh JSESSIONID (web re-login, no OTP needed)
-                new_jid_b, _ = refresh_jsessionid(vk, raw_accesstoken=tokens.get("raw_accesstoken", ""))
-                if new_jid_b:
-                    log.info("[JD:SAPI] strategy B (refresh_jsessionid) succeeded -- retrying")
-                    tokens["jsessionid"] = new_jid_b
-                    _update_token_storage(account_id, tokens)
-                    return sapi_request(endpoint, action, method, params, json_data, data, headers, account_id, tokens, timeout, _retry_count + 1)
-
-                log.error("[JD:SAPI] 401 recovery FAILED -- both strategies exhausted  acct=%s", account_id)
+                log.error("[JD:SAPI] 401 recovery FAILED — Android refresh exhausted  acct=%s", account_id)
                 log.error("[JD:SAPI] OTP re-login required")
                 _mark_sapi_backed_off(account_id)
 
@@ -1385,6 +1322,18 @@ def jd_logout_account(account_id: int) -> dict:
     except Exception:
         pass
 
+    # 5. FIX-JD-LOGIN-3: Clear jazzdrive_session.json — equivalent to clearing
+    #    browser cookies. JazzDrive has a server-side bug: after logout, if any
+    #    request is made with the old (now-dead) JSESSIONID cookie, it enters a
+    #    broken state that refuses re-login. Deleting the file removes all stale
+    #    pickled cookies so the next OTP login starts completely clean.
+    try:
+        if SESSION_FILE.exists():
+            SESSION_FILE.unlink(missing_ok=True)
+            log.info("[JD:LOGOUT] jazzdrive_session.json deleted (stale cookies cleared) for %s", msisdn)
+    except Exception as _sf_e:
+        log.debug("[JD:LOGOUT] session file delete skipped: %s", _sf_e)
+
     return {"ok": True, "msisdn": msisdn,
             "message": f"Logged out — session cleared for {msisdn}"}
 
@@ -1402,6 +1351,17 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     if not msisdn:
         msisdn = db.setting("JAZZDRIVE_MSISDN") or ""
         log.info("[JD:OTP] MSISDN from DB: %s", msisdn or "(none)")
+
+    # FIX-JD-LOGIN-4: clear jazzdrive_session.json before triggering a new OTP.
+    # This is the equivalent of clearing browser cookies. JazzDrive refuses
+    # re-login when it receives the old (logged-out) JSESSIONID cookie from a
+    # previous session. A clean session file guarantees a fresh login flow.
+    try:
+        if SESSION_FILE.exists():
+            SESSION_FILE.unlink(missing_ok=True)
+            log.info("[JD:OTP] jazzdrive_session.json cleared before OTP trigger (clean slate)")
+    except Exception as _sf_e:
+        log.debug("[JD:OTP] session file pre-clear skipped: %s", _sf_e)
 
     # Normalize to 03xxxxxxxxx for the API (local format is more reliable for OTP)
     m = msisdn.strip().replace(" ", "").replace("-", "").replace("+", "")
@@ -1421,7 +1381,7 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
     _proxies_chain: list = []
     _seen_proxy_urls: set = set()
     if is_proxy_bypass():
-        _proxies_chain = [None]  # direct — Oracle IP is not geo-blocked
+        _proxies_chain = [None]  # direct via wg0 — wg0 exit IP is not banned by JazzDrive
     else:
         primary = resolve_proxies()
         if primary:
@@ -1438,7 +1398,7 @@ def trigger_otp_flow(msisdn: Optional[str] = None) -> dict:
             pass
         if not _proxies_chain:
             log.warning("trigger_otp_flow: proxy chain empty — direct connection "
-                        "will likely fail (MED-1011 from non-PK IP)")
+                        "will likely fail (MED-1011 — Oracle raw IP is banned by JazzDrive)")
             _proxies_chain = [None]
 
     last_err: Exception = Exception("No proxies available")
@@ -1546,7 +1506,7 @@ def resend_otp() -> dict:
     _proxies_chain: list = []
     _seen_proxy_urls: set = set()
     if is_proxy_bypass():
-        _proxies_chain = [None]  # direct — Oracle IP is not geo-blocked
+        _proxies_chain = [None]  # direct via wg0 — wg0 exit IP is not banned by JazzDrive
     else:
         primary = resolve_proxies()
         if primary:
@@ -1563,7 +1523,7 @@ def resend_otp() -> dict:
             pass
         if not _proxies_chain:
             log.warning("resend_otp: proxy chain empty — direct connection "
-                        "will likely fail (MED-1011 from non-PK IP)")
+                        "will likely fail (MED-1011 — Oracle raw IP is banned by JazzDrive)")
             _proxies_chain = [None]
 
     last_err: Exception = Exception("No proxies available")
@@ -2156,7 +2116,7 @@ def _android_refresh_session_inner(refresh_token: str,
             pass
         if not _ar_chain:
             log.warning("android_refresh_session: proxy chain empty — direct connection "
-                        "will likely fail (MED-1011 from non-PK IP)")
+                        "will likely fail (MED-1011 — Oracle raw IP is banned by JazzDrive)")
             _ar_chain = [None]
 
     # SAPI proxy for Step 2 (cloud.jazzdrive.com.pk).
@@ -2183,7 +2143,10 @@ def _android_refresh_session_inner(refresh_token: str,
     for _ar_px in _ar_chain:
         try:
             r = _req.post(
-                "https://jazzdrive.com.pk/oauth2/refresh_token.php",
+                # APK strings.xml oauth2_access_token_uri = token.php (both grants).
+                # refresh_token.php is proprietary (returns raw hex, not OAuth2 JSON).
+                # Try standard token.php first, fall back to refresh_token.php.
+                "https://jazzdrive.com.pk/oauth2/token.php",
                 data={
                     "grant_type":    "refresh_token",
                     "client_id":     ANDROID_CLIENT_ID,
@@ -2243,9 +2206,9 @@ def _android_refresh_session_inner(refresh_token: str,
     except Exception:
         pass  # use access_token as-is
 
-    # ── Persist refreshed tokens early (before SAPI step that may be geo-blocked) ─
+    # ── Persist refreshed tokens early (before SAPI step) ───────────────────────────────
     # JazzDrive refresh_token.php rotates the token on each call.  If we wait until
-    # after the SAPI login to persist, a geo-blocked SAPI step will discard the new
+    # after the SAPI login to persist, a failed SAPI step will discard the new
     # token and break the rotation chain.  Save new_rt + raw_at now so the chain
     # is never lost even if Step 2 fails.
     if account_id is not None and new_rt and new_rt != refresh_token:
@@ -2290,28 +2253,47 @@ def _android_refresh_session_inner(refresh_token: str,
         _msisdn_for_dev = str(db.setting("JAZZDRIVE_MSISDN") or "")
 
     sess = _req.Session()
-    # Use the same headers as the real Android app (all 4 OkHttp interceptors)
-    _sess_headers = get_auth_headers("", "", msisdn=_msisdn_for_dev)
-    # raw_at may be unusable at this point — Authorization added per-request below if needed
+    # Use the same headers as the real Android app (all 4 OkHttp interceptors).
+    # CRITICAL FIX: must pass raw_accesstoken so the Authorization: oauth <Base64(JSON_cred)>
+    # header is built and sent. APK confirmed (nk/c.java OAuth2Credentials.d()): the server
+    # requires this header on /sapi/login/oauth JUST LIKE all other SAPI endpoints.
+    # Without it → HTTP 401 empty body every time.
+    _sess_headers = get_auth_headers("", "", msisdn=_msisdn_for_dev,
+                                     raw_accesstoken=raw_at, refresh_token=new_rt)
     _sess_headers.pop("Cookie", None)
     _sess_headers.pop("validation_key", None)
     device_id = get_x_deviceid(_msisdn_for_dev)
     sess.headers.update(_sess_headers)
-    
-    at_json_1    = json.dumps({"data": {"accesstoken": raw_at}})
-    at_json_2    = json.dumps({"accesstoken": raw_at})
-    at_b64_1     = _up.quote(_b64.b64encode(at_json_1.encode()).decode(), safe='')
-    at_b64_2     = _up.quote(_b64.b64encode(at_json_2.encode()).decode(), safe='')
-    
-    # We try multiple candidates to avoid HTTP 500
+
+    # Android-Nested: {"data":{"accesstoken":"<raw_at>"}} → base64 → URL-encoded
+    # Primary: OAuth2-derived raw_at (freshly rotated).
+    # Fallback: OTP-issued raw_accesstoken from DB (historically the proven-working token).
+    at_json_1 = json.dumps({"data": {"accesstoken": raw_at}})
+    at_b64_1  = _up.quote(_b64.b64encode(at_json_1.encode()).decode(), safe='')
     candidates = [
-        # Nested "data" format
         (f"{_CLOUD}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_1}", "Android-Nested"),
-        (f"{_CLOUD}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_1}", "Web-Nested"),
-        # Flat format
-        (f"{_CLOUD}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_2}", "Android-Flat"),
-        (f"{_CLOUD}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_2}", "Web-Flat"),
     ]
+    # Fetch DB's OTP-issued raw_accesstoken as fallback candidate (separate key param)
+    _db_raw_at = ""
+    if account_id is not None:
+        try:
+            with db.conn() as _dbc2:
+                _dba = _dbc2.execute("SELECT raw_accesstoken FROM accounts WHERE id=?",
+                                     (account_id,)).fetchone()
+                if _dba:
+                    _db_raw_at = str(_dba["raw_accesstoken"] or "")
+        except Exception:
+            pass
+    if _db_raw_at and _db_raw_at != raw_at:
+        at_json_db = json.dumps({"data": {"accesstoken": _db_raw_at}})
+        at_b64_db  = _up.quote(_b64.b64encode(at_json_db.encode()).decode(), safe='')
+        candidates.append(
+            (f"{_CLOUD}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_db}",
+             "Android-Nested-DBtoken")
+        )
+        # Also update session Authorization header to use DB token for the fallback attempt
+        # (We'll update per-try below if needed)
+        log.info("[JD:OAUTH2] DB raw_accesstoken fallback candidate added (acct=%s)", account_id)
     
     # Build SAPI proxy chain for Step 2 re-login.
     # Inner loop: tries different URL formats with the same SAPI proxy.
@@ -2372,78 +2354,7 @@ def _android_refresh_session_inner(refresh_token: str,
         sr = None  # reset for next proxy
 
     if not sr or sr.status_code != 200:
-        # ── Fallback: refresh_jsessionid() uses web headers (proven working path) ──
-        # Android/Dalvik candidates above got 401 — try the same token with the
-        # standard web User-Agent + auth headers that refresh_jsessionid uses.
-        log.info(
-            "android_refresh_session: all Android candidates failed (%s) "
-            "— falling back to refresh_jsessionid() web path with raw_at",
-            last_err,
-        )
-        try:
-            # BUG-FIX: read the OTP-issued raw_accesstoken from DB (preserved by FIX-B),
-            # NOT raw_at (the OAuth2-decoded one that SAPI just rejected with 401).
-            # Falls back to raw_at only if DB has nothing.
-            _fb_at = ""
-            if account_id is not None:
-                try:
-                    with db.conn() as _c:
-                        _fb_row = _c.execute(
-                            "SELECT raw_accesstoken FROM accounts WHERE id=?", (account_id,)
-                        ).fetchone()
-                        if _fb_row:
-                            _fb_at = (_fb_row["raw_accesstoken"] or "").strip()
-                except Exception:
-                    pass
-            if not _fb_at:
-                _fb_at = raw_at or ""   # last-resort: OAuth2 raw_at
-            if _fb_at:
-                _fb_jid, _fb_body = refresh_jsessionid(
-                    "",           # validation_key (positional)
-                    raw_accesstoken=_fb_at,
-                )
-                if _fb_jid:
-                    log.info("[JD:OAUTH2] web-path fallback (refresh_jsessionid) succeeded -- jid obtained")
-                    # Build a minimal result dict that the caller expects
-                    _fb_vk = ""
-                    if isinstance(_fb_body, dict):
-                        _d = _fb_body.get("data", _fb_body)
-                        _fb_vk = (_d.get("validationkey") or _d.get("validation_key") or "")
-                    # Persist the new jid + vk.
-                    # Write _fb_at (the raw_accesstoken that actually worked) not raw_at.
-                    _fb_exp = 86400 * 30 if new_rt else 3300
-                    if account_id is not None:
-                        try:
-                            with _lock:
-                                with db.conn() as _c:
-                                    _c.execute(
-                                        "UPDATE accounts SET validation_key=?, jsessionid=?, "
-                                        "raw_accesstoken=?, refresh_token=?, "
-                                        "token_expires_at=? WHERE id=?",
-                                        (_fb_vk, _fb_jid, _fb_at, new_rt,
-                                         int(time.time() + _fb_exp), account_id),
-                                    )
-                        except Exception as _fbe:
-                            log.warning("android_refresh_session: fallback DB save failed: %s", _fbe)
-                    _old = _load_session()
-                    _old.update({
-                        "validationkey":   _fb_vk,
-                        "jsessionid":      _fb_jid,
-                        "raw_accesstoken": _fb_at,
-                        "refresh_token":   new_rt,
-                        "created_at":      time.time(),
-                        "expires_at":      time.time() + _fb_exp,
-                    })
-                    _save_session(_old)
-                    return {
-                        "ok":           True,
-                        "validation_key": _fb_vk,
-                        "jsessionid":   _fb_jid,
-                        "message":      "Android OAuth2 + web-path fallback (refresh_jsessionid)",
-                    }
-        except Exception as _fb_err:
-            log.warning("android_refresh_session: web-path fallback error: %s", _fb_err)
-        log.error("[JD:OAUTH2] ALL STRATEGIES FAILED: %s", last_err)
+        log.error("[JD:OAUTH2] Android-Nested failed (%s) — OTP re-login required", last_err)
         log.info("[JD:OAUTH2] ==========================================")
         return {"ok": False, "error": f"SAPI re-login failed: {last_err}"}
 
@@ -2522,18 +2433,16 @@ def _android_refresh_session_inner(refresh_token: str,
 
 
 # ---------------------------------------------------------------------------
-# Token refresh  (web fallback — used when Android refresh_token not available)
+# Token refresh — Android OAuth2 only (no web fallbacks)
 # ---------------------------------------------------------------------------
 
 def refresh_session(account_id: Optional[int] = None) -> dict:
     """Silently obtain a fresh JSESSIONID + validationKey without OTP.
 
-    Tries in order:
-      1. Android OAuth2 refresh_token  →  POST /oauth2/refresh_token.php with
-         client_id=fnbroot / client_secret=f&rW23.  This gives months-long
-         sessions exactly like the Jazz Drive Android app.
-      2. Web raw_accesstoken fallback  →  GET /sapi/login/oauth?keytype=accesstoken
-         (verified 2026-05-07; works ~1 h between refreshes).
+    Uses Android OAuth2 refresh_token flow only:
+      POST /oauth2/refresh_token.php with client_id=fnbroot / client_secret=f&rW23.
+      Then POST /sapi/login/oauth?platform=Android&keytype=accesstoken (nested JSON format).
+    If no refresh_token is stored, returns ok=False — OTP re-login required.
 
     Returns {"ok": True, ...} on success, {"ok": False, "error": ...} otherwise.
     """
@@ -2601,126 +2510,16 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
             log.info("refresh_session: Android OAuth2 path succeeded for %s",
                      acct.get("msisdn"))
             return android_result
-        log.info("refresh_session: Android refresh failed (%s) — trying web fallback",
-                 android_result.get("error"))
+        log.error("refresh_session: Android OAuth2 failed (%s) — OTP re-login required",
+                  android_result.get("error"))
+        return {"ok": False, "error": f"Android refresh failed: {android_result.get('error')} — OTP re-login required"}
 
-    # ── Strategy 2: Web raw_accesstoken fallback ──────────────────────────────
-    if not raw_at:
-        return {
-            "ok": False,
-            "error": (
-                "No raw_accesstoken or refresh_token stored. "
-                "Please re-login via OTP once to store the credentials."
-            )
-        }
+    # No refresh_token and no Android path — cannot refresh silently.
+    return {
+        "ok": False,
+        "error": "No refresh_token stored. Please re-login via OTP to store credentials."
+    }
 
-    _CLOUD_BASE = "https://cloud.jazzdrive.com.pk"
-    sess = _req.Session()
-    device_id = get_x_deviceid(acct.get("msisdn"))
-    sess.headers.update({
-        "Accept":       "application/json, text/javascript, */*",
-        "User-Agent":   "omh android client",
-        "X-deviceid":   device_id,
-        "X-devicename": db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix Hot 9 Play",
-        "X-Requested-With": "com.jazz.drive",
-    })
-
-    log.info("Refreshing JazzDrive session for %s via raw_accesstoken ...", acct.get("msisdn"))
-
-    # Resolve Proxy — SAPI endpoint; use dedicated SAPI proxy slot
-    proxies = resolve_proxies(purpose='sapi')
-
-    at_json_1  = json.dumps({"data": {"accesstoken": raw_at}})
-    at_json_2  = json.dumps({"accesstoken": raw_at})
-    at_b64_1   = _up.quote(_b64.b64encode(at_json_1.encode()).decode(), safe='')
-    at_b64_2   = _up.quote(_b64.b64encode(at_json_2.encode()).decode(), safe='')
-    
-    # We try multiple candidates to avoid HTTP 500
-    candidates = [
-        # Format 1: Nested (Standard)
-        (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_1}", "Web-Nested"),
-        (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_1}", "Android-Nested"),
-        # Format 2: Flat
-        (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_2}", "Web-Flat"),
-        (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_2}", "Android-Flat"),
-    ]
-
-    last_err = "No candidates tried"
-    r = None
-    for url, label in candidates:
-        try:
-            log.info("refresh_session: trying %s @ %s", label, url[:100])
-            r = sess.get(url, timeout=30, proxies=proxies)
-            if r.status_code == 200:
-                log.info("✓ %s candidate succeeded", label)
-                break
-            last_err = f"[{label}] HTTP {r.status_code}: {r.text[:200]}"
-            log.debug("refresh_session: %s candidate failed: %s", label, last_err)
-        except Exception as _e:
-            last_err = str(_e)
-            log.debug("refresh_session: %s network error: %s", label, last_err)
-
-    if not r or r.status_code != 200:
-        return {"ok": False, "error": f"Silent login failed: {last_err}"}
-
-    try:
-        body = r.json()
-        data = body.get("data", body) if isinstance(body, dict) else body
-
-        new_vk  = (data.get("validationkey") or data.get("validation_key") or vk_stored or "")
-        new_jid = (data.get("jsessionid") or data.get("JSESSIONID")
-                   or r.cookies.get("JSESSIONID", "") or "")
-
-        # Decode the new access_token to refresh raw_accesstoken too
-        new_raw_at = raw_at
-        new_at_b64 = data.get("access_token") or ""
-        if new_at_b64:
-            try:
-                _pad = "==" if len(new_at_b64) % 4 else ""
-                _dec = json.loads(_b64.b64decode(new_at_b64 + _pad).decode())
-                _inner = _dec.get("data", {}).get("accesstoken", "")
-                if _inner:
-                    new_raw_at = _inner
-            except Exception:
-                pass
-
-        if not new_jid:
-            return {"ok": False, "error": f"Refresh succeeded (200) but response missing jsessionid: {data}"}
-
-        # Keep expires window long — raw_accesstoken is valid until rotated.
-        # Fall back to 55 min only if we have no refresh path at all.
-        _has_rt = bool((acct.get("refresh_token") or "").strip())
-        expires_offset = 86400 * 30 if _has_rt else 3300
-
-        # ── Persist new tokens ─────────────────────────────────────────────────
-        if acct.get("id") is not None:
-            with _lock:
-                with db.conn() as _c:
-                    _c.execute(
-                        "UPDATE accounts SET validation_key=?, jsessionid=?, "
-                        "raw_accesstoken=?, token_expires_at=? WHERE id=?",
-                        (new_vk, new_jid, new_raw_at,
-                         int(time.time() + expires_offset), acct["id"])
-                    )
-            log.info("refresh_session: DB updated for account id=%s", acct["id"])
-
-        old_session = _load_session()
-        old_session.update({
-            "validationkey":   new_vk,
-            "jsessionid":      new_jid,
-            "raw_accesstoken": new_raw_at,
-            "created_at":      time.time(),
-            "expires_at":      time.time() + expires_offset,
-        })
-        _save_session(old_session)
-
-        log.info("JazzDrive session refreshed for %s (new_jsid=%s)", acct.get("msisdn"), bool(new_jid))
-        return {"ok": True, "message": "Session refreshed without OTP.",
-                "validation_key": new_vk, "jsessionid": new_jid}
-
-    except Exception as e:
-        log.error("refresh_session error: %s", e)
-        return {"ok": False, "error": str(e)}
 
 
 def upload_file_to_jazzdrive(file_path: str | Path) -> dict:
