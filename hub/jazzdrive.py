@@ -2252,28 +2252,14 @@ def _android_refresh_session_inner(refresh_token: str,
     if not _msisdn_for_dev:
         _msisdn_for_dev = str(db.setting("JAZZDRIVE_MSISDN") or "")
 
-    sess = _req.Session()
-    # Use the same headers as the real Android app (all 4 OkHttp interceptors).
-    # CRITICAL FIX: must pass raw_accesstoken so the Authorization: oauth <Base64(JSON_cred)>
-    # header is built and sent. APK confirmed (nk/c.java OAuth2Credentials.d()): the server
-    # requires this header on /sapi/login/oauth JUST LIKE all other SAPI endpoints.
-    # Without it → HTTP 401 empty body every time.
-    _sess_headers = get_auth_headers("", "", msisdn=_msisdn_for_dev,
-                                     raw_accesstoken=raw_at, refresh_token=new_rt)
-    _sess_headers.pop("Cookie", None)
-    _sess_headers.pop("validation_key", None)
-    device_id = get_x_deviceid(_msisdn_for_dev)
-    sess.headers.update(_sess_headers)
-
-    # Android-Nested: {"data":{"accesstoken":"<raw_at>"}} → base64 → URL-encoded
-    # Primary: OAuth2-derived raw_at (freshly rotated).
-    # Fallback: OTP-issued raw_accesstoken from DB (historically the proven-working token).
-    at_json_1 = json.dumps({"data": {"accesstoken": raw_at}})
-    at_b64_1  = _up.quote(_b64.b64encode(at_json_1.encode()).decode(), safe='')
-    candidates = [
-        (f"{_CLOUD}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_1}", "Android-Nested"),
-    ]
-    # Fetch DB's OTP-issued raw_accesstoken as fallback candidate (separate key param)
+    # ── SAPI-registered token resolution ─────────────────────────────────────
+    # CRITICAL (confirmed 2026-06-15 via live test):
+    #   OAuth2 token.php refresh returns a new Bearer token for OAuth2 layer ONLY.
+    #   This token is NOT registered in the SAPI session store → HTTP 401.
+    #   The DB's OTP-issued raw_accesstoken WAS registered by SAPI during OTP login → HTTP 200.
+    #
+    # Rule: the `key` param AND the Authorization header for /sapi/login/oauth MUST use
+    # the SAME SAPI-registered token. Use DB raw_accesstoken as primary; OAuth2 raw_at as fallback.
     _db_raw_at = ""
     if account_id is not None:
         try:
@@ -2284,16 +2270,37 @@ def _android_refresh_session_inner(refresh_token: str,
                     _db_raw_at = str(_dba["raw_accesstoken"] or "")
         except Exception:
             pass
-    if _db_raw_at and _db_raw_at != raw_at:
-        at_json_db = json.dumps({"data": {"accesstoken": _db_raw_at}})
-        at_b64_db  = _up.quote(_b64.b64encode(at_json_db.encode()).decode(), safe='')
-        candidates.append(
-            (f"{_CLOUD}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_db}",
-             "Android-Nested-DBtoken")
-        )
-        # Also update session Authorization header to use DB token for the fallback attempt
-        # (We'll update per-try below if needed)
-        log.info("[JD:OAUTH2] DB raw_accesstoken fallback candidate added (acct=%s)", account_id)
+    # sapi_at = the SAPI-registered token to use for login. DB OTP token preferred.
+    sapi_at = _db_raw_at if _db_raw_at else raw_at
+
+    sess = _req.Session()
+    # Use the same headers as the real Android app (all 4 OkHttp interceptors).
+    # Authorization header built with sapi_at (SAPI-registered token — not OAuth2 derived).
+    _sess_headers = get_auth_headers("", "", msisdn=_msisdn_for_dev,
+                                     raw_accesstoken=sapi_at, refresh_token=new_rt)
+    _sess_headers.pop("Cookie", None)
+    _sess_headers.pop("validation_key", None)
+    device_id = get_x_deviceid(_msisdn_for_dev)
+    sess.headers.update(_sess_headers)
+
+    # Android-Nested: {"data":{"accesstoken":"<token>"}} → base64 → URL-encoded
+    # The key param and Authorization header must use the SAME token.
+    # Each candidate is a (url, label, token_used) tuple so we can update the
+    # Authorization header to match when switching tokens between candidates.
+    def _make_candidate(tok, label):
+        at_json = json.dumps({"data": {"accesstoken": tok}})
+        at_b64  = _up.quote(_b64.b64encode(at_json.encode()).decode(), safe='')
+        return (f"{_CLOUD}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64}",
+                label, tok)
+
+    candidates = [_make_candidate(sapi_at, "Android-Nested")]
+    # Add OAuth2 raw_at as fallback only if it differs from sapi_at
+    if raw_at and raw_at != sapi_at:
+        candidates.append(_make_candidate(raw_at, "Android-Nested-OAuth2at"))
+        log.info("[JD:OAUTH2] OAuth2 raw_at fallback candidate added (acct=%s)", account_id)
+    log.info("[JD:OAUTH2] SAPI login using %s (DB token=%s, OAuth2 token=%s)",
+             "DB token" if sapi_at == _db_raw_at else "OAuth2 token",
+             bool(_db_raw_at), bool(raw_at))
     
     # Build SAPI proxy chain for Step 2 re-login.
     # Inner loop: tries different URL formats with the same SAPI proxy.
@@ -2325,8 +2332,13 @@ def _android_refresh_session_inner(refresh_token: str,
     sr = None
     for _s2_px in _s2_chain:
         _s2_conn_errs = 0
-        for url, label in candidates:
+        for url, label, _cand_tok in candidates:
             try:
+                # Update Authorization header to match this candidate's token.
+                # Key param and Authorization MUST use the same SAPI-registered token.
+                _cand_auth_hdrs = get_auth_headers("", "", msisdn=_msisdn_for_dev,
+                                                   raw_accesstoken=_cand_tok, refresh_token=new_rt)
+                sess.headers["Authorization"] = _cand_auth_hdrs.get("Authorization", "")
                 log.info("[JD:OAUTH2] trying %s  url=%s", label, url[:100])
                 sr = sess.get(url, timeout=30, proxies=_s2_px)
                 if sr.status_code == 200:
