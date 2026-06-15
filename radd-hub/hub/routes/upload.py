@@ -87,17 +87,18 @@ def jd_stats():
     if keepalive_dead:
         token_ok = False
 
-    # logged_in: JSESSIONID present and token genuinely fresh (validation_key optional)
-    logged_in = bool(jsid and token_ok)
+    # logged_in: requires JSESSIONID + validation_key + fresh token.
+    # VK is mandatory — without it every SAPI call returns 401 regardless of JSESSIONID.
+    # A JSESSIONID with no VK means the OTP was accepted but SAPI activation never completed.
+    logged_in = bool(jsid and vk and token_ok)
     # needs_otp: session fully dead and no silent recovery path
     needs_otp = bool(
-        jsid
-        and not token_ok
+        not token_ok
         and (not has_rt and not has_at or refresh_broken)
     )
 
     storage = {}
-    if token_ok and jsid:
+    if token_ok and jsid and vk:
         storage = uploader.get_storage_info(vk, jsid)
 
     remaining_m = max(0, int((exp - _time.time()) / 60)) if exp else 0
@@ -111,6 +112,7 @@ def jd_stats():
             "msisdn":      acct.get("msisdn") or db.setting("JAZZDRIVE_MSISDN", ""),
             "remaining_m": remaining_m,
             "has_refresh_token": has_rt,
+            "has_vk":      bool(vk),
         },
         "storage":       storage,
         "library_count": lib.get("files", 0),
