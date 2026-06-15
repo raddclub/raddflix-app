@@ -389,8 +389,8 @@ def verify_otp(account_id: int, otp: str) -> dict:
         )
         # FIX-JD-LOGIN-2: Persist partial tokens including JSESSIONID (fixed by FIX-1).
         # Then immediately try android_refresh_session which uses the OAuth2 refresh
-        # path + platform=web keytype=accesstoken to get VK — this works from Oracle
-        # unlike platform=Android which doesn't always work via wg0.
+        # path to get VK. Note: both platform=web and platform=Android keytype=accesstoken
+        # are blocked from Oracle IP — only works from Jazz SIM network.
         _exp = int(time.time() + (86400 * 30 if rt else 3300))
         db.update_account_session(
             account_id,
@@ -411,8 +411,8 @@ def verify_otp(account_id: int, otp: str) -> dict:
                 log.debug("verify_otp: raw_accesstoken DB write (partial): %s", _dbe)
 
         # Try android_refresh_session to get VK via OAuth2 refresh path.
-        # This is the same path used by keepalive and it CAN get VK from Oracle
-        # via the platform=web keytype=accesstoken endpoint (works via wg0).
+        # This is the same path used by keepalive. NOTE: keytype=accesstoken is
+        # blocked from Oracle IP — if this returns a VK it came via wg0 Jazz SIM route.
         _refresh_vk = ""
         try:
             from . import jazzdrive as _jd_mod
