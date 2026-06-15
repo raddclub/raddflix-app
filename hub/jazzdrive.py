@@ -2448,6 +2448,101 @@ def _android_refresh_session_inner(refresh_token: str,
 # Token refresh — Android OAuth2 only (no web fallbacks)
 # ---------------------------------------------------------------------------
 
+
+def sapi_direct_login(acct: Optional[dict], raw_accesstoken: str) -> dict:
+    """SAPI-layer login using the OTP-issued raw_accesstoken (no OAuth2 required).
+
+    The /sapi/login/oauth?keytype=accesstoken endpoint accepts the OTP-issued
+    raw_accesstoken and returns a fresh validationkey + jsessionid directly.
+    This bypasses OAuth2 entirely — used when the refresh_token chain is dead
+    but the raw_accesstoken (which has no expiry in SAPI) is still valid.
+
+    Confirmed 2026-06-15: DB OTP-issued token → HTTP 200 ✅
+    OAuth2-derived new token → HTTP 401 (not registered in SAPI session store).
+    """
+    import requests as _req
+    import base64 as _b64
+    import urllib.parse as _up
+
+    require_jd_active()
+
+    if not raw_accesstoken:
+        return {"ok": False, "error": "sapi_direct_login: no raw_accesstoken provided"}
+
+    account_id    = (acct or {}).get("id")
+    msisdn        = str((acct or {}).get("msisdn") or "")
+    refresh_token = str((acct or {}).get("refresh_token") or "")
+
+    _CLOUD = "https://cloud.jazzdrive.com.pk"
+    at_json = json.dumps({"data": {"accesstoken": raw_accesstoken}})
+    at_b64  = _up.quote(_b64.b64encode(at_json.encode()).decode(), safe="")
+    url = (f"{_CLOUD}/sapi/login/oauth"
+           f"?action=login&platform=Android&keytype=accesstoken&key={at_b64}")
+
+    headers = get_auth_headers("", "", msisdn=msisdn,
+                               raw_accesstoken=raw_accesstoken,
+                               refresh_token=refresh_token)
+    headers.pop("Cookie", None)
+    headers.pop("validation_key", None)
+
+    log.info("[JD:SAPI-DIRECT] Attempting SAPI login with stored raw_accesstoken (acct=%s)",
+             account_id)
+    try:
+        r = _req.get(url, headers=headers, timeout=30)
+        log.info("[JD:SAPI-DIRECT] HTTP %d (acct=%s)", r.status_code, account_id)
+        if r.status_code != 200:
+            return {"ok": False,
+                    "error": f"SAPI direct login HTTP {r.status_code}: {r.text[:200]}"}
+
+        body  = r.json()
+        sdata = body.get("data", body) if isinstance(body, dict) else body
+        new_vk  = (sdata.get("validationkey") or sdata.get("validation_key") or "")
+        new_jid = (sdata.get("jsessionid") or sdata.get("JSESSIONID")
+                   or r.cookies.get("JSESSIONID", "") or "")
+
+        # SAPI response may carry a new raw_accesstoken inside base64-JSON access_token
+        new_raw_at = raw_accesstoken
+        _sapi_at_b64 = sdata.get("access_token", "")
+        if _sapi_at_b64:
+            try:
+                _pad = "=" * ((4 - len(_sapi_at_b64) % 4) % 4)
+                _dec = json.loads(_b64.b64decode(_sapi_at_b64 + _pad).decode())
+                _inner = _dec.get("data", {})
+                if _inner.get("accesstoken"):
+                    new_raw_at = _inner["accesstoken"]
+            except Exception:
+                pass
+
+        if not new_vk or not new_jid:
+            return {"ok": False,
+                    "error": "SAPI direct login: HTTP 200 but no VK/JID in response"}
+
+        # Persist new VK + JID to DB
+        if account_id is not None:
+            expires_offset = 86400 * 30 if refresh_token else 3300
+            with _lock:
+                with db.conn() as _c:
+                    _c.execute(
+                        "UPDATE accounts SET validation_key=?, jsessionid=?, "
+                        "raw_accesstoken=?, token_expires_at=? WHERE id=?",
+                        (new_vk, new_jid, new_raw_at,
+                         int(time.time() + expires_offset), account_id),
+                    )
+            log.info("[JD:SAPI-DIRECT] VK+JID saved to DB (acct=%s vk_len=%d)",
+                     account_id, len(new_vk))
+
+        return {
+            "ok":             True,
+            "validationkey":  new_vk,
+            "jsessionid":     new_jid,
+            "raw_accesstoken": new_raw_at,
+            "method":         "sapi_direct",
+        }
+    except Exception as _sde:
+        log.error("[JD:SAPI-DIRECT] Exception: %s", _sde)
+        return {"ok": False, "error": f"sapi_direct_login exception: {_sde}"}
+
+
 def refresh_session(account_id: Optional[int] = None) -> dict:
     """Silently obtain a fresh JSESSIONID + validationKey without OTP.
 
@@ -2512,6 +2607,7 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
     # Prefer the Android flow whenever a refresh_token is available — it uses
     # POST /oauth2/refresh_token.php with client_id=fnbroot and gives a fresh
     # refresh_token back, enabling indefinite silent renewal just like the app.
+    _oauth2_err = ""
     if stored_rt:
         android_result = android_refresh_session(
             refresh_token=stored_rt,
@@ -2522,14 +2618,32 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
             log.info("refresh_session: Android OAuth2 path succeeded for %s",
                      acct.get("msisdn"))
             return android_result
-        log.error("refresh_session: Android OAuth2 failed (%s) — OTP re-login required",
-                  android_result.get("error"))
-        return {"ok": False, "error": f"Android refresh failed: {android_result.get('error')} — OTP re-login required"}
+        _oauth2_err = android_result.get("error", "")
+        log.warning("refresh_session: OAuth2 failed (%s) — trying SAPI direct login...",
+                    _oauth2_err)
+        # Fall through to sapi_direct_login below
 
-    # No refresh_token and no Android path — cannot refresh silently.
+    # ── SAPI direct login (no OAuth2 needed) ─────────────────────────────────
+    # When OAuth2 fails (invalid_grant, network error, etc.) but we have a valid
+    # raw_accesstoken, SAPI direct login can get a fresh VK+JID directly.
+    # Confirmed 2026-06-15: OTP-issued raw_accesstoken → SAPI HTTP 200 ✅
+    if raw_at:
+        _sapi_result = sapi_direct_login(acct=acct, raw_accesstoken=raw_at)
+        if _sapi_result.get("ok"):
+            log.info("refresh_session: SAPI direct login succeeded for %s (no OAuth2 needed)",
+                     acct.get("msisdn"))
+            return _sapi_result
+        log.error("refresh_session: SAPI direct login also failed: %s",
+                  _sapi_result.get("error"))
+        return {"ok": False,
+                "error": (f"All refresh strategies failed. "
+                          f"OAuth2: {_oauth2_err or 'no refresh_token'} | "
+                          f"SAPI direct: {_sapi_result.get('error')}")}
+
+    # No tokens at all — cannot refresh silently.
     return {
         "ok": False,
-        "error": "No refresh_token stored. Please re-login via OTP to store credentials."
+        "error": "No tokens available for refresh. Please re-login via OTP.",
     }
 
 
