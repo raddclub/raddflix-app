@@ -478,79 +478,6 @@ def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
     return headers
 
 
-def refresh_jsessionid(validation_key: str,
-                       raw_accesstoken: str = "") -> tuple[Optional[str], Optional[dict]]:
-    """Use the stored raw_accesstoken to silently obtain a fresh JSESSIONID."""
-    log.info("[JD:REFRESH] ==========================================")
-    log.info("[JD:REFRESH] refresh_jsessionid has_token=%s", bool(raw_accesstoken))
-    import requests as _req
-    import urllib.parse as _up
-    import base64 as _b64
-
-    # Resolve Proxy — use SAPI proxy slot if configured
-    proxies = resolve_proxies(purpose='sapi')
-
-    CLOUD_BASE = "https://cloud.jazzdrive.com.pk"
-    msisdn = str(db.setting('JAZZDRIVE_MSISDN') or "")
-    dev_suffix = msisdn[-10:] if len(msisdn) >= 10 else _uuid.uuid4().hex[:10]
-
-    headers = get_auth_headers("", "", msisdn=msisdn, raw_accesstoken=raw_accesstoken)
-    headers.pop("Cookie", None)
-    headers.pop("validation_key", None)
-    headers.update({
-        "Accept": "application/json, text/javascript, */*",
-        "Origin": CLOUD_BASE,
-        "Referer": CLOUD_BASE + "/",
-    })
-
-    candidates = []
-
-    # Primary: raw_accesstoken (verified working — returns HTTP 200)
-    at = (raw_accesstoken or "").strip()
-    if at:
-        at_json  = json.dumps({"data": {"accesstoken": at}})
-        at_b64   = _b64.b64encode(at_json.encode()).decode()
-        at_b64_q = _up.quote(at_b64, safe='')
-        candidates.append(
-            f"{CLOUD_BASE}/sapi/login/oauth?action=login&platform=web"
-            f"&keytype=accesstoken&key={at_b64_q}"
-        )
-
-    if not candidates:
-        log.warning("[JD:REFRESH] no raw_accesstoken -- OTP re-login required")
-        return None, None
-
-    r = None
-    try:
-        for url_candidate in candidates:
-            try:
-                r = _req.get(url_candidate, headers=headers, timeout=20, proxies=proxies)
-                log.info("[JD:REFRESH] url=%s  HTTP=%d", url_candidate[:100], r.status_code)
-                if r.status_code == 200:
-                    try:
-                        body = r.json()
-                        d    = body.get("data", body) if isinstance(body, dict) else {}
-                        jsid = (d.get("jsessionid") or d.get("JSESSIONID")
-                                or r.cookies.get("JSESSIONID") or "")
-                    except Exception:
-                        body = None
-                        jsid = r.cookies.get("JSESSIONID") or ""
-                    if jsid:
-                        log.info("[JD:REFRESH] JSESSIONID obtained via raw_accesstoken")
-                        log.info("[JD:REFRESH] ==========================================")
-                        return jsid, body
-                    log.warning("[JD:REFRESH] HTTP 200 but no JSESSIONID in response")
-                else:
-                    log.warning("[JD:REFRESH] HTTP %d -- credentials rejected or session dead",
-                              r.status_code)
-            except Exception as _e:
-                log.debug("refresh_jsessionid candidate error: %s", _e)
-
-        return None, None
-    except Exception as e:
-        log.debug("refresh_jsessionid error: %s", e)
-        return None, None
-
 
 def rename_video(account_id: int, video_id: int, new_name: str,
                  folder_id: Optional[int] = None,
@@ -2314,12 +2241,10 @@ def _android_refresh_session_inner(refresh_token: str,
     device_id = get_x_deviceid(_msisdn_for_dev)
     sess.headers.update(_sess_headers)
     
-    at_json_1    = json.dumps({"data": {"accesstoken": raw_at}})
-    at_json_2    = json.dumps({"accesstoken": raw_at})
-    at_b64_1     = _up.quote(_b64.b64encode(at_json_1.encode()).decode(), safe='')
-    at_b64_2     = _up.quote(_b64.b64encode(at_json_2.encode()).decode(), safe='')
-    
-    # Android-Nested is the only login method — matches the real APK behavior.
+    # Android-Nested: {"data":{"accesstoken":"<raw_at>"}} → base64 → URL-encoded
+    # This is the exact format the Jazz Drive APK sends. Only one format, no fallbacks.
+    at_json_1 = json.dumps({"data": {"accesstoken": raw_at}})
+    at_b64_1  = _up.quote(_b64.b64encode(at_json_1.encode()).decode(), safe='')
     candidates = [
         (f"{_CLOUD}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_1}", "Android-Nested"),
     ]
@@ -2462,18 +2387,16 @@ def _android_refresh_session_inner(refresh_token: str,
 
 
 # ---------------------------------------------------------------------------
-# Token refresh  (web fallback — used when Android refresh_token not available)
+# Token refresh — Android OAuth2 only (no web fallbacks)
 # ---------------------------------------------------------------------------
 
 def refresh_session(account_id: Optional[int] = None) -> dict:
     """Silently obtain a fresh JSESSIONID + validationKey without OTP.
 
-    Tries in order:
-      1. Android OAuth2 refresh_token  →  POST /oauth2/refresh_token.php with
-         client_id=fnbroot / client_secret=f&rW23.  This gives months-long
-         sessions exactly like the Jazz Drive Android app.
-      2. Web raw_accesstoken fallback  →  GET /sapi/login/oauth?keytype=accesstoken
-         (verified 2026-05-07; works ~1 h between refreshes).
+    Uses Android OAuth2 refresh_token flow only:
+      POST /oauth2/refresh_token.php with client_id=fnbroot / client_secret=f&rW23.
+      Then POST /sapi/login/oauth?platform=Android&keytype=accesstoken (nested JSON format).
+    If no refresh_token is stored, returns ok=False — OTP re-login required.
 
     Returns {"ok": True, ...} on success, {"ok": False, "error": ...} otherwise.
     """
@@ -2541,126 +2464,16 @@ def refresh_session(account_id: Optional[int] = None) -> dict:
             log.info("refresh_session: Android OAuth2 path succeeded for %s",
                      acct.get("msisdn"))
             return android_result
-        log.info("refresh_session: Android refresh failed (%s) — trying web fallback",
-                 android_result.get("error"))
+        log.error("refresh_session: Android OAuth2 failed (%s) — OTP re-login required",
+                  android_result.get("error"))
+        return {"ok": False, "error": f"Android refresh failed: {android_result.get('error')} — OTP re-login required"}
 
-    # ── Strategy 2: Web raw_accesstoken fallback ──────────────────────────────
-    if not raw_at:
-        return {
-            "ok": False,
-            "error": (
-                "No raw_accesstoken or refresh_token stored. "
-                "Please re-login via OTP once to store the credentials."
-            )
-        }
+    # No refresh_token and no Android path — cannot refresh silently.
+    return {
+        "ok": False,
+        "error": "No refresh_token stored. Please re-login via OTP to store credentials."
+    }
 
-    _CLOUD_BASE = "https://cloud.jazzdrive.com.pk"
-    sess = _req.Session()
-    device_id = get_x_deviceid(acct.get("msisdn"))
-    sess.headers.update({
-        "Accept":       "application/json, text/javascript, */*",
-        "User-Agent":   "omh android client",
-        "X-deviceid":   device_id,
-        "X-devicename": db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix Hot 9 Play",
-        "X-Requested-With": "com.jazz.drive",
-    })
-
-    log.info("Refreshing JazzDrive session for %s via raw_accesstoken ...", acct.get("msisdn"))
-
-    # Resolve Proxy — SAPI endpoint; use dedicated SAPI proxy slot
-    proxies = resolve_proxies(purpose='sapi')
-
-    at_json_1  = json.dumps({"data": {"accesstoken": raw_at}})
-    at_json_2  = json.dumps({"accesstoken": raw_at})
-    at_b64_1   = _up.quote(_b64.b64encode(at_json_1.encode()).decode(), safe='')
-    at_b64_2   = _up.quote(_b64.b64encode(at_json_2.encode()).decode(), safe='')
-    
-    # We try multiple candidates to avoid HTTP 500
-    candidates = [
-        # Format 1: Nested (Standard)
-        (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_1}", "Web-Nested"),
-        (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_1}", "Android-Nested"),
-        # Format 2: Flat
-        (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64_2}", "Web-Flat"),
-        (f"{_CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64_2}", "Android-Flat"),
-    ]
-
-    last_err = "No candidates tried"
-    r = None
-    for url, label in candidates:
-        try:
-            log.info("refresh_session: trying %s @ %s", label, url[:100])
-            r = sess.get(url, timeout=30, proxies=proxies)
-            if r.status_code == 200:
-                log.info("✓ %s candidate succeeded", label)
-                break
-            last_err = f"[{label}] HTTP {r.status_code}: {r.text[:200]}"
-            log.debug("refresh_session: %s candidate failed: %s", label, last_err)
-        except Exception as _e:
-            last_err = str(_e)
-            log.debug("refresh_session: %s network error: %s", label, last_err)
-
-    if not r or r.status_code != 200:
-        return {"ok": False, "error": f"Silent login failed: {last_err}"}
-
-    try:
-        body = r.json()
-        data = body.get("data", body) if isinstance(body, dict) else body
-
-        new_vk  = (data.get("validationkey") or data.get("validation_key") or vk_stored or "")
-        new_jid = (data.get("jsessionid") or data.get("JSESSIONID")
-                   or r.cookies.get("JSESSIONID", "") or "")
-
-        # Decode the new access_token to refresh raw_accesstoken too
-        new_raw_at = raw_at
-        new_at_b64 = data.get("access_token") or ""
-        if new_at_b64:
-            try:
-                _pad = "==" if len(new_at_b64) % 4 else ""
-                _dec = json.loads(_b64.b64decode(new_at_b64 + _pad).decode())
-                _inner = _dec.get("data", {}).get("accesstoken", "")
-                if _inner:
-                    new_raw_at = _inner
-            except Exception:
-                pass
-
-        if not new_jid:
-            return {"ok": False, "error": f"Refresh succeeded (200) but response missing jsessionid: {data}"}
-
-        # Keep expires window long — raw_accesstoken is valid until rotated.
-        # Fall back to 55 min only if we have no refresh path at all.
-        _has_rt = bool((acct.get("refresh_token") or "").strip())
-        expires_offset = 86400 * 30 if _has_rt else 3300
-
-        # ── Persist new tokens ─────────────────────────────────────────────────
-        if acct.get("id") is not None:
-            with _lock:
-                with db.conn() as _c:
-                    _c.execute(
-                        "UPDATE accounts SET validation_key=?, jsessionid=?, "
-                        "raw_accesstoken=?, token_expires_at=? WHERE id=?",
-                        (new_vk, new_jid, new_raw_at,
-                         int(time.time() + expires_offset), acct["id"])
-                    )
-            log.info("refresh_session: DB updated for account id=%s", acct["id"])
-
-        old_session = _load_session()
-        old_session.update({
-            "validationkey":   new_vk,
-            "jsessionid":      new_jid,
-            "raw_accesstoken": new_raw_at,
-            "created_at":      time.time(),
-            "expires_at":      time.time() + expires_offset,
-        })
-        _save_session(old_session)
-
-        log.info("JazzDrive session refreshed for %s (new_jsid=%s)", acct.get("msisdn"), bool(new_jid))
-        return {"ok": True, "message": "Session refreshed without OTP.",
-                "validation_key": new_vk, "jsessionid": new_jid}
-
-    except Exception as e:
-        log.error("refresh_session error: %s", e)
-        return {"ok": False, "error": str(e)}
 
 
 def upload_file_to_jazzdrive(file_path: str | Path) -> dict:
