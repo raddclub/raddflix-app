@@ -464,7 +464,15 @@ async function loadStatus() {
 
       if (btnRelogin) btnRelogin.style.display = 'inline-block';
 
-      if (sess.has_refresh_token) {
+      if (!sess.has_vk && sess.has_refresh_token) {
+        // OTP was accepted but SAPI activation never completed — no validation_key
+        if (statSess) statSess.innerHTML = '<span class="badge b-warn">Needs Activation</span>';
+        if (statSessSub) statSessSub.textContent = 'VK missing — activate from Jazz phone';
+        if (banner) banner.style.display = 'flex';
+        if (btnRefresh) btnRefresh.style.display = 'none';
+        if (btnLogin) { btnLogin.style.display = 'block'; btnLogin.textContent = 'Activate Session'; }
+        if (bannerMsg) bannerMsg.textContent = 'OTP was accepted but activation not completed. Use Login → get phone link to finish.';
+      } else if (sess.has_refresh_token) {
         if (statSess) statSess.innerHTML = '<span class="badge b-warn">Offline</span>';
         if (statSessSub) statSessSub.textContent = 'Refresh available';
         if (banner) banner.style.display = 'flex';
@@ -472,14 +480,14 @@ async function loadStatus() {
           btnRefresh.style.display = 'block';
           btnRefresh.onclick = () => flixRefreshAcct(sess.id || 1);
         }
-        if (btnLogin) btnLogin.style.display = 'none';
+        if (btnLogin) { btnLogin.style.display = 'none'; btnLogin.textContent = 'Login with OTP'; }
         if (bannerMsg) bannerMsg.textContent = 'Session offline, but a refresh token is available.';
       } else {
         if (statSess) statSess.innerHTML = '<span class="badge b-err">Offline</span>';
         if (statSessSub) statSessSub.textContent = 'Click Login';
         if (banner) banner.style.display = 'flex';
         if (btnRefresh) btnRefresh.style.display = 'none';
-        if (btnLogin) btnLogin.style.display = 'block';
+        if (btnLogin) { btnLogin.style.display = 'block'; btnLogin.textContent = 'Login with OTP'; }
         if (bannerMsg) bannerMsg.textContent = 'Uploads are paused until you log in.';
         
         if (s.config && s.config.msisdn) {
