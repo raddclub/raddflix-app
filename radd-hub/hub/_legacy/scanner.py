@@ -724,8 +724,7 @@ def mobile_direct_verify_otp(msisdn: str, otp: str, proxies: Optional[dict] = No
             data = body.get('data', body) if isinstance(body, dict) else {}
             if not isinstance(data, dict):
                 data = body if isinstance(body, dict) else {}
-            vk  = (data.get('validationkey') or data.get('validation_key') or
-                   data.get('accesstoken')   or data.get('access_token') or '')
+            vk  = (data.get('validationkey') or data.get('validation_key') or '')
             rt  = (data.get('refreshtoken')  or data.get('refresh_token') or
                    data.get('RefreshToken')  or '')
             jid = (data.get('jsessionid')    or data.get('JSESSIONID') or
@@ -1208,28 +1207,33 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
                  len(_stale), [n for _, _, n in _stale])
 
     msisdn_clean = (msisdn or "").replace("+", "").replace(" ", "").replace("-", "")
-    device_id    = (f"android-raddhub-{msisdn_clean[-10:]}" if len(msisdn_clean) >= 10
-                    else "android-raddhub-12345678")
+    # APK research: device_id prefix is always "fac-" (C9765k.java mo42302k())
+    device_id    = (f"fac-{msisdn_clean[-10:]}" if len(msisdn_clean) >= 10
+                    else "fac-0000000000")
 
     at_json  = _json_mod.dumps({"data": {"accesstoken": raw_at}})
     at_b64e  = urllib.parse.quote(_b64_mod.b64encode(at_json.encode()).decode(), safe="")
     
-    # We try multiple candidates to avoid HTTP 500
+    # Android-Nested only — exact format from Jazz Drive 8.0.1 APK (FINDINGS.md / LOGIN_FLOW.md).
+    # platform=Android, keytype=accesstoken, key=base64({"data":{"accesstoken":"<raw_at>"}})
     candidates = [
         (f"{CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64e}", "Android-Nested"),
-        (f"{CLOUD_BASE}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64e}", "Web-Nested"),
-        (f"{CLOUD_BASE}/sapi/login/oauth?keytype=accesstoken&key={at_b64e}", "Legacy-Direct"),
-        (f"{CLOUD_BASE}/sapi/login?action=login&platform=Android&keytype=accesstoken&key={at_b64e}", "Android-Raw"),
     ]
 
     # Temporarily restore SSL verification for cloud.jazzdrive.com.pk (valid cert)
     _prev_verify = sess.verify
     sess.verify = True
+    import uuid as _uuid_mod
+    import base64 as _b64_auth
+    _auth_token = _b64_auth.b64encode(raw_at.encode()).decode() if raw_at else ""
     sess.headers.update({
-        "Accept":             "application/json, text/javascript, */*; q=0.01",
+        # All 7 headers from APK OkHttp interceptors (LOGIN_FLOW.md section 2):
+        "User-Agent":         "omh android client",          # C30921b AddUserAgentInterceptor
+        "x-request-id":       str(_uuid_mod.uuid4()),        # C30920a AddRequestIdInterceptor
+        "X-deviceid":         device_id,                     # C30924e DeviceInterceptor
         "X-Requested-With":   "com.jazz.drive",
-        "X-deviceid":         device_id,
-        "User-Agent":         "Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)",
+        "Accept":             "application/json, text/javascript, */*; q=0.01",
+        **({"Authorization": f"oauth {_auth_token}"} if _auth_token else {}),  # C12815c
     })
     # Remove browser headers for pure app look
     sess.headers.pop("Origin", None)
