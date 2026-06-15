@@ -1,6 +1,15 @@
 # RaddFlix Agent Task Board
 
-_Last updated: 2026-06-14_
+_Last updated: 2026-06-15_
+
+## Completed This Session (2026-06-15)
+
+| ID | Changed | Summary |
+|----|---------|---------|
+| ✅ FIX-ANDROID-NESTED-401 | hub/jazzdrive.py | android_refresh_session: added `Authorization: oauth <Base64(cred_JSON)>` header to the inner nested SAPI login call — was missing entirely, causing 401 on every startup_refresh |
+| ✅ FIX-SAPI-TOKEN-MISMATCH | hub/jazzdrive.py | Root cause confirmed: OAuth2 token.php-rotated `access_token` is NOT accepted by SAPI login (`keytype=accesstoken`). Only the OTP-issued `raw_accesstoken` stored in DB is SAPI-registered. Changed candidate priority: DB `raw_accesstoken` used as primary SAPI key. Authorization header must match the key parameter exactly. |
+| ✅ FIX-SAPI-DIRECT-LOGIN | hub/jazzdrive.py | Added `sapi_direct_login()` + modified `refresh_session()` fallback. When OAuth2 `invalid_grant`, now falls through to direct SAPI login via DB `raw_accesstoken` to recover VK+JID without OAuth2. Prevents future session lockout on RT chain death. commit 179f1f0 |
+| ✅ RECOVERY-ACCT11 | data/radd_hub.db (live) | Manual Python recovery on Oracle: SAPI login with DB `raw_accesstoken` → HTTP 200 → fresh VK+JID saved. Upload immediately resumed. `/Karuppu (2026)/` folder confirmed, poster uploaded, Karuppu.mp4 duplicate-guarded (already in JD). |
 
 ## Completed This Session (2026-06-14)
 
@@ -38,6 +47,6 @@ _Last updated: 2026-06-14_
 
 | ID | Priority | Status | Notes |
 |----|---------|--------|-------|
-| DELETE-STUCK-FILE | HIGH | OPEN | Delete Karuppu.2026.480p... (files.id=37) → re-upload. Needs valid VK first |
-| MONITOR-VK-REFRESH | MEDIUM | WATCH | VK cannot be renewed via silent refresh. If it expires, user must do OTP again |
-
+| DELETE-STUCK-FILE | HIGH | OPEN | Delete Karuppu.2026.480p... (files.id=37) → re-upload. Needs valid VK first. VK NOW VALID — can proceed |
+| RENEW-PK-PROXIES | HIGH | OPEN | All 8 PK SOCKS proxies dead. sapi_direct_login is fallback but still needs PK proxy for `startup_refresh` SAPI login. Need fresh PK proxy for account login path |
+| RENEW-REFRESH-TOKEN | MEDIUM | OPEN | refresh_token chain is dead (invalid_grant). Next OTP login will renew it. Current session works via VK+JID. |

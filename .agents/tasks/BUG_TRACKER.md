@@ -348,3 +348,37 @@ _No open code bugs. All known issues resolved._
 - `/sapi/login/oauth?keytype=accesstoken` expects `base64({"data":{"accesstoken":"<hex>"}})`. fnbroot hex token wrapped → eyJ... JWT-looking → always 401. Not fixable — wrong token type.
 - `/sapi/login/oauth?keytype=otp` accepts raw OTP integer directly → returns VK+JSESSIONID. Geo-unrestricted.
 - Both endpoints are independent: consuming OTP on OAuth2 (verify.php) does NOT invalidate it on SAPI direct endpoint. Both calls can be made in the same login flow.
+
+## Session 2026-06-14 (FIX-OTP-UA-GATE)
+
+| ID | Severity | Title | Root Cause | Fix | File | Commit |
+|----|---------|-------|-----------|-----|------|--------|
+| BUG-OTP-UA | HIGH | mobile_direct_verify_otp always 401 (VK never captured) | UA was `Dalvik/2.1.0 (...)` — JazzDrive SAPI gate rejects non-`omh android client` UAs with static 401 | Changed UA to `omh android client` + added `x-request-id: <UUID>` + `responsetime=true` | hub/_legacy/scanner.py | c8490d9 |
+| BUG-PRE-SAPI-VK | HIGH | OTP login captures VK AFTER verify.php consumes OTP | mobile_direct_verify_otp called after OAuth2 exchange — OTP already consumed, SAPI keytype=otp returns 401 | Call mobile_direct_verify_otp() BEFORE verify.php (PRE-SAPI block). VK injected into tokens dict after OAuth2. | hub/scanner.py | this session |
+
+---
+
+## Session 2026-06-15 — SAPI Token Chain Bugs
+
+| ID | Severity | Title | Root Cause | Fix | File | Commit |
+|----|---------|-------|-----------|-----|------|--------|
+| BUG-AUTH-HEADER | CRITICAL | android_refresh_session SAPI login always 401 | Missing `Authorization: oauth <Base64(cred_JSON)>` header on the nested SAPI login call inside android_refresh_session(). Header was never sent — SAPI requires it. | Added Authorization header built from DB cred fields (raw_at, rt, msisdn) | hub/jazzdrive.py | 1f0189e |
+| BUG-SAPI-TOKEN | CRITICAL | SAPI login 401 even with Authorization header present | OAuth2-rotated access_token is NOT the same as the SAPI-registered raw_accesstoken. token.php rotates the OAuth2 Bearer but does not register it in SAPI session store. Using rotated token as SAPI `key=` param → always 401 (empty body, no error message). | Use DB `raw_accesstoken` (OTP-issued, SAPI-registered) as the `key=` param. Authorization header must use the same token as `key=`. | hub/jazzdrive.py | c4002bc |
+| BUG-NO-RT-FALLBACK | HIGH | Flask restart kills session when refresh_token chain is dead | `refresh_session()` returned hard error on `invalid_grant` without trying any other recovery. VK+JID were valid — uploads still worked — but startup_refresh logged fatal error and no silent renewal was possible. | Added `sapi_direct_login()` fallback: calls SAPI directly with DB `raw_accesstoken`, gets fresh VK+JID without OAuth2. `refresh_session()` now falls through to this when OAuth2 fails. | hub/jazzdrive.py | 179f1f0 |
+
+### Key SAPI findings (permanent reference)
+
+```
+Token type          | Source             | SAPI-registered? | Works with keytype=accesstoken
+--------------------|--------------------|-----------------|---------------------------------
+raw_accesstoken     | OTP login (DB)     | YES ✅           | HTTP 200
+OAuth2 access_token | token.php rotation | NO  ❌           | HTTP 401 (empty body)
+```
+
+JazzDrive SAPI login `keytype=accesstoken` only validates tokens in the SAPI session store.
+OAuth2 token rotation happens in the OAuth2 layer only — SAPI never sees these tokens.
+The OTP-issued `raw_accesstoken` (40 hex chars) is permanently stored and validated by SAPI.
+`Authorization: oauth <Base64(cred_JSON)>` header must carry the SAME token as the `key=` URL param.
+
+### Open
+_No open code bugs._

@@ -784,3 +784,69 @@ ADD-PK-PROXIES task closed — root cause was wrong (UA, not IP).
 - keytype=otp endpoint: now reachable from Oracle with correct UA — will return VK on next real OTP
 - No PK proxy needed — UA fix is sufficient
 - Open: DELETE-STUCK-FILE (needs valid VK first), MONITOR-VK-REFRESH (WATCH)
+
+---
+
+## Session 2026-06-15 — FIX-ANDROID-NESTED-401 + FIX-SAPI-TOKEN-MISMATCH + FIX-SAPI-DIRECT-LOGIN
+
+### Root causes found and fixed (hub/jazzdrive.py)
+
+**Bug 1 — Missing Authorization header in nested SAPI login (FIX-ANDROID-NESTED-401)**
+`android_refresh_session()` called the inner SAPI login but never set the
+`Authorization: oauth <Base64(cred_JSON)>` header. SAPI requires it.
+Fix: header added; confirmed required by APK decompile of JazzDrive 8.0.1.
+
+**Bug 2 — SAPI token mismatch: OAuth2-rotated token ≠ SAPI-registered token (FIX-SAPI-TOKEN-MISMATCH)**
+Root cause (confirmed by live HTTP test):
+- `token.php` rotates the OAuth2 Bearer token on every refresh.
+- The new token is NOT registered in the SAPI session store.
+- SAPI `keytype=accesstoken` only accepts the original OTP-issued `raw_accesstoken` from DB.
+- Using the OAuth2-rotated token as the SAPI `key=` param → always 401 (empty body).
+Fix: Use DB `raw_accesstoken` as the SAPI key (primary). Authorization header must use the same token as the `key=` param.
+
+**Bug 3 — No fallback when refresh_token chain dies (FIX-SAPI-DIRECT-LOGIN)**
+When `invalid_grant` fires (RT chain burned), `refresh_session()` hard-returned an error
+immediately, making the whole session appear dead — even though VK+JID were valid and
+uploads still worked.
+Fix: added `sapi_direct_login(acct, raw_accesstoken)`:
+- Calls `GET /sapi/login/oauth?keytype=accesstoken&key=<b64(raw_at)>` with full headers
+- Gets fresh VK+JID without needing OAuth2 at all
+- Saves to DB immediately
+- `refresh_session()` now falls through to this when OAuth2 fails.
+
+### Manual recovery (2026-06-15 ~20:51 PKT)
+OTP login at 20:34 burned the RT chain through 3 rapid flask restarts (each consumed RT).
+Ran recovery script directly on Oracle — SAPI login HTTP 200 → fresh VK+JID → saved to DB.
+Session alive; uploader resumed within seconds. `/Karuppu (2026)/` folder confirmed.
+`Karuppu (2026).mp4` already uploaded (remote_id=242670773), duplicate guard fired correctly.
+Poster uploaded successfully at 20:55 PKT.
+
+### Key discovery (carry forward)
+```
+SAPI keytype=accesstoken:
+  OTP-issued raw_accesstoken (40 hex chars from DB) → HTTP 200 ✅
+  OAuth2-rotated access_token (different token) → HTTP 401 ✅ (confirmed by live test)
+
+refresh_session() strategy chain (after this session):
+  1. Android OAuth2 (preferred — rotates RT chain)
+  2. sapi_direct_login (fallback — raw_accesstoken + SAPI only, no OAuth2)
+  3. Hard fail with combined error
+
+startup_refresh warns on invalid_grant but does NOT wipe VK — uploads continue.
+```
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| hub/jazzdrive.py | FIX-ANDROID-NESTED-401 + FIX-SAPI-TOKEN-MISMATCH | 1f0189e, c4002bc |
+| hub/jazzdrive.py | FIX-SAPI-DIRECT-LOGIN: sapi_direct_login() + refresh_session() fallback | 179f1f0 |
+| agent-hub/TASKS.md | Session tasks updated | this commit |
+| agent-hub/history/TASK_LOG.md | This entry | this commit |
+| .agents/tasks/BUG_TRACKER.md | Session 2026-06-15 entry | this commit |
+
+### State at end of session
+- Oracle Flask: RUNNING (healthz OK, version 3.0.0)
+- Account id=11 (03257719165): VK=valid (32 chars), JID=valid (38 chars), raw_accesstoken=valid (40 chars)
+- Upload: WORKING — Karuppu (2026) folder active, poster uploaded at 20:55 PKT
+- refresh_token: DEAD (invalid_grant) — session self-sustains via sapi_direct_login fallback on next restart
+- Open: RENEW-REFRESH-TOKEN (will auto-fix on next OTP login), RENEW-PK-PROXIES, DELETE-STUCK-FILE
