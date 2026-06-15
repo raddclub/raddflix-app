@@ -703,47 +703,60 @@ def mobile_direct_verify_otp(msisdn: str, otp: str, proxies: Optional[dict] = No
         'x-request-id':     str(uuid.uuid4()),
     }
 
-    candidates = [
-        f'{CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=otp&key={encoded_otp}&msisdn={encoded_msisdn}&responsetime=true',
-        f'{CLOUD_BASE}/sapi/login?action=login&platform=Android&keytype=otp&key={encoded_otp}&msisdn={encoded_msisdn}&responsetime=true',
-        f'{CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=otp&key={encoded_otp}&responsetime=true',
-        f'{CLOUD_BASE}/sapi/login/oauth?keytype=otp&key={encoded_otp}&msisdn={encoded_msisdn}&responsetime=true',
-    ]
-
-    for url in candidates:
-        try:
-            r = sess.get(url, headers=hdrs, timeout=25, proxies=proxies)
-            log.debug("mobile_direct_verify: HTTP %d @ %s", r.status_code, url[:100])
-            if r.status_code != 200:
-                log.debug("mobile_direct_verify: HTTP %d body: %s", r.status_code, r.text[:150])
-                continue
+    # APK CONFIRMED: keytype=otp does NOT exist in Jazz Drive 8.0.1 API.
+    # Only keytype=accesstoken is used (OAuth2LogoutTask). The OTP/SMS flow goes
+    # through the MobileConnect WebView — WebView extracts code+state and the app
+    # POSTs to /sapi/credential/mobileconnect?action=validate (Path B, LOGIN_FLOW.md).
+    #
+    # `otp` is treated as the OAuth2 authorization code from the MobileConnect redirect.
+    # If callers pass a raw SMS OTP it will fail at the server — use jazzdrive_login()
+    # to drive the full OAuth2 WebView flow and obtain a real code+state pair.
+    validate_url = (
+        f"{CLOUD_BASE}/sapi/credential/mobileconnect"
+        "?action=validate&responsetime=true"
+    )
+    body_json = {"data": {"code": str(otp).strip(), "state": "0"}}
+    try:
+        r = sess.post(validate_url, json=body_json, headers=hdrs, timeout=25, proxies=proxies)
+        log.debug("mobile_direct_verify: mobileconnect validate HTTP %d", r.status_code)
+        if r.status_code == 200:
             try:
                 body = r.json()
             except Exception:
-                continue
-            data = body.get('data', body) if isinstance(body, dict) else {}
+                body = {}
+            data = body.get("data", body) if isinstance(body, dict) else {}
             if not isinstance(data, dict):
-                data = body if isinstance(body, dict) else {}
-            vk  = (data.get('validationkey') or data.get('validation_key') or '')
-            rt  = (data.get('refreshtoken')  or data.get('refresh_token') or
-                   data.get('RefreshToken')  or '')
-            jid = (data.get('jsessionid')    or data.get('JSESSIONID') or
-                   data.get('sessionId')     or sess.cookies.get('JSESSIONID', '') or '')
-            node = jid.split('.')[-1] if jid and '.' in jid else ''
-            if vk:
-                log.info("mobile_direct_verify: OK vk_len=%d rt=%s", len(vk), bool(rt))
+                data = {}
+            at  = (data.get("access_token")   or data.get("accesstoken")  or "")
+            rt  = (data.get("refresh_token")  or data.get("refreshtoken") or "")
+            vk  = (data.get("validationkey")  or data.get("validation_key") or "")
+            jid = (data.get("jsessionid")     or data.get("JSESSIONID")
+                   or sess.cookies.get("JSESSIONID", "") or "")
+            msisdn_resp = data.get("msisdn") or msisdn or ""
+            node = jid.split(".")[-1] if jid and "." in jid else ""
+            if at or rt or vk:
+                log.info("mobile_direct_verify: mobileconnect OK vk=%s at=%s rt=%s",
+                         bool(vk), bool(at), bool(rt))
                 return {
-                    'validation_key': vk,
-                    'jsessionid':     jid,
-                    'node':           node,
-                    'refresh_token':  rt,
+                    "validation_key":  vk,
+                    "jsessionid":      jid,
+                    "node":            node,
+                    "refresh_token":   rt,
+                    "raw_accesstoken": at,
+                    "msisdn":          msisdn_resp,
                 }
-            log.debug("mobile_direct_verify: 200 but no vk in body: %s", str(data)[:200])
-        except Exception as _req_e:
-            log.debug("mobile_direct_verify: error: %s", _req_e)
+            log.warning("mobile_direct_verify: mobileconnect 200 but no tokens: %s", str(data)[:200])
+        else:
+            log.warning("mobile_direct_verify: mobileconnect HTTP %d: %s",
+                        r.status_code, r.text[:150])
+    except Exception as _e:
+        log.warning("mobile_direct_verify: mobileconnect request failed: %s", _e)
 
     raise RuntimeError(
-        f"mobile_direct_verify_otp: all {len(candidates)} candidates failed"
+        "mobile_direct_verify_otp: MobileConnect validate failed. "
+        "keytype=otp does NOT exist in JazzDrive API (confirmed Jazz Drive 8.0.1 APK). "
+        "Use jazzdrive_login() to complete the full OAuth2 WebView flow and obtain "
+        "a real code+state pair for /sapi/credential/mobileconnect?action=validate."
     )
 
 
