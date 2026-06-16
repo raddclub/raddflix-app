@@ -1,26 +1,37 @@
-"""JazzDrive session keep-alive loop with automatic token refresh.
+"""JazzDrive session keep-alive — dual-interval SAPI ping + file-upload heartbeat.
 
-Every ``interval_min`` minutes (with human-like jitter):
-  1. Iterates all active JazzDrive accounts.
-  2. Only runs during active hours (8am–11pm PKT) — mirrors real user behavior.
-  3. If the token is expiring within 24 h AND a refresh_token is stored,
-     silently calls /sapi/login?keytype=refreshtoken to get fresh tokens —
-     no OTP needed. This is exactly what the Jazz Drive Android app does
-     to stay logged in for months.
-  4. Uploads a small file to /Radd-Heartbeat/, then deletes it.
-  5. On heartbeat failure, tries a token refresh before giving up.
-  6. Tracks last-ok / last-fail timestamps and error messages in memory.
-  7. Notifies WhatsApp admins when things go wrong.
+Two independent per-account timers run inside a 60-second tick loop:
 
-Human-like behavior rules:
-  - Active hours: 8am–11pm PKT only (UTC+5). Outside this window the loop
-    sleeps until the next 8am window + random 1-20 min offset.
-  - Interval jitter: base interval ± 25% random, so activity never looks
-    perfectly mechanical (e.g. 360 min → 270–450 min actual gap).
-  - 8% probabilistic skip per account per cycle: real users don't open
-    JazzDrive on a perfect schedule.
-  - Variable payload size (800–1400 bytes) and filename each run.
-  - 2–8 second random "app startup" delay before each heartbeat upload.
+PING  (default every 20 min, DB key: ``ping_interval_min``)
+  GET /sapi/system/information?action=get with full APK-matching headers.
+  Prevents JSESSIONID idle-timeout (3600 s confirmed on JazzDrive servers).
+  The JazzDrive web SPA does the same thing to keep sessions alive.
+  Uses jazzdrive.sapi_request() so all APK headers flow through automatically.
+
+HEARTBEAT  (default every 360 min, DB key: ``keepalive_interval_min``)
+  Upload + delete a probe file in /Radd-Heartbeat/.
+  Proves end-to-end storage access and rolls the OAuth2 token expiry window.
+  On failure, tries a silent token refresh before giving up.
+  Token refresh path: POST /oauth2/refresh_token.php (Android OAuth2).
+  NOTE: /sapi/login?keytype=refreshtoken does NOT exist in JazzDrive API
+        (confirmed APK research). Use /oauth2/refresh_token.php only.
+
+Active hours: 08:00–23:00 PKT only (UTC+5) — mirrors real user behaviour.
+Outside this window both timers pause; the loop sleeps in 60 s chunks so
+stop_event is always responsive within 60 s.
+
+Human-like behaviour rules:
+  - Interval jitter: ping ±10%, heartbeat ±25% — never perfectly mechanical.
+  - 8% probabilistic skip per ping cycle.
+  - Variable payload size (800–1400 bytes) and filename each heartbeat run.
+  - 2–8 s random "app startup" delay before each heartbeat upload.
+  - Per-account timers — multiple accounts never fire in lock-step.
+
+DB settings (all live-readable without Flask restart):
+  ``ping_interval_min``      — seconds between SAPI pings (default: 20)
+  ``keepalive_interval_min`` — minutes between heartbeat uploads (default: 360)
+  ``KEEPALIVE_ENABLED``      — "0" to pause all keepalive activity
+  ``JAZZDRIVE_ENABLED``      — "0" master kill switch
 """
 from __future__ import annotations
 import json
@@ -35,7 +46,8 @@ from . import db, config, jazzdrive
 
 log = logging.getLogger("hub.keepalive")
 
-_CLOUD_BASE = "https://cloud.jazzdrive.com.pk"
+# NOTE: JazzDrive cloud URL is managed by jazzdrive.py (CLOUD_BASE / OAUTH_BASE).
+# sapi_request() and refresh_session() own the base URL — do NOT hardcode it here.
 
 # ── Pakistan Standard Time ────────────────────────────────────────────────────
 _PKT = timezone(timedelta(hours=5))
@@ -101,7 +113,12 @@ def _generate_payload(path: Path) -> int:
 
 
 def _delete_remote_file(sess, vk: str, jsid: str, file_id: int) -> bool:
-    """Delete a file from JazzDrive by remote ID. Returns True on success."""
+    """Delete a file from JazzDrive by remote ID. Returns True on success.
+
+    NOTE: ``sess`` is accepted for API compatibility with callers that pass a
+    requests.Session, but is NOT used — this function delegates entirely to
+    jazzdrive.sapi_request() which manages its own session and proxy logic.
+    """
     try:
         data = jazzdrive.sapi_request(
             endpoint="/file",
@@ -119,22 +136,28 @@ def _delete_remote_file(sess, vk: str, jsid: str, file_id: int) -> bool:
 
 
 def _sapi_ping(acct: dict) -> bool:
-    """Lightweight SAPI ping — GET /sapi/system/information — to keep JSESSIONID alive.
+    """Lightweight SAPI ping — GET /sapi/system/information?action=get.
 
-    JazzDrive's JSESSIONID idle-timeout is 3600 s (confirmed).  The web SPA
-    hits /sapi/system/information every few minutes to prevent it.  We do the
-    same between full file-upload heartbeats so the session never goes cold.
+    Fires every ~20 min (``ping_interval_min`` DB setting) to keep the
+    JazzDrive session alive.  JazzDrive's JSESSIONID idle-timeout is 3600 s;
+    without regular activity the session goes cold and the next upload fails
+    with SEC-1003 / 401.
 
-    Uses jazzdrive.sapi_request() which carries all APK-matching headers:
+    ENDPOINT NOTES (confirmed live, 2026-06-16):
+      • Correct:   /sapi/system/information?action=get
+        Returns: sapiversion, production-environment, devid, mod, fwv.
+      • Wrong:     action=None / action=info / action=ping / action=information
+        All return COM-1005 "Unsupported operation".
+
+    Uses jazzdrive.sapi_request() so all APK-matching headers flow through:
       Accept: application/json
-      Content-Type: application/json; charset=UTF-8  (POST only)
-      X-deviceid: fac-<id>
+      X-deviceid: fac-<id>         (always fac- prefixed)
       X-devicename: Infinix Hot 9 Play
       X-Requested-With: com.jazz.drive
       Authorization: oauth <base64(cred_JSON)>
       User-Agent: omh android client
 
-    Returns True on a clean 200-OK with no error field.
+    Returns True when the server responds with no "error" field.
     """
     aid    = acct["id"]
     msisdn = acct["msisdn"]
@@ -289,7 +312,9 @@ def _try_refresh(acct: dict) -> bool:
          Gives months-long sessions — exactly what the Jazz Drive Android app does.
       2. Web raw_accesstoken: GET /sapi/login/oauth?keytype=accesstoken.
          Fallback for accounts set up before the Android OAuth2 upgrade.
-         Works for ~1 h between refreshes (keepalive fires every 15 min so OK).
+         Works for ~1 h between raw_accesstoken refreshes.
+         NOTE: keytype=refreshtoken does NOT exist. keytype=accesstoken re-validates
+         using the raw 40-hex OTP-issued token (raw_accesstoken DB column).
 
     NOTE: check is BEFORE the try/except so JDDisabled propagates cleanly.
 
@@ -330,7 +355,7 @@ def _try_refresh(acct: dict) -> bool:
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
-def loop(stop_event: threading.Event, interval_min: int = 15) -> None:
+def loop(stop_event: threading.Event, interval_min: int = 360) -> None:
     """Keep-alive loop with dual-interval scheduling.
 
     Two independent per-account timers run concurrently:
@@ -471,9 +496,16 @@ def _run_heartbeat(acct: dict) -> None:
     exp_at = acct.get("token_expires_at")
     now    = int(time.time())
 
-    # ── Determine token-expiry status ──────────────────────────────────────────
-    # JSESSIONID idle timeout = 3600 s (verified 2026-05-07). Trigger proactive
-    # refresh when less than 10 minutes remain so we stay ahead of the deadline.
+    # ── Determine OAuth2 token-expiry status ────────────────────────────────────
+    # token_expires_at tracks OAUTH2 TOKEN expiry (NOT the JSESSIONID idle timeout).
+    #
+    # The two timeouts are completely separate:
+    #   • JSESSIONID idle timeout = 3600 s — kept alive by _sapi_ping() (every ~20 min)
+    #   • OAuth2 refresh_token expiry = ~30 days — tracked here via token_expires_at
+    #   • raw_accesstoken (web path) = ~1 h — refreshed via keytype=accesstoken
+    #
+    # We trigger a silent refresh when < 600 s remain on the stored token_expires_at
+    # window so we stay ahead of the OAuth2 expiry deadline.
     if exp_at:
         secs_left = exp_at - now
         if secs_left <= 0:

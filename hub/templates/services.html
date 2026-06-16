@@ -442,6 +442,7 @@ const EVT_ICONS = {
   heartbeat_ok: '✓', token_refreshed:'🔄', device_conflict:'⚡',
   session_expired:'🔑', network_error:'📡', heartbeat_fail:'✗',
   auto_paused:'⏸', keepalive_fail:'✗',
+  ping_ok: '📶',  // lightweight /system/information?action=get fired every ~20 min
 };
 
 function fmtAgo(ts) {
@@ -563,6 +564,12 @@ function renderHealth(d) {
           <div class="jdh-stat">
             <div class="jdh-stat-label">Last Heartbeat</div>
             <div class="jdh-stat-val">${fmtAgo(a.last_ok_at)}</div>
+          </div>
+          <div class="jdh-stat">
+            <div class="jdh-stat-label">Last SAPI Ping</div>
+            <div class="jdh-stat-val" style="color:${a.ping_status==='ok'?'#22c55e':a.ping_status==='error'?'#ef4444':'#6b7280'}">
+              ${a.ping_status === 'ok' ? '📶 ' : a.ping_status === 'error' ? '⚠️ ' : ''}${fmtAgo(a.last_ping_at)}
+            </div>
           </div>
           <div class="jdh-stat">
             <div class="jdh-stat-label">Token Expires</div>
