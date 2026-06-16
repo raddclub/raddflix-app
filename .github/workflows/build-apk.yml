@@ -1,0 +1,186 @@
+name: Build RaddFlix APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "raddflix_flutter/**"
+      - ".github/workflows/build-apk.yml"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag e.g. v1.0.0"
+        required: false
+        default: ""
+      brand_build:
+        description: "Apply brand assets from brand_assets/ before building"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    name: Build Release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.22.x"
+          channel: "stable"
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Flutter pub get
+        working-directory: raddflix_flutter
+        run: flutter pub get
+
+      - name: Apply brand assets (Brand Studio)
+        if: github.event.inputs.brand_build == 'true'
+        working-directory: raddflix_flutter
+        run: |
+          echo "brand_build=true — checking for brand assets in brand_assets/ directory"
+          BRAND_DIR="${{ github.workspace }}/brand_assets"
+          if [ -d "$BRAND_DIR" ]; then
+            echo "Found brand_assets/ — applying brand files"
+            for f in "$BRAND_DIR"/brand_icon.*; do
+              [ -f "$f" ] && cp "$f" android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png && echo "Applied icon: $f"
+            done
+            for f in "$BRAND_DIR"/brand_splash.*; do
+              [ -f "$f" ] && cp "$f" assets/images/splash.png && echo "Applied splash: $f"
+            done
+          else
+            echo "No brand_assets/ directory found — skipping brand asset application"
+          fi
+
+      - name: Patch Gradle for AGP 8 (fix legacy pub packages)
+        working-directory: raddflix_flutter
+        run: |
+          # AGP 8+ requires 'namespace' in every library module's build.gradle.
+          # Some pub.dev packages pre-date AGP 8 AND/OR use flutter.compileSdkVersion
+          # (a property that resolves in app context but NOT in library module context
+          #  with AGP 8+ — causes "Could not get unknown property 'flutter'" error).
+          #
+          # Root cause of previous CI failures: old patch required BOTH
+          #   (a) flutter.compileSdkVersion present  AND  (b) namespace absent
+          # sqflite_sqlcipher 3.x has a namespace but still uses flutter.compileSdkVersion,
+          # so the patch skipped it entirely → Gradle crash.
+          #
+          # Fix: decouple the two concerns:
+          #   Fix A — replace flutter.compileSdkVersion → 34 for ALL matching packages
+          #            (regardless of whether they already have a namespace)
+          #   Fix B — inject namespace only for packages that are missing it
+          find ~/.pub-cache -name "build.gradle" -path "*/android/*" | while read f; do
+            HAS_FLUTTER_SDK=0
+            grep -qE "compileSdkVersion flutter\.compileSdkVersion|compileSdk flutter\.compileSdkVersion" "$f" 2>/dev/null && HAS_FLUTTER_SDK=1 || true
+            HAS_NS=0
+            grep -q "namespace" "$f" 2>/dev/null && HAS_NS=1 || true
+            if [ "$HAS_FLUTTER_SDK" -eq 1 ] || [ "$HAS_NS" -eq 0 ]; then
+              PKG=$(basename "$(dirname "$(dirname "$(dirname "$f")")")")
+              echo "Patching: $PKG  ($f)"
+              # Fix A: replace flutter.compileSdkVersion with concrete SDK level
+              sed -i 's/compileSdkVersion flutter\.compileSdkVersion/compileSdkVersion 34/g' "$f"
+              sed -i 's/compileSdk flutter\.compileSdkVersion/compileSdk 34/g' "$f"
+              # Fix B: inject namespace if missing
+              if [ "$HAS_NS" -eq 0 ] && grep -q "android {" "$f"; then
+                SAFE_PKG=$(echo "$PKG" | tr '-' '_' | tr '.' '_' | cut -c1-40)
+                sed -i "s/android {/android {\n    namespace \"com.patch.${SAFE_PKG}\"/" "$f"
+                echo "  Added namespace."
+              fi
+              echo "  Done."
+            fi
+          done
+          echo "Gradle patch complete."
+
+      - name: Set up keystore
+        working-directory: raddflix_flutter/android/app/keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "Restoring keystore from secret..."
+            echo "$KEYSTORE_B64" | base64 -d > raddflix.keystore
+            echo "Keystore restored OK"
+          else
+            echo "No KEYSTORE_BASE64 found - generating new keystore..."
+            keytool -genkeypair \
+              -alias raddflix \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -keystore raddflix.keystore \
+              -storepass "${KS_PASS:-RaddFlix_2024_Store}" \
+              -keypass "${KEY_PASS:-RaddFlix_2024_Key}" \
+              -dname "CN=RaddFlix,OU=Mobile,O=Radd Club,L=Karachi,ST=Sindh,C=PK" \
+              -noprompt
+            echo "Keystore generated. Save this as KEYSTORE_BASE64 GitHub secret:"
+            base64 -w 0 raddflix.keystore
+          fi
+
+      - name: Build release APK
+        working-directory: raddflix_flutter
+        env:
+          KEYSTORE_PATH: keystore/raddflix.keystore
+          KEYSTORE_TYPE: PKCS12
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'RaddFlix_2024_Store' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'raddflix' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'RaddFlix_2024_Key' }}
+        run: flutter build apk --release --obfuscate --split-debug-info=build/debug-info --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
+
+      - name: Rename APK with version
+        id: apk
+        run: |
+          VERSION=$(grep "version:" raddflix_flutter/pubspec.yaml | awk '{print $2}' | tr -d "'" | tr -d '"')
+          APK_NAME="RaddFlix-${VERSION}-build${{ github.run_number }}.apk"
+          cp raddflix_flutter/build/app/outputs/flutter-apk/app-release.apk "$APK_NAME"
+          echo "apk_name=$APK_NAME" >> $GITHUB_OUTPUT
+          ls -lh "$APK_NAME"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.apk_name }}
+          path: ${{ steps.apk.outputs.apk_name }}
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
+          name: RaddFlix ${{ github.event.inputs.release_tag || github.ref_name }}
+          draft: false
+          prerelease: false
+          files: ${{ steps.apk.outputs.apk_name }}
+          body: |
+            ## RaddFlix APK
+            Built from commit ${{ github.sha }}
+            Install on Android 5.0+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

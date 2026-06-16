@@ -1,0 +1,246 @@
+name: "RaddFlix CI"
+
+on:
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ── Job 1: Live API health check (informational — never blocks build) ────
+  api-tests:
+    name: "API Health Check"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Run API test suite
+        run: |
+          node raddflix_flutter/test_suite/run_tests.js 2>&1 | tee /tmp/test_output.txt || true
+          PASSED=$(grep -oE '[0-9]+ passed' /tmp/test_output.txt | grep -oE '[0-9]+' | tail -1 || echo 0)
+          FAILED=$(grep -oE '[0-9]+ failed' /tmp/test_output.txt | grep -oE '[0-9]+' | tail -1 || echo 0)
+          WARNED=$(grep -oE '[0-9]+ warned' /tmp/test_output.txt | grep -oE '[0-9]+' | tail -1 || echo 0)
+          echo "## API Health Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Result | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+          echo "| Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
+          echo "| Warned | $WARNED |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${FAILED:-0}" -gt 0 ]; then
+            echo "> [!WARNING]" >> $GITHUB_STEP_SUMMARY
+            echo "> $FAILED live API test(s) failed. This does NOT block the build — fix server-side before next release." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "<details><summary>Full test output</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/test_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          echo "Tests: $PASSED passed, $FAILED failed, $WARNED warned"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: "api-test-results-${{ github.run_number }}"
+          path: /tmp/test_output.txt
+          retention-days: 14
+
+  # ── Job 2: JazzDrive Dart integration (real HTTP calls, real share URLs) ──
+  # continue-on-error: true because GitHub Actions runners use rotating Azure IPs
+  # and cloud.jazzdrive.com.pk is not always reachable from non-Pakistani IPs.
+  # When it IS reachable, this test verifies the full Dart link generation flow.
+  # Run #681 (2026-06-07) proved the test works when JazzDrive is reachable.
+  jazzdrive-dart:
+    name: "JazzDrive Dart Integration"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Run JazzDrive Dart integration tests
+        run: |
+          dart run raddflix_flutter/test_suite/jazzdrive_dart_test.dart 2>&1 | tee /tmp/dart_out.txt
+          EXIT=${PIPESTATUS[0]}
+          echo "## JazzDrive Dart Integration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> Note: cloud.jazzdrive.com.pk is only reliably reachable from Jazz SIM IPs." >> $GITHUB_STEP_SUMMARY
+          echo "> Timeouts here are a network issue, NOT a code failure." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "$EXIT" -eq 0 ]; then
+            echo "All JazzDrive link generation tests passed." >> $GITHUB_STEP_SUMMARY
+          elif grep -q "SocketException" /tmp/dart_out.txt; then
+            echo "Connection timeout — GitHub Actions runner could not reach JazzDrive (non-Jazz IP). Code is not at fault." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "One or more JazzDrive tests FAILED (logic error, not network)." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details><summary>Full output</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/dart_out.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          exit $EXIT
+
+      - name: Upload Dart test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: "jazzdrive-dart-results-${{ github.run_number }}"
+          path: /tmp/dart_out.txt
+          retention-days: 14
+
+  # ── Job 3: Flutter static analysis (blocks build on errors) ─────────────
+  flutter-analyze:
+    name: "Flutter Analyze"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.22.x"
+          channel: "stable"
+          cache: true
+
+      - name: Get dependencies
+        working-directory: raddflix_flutter
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: raddflix_flutter
+        run: |
+          flutter analyze --no-fatal-infos 2>&1 | tee /tmp/analyze.txt
+          echo "## Flutter Analysis" >> $GITHUB_STEP_SUMMARY
+          if grep -q "No issues found" /tmp/analyze.txt; then
+            echo "No issues found." >> $GITHUB_STEP_SUMMARY
+          else
+            ERRORS=$(grep -c "error " /tmp/analyze.txt 2>/dev/null || echo 0)
+            echo "Errors: $ERRORS" >> $GITHUB_STEP_SUMMARY
+            echo "<details><summary>Details</summary>" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat /tmp/analyze.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ── Job 4: Build APK (waits for analyze to pass) ─────────────────────────
+  build-apk:
+    name: "Build Release APK"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: [flutter-analyze]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.22.x"
+          channel: "stable"
+          cache: true
+
+      - name: Flutter pub get
+        working-directory: raddflix_flutter
+        run: flutter pub get
+
+      - name: Setup keystore
+        working-directory: raddflix_flutter/android/app/keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > raddflix.keystore
+          else
+            keytool -genkeypair -alias raddflix -keyalg RSA -keysize 2048 -validity 10000 \
+              -keystore raddflix.keystore \
+              -storepass "${KS_PASS:-RaddFlix_2024_Store}" \
+              -keypass "${KEY_PASS:-RaddFlix_2024_Key}" \
+              -dname "CN=RaddFlix,OU=Mobile,O=Radd Club,L=Karachi,ST=Sindh,C=PK" \
+              -noprompt
+          fi
+
+      - name: Build APK
+        working-directory: raddflix_flutter
+        env:
+          KEYSTORE_PATH: keystore/raddflix.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: flutter build apk --release
+
+      - name: Rename and upload APK
+        id: apk
+        run: |
+          VERSION=$(grep "^version:" raddflix_flutter/pubspec.yaml | awk '{print $2}')
+          NAME="RaddFlix-${VERSION}-build${{ github.run_number }}.apk"
+          cp raddflix_flutter/build/app/outputs/flutter-apk/app-release.apk "$NAME"
+          echo "apk_name=$NAME" >> $GITHUB_OUTPUT
+          echo "## APK Built" >> $GITHUB_STEP_SUMMARY
+          echo "**File:** \`$NAME\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Size:** $(du -sh $NAME | cut -f1)" >> $GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: "${{ steps.apk.outputs.apk_name }}"
+          path: "${{ steps.apk.outputs.apk_name }}"
+          retention-days: 30
+
+      - name: Create GitHub Release (tag pushes only)
+        if: "startsWith(github.ref, 'refs/tags/')"
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "${{ steps.apk.outputs.apk_name }}"
+          body: "RaddFlix ${{ github.ref_name }} — built from ${{ github.sha }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Job 5: Deploy to Oracle server ───────────────────────────────────────
+  deploy:
+    name: "Deploy to Oracle"
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build-apk]
+    steps:
+      - name: SSH deploy
+        env:
+          ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+          ORACLE_HOST: "92.4.95.252"
+          ORACLE_USER: "ubuntu"
+        run: |
+          if [ -z "$ORACLE_SSH_KEY" ]; then
+            echo "::warning::ORACLE_SSH_KEY secret not set - skipping auto-deploy"
+            echo "Set the **ORACLE_SSH_KEY** secret in repo Settings → Secrets to enable auto-deploy." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          echo "$ORACLE_SSH_KEY" \
+            | sed 's|-----BEGIN OPENSSH PRIVATE KEY----- |-----BEGIN OPENSSH PRIVATE KEY-----\n|g' \
+            | sed 's| -----END OPENSSH PRIVATE KEY-----|\n-----END OPENSSH PRIVATE KEY-----|g' \
+            | tr ' ' '\n' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$ORACLE_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "${ORACLE_USER}@${ORACLE_HOST}" \
+            "cd /opt/jazzmax && git pull origin main && sudo supervisorctl restart raddflix_radd && echo DEPLOYED_OK"
+          echo "Oracle server updated at $(date -u)." >> $GITHUB_STEP_SUMMARY

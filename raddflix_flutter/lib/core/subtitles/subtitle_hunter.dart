@@ -166,7 +166,10 @@ void _scanZip(
   Set<String> seen,
 ) {
   try {
-    final bytes   = File(zipPath).readAsBytesSync();
+    // H-11: skip ZIPs > 50 MB to prevent OOM on low-memory devices
+    final zipFile = File(zipPath);
+    if (zipFile.statSync().size > 50 * 1024 * 1024) return;
+    final bytes = zipFile.readAsBytesSync();
     final archive = ZipDecoder().decodeBytes(bytes);
     for (final file in archive) {
       if (!file.isFile) continue;
