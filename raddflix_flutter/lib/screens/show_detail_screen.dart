@@ -464,31 +464,36 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                   // ── MOVIE: Play + Download buttons ─────────────────────────
                   if (isMovie) ...[
                     Row(children: [
+                      // Play button
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: _playMovie,
-                          icon: const Icon(Icons.play_arrow_rounded, size: 24),
+                          icon: const Icon(Icons.play_arrow_rounded, size: 22),
                           label: const Text('Play Now', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 15),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             elevation: 0,
                           ),
                         ),
                       ),
+                      // Download button — equal width, labelled
                       if (widget.item.fileId != null) ...[
                         const SizedBox(width: 10),
-                        Consumer(builder: (context, ref2, _) {
-                          final isDownloading = ref2.watch(downloadsProvider).isDownloading(widget.item.fileId!);
-                          return SizedBox(
-                            height: 52,
-                            child: ElevatedButton(
-                              onPressed: isDownloading ? null : () async {
+                        Expanded(
+                          child: Consumer(builder: (context, ref2, _) {
+                            final dlState2 = ref2.watch(downloadsProvider);
+                            final isDownloading = dlState2.isDownloading(widget.item.fileId!);
+                            final isDownloaded  = dlState2.isDownloaded(widget.item.fileId!);
+                            return ElevatedButton.icon(
+                              onPressed: isDownloading || isDownloaded ? null : () async {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Downloading ${widget.item.title}…'),
-                                    duration: const Duration(seconds: 2)),
+                                  SnackBar(
+                                    content: Text('Downloading ${widget.item.title}…'),
+                                    duration: const Duration(seconds: 2),
+                                  ),
                                 );
                                 try {
                                   await ref2.read(downloadsProvider.notifier).startDownload(
@@ -501,21 +506,35 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                   if (context.mounted) _showQuotaError(context, e.userMessage);
                                 }
                               },
+                              icon: isDownloading
+                                ? const SizedBox(width: 18, height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                                : Icon(
+                                    isDownloaded
+                                      ? Icons.download_done_rounded
+                                      : Icons.download_for_offline_outlined,
+                                    size: 22,
+                                    color: isDownloaded ? AppColors.success : null,
+                                  ),
+                              label: Text(
+                                isDownloading ? 'Downloading…'
+                                  : isDownloaded ? 'Downloaded'
+                                  : 'Download',
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                              ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: t.surface,
                                 foregroundColor: t.textSecondary,
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14),
-                                    side: BorderSide(color: t.border)),
+                                padding: const EdgeInsets.symmetric(vertical: 15),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: BorderSide(color: t.border),
+                                ),
                                 elevation: 0,
                               ),
-                              child: isDownloading
-                                ? const SizedBox(width: 20, height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
-                                : const Icon(Icons.download_for_offline_outlined, size: 22),
-                            ),
-                          );
-                        }),
+                            );
+                          }),
+                        ),
                       ],
                     ]).animate().fadeIn(delay: 200.ms).slideY(begin: 0.3),
                     const SizedBox(height: 32),
@@ -894,8 +913,11 @@ class _EpisodeTile extends StatelessWidget {
     final watched = progress > 0.05 && progress < 0.95;
     final completed = progress >= 0.95;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+      Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -1061,37 +1083,81 @@ class _EpisodeTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                  SizedBox(width: 4),
-                  // Download + Play icons
-                  if (isDownloaded)
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 4),
-                      child: Icon(Icons.download_done_rounded,
-                          color: AppColors.success, size: 22))
-                  else if (isDownloading)
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 4),
-                      child: SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2, color: AppColors.primary)))
-                  else if (onDownload != null)
-                    GestureDetector(
-                      onTap: onDownload,
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 4),
-                        child: Icon(Icons.download_for_offline_outlined,
-                            color: t.textSecondary, size: 22))),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.play_circle_outline_rounded,
-                    color: AppColors.primary, size: 28,
-                  ),
                 ],
               ),
             ),
           ),
         ),
       ),
+      // ── Play + Download button row ─────────────────────────────────────
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        child: Row(
+          children: [
+            // Play button
+            Expanded(
+              child: SizedBox(
+                height: 40,
+                child: ElevatedButton.icon(
+                  onPressed: onTap,
+                  icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                  label: const Text('Play', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Download button
+            Expanded(
+              child: SizedBox(
+                height: 40,
+                child: ElevatedButton.icon(
+                  onPressed: isDownloaded ? null : isDownloading ? null : onDownload,
+                  icon: isDownloading
+                    ? const SizedBox(width: 14, height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                    : Icon(
+                        isDownloaded
+                          ? Icons.download_done_rounded
+                          : Icons.download_for_offline_outlined,
+                        size: 18,
+                        color: isDownloaded
+                          ? AppColors.success
+                          : onDownload != null
+                            ? null
+                            : null,
+                      ),
+                  label: Text(
+                    isDownloading ? 'Saving…'
+                      : isDownloaded ? 'Saved'
+                      : 'Download',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: t.surface,
+                    foregroundColor: isDownloaded ? AppColors.success : t.textSecondary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(
+                        color: isDownloaded ? AppColors.success.withOpacity(0.5) : t.border,
+                      ),
+                    ),
+                    elevation: 0,
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      ],
     );
   }
 }
