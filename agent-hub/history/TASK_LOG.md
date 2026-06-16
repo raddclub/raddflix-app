@@ -42,3 +42,36 @@ _Append new session summaries below this line._
 - JazzDrive: All 7 files verified HTTP 206 video/mp4
 - APK build 1054: IN PROGRESS
 - Open tasks: none
+
+
+  ## Session 2026-06-16 — Fix Blank Screen + Double-Dot Seek Bar
+
+  ### Root cause analysis
+  The "blank screen after 2-3 seconds on local videos" bug had resisted ~50 previous fix attempts because
+  all previous agents looked at the wrong place (AnimatedOpacity, _videoSurfaceReady, androidAttachSurface flag).
+
+  **Actual root cause**: `_loadPrefs()` is called async from `initState`. It completes ~1-2 s after the
+  player starts, then calls `_applyAudioPrefs(loaded)` which unconditionally calls
+  `_np.setProperty('hwdec', ...)`. Changing `hwdec` on an actively-playing Android MPV instance
+  forces a full video decoder pipeline restart → destroys the GL surface texture → **black screen**
+  (audio continues on its own decoder). The 2-3 s timing is exactly when prefs finish loading.
+
+  ### Tasks completed
+  | ID | Task | Status |
+  |----|------|--------|
+  | BUG-PLAYER-BLANK | Blank screen on local videos (hwdec guard) | ✅ DONE |
+  | BUG-SEEK-DOUBLE-DOT | Double dot seek bar — Slider noThumb for non-classic styles | ✅ DONE |
+  | BUG-DOTS-OVERLAP | Dots style track dots overlap with thumb | ✅ DONE |
+
+  ### Files changed
+  | File | Change | Commit |
+  |------|--------|--------|
+  | `raddflix_flutter/lib/screens/player_screen.dart` | hwdec+deinterlace wrapped in `if (!_playing)` guard; Slider `thumbShape: noThumb` for non-classic seek bar styles | 3b56547 |
+  | `raddflix_flutter/lib/widgets/player/seek_bar_painter.dart` | `_paintDots`: skip track dots within `thumbR+dotR` of thumb position | 936a0a2 |
+
+  ### State at end of session
+  - Oracle Flask: RUNNING v3.0.0
+  - JazzDrive: All 7 files verified HTTP 206 video/mp4
+  - APK build 1058: TRIGGERED (commit 3b56547)
+  - Open tasks: none
+  
