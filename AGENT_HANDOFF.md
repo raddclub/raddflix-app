@@ -4,9 +4,10 @@ Updated: 2026-06-16 | Flask running port 5000 at /opt/jazzmax/radd-hub
 ## Current System State
 - **Oracle Flask:** RUNNING — `{"ok":true,"version":"3.0.0"}`
 - **Account id=11** (03257719165): VK ✅ JID ✅ raw_accesstoken ✅ (40 hex chars) refresh_token ✅
+- **JazzDrive chain:** PROVEN — full login→media→CDN chain tested with real video bytes (HTTP 206, ftyp isom confirmed 2026-06-16)
 - **Proxy pool:** 150+ active proxies, all healthy (fail_count=0)
-- **JazzDrive upload:** WORKING — session auto-recovers on Flask restart via `sapi_direct_login()` fallback
-- **Flutter app:** All known bugs fixed as of 2026-06-16 (see BUG_TRACKER.md for rules)
+- **Flutter app:** All known bugs fixed. Latest APK: build 1053
+- **Debug screen:** Live in release builds — tap version text 5× in Profile to open
 
 ---
 
@@ -49,10 +50,11 @@ hub/routes/admin.py       Admin panel API
 ```
 lib/core/security/request_encoder.dart   XOR decode + padding fix (critical)
 lib/core/api/api_client.dart             Dio + XOR + auth interceptors
-lib/core/db/local_db.dart                SQLCipher DB, schema v17
-lib/core/services/jazzdrive_service.dart JazzDrive stream + download (_loginShare, _buildStreamUrl)
+lib/core/db/local_db.dart                SQLCipher DB, schema v17+
+lib/core/services/jazzdrive_service.dart JazzDrive stream + download + diagnosticTest()
 lib/screens/player_screen.dart           Video player
 lib/screens/show_detail_screen.dart      Show/movie detail + season tabs + episode tiles
+lib/screens/debug_diagnostics_screen.dart Diagnostics (release-accessible, 5-tap entry)
 lib/providers/auth_provider.dart         Auth state + session restore
 lib/providers/catalog_provider.dart      Catalog sync (_initialized guard + no-op skip)
 ```
@@ -66,6 +68,39 @@ AGENT_HANDOFF.md            This file
 .agents/tasks/BUG_TRACKER.md  Known bugs + critical rules
 agent-hub/history/TASK_LOG.md Session history
 ```
+
+---
+
+## Debug Diagnostics Screen
+
+**Entry:** Profile screen → tap version text 5 times → `DebugDiagnosticsScreen` opens
+
+**Checks tab** (auto-runs on open):
+1. Oracle Server — hits `/healthz`
+2. **JazzDrive API** — live end-to-end test: picks first episode or movie from local SQLite, decodes share_url, calls `JazzDriveService.diagnosticTest()`, shows Login/Media/URL per step
+3. XOR Decode — hits `/api/catalog/version`
+4. DB Row Counts — counts titles, episodes, movies, shows
+5. Auth Tokens — checks Keystore + user plan
+6. Sync Meta — reads `sync_meta` table
+7. Device ID — shows masked ID + session key
+
+**Live Logs tab** — streams `DebugLogger._memBuffer` every 2s
+- Filters: ALL / ERROR / WARN / JAZZDRIVE / API / SYNC / DB
+- JAZZDRIVE filter isolates JazzDrive log lines (green color)
+- Share button exports full log file
+
+**`JazzDriveService.diagnosticTest()`:**
+```dart
+// Returns: { share_key, login, media, stream_url } on success
+//       or { error } on failure at any step
+static Future<Map<String, dynamic>> diagnosticTest({
+  required String shareUrl,
+  String? targetFilename,
+  int remoteId = 0,
+})
+```
+
+**Do NOT re-add `kDebugMode` gate** to `DebugDiagnosticsScreen` — it is intentionally release-accessible. See `BUG_TRACKER.md` Critical Rules.
 
 ---
 
@@ -101,9 +136,17 @@ curl -s -X POST \
 ### Check build status
 ```bash
 curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/raddclub/raddflix-app/actions/runs?per_page=5" | \
-  node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
-    JSON.parse(d).workflow_runs.forEach(r=>
-      console.log('run#'+r.run_number,'|',r.status,'|',(r.conclusion||'-'),'| commit:',r.head_sha.slice(0,7)));
-  });"
+  "https://api.github.com/repos/raddclub/raddflix-app/actions/runs?per_page=3" \
+  | grep -E '"id"|"status"|"conclusion"|"message"' | head -20
+```
+
+### Run JazzDrive chain live from Oracle (verify CDN URLs are real)
+```bash
+ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 'python3 -c "
+import requests, urllib.parse, sqlite3
+# Get a share_url from DB
+db = sqlite3.connect(\"/opt/jazzmax/radd-hub/data/radd_hub.db\")
+row = db.execute(\"SELECT share_url, remote_id FROM files WHERE share_url != \"\"\" LIMIT 1\").fetchone()
+print(row)
+"'
 ```
