@@ -23,3 +23,22 @@
 _History cleared 2026-06-16 (prior session). All prior sessions resolved — no open issues carried forward._
 
 _Append new session summaries below this line._
+
+
+## Session 2026-06-16 — Separate Play/Download Buttons
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| TASK-BUTTONS-01 | Separated Play + Download buttons in show_detail_screen.dart | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| `raddflix_flutter/lib/screens/show_detail_screen.dart` | Movie: Download button now equal-width with text label. Episodes: dedicated Play + Download button row under each episode tile | 319bee8 |
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0
+- JazzDrive: All 7 files verified HTTP 206 video/mp4
+- APK build 1054: IN PROGRESS
+- Open tasks: none
