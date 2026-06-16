@@ -16,7 +16,7 @@
 |------|--------|
 | `POST /sapi/link/login` with valid share key | ✅ HTTP 200, valid `validationkey` |
 | `GET /sapi/media/video` with validationkey | ✅ HTTP 200, video records returned |
-| CDN download URL (k= token) | ✅ HTTP 200, real MP4 (`ftyp isom` confirmed) |
+| CDN download URL (k= token) | ✅ HTTP 206, real MP4 (`ftyp isom` confirmed, 65536 bytes) |
 
 **JazzDrive share link resolution works from any IP worldwide.**  
 MED-1011 means the share key is **invalid or the folder was deleted** — never an IP issue.
@@ -27,6 +27,24 @@ GET https://cloud.jazzdrive.com.pk/share/f/<shareKey>
 Check: og:title in HTML response = folder/file name (e.g. "Interstellar (2014)")
 If og:title is present → key IS valid on JazzDrive server
 ```
+
+### JSESSIONID .NODE suffix — NEVER strip it
+
+```
+✅ WITH suffix (e.g. JSESSIONID=7BCF...E3.2i182):   /sapi/media/video → HTTP 200, video records
+❌ WITHOUT suffix (e.g. JSESSIONID=7BCF...E3):       /sapi/media/video → HTTP 401 HTML error page
+```
+
+The suffix (`.2i182`, `.1i204`, etc.) is the **JazzDrive load balancer node ID**.
+The LB uses it for sticky session routing — both calls MUST hit the same backend node.
+If the suffix is stripped, the media call lands on a different node with no session record → 401.
+
+**The JSESSIONID value comes from two sources:**
+1. JSON body: `data.jsessionid` — already includes the suffix ✅ (preferred, Android-reliable)
+2. Set-Cookie header: `JSESSIONID=<value>` — also includes the suffix ✅ (fallback)
+
+**The Flutter code reads from the JSON body first** (more reliable on Android where
+Dart's `HttpClient` may absorb Set-Cookie headers before they reach Dio interceptors).
 
 ---
 
@@ -76,6 +94,9 @@ JazzDrive Share URL
 │   • jsessionid     (in JSON body at data.jsessionid)        │
 │   • JSESSIONID     (also in Set-Cookie header)              │
 │                                                             │
+│ ⚠️  Keep the FULL jsessionid value including .NODE suffix   │
+│    (e.g. "7BCF...E3.2i182"). NEVER strip it.               │
+│                                                             │
 │ Returns MED-1011 if share key is invalid/deleted            │
 └─────────────────────────────────────────────────────────────┘
         │
@@ -88,7 +109,7 @@ JazzDrive Share URL
 │     &key=<shareKey>                                         │
 │     &validationkey=<validationKey>                          │
 │                                                             │
-│ Headers: Cookie: JSESSIONID=<jsid>                          │
+│ Headers: Cookie: JSESSIONID=<full_jsid_with_node_suffix>    │
 │          validation_key: <validationKey>                    │
 │                                                             │
 │ Returns: list of file records, each with:                   │
@@ -228,14 +249,34 @@ Cache key: file_id (unique per file across entire catalog)
 
 ---
 
+## Diagnostic Test (On-Device Chain Verification)
+
+`JazzDriveService.diagnosticTest()` runs the full chain without any cache, from the actual device:
+
+```dart
+final result = await JazzDriveService.diagnosticTest(
+  shareUrl: shareUrl,       // decoded share URL from LocalDb
+  targetFilename: filename, // optional — for Pass 1-3 matching
+  remoteId: remoteId,       // optional — for Pass 0 matching (preferred)
+);
+
+// Success: result contains share_key, login, media, stream_url
+// Failure: result contains error (string describing which step failed)
+```
+
+Access from the app: Profile screen → tap version text 5 times → Diagnostics → Checks tab.
+
+---
+
 ## File Map
 
 | File | Purpose |
 |------|---------|
-| `raddflix_flutter/lib/core/services/jazzdrive_service.dart` | **Main JazzDrive client** — login, media fetch, 4-pass match, cache, warm |
+| `raddflix_flutter/lib/core/services/jazzdrive_service.dart` | **Main JazzDrive client** — login, media fetch, 4-pass match, cache, warm, diagnosticTest() |
 | `raddflix_flutter/lib/core/download/download_service.dart` | Download flow — resolves stream URL before downloading |
 | `raddflix_flutter/lib/core/db/local_db.dart` | SQLite helpers — RF1 encode/decode, getShareInfo, getTopFreeMovies, stream_cache CRUD |
 | `raddflix_flutter/lib/screens/player_screen.dart` | Playback — resolves shareUrl → getStreamLink → passes to media player |
+| `raddflix_flutter/lib/screens/debug_diagnostics_screen.dart` | On-device diagnostics — live JazzDrive chain test, JAZZDRIVE log filter |
 | `raddflix_flutter/test_suite/jazzdrive_logic_test.js` | **Logic test suite** — 27 tests, zero network needed (pure JS mirrors of Dart functions) |
 | `radd-hub/bots/whatsapp/direct_link_generator.js` | Oracle Node.js version (reference implementation) |
 
@@ -260,11 +301,13 @@ player_screen.dart
         ├── [hit]  SQLite stream_cache → fast
         └── [miss] _generateLink()
               ├── _loginShare()   → POST /sapi/link/login
+              │     → keep FULL JSESSIONID with .NODE suffix
               └── _getMedia()     → GET /sapi/media/video
                     → _buildStreamUrl(rawUrl, filename)
                          → prepend CLOUD if relative
                          → append filename= if not present
                          → k= token authenticates CDN request
+                         → validationkey NOT added to CDN URL
 ```
 
 ### 2. User presses Download
@@ -329,10 +372,17 @@ mobile (transcoded = smaller, battery-friendly).
 If a stream URL fails to play (403/401), call `JazzDriveService.invalidate(fileId)` to
 clear the cache and force a fresh link on next play. The player screen does this on retry.
 
-### JSESSIONID node suffix
-The JSESSIONID returned by JazzDrive includes a node routing suffix (e.g. `.2i226`).
-The Flutter code strips this suffix. The `validationkey` in the media call URL provides
-sufficient authentication even if the session is not routed to the original node.
+### JSESSIONID node suffix — critical, do not strip
+The JSESSIONID returned by JazzDrive **must be kept in full**, including the `.NODE` suffix
+(e.g. `.2i182`). The JazzDrive load balancer uses this suffix for sticky session routing —
+both the login call and the media call MUST land on the same backend node.
+
+**Stripping the suffix sends the media call to a different node, which has no session record
+for this login → HTTP 401 HTML error page (not JSON), which breaks JSON parsing in the app.**
+
+The Flutter code reads JSESSIONID from the JSON body (`data.jsessionid`) as the preferred
+source — this value already includes the suffix and is more reliable than the Set-Cookie
+header on Android (where Dart's `HttpClient` may absorb Set-Cookie before Dio sees it).
 
 ---
 
@@ -343,6 +393,7 @@ sufficient authentication even if the session is not routed to the original node
 | BUG-DL-PATH-B | `download_service.dart` | Path B used `getShareUrl()` losing filename+remote_id → always downloaded episode 1 | ✅ Fixed |
 | BUG-DL-RF1 | `download_service.dart` | Path A passed raw RF1:xxx URL to JazzDrive without decoding | ✅ Fixed |
 | BUG-JD-VK | `jazzdrive_service.dart` | `_buildStreamUrl` appended `validationkey=` to CDN URL — k= token is self-authenticating, this is incorrect and breaks CDN URLs | ✅ Fixed 2026-06-16 |
+| BUG-JD-SESSION | `jazzdrive_service.dart` | JSESSIONID `.NODE` suffix was being stripped — causes sticky session routing to fail (HTTP 401 HTML on media call) | ✅ Fixed 2026-06-16 |
 
 ---
 
