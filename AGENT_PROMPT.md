@@ -206,11 +206,11 @@ Coordination (GitHub main):
 
 ---
 
-## Known Open Issues (as of 2026-06-07)
+## Known Open Issues (as of 2026-06-16)
 
 | Issue | Detail | Action needed |
 |-------|--------|---------------|
-| DATA-01 | All Of Us Are Dead missing E03/E04/E05/E09 | Upload missing episodes to JazzDrive + sync |
+_No open issues._
 
 *OPS-01 (session expired) → ✅ RESOLVED 2026-06-07. Session auto-recovers on every Flask restart (~3-5s) via Android OAuth2 direct via wg0. No OTP needed.*
 
