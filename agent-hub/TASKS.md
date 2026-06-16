@@ -6,8 +6,10 @@ _Last updated: 2026-06-16_
 
 | ID | Changed | Summary |
 |----|---------|---------|
-| ✅ BUG-LOGIN-01 | raddflix_flutter/lib/screens/login_screen.dart | Wrong password / any login failure always navigated to home as guest. Root cause: `auth_provider.login()` never throws — catches all DioExceptions internally and sets `state.error`. `_login()` only checked `isDeviceConflict`, not `state.error`, so it always reached `Navigator.pushReplacementNamed(home)`. Fix: added `if (s.error != null) { setState(() { _error = s.error; _loading = false; }); return; }` check before navigation. |
-| ✅ BUG-CATALOG-STALE | Oracle DB (settings.catalog_forced_version) | Movies missing play/download buttons + episodes showing "link expired" caused by stale share_urls and file_ids in users' Flutter SQLite from old installs. Fix: bumped `catalog_forced_version` to current timestamp (1781620750) — forces all devices to perform a full catalog re-sync on next app open, overwriting stale entries with current Oracle share_urls and file_ids. |
+| ✅ BUG-LOGIN-01 | `raddflix_flutter/lib/screens/login_screen.dart` | Wrong password always navigated to home as guest. Root cause: `auth_provider.login()` never throws — catches DioExceptions and sets `state.error`. Fix: added `if (s.error != null) { setState(() { _error = s.error; _loading = false; }); return; }` before navigation. |
+| ✅ BUG-CATALOG-STALE | Oracle DB (`settings.catalog_forced_version`) | Stale share_urls / file_ids in users' local SQLite causing "link expired" and missing play buttons. Fix: bumped `catalog_forced_version` to `1781620750` — forces full re-sync on next open. |
+| ✅ TASK-DEBUG-01 | `debug_diagnostics_screen.dart`, `profile_screen.dart`, `jazzdrive_service.dart` | Debug screen now accessible in release builds. Entry: tap version text 5× in Profile. Added live JazzDrive chain test (login→media→CDN URL confirmed), JAZZDRIVE log filter, and `JazzDriveService.diagnosticTest()` public method. Build 1053 ✅ |
+| ✅ TASK-JD-LIVE | Oracle + JazzDrive API (live test) | Full chain proven with real video bytes: S01E01 and Euphoria both returned HTTP 206 · `video/mp4` · ftyp isom · 65536 bytes. Not fake URLs. |
 
 ## Open / In Progress
 
