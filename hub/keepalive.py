@@ -1,21 +1,34 @@
 """JazzDrive session keep-alive loop with automatic token refresh.
 
-Every ``interval_min`` minutes:
+Every ``interval_min`` minutes (with human-like jitter):
   1. Iterates all active JazzDrive accounts.
-  2. If the token is expiring within 24 h AND a refresh_token is stored,
+  2. Only runs during active hours (8am–11pm PKT) — mirrors real user behavior.
+  3. If the token is expiring within 24 h AND a refresh_token is stored,
      silently calls /sapi/login?keytype=refreshtoken to get fresh tokens —
      no OTP needed. This is exactly what the Jazz Drive Android app does
      to stay logged in for months.
-  3. Uploads a 1 KB heartbeat file to /Heartbeat/, then deletes it.
-  4. On heartbeat failure, tries a token refresh before giving up.
-  5. Tracks last-ok / last-fail timestamps and error messages in memory.
-  6. Notifies WhatsApp admins when things go wrong.
+  4. Uploads a small file to /Radd-Heartbeat/, then deletes it.
+  5. On heartbeat failure, tries a token refresh before giving up.
+  6. Tracks last-ok / last-fail timestamps and error messages in memory.
+  7. Notifies WhatsApp admins when things go wrong.
+
+Human-like behavior rules:
+  - Active hours: 8am–11pm PKT only (UTC+5). Outside this window the loop
+    sleeps until the next 8am window + random 1-20 min offset.
+  - Interval jitter: base interval ± 25% random, so activity never looks
+    perfectly mechanical (e.g. 360 min → 270–450 min actual gap).
+  - 8% probabilistic skip per account per cycle: real users don't open
+    JazzDrive on a perfect schedule.
+  - Variable payload size (800–1400 bytes) and filename each run.
+  - 2–8 second random "app startup" delay before each heartbeat upload.
 """
 from __future__ import annotations
+import json
+import random
 import time
 import logging
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 from . import db, config, jazzdrive
@@ -24,27 +37,65 @@ log = logging.getLogger("hub.keepalive")
 
 _CLOUD_BASE = "https://cloud.jazzdrive.com.pk"
 
+# ── Pakistan Standard Time ────────────────────────────────────────────────────
+_PKT = timezone(timedelta(hours=5))
+_ACTIVE_HOUR_START = 8   # 8am PKT — when a real user might open the app
+_ACTIVE_HOUR_END   = 23  # 11pm PKT — last reasonable activity window
+
+
+def _is_active_hours() -> bool:
+    """True if current PKT time is within human-active hours (8am–11pm)."""
+    h = datetime.now(_PKT).hour
+    return _ACTIVE_HOUR_START <= h < _ACTIVE_HOUR_END
+
+
+def _seconds_until_active() -> float:
+    """Return seconds until the next 8am PKT window."""
+    now_pkt = datetime.now(_PKT)
+    h = now_pkt.hour
+    if h < _ACTIVE_HOUR_START:
+        # Same day — wait until 8am
+        target = now_pkt.replace(hour=_ACTIVE_HOUR_START, minute=0, second=0, microsecond=0)
+    else:
+        # Past 11pm — wait until 8am tomorrow
+        target = (now_pkt + timedelta(days=1)).replace(
+            hour=_ACTIVE_HOUR_START, minute=0, second=0, microsecond=0
+        )
+    return max(0.0, (target - now_pkt).total_seconds())
+
+
+# ── Heartbeat file helpers ────────────────────────────────────────────────────
+
+_HB_FILENAMES = [
+    "sync_note.txt",
+    "backup_list.txt",
+    "my_files.txt",
+    "radd_sync.txt",
+    "session_note.txt",
+    "drive_check.txt",
+]
+
+_HB_MESSAGES = [
+    "JazzDrive session active. Last sync: {ts}.",
+    "Sync OK — {ts}.",
+    "Connected to JazzDrive at {ts}.",
+    "Session alive. Checked: {ts}.",
+    "Auto-sync completed at {ts}.",
+]
+
 
 def _heartbeat_filename() -> str:
-    """Return a static heartbeat filename. Overwriting the same file
-    keeps the session alive while keeping the remote folder clean.
-    """
-    return "radd_hub_heartbeat.txt"
+    """Return a varied heartbeat filename that doesn't look mechanical."""
+    return random.choice(_HB_FILENAMES)
 
 
 def _generate_payload(path: Path) -> int:
-    """Write a ~1 KB heartbeat file. Returns byte count."""
-    ts_utc   = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    """Write a naturally-sized heartbeat file (800–1400 bytes). Returns byte count."""
     ts_local = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    body = (
-        f"Radd-Hub JazzDrive Connection Heartbeat\n"
-        f"========================================\n"
-        f"Generated : {ts_local} (local) / {ts_utc} (UTC)\n"
-        f"Purpose   : Confirms that Radd-Hub is connected to JazzDrive via Flix.\n"
-        f"            Each file in this folder = one successful 15-min heartbeat.\n"
-        f"Note      : Do NOT delete this folder — it keeps the session alive.\n"
-        + ("." * 600)
-    ).encode("utf-8")
+    msg = random.choice(_HB_MESSAGES).format(ts=ts_local)
+    # Pad to a random size so file sizes vary naturally
+    pad_size = random.randint(600, 1200)
+    body = (msg + "\n" + " " * pad_size).encode("utf-8")
     path.write_bytes(body)
     return len(body)
 
@@ -66,10 +117,129 @@ def _delete_remote_file(sess, vk: str, jsid: str, file_id: int) -> bool:
         log.debug("delete POST failed: %s", exc)
     return False
 
-# ── In-memory status registry ─────────────────────────────────────────────────
+
+def _sapi_ping(acct: dict) -> bool:
+    """Lightweight SAPI ping — GET /sapi/system/information — to keep JSESSIONID alive.
+
+    JazzDrive's JSESSIONID idle-timeout is 3600 s (confirmed).  The web SPA
+    hits /sapi/system/information every few minutes to prevent it.  We do the
+    same between full file-upload heartbeats so the session never goes cold.
+
+    Uses jazzdrive.sapi_request() which carries all APK-matching headers:
+      Accept: application/json
+      Content-Type: application/json; charset=UTF-8  (POST only)
+      X-deviceid: fac-<id>
+      X-devicename: Infinix Hot 9 Play
+      X-Requested-With: com.jazz.drive
+      Authorization: oauth <base64(cred_JSON)>
+      User-Agent: omh android client
+
+    Returns True on a clean 200-OK with no error field.
+    """
+    aid    = acct["id"]
+    msisdn = acct["msisdn"]
+    vk     = (acct.get("validation_key") or "").strip()
+    jsid   = (acct.get("jsessionid") or "").strip()
+
+    if not vk or not jsid:
+        log.debug("ping: no tokens for %s — skipping", msisdn)
+        return False
+
+    # Master kill switch propagates cleanly through require_jd_active()
+    jazzdrive.require_jd_active()
+
+    try:
+        data = jazzdrive.sapi_request(
+            endpoint="/system/information",
+            action=None,
+            method="GET",
+            account_id=aid,
+            tokens={"validationkey": vk, "jsessionid": jsid},
+            timeout=10,
+        )
+        ok = not data.get("error")
+        now_ts = int(time.time())
+        if ok:
+            log.debug("ping OK for %s (/system/information)", msisdn)
+            _set_status(aid, last_ping_at=now_ts, ping_status="ok")
+        else:
+            log.warning("ping: server error for %s: %s", msisdn, str(data)[:100])
+            _set_status(aid, last_ping_at=now_ts, ping_status="error")
+        return ok
+    except Exception as exc:
+        log.debug("ping exception for %s: %s", msisdn, exc)
+        _set_status(aid, last_ping_at=int(time.time()), ping_status="error")
+        return False
+
+# ── In-memory status + event log ──────────────────────────────────────────────
 _STATUS: dict[int, dict] = {}
 _STATUS_LOCK = threading.Lock()
 _started_at: Optional[float] = None
+
+# Load any persisted events from last run on import
+_EVENTS: list[dict] = []
+try:
+    _persisted = db.setting("KEEPALIVE_EVENT_LOG")
+    if _persisted:
+        _EVENTS = json.loads(_persisted)[-_MAX_EVENTS:]
+except Exception:
+    pass
+_EVENTS_LOCK = threading.Lock()
+_MAX_EVENTS = 100
+
+
+def _log_event(event_type: str, msisdn: str, detail: str = "") -> None:
+    """Append a timestamped event to the in-memory + DB-persisted event log."""
+    entry = {"ts": int(time.time()), "type": event_type,
+             "msisdn": msisdn, "detail": str(detail)[:200]}
+    with _EVENTS_LOCK:
+        _EVENTS.append(entry)
+        if len(_EVENTS) > _MAX_EVENTS:
+            del _EVENTS[:-_MAX_EVENTS]
+    # Persist last 50 events to DB so log survives Flask restarts
+    try:
+        with _EVENTS_LOCK:
+            snapshot = list(_EVENTS[-50:])
+        db.set_setting("KEEPALIVE_EVENT_LOG", json.dumps(snapshot))
+    except Exception:
+        pass
+
+
+def get_events(n: int = 20) -> list[dict]:
+    """Return the last N keepalive events."""
+    with _EVENTS_LOCK:
+        return list(_EVENTS[-n:])
+
+
+def _classify_error(error_str: str) -> str:
+    """Classify a keepalive error for smarter handling and display.
+
+    Returns one of:
+      'device_conflict'  — another Android device kicked our session
+      'session_expired'  — token expired, OTP re-login required
+      'network_error'    — transient connectivity/proxy failure
+      'unknown'          — unclassified
+    """
+    e = str(error_str).lower()
+    # Device conflict — token was revoked by a new login on another device
+    if any(x in e for x in [
+        "invalid_grant", "another device", "device_conflict",
+        "session invalidated", "forced logout", "kicked", "revoked",
+    ]):
+        return "device_conflict"
+    # Session fully expired — needs OTP
+    if any(x in e for x in [
+        "otp", "re-login", "expired", "401", "unauthorized",
+        "invalid_client", "session dead",
+    ]):
+        return "session_expired"
+    # Transient network / proxy failures — do NOT alert admins
+    if any(x in e for x in [
+        "timeout", "connection", "refused", "network", "dns",
+        "proxy", "socks", "unreachable", "connecttimeout",
+    ]):
+        return "network_error"
+    return "unknown"
 
 
 def _set_status(account_id: int, **kw) -> None:
@@ -79,23 +249,31 @@ def _set_status(account_id: int, **kw) -> None:
                 "last_ok_at":           None,
                 "last_fail_at":         None,
                 "last_error":           None,
+                "last_error_class":     None,
+                "last_conflict_at":     None,
                 "consecutive_failures": 0,
                 "token_expires_at":     None,
                 "token_status":         "unknown",
                 "msisdn":               "",
                 "last_refresh_at":      None,
+                "last_ping_at":         None,
+                "ping_status":          "unknown",
             }
         _STATUS[account_id].update(kw)
 
 
 def get_status() -> dict:
-    """Return a snapshot of all account keepalive statuses."""
+    """Return a snapshot of all account keepalive statuses + recent events."""
     with _STATUS_LOCK:
-        return {
-            "accounts":          {str(aid): dict(v) for aid, v in _STATUS.items()},
-            "worker_started_at": _started_at,
-            "now":               int(time.time()),
-        }
+        accounts = {str(aid): dict(v) for aid, v in _STATUS.items()}
+    with _EVENTS_LOCK:
+        events = list(_EVENTS[-20:])
+    return {
+        "accounts":          accounts,
+        "events":            events,
+        "worker_started_at": _started_at,
+        "now":               int(time.time()),
+    }
 
 
 # ── Token refresh helper ───────────────────────────────────────────────────────
@@ -111,6 +289,8 @@ def _try_refresh(acct: dict) -> bool:
          Fallback for accounts set up before the Android OAuth2 upgrade.
          Works for ~1 h between refreshes (keepalive fires every 15 min so OK).
 
+    NOTE: check is BEFORE the try/except so JDDisabled propagates cleanly.
+
     Returns True if refresh succeeded and DB was updated.
     """
     aid    = acct["id"]
@@ -118,6 +298,9 @@ def _try_refresh(acct: dict) -> bool:
     rt     = (acct.get("refresh_token") or "").strip()
     raw_at = (acct.get("raw_accesstoken") or "").strip()
     vk     = (acct.get("validation_key") or "").strip()
+
+    # ── Master kill switch — BEFORE try/except so JDDisabled is not swallowed ─
+    jazzdrive.require_jd_active()
 
     if not rt and not raw_at and not vk:
         log.debug("No credentials for %s — OTP required", msisdn)
@@ -134,6 +317,7 @@ def _try_refresh(acct: dict) -> bool:
             msg = result.get("message", "")
             log.info("✓ Session refreshed for %s — %s", msisdn, msg)
             _set_status(aid, last_refresh_at=int(time.time()), token_status="ok")
+            _log_event("token_refreshed", msisdn, msg[:120])
             return True
         log.warning("Session refresh failed for %s: %s", msisdn, result.get("error"))
         return False
@@ -145,38 +329,126 @@ def _try_refresh(acct: dict) -> bool:
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
 def loop(stop_event: threading.Event, interval_min: int = 15) -> None:
+    """Keep-alive loop with dual-interval scheduling.
+
+    Two independent per-account timers run concurrently:
+
+    PING  (default every 20 min, DB key: ping_interval_min)
+      GET /sapi/system/information with full APK-matching headers.
+      Prevents JSESSIONID idle-timeout (3600 s confirmed).  The JazzDrive
+      web SPA does the same to stay alive between user interactions.
+
+    HEARTBEAT  (default every 360 min, DB key: keepalive_interval_min)
+      Upload + delete a small probe file in /Radd-Heartbeat/.
+      Proves end-to-end storage access and rolls the session expiry window.
+      Also triggers silent token refresh when tokens are near expiry.
+
+    Active hours: 08:00–23:00 PKT only — mirrors real user behaviour.
+    Outside this window the loop sleeps in 60 s chunks until active.
+    All intervals carry ±10 % (ping) or ±25 % (heartbeat) jitter so
+    traffic never looks perfectly mechanical.
+    """
     global _started_at
     _started_at = time.time()
-    log.info("JazzDrive keep-alive worker started (interval: %d min)", interval_min)
+    log.info(
+        "JazzDrive keep-alive worker started "
+        "(dual-interval: ping every ~20 min, heartbeat every ~360 min, PKT 08:00–23:00)"
+    )
+
+    # Per-account next-fire timestamps (0 = fire on first opportunity)
+    _next_ping:      dict[int, float] = {}
+    _next_heartbeat: dict[int, float] = {}
+
+    def _schedule_ping(aid: int, base_s: float) -> None:
+        jitter = random.uniform(-0.10, 0.10)
+        _next_ping[aid] = time.time() + base_s * (1.0 + jitter)
+
+    def _schedule_heartbeat(aid: int, base_s: float) -> None:
+        jitter = random.uniform(-0.25, 0.25)
+        _next_heartbeat[aid] = time.time() + max(3600.0, base_s * (1.0 + jitter))
 
     while True:
-        if db.setting("KEEPALIVE_ENABLED", "1") != "1":
-            log.debug("keepalive: KEEPALIVE_ENABLED=0 — sleeping")
-            if stop_event.wait(60):
-                break
+        # 60-second tick — tight enough for accurate interval tracking without
+        # busy-spinning; stop_event lets us exit cleanly within 1 minute.
+        if stop_event.wait(60):
+            break
+
+        # ── Master kill switches ──────────────────────────────────────────────
+        if db.setting("JAZZDRIVE_ENABLED", "1") != "1":
+            log.debug("keepalive: JAZZDRIVE_ENABLED=0 (master OFF)")
             continue
+        if db.setting("KEEPALIVE_ENABLED", "1") != "1":
+            log.debug("keepalive: KEEPALIVE_ENABLED=0")
+            continue
+
+        # ── Active-hours gate ─────────────────────────────────────────────────
+        if not _is_active_hours():
+            secs = _seconds_until_active() + random.uniform(60, 1200)
+            pkt_now = datetime.now(_PKT).strftime("%H:%M PKT")
+            log.info(
+                "keepalive: quiet hours (%s) — sleeping %.0f min until active window",
+                pkt_now, secs / 60,
+            )
+            # Chunked sleep so stop_event is checked at least every 60 s
+            sleep_end = time.time() + secs
+            while time.time() < sleep_end:
+                if stop_event.wait(min(60.0, sleep_end - time.time())):
+                    return
+            continue
+
+        # ── Read intervals from DB so admin changes take effect immediately ───
+        _ping_interval_s = float(int(db.setting("ping_interval_min") or 20) * 60)
+        _hb_interval_s   = float(int(db.setting("keepalive_interval_min")
+                                     or interval_min or 360) * 60)
+
+        now = time.time()
+
         try:
             accounts = db.list_accounts(hide_secrets=False)
             for acct in accounts:
                 if not acct.get("is_active"):
                     continue
-                # Respect per-service on/off toggles — if a service is disabled
-                # we stop sending periodic heartbeats so JazzDrive doesn't see
-                # constant traffic from an account that isn't in active use.
+
                 role = acct.get("role", "")
                 if role == "scan" and db.setting("SCAN_ENABLED", "1") != "1":
-                    log.debug("keepalive: skipping scan account %s (SCAN_ENABLED=0)",
-                              acct.get("msisdn"))
                     continue
                 if role == "flix" and db.setting("UPLOAD_ENABLED", "1") != "1":
-                    log.debug("keepalive: skipping flix account %s (UPLOAD_ENABLED=0)",
-                              acct.get("msisdn"))
                     continue
-                _run_heartbeat(acct)
+
+                aid = acct["id"]
+
+                # Initialise timers on first sight of this account
+                if aid not in _next_heartbeat:
+                    # Stagger first heartbeat by 0–5 min so multiple accounts
+                    # don't all fire at once on startup
+                    _next_heartbeat[aid] = now + random.uniform(0, 300)
+                if aid not in _next_ping:
+                    # Stagger first ping by 0–60 s
+                    _next_ping[aid] = now + random.uniform(0, 60)
+
+                # ── Full heartbeat (file upload) ──────────────────────────────
+                if now >= _next_heartbeat[aid]:
+                    _run_heartbeat(acct)
+                    _schedule_heartbeat(aid, _hb_interval_s)
+                    _schedule_ping(aid, _ping_interval_s)   # heartbeat counts as ping
+                    log.debug(
+                        "keepalive: next heartbeat for %s in %.0f min",
+                        acct.get("msisdn"), (_next_heartbeat[aid] - time.time()) / 60,
+                    )
+
+                # ── Lightweight SAPI ping ─────────────────────────────────────
+                elif now >= _next_ping[aid]:
+                    # 8% natural skip — real users occasionally miss an interaction
+                    if random.random() >= 0.08:
+                        _sapi_ping(acct)
+                    _schedule_ping(aid, _ping_interval_s)
+                    log.debug(
+                        "keepalive: next ping for %s in %.0f min",
+                        acct.get("msisdn"), (_next_ping[aid] - time.time()) / 60,
+                    )
+
         except Exception as e:
             log.warning("keepalive_loop error: %s", e)
-        if stop_event.wait(interval_min * 60):
-            break
 
 
 def trigger_heartbeat(account_id: int) -> None:
@@ -189,6 +461,9 @@ def trigger_heartbeat(account_id: int) -> None:
 # ── Heartbeat ─────────────────────────────────────────────────────────────────
 
 def _run_heartbeat(acct: dict) -> None:
+    # ── Master kill switch — BEFORE try/except so JDDisabled is not swallowed ─
+    jazzdrive.require_jd_active()
+
     aid    = acct["id"]
     msisdn = acct["msisdn"]
     exp_at = acct.get("token_expires_at")
@@ -216,14 +491,8 @@ def _run_heartbeat(acct: dict) -> None:
         return
 
     # ── Proactively refresh when token has fully expired ──────────────────────
-    # For web-OAuth accounts (no refresh_token), the JSESSIONID is kept alive
-    # by the heartbeat upload itself acting as a session ping every 15 min.
-    # We only need to attempt a token exchange when the session is truly dead.
-    # "expiring_soon" is NOT a hard stop — we continue and let the heartbeat
-    # prove the session is still alive, then roll token_expires_at forward.
     if tok_status == "expired":
-        log.info("Token EXPIRED for %s — attempting silent refresh before giving up",
-                 msisdn)
+        log.info("Token EXPIRED for %s — attempting silent refresh before giving up", msisdn)
         refreshed = _try_refresh(acct)
         if refreshed:
             try:
@@ -246,8 +515,6 @@ def _run_heartbeat(acct: dict) -> None:
                         consecutive_failures=_STATUS.get(aid, {}).get("consecutive_failures", 0) + 1)
             return
     elif tok_status == "expiring_soon":
-        # Try a soft refresh but DO NOT abort if it fails — the heartbeat itself
-        # will prove whether the session is still alive and will roll the expiry.
         log.info("Token expiring soon for %s — attempting silent refresh (non-blocking)", msisdn)
         _try_refresh(acct)
 
@@ -266,9 +533,13 @@ def _run_heartbeat(acct: dict) -> None:
         vk   = tokens["validation_key"]
         jsid = tokens["jsessionid"]
 
+        # ── Simulate "app startup" delay (2–8 seconds) ────────────────────────
+        # Real users take a moment to open the app; the first SAPI request doesn't
+        # arrive at exactly T+0. This makes the request pattern look organic.
+        time.sleep(random.uniform(2.0, 8.0))
+
         # 1. Verify session is alive via folder-list probe
         if not _up.verify_jd_session(vk, jsid, account_id=aid):
-            # Session probe failed — try one token refresh before giving up
             log.info("Session probe failed for %s — trying silent token refresh", msisdn)
             if _try_refresh(acct):
                 try:
@@ -286,7 +557,7 @@ def _run_heartbeat(acct: dict) -> None:
             else:
                 raise RuntimeError("JazzDrive session check failed — silent refresh failed (may need OTP re-login)")
         else:
-            # Re-fetch anyway in case it was rotated during verify_jd_session's internal sapi_request call
+            # Re-fetch in case validationkey was rotated during verify_jd_session
             try:
                 with db.conn() as c:
                     row = c.execute("SELECT validation_key, jsessionid FROM accounts WHERE id=?", (aid,)).fetchone()
@@ -301,24 +572,22 @@ def _run_heartbeat(acct: dict) -> None:
         if _sapi_px:
             sess.proxies.update(_sapi_px)
 
-        # 2. Ensure Radd-Heartbeat folder exists (kept permanently — do not delete)
+        # 2. Ensure Radd-Heartbeat folder exists
         folder_id = _up._get_or_create_folder(sess, vk, jsid, "Radd-Heartbeat", parent_id=0, account_id=aid)
         if not folder_id:
             raise RuntimeError("Could not find or create /Radd-Heartbeat/ folder")
 
-        # 3. Upload heartbeat file with date-time stamped name
-        #    Each file stays in the folder so you can see the connection history
-        #    in JazzDrive and verify Radd-Hub → Flix → JazzDrive is working.
+        # 3. Upload heartbeat file — varied name and size each run
         hb_name  = _heartbeat_filename()
         tmp_path = config.CACHE_DIR / hb_name
         config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        _generate_payload(tmp_path)
+        payload_bytes = _generate_payload(tmp_path)
         resp = _up._upload_file(sess, vk, jsid, tmp_path, parent_id=folder_id, account_id=aid)
 
-        # Accept ok=True (empty-body 200) as session-alive proof.
         if isinstance(resp, dict):
             if resp.get("id") is not None:
-                log.debug("heartbeat: file uploaded (id=%s, name=%s)", resp["id"], hb_name)
+                log.debug("heartbeat: file uploaded (id=%s, name=%s, size=%d B)",
+                          resp["id"], hb_name, payload_bytes)
             elif resp.get("ok"):
                 log.debug("heartbeat: empty-body 200 — upload confirmed (name=%s)", hb_name)
             else:
@@ -326,15 +595,11 @@ def _run_heartbeat(acct: dict) -> None:
         else:
             raise RuntimeError(f"upload returned unexpected type: {resp!r}")
 
-        # Clean up local temp file only — the remote file is kept permanently
+        # Clean up local temp file; remote file stays for connection history
         if tmp_path.exists():
             tmp_path.unlink(missing_ok=True)
 
         # ── Success ────────────────────────────────────────────────────────────
-        # Roll token_expires_at forward: the heartbeat upload proved the JSESSIONID
-        # is alive RIGHT NOW. JSESSIONID idle timeout is 3600 s (verified 2026-05-07).
-        # If we have a refresh_token, we can roll the expiry to 30 days.
-        # Otherwise, we roll to 55 min until the next heartbeat.
         has_rt = bool((acct.get("refresh_token") or "").strip())
         expires_offset = 86400 * 30 if has_rt else 3300
 
@@ -343,21 +608,93 @@ def _run_heartbeat(acct: dict) -> None:
                 "UPDATE accounts SET last_keepalive_at=?, token_expires_at=? WHERE id=?",
                 (now, now + expires_offset, aid)
             )
-        _set_status(aid, last_ok_at=now, last_error=None, consecutive_failures=0,
-                    token_status="ok")
-        log.info("✓ Heartbeat OK for %s (session alive, expiry rolled +%s)", 
+        _set_status(aid, last_ok_at=now, last_error=None, last_error_class=None,
+                    consecutive_failures=0, token_status="ok")
+        _log_event("heartbeat_ok", msisdn,
+                   f"Session alive — expiry +{'30d' if has_rt else '55m'}")
+        log.info("✓ Heartbeat OK for %s (session alive, expiry rolled +%s)",
                  msisdn, "30d" if has_rt else "55m")
 
     except Exception as e:
-        prev  = _STATUS.get(aid, {}).get("consecutive_failures", 0)
-        fails = prev + 1
-        _set_status(aid, last_fail_at=now, last_error=str(e)[:200],
-                    consecutive_failures=fails)
-        log.warning("✗ Heartbeat FAILED for %s (#%d): %s", msisdn, fails, e)
-        db.append_scan_log(aid, "keepalive_fail", str(e))
+        prev      = _STATUS.get(aid, {}).get("consecutive_failures", 0)
+        fails     = prev + 1
+        err_str   = str(e)[:400]
+        err_class = _classify_error(err_str)
 
-        if fails >= 2:
-            _notify_admins(f"⚠️ JazzDrive heartbeat failed {fails}× for {msisdn}: {e}")
+        status_update = dict(
+            last_fail_at=now,
+            last_error=err_str,
+            last_error_class=err_class,
+            consecutive_failures=fails,
+        )
+
+        # ── Device conflict — another Android device kicked our session ───────
+        if err_class == "device_conflict":
+            status_update["last_conflict_at"] = now
+            log.warning(
+                "⚡ DEVICE CONFLICT detected for %s (#%d) — another device "
+                "invalidated our JazzDrive session: %s", msisdn, fails, err_str
+            )
+            _log_event("device_conflict", msisdn,
+                       f"Session kicked by another device: {err_str[:120]}")
+            db.append_scan_log(aid, "device_conflict", err_str)
+            # Auto-pause keepalive after 2 consecutive conflicts
+            if fails >= 2:
+                log.warning(
+                    "Auto-pausing keepalive after %d device conflicts for %s",
+                    fails, msisdn
+                )
+                try:
+                    db.set_setting("KEEPALIVE_ENABLED", "0")
+                    _log_event("auto_paused", msisdn,
+                               f"Keepalive auto-paused after {fails} device conflicts")
+                except Exception:
+                    pass
+                _notify_admins(
+                    f"[CONFLICT] JazzDrive device conflict for {msisdn}!\n"
+                    f"Another Android device invalidated our session.\n"
+                    f"Keepalive AUTO-PAUSED after {fails} conflicts.\n"
+                    f"Re-enable once the other device logs out."
+                )
+            else:
+                _notify_admins(
+                    f"[CONFLICT] JazzDrive device conflict for {msisdn} "
+                    f"- another device took the session. (#{fails})"
+                )
+
+        # ── Session expired ────────────────────────────────────────────────────
+        elif err_class == "session_expired":
+            log.warning("✗ Session EXPIRED for %s (#%d): %s", msisdn, fails, err_str)
+            _log_event("session_expired", msisdn, err_str[:120])
+            db.append_scan_log(aid, "keepalive_fail", err_str)
+            if fails >= 2:
+                _notify_admins(
+                    f"⚠️ JazzDrive session EXPIRED for {msisdn} after {fails} failures. "
+                    f"OTP re-login required via Scan page."
+                )
+
+        # ── Transient network error ────────────────────────────────────────────
+        elif err_class == "network_error":
+            log.warning("✗ Network error for %s (#%d): %s", msisdn, fails, err_str)
+            _log_event("network_error", msisdn, err_str[:120])
+            # Don't alert admins for single network blips — only on sustained failures
+            if fails >= 3:
+                db.append_scan_log(aid, "keepalive_fail", err_str)
+                _notify_admins(
+                    f"⚠️ JazzDrive keepalive network errors ×{fails} for {msisdn}: {err_str[:100]}"
+                )
+
+        # ── Unknown error ──────────────────────────────────────────────────────
+        else:
+            log.warning("✗ Heartbeat FAILED for %s (#%d): %s", msisdn, fails, err_str)
+            _log_event("heartbeat_fail", msisdn, err_str[:120])
+            db.append_scan_log(aid, "keepalive_fail", err_str)
+            if fails >= 2:
+                _notify_admins(
+                    f"⚠️ JazzDrive heartbeat failed {fails}× for {msisdn}: {err_str[:100]}"
+                )
+
+        _set_status(aid, **status_update)
 
 
 # ── Bot notification helper ───────────────────────────────────────────────────
