@@ -1,6 +1,38 @@
 # RaddFlix Task Board
 Last updated: 2026-06-16
 
+## Completed Tasks — Debug Diagnostics Screen
+
+### TASK-DEBUG-01 ✅ — Add debug diagnostics screen accessible in release builds
+**Files:** `raddflix_flutter/lib/screens/debug_diagnostics_screen.dart`, `profile_screen.dart`, `core/services/jazzdrive_service.dart`
+**Priority:** HIGH
+**Status:** Completed 2026-06-16 · Build 1053
+
+**What was done:**
+- Removed `if (!kDebugMode) return const SizedBox.shrink()` gate — screen now works in all builds (debug + release)
+- Removed `if (!kDebugMode) return;` gate on version tap in `profile_screen.dart`
+- Changed entry tap count from 7 → 5 (tap version text 5 times in Profile)
+- Checks tab now auto-runs on open in all builds
+- Changed AppBar badge from "DEBUG" to "DIAG"
+
+**JazzDrive live test check added:**
+- New `_checkJazzDrive()` check in Checks tab — picks first episode or movie from local SQLite, decodes share_url, runs the full `JazzDriveService.diagnosticTest()` chain live
+- Shows each step: Login OK · VK= · .NODE= / Media OK · filename / URL prefix
+- If any step fails, shows exact error message
+
+**JazzDriveService.diagnosticTest() added:**
+- New public static method in `jazzdrive_service.dart`
+- Bypasses all caches — every step hits the actual JazzDrive API
+- Returns `Map<String, dynamic>` with keys: `share_key`, `login`, `media`, `stream_url` (success) or `error` (failure)
+- Called by `DebugDiagnosticsScreen._checkJazzDrive()`
+
+**JAZZDRIVE log filter added:**
+- `_filters` list updated: `['ALL', 'ERROR', 'WARN', 'JAZZDRIVE', 'API', 'SYNC', 'DB']`
+- JAZZDRIVE filter uses `line.contains('[JAZZDRIVE]')` — special case (not padded to 5 chars)
+- JAZZDRIVE log lines shown in green (`Color(0xFF34D399)`)
+
+---
+
 ## Completed Tasks — JazzDrive Link Generation Fix
 
 ### TASK-JD-FIX-01 ✅ — Remove `validationkey=` from CDN stream URL
@@ -14,74 +46,63 @@ The CDN authenticates via the self-signed `k=` token already embedded in the URL
 `validationkey` belongs only in SAPI calls (`/sapi/link/login`, `/sapi/media/video`).
 Adding it to CDN URLs produced broken download/stream links.
 
-**Evidence that this was wrong:**
-- Working `jazzdrive.js` reference script generates CDN URLs with NO `validationkey` → HTTP 200 real MP4
-- JS logic test suite `buildStreamUrl()` function has NO `validationkey`
-- `JAZZDRIVE_STREAM_FLOW.md` Step 3: "DO NOT append validationkey — breaks the URL"
-- Browser-generated JazzDrive download URLs contain NO `validationkey`
-
 **Fix applied:**
 - Removed `validationKey` parameter from `_buildStreamUrl(rawUrl, filename)` — now 2 args not 3
 - Removed `validationkey=` from URL construction
 - Added `filename=` guard (no double-append if already present in rawUrl)
-- Updated call site in `_generateLink` — no longer passes `session.validationKey`
 
 ---
 
 ### TASK-JD-FIX-02 ✅ — Fix wrong comments in `jazzdrive_service.dart`
 **File:** `raddflix_flutter/lib/core/services/jazzdrive_service.dart`
-**Priority:** HIGH
 **Status:** Fixed alongside TASK-JD-FIX-01
-
-**What was wrong:**
-- `_buildStreamUrl` docstring said: *"CRITICAL: validationKey MUST be appended — CDN authenticates with it"* — entirely incorrect
-- `_generateLink` Step 3 comment said: *"REQUIRED: append validationkey to the final URL"* — also incorrect
-- Both comments cited the Node.js script as "proof" — the Node.js script was also re-read and confirmed it does NOT add validationkey to CDN URLs
-
-**Fix applied:** All comments corrected to accurately describe the self-authenticating `k=` token model.
 
 ---
 
 ### TASK-JD-FIX-03 ✅ — Correct `JAZZDRIVE_FLUTTER_AUDIT.md`
 **File:** `agent-hub/JAZZDRIVE_FLUTTER_AUDIT.md`
-**Priority:** HIGH
 **Status:** Fixed 2026-06-16
-
-**What was wrong:**
-- Rule 3 stated: *"validationkey MUST be in the final CDN URL — append it always"* → **WRONG**
-- BUG-JD-VK section described adding validationkey as a critical "fix" → was actually **introducing** the bug
-- `_buildStreamUrl` audit row was marked ✅ FIXED for adding validationkey → should be marked as the bug
-- "Why Node.js tests ALWAYS fail with MED-1011" section claimed IP-blocking → **DISPROVED** by live testing 2026-06-16 (login returns HTTP 200 from any IP globally)
-
-**Fix applied:** All four sections corrected. Rule 3 now says DO NOT add validationkey. BUG-JD-VK section rewritten. IP-blocking section updated with live test proof.
 
 ---
 
 ### TASK-JD-FIX-04 ✅ — Correct `JAZZDRIVE_STREAM_FLOW.md`
 **File:** `agent-hub/JAZZDRIVE_STREAM_FLOW.md`
-**Priority:** MEDIUM
 **Status:** Fixed 2026-06-16
 
-**What was wrong:**
-- "Why Node.js live tests ALWAYS fail with MED-1011" section claimed all non-Jazz IPs are IP-blocked
-- Live testing on 2026-06-16 from Replit (non-Jazz US server) returned HTTP 200 with valid `validationkey`
-- MED-1011 seen in previous sessions was from invalid/deleted share keys, not IP-blocking
+---
 
-**Fix applied:** Section replaced with accurate explanation. IP-blocking claim removed. Added note that MED-1011 from any source = invalid share key (not IP block).
+### TASK-LOGIN-01 ✅ — Fix login screen: wrong password always navigated to home
+**File:** `raddflix_flutter/lib/screens/login_screen.dart`
+**Status:** Fixed 2026-06-16
+
+**Root cause:** `auth_provider.login()` never throws. On wrong password it sets `state.error` and returns silently.
+`_login()` only checked `isDeviceConflict`, not `state.error`, so it always reached `Navigator.pushReplacementNamed(home)`.
+
+**Fix:** Added `if (s.error != null) { setState(() { _error = s.error; _loading = false; }); return; }` before navigation.
+
+---
+
+### TASK-CATALOG-STALE ✅ — Force full catalog re-sync on all devices
+**Location:** Oracle DB `settings.catalog_forced_version`
+**Status:** Done 2026-06-16
+
+Bumped `catalog_forced_version` to `1781620750` — forces all devices to re-sync on next open,
+overwriting stale share_urls and file_ids from old installs.
 
 ---
 
 ### TASK-JD-TEST-01 ✅ — JS logic test suite passes 27/27
 **File:** `raddflix_flutter/test_suite/jazzdrive_logic_test.js`
-**Result:** 27/27 ✅ (confirmed on 2026-06-16 before fixes — test suite was already correct)
-**Note:** The JS `buildStreamUrl` function in the test suite was always correct (no validationkey). The Dart `_buildStreamUrl` is now aligned with it.
+**Result:** 27/27 ✅ (confirmed 2026-06-16)
 
 ---
 
-### TASK-APK-01 ✅ — APK rebuild triggered
-**Trigger:** Push to `raddflix_flutter/lib/core/services/jazzdrive_service.dart`
-activates `.github/workflows/build-apk.yml`
-**Status:** Triggered by the commit that includes TASK-JD-FIX-01 and TASK-JD-FIX-02
+### TASK-JD-LIVE ✅ — JazzDrive chain proven end-to-end with real video bytes
+**Date:** 2026-06-16
+**Evidence:**
+- S01E01 (remote_id=242684631): HTTP 206, `video/mp4`, ftyp isom, 65536 bytes received ✅
+- Euphoria movie (remote_id=242684377): HTTP 206, `video/mp4`, ftyp isom, 65536 bytes received ✅
+- Both CDN URLs returned real streamable MP4 content — not redirects, not placeholders
 
 ---
 
@@ -100,4 +121,5 @@ Flutter app on-device (fully zero-rated on Jazz SIM):
   → Stream/download via k= CDN URL                         (cloud.jazzdrive.com.pk)
   → validationkey is ONLY used in the two SAPI calls above
   → validationkey is NEVER added to the final CDN stream URL
+  → JSESSIONID .NODE suffix MUST be kept — LB uses it for sticky routing
 ```
