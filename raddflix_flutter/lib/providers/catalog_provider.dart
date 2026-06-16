@@ -76,6 +76,7 @@ class CatalogNotifier extends StateNotifier<CatalogState>
   final Ref _ref;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
   DateTime? _lastSyncTime;
+  bool _initialized = false; // BUG-SYNC-01: guard against multiple initialize() calls
 
   // ── Version-gate sync strategy ──────────────────────────────────────────────
   // SyncService.sync() always calls /api/catalog/version first — a ~200 byte
@@ -94,13 +95,21 @@ class CatalogNotifier extends StateNotifier<CatalogState>
   //   3. Internet restored — Connectivity().onConnectivityChanged
 
   Future<void> initialize() async {
+    // BUG-SYNC-01: guard — HomeScreen.initState() may fire more than once
+    // when the widget is disposed/recreated, causing duplicate observer
+    // registration and N x syncFromServer() calls per foreground resume.
+    if (_initialized) return;
+    _initialized = true;
+
     await _loadFromDb();
     await syncFromServer(); // version-gated: no-op if Oracle unchanged
 
     // Load recommendations in background — non-blocking
     Future.microtask(loadRecommendations);
 
-    // Trigger 2: foreground resume — cheaply re-check Oracle version
+    // Trigger 2: foreground resume — defensive removeObserver first to
+    // prevent duplicate registration in case of a race.
+    WidgetsBinding.instance.removeObserver(this);
     WidgetsBinding.instance.addObserver(this);
 
     // Trigger 3: internet restored — catch changes that happened while offline
@@ -341,7 +350,14 @@ class CatalogNotifier extends StateNotifier<CatalogState>
       // Without this reset, the static _posterSyncDone flag blocks poster downloads
       // for any titles added after the first app launch in the same session.
       if (result.itemsSynced > 0) resetPosterSyncFlag();
-      await _loadFromDb();
+      // BUG-SYNC-01: skip _loadFromDb() when nothing changed and catalog is
+      // already populated — avoids full SQLite read + UI rebuild on every
+      // app foreground when Oracle version matches (itemsSynced == 0).
+      if (result.itemsSynced > 0 || state.isEmpty) {
+        await _loadFromDb();
+      } else {
+        state = state.copyWith(status: CatalogStatus.ready);
+      }
       // Refresh subscription / plan silently after every successful sync so
       // plan upgrades, quota changes, and is_free changes reach the user
       // instantly without manual re-login.

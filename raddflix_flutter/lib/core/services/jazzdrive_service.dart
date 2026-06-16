@@ -277,9 +277,12 @@ class JazzDriveService {
     final bodyJsid = (inner['jsessionid'] ?? inner['JSESSIONID']
                      ?? data['jsessionid'] ?? data['JSESSIONID']) as String?;
     if (bodyJsid != null && bodyJsid.isNotEmpty) {
-      // Strip node suffix if present (e.g. "06B2BCBBE57.2i182" → "06B2BCBBE57")
-      final jsidPart = bodyJsid.contains('.') ? bodyJsid.split('.').first : bodyJsid;
-      cookie = 'JSESSIONID=$jsidPart';
+      // BUG-JD-SESSION: Keep the FULL JSESSIONID including the .NODE suffix
+      // (e.g. "9A126D26...B6.2i182"). JazzDrive load balancer uses that suffix
+      // for sticky session routing. Stripping it sends /sapi/media/video to a
+      // different node with no session record -> HTTP 401 HTML -> parse failure.
+      // Root-cause confirmed: WITH suffix -> 200 OK, WITHOUT -> 401 HTML.
+      cookie = 'JSESSIONID=$bodyJsid';
     } else {
       // Fallback: extract from Set-Cookie response header
       final setCookieList = resp.headers.map['set-cookie'] ?? [];
