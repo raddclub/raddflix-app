@@ -149,9 +149,11 @@ def _sapi_ping(acct: dict) -> bool:
     jazzdrive.require_jd_active()
 
     try:
+        # action='get' confirmed working (returns sapiversion, production-environment, etc.)
+        # action=None returns COM-1005 "Unsupported operation"
         data = jazzdrive.sapi_request(
             endpoint="/system/information",
-            action=None,
+            action="get",
             method="GET",
             account_id=aid,
             tokens={"validationkey": vk, "jsessionid": jsid},
