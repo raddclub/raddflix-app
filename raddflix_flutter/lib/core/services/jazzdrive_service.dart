@@ -157,6 +157,51 @@ class JazzDriveService {
     await LocalDb.deleteStreamCache(fileId);
   }
 
+  /// Runs a fresh end-to-end diagnostic of the JazzDrive share link chain.
+  /// Bypasses all caches — every step exercises the actual JazzDrive API.
+  ///
+  /// Returns a map with step results:
+  ///   'share_key'  — first 12 chars of the extracted share key
+  ///   'login'      — VK prefix + .NODE suffix on success
+  ///   'media'      — matched filename on success
+  ///   'stream_url' — first 80 chars of the final CDN URL on success
+  ///   'error'      — present only on failure (any step); describes which step failed
+  ///
+  /// Called by [DebugDiagnosticsScreen._checkJazzDrive].
+  static Future<Map<String, dynamic>> diagnosticTest({
+    required String shareUrl,
+    String? targetFilename,
+    int remoteId = 0,
+  }) async {
+    final out = <String, dynamic>{};
+    try {
+      final shareKey = _extractShareKey(shareUrl);
+      if (shareKey == null) {
+        out['error'] = 'Cannot extract share key from URL';
+        return out;
+      }
+      out['share_key'] = shareKey.length > 12
+          ? '${shareKey.substring(0, 12)}…' : shareKey;
+
+      final session  = await _loginShare(shareKey);
+      final jidEnd   = session.cookie.split('.').last;
+      out['login']   = 'OK · VK=${session.validationKey.substring(0, 8)}… · .NODE=.$jidEnd';
+
+      final record   = await _getMedia(
+        shareKey, session.validationKey, session.cookie,
+        targetFilename: targetFilename, remoteId: remoteId,
+      );
+      out['media']   = 'OK · "${record.filename}"';
+
+      final streamUrl = _buildStreamUrl(record.rawUrl, record.filename);
+      out['stream_url'] = streamUrl.length > 80
+          ? '${streamUrl.substring(0, 80)}…' : streamUrl;
+    } catch (e) {
+      out['error'] = e.toString().split('\n').first;
+    }
+    return out;
+  }
+
   /// Pre-warm the stream-link cache for the top [count] free movies.
   ///
   /// Fire-and-forget: call with [unawaited] so it never delays app launch
