@@ -1,0 +1,1580 @@
+{% extends "base.html" %}
+{% set active="scan" %}
+{% block content %}
+<style>
+.acct-row { border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:10px; background:var(--panel); }
+.acct-row .acct-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.acct-row .acct-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+.acct-row .otp-inline { margin-top:12px; padding-top:12px; border-top:1px solid var(--border); display:none; }
+.step-badge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px; background:var(--surface2); color:var(--muted); }
+.step-badge.active { background:var(--accent); color:#fff; }
+.wizard-card { border:2px solid var(--accent); }
+</style>
+
+{% if not scan_enabled %}
+<div style="display:flex;align-items:center;gap:10px;background:rgba(244,67,54,.1);border:1px solid rgba(244,67,54,.4);border-radius:8px;padding:10px 16px;margin-bottom:14px;flex-wrap:wrap">
+  <span style="font-size:18px">⏸</span>
+  <div style="flex:1">
+    <strong style="color:var(--err,#f44336)">Scan service is paused</strong>
+    <span class="muted" style="font-size:13px;margin-left:8px">No heartbeat requests are being sent to JazzDrive. Scan buttons are disabled.</span>
+  </div>
+  <a href="/settings" style="font-size:13px;color:var(--accent);text-decoration:none;white-space:nowrap">Enable in Settings →</a>
+</div>
+{% endif %}
+
+<div class="h-row" style="margin-bottom:12px">
+  <div>
+    <h2>JD Indexer</h2>
+    <div class="muted" style="font-size:13px;margin-top:2px">Scan multiple JazzDrive accounts to index existing files and build the media database.</div>
+  </div>
+  <div style="display:flex; gap:8px">
+    <button class="ghost" onclick="showProxyModal()">Proxy Settings</button>
+    <button class="ghost" id="btn-scan-all" onclick="scanAll()" {% if not scan_enabled %}disabled title="Scan is paused — enable in Settings"{% endif %}>⚡ Scan All</button>
+    <button onclick="toggleAddForm()" id="btn-add-acct">+ Add account</button>
+  </div>
+</div>
+
+{% include "_proxy_manager.html" %}
+
+{% if flix_msisdn %}
+<div style="background:rgba(124,92,255,.1);border:1px solid rgba(124,92,255,.35);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;display:flex;align-items:center;gap:8px">
+  <span style="font-size:15px">ℹ️</span>
+  <span><strong style="font-family:monospace">{{ flix_msisdn }}</strong> is reserved as the <strong>flix (upload) account</strong> and cannot be added as a scan account.</span>
+</div>
+{% endif %}
+
+{# ── Excluded folders card ──────────────────────────────────────────────── #}
+<div class="card" id="excluded-folders-card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+    <div>
+      <h3 style="margin:0 0 2px">Excluded Folders</h3>
+      <div class="muted" style="font-size:12px">The scanner will never index any folder whose name contains these strings (case-insensitive). Applies to all accounts.</div>
+    </div>
+  </div>
+  <div id="excl-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;min-height:24px">
+    <span class="muted" style="font-size:12px" id="excl-empty">Loading…</span>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input id="excl-input" placeholder="Folder name to exclude (e.g. Radd-Heartbeat)"
+           style="max-width:320px;flex:1"
+           onkeydown="if(event.key==='Enter') addExcluded()">
+    <button onclick="addExcluded()" style="font-size:12px;padding:4px 14px">+ Add</button>
+    <span id="excl-msg" class="muted" style="font-size:12px"></span>
+  </div>
+  <div class="muted" style="font-size:11px;margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+    Always skipped (built-in): <code>Radd-Heartbeat</code>, <code>Radd-Delta</code>, <code>uploads_test_archive</code>, <code>RADD-TEST-FOLDER</code>, <code>Thumbnails</code>, <code>heartbeat</code>, <code>.Trash</code>, <code>temp</code>, <code>cache</code>
+  </div>
+</div>
+
+{# ── Add account wizard ─────────────────────────────────────────────────── #}
+<div id="add-wizard" class="card wizard-card" style="display:none">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <h3 style="margin:0">Add JazzDrive Account</h3>
+    <span class="step-badge active" id="wiz-step1">Step 1: Details</span>
+    <span class="step-badge" id="wiz-step2">Step 2: OTP Login</span>
+  </div>
+
+  {# Step 1 #}
+  <div id="wiz-s1">
+    <div style="display:flex;flex-direction:column;gap:8px;max-width:440px">
+      <div class="form-row" style="margin:0">
+        <label style="min-width:80px">MSISDN</label>
+        <input id="add-msisdn" placeholder="923xxxxxxxxx" style="flex:1"
+               onkeydown="if(event.key==='Enter') submitAddAcct()">
+      </div>
+      <div class="form-row" style="margin:0">
+        <label style="min-width:80px">Label</label>
+        <input id="add-label" placeholder="Optional friendly name" style="flex:1"
+               onkeydown="if(event.key==='Enter') submitAddAcct()">
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button onclick="submitAddAcct()" id="btn-wiz-add">Save &amp; Send OTP</button>
+      <button class="ghost" onclick="toggleAddForm()">Cancel</button>
+      <span id="add-msg" class="muted" style="font-size:13px"></span>
+    </div>
+  </div>
+
+  {# Step 2 — OTP #}
+  <div id="wiz-s2" style="display:none">
+    <div class="muted" style="font-size:13px;margin-bottom:12px">
+      An OTP has been sent to <strong id="wiz-msisdn-label"></strong> via SMS. Enter it below.
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input id="wiz-otp" placeholder="6-digit OTP" style="max-width:180px"
+             onkeydown="if(event.key==='Enter') wizVerifyOtp()">
+      <button onclick="wizVerifyOtp()" id="btn-wiz-verify">Verify &amp; Link</button>
+      <button class="ghost" onclick="wizResendOtp()">Resend OTP</button>
+      <button class="ghost" onclick="toggleAddForm()">Cancel</button>
+    </div>
+    <div id="wiz-otp-msg" class="muted" style="font-size:13px;margin-top:8px"></div>
+  </div>
+</div>
+
+{# ── Account list ──────────────────────────────────────────────────────── #}
+<div class="card">
+  <h3 style="margin:0 0 4px">Scan Accounts</h3>
+  <div class="muted" style="margin-bottom:14px;font-size:13px">
+    These accounts are used <strong>read-only</strong> — the indexer scans files already on JazzDrive.
+  </div>
+
+  <div id="acct-list">
+  {% if accounts %}
+    {% for a in accounts %}
+    <div class="acct-row" id="acct-{{ a.id }}">
+      <div class="acct-top">
+        <div style="flex:1;min-width:140px">
+          <div style="font-weight:600;font-family:monospace">{{ a.msisdn }}</div>
+          {% if a.label %}<div class="muted" style="font-size:12px">{{ a.label }}</div>{% endif %}
+        </div>
+        <div>
+          {% if a.token_expires_at %}
+          <span class="badge b-ok" id="acct-badge-{{ a.id }}">✔ Linked</span>
+          {% else %}
+          <span class="badge b-warn" id="acct-badge-{{ a.id }}">⚠ Needs login</span>
+          {% endif %}
+        </div>
+        <div>
+          <span id="role-badge-{{ a.id }}" class="badge"
+                style="font-size:11px;font-weight:700;
+                       {% if a.role == 'flix' %}background:rgba(255,170,0,.15);color:#ffaa00;border:1px solid rgba(255,170,0,.3)
+                       {% else %}background:rgba(124,92,255,.15);color:#a78bfa;border:1px solid rgba(124,92,255,.3){% endif %}">
+            {{ a.role|upper }}
+          </span>
+        </div>
+        <div class="muted" style="font-size:11px">
+          Last scan: {{ a.last_scan_at or 'never' }}
+        </div>
+      </div>
+
+      <div class="acct-actions">
+        {% if a.token_expires_at %}
+          {% if a.refresh_token %}
+          <button class="primary" style="font-size:12px;padding:4px 10px"
+                  onclick="refreshAcct({{ a.id }})">Refresh session</button>
+          {% endif %}
+          <button class="ok" style="font-size:12px;padding:4px 10px"
+                  id="btn-scan-{{ a.id }}"
+                  onclick="startScan({{ a.id }})">▶ Index Now</button>
+        {% endif %}
+        <button class="ghost" style="font-size:12px;padding:4px 10px"
+                onclick="viewLogs({{ a.id }})">View logs</button>
+        <button class="ghost" style="font-size:12px;padding:4px 10px"
+                onclick="toggleOtpRow({{ a.id }})">
+          {% if a.token_expires_at %}Re-login{% else %}Login with OTP{% endif %}
+        </button>
+        <button id="btn-quick-role-{{ a.id }}" style="font-size:12px;padding:4px 10px;
+                border:1px solid {% if a.role == 'flix' %}rgba(255,170,0,.5);background:rgba(255,170,0,.15);color:#ffaa00{% else %}rgba(92,212,111,.4);background:rgba(92,212,111,.1);color:#5cd66f{% endif %}"
+                onclick="quickRole({{ a.id }}, '{{ a.role }}')">
+          {% if a.role == 'flix' %}↩ Use for Scan{% else %}⚡ Use for Flix{% endif %}
+        </button>
+        <button style="font-size:12px;padding:4px 10px;border:1px solid rgba(251,146,60,.4);background:rgba(251,146,60,.08);color:#fb923c;border-radius:5px;cursor:pointer"
+                onclick="clearCookies({{ a.id }}, '{{ a.msisdn }}', this)"
+                title="Wipe JSESSIONID + validation_key only — keeps refresh_token so silent re-auth can work">🍪 Clear Cookies</button>
+        <button style="font-size:12px;padding:4px 10px;border:1px solid rgba(239,68,68,.35);background:transparent;color:#ef4444;border-radius:5px;cursor:pointer"
+                onclick="logoutAcct({{ a.id }}, '{{ a.msisdn }}', this)">Logout JD</button>
+        <button class="danger" style="font-size:12px;padding:4px 10px"
+                onclick="delAcct({{ a.id }}, this)">Remove</button>
+      </div>
+
+      {# Inline OTP section, auto-shown for unlinked accounts #}
+      <div class="otp-inline" id="otp-row-{{ a.id }}"
+           {% if not a.token_expires_at %}style="display:block"{% endif %}>
+        <div class="muted" style="font-size:12px;margin-bottom:8px">
+          {% if not a.token_expires_at %}
+          <strong>Action needed:</strong> Send OTP to link this account before indexing.
+          {% else %}
+          Send a new OTP to refresh the session.
+          {% endif %}
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button style="font-size:12px;padding:4px 12px"
+                  onclick="sendOtpRow({{ a.id }})">Send OTP</button>
+          <input id="otp-in-{{ a.id }}" placeholder="Enter OTP" style="max-width:160px;display:none"
+                 onkeydown="if(event.key==='Enter') verifyOtpRow({{ a.id }})">
+          <button id="otp-vbtn-{{ a.id }}" style="font-size:12px;padding:4px 12px;display:none"
+                  onclick="verifyOtpRow({{ a.id }})">Verify</button>
+          <button id="otp-rbtn-{{ a.id }}" style="font-size:12px;padding:4px 12px;display:none"
+                  onclick="resendOtpRow({{ a.id }})">Resend</button>
+          <span id="otp-rmsg-{{ a.id }}" class="muted" style="font-size:12px"></span>
+        </div>
+
+        {# ── Inline SAPI activation — shown when needs_paste_cookies ── #}
+        <div id="otp-sapi-{{ a.id }}" style="display:none;margin-top:12px;border-top:1px solid rgba(99,102,241,.3);padding-top:12px;background:rgba(99,102,241,.04);border-radius:6px;padding:12px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px">
+            ✔ OTP confirmed — one more step (~30 sec on your Jazz phone)
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">
+            JazzDrive session activation requires a Jazz mobile network connection.
+            Our server IP is blocked for this step — your Jazz phone must open the link below.
+            <strong style="color:#f97316">⚠ Turn off WiFi on your phone first — Jazz 4G data only.</strong>
+          </div>
+
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--muted)">
+            1. On your Jazz phone — <span style="color:#f97316;font-weight:700">turn off WiFi, use Jazz 4G only</span> — then tap:
+          </div>
+          <div id="otp-sapi-link-box-{{ a.id }}" style="margin-bottom:10px">
+            <div style="display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap">
+              <span id="otp-sapi-link-msg-{{ a.id }}" class="muted" style="font-size:12px">Generating link…</span>
+              <a id="otp-sapi-url-{{ a.id }}" href="#" target="_blank" rel="noopener"
+                 style="color:var(--ok,#5cd66f);text-decoration:underline;word-break:break-all;font-size:12px;font-weight:600;flex:1;min-width:0;display:none">
+                Tap here to open on your Jazz phone →
+              </a>
+              <button id="otp-sapi-copy-btn-{{ a.id }}" class="ghost"
+                      onclick="copyInlineSapiLink({{ a.id }})"
+                      style="font-size:11px;padding:2px 8px;white-space:nowrap;flex-shrink:0;display:none">Copy</button>
+              <button id="otp-sapi-link-btn-{{ a.id }}" class="ghost"
+                      onclick="getSapiActivateUrlInline({{ a.id }})"
+                      style="font-size:11px;padding:2px 8px;white-space:nowrap;flex-shrink:0;display:none">↻ Refresh link</button>
+            </div>
+          </div>
+
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px;color:var(--muted)">
+            2. Your phone shows JSON — paste the full response here <span style="font-weight:400">(values extracted automatically):</span>
+          </div>
+          <textarea id="otp-sapi-json-{{ a.id }}" rows="3"
+                    placeholder='{"data":{"validationkey":"...","jsessionid":"...","access_token":"..."}}'
+                    oninput="scanInlineAutoParseJson({{ a.id }}, this.value)"
+                    style="width:100%;font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box"></textarea>
+          <div id="otp-sapi-json-msg-{{ a.id }}" style="font-size:12px;margin-top:4px;min-height:14px"></div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+            <button id="otp-sapi-save-btn-{{ a.id }}" onclick="saveInlineOtpSapi({{ a.id }})" disabled
+                    style="font-size:12px;padding:4px 12px">Save &amp; Connect</button>
+            <span id="otp-sapi-save-msg-{{ a.id }}" class="muted" style="font-size:12px"></span>
+          </div>
+        </div>
+        </div>
+
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty" id="empty-msg">No scan accounts yet — click <strong>+ Add account</strong> above.</div>
+  {% endif %}
+  </div>
+</div>
+
+{# ── Paste cookies fallback ────────────────────────────────────────────── #}
+<div class="card" id="paste-cookies-card" style="border:2px solid var(--border);transition:border-color .3s">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+    <h3 style="margin:0">Activate JazzDrive Session</h3>
+    <span id="pt-required-badge" style="display:none;background:var(--warn,#f90);color:#000;
+          font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px">ACTION REQUIRED</span>
+  </div>
+  <div id="pt-instructions" class="muted" style="margin:4px 0 12px;font-size:13px">
+    OTP confirmed ✔ — but our server IP cannot get the <em>validation key</em> from JazzDrive
+    (JazzDrive requires a Jazz mobile network connection for this step — it's not a geo-block,
+    it's our specific Oracle IP that is banned for session activation).
+    Use your <strong>Jazz phone on Jazz mobile data</strong> — takes about 30 seconds.
+  </div>
+  <div id="pt-alert" style="display:none;background:rgba(255,160,0,.12);border:1px solid var(--warn,#f90);
+       border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;line-height:1.5"></div>
+
+  <!-- Quick Paste: full JSON auto-parse -->
+  <div style="background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.3);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+    <div style="font-weight:600;margin-bottom:4px;font-size:13px">⚡ Quick Paste — paste the full JSON response</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5">
+      After phone activation, JazzDrive shows a JSON response. Paste the <strong>entire JSON</strong> here —
+      <code>validationkey</code> and <code>jsessionid</code> are extracted automatically.
+    </div>
+    <textarea id="pt-json-raw" rows="3"
+              placeholder='{"data":{"validationkey":"...","jsessionid":"...","access_token":"..."}}'
+              oninput="scanAutoParseJson(this.value)"
+              style="width:100%;font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box"></textarea>
+    <div id="pt-json-msg" style="font-size:12px;margin-top:4px;min-height:14px"></div>
+  </div>
+
+  <!-- Phone Activate -->
+  <div style="background:rgba(92,214,111,.07);border:1px solid rgba(92,214,111,.3);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+    <div style="font-weight:600;margin-bottom:6px;font-size:13px">📱 Phone Activate (no PC needed)</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+      Click the button to get a special link. Open it on your <strong>Jazz mobile phone</strong>
+      (connected to Jazz network). You will see a short JSON — paste it above for auto-fill,
+      or copy the two values and enter them manually below.
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <button id="btn-get-sapi-url" onclick="getSapiActivateUrl()">🔗 Get activation link</button>
+      <span id="sapi-url-msg" class="muted" style="font-size:12px"></span>
+    </div>
+    <div id="sapi-url-box" style="display:none;margin-top:6px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px">
+        Tap this link on your <strong>Jazz phone</strong> (must be on Jazz mobile data):
+      </div>
+      <a id="sapi-url-link" href="#" target="_blank" rel="noopener"
+         style="color:var(--ok,#5cd66f);text-decoration:underline;word-break:break-all;font-size:11px"></a>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.7">
+        The page shows JSON — paste the <strong>full JSON</strong> in the box above for auto-fill.<br>
+        Or manually copy: <code>"validationkey"</code> → <strong>validation_key</strong> below &amp;
+        <code>"jsessionid"</code> → <strong>JSESSIONID</strong> below.
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual input -->
+  <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Values (auto-filled from JSON paste above, or enter manually):</div>
+  <div style="display:flex;flex-direction:column;gap:8px;max-width:520px">
+    <div class="form-row" style="margin:0">
+      <label style="min-width:140px">MSISDN</label>
+      <input id="pt-msisdn" placeholder="923xxxxxxxxx — must match an existing account above">
+    </div>
+    <div class="form-row" style="margin:0">
+      <label style="min-width:140px">validation_key</label>
+      <input id="pt-vk" placeholder="Paste validationkey value from JSON">
+    </div>
+    <div class="form-row" style="margin:0">
+      <label style="min-width:140px">JSESSIONID</label>
+      <input id="pt-jid" placeholder="Paste jsessionid value from JSON">
+    </div>
+  </div>
+  <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button onclick="pasteTokens()">Save tokens</button>
+    <span id="pt-msg" class="muted" style="font-size:13px"></span>
+  </div>
+  <details style="margin-top:14px">
+    <summary style="cursor:pointer;font-size:12px;color:var(--muted)">Alternative: get values from PC browser DevTools</summary>
+    <ol style="font-size:12px;margin:8px 0 0 18px;line-height:1.8;color:var(--muted)">
+      <li>Open <strong>cloud.jazzdrive.com.pk</strong> in Chrome or Edge on your PC.</li>
+      <li>Log in with your Jazz number — you will receive an SMS OTP.</li>
+      <li>After login press <strong>F12</strong> → <strong>Application</strong> → <strong>Cookies</strong>.</li>
+      <li>Find <code>validation_key</code> and <code>JSESSIONID</code> — copy each value and paste above.</li>
+    </ol>
+  </details>
+</div>
+
+{# ── Per-account database view ──────────────────────────────────────────── #}
+<div class="card" id="acct-db-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <h3 style="margin:0">Indexed Files by Account</h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="loadAcctFiles()">↺ Refresh</button>
+      <button style="font-size:12px;padding:4px 10px" onclick="syncToCloud()">⬆ Sync to Cloud</button>
+    </div>
+  </div>
+  <div id="acct-db-msg" class="muted" style="font-size:12px;margin-bottom:8px;min-height:16px"></div>
+  <div id="acct-db-body"><div class="muted empty">Loading…</div></div>
+</div>
+
+{# ── Duplicate file detector ─────────────────────────────────────────────── #}
+<div class="card" id="dupes-card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px">
+    <div>
+      <h3 style="margin:0">Duplicate File Detector</h3>
+      <div class="muted" style="font-size:12px;margin-top:2px">Titles indexed more than once across your scan accounts.</div>
+    </div>
+    <button class="ghost" style="font-size:12px;padding:4px 12px" id="btn-scan-dupes" onclick="loadDuplicates()">🔍 Scan for Duplicates</button>
+  </div>
+  <div id="dupes-msg" class="muted" style="font-size:12px;margin:8px 0;min-height:16px"></div>
+  <div id="dupes-body"><div class="muted empty" style="padding:10px 0">Click "Scan for Duplicates" to check your library.</div></div>
+</div>
+
+{# ── Live scan log ─────────────────────────────────────────────────────── #}
+<div id="scan-card" class="card" style="display:none">
+  <style>
+  #scan-stats-bar { display:flex; gap:10px; flex-wrap:wrap; font-size:11px;
+                    margin-bottom:8px; padding:6px 10px; background:var(--panel2);
+                    border-radius:6px; border:1px solid var(--border); }
+  #scan-stats-bar span { display:flex; align-items:center; gap:4px; }
+  #scan-stats-bar b   { font-size:13px; font-weight:700; }
+  .sl-info  { color:var(--muted); }
+  .sl-ok    { color:#5cd66f; font-weight:600; }
+  .sl-err   { color:#ff6b6b; font-weight:600; }
+  .sl-warn  { color:#ffc857; }
+  .sl-lookup { color:#7ab4ff; }
+  .sl-tmdb  { color:#7ab4ff; }
+  .sl-fold  { color:#a78bfa; }
+  .sl-mirror{ color:#5cb4ff; }
+  .sl-scan  { color:#5cd66f; font-weight:600; }
+  .sl-skip  { color:#666; font-style:italic; }
+  #scan-log { background:var(--panel2); border:1px solid var(--border);
+              border-radius:8px; padding:10px 12px; max-height:380px;
+              overflow-y:auto; font-size:11.5px; font-family:monospace;
+              white-space:pre-wrap; word-break:break-all; margin:0;
+              line-height:1.55; }
+  #scan-log .ll { display:block; }
+  </style>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+    <h3 style="margin:0" id="scan-title">Indexing progress</h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <span id="scan-sse-badge" style="display:none;font-size:10px;background:rgba(92,212,111,.15);
+            color:#5cd66f;border:1px solid #5cd66f44;border-radius:10px;padding:1px 7px">● live</span>
+      <button id="btn-pause"  class="ghost" style="font-size:12px;padding:4px 10px;display:none" onclick="pauseScan()">Pause</button>
+      <button id="btn-resume" class="ghost" style="font-size:12px;padding:4px 10px;display:none" onclick="resumeScan()">Resume</button>
+      <button id="btn-stop"   class="danger" style="font-size:12px;padding:4px 10px;display:none" onclick="stopScan()">Stop</button>
+      <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="copyLog()">📋 Copy</button>
+      <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="clearScanLog()">🗑 Clear Logs</button>
+      <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="hideLogs()">Hide</button>
+    </div>
+  </div>
+
+  <div id="scan-stats-bar" style="display:none">
+    <span><b id="ss-folders">0</b> folders</span>
+    <span>·</span>
+    <span><b id="ss-files">0</b> files</span>
+    <span>·</span>
+    <span><b id="ss-titles">0</b> titles</span>
+    <span>·</span>
+    <span id="ss-status" class="muted">scanning…</span>
+  </div>
+
+  <div id="scan-log"></div>
+</div>
+
+{% endblock %}
+{% block scripts %}<script>
+let _wizAcctId = null;
+let _scanAcct = null, _logAfter = 0;
+let _sseConn  = null;   // active SSE connection
+let _ssFolders = 0, _ssFiles = 0, _ssTitles = 0;
+
+/* ── Rich log helpers ───────────────────────────────────────────────────── */
+const _KIND_CLS = {
+  scan_start:'sl-scan', scan_done:'sl-scan',
+  folder:'sl-fold', progress:'sl-info',
+  info:'sl-info', error:'sl-err', warn:'sl-warn',
+  // new event names (IMDb-first scanner)
+  lookup:'sl-lookup', found:'sl-ok', not_found:'sl-warn',
+  // legacy compat — old logs still display correctly
+  tmdb:'sl-lookup', tmdb_ok:'sl-ok', tmdb_miss:'sl-warn',
+  imdb_ok:'sl-ok', imdb_miss:'sl-warn',
+  mirror:'sl-mirror', enrich:'sl-lookup',
+  otp:'sl-info', debug:'sl-skip',
+};
+
+// Human-readable label for each event kind
+const _KIND_LABEL = {
+  scan_start: 'Started',
+  scan_done:  'Complete',
+  folder:     'Folder',
+  progress:   '',
+  info:       '',
+  error:      'Error',
+  warn:       '',
+  // new event names
+  lookup:     'Searching',
+  found:      '',
+  not_found:  '',
+  // legacy compat
+  tmdb:       'Searching',
+  tmdb_ok:    '',
+  tmdb_miss:  '',
+  imdb_ok:    '',
+  imdb_miss:  '',
+  enrich:     'Searching',
+  mirror:     'Syncing',
+  otp:        'Auth',
+  debug:      '',
+};
+
+// Suppress internal noise — normal users don't need to see raw API chatter
+const _SUPPRESS = [
+  'skip-clean check',
+  '[Metadata]',
+  'IMDbAPI fallback',
+  'TMDB direct',
+];
+
+function _appendLog(kind, msg) {
+  const el = document.getElementById('scan-log');
+  if (!el) return;
+
+  // Suppress internal noise
+  for (const s of _SUPPRESS) {
+    if (msg.indexOf(s) !== -1) return;
+  }
+
+  const cls   = _KIND_CLS[kind] || 'sl-info';
+  const label = _KIND_LABEL[kind];
+  const ts    = new Date().toLocaleTimeString('en', {hour12:false, minute:'2-digit', second:'2-digit'});
+  const ln    = document.createElement('span');
+  ln.className = 'll ' + cls;
+
+  // Build the display text — no raw [kind] noise, just a readable label
+  let display = '';
+  if (label) {
+    display = ts + '  ' + label + ': ' + msg;
+  } else {
+    display = ts + '  ' + msg;
+  }
+  ln.textContent = display;
+  el.appendChild(ln);
+  el.scrollTop = el.scrollHeight;
+
+  // Update stats counters from log content
+  if (kind === 'folder') _ssFolders++;
+  if (kind === 'found' || kind === 'tmdb_ok' || kind === 'imdb_ok') _ssTitles++;
+  if (kind === 'scan_done' || kind === 'info') {
+    const m = msg.match(/(\d+)\s+files/i);
+    if (m) { _ssFiles = Math.max(_ssFiles, parseInt(m[1])); }
+    const t = msg.match(/(\d+)\s+(?:new )?titles?/i);
+    if (t) { _ssTitles = Math.max(_ssTitles, parseInt(t[1])); }
+  }
+  _refreshStatsBar();
+}
+
+function _refreshStatsBar() {
+  const bar = document.getElementById('scan-stats-bar');
+  if (bar) bar.style.display = 'flex';
+  const el = (id, v) => { const n=document.getElementById(id); if(n) n.textContent=v; };
+  el('ss-folders', _ssFolders);
+  el('ss-files',   _ssFiles);
+  el('ss-titles',  _ssTitles);
+}
+
+function copyLog() {
+  const el = document.getElementById('scan-log');
+  if (!el) return;
+  const text = Array.from(el.querySelectorAll('.ll'))
+    .map(l => l.textContent).join('\n');
+  navigator.clipboard.writeText(text).then(()=>toast('Copied!'));
+}
+
+/* ── SSE connection ─────────────────────────────────────────────────────── */
+function _disconnectSSE() {
+  if (_sseConn) { _sseConn.close(); _sseConn = null; }
+  const badge = document.getElementById('scan-sse-badge');
+  if (badge) badge.style.display = 'none';
+}
+
+function _connectSSE(id) {
+  _disconnectSSE();
+  _sseConn = new EventSource('/scan/api/accounts/' + id + '/scan/stream');
+  document.getElementById('scan-sse-badge').style.display = 'inline';
+
+  _sseConn.onmessage = function(e) {
+    try {
+      const ev = JSON.parse(e.data);
+      if (ev.type === 'log') {
+        _appendLog(ev.kind, ev.message);
+        _logAfter = Math.max(_logAfter, ev.id || 0);
+      } else if (ev.type === 'done') {
+        _disconnectSSE();
+        document.getElementById('ss-status').textContent = 'complete ✓';
+        document.getElementById('btn-pause').style.display  = 'none';
+        document.getElementById('btn-resume').style.display = 'none';
+        document.getElementById('btn-stop').style.display   = 'none';
+        _appendLog('scan_done', '─── Indexing complete ───');
+        loadAcctFiles();
+      }
+    } catch(_) {}
+  };
+
+  _sseConn.onerror = function() {
+    _disconnectSSE();
+    // Fallback: switch to polling
+    pollScan();
+  };
+}
+
+/* ── Add wizard ────────────────────────────────────────────────────────── */
+function toggleAddForm() {
+  const w = document.getElementById('add-wizard');
+  const showing = w.style.display !== 'none';
+  w.style.display = showing ? 'none' : 'block';
+  if (!showing) {
+    _resetWizard();
+    document.getElementById('add-msisdn').focus();
+  }
+}
+
+function _resetWizard() {
+  document.getElementById('wiz-s1').style.display = 'block';
+  document.getElementById('wiz-s2').style.display = 'none';
+  document.getElementById('wiz-step1').className = 'step-badge active';
+  document.getElementById('wiz-step2').className = 'step-badge';
+  document.getElementById('add-msisdn').value = '';
+  document.getElementById('add-label').value = '';
+  document.getElementById('add-msg').textContent = '';
+  document.getElementById('wiz-otp').value = '';
+  document.getElementById('wiz-otp-msg').textContent = '';
+  _wizAcctId = null;
+}
+
+async function submitAddAcct() {
+  const m   = (document.getElementById('add-msisdn').value || '').trim();
+  const lbl = (document.getElementById('add-label').value  || '').trim();
+  const msg = document.getElementById('add-msg');
+  if (!m) { msg.textContent = 'MSISDN is required'; return; }
+
+  const btn = document.getElementById('btn-wiz-add');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  msg.textContent = '';
+
+  try {
+    const r = await api('/scan/api/accounts', {method:'POST', body:{msisdn:m, label:lbl}});
+    _wizAcctId = r.id;
+
+    // Move to step 2 — send OTP
+    btn.disabled = false; btn.textContent = 'Save & Send OTP';
+    msg.textContent = '';
+    msg.style.color = '';
+    document.getElementById('wiz-step1').className = 'step-badge';
+    document.getElementById('wiz-step2').className = 'step-badge active';
+    document.getElementById('wiz-s1').style.display = 'none';
+    document.getElementById('wiz-s2').style.display = 'block';
+    document.getElementById('wiz-msisdn-label').textContent = m;
+    document.getElementById('wiz-otp-msg').textContent = 'Sending OTP…';
+
+    const otpR = await api('/scan/api/accounts/' + _wizAcctId + '/send-otp', {method:'POST'});
+    if (otpR.ok) {
+      document.getElementById('wiz-otp-msg').textContent = '✔ OTP sent. Check your SMS.';
+    } else {
+      document.getElementById('wiz-otp-msg').textContent = 'OTP send failed: ' + (otpR.error || 'unknown') + '. Enter code manually if you received it.';
+    }
+    document.getElementById('wiz-otp').focus();
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Save & Send OTP';
+    msg.style.color = 'var(--err)';
+    msg.textContent = e.message;
+  }
+}
+
+let _ptAccountId = null;
+
+function _showPasteCookiesNeeded(msisdn, message, accountId) {
+  const card  = document.getElementById('paste-cookies-card');
+  const badge = document.getElementById('pt-required-badge');
+  const alert = document.getElementById('pt-alert');
+  if (card)  card.style.borderColor = 'var(--warn,#f90)';
+  if (badge) badge.style.display = 'inline-block';
+  if (alert) { alert.style.display = 'block'; alert.innerHTML = message || ''; }
+  if (msisdn) {
+    const inp = document.getElementById('pt-msisdn');
+    if (inp && !inp.value) inp.value = msisdn;
+  }
+  if (accountId) _ptAccountId = accountId;
+  if (card) card.scrollIntoView({behavior:'smooth', block:'center'});
+  // Auto-generate the activation link so the user doesn't need to click a button
+  setTimeout(() => getSapiActivateUrl(), 400);
+}
+
+async function getSapiActivateUrl() {
+  const btn    = document.getElementById('btn-get-sapi-url');
+  const msgEl  = document.getElementById('sapi-url-msg');
+  const box    = document.getElementById('sapi-url-box');
+  const link   = document.getElementById('sapi-url-link');
+  const msisdn = (document.getElementById('pt-msisdn').value || '').trim();
+
+  // Resolve account ID: from stored value, wizard, or fetch by msisdn
+  let aid = _ptAccountId || _wizAcctId || null;
+  if (!aid && msisdn) {
+    try {
+      const accts = await api('/scan/api/accounts');
+      const list  = Array.isArray(accts) ? accts : (accts.accounts || []);
+      const match = list.find(a => a.msisdn === msisdn || a.msisdn === msisdn.replace(/^0/, '92'));
+      if (match) aid = match.id;
+    } catch(_) {}
+  }
+  if (!aid) { msgEl.textContent = 'Enter MSISDN first or re-send OTP'; return; }
+
+  btn.disabled = true; btn.textContent = 'Generating…';
+  msgEl.textContent = '';
+  box.style.display = 'none';
+  try {
+    const r = await api('/scan/api/accounts/' + aid + '/sapi-activate-url');
+    if (!r.ok) { msgEl.textContent = 'Error: ' + (r.error || 'unknown'); return; }
+    link.href        = r.sapi_url;
+    link.textContent = r.sapi_url;
+    box.style.display = 'block';
+    msgEl.textContent = '✔ Link ready — open on Jazz phone';
+    msgEl.style.color = 'var(--ok,#5cd66f)';
+    _ptAccountId = aid;
+    const mEl = document.getElementById('pt-msisdn');
+    if (mEl && r.msisdn) mEl.value = r.msisdn;
+  } catch(e) {
+    msgEl.textContent = 'Error: ' + e.message;
+    msgEl.style.color = 'var(--err,#f55)';
+  } finally {
+    btn.disabled = false; btn.textContent = '↻ Refresh link';
+  }
+}
+
+async function wizVerifyOtp() {
+  const otp = (document.getElementById('wiz-otp').value || '').trim();
+  const msgEl = document.getElementById('wiz-otp-msg');
+  if (!otp) { msgEl.textContent = 'Enter the OTP code'; return; }
+  if (!_wizAcctId) { msgEl.textContent = 'Account not created yet'; return; }
+
+  const btn = document.getElementById('btn-wiz-verify');
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  msgEl.textContent = 'Verifying OTP code...';
+
+  try {
+    const r = await api('/scan/api/accounts/' + _wizAcctId + '/verify-otp',
+                        {method:'POST', body:{otp}});
+    if (r.ok) {
+      msgEl.innerHTML = '<span style="color:var(--ok)">✔ Login successful! Reloading…</span>';
+      toast('✔ Account linked');
+      setTimeout(() => location.reload(), 1000);
+    } else if (r.needs_paste_cookies) {
+      btn.disabled = false; btn.textContent = 'Verify & Link';
+      msgEl.innerHTML = '<span style="color:var(--ok,#22c55e)">✔ OTP confirmed — activation link generated below ↓</span>';
+      _showPasteCookiesNeeded(r.msisdn, r.error, r.account_id || _wizAcctId);
+    } else {
+      btn.disabled = false; btn.textContent = 'Verify & Link';
+      msgEl.textContent = 'Failed: ' + (r.error || 'Invalid OTP');
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Verify & Link';
+    msgEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function wizResendOtp() {
+  if (!_wizAcctId) return;
+  const msgEl = document.getElementById('wiz-otp-msg');
+  msgEl.textContent = 'Resending…';
+  try {
+    const r = await api('/scan/api/accounts/' + _wizAcctId + '/resend-otp', {method:'POST'});
+    msgEl.textContent = r.ok ? '✔ OTP resent.' : 'Resend failed: ' + (r.error || 'unknown');
+  } catch(e) { msgEl.textContent = 'Error: ' + e.message; }
+}
+
+/* ── Per-account inline OTP ─────────────────────────────────────────────── */
+function toggleOtpRow(id) {
+  const row = document.getElementById('otp-row-' + id);
+  row.style.display = row.style.display === 'none' ? 'block' : 'none';
+}
+
+async function sendOtpRow(id) {
+  const msg = document.getElementById('otp-rmsg-' + id);
+  msg.textContent = 'Sending OTP…';
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/send-otp', {method:'POST'});
+    if (r.ok) {
+      msg.textContent = '✔ OTP sent. Check your SMS.';
+      document.getElementById('otp-in-' + id).style.display = 'inline-block';
+      document.getElementById('otp-vbtn-' + id).style.display = 'inline-block';
+      document.getElementById('otp-rbtn-' + id).style.display = 'inline-block';
+      document.getElementById('otp-in-' + id).focus();
+    } else {
+      msg.textContent = 'Failed: ' + (r.error || 'unknown');
+    }
+  } catch(e) { msg.textContent = 'Error: ' + e.message; }
+}
+
+async function resendOtpRow(id) {
+  const msg = document.getElementById('otp-rmsg-' + id);
+  msg.textContent = 'Resending…';
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/resend-otp', {method:'POST'});
+    msg.textContent = r.ok ? '✔ OTP resent.' : 'Resend failed: ' + (r.error || 'unknown');
+  } catch(e) { msg.textContent = 'Error: ' + e.message; }
+}
+
+async function verifyOtpRow(id) {
+  const otp = (document.getElementById('otp-in-' + id).value || '').trim();
+  const msg = document.getElementById('otp-rmsg-' + id);
+  const btn = document.getElementById('otp-vbtn-' + id);
+  if (!otp) { msg.textContent = 'Enter the OTP code'; return; }
+
+  if (btn) btn.disabled = true;
+  msg.textContent = 'Verifying…';
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/verify-otp',
+                        {method:'POST', body:{otp}});
+    if (r.ok) {
+      msg.innerHTML = '<span style="color:var(--ok)">✔ Login successful! Reloading…</span>';
+      toast('✔ Account linked');
+      setTimeout(() => location.reload(), 1000);
+    } else if (r.needs_paste_cookies) {
+      if (btn) btn.disabled = false;
+      msg.innerHTML = '<span style="color:var(--ok,#22c55e)">✔ OTP accepted — activate from Jazz phone ↓</span>';
+      showOtpSapiRow(id, r.msisdn);
+    } else {
+      if (btn) btn.disabled = false;
+      msg.textContent = 'Failed: ' + (r.error || 'Invalid OTP');
+    }
+  } catch(e) {
+    if (btn) btn.disabled = false;
+    msg.textContent = 'Error: ' + e.message;
+  }
+}
+
+/* ── Per-account inline SAPI activation ─────────────────────────────────── */
+function showOtpSapiRow(id, msisdn) {
+  const row = document.getElementById('otp-sapi-' + id);
+  if (row) row.style.display = 'block';
+  getSapiActivateUrlInline(id);
+}
+
+async function getSapiActivateUrlInline(id) {
+  const btn    = document.getElementById('otp-sapi-link-btn-' + id);
+  const msgEl  = document.getElementById('otp-sapi-link-msg-' + id);
+  const copyBtn = document.getElementById('otp-sapi-copy-btn-' + id);
+  const link   = document.getElementById('otp-sapi-url-' + id);
+  if (btn)  { btn.disabled = true; }
+  if (msgEl) { msgEl.textContent = 'Generating link…'; msgEl.style.color = 'var(--muted)'; }
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/sapi-activate-url');
+    if (!r.ok) {
+      if (msgEl) { msgEl.textContent = '⚠ Error: ' + (r.error || 'unknown'); msgEl.style.color = 'var(--err,#f55)'; }
+      if (btn) { btn.style.display = 'inline-block'; btn.disabled = false; }
+      return;
+    }
+    // Show the URL directly in the <a> tag and unhide copy + refresh buttons
+    if (link) {
+      link.href = r.sapi_url;
+      link.textContent = 'Tap here to open on your Jazz phone →';
+      link.title = r.sapi_url;
+      link.style.display = 'inline';
+    }
+    if (msgEl) { msgEl.style.display = 'none'; }
+    if (copyBtn) copyBtn.style.display = 'inline-block';
+    if (btn) { btn.style.display = 'inline-block'; btn.disabled = false; btn.textContent = '↻ Refresh link'; }
+  } catch(e) {
+    if (msgEl) { msgEl.textContent = '⚠ Error: ' + e.message; msgEl.style.color = 'var(--err,#f55)'; }
+    if (btn) { btn.style.display = 'inline-block'; btn.disabled = false; }
+  }
+}
+
+function copyInlineSapiLink(id) {
+  const link = document.getElementById('otp-sapi-url-' + id);
+  const btn  = document.getElementById('otp-sapi-copy-btn-' + id);
+  const url  = link ? link.href : '';
+  if (!url || url === '#') return;
+  navigator.clipboard.writeText(url).then(() => {
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000); }
+  }).catch(() => {
+    if (btn) { btn.textContent = 'Copy'; }
+  });
+}
+
+function scanInlineAutoParseJson(id, val) {
+  const msgEl   = document.getElementById('otp-sapi-json-msg-' + id);
+  const saveBtn = document.getElementById('otp-sapi-save-btn-' + id);
+  val = val.trim();
+  if (!val) {
+    if (saveBtn) saveBtn.disabled = true;
+    if (msgEl) msgEl.textContent = '';
+    return;
+  }
+  if (!val.startsWith('{')) {
+    if (saveBtn) saveBtn.disabled = true;
+    if (msgEl) { msgEl.textContent = '✗ Paste the full JSON response (starts with {)'; msgEl.style.color = 'var(--err,#f55)'; }
+    return;
+  }
+  let vk = '', jid = '', at = '', filled = 0;
+  try {
+    const d = JSON.parse(val);
+    const data = (d && d.data) ? d.data : d;
+    vk  = data.validationkey || data.validation_key || '';
+    jid = data.jsessionid    || data.JSESSIONID     || '';
+    at  = data.access_token  || data.accesstoken    || data.raw_accesstoken || '';
+    if (vk)  filled++;
+    if (jid) filled++;
+  } catch(e) {
+    if (saveBtn) saveBtn.disabled = true;
+    if (msgEl) { msgEl.textContent = '✗ Invalid JSON — ' + e.message; msgEl.style.color = 'var(--err,#f55)'; }
+    return;
+  }
+  // stash raw_accesstoken keyed by account id for saveInlineOtpSapi
+  if (!window._scanAt) window._scanAt = {};
+  window._scanAt[id] = at;
+  if (saveBtn) saveBtn.disabled = filled < 2;
+  if (msgEl) {
+    if (filled === 2) {
+      msgEl.textContent = '✔ validationkey + jsessionid found — click Save & Connect';
+      msgEl.style.color = 'var(--ok,#22c55e)';
+    } else if (filled === 1) {
+      msgEl.textContent = '⚠ Only ' + (vk ? 'validationkey' : 'jsessionid') + ' found — check the JSON';
+      msgEl.style.color = 'var(--warn,#f90)';
+    } else {
+      msgEl.textContent = '✗ Could not find validationkey or jsessionid';
+      msgEl.style.color = 'var(--err,#f55)';
+    }
+  }
+}
+
+async function saveInlineOtpSapi(id) {
+  const jsonStr = (document.getElementById('otp-sapi-json-' + id).value || '').trim();
+  const saveMsg = document.getElementById('otp-sapi-save-msg-' + id);
+  const btn     = document.getElementById('otp-sapi-save-btn-' + id);
+  let vk = '', jid = '';
+  try {
+    const d = JSON.parse(jsonStr);
+    const data = (d && d.data) ? d.data : d;
+    vk  = data.validationkey || data.validation_key || '';
+    jid = data.jsessionid    || data.JSESSIONID     || '';
+  } catch(e) {
+    if (saveMsg) saveMsg.textContent = 'Invalid JSON'; return;
+  }
+  if (!vk || !jid) { if (saveMsg) saveMsg.textContent = 'Missing validationkey or jsessionid'; return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  if (saveMsg) saveMsg.textContent = '';
+  try {
+    const _at = (window._scanAt && window._scanAt[id]) || '';
+    const r = await api('/scan/api/accounts/' + id + '/tokens',
+                        {method:'POST', body:{validation_key:vk, jsessionid:jid,
+                          ...(_at ? {raw_accesstoken: _at} : {})}});
+    if (r.ok) {
+      if (saveMsg) saveMsg.innerHTML = '<span style="color:var(--ok,#22c55e)">✔ Session active! Reloading…</span>';
+      toast('✔ Account activated');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = 'Save & Connect'; }
+      if (saveMsg) saveMsg.innerHTML = '<span style="color:var(--err,#f55)">Failed: ' + (r.error || 'unknown') + '</span>';
+    }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save & Connect'; }
+    if (saveMsg) saveMsg.innerHTML = '<span style="color:var(--err,#f55)">Error: ' + e.message + '</span>';
+  }
+}
+
+/* ── Other actions ──────────────────────────────────────────────────────── */
+async function delAcct(id, btn) {
+  if (btn._confirming) {
+    try {
+      await api('/scan/api/accounts/' + id, {method:'DELETE'});
+      document.getElementById('acct-' + id).remove();
+      toast('Account removed');
+    } catch(e) { toast('Failed: ' + e.message); }
+    return;
+  }
+  btn._confirming = true;
+  const orig = btn.textContent;
+  btn.textContent = 'Confirm?';
+  btn.style.background = 'var(--err)';
+  setTimeout(() => {
+    btn._confirming = false;
+    btn.textContent = orig;
+    btn.style.background = '';
+  }, 2500);
+}
+
+async function refreshAcct(id) {
+  toast('Refreshing session…');
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/refresh-session', {method:'POST'});
+    if (r.ok) { toast('✔ Session refreshed'); setTimeout(() => location.reload(), 800); }
+    else toast('Refresh failed: ' + (r.error || 'unknown'));
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function startScan(id) {
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/scan', {method:'POST'});
+    if (!r.ok) { toast('Failed: ' + (r.error || 'unknown')); return; }
+    _scanAcct = id; _logAfter = 0;
+    _ssFolders = 0; _ssFiles = 0; _ssTitles = 0;
+    const card = document.getElementById('scan-card');
+    card.style.display = 'block';
+    card.scrollIntoView({behavior:'smooth', block:'start'});
+    document.getElementById('scan-log').innerHTML = '';
+    document.getElementById('scan-title').textContent = 'Indexing progress';
+    document.getElementById('ss-status').textContent = 'scanning…';
+    document.getElementById('btn-pause').style.display  = 'inline-block';
+    document.getElementById('btn-resume').style.display = 'none';
+    document.getElementById('btn-stop').style.display   = 'inline-block';
+    _appendLog('info', 'Starting indexer…');
+    _connectSSE(id);
+  } catch(e) { toast('Failed: ' + e.message); }
+}
+
+async function viewLogs(id) {
+  _scanAcct = id; _logAfter = 0;
+  _ssFolders = 0; _ssFiles = 0; _ssTitles = 0;
+  const card = document.getElementById('scan-card');
+  card.style.display = 'block';
+  card.scrollIntoView({behavior:'smooth', block:'start'});
+  document.getElementById('scan-log').innerHTML = '';
+  document.getElementById('scan-title').textContent = 'Logs: Account #' + id;
+  document.getElementById('ss-status').textContent = 'loading…';
+
+  // Check if scan is running — if so, attach SSE; else load historical log
+  try {
+    const prog = await api('/scan/api/accounts/' + id + '/progress');
+    if (prog.running) {
+      document.getElementById('btn-pause').style.display  = prog.paused ? 'none' : 'inline-block';
+      document.getElementById('btn-resume').style.display = prog.paused ? 'inline-block' : 'none';
+      document.getElementById('btn-stop').style.display   = 'inline-block';
+      _connectSSE(id);
+    } else {
+      document.getElementById('btn-pause').style.display  = 'none';
+      document.getElementById('btn-resume').style.display = 'none';
+      document.getElementById('btn-stop').style.display   = 'none';
+      // Load historical log entries
+      const entries = await api('/scan/api/accounts/' + id + '/log?after=0');
+      (entries || []).forEach(l => {
+        _appendLog(l.kind, l.message);
+        _logAfter = Math.max(_logAfter, l.id || 0);
+      });
+      document.getElementById('ss-status').textContent = 'last scan';
+    }
+  } catch(e) {
+    _appendLog('error', 'Failed to load logs: ' + e.message);
+  }
+}
+
+function hideLogs() {
+  _disconnectSSE();
+  document.getElementById('scan-card').style.display = 'none';
+  _scanAcct = null;
+}
+
+async function clearScanLog() {
+  if (!_scanAcct) return;
+  if (!confirm('Delete all saved log entries for this account from the database?')) return;
+  try {
+    const r = await fetch('/scan/api/accounts/' + _scanAcct + '/log', {method: 'DELETE',
+      headers: {'X-Requested-With': 'XMLHttpRequest'}});
+    const d = await r.json();
+    document.getElementById('scan-log').innerHTML =
+      '<span style="color:var(--muted);font-size:12px">Log cleared (' + (d.deleted||0) + ' entries deleted).</span>';
+    toast('✔ Log cleared — ' + (d.deleted||0) + ' entries deleted');
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function pauseScan() {
+  if (!_scanAcct) return;
+  try {
+    const r = await api('/scan/api/accounts/' + _scanAcct + '/scan/pause', {method:'POST'});
+    if (!r.ok) toast('Failed to pause: ' + r.error);
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function resumeScan() {
+  if (!_scanAcct) return;
+  try {
+    const r = await api('/scan/api/accounts/' + _scanAcct + '/scan/resume', {method:'POST'});
+    if (!r.ok) toast('Failed to resume: ' + r.error);
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function stopScan() {
+  if (!_scanAcct) return;
+  try {
+    const r = await api('/scan/api/accounts/' + _scanAcct + '/scan/stop', {method:'POST'});
+    if (!r.ok) toast('Failed to stop: ' + r.error);
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+/* pollScan — SSE fallback only (used when EventSource fails or browser doesn't support it) */
+async function pollScan() {
+  if (!_scanAcct) return;
+  // If SSE is already connected, let it handle things
+  if (_sseConn) return;
+  try {
+    const entries = await api('/scan/api/accounts/' + _scanAcct + '/log?after=' + _logAfter);
+    (entries || []).forEach(l => {
+      _appendLog(l.kind, l.message);
+      _logAfter = Math.max(_logAfter, l.id || 0);
+    });
+
+    const p = await api('/scan/api/accounts/' + _scanAcct + '/progress');
+    const btnPause  = document.getElementById('btn-pause');
+    const btnResume = document.getElementById('btn-resume');
+    const btnStop   = document.getElementById('btn-stop');
+
+    if (p.running) {
+      btnStop.style.display = 'inline-block';
+      if (p.paused) {
+        btnPause.style.display  = 'none';
+        btnResume.style.display = 'inline-block';
+      } else {
+        btnPause.style.display  = 'inline-block';
+        btnResume.style.display = 'none';
+      }
+      setTimeout(pollScan, 1500);
+    } else {
+      btnPause.style.display  = 'none';
+      btnResume.style.display = 'none';
+      btnStop.style.display   = 'none';
+      document.getElementById('ss-status').textContent = 'complete ✓';
+      const el = document.getElementById('scan-log');
+      const already = el && Array.from(el.querySelectorAll('.ll'))
+        .some(l => l.textContent.includes('─── Indexing complete ───'));
+      if (!already) _appendLog('scan_done', '─── Indexing complete ───');
+    }
+  } catch(e) { console.warn('pollScan:', e); setTimeout(pollScan, 3000); }
+}
+
+function scanAutoParseJson(raw) {
+  const msgEl = document.getElementById('pt-json-msg');
+  const raw2 = raw.trim();
+  if (!raw2) { if (msgEl) msgEl.textContent = ''; return; }
+  let parsed;
+  try { parsed = JSON.parse(raw2); } catch(e) {
+    if (msgEl) { msgEl.textContent = '✗ Invalid JSON — paste the full response'; msgEl.style.color = 'var(--err,#f55)'; }
+    return;
+  }
+  /* Support both top-level and nested under .data */
+  const d = parsed.data || parsed;
+  const vk  = d.validationkey || d.validation_key || '';
+  const jid = d.jsessionid    || d.JSESSIONID      || '';
+  let filled = 0;
+  if (vk)  { document.getElementById('pt-vk').value  = vk;  filled++; }
+  if (jid) { document.getElementById('pt-jid').value = jid; filled++; }
+  if (msgEl) {
+    if (filled === 2) {
+      msgEl.textContent = '✔ validationkey + jsessionid extracted — click Save tokens';
+      msgEl.style.color = 'var(--ok,#22c55e)';
+    } else if (filled === 1) {
+      msgEl.textContent = '⚠ Only ' + (vk ? 'validationkey' : 'jsessionid') + ' found — check the JSON';
+      msgEl.style.color = 'var(--warn,#f90)';
+    } else {
+      msgEl.textContent = '✗ Could not find validationkey or jsessionid in this JSON';
+      msgEl.style.color = 'var(--err,#f55)';
+    }
+  }
+}
+
+async function pasteTokens() {
+  const vk     = document.getElementById('pt-vk').value.trim();
+  const jid    = document.getElementById('pt-jid').value.trim();
+  const msisdn = document.getElementById('pt-msisdn').value.trim();
+  const msg    = document.getElementById('pt-msg');
+  if (!vk || !jid) { msg.textContent = 'Enter both cookie values (or paste full JSON above)'; return; }
+  msg.textContent = 'Saving…';
+  try {
+    let endpoint, body;
+    if (_ptAccountId) {
+      endpoint = '/scan/api/accounts/' + _ptAccountId + '/tokens';
+      body = {validation_key: vk, jsessionid: jid};
+    } else {
+      endpoint = '/api/jazzdrive/tokens';
+      body = {validation_key: vk, jsessionid: jid, msisdn: msisdn || undefined};
+    }
+    const r = await api(endpoint, {method: 'POST', body});
+    if (!r.ok) { msg.textContent = 'Failed: ' + (r.error || 'unknown'); return; }
+    msg.textContent = '✔ Tokens saved — reloading…';
+    /* Reset card styling on success */
+    const card  = document.getElementById('paste-cookies-card');
+    const badge = document.getElementById('pt-required-badge');
+    const alert = document.getElementById('pt-alert');
+    if (card)  card.style.borderColor = 'var(--border)';
+    if (badge) badge.style.display = 'none';
+    if (alert) alert.style.display = 'none';
+    setTimeout(() => location.reload(), 1000);
+  } catch(e) { msg.textContent = 'Error: ' + e.message; }
+}
+
+/* ── Per-account files table ── */
+async function loadAcctFiles() {
+  const body = document.getElementById('acct-db-body');
+  const msg  = document.getElementById('acct-db-msg');
+  body.innerHTML = '<div class="muted empty">Loading…</div>';
+  msg.textContent = '';
+  try {
+    // Fetch all accounts and all files in parallel
+    const [accts, filesResp] = await Promise.all([
+      api('/scan/api/accounts'),
+      api('/scan/api/files?limit=5000').catch(() => []),
+    ]);
+    const accounts = Array.isArray(accts) ? accts : (accts.accounts || []);
+    const allFiles = filesResp.files || filesResp || [];
+
+    // Group files by account_id
+    const byAcct = {};
+    (allFiles).forEach(f => {
+      const aid = String(f.account_id || 'unknown');
+      if (!byAcct[aid]) byAcct[aid] = [];
+      byAcct[aid].push(f);
+    });
+
+    // Total stats
+    const total = allFiles.length;
+    msg.textContent = `${total} file${total !== 1 ? 's' : ''} indexed across ${accounts.length} account${accounts.length !== 1 ? 's' : ''}`;
+
+    if (!accounts.length && !total) {
+      body.innerHTML = '<div class="muted empty">No accounts or indexed files yet.</div>';
+      return;
+    }
+
+    // Render per-account blocks
+    let html = '';
+    accounts.forEach(a => {
+      const files = byAcct[String(a.id)] || [];
+      const cnt   = files.length;
+      const linked = a.token_expires_at ? '✔ Linked' : '⚠ Needs login';
+      const linkedCls = a.token_expires_at ? 'b-ok' : 'b-warn';
+      html += `
+<div style="margin-bottom:14px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+    <strong style="font-family:monospace">${a.msisdn}</strong>
+    ${a.label ? `<span class="muted" style="font-size:12px">${a.label}</span>` : ''}
+    <span class="badge ${linkedCls}" style="font-size:11px">${linked}</span>
+    <span class="badge" style="background:var(--surface2);color:var(--fg);font-size:11px">${cnt} file${cnt!==1?'s':''}</span>
+    ${cnt > 0 ? `<button class="ghost" style="font-size:11px;padding:2px 8px" onclick="toggleAcctFiles(${a.id})">${cnt > 0 ? 'Show files' : ''}</button>` : ''}
+  </div>`;
+
+      if (cnt > 0) {
+        html += `<div id="acct-files-${a.id}" style="display:none">
+  <div class="table-wrap"><table style="font-size:12px">
+    <thead><tr><th>#</th><th>Filename</th><th>Kind</th><th>Quality</th><th>Size</th><th>Uploaded</th></tr></thead>
+    <tbody>`;
+        files.slice(0, 200).forEach((f, i) => {
+          const mb   = f.size_bytes ? (f.size_bytes / 1048576).toFixed(1) + ' MB' : '—';
+          const date = f.uploaded_at ? new Date(f.uploaded_at).toLocaleDateString() : '—';
+          html += `<tr>
+            <td class="muted">${i+1}</td>
+            <td style="max-width:300px;word-break:break-all">${f.filename || f.name || '—'}</td>
+            <td>${f.media_kind || '—'}</td>
+            <td>${f.quality || '—'}</td>
+            <td class="muted">${mb}</td>
+            <td class="muted">${date}</td>
+          </tr>`;
+        });
+        if (files.length > 200) {
+          html += `<tr><td colspan="6" class="muted" style="text-align:center">… and ${files.length - 200} more</td></tr>`;
+        }
+        html += `</tbody></table></div></div>`;
+      }
+      html += `</div><hr style="border:none;border-top:1px solid var(--border);margin:4px 0 10px">`;
+    });
+
+    // Files with unknown account
+    const unknownFiles = byAcct['unknown'] || [];
+    if (unknownFiles.length) {
+      html += `<div style="margin-bottom:8px"><strong class="muted" style="font-size:12px">No account (${unknownFiles.length})</strong></div>`;
+    }
+
+    body.innerHTML = html || '<div class="muted empty">No files indexed yet.</div>';
+  } catch(e) {
+    body.innerHTML = '<div class="muted">Error loading files: ' + e.message + '</div>';
+  }
+}
+
+function toggleAcctFiles(id) {
+  const el  = document.getElementById('acct-files-' + id);
+  const btn = el && el.previousElementSibling && el.previousElementSibling.querySelector('button');
+  if (!el) return;
+  const shown = el.style.display !== 'none';
+  el.style.display = shown ? 'none' : 'block';
+  if (btn) btn.textContent = shown ? 'Show files' : 'Hide files';
+}
+
+/* ── Sync to Cloud ───────────────────────────────────────────────────────── */
+async function syncToCloud() {
+  const msg = document.getElementById('acct-db-msg');
+  msg.style.color = 'var(--muted)';
+  msg.textContent = 'Syncing to cloud…';
+  try {
+    const r = await api('/admin/api/db/sync', {method:'POST', body:{mode:'both'}});
+    const gh = r.github ? `GitHub: ${r.github.ok ? '✔' : '✘'} (${r.github.records||0} records)` : '';
+    const gs = r.gsheets ? `Sheets: ${r.gsheets.ok ? '✔' : '✘'} (${r.gsheets.records||0} records)` : '';
+    const ok = r.github?.ok || r.gsheets?.ok;
+    msg.textContent = [gh, gs].filter(Boolean).join('  ·  ') || 'Done';
+    msg.style.color = ok ? 'var(--ok)' : 'var(--err)';
+  } catch(e) {
+    msg.textContent = 'Sync error: ' + e.message;
+    msg.style.color = 'var(--err)';
+  }
+}
+
+/* ── Live session-status badges (keepalive) ─────────────────────────────── */
+async function refreshKeepaliveStatus() {
+  try {
+    const r = await api('/api/keepalive/status');
+    if (!r || !r.accounts) return;
+    Object.entries(r.accounts).forEach(([id, info]) => {
+      const badge = document.getElementById('acct-badge-' + id);
+      if (!badge) return;
+      const otpRow = document.getElementById('otp-row-' + id);
+      if (info.status === 'ok') {
+        badge.className = 'badge b-ok';
+        badge.textContent = '✔ Session live';
+      } else if (info.status === 'dead') {
+        badge.className = 'badge b-err';
+        badge.textContent = '✗ Session dead';
+        // Auto-expand the re-login section so user notices
+        if (otpRow) otpRow.style.display = 'block';
+      } else {
+        // Partial / unknown — show failures if any
+        const fails = info.consecutive_failures || 0;
+        if (fails > 0) {
+          badge.className = 'badge b-warn';
+          badge.textContent = '⚠ ' + fails + ' keepalive fail' + (fails > 1 ? 's' : '');
+        }
+      }
+    });
+  } catch(e) { /* keepalive status is best-effort */ }
+}
+
+// Load the account files table and session badges on page load, refresh every 30s
+/* ── Excluded folders ──────────────────────────────────────────────────── */
+function _renderExcluded(folders) {
+  const el = document.getElementById('excl-list');
+  const empty = document.getElementById('excl-empty');
+  if (!folders.length) {
+    el.innerHTML = '';
+    el.appendChild(Object.assign(document.createElement('span'), {
+      className: 'muted', style: 'font-size:12px',
+      textContent: 'No custom exclusions yet — add folders below.'
+    }));
+    return;
+  }
+  el.innerHTML = '';
+  folders.forEach(name => {
+    const chip = document.createElement('span');
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:2px 10px;font-size:12px;font-family:monospace';
+    chip.innerHTML = `${name} <button onclick="removeExcluded(this,'${name.replace(/'/g,"\\'")}'" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:0;line-height:1">×</button>`;
+    el.appendChild(chip);
+  });
+}
+
+async function loadExcluded() {
+  try {
+    const r = await api('/scan/api/excluded-folders');
+    _renderExcluded(r.folders || []);
+  } catch(e) {
+    document.getElementById('excl-list').textContent = 'Failed to load.';
+  }
+}
+
+async function addExcluded() {
+  const inp = document.getElementById('excl-input');
+  const msg = document.getElementById('excl-msg');
+  const name = (inp.value || '').trim();
+  if (!name) { msg.textContent = 'Enter a folder name first.'; return; }
+  msg.textContent = 'Saving…';
+  try {
+    const r = await api('/scan/api/excluded-folders', {method:'POST', body:{name}});
+    if (r.ok) {
+      inp.value = '';
+      msg.textContent = '✔ Added';
+      _renderExcluded(r.folders || []);
+      setTimeout(() => { msg.textContent = ''; }, 2000);
+    } else {
+      msg.textContent = r.error || 'Failed';
+    }
+  } catch(e) { msg.textContent = e.message; }
+}
+
+async function removeExcluded(btn, name) {
+  btn.disabled = true;
+  try {
+    const r = await api('/scan/api/excluded-folders/' + encodeURIComponent(name), {method:'DELETE'});
+    if (r.ok) {
+      toast('✔ Removed: ' + name);
+      _renderExcluded(r.folders || []);
+    } else {
+      toast('✗ Failed to remove: ' + (r.error || 'unknown error'));
+      btn.disabled = false;
+    }
+  } catch(e) {
+    toast('✗ Error: ' + e.message);
+    btn.disabled = false;
+  }
+}
+
+/* ── Scan All ────────────────────────────────────────────────────────────── */
+async function scanAll() {
+  const btn = document.getElementById('btn-scan-all');
+  btn.disabled = true;
+  btn.textContent = '⚡ Starting…';
+  try {
+    const r = await api('/scan/api/scan-all', {method:'POST'});
+    const n = (r.started || []).length;
+    const sk = (r.skipped || []).length;
+    const er = (r.errors || []).length;
+    if (n === 0 && sk > 0) {
+      toast(`All ${sk} account${sk>1?'s':''} already running or not linked`);
+    } else if (n > 0) {
+      toast(`⚡ Started scan on ${n} account${n>1?'s':''}${sk?' ('+sk+' skipped)':''}`);
+      // Open the scan log card for the first started account
+      const firstId = r.started[0];
+      if (firstId) {
+        _scanAcct = firstId; _logAfter = 0;
+        _ssFolders = 0; _ssFiles = 0; _ssTitles = 0;
+        const card = document.getElementById('scan-card');
+        card.style.display = 'block';
+        card.scrollIntoView({behavior:'smooth', block:'start'});
+        document.getElementById('scan-log').innerHTML = '';
+        document.getElementById('scan-title').textContent =
+          n > 1 ? `Indexing (${n} accounts — showing acct #${firstId})` : 'Indexing progress';
+        document.getElementById('ss-status').textContent = 'scanning…';
+        document.getElementById('btn-pause').style.display  = 'inline-block';
+        document.getElementById('btn-resume').style.display = 'none';
+        document.getElementById('btn-stop').style.display   = 'inline-block';
+        _appendLog('info', `Scan-all started — ${n} account${n>1?'s':''} running`);
+        _connectSSE(firstId);
+      }
+    } else {
+      toast('No accounts to scan' + (er ? ` (${er} errors)` : ''));
+    }
+  } catch(e) {
+    toast('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⚡ Scan All';
+  }
+}
+
+/* ── Change Role (with confirm) ──────────────────────────────────────────── */
+async function changeRole(id, currentRole) {
+  const newRole = currentRole === 'scan' ? 'flix' : 'scan';
+  const key = '_chgRole_' + id;
+  if (!window[key]) {
+    const label = newRole === 'flix'
+      ? `Promote #${id} to FLIX? (only 1 active flix allowed) — click again to confirm`
+      : `Demote #${id} to SCAN (read-only)? — click again to confirm`;
+    window[key] = true;
+    toast('⚠ ' + label, 5000);
+    setTimeout(() => { window[key] = false; }, 5000);
+    return;
+  }
+  window[key] = false;
+  await _applyRoleChange(id, currentRole, newRole);
+}
+
+/* ── Quick Role (no confirm) ─────────────────────────────────────────────── */
+async function quickRole(id, currentRole) {
+  await _applyRoleChange(id, currentRole, currentRole === 'scan' ? 'flix' : 'scan');
+}
+
+async function _applyRoleChange(id, currentRole, newRole) {
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/role',
+                        {method:'PUT', body:{role: newRole}});
+    if (r.ok) {
+      toast(`✔ Account #${id} → ${newRole.toUpperCase()}`);
+      // Update role badge
+      const badge = document.getElementById('role-badge-' + id);
+      if (badge) {
+        badge.textContent = newRole.toUpperCase();
+        badge.style.cssText = newRole === 'flix'
+          ? 'font-size:11px;font-weight:700;background:rgba(255,170,0,.15);color:#ffaa00;border:1px solid rgba(255,170,0,.3)'
+          : 'font-size:11px;font-weight:700;background:rgba(124,92,255,.15);color:#a78bfa;border:1px solid rgba(124,92,255,.3)';
+      }
+      // Update quick-role button label + style
+      const qBtn = document.getElementById('btn-quick-role-' + id);
+      if (qBtn) {
+        qBtn.textContent = newRole === 'flix' ? '↩ Use for Scan' : '⚡ Use for Flix';
+        qBtn.style.cssText = newRole === 'flix'
+          ? 'font-size:12px;padding:4px 10px;border:1px solid rgba(255,170,0,.5);background:rgba(255,170,0,.15);color:#ffaa00'
+          : 'font-size:12px;padding:4px 10px;border:1px solid rgba(92,212,111,.4);background:rgba(92,212,111,.1);color:#5cd66f';
+        qBtn.setAttribute('onclick', `quickRole(${id}, '${newRole}')`);
+      }
+      // Keep changeRole button in sync too
+      const cBtn = document.querySelector(`[onclick="changeRole(${id}, '${currentRole}')"]`);
+      if (cBtn) cBtn.setAttribute('onclick', `changeRole(${id}, '${newRole}')`);
+    } else {
+      toast('⚠ ' + (r.error || 'Role change failed'));
+    }
+  } catch(e) {
+    toast('⚠ Error: ' + e.message);
+  }
+}
+
+/* ── Duplicate Detector ──────────────────────────────────────────────────── */
+async function loadDuplicates() {
+  const btn  = document.getElementById('btn-scan-dupes');
+  const msg  = document.getElementById('dupes-msg');
+  const body = document.getElementById('dupes-body');
+  btn.disabled = true;
+  btn.textContent = 'Scanning…';
+  msg.textContent = '';
+  body.innerHTML = '<div class="muted empty">Scanning…</div>';
+
+  try {
+    const r = await api('/scan/api/duplicates?limit=500');
+    const dupes = r.duplicates || [];
+    btn.disabled = false;
+    btn.textContent = '🔍 Scan for Duplicates';
+
+    if (!dupes.length) {
+      msg.textContent = '✔ No duplicates found in the indexed library.';
+      msg.style.color = 'var(--ok)';
+      body.innerHTML  = '';
+      return;
+    }
+
+    msg.textContent = `Found ${dupes.length} duplicate file${dupes.length>1?'s':''} (grouped by title)`;
+    msg.style.color = 'var(--warn,#f90)';
+
+    // Group by title_id
+    const groups = {};
+    dupes.forEach(f => {
+      const key = String(f.title_id || 'unknown') + '|' + (f.quality || '');
+      if (!groups[key]) groups[key] = {title: f.title || 'Unknown', year: f.year, media_type: f.media_type, quality: f.quality, files: []};
+      groups[key].files.push(f);
+    });
+
+    let html = '<div class="table-wrap"><table style="font-size:12px"><thead><tr>'
+      + '<th>Title</th><th>Year</th><th>Quality</th><th>File</th><th>Size</th>'
+      + '<th>Account</th><th>Folder</th><th>Note</th></tr></thead><tbody>';
+
+    Object.values(groups).forEach(g => {
+      g.files.forEach((f, idx) => {
+        const mb    = f.size_bytes ? (f.size_bytes/1048576).toFixed(1)+' MB' : '—';
+        const note  = idx === 0
+          ? '<span style="color:var(--ok);font-weight:600">keep</span>'
+          : '<span style="color:var(--warn,#f90)">duplicate</span>';
+        const rowBg = idx === 0 ? '' : 'background:rgba(255,160,0,.06)';
+        html += `<tr style="${rowBg}">
+          ${idx===0 ? `<td rowspan="${g.files.length}" style="font-weight:600;vertical-align:top">${g.title}</td>
+                       <td rowspan="${g.files.length}" class="muted" style="vertical-align:top">${g.year||'—'}</td>
+                       <td rowspan="${g.files.length}" class="muted" style="vertical-align:top">${g.quality||'—'}</td>` : ''}
+          <td style="max-width:280px;word-break:break-all">${f.filename||'—'}</td>
+          <td class="muted">${mb}</td>
+          <td class="muted">${f.account_id||'—'}</td>
+          <td class="muted" style="max-width:160px;word-break:break-all">${f.folder_path||f.remote_folder_id||'—'}</td>
+          <td>${note}</td></tr>`;
+      });
+    });
+
+    html += '</tbody></table></div>';
+    body.innerHTML = html;
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = '🔍 Scan for Duplicates';
+    msg.textContent = 'Error: ' + e.message;
+    msg.style.color = 'var(--err)';
+    body.innerHTML = '';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadAcctFiles();
+  loadExcluded();
+  refreshKeepaliveStatus();
+  setInterval(refreshKeepaliveStatus, 30000);
+});
+
+async function clearCookies(id, msisdn, btn) {
+  if (!confirm(
+    'Clear session cookies for ' + msisdn + '?\n\n' +
+    'This removes JSESSIONID and validation_key only.\n' +
+    'Your refresh_token is kept so the app can try a silent re-login automatically.\n\n' +
+    'Use this when the session is stale/dead but you do NOT want to fully log out.'
+  )) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Clearing…';
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/clear-cookies', {method:'POST'});
+    if (r.ok) {
+      const note = r.has_refresh_token
+        ? '\nRefresh token kept — keepalive will try silent re-auth automatically.'
+        : '\nNo refresh token — you will need to re-login with OTP.';
+      toast('🍪 Cookies cleared — ' + msisdn + note);
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      toast('Error: ' + (r.error || 'clear failed'));
+      btn.disabled = false; btn.textContent = orig;
+    }
+  } catch(e) {
+    toast('Error: ' + e.message);
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+async function logoutAcct(id, msisdn, btn) {
+  if (!confirm('Log out ' + msisdn + ' from JazzDrive?\n\nThis clears all session tokens. You will need to re-login with OTP to use this account again.')) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Logging out…';
+  try {
+    const r = await api('/scan/api/accounts/' + id + '/logout', {method:'POST'});
+    if (r.ok) {
+      toast('✅ Logged out — ' + msisdn);
+      setTimeout(() => location.reload(), 800);
+    } else {
+      toast('Error: ' + (r.error || 'logout failed'));
+      btn.disabled = false; btn.textContent = orig;
+    }
+  } catch(e) {
+    toast('Error: ' + e.message);
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+</script>{% endblock %}

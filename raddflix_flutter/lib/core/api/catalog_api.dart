@@ -1,0 +1,135 @@
+import '../constants.dart';
+import 'api_client.dart';
+import '../../models/catalog_item.dart';
+
+class CatalogApi {
+  static final _client = ApiClient.instance;
+
+  /// Returns the current catalog version number + total item count +
+  /// the last admin-forced version bump timestamp (forced_ts).
+  ///
+  /// forced_ts > 0 means an admin explicitly bumped the version via
+  /// POST /api/catalog/force-version-bump (e.g. after a plan/quota change).
+  /// SyncService uses forced_ts to decide between a full sync and a delta sync.
+  static Future<CatalogVersion> getVersion() async {
+    final response = await _client.get(ApiPaths.catalogVersion);
+    final data = response.data as Map<String, dynamic>;
+    return CatalogVersion(
+      version:  data['version']   as int? ?? 0,
+      count:    data['count']     as int? ?? 0,
+      forcedTs: data['forced_ts'] as int? ?? 0,
+    );
+  }
+
+  /// Full catalog sync. Returns all published titles + their episodes.
+  /// Also returns [SyncFullResult.validTitleIds] — the complete list of
+  /// currently published title IDs. SyncService uses this to prune
+  /// stale local entries after a forced re-sync (BUG-STALE-IDS).
+  static Future<SyncFullResult> syncFull() async {
+    final response = await _client.get(ApiPaths.catalogSync);
+    final data = response.data as Map<String, dynamic>;
+    final titles   = data['titles']   as List<dynamic>? ?? [];
+    final episodes = data['episodes'] as List<dynamic>? ?? [];
+    final validIds = (data['valid_title_ids'] as List<dynamic>? ?? [])
+        .map((e) => (e as num).toInt())
+        .toList();
+    return SyncFullResult(
+      items:          _buildItemsWithEpisodes(titles, episodes),
+      validTitleIds:  validIds,
+    );
+  }
+
+  /// Delta sync — only items changed since [sinceTimestamp].
+  /// Pass the last sync time; server returns only new/updated items.
+  static Future<List<CatalogItem>> syncDelta(int sinceTimestamp) async {
+    final response = await _client.get(
+      ApiPaths.catalogSync,
+      params: {'since': sinceTimestamp.toString()},
+    );
+    final data = response.data as Map<String, dynamic>;
+    final titles   = data['titles']   as List<dynamic>? ?? [];
+    final episodes = data['episodes'] as List<dynamic>? ?? [];
+    return _buildItemsWithEpisodes(titles, episodes);
+  }
+
+  /// Attaches episodes to their parent CatalogItems.
+  static List<CatalogItem> _buildItemsWithEpisodes(
+    List<dynamic> titles, List<dynamic> episodes) {
+    final epsByTitle = <int, List<Map<String, dynamic>>>{};
+    for (final ep in episodes) {
+      final m = ep as Map<String, dynamic>;
+      final tid = m['title_id'] as int? ?? 0;
+      if (tid == 0) continue; // skip orphaned episodes with no parent title
+      epsByTitle.putIfAbsent(tid, () => []).add(m);
+    }
+    return titles.map((e) {
+      final item = CatalogItem.fromJson(e as Map<String, dynamic>);
+      final eps = epsByTitle[item.id] ?? [];
+      return eps.isEmpty ? item : item.copyWithEpisodes(eps);
+    }).toList();
+  }
+
+  /// Fetch the JazzDrive share_url for a specific file from Oracle catalog.
+  /// Called when the local SQLite DB doesn't have the share_url (e.g. after a
+  /// fresh install or before BUG-009 fix was synced).
+  /// Returns null if Oracle is unreachable or file not found.
+  static Future<String?> getShareUrl(String fileId) async {
+    try {
+      final response = await _client.get(ApiPaths.fileShareUrl(fileId));
+      final data = response.data as Map<String, dynamic>;
+      return data['share_url'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Fetch TMDB-seeded recommendations — titles similar to the current library
+  /// that are NOT yet available on RaddFlix.  Requires active JWT session.
+  /// Returns raw JSON maps: {tmdb_id, title, media_type, year, rating, poster_url}.
+  static Future<List<Map<String, dynamic>>> fetchRecommendations({int limit = 20}) async {
+    try {
+      final response = await _client.get(
+        ApiPaths.recommend,
+        params: {'limit': limit.toString()},
+      );
+      final data = response.data as Map<String, dynamic>;
+      final results = data['results'] as List<dynamic>? ?? [];
+      // Server sends 'poster' but UI reads 'poster_url' — normalise here (BUG-A33)
+      return results.map((e) {
+        final m = Map<String, dynamic>.from(e as Map<String, dynamic>);
+        if (!m.containsKey('poster_url') && m.containsKey('poster')) {
+          m['poster_url'] = m['poster'];
+        }
+        return m;
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+}
+
+/// Result of a full catalog sync from Oracle.
+/// Carries both the synced [items] and the [validTitleIds] set —
+/// used by SyncService to prune stale entries from the local SQLite DB.
+class SyncFullResult {
+  final List<CatalogItem> items;
+  final List<int> validTitleIds;
+  const SyncFullResult({required this.items, required this.validTitleIds});
+}
+
+class CatalogVersion {
+  final int version;
+  final int count;
+
+  /// Timestamp of the last admin-forced catalog version bump.
+  /// When [forcedTs] > localVersion stored in SQLite, SyncService will run
+  /// a full sync instead of a delta — ensuring plan/quota changes reach the
+  /// app even if no title row was edited on the server.
+  final int forcedTs;
+
+  const CatalogVersion({
+    required this.version,
+    required this.count,
+    this.forcedTs = 0,
+  });
+}

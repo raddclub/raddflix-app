@@ -1,0 +1,100 @@
+// ── Flutter SDK path ──────────────────────────────────────────────────────────
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterRoot = localProperties.getProperty('flutter.sdk')
+if (flutterRoot == null) {
+    throw new GradleException(
+        "Flutter SDK not found. Set flutter.sdk in android/local.properties.\n" +
+        "On CI this is created automatically from \$FLUTTER_ROOT.")
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
+def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0'
+
+// Apply Android + Kotlin plugins (imperative style, compatible with old settings.gradle)
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+// Apply Flutter Gradle plugin (provides flutter.compileSdkVersion, flutter {} block, etc.)
+apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+
+// Read keystore config from key.properties (local dev) or environment vars (CI)
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    namespace "com.raddflix.app"
+    compileSdk 36
+    ndkVersion flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    signingConfigs {
+        release {
+            def ksPath = System.getenv('KEYSTORE_PATH')
+                ?: keystoreProperties['storeFile']
+                ?: 'keystore/raddflix.keystore'
+            storeFile file(ksPath)
+            storeType (System.getenv('KEYSTORE_TYPE') ?: keystoreProperties['storeType'] ?: 'PKCS12')
+            storePassword System.getenv('KEYSTORE_PASSWORD') ?: keystoreProperties['storePassword'] ?: ''
+            keyAlias System.getenv('KEY_ALIAS') ?: keystoreProperties['keyAlias'] ?: 'raddflix'
+            keyPassword System.getenv('KEY_PASSWORD') ?: keystoreProperties['keyPassword'] ?: ''
+        }
+    }
+
+    defaultConfig {
+        applicationId "com.raddflix.app"
+        minSdkVersion 21
+        targetSdkVersion 36
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+        multiDexEnabled true
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            // R8/ProGuard: shrink, obfuscate, optimize
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            signingConfig signingConfigs.debug
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    // Google Cast SDK for Chromecast support (play-services-cast-framework is
+    // sufficient; ExoPlayer 2 extension-cast removed — AUDIT-07: conflicts with
+    // the media_kit / Media3 stack already bundled by Flutter).
+    implementation 'com.google.android.gms:play-services-cast-framework:21.5.0'
+}

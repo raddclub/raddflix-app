@@ -1,0 +1,515 @@
+{% extends "base.html" %}
+{% set active="bots" %}
+{% block content %}
+<style>
+/* ── Bot master toggle ────────────────────────────────────────────────────── */
+.bot-master-toggle{position:relative;display:inline-flex;align-items:center;gap:9px;cursor:pointer;user-select:none}
+.bot-master-toggle input{position:absolute;opacity:0;width:0;height:0}
+.bot-toggle-track{position:relative;width:54px;height:28px;background:var(--panel2);border-radius:14px;
+  border:1.5px solid #2a3550;transition:background .2s,border-color .2s;flex-shrink:0}
+.bot-toggle-track::before{content:"";position:absolute;top:4px;left:4px;width:18px;height:18px;
+  border-radius:50%;background:#4a5568;transition:transform .22s cubic-bezier(.4,0,.2,1),background .2s}
+.bot-master-toggle input:checked + .bot-toggle-track{background:var(--accent);border-color:var(--accent)}
+.bot-master-toggle input:checked + .bot-toggle-track::before{transform:translateX(26px);background:#fff}
+.bot-master-toggle input:disabled + .bot-toggle-track{opacity:.5;cursor:not-allowed}
+.bot-toggle-lbl{font-size:.78rem;font-weight:700;color:#4a5568;min-width:54px;
+  text-transform:uppercase;letter-spacing:.06em;transition:color .2s}
+.bot-master-toggle input:checked ~ .bot-toggle-lbl{color:var(--accent)}
+
+/* ── Service body disabled state ─────────────────────────────────────────── */
+.svc-body{transition:opacity .25s,filter .25s}
+.svc-body.svc-off{opacity:.22;pointer-events:none;user-select:none;filter:grayscale(.5)}
+
+/* ── Disabled notice bar ─────────────────────────────────────────────────── */
+.svc-off-notice{display:none;align-items:center;gap:10px;background:rgba(255,200,50,.07);
+  border:1px solid rgba(255,200,50,.2);border-radius:8px;padding:10px 16px;
+  margin-bottom:14px;font-size:.83rem;color:#c8a847}
+.svc-off-notice.show{display:flex}
+
+/* ── Fallback badge ──────────────────────────────────────────────────────── */
+.badge-fallback{font-size:.65rem;padding:2px 7px;border-radius:4px;
+  background:rgba(255,200,50,.12);color:#e0b030;border:1px solid rgba(255,200,50,.28);
+  font-weight:700;letter-spacing:.05em;text-transform:uppercase;flex-shrink:0}
+
+@media(max-width:767px){
+  .bots-wa-grid{grid-template-columns:1fr !important}
+  .send-msg-grid{grid-template-columns:1fr !important}
+  .send-msg-grid button{width:100%}
+  .user-tabs{flex-wrap:wrap}
+  .bot-hdr-row{flex-direction:column;align-items:flex-start !important}
+}
+</style>
+
+<div class="h-row">
+  <h2>Bots</h2>
+  <span class="muted" style="font-size:13px">WhatsApp &amp; Telegram bot control</span>
+</div>
+
+<!-- Fallback-services info banner -->
+<div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.22);border-radius:8px;
+     padding:10px 16px;margin-bottom:20px;display:flex;align-items:center;gap:10px;font-size:.83rem;color:#a5b4fc">
+  <span style="font-size:1.05rem;flex-shrink:0">ℹ</span>
+  <span>Bots are <strong>fallback services</strong> — the <strong>mobile app</strong> is the primary service.
+  Bots only activate when toggled on. Disabling a bot <strong>automatically stops</strong> its process.</span>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     WhatsApp Bot
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="card">
+
+  <!-- Header: title + fallback badge + status badges + master toggle -->
+  <div class="row bot-hdr-row" style="justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px">
+    <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+      <h3 style="margin:0">WhatsApp Bot</h3>
+      <span class="badge-fallback">Fallback</span>
+      <div class="row" id="wa-badges" style="gap:5px">
+        <span class="badge b-mut" id="wa-badge-run">—</span>
+        <span class="badge b-mut" id="wa-badge-con"></span>
+      </div>
+    </div>
+    <label class="bot-master-toggle" id="wa-toggle-wrap" title="Enable or disable WhatsApp bot">
+      <input type="checkbox" id="wa-enabled-chk"
+             onchange="toggleBot('whatsapp',this.checked)"
+             {% if whatsapp_enabled %}checked{% endif %}>
+      <span class="bot-toggle-track"></span>
+      <span class="bot-toggle-lbl" id="wa-toggle-lbl">{{ 'Enabled' if whatsapp_enabled else 'Disabled' }}</span>
+    </label>
+  </div>
+
+  <!-- Disabled notice (always rendered, shown/hidden by JS + Jinja) -->
+  <div class="svc-off-notice{% if not whatsapp_enabled %} show{% endif %}" id="wa-off-notice">
+    <span>🔒</span>
+    <span>WhatsApp Bot is <strong>disabled</strong>. Toggle the switch above to enable, then click ▶ Start.</span>
+  </div>
+
+  <!-- Bot body: dims when disabled -->
+  <div class="svc-body{% if not whatsapp_enabled %} svc-off{% endif %}" id="wa-svc-body">
+
+    <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:18px">
+      <button onclick="waCmd('start')">▶ Start</button>
+      <button class="ghost" onclick="waCmd('stop')">■ Stop</button>
+      <button class="ghost" onclick="waCmd('restart')">↺ Restart</button>
+      <button class="danger" onclick="waRelink()" title="Wipe auth and restart">⚠ Re-link</button>
+    </div>
+
+    <!-- QR + pairing two-column -->
+    <div class="grid grid-2 bots-wa-grid" style="gap:18px">
+      <div class="card" style="margin-bottom:0;background:var(--panel2)">
+        <h3>QR Code</h3>
+        <div id="wa-qr-area" style="min-height:160px;display:flex;align-items:center;justify-content:center">
+          <div class="muted">Loading…</div>
+        </div>
+        <div id="wa-qr-hint" class="muted" style="margin-top:8px;font-size:11px"></div>
+      </div>
+      <div class="card" style="margin-bottom:0;background:var(--panel2)">
+        <h3>Pairing Code</h3>
+        <div class="muted" style="margin-bottom:10px;font-size:12px">
+          WhatsApp → Settings → Linked Devices → Link with phone number.
+        </div>
+        <div class="form-row">
+          <label>Phone number</label>
+          <input id="wa-phone" placeholder="923xxxxxxxxx" style="font-family:monospace">
+        </div>
+        <button onclick="requestPairingCode()">Request pairing code</button>
+        <div id="wa-pairing-display" style="margin-top:14px;display:none">
+          <div class="muted" style="margin-bottom:6px">Your pairing code:</div>
+          <div id="wa-pairing-code" style="font-size:28px;font-weight:700;letter-spacing:6px;
+               color:var(--accent);font-family:monospace"></div>
+          <div class="muted" style="margin-top:6px;font-size:11px">Code expires in ~60 seconds.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Log viewer -->
+    <div style="margin-top:18px">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px">
+        <strong>Live log</strong>
+        <div class="row" style="gap:6px">
+          <button class="ghost" style="padding:4px 10px;font-size:12px"
+            onclick="copyToClipboard(this.parentElement.parentElement.nextElementSibling)">📋 Copy</button>
+          <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="loadWaLogs()">↺ Refresh</button>
+        </div>
+      </div>
+      <pre id="wa-log" style="background:var(--panel2);padding:12px;border-radius:8px;
+           max-height:220px;overflow:auto;font-size:11px;color:var(--muted);margin:0;
+           font-family:ui-monospace,monospace;line-height:1.4;word-break:break-all">—</pre>
+    </div>
+  </div><!-- /wa-svc-body -->
+</div><!-- /WhatsApp card -->
+
+<!-- WA Users -->
+<div class="svc-body{% if not whatsapp_enabled %} svc-off{% endif %}" id="wa-users-body">
+  <div class="card">
+    <h3>WhatsApp Users</h3>
+    <div class="user-tabs" style="display:flex;gap:4px;margin-bottom:16px" id="user-tabs">
+      <button class="ghost" id="ut-admins"   onclick="switchUserTab('admins')"   style="font-size:12px">Admins</button>
+      <button class="ghost" id="ut-verified" onclick="switchUserTab('verified')" style="font-size:12px">Verified</button>
+      <button class="ghost" id="ut-blocked"  onclick="switchUserTab('blocked')"  style="font-size:12px">Blocked</button>
+    </div>
+    <div id="user-list" style="min-height:60px"></div>
+    <hr>
+    <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+      <input id="new-user-num" placeholder="Phone number (923…)" style="max-width:220px;flex:1;min-width:140px">
+      <select id="new-user-role" style="width:auto;flex-shrink:0">
+        <option value="admins">Admin</option>
+        <option value="verified" selected>Verified</option>
+        <option value="blocked">Blocked</option>
+      </select>
+      <button onclick="addWaUser()" style="flex-shrink:0">Add user</button>
+    </div>
+  </div>
+</div>
+
+<!-- WA Send message -->
+<div class="svc-body{% if not whatsapp_enabled %} svc-off{% endif %}" id="wa-send-body">
+  <div class="card">
+    <h3>Send Message</h3>
+    <div class="send-msg-grid grid" style="grid-template-columns:1fr 2fr auto;gap:10px;align-items:end">
+      <div class="form-row" style="margin:0">
+        <label>JID (923…@s.whatsapp.net)</label>
+        <input id="send-jid" placeholder="923xxxxxxxxx@s.whatsapp.net">
+      </div>
+      <div class="form-row" style="margin:0">
+        <label>Message</label>
+        <input id="send-msg-txt" placeholder="Hello from Radd Hub">
+      </div>
+      <button onclick="sendWaMsg()" style="margin-bottom:1px;flex-shrink:0">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- WA Broadcast -->
+<div class="svc-body{% if not whatsapp_enabled %} svc-off{% endif %}" id="wa-bcast-body">
+  <div class="card">
+    <h3>Broadcast Message</h3>
+    <div class="muted" style="margin-bottom:12px;font-size:12px">
+      Send a message to all users in the selected roles simultaneously.
+    </div>
+    <div class="form-row">
+      <label>Message</label>
+      <textarea id="bcast-msg" rows="3" placeholder="Type your broadcast message…"
+        style="resize:vertical"></textarea>
+    </div>
+    <div class="row" style="gap:10px;margin-top:8px;flex-wrap:wrap;align-items:center">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;
+        text-transform:none;letter-spacing:0;color:var(--text)">
+        <input type="checkbox" id="bcast-r-verified" checked> Verified</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;
+        text-transform:none;letter-spacing:0;color:var(--text)">
+        <input type="checkbox" id="bcast-r-admins"> Admins</label>
+      <button onclick="sendBroadcast()">📢 Send Broadcast</button>
+      <span id="bcast-status" class="muted" style="font-size:12px"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     Telegram Bot
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="card" style="margin-top:8px">
+
+  <div class="row bot-hdr-row" style="justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px">
+    <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+      <h3 style="margin:0">Telegram Bot</h3>
+      <span class="badge-fallback">Fallback</span>
+      <div class="row" style="gap:5px">
+        <span class="badge b-mut" id="tg-badge-run">—</span>
+        <span class="badge b-mut" id="tg-badge-con"></span>
+      </div>
+    </div>
+    <label class="bot-master-toggle" title="Enable or disable Telegram bot">
+      <input type="checkbox" id="tg-enabled-chk"
+             onchange="toggleBot('telegram',this.checked)"
+             {% if telegram_enabled %}checked{% endif %}>
+      <span class="bot-toggle-track"></span>
+      <span class="bot-toggle-lbl" id="tg-toggle-lbl">{{ 'Enabled' if telegram_enabled else 'Disabled' }}</span>
+    </label>
+  </div>
+
+  <div class="svc-off-notice{% if not telegram_enabled %} show{% endif %}" id="tg-off-notice">
+    <span>🔒</span>
+    <span>Telegram Bot is <strong>disabled</strong>. Toggle the switch above to enable, then click ▶ Start.</span>
+  </div>
+
+  <div class="svc-body{% if not telegram_enabled %} svc-off{% endif %}" id="tg-svc-body">
+    <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      <button onclick="tgCmd('start')">▶ Start</button>
+      <button class="ghost" onclick="tgCmd('stop')">■ Stop</button>
+      <button class="ghost" onclick="tgCmd('restart')">↺ Restart</button>
+    </div>
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <strong>Live log</strong>
+      <div class="row" style="gap:6px">
+        <button class="ghost" style="padding:4px 10px;font-size:12px"
+          onclick="copyToClipboard(this.parentElement.parentElement.nextElementSibling)">📋 Copy</button>
+        <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="loadTgLogs()">↺ Refresh</button>
+      </div>
+    </div>
+    <pre id="tg-log" style="background:var(--panel2);padding:12px;border-radius:8px;
+         max-height:180px;overflow:auto;font-size:11px;color:var(--muted);margin:0;
+         font-family:ui-monospace,monospace;line-height:1.4;word-break:break-all">—</pre>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}<script>
+'use strict';
+const WA='/bots/api/whatsapp';
+const TG='/bots/api/telegram';
+let _userTab='admins';
+let _waUsers={};
+let _waPollTmr=null;
+let _tgPollTmr=null;
+let _waLogTmr=null;
+let _tgLogTmr=null;
+
+function setEl(id,html){const e=document.getElementById(id);if(e)e.innerHTML=html;}
+
+// ── Master toggle ─────────────────────────────────────────────────────────
+async function toggleBot(service,enabled){
+  const chkId = service==='whatsapp'?'wa-enabled-chk':'tg-enabled-chk';
+  const chk   = document.getElementById(chkId);
+  if(chk) chk.disabled=true;
+  try{
+    const d=await api('/bots/api/toggle',{method:'POST',body:{service,enabled}});
+    if(!d.ok){
+      toast('Error: '+(d.error||'unknown'));
+      if(chk){chk.checked=!enabled;}
+      return;
+    }
+    _applyBotState(service,enabled);
+    const lbl=document.getElementById(service==='whatsapp'?'wa-toggle-lbl':'tg-toggle-lbl');
+    if(lbl) lbl.textContent=enabled?'Enabled':'Disabled';
+    const svcName=service==='whatsapp'?'WhatsApp':'Telegram';
+    toast(enabled
+      ? svcName+' bot enabled — click ▶ Start to run it'
+      : svcName+' bot disabled and stopped');
+  }catch(e){
+    toast('Failed: '+e.message);
+    if(chk){chk.checked=!enabled;}
+  }finally{
+    if(chk) chk.disabled=false;
+  }
+}
+
+function _applyBotState(service,enabled){
+  if(service==='whatsapp'){
+    const ids=['wa-svc-body','wa-users-body','wa-send-body','wa-bcast-body'];
+    ids.forEach(id=>{
+      const el=document.getElementById(id);
+      if(!el) return;
+      enabled?el.classList.remove('svc-off'):el.classList.add('svc-off');
+    });
+    const notice=document.getElementById('wa-off-notice');
+    if(notice){ enabled?notice.classList.remove('show'):notice.classList.add('show'); }
+    if(!enabled){
+      clearInterval(_waPollTmr); clearInterval(_waLogTmr);
+      _waPollTmr=null; _waLogTmr=null;
+      setEl('wa-badge-run','<span class="badge b-mut">disabled</span>');
+      document.getElementById('wa-badge-con').textContent='';
+    } else {
+      _startWaPolling();
+    }
+  } else {
+    const body=document.getElementById('tg-svc-body');
+    if(body){ enabled?body.classList.remove('svc-off'):body.classList.add('svc-off'); }
+    const notice=document.getElementById('tg-off-notice');
+    if(notice){ enabled?notice.classList.remove('show'):notice.classList.add('show'); }
+    if(!enabled){
+      clearInterval(_tgPollTmr); clearInterval(_tgLogTmr);
+      _tgPollTmr=null; _tgLogTmr=null;
+      setEl('tg-badge-run','<span class="badge b-mut">disabled</span>');
+      document.getElementById('tg-badge-con').textContent='';
+    } else {
+      _startTgPolling();
+    }
+  }
+}
+
+// ── WhatsApp polling ──────────────────────────────────────────────────────
+async function _pollWaStatus(){
+  try{
+    const d=await api(WA+'/qr');
+    const rb=document.getElementById('wa-badge-run');
+    if(rb){rb.textContent=d.running?'running':'stopped';rb.className='badge '+(d.running?'b-ok':'b-err');}
+    const cb=document.getElementById('wa-badge-con');
+    if(cb&&d.connected){cb.textContent='connected';cb.className='badge b-ok';}
+    else if(cb){cb.textContent='';cb.className='badge b-mut';}
+    const qrArea=document.getElementById('wa-qr-area');
+    const qrHint=document.getElementById('wa-qr-hint');
+    if(d.connected){
+      if(qrArea) qrArea.innerHTML='<div style="color:var(--ok);font-size:22px;text-align:center">✔ Connected</div>';
+      if(qrHint) qrHint.textContent='WhatsApp session is active.';
+    }else if(d.qr_available){
+      const ts=Date.now();
+      if(qrArea) qrArea.innerHTML='<img src="'+WA+'/qr.png?t='+ts+'" style="max-width:100%;border-radius:8px" alt="QR">';
+      if(qrHint) qrHint.textContent='Scan with WhatsApp → Linked Devices. Auto-refreshes every 5s.';
+    }else if(d.running){
+      if(qrArea) qrArea.innerHTML='<div class="muted" style="text-align:center">Bot started — waiting for QR…</div>';
+      if(qrHint) qrHint.textContent='';
+    }else{
+      if(qrArea) qrArea.innerHTML='<div class="muted" style="text-align:center">Bot not running.<br>Click ▶ Start above.</div>';
+      if(qrHint) qrHint.textContent='';
+    }
+    if(d.pairing_code){
+      document.getElementById('wa-pairing-display').style.display='block';
+      setEl('wa-pairing-code',d.pairing_code);
+    }
+  }catch(e){console.warn('wa poll',e);}
+}
+function _startWaPolling(){
+  _pollWaStatus();
+  clearInterval(_waPollTmr);
+  _waPollTmr=setInterval(_pollWaStatus,5000);
+  loadWaLogs();
+  loadWaUsers();
+  clearInterval(_waLogTmr);
+  _waLogTmr=setInterval(loadWaLogs,10000);
+}
+
+async function waCmd(cmd){
+  try{await api(WA+'/'+cmd,{method:'POST'});toast(cmd+' sent');_pollWaStatus();}
+  catch(e){toast('Failed: '+e.message);}
+}
+async function waRelink(){
+  if(!confirm('This will wipe the WhatsApp session and restart the bot. Continue?')) return;
+  try{await api(WA+'/relink',{method:'POST'});toast('Re-link triggered');_startWaPolling();}
+  catch(e){toast('Failed: '+e.message);}
+}
+async function requestPairingCode(){
+  const phone=document.getElementById('wa-phone').value.trim();
+  if(!phone){toast('Enter a phone number first');return;}
+  try{
+    const d=await api(WA+'/pair',{method:'POST',body:{phone}});
+    if(d.ok||d.code){
+      document.getElementById('wa-pairing-display').style.display='block';
+      setEl('wa-pairing-code',d.code||d.pairing_code||'(check QR area)');
+      toast('Pairing code requested');setTimeout(_pollWaStatus,2000);
+    }else{toast('Error: '+(d.error||'unknown'));}
+  }catch(e){toast('Failed: '+e.message);}
+}
+async function loadWaLogs(){
+  try{
+    const d=await api(WA+'/logs?n=60');
+    const el=document.getElementById('wa-log');
+    if(el){el.textContent=(d.lines||[]).join('\n')||'(no logs yet)';el.scrollTop=el.scrollHeight;}
+  }catch(e){const el=document.getElementById('wa-log');if(el)el.textContent='Error: '+e.message;}
+}
+async function loadWaUsers(){
+  try{
+    const d=await api(WA+'/users');_waUsers=d.users||{};renderUserTab();
+  }catch(e){setEl('user-list','<div class="muted">Failed to load users: '+e.message+'</div>');}
+}
+function switchUserTab(tab){
+  _userTab=tab;
+  ['admins','verified','blocked'].forEach(t=>{
+    const btn=document.getElementById('ut-'+t);
+    if(btn) btn.className=t===tab?'':'ghost';
+  });
+  renderUserTab();
+}
+function renderUserTab(){
+  const arr=_waUsers[_userTab]||[];
+  if(!arr.length){setEl('user-list','<div class="muted empty">No '+_userTab+' yet.</div>');return;}
+  setEl('user-list','<div class="table-wrap"><table><thead><tr><th>JID</th><th></th></tr></thead><tbody>'+
+    arr.map(jid=>{
+      const num=jid.replace('@s.whatsapp.net','');
+      return '<tr><td><code style="font-size:11px">'+jid+'</code></td><td>'+
+        '<button class="danger" style="padding:4px 10px;font-size:12px" '+
+        'onclick="removeWaUser(\''+_userTab+'\',\''+num+'\')">Remove</button></td></tr>';
+    }).join('')+'</tbody></table></div>');
+}
+async function addWaUser(){
+  const num=document.getElementById('new-user-num').value.trim();
+  const role=document.getElementById('new-user-role').value;
+  if(!num){toast('Enter a phone number');return;}
+  try{
+    await api(WA+'/users/add',{method:'POST',body:{role,number:num}});
+    toast('Added');document.getElementById('new-user-num').value='';await loadWaUsers();
+  }catch(e){toast('Failed: '+e.message);}
+}
+async function removeWaUser(role,num){
+  try{
+    await api(WA+'/users/remove',{method:'POST',body:{role,number:num}});
+    toast('Removed');await loadWaUsers();
+  }catch(e){toast('Failed: '+e.message);}
+}
+async function sendWaMsg(){
+  const jid=document.getElementById('send-jid').value.trim();
+  const msg=document.getElementById('send-msg-txt').value.trim();
+  if(!jid||!msg){toast('JID and message required');return;}
+  try{
+    const d=await api(WA+'/send',{method:'POST',body:{jid,message:msg}});
+    toast(d.ok?'Sent!':('Failed: '+(d.error||'?')));
+  }catch(e){toast('Failed: '+e.message);}
+}
+async function sendBroadcast(){
+  const msg=(document.getElementById('bcast-msg').value||'').trim();
+  const chkV=document.getElementById('bcast-r-verified').checked;
+  const chkA=document.getElementById('bcast-r-admins').checked;
+  const st=document.getElementById('bcast-status');
+  if(!msg){toast('Enter a message first');return;}
+  const roles=[];if(chkV)roles.push('verified');if(chkA)roles.push('admins');
+  if(!roles.length){toast('Select at least one role');return;}
+  if(!confirm('Send broadcast to all '+roles.join(' + ')+' users?')) return;
+  if(st) st.textContent='Sending…';
+  try{
+    const d=await api('/api/whatsapp/broadcast',{method:'POST',body:{message:msg,roles}});
+    const info='Sent '+d.sent+' / '+d.total+(d.failed?' ('+d.failed+' failed)':'');
+    if(st) st.textContent=info;
+    toast(d.ok?info:('Failed: '+(d.error||'?')));
+    if(d.ok) document.getElementById('bcast-msg').value='';
+  }catch(e){if(st)st.textContent='Error: '+e.message;toast('Failed: '+e.message);}
+}
+
+// ── Telegram polling ──────────────────────────────────────────────────────
+async function _pollTgStatus(){
+  try{
+    const d=await api(TG+'/status');
+    const rb=document.getElementById('tg-badge-run');
+    if(rb){rb.textContent=d.running?'running':'stopped';rb.className='badge '+(d.running?'b-ok':'b-err');}
+    const cb=document.getElementById('tg-badge-con');
+    if(cb&&d.connected){cb.textContent='connected';cb.className='badge b-ok';}
+    else if(cb){cb.textContent='';cb.className='badge b-mut';}
+  }catch(e){console.warn('tg poll',e);}
+}
+function _startTgPolling(){
+  _pollTgStatus();
+  clearInterval(_tgPollTmr);
+  _tgPollTmr=setInterval(_pollTgStatus,10000);
+  loadTgLogs();
+  clearInterval(_tgLogTmr);
+  _tgLogTmr=setInterval(loadTgLogs,15000);
+}
+async function tgCmd(cmd){
+  try{await api(TG+'/'+cmd,{method:'POST'});toast(cmd+' sent');setTimeout(_pollTgStatus,1000);}
+  catch(e){toast('Failed: '+e.message);}
+}
+async function loadTgLogs(){
+  try{
+    const d=await api(TG+'/logs?n=60');
+    const el=document.getElementById('tg-log');
+    if(el){el.textContent=(d.lines||[]).join('\n')||'(no logs yet)';el.scrollTop=el.scrollHeight;}
+  }catch(e){const el=document.getElementById('tg-log');if(el)el.textContent='Error: '+e.message;}
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+(function init(){
+  switchUserTab('admins');
+  const waOn=document.getElementById('wa-enabled-chk')?.checked??false;
+  const tgOn=document.getElementById('tg-enabled-chk')?.checked??false;
+  if(waOn){
+    _startWaPolling();
+  }else{
+    const rb=document.getElementById('wa-badge-run');
+    if(rb){rb.textContent='disabled';rb.className='badge b-mut';}
+  }
+  if(tgOn){
+    _startTgPolling();
+  }else{
+    const rb=document.getElementById('tg-badge-run');
+    if(rb){rb.textContent='disabled';rb.className='badge b-mut';}
+  }
+})();
+</script>{% endblock %}

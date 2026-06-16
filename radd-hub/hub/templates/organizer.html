@@ -1,0 +1,658 @@
+{% extends "base.html" %}
+{% set active="organizer" %}
+{% block content %}
+<style>
+/* ── Layout ── */
+.org-grid { display:grid; grid-template-columns:1fr 340px; gap:14px; }
+@media(max-width:900px){ .org-grid { grid-template-columns:1fr; } }
+
+/* ── Operation rows ── */
+.op-row td { vertical-align:middle; }
+.op-row.op-delete td { background:rgba(255,107,107,.04); }
+.op-row.op-rename td { background:rgba(92,212,111,.04); }
+.op-row.op-move   td { background:rgba(92,170,255,.04); }
+.op-row.selected td  { background:rgba(124,92,255,.08) !important; }
+.op-row.applying td  { opacity:.5; }
+.op-row.done-ok td   { background:rgba(92,212,111,.10) !important; text-decoration:line-through; opacity:.6; }
+.op-row.done-err td  { background:rgba(255,107,107,.10) !important; }
+
+/* ── Badges ── */
+.reason-badge { font-size:10px; padding:2px 7px; border-radius:10px; font-weight:600; white-space:nowrap; }
+.rb-backdrop { background:#3a1c22; color:#ff6b6b; }
+.rb-dup      { background:#3d3220; color:#ffc857; }
+.rb-poster   { background:#1d2a3d; color:#5cb4ff; }
+.rb-clean    { background:#1f3a25; color:#5cd66f; }
+.rb-move     { background:#1d2a40; color:#7ab4ff; }
+
+/* ── Auto panel ── */
+.auto-card { position:sticky; top:14px; }
+.auto-stat { display:flex; justify-content:space-between; padding:5px 0;
+             border-bottom:1px solid var(--border); font-size:12px; }
+.auto-stat:last-child { border:none; }
+.auto-stat .val { font-weight:700; }
+.auto-stat .val.ok  { color:var(--ok); }
+.auto-stat .val.err { color:var(--err); }
+.auto-stat .val.mu  { color:#ffc857; }
+.auto-stat .val.bl  { color:#7ab4ff; }
+
+/* ── Progress bar ── */
+.prog-wrap { background:var(--panel3); border-radius:4px; height:6px; overflow:hidden; margin:8px 0; }
+.prog-bar  { height:100%; border-radius:4px; background:var(--ok); transition:width .3s; }
+.prog-bar.applying { background:#7ab4ff; }
+
+/* ── Log ── */
+.live-log  { background:var(--panel2); border:1px solid var(--border); border-radius:8px;
+             padding:10px 12px; font-size:11px; font-family:monospace;
+             max-height:160px; overflow-y:auto; white-space:pre-wrap; margin-top:10px; }
+
+/* ── Filter bar ── */
+.filter-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+.filter-bar input[type=text] { max-width:200px; }
+.fl { display:flex; align-items:center; gap:4px; font-size:12px; color:var(--muted); }
+.fl input { margin:0; }
+
+/* ── Plan stats ── */
+.plan-stats { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.ps  { background:var(--panel2); border:1px solid var(--border); border-radius:8px;
+       padding:6px 12px; font-size:12px; }
+.ps .pv { font-size:18px; font-weight:700; }
+.ps .pk { color:var(--muted); font-size:10px; }
+
+/* ── Move button & folder picker ── */
+.move-btn { font-size:10px; padding:2px 6px; background:var(--panel3);
+            border:1px solid var(--border); border-radius:4px; cursor:pointer;
+            color:var(--muted); }
+.move-btn:hover { color:#7ab4ff; border-color:#7ab4ff; }
+#folder-modal { display:none; position:fixed; inset:0; z-index:9000;
+                background:rgba(0,0,0,.65); align-items:center; justify-content:center; }
+#folder-modal.open { display:flex; }
+.folder-modal-box { background:var(--panel1); border:1px solid var(--border);
+                    border-radius:12px; width:400px; max-width:94vw; max-height:78vh;
+                    display:flex; flex-direction:column; overflow:hidden; }
+.fm-head { padding:12px 14px; border-bottom:1px solid var(--border);
+           display:flex; align-items:center; justify-content:space-between; }
+.fm-head h3 { margin:0; font-size:14px; }
+.fm-body { flex:1; overflow-y:auto; padding:4px 0; }
+.fm-foot { padding:8px 14px; border-top:1px solid var(--border);
+           display:flex; gap:6px; justify-content:flex-end; align-items:center; }
+.frow { display:flex; align-items:center; gap:8px; padding:7px 14px; cursor:pointer; font-size:12px; }
+.frow:hover { background:var(--panel2); }
+.frow.sel { background:rgba(92,170,255,.12); color:#7ab4ff; }
+.frow .exp { color:var(--muted); font-size:10px; padding:1px 4px; }
+.fm-bc { padding:4px 14px; font-size:10px; color:var(--muted);
+         border-bottom:1px solid var(--border); display:flex; gap:4px; flex-wrap:wrap; }
+.fm-bc span { cursor:pointer; }
+.fm-bc span:hover { color:var(--fg); }
+
+.no-acct-msg { padding:30px; text-align:center; color:var(--muted); }
+</style>
+
+<div class="h-row" style="margin-bottom:14px">
+  <div>
+    <h2>JD Organizer</h2>
+    <div class="muted" style="font-size:13px;margin-top:2px">
+      Smart JazzDrive clean-up — auto-rename dirty filenames, fix poster names, remove backdrops, catch duplicates.
+    </div>
+  </div>
+</div>
+
+{% if not accounts %}
+<div class="card no-acct-msg">
+  No scan accounts added yet. Go to <a href="/scan/">JD Indexer</a> and add an account first.
+</div>
+{% else %}
+
+{# ── Account row ── #}
+<div class="card" style="margin-bottom:12px;padding:12px 16px">
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+    <div style="flex:1;min-width:180px">
+      <label style="margin-bottom:5px;display:block;font-size:12px">JazzDrive Account</label>
+      <select id="acct-sel" style="width:100%">
+        {% for a in accounts %}
+        <option value="{{ a.id }}">{{ a.label or a.msisdn }} ({{ a.msisdn }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button id="btn-auto" onclick="startAuto()" style="background:var(--ok);border:none;white-space:nowrap">
+      ⚡ Auto-Organize
+    </button>
+    <button id="btn-plan" class="ghost" onclick="startPlan()">🔍 Plan only</button>
+    <span id="top-status" class="muted" style="font-size:12px;align-self:center"></span>
+  </div>
+</div>
+
+<div class="org-grid">
+  {# ── Left: ops table ── #}
+  <div>
+    <div class="plan-stats" id="plan-stats" style="display:none">
+      <div class="ps"><div class="pv" id="st-folders">—</div><div class="pk">Folders</div></div>
+      <div class="ps"><div class="pv" id="st-files">—</div><div class="pk">Files</div></div>
+      <div class="ps"><div class="pv" id="st-renames" style="color:var(--ok)">—</div><div class="pk">Renames</div></div>
+      <div class="ps"><div class="pv" id="st-deletes" style="color:var(--err)">—</div><div class="pk">Deletes</div></div>
+      <div class="ps"><div class="pv" id="st-moves" style="color:#7ab4ff">—</div><div class="pk">Moves</div></div>
+    </div>
+
+    <div id="ops-section" style="display:none">
+      <div class="card" style="padding:12px 14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <div style="font-size:13px;font-weight:600" id="ops-header">Proposed Operations</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            <button class="ghost" style="font-size:11px;padding:3px 9px" onclick="selectAll(true)">All</button>
+            <button class="ghost" style="font-size:11px;padding:3px 9px" onclick="selectAll(false)">None</button>
+            <button class="ghost" style="font-size:11px;padding:3px 9px" onclick="selectByType('rename')">Renames</button>
+            <button class="ghost" style="font-size:11px;padding:3px 9px" onclick="selectByType('delete')">Deletes</button>
+            <button id="btn-apply" onclick="applySelected()" style="background:var(--ok);border:none;font-size:12px">✓ Apply selected</button>
+          </div>
+        </div>
+
+        <div class="filter-bar">
+          <input type="text" id="filter-input" placeholder="Filter…" oninput="filterOps()" style="max-width:180px">
+          <label class="fl"><input type="checkbox" id="fr" checked onchange="filterOps()"> Renames</label>
+          <label class="fl"><input type="checkbox" id="fd" checked onchange="filterOps()"> Deletes</label>
+          <label class="fl"><input type="checkbox" id="fm" checked onchange="filterOps()"> Moves</label>
+          <label class="fl"><input type="checkbox" id="fa" checked onchange="filterOps()"> Auto</label>
+          <label class="fl"><input type="checkbox" id="fw" checked onchange="filterOps()"> Review</label>
+        </div>
+
+        <div class="table-wrap">
+          <table id="ops-table">
+            <thead>
+              <tr>
+                <th style="width:28px"><input type="checkbox" id="chk-all" onchange="toggleAll(this.checked)"></th>
+                <th>Op</th>
+                <th>Folder</th>
+                <th>Current name</th>
+                <th>→ New name / Dest</th>
+                <th>Size</th>
+                <th>Reason</th>
+                <th style="width:52px"></th>
+              </tr>
+            </thead>
+            <tbody id="ops-tbody"></tbody>
+          </table>
+        </div>
+        <div id="ops-empty" class="empty" style="display:none">No operations match the filter.</div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Right: auto panel ── #}
+  <div>
+    <div class="card auto-card" id="auto-panel">
+      <h3 style="margin:0 0 10px">Auto-Organizer</h3>
+      <div class="muted" style="font-size:12px;margin-bottom:12px">
+        <b>⚡ Auto-Organize</b> scans your drive, auto-applies all safe fixes, and flags duplicates for review — no manual selection needed.
+      </div>
+
+      <div id="auto-idle">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">What it auto-applies:</div>
+        <div class="auto-stat"><span>Dirty filename renames</span><span class="val ok">✓ Auto</span></div>
+        <div class="auto-stat"><span>poster_N.jpg → poster.jpg</span><span class="val ok">✓ Auto</span></div>
+        <div class="auto-stat"><span>Backdrop image deletes</span><span class="val ok">✓ Auto</span></div>
+        <div class="auto-stat"><span>Duplicate poster deletes</span><span class="val ok">✓ Auto</span></div>
+        <div class="auto-stat"><span>Duplicate media deletes</span><span class="val mu">⚠ Review</span></div>
+        <div class="auto-stat"><span>File moves</span><span class="val bl">Manual</span></div>
+        <div style="margin-top:14px">
+          <button onclick="startAuto()" style="width:100%;background:var(--ok);border:none">⚡ Start Auto-Organize</button>
+        </div>
+      </div>
+
+      <div id="auto-running" style="display:none">
+        <div id="auto-phase" style="font-size:12px;font-weight:600;margin-bottom:8px">Scanning…</div>
+        <div class="prog-wrap"><div class="prog-bar" id="auto-prog" style="width:0%"></div></div>
+        <div id="auto-prog-label" class="muted" style="font-size:11px;margin-bottom:8px"></div>
+        <div class="auto-stat"><span>Folders scanned</span><span class="val" id="ar-folders">0</span></div>
+        <div class="auto-stat"><span>Files found</span><span class="val" id="ar-files">0</span></div>
+        <div class="auto-stat"><span>Ops queued</span><span class="val" id="ar-ops">0</span></div>
+        <div class="auto-stat"><span>Applied</span><span class="val ok" id="ar-applied">0</span></div>
+        <div class="auto-stat"><span>Failed</span><span class="val err" id="ar-failed">0</span></div>
+        <div class="live-log" id="auto-log"></div>
+      </div>
+
+      <div id="auto-done" style="display:none">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--ok)">✓ Done!</div>
+        <div class="auto-stat"><span>Applied</span><span class="val ok" id="ad-applied">0</span></div>
+        <div class="auto-stat"><span>Failed</span><span class="val err" id="ad-failed">0</span></div>
+        <div class="auto-stat"><span>For review</span><span class="val mu" id="ad-review">0</span></div>
+        <button id="btn-apply-review" onclick="applyReview()"
+          style="display:none;width:100%;margin-top:12px;background:#ffc857;color:#111;border:none;font-size:12px;font-weight:700;padding:8px">
+          ⚠ Apply <span id="ad-review-cnt">0</span> review ops
+        </button>
+        <div style="margin-top:8px;display:flex;gap:6px">
+          <button onclick="startAuto()" class="ghost" style="flex:1;font-size:12px">Run again</button>
+          <button onclick="startPlan()" class="ghost" style="flex:1;font-size:12px">Plan only</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+
+{# ── Folder picker modal ── #}
+<div id="folder-modal">
+  <div class="folder-modal-box">
+    <div class="fm-head"><h3>Move to folder</h3>
+      <button class="ghost icon-btn" onclick="closePicker()">✕</button>
+    </div>
+    <div class="fm-bc" id="fm-bc"><span onclick="browseFolder(0)">root</span></div>
+    <div class="fm-body" id="fm-body"><div class="muted" style="padding:16px;text-align:center">Loading…</div></div>
+    <div class="fm-foot">
+      <span id="fm-sel-name" class="muted" style="font-size:11px;flex:1"></span>
+      <button class="ghost" onclick="closePicker()">Cancel</button>
+      <button id="fm-confirm" onclick="confirmMove()" disabled>Move here</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let _allOps = [];
+let _visOps = [];
+let _sse     = null;
+let _pickerOpId   = null;
+let _pickerFolderId = null;
+let _pickerFolderName = '';
+let _folderPath = [{id:0, name:'root'}];
+let _statFolders = 0, _statFiles = 0;
+
+// ── Badges ─────────────────────────────────────────────────────────────────
+const REASON_CLS = {
+  'backdrop image': 'rb-backdrop', 'duplicate poster': 'rb-dup',
+  'standardise poster name': 'rb-poster', 'clean filename': 'rb-clean',
+  'move to folder': 'rb-move',
+};
+function reasonBadge(r){
+  const k = Object.keys(REASON_CLS).find(k=>r.startsWith(k))||'';
+  return `<span class="reason-badge ${REASON_CLS[k]||'rb-clean'}">${esc(r)}</span>`;
+}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Stats ──────────────────────────────────────────────────────────────────
+function updateStats(){
+  const r=_allOps.filter(o=>o.type==='rename').length;
+  const d=_allOps.filter(o=>o.type==='delete').length;
+  const m=_allOps.filter(o=>o.type==='move').length;
+  document.getElementById('st-folders').textContent = _statFolders||'—';
+  document.getElementById('st-files').textContent   = _statFiles||'—';
+  document.getElementById('st-renames').textContent = r;
+  document.getElementById('st-deletes').textContent = d;
+  document.getElementById('st-moves').textContent   = m;
+  document.getElementById('plan-stats').style.display='flex';
+}
+
+// ── SSE helper ─────────────────────────────────────────────────────────────
+function closeSSE(){ if(_sse){ _sse.close(); _sse=null; } }
+
+// ── Auto-Organize ──────────────────────────────────────────────────────────
+function startAuto(){
+  const aid = document.getElementById('acct-sel').value;
+  if(!aid) return;
+  closeSSE();
+  _allOps=[]; _statFolders=0; _statFiles=0;
+
+  document.getElementById('auto-idle').style.display    = 'none';
+  document.getElementById('auto-done').style.display    = 'none';
+  document.getElementById('auto-running').style.display = '';
+  document.getElementById('auto-log').textContent       = '';
+  document.getElementById('auto-phase').textContent     = 'Scanning JazzDrive…';
+  document.getElementById('auto-prog').style.width      = '0%';
+  document.getElementById('auto-prog').className        = 'prog-bar';
+  ['ar-folders','ar-files','ar-ops','ar-applied','ar-failed'].forEach(id=>
+    document.getElementById(id).textContent='0');
+  document.getElementById('ops-section').style.display  = 'none';
+  document.getElementById('btn-auto').disabled = true;
+  document.getElementById('btn-plan').disabled = true;
+  document.getElementById('top-status').textContent     = '';
+
+  let totalFolders=0, visitedFolders=0, autoApplied=0, autoFailed=0, opsCount=0;
+  let unsafeOps=[];
+
+  _sse = new EventSource(`/organizer/api/auto/${aid}`);
+  _sse.onmessage = function(e){
+    const ev = JSON.parse(e.data);
+    const log = document.getElementById('auto-log');
+
+    if(ev.type==='phase'){
+      if(ev.phase==='planning'){
+        document.getElementById('auto-phase').textContent='Scanning folders…';
+      } else if(ev.phase==='applying'){
+        document.getElementById('auto-phase').textContent=`Applying ${ev.safe} safe operations…`;
+        document.getElementById('auto-prog').className='prog-bar applying';
+        log.textContent += `\n▶ Applying ${ev.safe} safe ops (${ev.unsafe} flagged for review)`;
+        log.scrollTop=log.scrollHeight;
+      }
+    }
+    else if(ev.type==='progress'){
+      visitedFolders = ev.visited;
+      totalFolders   = ev.total || ev.visited;
+      document.getElementById('ar-folders').textContent = visitedFolders;
+      const pct = totalFolders ? Math.round(50*visitedFolders/totalFolders) : 0;
+      document.getElementById('auto-prog').style.width = pct+'%';
+      document.getElementById('auto-prog-label').textContent = `📁 ${ev.folder}`;
+    }
+    else if(ev.type==='op'){
+      const op = ev.op;
+      _allOps.push(op);
+      opsCount++;
+      document.getElementById('ar-ops').textContent=opsCount;
+      document.getElementById('ar-files').textContent=opsCount; // approx
+      if(!op.auto) unsafeOps.push(op);
+    }
+    else if(ev.type==='stats'){
+      if(ev.folders_visited) _statFolders=ev.folders_visited;
+      if(ev.files_found)     _statFiles=ev.files_found;
+      document.getElementById('ar-folders').textContent=_statFolders||visitedFolders;
+      document.getElementById('ar-files').textContent=_statFiles||opsCount;
+    }
+    else if(ev.type==='apply_result'){
+      if(ev.ok){ autoApplied++; document.getElementById('ar-applied').textContent=autoApplied; }
+      else      { autoFailed++;  document.getElementById('ar-failed').textContent=autoFailed; }
+      const pct = 50 + Math.round(50*(ev.i/ev.total));
+      document.getElementById('auto-prog').style.width=pct+'%';
+      document.getElementById('auto-prog-label').textContent =
+        `${ev.ok?'✓':'✗'} [${ev.op_type}] ${ev.name}`;
+      log.textContent += `\n${ev.ok?'✓':'✗'} [${ev.op_type}] ${ev.name}`;
+      log.scrollTop=log.scrollHeight;
+      // Mark op in table if visible
+      const row=document.getElementById(`row-${ev.op_id}`);
+      if(row){ row.classList.remove('applying'); row.classList.add(ev.ok?'done-ok':'done-err'); }
+    }
+    else if(ev.type==='done'){
+      closeSSE();
+      document.getElementById('btn-auto').disabled=false;
+      document.getElementById('btn-plan').disabled=false;
+      document.getElementById('auto-prog').style.width='100%';
+      document.getElementById('auto-prog-label').textContent='Done';
+      document.getElementById('auto-running').style.display='none';
+      document.getElementById('auto-done').style.display='';
+
+      if(ev.applied !== undefined){ autoApplied=ev.applied; autoFailed=ev.failed; }
+      // Use server's unsafe_ops list if provided; otherwise fall back to what we
+      // collected during streaming.  Either way, replace _allOps so the table
+      // shows ONLY the ops that still need attention (not the already-applied ones).
+      if(ev.unsafe_ops) unsafeOps = ev.unsafe_ops;
+      _allOps = unsafeOps.slice();
+
+      document.getElementById('ad-applied').textContent = autoApplied;
+      document.getElementById('ad-failed').textContent  = autoFailed;
+      document.getElementById('ad-review').textContent  = unsafeOps.length;
+
+      // Show / hide the "Apply review ops" button
+      const btnRev = document.getElementById('btn-apply-review');
+      const cntRev = document.getElementById('ad-review-cnt');
+      if(unsafeOps.length > 0){
+        cntRev.textContent = unsafeOps.length;
+        btnRev.style.display = '';
+      } else {
+        btnRev.style.display = 'none';
+      }
+
+      document.getElementById('top-status').textContent =
+        unsafeOps.length > 0
+          ? `✓ ${autoApplied} applied — ${unsafeOps.length} need review`
+          : `✓ ${autoApplied} applied, nothing left to review`;
+
+      updateStats();
+      filterOps();
+      if(_allOps.length > 0){
+        document.getElementById('ops-section').style.display='';
+        const hdr = document.getElementById('ops-header');
+        if(hdr) hdr.innerHTML =
+          `Operations <span style="color:#ffc857;font-weight:400;font-size:12px">${unsafeOps.length} need review — select &amp; apply below</span>`;
+      } else {
+        document.getElementById('ops-section').style.display='none';
+      }
+    }
+    else if(ev.type==='error'){
+      log.textContent+=`\n⚠ ${ev.msg}`; log.scrollTop=log.scrollHeight;
+    }
+  };
+  _sse.onerror = function(){
+    closeSSE();
+    document.getElementById('btn-auto').disabled=false;
+    document.getElementById('btn-plan').disabled=false;
+    document.getElementById('auto-running').style.display='none';
+    document.getElementById('auto-idle').style.display='';
+    document.getElementById('top-status').textContent='⚠ Connection lost';
+  };
+
+  // Show table immediately so ops appear live
+  filterOps();
+  document.getElementById('ops-section').style.display='';
+}
+
+// ── Plan only (no apply) ──────────────────────────────────────────────────
+function startPlan(){
+  const aid = document.getElementById('acct-sel').value;
+  if(!aid) return;
+  closeSSE();
+  _allOps=[]; _statFolders=0; _statFiles=0;
+
+  document.getElementById('auto-running').style.display='none';
+  document.getElementById('auto-done').style.display='none';
+  document.getElementById('auto-idle').style.display='';
+  document.getElementById('ops-section').style.display='none';
+  document.getElementById('btn-auto').disabled=true;
+  document.getElementById('btn-plan').disabled=true;
+  document.getElementById('top-status').textContent='Scanning…';
+
+  _sse = new EventSource(`/organizer/api/stream/${aid}`);
+  _sse.onmessage = function(e){
+    const ev=JSON.parse(e.data);
+    if(ev.type==='op'){
+      _allOps.push(ev.op);
+      filterOps();
+      document.getElementById('ops-section').style.display='';
+    }
+    else if(ev.type==='progress'){
+      document.getElementById('top-status').textContent=`Scanning: ${ev.folder}…`;
+    }
+    else if(ev.type==='stats'){
+      if(ev.folders_visited) _statFolders=ev.folders_visited;
+      if(ev.files_found)     _statFiles=ev.files_found;
+      updateStats();
+    }
+    else if(ev.type==='done'){
+      closeSSE();
+      document.getElementById('btn-auto').disabled=false;
+      document.getElementById('btn-plan').disabled=false;
+      document.getElementById('top-status').textContent=`Found ${_allOps.length} operation(s)`;
+      updateStats();
+      filterOps();
+    }
+  };
+  _sse.onerror=function(){
+    closeSSE();
+    document.getElementById('btn-auto').disabled=false;
+    document.getElementById('btn-plan').disabled=false;
+    document.getElementById('top-status').textContent='⚠ Connection error';
+  };
+}
+
+// ── Filter ────────────────────────────────────────────────────────────────
+function filterOps(){
+  const q  = (document.getElementById('filter-input').value||'').toLowerCase();
+  const fR = document.getElementById('fr').checked;
+  const fD = document.getElementById('fd').checked;
+  const fM = document.getElementById('fm').checked;
+  const fA = document.getElementById('fa').checked;
+  const fW = document.getElementById('fw').checked;
+
+  _visOps = _allOps.filter(op=>{
+    if(op.type==='rename'&&!fR) return false;
+    if(op.type==='delete'&&!fD) return false;
+    if(op.type==='move'  &&!fM) return false;
+    if(op.auto===true  &&!fA) return false;
+    if(op.auto===false &&!fW) return false;
+    if(!q) return true;
+    return (op.current_name||'').toLowerCase().includes(q)
+        || (op.folder_name||'').toLowerCase().includes(q)
+        || (op.new_name||'').toLowerCase().includes(q);
+  });
+  renderTable();
+}
+
+function renderTable(){
+  const tbody=document.getElementById('ops-tbody');
+  const empty=document.getElementById('ops-empty');
+  if(_visOps.length===0){ tbody.innerHTML=''; empty.style.display=''; return; }
+  empty.style.display='none';
+
+  tbody.innerHTML=_visOps.map(op=>{
+    let badge, newCell;
+    if(op.type==='rename'){
+      badge=`<span class="badge b-ok">rename</span>`;
+      newCell=op.new_name?`<span style="color:var(--ok);font-size:11px">${esc(op.new_name)}</span>`:`<span class="muted">—</span>`;
+    } else if(op.type==='delete'){
+      badge=`<span class="badge b-err">delete</span>`;
+      newCell=`<span class="muted">—</span>`;
+    } else {
+      badge=`<span class="badge" style="background:#1d2a40;color:#7ab4ff">move</span>`;
+      newCell=op.dest_folder_name
+        ?`<span style="color:#7ab4ff;font-size:11px">→ ${esc(op.dest_folder_name)}</span>`
+        :`<span class="muted" style="font-size:11px">pick folder…</span>`;
+    }
+    const moveBtn=op.type!=='delete'
+      ?`<button class="move-btn" onclick="openPicker(${op.id})">⇢</button>`:'';
+    const reviewMark=op.auto===false
+      ?`<span title="Needs review" style="color:#ffc857;font-size:11px">⚠</span>`:'';
+
+    return `<tr class="op-row op-${op.type}" id="row-${op.id}">
+      <td><input type="checkbox" class="op-chk" data-id="${op.id}" ${op.type!=='move'||op.to_folder_id?'checked':''}></td>
+      <td>${badge}${reviewMark}</td>
+      <td style="color:var(--muted);font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(op.folder_name)}</td>
+      <td style="word-break:break-all;font-size:11px">${esc(op.current_name)}</td>
+      <td style="word-break:break-all;font-size:11px">${newCell}</td>
+      <td style="white-space:nowrap;font-size:11px">${esc(op.size_str)}</td>
+      <td>${reasonBadge(op.reason)}</td>
+      <td>${moveBtn}</td>
+    </tr>`;
+  }).join('');
+
+  document.querySelectorAll('.op-chk').forEach(c=>{
+    c.addEventListener('change',()=>{
+      const row=document.getElementById(`row-${c.dataset.id}`);
+      row&&row.classList.toggle('selected',c.checked);
+    });
+    const row=document.getElementById(`row-${c.dataset.id}`);
+    row&&row.classList.toggle('selected',c.checked);
+  });
+}
+
+function selectAll(state){
+  document.querySelectorAll('.op-chk').forEach(c=>{
+    const op=_allOps.find(o=>o.id===parseInt(c.dataset.id));
+    if(state&&op&&op.type==='move'&&!op.to_folder_id) return;
+    c.checked=state;
+    const row=document.getElementById(`row-${c.dataset.id}`);
+    row&&row.classList.toggle('selected',state);
+  });
+}
+function selectByType(type){
+  document.querySelectorAll('.op-chk').forEach(c=>{
+    const op=_allOps.find(o=>o.id===parseInt(c.dataset.id));
+    if(op&&op.type===type){ c.checked=true; document.getElementById(`row-${c.dataset.id}`)?.classList.add('selected'); }
+  });
+}
+function toggleAll(s){ selectAll(s); }
+
+async function applySelected(){
+  const aid=document.getElementById('acct-sel').value;
+  const checked=[...document.querySelectorAll('.op-chk:checked')];
+  if(!checked.length){ toast('No operations selected'); return; }
+
+  const ids=new Set(checked.map(c=>parseInt(c.dataset.id)));
+  const ops=_allOps.filter(o=>ids.has(o.id));
+  const bad=ops.find(o=>o.type==='move'&&!o.to_folder_id);
+  if(bad){ toast('Some move ops have no destination'); return; }
+
+  document.getElementById('btn-apply').disabled=true;
+  document.getElementById('btn-apply').textContent=`Applying ${ops.length}…`;
+  ops.forEach(op=>{ document.getElementById(`row-${op.id}`)?.classList.add('applying'); });
+
+  const res=await api(`/organizer/api/apply/${aid}`,{method:'POST',body:{ops}});
+
+  document.getElementById('btn-apply').disabled=false;
+  document.getElementById('btn-apply').textContent='✓ Apply selected';
+
+  if(res.results){
+    const done=new Set(res.results.filter(r=>r.ok).map(r=>r.op_id));
+    res.results.forEach(r=>{
+      const row=document.getElementById(`row-${r.op_id}`);
+      if(row){ row.classList.remove('applying'); row.classList.add(r.ok?'done-ok':'done-err'); }
+    });
+    _allOps=_allOps.filter(o=>!done.has(o.id));
+    updateStats();
+    filterOps();
+    // Keep the review button count in sync
+    const btnRev=document.getElementById('btn-apply-review');
+    const cntRev=document.getElementById('ad-review-cnt');
+    if(btnRev){
+      if(_allOps.length>0){ if(cntRev) cntRev.textContent=_allOps.length; }
+      else { btnRev.style.display='none'; }
+    }
+  }
+  toast(`Applied ${res.applied}/${res.total} operations`);
+}
+
+// Select all review ops (that still have destinations if moves) and apply them
+async function applyReview(){
+  selectAll(true);
+  await applySelected();
+}
+
+// ── Folder picker ─────────────────────────────────────────────────────────
+function openPicker(opId){
+  _pickerOpId=opId; _pickerFolderId=null; _pickerFolderName='';
+  _folderPath=[{id:0,name:'root'}];
+  document.getElementById('fm-sel-name').textContent='';
+  document.getElementById('fm-confirm').disabled=true;
+  document.getElementById('folder-modal').classList.add('open');
+  browseFolder(0);
+}
+function closePicker(){ document.getElementById('folder-modal').classList.remove('open'); }
+
+async function browseFolder(fid){
+  const aid=document.getElementById('acct-sel').value;
+  const body=document.getElementById('fm-body');
+  body.innerHTML='<div class="muted" style="padding:12px;text-align:center">Loading…</div>';
+  const idx=_folderPath.findIndex(p=>p.id===fid);
+  if(idx>=0) _folderPath=_folderPath.slice(0,idx+1);
+  renderBC();
+  const res=await api(`/organizer/api/folders/${aid}?parent_id=${fid}`);
+  const folders=res.folders||[];
+  if(!folders.length){ body.innerHTML='<div class="muted" style="padding:12px;text-align:center">No subfolders</div>'; return; }
+  body.innerHTML=folders.map(f=>`
+    <div class="frow${_pickerFolderId===f.id?' sel':''}" onclick="selFolder(${f.id},'${esc(f.name).replace(/'/g,"\\'")}')">
+      <span>📁</span><span style="flex:1">${esc(f.name)}</span>
+      <span class="exp" onclick="event.stopPropagation();drillFolder(${f.id},'${esc(f.name).replace(/'/g,"\\'")}')">▸</span>
+    </div>`).join('');
+}
+function selFolder(id,name){
+  _pickerFolderId=id; _pickerFolderName=name;
+  document.getElementById('fm-sel-name').textContent=`→ ${name}`;
+  document.getElementById('fm-confirm').disabled=false;
+  document.querySelectorAll('#fm-body .frow').forEach(r=>r.classList.remove('sel'));
+  event.currentTarget&&event.currentTarget.classList.add('sel');
+}
+function drillFolder(id,name){ _folderPath.push({id,name}); browseFolder(id); }
+function renderBC(){
+  document.getElementById('fm-bc').innerHTML=_folderPath.map((p,i)=>
+    `<span onclick="browseFolder(${p.id})">${esc(p.name)}</span>${i<_folderPath.length-1?' /':''}`
+  ).join(' ');
+}
+function confirmMove(){
+  if(!_pickerOpId||!_pickerFolderId) return;
+  const op=_allOps.find(o=>o.id===_pickerOpId);
+  if(op){
+    op.type='move'; op.to_folder_id=_pickerFolderId;
+    op.dest_folder_name=_pickerFolderName;
+    op.from_folder_id=op.folder_id; op.reason='move to folder';
+    op.new_name=null;
+  }
+  closePicker(); updateStats(); filterOps();
+  toast(`Move destination: ${_pickerFolderName}`);
+}
+</script>
+{% endblock %}

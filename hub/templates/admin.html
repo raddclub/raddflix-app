@@ -1,0 +1,1336 @@
+{% extends "base.html" %}
+{% set active="admin" %}
+{% block content %}
+<style>
+
+@media(max-width:767px){
+  .adm-wa-grid{grid-template-columns:1fr !important}
+  .roles-display{grid-template-columns:1fr !important}
+  .adm-roles-row{flex-direction:column;align-items:stretch}
+  .adm-roles-row input,.adm-roles-row select{max-width:100% !important;width:100%}
+}
+</style>
+
+<div class="h-row"><h2>👑 Admin</h2></div>
+
+<!-- password -->
+<div class="card">
+  <h3>Account</h3>
+  <div class="form-row">
+    <label>Username</label>
+    <input value="{{ admin_user }}" disabled>
+  </div>
+  <div class="form-row">
+    <label>New password</label>
+    <input id="newpw" type="password" placeholder="At least 6 chars">
+  </div>
+  <button onclick="changePw()">Change password</button>
+</div>
+
+
+
+<!-- WA QR / pairing -->
+<div class="card">
+  <div class="row" style="justify-content:space-between;margin-bottom:14px">
+    <h3 style="margin:0">WhatsApp Connection</h3>
+    <div class="row" style="gap:6px">
+      <span class="badge b-mut" id="wa-run-badge">checking…</span>
+      <span class="badge b-mut" id="wa-con-badge"></span>
+    </div>
+  </div>
+
+  <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:16px">
+    <button onclick="waAction('start')">▶ Start bot</button>
+    <button class="ghost" onclick="waAction('restart')">↺ Restart</button>
+    <button class="ghost" onclick="waAction('stop')">■ Stop</button>
+    <button class="danger" onclick="waRelink()">⚠ Re-link (wipe auth)</button>
+  </div>
+
+  <div class="grid grid-2 adm-wa-grid" style="gap:16px">
+    <div class="card" style="margin:0;background:var(--panel2)">
+      <h3>QR Code</h3>
+      <div id="admin-qr-area" style="min-height:160px;display:flex;align-items:center;justify-content:center">
+        <div class="muted">Loading…</div>
+      </div>
+    </div>
+    <div class="card" style="margin:0;background:var(--panel2)">
+      <h3>Pairing Code</h3>
+      <div class="muted" style="margin-bottom:10px;font-size:12px">
+        WhatsApp → Linked Devices → Link with phone number.
+      </div>
+      <div class="form-row">
+        <label>Phone (international)</label>
+        <input id="pair-phone" placeholder="923xxxxxxxxx">
+      </div>
+      <button onclick="setPairingNumber()">Set &amp; Request code</button>
+      <div id="pair-code-area" style="margin-top:12px;display:none">
+        <div class="muted">Code:</div>
+        <div id="pair-code-val" style="font-size:26px;font-weight:700;letter-spacing:5px;
+             color:var(--accent);font-family:monospace;margin-top:4px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bot command console -->
+<div class="card">
+  <h3>Bot Command Console</h3>
+  <div class="muted" style="margin-bottom:10px;font-size:12px">Send a raw admin command to the running WhatsApp bot.</div>
+  <div class="row" style="gap:8px;flex-wrap:wrap">
+    <input id="bot-cmd" placeholder="e.g. .ping or .status" style="font-family:monospace;flex:1;min-width:200px">
+    <button onclick="sendBotCmd()" style="flex-shrink:0">Send</button>
+  </div>
+  <pre id="bot-cmd-out" style="background:var(--panel2);padding:10px;border-radius:8px;
+       max-height:160px;overflow:auto;font-size:11px;color:var(--muted);margin-top:10px;
+       font-family:ui-monospace,monospace;line-height:1.5;display:none;word-break:break-all"></pre>
+</div>
+
+<!-- Bot users from bot.db -->
+<div class="card">
+  <div class="row" style="justify-content:space-between;margin-bottom:12px">
+    <h3 style="margin:0">Bot Users (bot.db)</h3>
+    <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="loadBotUsers()">↺ Refresh</button>
+  </div>
+  <div id="bot-users-tbl"><div class="muted empty">Loading…</div></div>
+</div>
+
+<!-- Role management -->
+<div class="card">
+  <h3>User Roles (users.json)</h3>
+  <div class="adm-roles-row row" style="gap:8px;flex-wrap:wrap;margin-bottom:14px">
+    <input id="role-num" placeholder="923xxxxxxxxx" style="max-width:220px;flex:1;min-width:140px">
+    <select id="role-sel" style="width:auto;flex-shrink:0">
+      <option value="admins">Admin</option>
+      <option value="verified" selected>Verified</option>
+      <option value="blocked">Blocked</option>
+    </select>
+    <button onclick="addUserRole()" style="flex-shrink:0">Add</button>
+    <button class="ghost" onclick="removeUserRole()" style="flex-shrink:0">Remove</button>
+  </div>
+  <div id="roles-display" class="roles-display" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+    <div><strong>Admins</strong><ul id="r-admins" style="padding-left:16px;color:var(--muted);font-size:12px"></ul></div>
+    <div><strong>Verified</strong><ul id="r-verified" style="padding-left:16px;color:var(--muted);font-size:12px"></ul></div>
+    <div><strong>Blocked</strong><ul id="r-blocked" style="padding-left:16px;color:var(--muted);font-size:12px"></ul></div>
+  </div>
+</div>
+
+<!-- JazzDrive accounts -->
+<div class="card">
+  <div class="row" style="justify-content:space-between;margin-bottom:12px">
+    <h3 style="margin:0">JazzDrive Accounts</h3>
+    <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="loadJdAccounts()">↺ Refresh</button>
+  </div>
+  <div id="jd-accounts-tbl"><div class="muted empty">Loading…</div></div>
+</div>
+
+<!-- Broadcast -->
+<div class="card">
+  <h3>Broadcast Message</h3>
+  <div class="muted" style="margin-bottom:12px;font-size:12px">
+    Send a message to all users in the selected WhatsApp bot roles.
+  </div>
+  <div class="form-row">
+    <label>Message</label>
+    <textarea id="adm-bcast-msg" rows="3" placeholder="Type your broadcast message…"
+      style="resize:vertical"></textarea>
+  </div>
+  <div class="row" style="gap:10px;margin-top:8px;flex-wrap:wrap;align-items:center">
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;
+      text-transform:none;letter-spacing:0;color:var(--text)">
+      <input type="checkbox" id="adm-bcast-verified" checked> Verified</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;
+      text-transform:none;letter-spacing:0;color:var(--text)">
+      <input type="checkbox" id="adm-bcast-admins"> Admins</label>
+    <button onclick="admSendBroadcast()">📢 Send Broadcast</button>
+    <span id="adm-bcast-status" class="muted" style="font-size:12px"></span>
+  </div>
+</div>
+
+<!-- Quota & Rewards leaderboard -->
+<div class="card">
+  <div class="row" style="justify-content:space-between;margin-bottom:12px">
+    <h3 style="margin:0">Quota &amp; Rewards Leaderboard</h3>
+    <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="loadQuotaLeaderboard()">↺ Refresh</button>
+  </div>
+  <div id="quota-leaderboard-tbl"><div class="muted empty">Loading…</div></div>
+  <!-- Inline quota input (replaces prompt()) -->
+  <div id="quota-input-panel" style="display:none;align-items:center;gap:8px;margin-top:12px;padding:10px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;flex-wrap:wrap">
+    <span id="quota-lbl" style="font-size:13px;color:var(--muted)">Quota (MB/day):</span>
+    <input type="number" id="quota-mb-input" min="0" step="100" placeholder="e.g. 500"
+           style="width:110px;font-family:monospace"
+           onkeydown="if(event.key==='Enter') applyQuota()">
+    <button onclick="applyQuota()" style="padding:4px 14px;font-size:13px">Set</button>
+    <button class="ghost" onclick="document.getElementById('quota-input-panel').style.display='none'" style="font-size:12px;padding:4px 10px">Cancel</button>
+  </div>
+</div>
+
+<!-- Force User Sync -->
+<div class="card">
+  <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <div>
+      <h3 style="margin:0">Force User Sync</h3>
+      <div class="muted" style="font-size:12px;margin-top:3px">
+        Bump the catalog version so all online users re-sync on next app open.
+        Use after changing subscription plans, quota, or any setting that does not edit a title row.
+      </div>
+    </div>
+    <span class="badge b-mut" id="fsync-ver-badge">loading…</span>
+  </div>
+
+  <div class="grid grid-3" style="gap:10px;margin-bottom:16px">
+    <div class="card" style="margin:0;background:var(--panel2);padding:10px 14px">
+      <div class="muted" style="font-size:11px;margin-bottom:4px">Current catalog version</div>
+      <div id="fsync-cur-ver" style="font-size:13px;font-weight:600;font-family:monospace">—</div>
+    </div>
+    <div class="card" style="margin:0;background:var(--panel2);padding:10px 14px">
+      <div class="muted" style="font-size:11px;margin-bottom:4px">Published titles</div>
+      <div id="fsync-count" style="font-size:13px;font-weight:600">—</div>
+    </div>
+    <div class="card" style="margin:0;background:var(--panel2);padding:10px 14px">
+      <div class="muted" style="font-size:11px;margin-bottom:4px">Last force-synced</div>
+      <div id="fsync-last-bump" style="font-size:12px;font-weight:600">—</div>
+    </div>
+  </div>
+
+  <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+    <button id="fsync-btn" onclick="forceSyncUsers()">&#x1F504; Force Sync All Users</button>
+    <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="fsyncLoad()">&#x21BA; Refresh</button>
+  </div>
+  <div id="fsync-msg" style="margin-top:10px;font-size:13px;min-height:18px"></div>
+</div>
+
+<script>
+const _fsyncAuthHdr = () => ({
+  Authorization: 'Basic ' + btoa(
+    (document.cookie.match(/adm_u=([^;]+)/)?.[1] || 'admin')
+    + ':' +
+    (document.cookie.match(/adm_p=([^;]+)/)?.[1] || '')
+  ),
+});
+
+function _fsyncMsg(m, isErr) {
+  const el = document.getElementById('fsync-msg');
+  if (!el) return;
+  el.textContent = m;
+  el.style.color = isErr ? 'var(--err,#e55)' : 'var(--ok,#4c4)';
+}
+
+async function fsyncLoad() {
+  try {
+    const d = await fetch('/api/catalog/version').then(r => r.json());
+    const ver = d.version || 0;
+    const count = d.count || 0;
+    const badge = document.getElementById('fsync-ver-badge');
+    const verEl = document.getElementById('fsync-cur-ver');
+    const cntEl = document.getElementById('fsync-count');
+    if (badge) { badge.textContent = 'v' + ver; badge.className = 'badge b-ok'; }
+    if (verEl) verEl.textContent = ver + '  (' + new Date(ver * 1000).toLocaleString() + ')';
+    if (cntEl) cntEl.textContent = count + ' titles';
+    const bumpEl = document.getElementById('fsync-last-bump');
+    if (bumpEl) {
+      const ft = d.forced_ts || 0;
+      bumpEl.textContent = ft > 0 ? new Date(ft * 1000).toLocaleString() : 'Never';
+      bumpEl.style.color = ft > 0 ? 'var(--ok,#4c4)' : 'var(--muted,#888)';
+    }
+  } catch(e) {
+    const badge = document.getElementById('fsync-ver-badge');
+    if (badge) { badge.textContent = 'error'; badge.className = 'badge b-err'; }
+  }
+}
+
+async function forceSyncUsers() {
+  const btn = document.getElementById('fsync-btn');
+  btn.disabled = true; btn.textContent = 'Bumping version…';
+  _fsyncMsg('');
+  try {
+    const r = await fetch('/api/catalog/force-version-bump', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ..._fsyncAuthHdr() },
+    });
+    const d = await r.json();
+    if (r.ok && d.ok) {
+      _fsyncMsg('✓ ' + d.message, false);
+      fsyncLoad();
+    } else {
+      _fsyncMsg('Error: ' + (d.error || JSON.stringify(d)), true);
+    }
+  } catch(e) {
+    _fsyncMsg('Request failed: ' + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = '\u{1F504} Force Sync All Users';
+  }
+}
+
+fsyncLoad();
+</script>
+
+<!-- Server Settings — expanded (Tasks B+) -->
+<div class="card">
+  <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px">
+    <div>
+      <h3 style="margin:0">Server Settings</h3>
+      <div class="muted" style="font-size:12px;margin-top:3px">
+        All fields are stored in the Oracle database and returned to the app on every cold start via
+        <code>/api/app/config</code>. Changes take effect immediately — no redeploy needed.
+      </div>
+    </div>
+    <span class="badge b-mut" id="sset-badge">loading&hellip;</span>
+  </div>
+  <div id="sset-global-msg" style="font-size:13px;min-height:16px;margin-bottom:10px"></div>
+
+  <!-- ── Section 1: API Config ─────────────────────────────────── -->
+  <div style="margin-bottom:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted,#888)">API Config</div>
+  <div style="display:grid;gap:10px;margin-bottom:18px">
+
+    <div class="sset-row">
+      <label class="sset-label">API Base URL
+        <span class="sset-hint">Oracle HTTP endpoint returned to app</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-api_base_url" type="url" placeholder="http://92.4.95.252" class="sset-input mono">
+        <button class="ghost sset-btn" onclick="ssetSave('api_base_url')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-api_base_url" class="sset-msg"></div>
+    </div>
+
+    <div class="sset-row">
+      <label class="sset-label">JazzDrive Delta URL
+        <span class="sset-hint">Zero-rated delta.json share URL — empty = disabled</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-jd_delta_url" type="url" placeholder="https://cloud.jazzdrive.com.pk/share/f/..." class="sset-input mono">
+        <button class="ghost sset-btn" onclick="ssetSave('jd_delta_url')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-jd_delta_url" class="sset-msg"></div>
+    </div>
+
+    <div class="sset-row">
+      <label class="sset-label">Watch Server External URL
+        <span class="sset-hint">Oracle public URL for poster/play proxying</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-WATCH_SERVER_EXTERNAL_URL" type="url" placeholder="http://92.4.95.252" class="sset-input mono">
+        <button class="ghost sset-btn" onclick="ssetSave('WATCH_SERVER_EXTERNAL_URL')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-WATCH_SERVER_EXTERNAL_URL" class="sset-msg"></div>
+    </div>
+
+  </div>
+
+  <!-- ── Section 2: Support ────────────────────────────────────── -->
+  <div style="margin-bottom:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted,#888)">Support</div>
+  <div style="display:grid;gap:10px;margin-bottom:18px">
+
+    <div class="sset-row">
+      <label class="sset-label">WhatsApp Support Number
+        <span class="sset-hint">International format, no + or spaces (e.g. 923001234567)</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-SUPPORT_WHATSAPP_NUMBER" type="text" placeholder="923257719165" class="sset-input mono">
+        <button class="ghost sset-btn" onclick="ssetSave('SUPPORT_WHATSAPP_NUMBER')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-SUPPORT_WHATSAPP_NUMBER" class="sset-msg"></div>
+    </div>
+
+  </div>
+
+  <!-- ── Section 3: App Version & Updates ─────────────────────── -->
+  <div style="margin-bottom:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted,#888)">App Version &amp; Updates</div>
+  <div style="display:grid;gap:10px;margin-bottom:18px">
+
+    <div class="sset-row">
+      <label class="sset-label">Current Version String
+        <span class="sset-hint">e.g. 1.0.0 — shown in app About screen</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-app_current_version" type="text" placeholder="1.0.0" class="sset-input mono" style="max-width:140px">
+        <button class="ghost sset-btn" onclick="ssetSave('app_current_version')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-app_current_version" class="sset-msg"></div>
+    </div>
+
+    <div class="sset-row">
+      <label class="sset-label">Min Version Code
+        <span class="sset-hint">Integer — older builds are force-updated</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-app_min_version_code" type="number" placeholder="0" min="0" class="sset-input mono" style="max-width:100px">
+        <button class="ghost sset-btn" onclick="ssetSave('app_min_version_code')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-app_min_version_code" class="sset-msg"></div>
+    </div>
+
+    <div class="sset-row">
+      <label class="sset-label">Update Download URL
+        <span class="sset-hint">Play Store or APK direct link</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-app_update_url" type="url" placeholder="https://play.google.com/..." class="sset-input mono">
+        <button class="ghost sset-btn" onclick="ssetSave('app_update_url')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-app_update_url" class="sset-msg"></div>
+    </div>
+
+    <div class="sset-row">
+      <label class="sset-label">Update Prompt Message
+        <span class="sset-hint">Shown in update dialog — leave blank to hide dialog</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-app_update_message" type="text" placeholder="New version available!" class="sset-input">
+        <button class="ghost sset-btn" onclick="ssetSave('app_update_message')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-app_update_message" class="sset-msg"></div>
+    </div>
+
+  </div>
+
+  <!-- ── Section 4: Feature Flags ──────────────────────────────── -->
+  <div style="margin-bottom:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted,#888)">Feature Flags</div>
+  <div style="display:grid;gap:0;margin-bottom:10px">
+
+    <div class="sset-flag-row" id="sset-ff-maintenance">
+      <label class="sset-flag-lbl">
+        <input type="checkbox" id="sset-ff-maintenance_mode" onchange="ssetSaveFlag('ff_maintenance_mode')">
+        <span>Maintenance Mode</span>
+      </label>
+      <div id="sset-msg-ff_maintenance_mode" class="sset-msg" style="margin-left:26px"></div>
+    </div>
+
+    <div class="sset-row" id="sset-ff-maint-msg-row" style="margin-bottom:10px;padding-left:26px">
+      <label class="sset-label" style="font-size:11px">Maintenance Message
+        <span class="sset-hint">Shown in app during maintenance</span></label>
+      <div class="sset-ctrl">
+        <input id="sset-ff_maintenance_message" type="text" placeholder="We are updating RaddFlix..." class="sset-input">
+        <button class="ghost sset-btn" onclick="ssetSave('ff_maintenance_message')">&#x1F4BE;</button>
+      </div>
+      <div id="sset-msg-ff_maintenance_message" class="sset-msg"></div>
+    </div>
+
+    <div class="sset-flag-row">
+      <label class="sset-flag-lbl">
+        <input type="checkbox" id="sset-ff-xor_encoding" onchange="ssetSaveFlag('ff_xor_encoding')">
+        <span>XOR Request Encoding <span class="sset-hint">(obfuscates API traffic over HTTPS)</span></span>
+      </label>
+      <div id="sset-msg-ff_xor_encoding" class="sset-msg" style="margin-left:26px"></div>
+    </div>
+
+    <div class="sset-flag-row">
+      <label class="sset-flag-lbl">
+        <input type="checkbox" id="sset-ff-zero_rating" onchange="ssetSaveFlag('ff_zero_rating')">
+        <span>Zero Rating (JazzDrive CDN) <span class="sset-hint">(disable if JazzDrive SAPI is down)</span></span>
+      </label>
+      <div id="sset-msg-ff_zero_rating" class="sset-msg" style="margin-left:26px"></div>
+    </div>
+
+    <div class="sset-flag-row">
+      <label class="sset-flag-lbl">
+        <input type="checkbox" id="sset-ff-guest_mode" onchange="ssetSaveFlag('ff_guest_mode')">
+        <span>Guest Mode <span class="sset-hint">(allow browsing without account)</span></span>
+      </label>
+      <div id="sset-msg-ff_guest_mode" class="sset-msg" style="margin-left:26px"></div>
+    </div>
+
+    <div class="sset-flag-row">
+      <label class="sset-flag-lbl">
+        <input type="checkbox" id="sset-ff-recommendations" onchange="ssetSaveFlag('ff_recommendations')">
+        <span>TMDB Recommendations <span class="sset-hint">(show "you might like" suggestions)</span></span>
+      </label>
+      <div id="sset-msg-ff_recommendations" class="sset-msg" style="margin-left:26px"></div>
+    </div>
+
+    <div class="sset-flag-row" style="border-bottom:none">
+      <label class="sset-flag-lbl">
+        <input type="checkbox" id="sset-ff-otp_device_switch" onchange="ssetSaveFlag('ff_otp_device_switch')">
+        <span>OTP Device Switch <span class="sset-hint">(let users self-serve device change via WhatsApp OTP)</span></span>
+      </label>
+      <div id="sset-msg-ff_otp_device_switch" class="sset-msg" style="margin-left:26px"></div>
+    </div>
+
+  </div>
+
+  <div class="row" style="gap:8px;margin-top:8px">
+    <button onclick="ssetLoad()">&#x21BA; Refresh All</button>
+  </div>
+</div>
+
+<style>
+.sset-row { display:grid; gap:4px; }
+.sset-label { font-size:12px; font-weight:600; color:var(--muted,#888); }
+.sset-hint { font-weight:400; font-size:11px; margin-left:4px; }
+.sset-ctrl { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.sset-input { flex:1; min-width:180px; font-size:13px; }
+.sset-input.mono { font-family:monospace; }
+.sset-btn { padding:4px 10px; font-size:14px; }
+.sset-msg { font-size:12px; min-height:16px; }
+.sset-flag-row { display:grid; padding:8px 0; border-bottom:1px solid var(--border,rgba(255,255,255,.07)); }
+.sset-flag-lbl { display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; user-select:none; }
+.sset-flag-lbl input[type=checkbox] { width:16px; height:16px; cursor:pointer; accent-color:var(--accent,#E8002D); }
+</style>
+
+<script>
+const _ssetAuth = () => ({
+  Authorization: 'Basic ' + btoa(
+    (document.cookie.match(/adm_u=([^;]+)/)?.[1] || 'admin') + ':' +
+    (document.cookie.match(/adm_p=([^;]+)/)?.[1] || '')
+  ),
+});
+
+function _ssetFieldMsg(key, msg, isErr) {
+  const el = document.getElementById('sset-msg-' + key);
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isErr ? 'var(--err,#e55)' : 'var(--ok,#4c4)';
+  if (!isErr && msg) setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 4000);
+}
+
+async function ssetLoad() {
+  const badge = document.getElementById('sset-badge');
+  try {
+    const d = await fetch('/api/app/config').then(r => r.json());
+    // Text fields
+    const textMap = {
+      'api_base_url': d.api_base_url || '',
+      'jd_delta_url': d.jd_delta_url || '',
+      'WATCH_SERVER_EXTERNAL_URL': d.watch_server_url || '',
+      'SUPPORT_WHATSAPP_NUMBER': d.support_whatsapp || '',
+      'app_current_version': d.current_version || '',
+      'app_min_version_code': (d.min_version_code || 0) + '',
+      'app_update_url': d.update_url || '',
+      'app_update_message': d.update_message || '',
+      'ff_maintenance_message': (d.flags && d.flags.maintenance_message) || '',
+    };
+    Object.entries(textMap).forEach(([k, v]) => {
+      const el = document.getElementById('sset-' + k);
+      if (el) el.value = v;
+    });
+    // Checkboxes
+    const flagMap = {
+      'maintenance_mode': d.flags?.maintenance_mode,
+      'xor_encoding': d.flags?.xor_encoding,
+      'zero_rating': d.flags?.zero_rating,
+      'guest_mode': d.flags?.guest_mode,
+      'recommendations': d.flags?.recommendations,
+      'otp_device_switch': d.flags?.otp_device_switch,
+    };
+    Object.entries(flagMap).forEach(([k, v]) => {
+      const el = document.getElementById('sset-ff-' + k);
+      if (el) el.checked = (v === true || v === 'true' || v === 1);
+    });
+    if (badge) { badge.textContent = 'loaded'; badge.className = 'badge b-ok'; }
+  } catch(e) {
+    if (badge) { badge.textContent = 'error'; badge.className = 'badge b-err'; }
+    const gm = document.getElementById('sset-global-msg');
+    if (gm) { gm.textContent = 'Failed to load settings: ' + e.message; gm.style.color = 'var(--err,#e55)'; }
+  }
+}
+
+async function ssetSave(key) {
+  const inp = document.getElementById('sset-' + key);
+  if (!inp) return;
+  const val = inp.value.trim();
+  const origTxt = inp.closest('.sset-ctrl')?.querySelector('.sset-btn')?.textContent;
+  const btn = inp.closest('.sset-ctrl')?.querySelector('.sset-btn');
+  if (btn) btn.disabled = true;
+  _ssetFieldMsg(key, 'Saving…', false);
+  try {
+    const r = await fetch('/api/catalog/admin/setting', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ..._ssetAuth() },
+      body: JSON.stringify({ key, value: val }),
+    });
+    const d = await r.json();
+    _ssetFieldMsg(key, r.ok && d.ok ? '✓ Saved' : 'Error: ' + (d.error || '?'), !(r.ok && d.ok));
+  } catch(e) {
+    _ssetFieldMsg(key, 'Request failed: ' + e.message, true);
+  } finally {
+    if (btn) { btn.disabled = false; }
+  }
+}
+
+async function ssetSaveFlag(key) {
+  const chk = document.getElementById('sset-ff-' + key.replace('ff_', ''));
+  if (!chk) return;
+  const val = chk.checked ? 'true' : 'false';
+  _ssetFieldMsg(key, 'Saving…', false);
+  try {
+    const r = await fetch('/api/catalog/admin/setting', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ..._ssetAuth() },
+      body: JSON.stringify({ key, value: val }),
+    });
+    const d = await r.json();
+    _ssetFieldMsg(key, r.ok && d.ok ? '✓ ' + (chk.checked ? 'Enabled' : 'Disabled') : 'Error: ' + (d.error || '?'), !(r.ok && d.ok));
+  } catch(e) {
+    _ssetFieldMsg(key, 'Request failed: ' + e.message, true);
+  }
+}
+
+ssetLoad();
+</script>
+
+<!-- Database management -->
+<div class="card">
+  <h3>Database Management</h3>
+  <div class="muted" style="margin-bottom:14px;font-size:13px">
+    Manage the 3-way sync: local SQLite ↔ GitHub JSON ↔ Google Sheets.<br>
+    <strong>Pull from GitHub</strong> imports missing cloud records locally. <strong>Push to Cloud</strong> uploads all local records to both mirrors.
+  </div>
+  <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px">
+    <button onclick="dbPull()" id="btn-db-pull">⬇ Pull from GitHub</button>
+    <button onclick="dbSync('both')" id="btn-db-sync">⬆ Push to Cloud</button>
+  </div>
+  <div id="db-mgmt-msg" class="muted" style="font-size:13px;min-height:20px"></div>
+</div>
+
+
+<!-- Domain Doctor -->
+<div class="card">
+  <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <div>
+      <h3 style="margin:0">Domain Doctor</h3>
+      <div class="muted" style="font-size:12px;margin-top:3px">Discover working mirror domains for movie sites — run on demand only.</div>
+    </div>
+    <div class="row" style="gap:8px;flex-wrap:wrap">
+      <button class="ghost" style="padding:4px 10px;font-size:12px" onclick="ddRefreshStatus()">↺ Refresh Status</button>
+      <button onclick="ddRunAll()" id="btn-dd-run">▶ Run All Sites</button>
+    </div>
+  </div>
+  <div id="dd-status-msg" class="muted" style="font-size:12px;min-height:16px;margin-bottom:10px"></div>
+  <div id="dd-table"><div class="muted empty" style="font-size:13px">Click "Refresh Status" to load current domain info.</div></div>
+</div>
+
+<!-- Re-scan Missing Metadata -->
+<div class="card" style="border:1px solid var(--accent)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div>
+      <h3 style="margin:0;color:var(--accent)">&#128269; Re-scan Missing Metadata</h3>
+      <div class="muted" style="font-size:12px;margin-top:4px">Find files saved without a poster/title match and re-run the full metadata search (IMDb &#8594; OMDB &#8594; TMDB &#8594; AI) for them only. Much faster than a full catalog restore &#8212; only touches unmatched files.</div>
+    </div>
+    <button id="btn-rescan-meta" onclick="rescanMeta()" style="white-space:nowrap;flex-shrink:0">&#128269; Fix Missing Metadata</button>
+  </div>
+  <div id="rescan-meta-msg" style="font-size:13px;min-height:16px;margin-top:10px"></div>
+</div>
+
+<!-- Restore Catalog -->
+<div class="card" style="border:1px solid var(--ok)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div>
+      <h3 style="margin:0;color:var(--ok)">&#8635; Restore Catalog</h3>
+      <div class="muted" style="font-size:12px;margin-top:4px">Re-scan all linked JazzDrive accounts to rebuild titles and files after a reset. Runs in the background &#8212; check the <a href="/scan/">Scan page</a> for live progress.</div>
+    </div>
+    <button id="btn-restore" onclick="dbRestore()" style="white-space:nowrap;flex-shrink:0;background:var(--ok);border-color:var(--ok);color:#000">&#8635; Restore from JazzDrive</button>
+  </div>
+  <div id="db-restore-msg" style="font-size:13px;min-height:16px;margin-top:10px"></div>
+</div>
+
+<!-- Danger Zone -->
+<div class="card" style="border: 2px solid var(--err)">
+  <h3 style="color:var(--err)">&#9888; Danger Zone</h3>
+  <div class="muted" style="margin-bottom:14px;font-size:13px">
+    The following actions are <strong>permanent</strong> and cannot be undone. Use with extreme caution.
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+    {# Clear Local #}
+    <div style="padding:12px; background:rgba(255,0,0,0.05); border-radius:8px">
+      <div style="font-weight:600;margin-bottom:4px">Reset Local Tables</div>
+      <div class="muted" style="font-size:12px;margin-bottom:10px">Deletes all titles, files, and logs from the local database. Keeps accounts and settings.</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <label style="font-size:12px;text-transform:none;letter-spacing:0;color:var(--fg);cursor:pointer">
+          <input type="checkbox" id="chk-db-reset"> I understand this clears all media records
+        </label>
+        <button class="danger" id="btn-db-reset" onclick="dbReset()" style="padding:4px 12px;font-size:12px">Reset Tables</button>
+      </div>
+      <div id="db-reset-result" style="display:none;margin-top:12px;padding:10px 12px;border-radius:6px;font-size:13px"></div>
+    </div>
+
+    {# Full Wipe #}
+    <div style="padding:12px; background:rgba(255,0,0,0.05); border-radius:8px">
+      <div style="font-weight:600;margin-bottom:4px">Wipe Complete Database</div>
+      <div class="muted" style="font-size:12px;margin-bottom:10px">Deletes the entire <code>radd_hub.db</code> file and re-creates it. <strong>All accounts, settings, and media will be lost.</strong></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <label style="font-size:12px;text-transform:none;letter-spacing:0;color:var(--fg);cursor:pointer">
+          <input type="checkbox" id="chk-db-wipe"> I am absolutely sure I want to wipe everything
+        </label>
+        <button class="danger" onclick="dbFullWipe()" style="padding:4px 12px;font-size:12px">Wipe Everything</button>
+      </div>
+    </div>
+
+    {# Clear Cloud #}
+    <div style="padding:12px; background:rgba(255,0,0,0.05); border-radius:8px">
+      <div style="font-weight:600;margin-bottom:4px">Clear Cloud Mirrors</div>
+      <div class="muted" style="font-size:12px;margin-bottom:10px">Wipes the data from your GitHub JSON and Google Sheets. This does not affect your local database.</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button class="ghost" onclick="dbClearGithub()" style="font-size:12px;padding:4px 12px;border-color:var(--err);color:var(--err)">Clear GitHub JSON</button>
+        <button class="ghost" onclick="dbClearSheets()" style="font-size:12px;padding:4px 12px;border-color:var(--err);color:var(--err)">Clear Google Sheets</button>
+      </div>
+    </div>
+  </div>
+  <div id="db-danger-msg" style="font-size:13px;min-height:18px;margin-top:12px"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}<script>
+const WA_ADM='/admin/api';
+const BOTS_WA='/bots/api/whatsapp';
+let _waPollT=null;
+
+async function changePw(){
+  const v=document.getElementById('newpw').value.trim();
+  if(v.length<6){ toast('Password too short'); return; }
+  try{
+    await api(WA_ADM+'/change-password',{method:'POST',body:{password:v}});
+    toast('Updated — use new password on next sign-in.');
+    document.getElementById('newpw').value='';
+  } catch(e){ toast('Failed: '+e.message); }
+}
+
+async function pollWa(){
+  try{
+    const d=await api(WA_ADM+'/qr');
+    const rb=document.getElementById('wa-run-badge');
+    const cb=document.getElementById('wa-con-badge');
+    if(cb){ cb.textContent=d.connected?'connected':''; cb.className='badge '+(d.connected?'b-ok':'b-mut'); }
+    const area=document.getElementById('admin-qr-area');
+    if(d.connected){
+      if(area) area.innerHTML='<div style="color:var(--ok);font-size:22px;text-align:center">✔ Connected<br><small style="font-size:13px;color:var(--muted)">'+d.bot_number+'</small></div>';
+      if(rb){ rb.textContent='online'; rb.className='badge b-ok'; }
+    } else if(d.qr_available){
+      if(rb){ rb.textContent='waiting for scan'; rb.className='badge b-warn'; }
+      const ts=Date.now();
+      if(area) area.innerHTML='<img src="'+WA_ADM+'/qr.png?t='+ts+'" style="max-width:100%;border-radius:8px">';
+    } else {
+      if(rb){ rb.textContent='offline'; rb.className='badge b-err'; }
+      if(area) area.innerHTML='<div class="muted" style="text-align:center">Start the bot to see the QR.</div>';
+    }
+    if(d.pairing_code){
+      document.getElementById('pair-code-area').style.display='block';
+      document.getElementById('pair-code-val').textContent=d.pairing_code;
+    }
+  } catch(e){ console.warn(e); }
+}
+
+function startWaPoll(){ pollWa(); clearInterval(_waPollT); _waPollT=setInterval(pollWa,5000); }
+
+async function waAction(cmd){
+  try{ await api(BOTS_WA+'/'+cmd,{method:'POST'}); toast(cmd+' sent'); setTimeout(pollWa,1500); }
+  catch(e){ toast('Failed: '+e.message); }
+}
+
+async function waRelink(){
+  if (!window._armed_waRelink) {
+    window._armed_waRelink = true;
+    toast('⚠ Wipe WhatsApp auth and restart? — click again to confirm', 4000);
+    setTimeout(() => { window._armed_waRelink = false; }, 4000);
+    return;
+  }
+  window._armed_waRelink = false;
+  try{ await api(WA_ADM+'/relink',{method:'POST'}); toast('Re-link triggered'); setTimeout(pollWa,1500); }
+  catch(e){ toast('Failed: '+e.message); }
+}
+
+async function setPairingNumber(){
+  const num=(document.getElementById('pair-phone').value||'').trim();
+  if(!num){ toast('Enter a phone number'); return; }
+  try{
+    await api(WA_ADM+'/set-pairing-number',{method:'POST',body:{number:num}});
+    await api(WA_ADM+'/request-pairing-code',{method:'POST'});
+    toast('Pairing code requested — check bot logs in a few seconds');
+    setTimeout(pollWa,3000);
+  } catch(e){ toast('Failed: '+e.message); }
+}
+
+async function sendBotCmd(){
+  const cmd=(document.getElementById('bot-cmd').value||'').trim();
+  if(!cmd){ toast('Enter a command'); return; }
+  const out=document.getElementById('bot-cmd-out');
+  out.style.display='block'; out.textContent='Sending…';
+  try{
+    const d=await api(WA_ADM+'/cmd',{method:'POST',body:{cmd}});
+    out.textContent=d.ok?(d.lines||[]).join('\n')||'(no output)':'Error: '+(d.error||'unknown');
+  } catch(e){ out.textContent='Error: '+e.message; }
+}
+
+async function loadBotUsers(){
+  const cont=document.getElementById('bot-users-tbl');
+  try{
+    const d=await api(WA_ADM+'/bot-users');
+    if(d.warning) cont.innerHTML='<div class="muted">'+d.warning+'</div>';
+    const users=d.users||[];
+    if(!users.length){ cont.innerHTML='<div class="muted empty">No users in bot.db yet.</div>'; return; }
+    const roleBadge=r=>r==='admin'?'<span class="badge b-err">admin</span>':r==='verified'?'<span class="badge b-ok">verified</span>':'<span class="badge b-mut">'+r+'</span>';
+    cont.innerHTML='<div class="table-wrap"><table><thead><tr><th>JID</th><th>Role</th><th>Quota MB/day</th><th>Used today</th><th>Last seen</th><th>Points</th><th></th></tr></thead><tbody>'+
+      users.map(u=>'<tr>'+
+        '<td><code style="font-size:11px">'+u.jid+'</code></td>'+
+        '<td>'+roleBadge(u.role)+'</td>'+
+        '<td>'+u.daily_quota_mb+'</td>'+
+        '<td>'+(u.used_today_mb||0).toFixed(1)+'</td>'+
+        '<td class="muted" style="font-size:11px">'+(u.last_seen_at?new Date(u.last_seen_at*1000).toLocaleString():'—')+'</td>'+
+        '<td>'+(u.points||0)+'</td>'+
+        '<td><button class="ghost" style="padding:3px 8px;font-size:11px" onclick="setQuota(\''+u.jid.replace('@s.whatsapp.net','')+'\')">Quota</button></td>'+
+        '</tr>'
+      ).join('')+'</tbody></table></div>';
+  } catch(e){ cont.innerHTML='<div class="muted">Error: '+e.message+'</div>'; }
+}
+
+var _quotaNum = '';
+function setQuota(num){
+  _quotaNum = num;
+  const panel = document.getElementById('quota-input-panel');
+  const lbl   = document.getElementById('quota-lbl');
+  if (panel) {
+    lbl.textContent = 'Quota (MB/day) for ' + num + ':';
+    document.getElementById('quota-mb-input').value = '';
+    panel.style.display = 'flex';
+    document.getElementById('quota-mb-input').focus();
+  }
+}
+async function applyQuota(){
+  const mb = parseInt(document.getElementById('quota-mb-input').value) || 0;
+  document.getElementById('quota-input-panel').style.display = 'none';
+  try{
+    await api(WA_ADM+'/quota',{method:'POST',body:{number:_quotaNum,mb}});
+    toast('✔ Quota updated to ' + mb + ' MB/day'); loadBotUsers();
+  } catch(e){ toast('Failed: '+e.message); }
+}
+
+async function loadUserRoles(){
+  try{
+    const d=await api(WA_ADM+'/settings');
+    ['admins','verified','blocked'].forEach(r=>{
+      const el=document.getElementById('r-'+r);
+      if(el) el.innerHTML=(d[r]||[]).map(j=>'<li>'+j+'</li>').join('')||'<li class="muted">(empty)</li>';
+    });
+  } catch(e){ console.warn('roles',e); }
+}
+
+async function addUserRole(){
+  const num=(document.getElementById('role-num').value||'').trim();
+  const role=document.getElementById('role-sel').value;
+  if(!num){ toast('Enter a phone number'); return; }
+  try{
+    await api(WA_ADM+'/users/add',{method:'POST',body:{role,number:num}});
+    toast('Added'); document.getElementById('role-num').value=''; loadUserRoles();
+  } catch(e){ toast('Failed: '+e.message); }
+}
+
+async function removeUserRole(){
+  const num=(document.getElementById('role-num').value||'').trim();
+  const role=document.getElementById('role-sel').value;
+  if(!num){ toast('Enter a phone number'); return; }
+  try{
+    await api(WA_ADM+'/users/remove',{method:'POST',body:{role,number:num}});
+    toast('Removed'); document.getElementById('role-num').value=''; loadUserRoles();
+  } catch(e){ toast('Failed: '+e.message); }
+}
+
+async function loadJdAccounts(){
+  const cont=document.getElementById('jd-accounts-tbl');
+  try{
+    const d=await api(WA_ADM+'/accounts');
+    const accts=d.accounts||[];
+    if(!accts.length){ cont.innerHTML='<div class="muted empty">No JazzDrive accounts. Add them in JazzDrive Scan.</div>'; return; }
+    cont.innerHTML='<div class="table-wrap"><table><thead><tr><th>MSISDN</th><th>Label</th><th>Notes</th><th>Active</th><th>Last scan</th></tr></thead><tbody>'+
+      accts.map(a=>'<tr>'+
+        '<td><code>'+a.msisdn+'</code></td>'+
+        '<td>'+(a.label||'—')+'</td>'+
+        '<td class="muted">'+(a.notes||'—')+'</td>'+
+        '<td>'+(a.is_active?'<span class="badge b-ok">yes</span>':'<span class="badge b-mut">no</span>')+'</td>'+
+        '<td class="muted">'+(a.last_scan_at?new Date(a.last_scan_at*1000).toLocaleString():'never')+'</td>'+
+        '</tr>'
+      ).join('')+'</tbody></table></div>';
+  } catch(e){ cont.innerHTML='<div class="muted">Error: '+e.message+'</div>'; }
+}
+
+async function admSendBroadcast(){
+  const msg=(document.getElementById('adm-bcast-msg').value||'').trim();
+  const chkV=document.getElementById('adm-bcast-verified').checked;
+  const chkA=document.getElementById('adm-bcast-admins').checked;
+  const st=document.getElementById('adm-bcast-status');
+  if(!msg){ toast('Enter a message first'); return; }
+  const roles=[]; if(chkV) roles.push('verified'); if(chkA) roles.push('admins');
+  if(!roles.length){ toast('Select at least one role'); return; }
+  if (!window._armed_broadcast) {
+    window._armed_broadcast = true;
+    toast('⚠ Send broadcast to all ' + roles.join(' + ') + ' users? — click again to confirm', 4000);
+    setTimeout(() => { window._armed_broadcast = false; }, 4000);
+    return;
+  }
+  window._armed_broadcast = false;
+  if(st) st.textContent='Sending…';
+  try{
+    const d=await api('/api/whatsapp/broadcast',{method:'POST',body:{message:msg,roles}});
+    const info=d.ok?('Sent '+d.sent+'/'+d.total+(d.failed?' ('+d.failed+' failed)':'')):'Error: '+(d.error||'?');
+    if(st) st.textContent=info; toast(info);
+    if(d.ok) document.getElementById('adm-bcast-msg').value='';
+  } catch(e){ if(st) st.textContent='Error: '+e.message; toast('Failed: '+e.message); }
+}
+
+/* ── DB management ─────────────────────────────────────────────────────── */
+function _dbMsg(msg, isErr){
+  const el=document.getElementById('db-mgmt-msg');
+  if(el){ el.textContent=msg; el.style.color=isErr?'var(--err)':'var(--ok)'; }
+}
+function _dangerMsg(msg, isErr){
+  const el=document.getElementById('db-danger-msg');
+  if(el){ el.textContent=msg; el.style.color=isErr?'var(--err,#f44)':'var(--ok,#22c55e)'; el.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+  toast(msg, isErr ? 5000 : 3000);
+}
+
+async function dbReset(){
+  const chk = document.getElementById('chk-db-reset');
+  if(!chk || !chk.checked){ toast('Please check the confirmation box first'); return; }
+  const btn = document.getElementById('btn-db-reset');
+  // Two-step: first click arms, second click fires
+  if(!btn._armed){
+    btn._armed = true;
+    btn.textContent = '⚠️ Click again to confirm';
+    btn.style.background = '#c0392b';
+    setTimeout(()=>{ btn._armed=false; btn.textContent='Reset Tables'; btn.style.background=''; }, 4000);
+    return;
+  }
+  btn._armed = false;
+  btn.style.background = '';
+
+  const resultEl = document.getElementById('db-reset-result');
+  if(btn){ btn.disabled=true; btn.textContent='Resetting…'; }
+  if(resultEl){ resultEl.style.display='none'; }
+  _dangerMsg('⏳ Resetting tables…');
+
+  try{
+    const r = await api('/admin/api/db/reset',{method:'POST'});
+    if(r.ok){
+      const counts = r.row_counts || {};
+      const total = Object.values(counts).reduce((s,v)=>s+v, 0);
+      const rows = Object.entries(counts)
+        .map(([k,v])=>`<tr>
+          <td style="padding:3px 10px;color:var(--muted);font-size:12px">${k}</td>
+          <td style="padding:3px 10px;text-align:right;font-size:12px;color:${v>0?'var(--warn)':'var(--muted)'}">${v} row${v!==1?'s':''} deleted</td>
+        </tr>`).join('');
+      if(resultEl){
+        resultEl.style.display='block';
+        resultEl.style.background='rgba(92,214,111,0.08)';
+        resultEl.style.border='1px solid var(--ok)';
+        resultEl.innerHTML=
+          `<div style="color:var(--ok);font-weight:600;margin-bottom:8px">✔ Reset complete — ${total} total row${total!==1?'s':''} removed</div>`
+          +`<table style="width:100%;border-collapse:collapse">${rows}</table>`
+          +`<div style="margin-top:8px;font-size:11px;color:var(--muted)">Devices will re-sync on next app launch. Use <strong>Restore from JazzDrive</strong> above to rebuild the catalog.</div>`;
+        resultEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+      }
+      chk.checked = false;
+      _dangerMsg('✔ Reset complete — '+total+' rows removed');
+    } else {
+      if(resultEl){
+        resultEl.style.display='block';
+        resultEl.style.background='rgba(255,107,107,0.08)';
+        resultEl.style.border='1px solid var(--err)';
+        resultEl.innerHTML=`<div style="color:var(--err);font-weight:600">✗ Reset failed</div><div style="margin-top:4px;font-size:12px;color:var(--muted)">${r.error||'Unknown error'}</div>`;
+      }
+      _dangerMsg('Error: '+(r.error||'?'), true);
+    }
+  }catch(e){
+    if(resultEl){
+      resultEl.style.display='block';
+      resultEl.style.background='rgba(255,107,107,0.08)';
+      resultEl.style.border='1px solid var(--err)';
+      resultEl.innerHTML=`<div style="color:var(--err);font-weight:600">✗ Reset failed</div><div style="margin-top:4px;font-size:12px;color:var(--muted)">${e.message}</div>`;
+    }
+    _dangerMsg('Error: '+e.message, true);
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='Reset Tables'; }
+  }
+}
+
+
+async function rescanMeta() {
+  const btn = document.getElementById('btn-rescan-meta');
+  const msg = document.getElementById('rescan-meta-msg');
+  btn.disabled = true;
+  msg.innerHTML = '<span style="color:var(--muted)">&#9203; Starting metadata re-scan&#8230;</span>';
+  try {
+    const r = await api('/admin/api/rescan-metadata', {method:'POST'});
+    if (!r.ok) { msg.innerHTML = `<span style="color:var(--err)">&#10060; ${r.error||'Failed to start'}</span>`; btn.disabled=false; return; }
+    msg.innerHTML = `<span style="color:var(--muted)">&#9203; Running&#8230; checking ${r.message||''}</span>`;
+    let polls = 0;
+    const iv = setInterval(async () => {
+      polls++;
+      const s = await api(`/admin/api/rescan-metadata/${r.job_id}`);
+      if (s.status === 'done') {
+        clearInterval(iv);
+        msg.innerHTML = `<span style="color:var(--ok)">&#9989; Done &#8212; matched <strong>${s.matched}</strong> of <strong>${s.total}</strong> files. Still missing: ${s.still_missing}</span>`;
+        btn.disabled = false;
+      } else if (s.status === 'error') {
+        clearInterval(iv);
+        msg.innerHTML = `<span style="color:var(--err)">&#10060; Error: ${s.error}</span>`;
+        btn.disabled = false;
+      } else if (polls > 120) {
+        clearInterval(iv);
+        msg.innerHTML = '<span style="color:var(--muted)">&#8987; Still running in background&#8230;</span>';
+        btn.disabled = false;
+      }
+    }, 3000);
+  } catch(e) {
+    msg.innerHTML = `<span style="color:var(--err)">&#10060; ${e.message}</span>`;
+    btn.disabled = false;
+  }
+}
+async function dbRestore(){
+  const btn = document.getElementById('btn-restore');
+  const msgEl = document.getElementById('db-restore-msg');
+  if(btn){ btn.disabled=true; btn.textContent='Starting…'; }
+  if(msgEl){ msgEl.innerHTML='<span style="color:var(--muted)">⏳ Triggering rescan…</span>'; }
+  try{
+    const r = await api('/admin/api/db/restore',{method:'POST'});
+    if(r.ok){
+      const started = (r.started||[]).map(a=>a.msisdn||('#'+a.id)).join(', ');
+      const skipped = (r.skipped||[]).map(a=>(a.msisdn||('#'+a.id))+' ('+a.reason+')').join(', ');
+      const errs    = (r.errors||[]).map(a=>(a.msisdn||('#'+a.id))+': '+a.error).join(', ');
+      let html = `<span style="color:var(--ok);font-weight:600">✔ ${r.message||'Restore started'}</span>`;
+      if(started) html += `<br><span style="font-size:11px;color:var(--muted)">Scanning: ${started}</span>`;
+      if(skipped) html += `<br><span style="font-size:11px;color:var(--muted)">Skipped: ${skipped}</span>`;
+      if(errs)    html += `<br><span style="font-size:11px;color:var(--err)">Errors: ${errs}</span>`;
+      html += `<br><span style="font-size:11px;color:var(--muted)">Check the <a href="/scan/">Scan page</a> for live progress.</span>`;
+      if(msgEl){ msgEl.innerHTML=html; }
+      toast('Restore scan started');
+    } else {
+      if(msgEl){ msgEl.innerHTML=`<span style="color:var(--err)">✗ ${r.error||'Failed to start restore'}</span>`; }
+      toast('Restore failed: '+(r.error||'?'), 4000);
+    }
+  }catch(e){
+    if(msgEl){ msgEl.innerHTML=`<span style="color:var(--err)">✗ ${e.message}</span>`; }
+    toast('Error: '+e.message, 4000);
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='↺ Restore from JazzDrive'; }
+  }
+}
+
+async function dbFullWipe(){
+  const chk = document.getElementById('chk-db-wipe');
+  if(!chk || !chk.checked){ toast('Please check the confirmation box first'); return; }
+  const btn = document.querySelector('#chk-db-wipe').closest('div').querySelector('button');
+  if(btn && !btn._armed){
+    btn._armed = true;
+    btn.textContent = '⚠️ Click again — THIS CANNOT BE UNDONE';
+    btn.style.background = '#7b0000';
+    setTimeout(()=>{ btn._armed=false; btn.textContent='Wipe Database'; btn.style.background=''; }, 5000);
+    return;
+  }
+  if(btn){ btn._armed=false; btn.style.background=''; }
+
+  _dangerMsg('Wiping entire database…');
+  try{
+    const r = await api('/admin/api/db/full-delete',{method:'POST'});
+    if(r.ok){
+      alert('Database wiped successfully. The system will now reload.');
+      location.href = '/';
+    } else {
+      _dangerMsg('Error: '+(r.error||'?'), true);
+    }
+  }catch(e){ _dangerMsg('Error: '+e.message, true); }
+}
+
+async function dbPull(){
+  _dbMsg('Pulling from GitHub…');
+  try{
+    const r=await api('/admin/api/db/pull',{method:'POST'});
+    _dbMsg(r.ok?`✔ Pulled ${r.pulled} new records (${r.skipped} already local)`:'Error: '+(r.error||'?'), !r.ok);
+  }catch(e){ _dbMsg('Error: '+e.message, true); }
+}
+
+async function dbSync(mode){
+  _dbMsg('Pushing to cloud…');
+  try{
+    const r=await api('/admin/api/db/sync',{method:'POST',body:{mode}});
+    const gh=r.github?`GitHub: ${r.github.ok?'OK':'FAIL'} (${r.github.records||0} records)`:'';
+    const gs=r.gsheets?`Sheets: ${r.gsheets.ok?'OK':'FAIL'} (${r.gsheets.records||0} records)`:'';
+    _dbMsg([gh,gs].filter(Boolean).join('  |  ')||'Done', !r.ok);
+  }catch(e){ _dbMsg('Error: '+e.message, true); }
+}
+
+async function dbClearGithub(){
+  if (!window._armed_clearGh) {
+    window._armed_clearGh = true;
+    toast('⚠ DANGER: Wipe GitHub JSON database? — click again to confirm', 4000);
+    setTimeout(() => { window._armed_clearGh = false; }, 4000);
+    return;
+  }
+  window._armed_clearGh = false;
+  _dangerMsg('Clearing GitHub…');
+  try{
+    const r=await api('/admin/api/db/clear-github',{method:'POST'});
+    _dangerMsg(r.ok?'✔ GitHub DB cleared':'Error: '+(r.error||'?'), !r.ok);
+  }catch(e){ _dangerMsg('Error: '+e.message, true); }
+}
+
+async function dbClearSheets(){
+  if (!window._armed_clearGs) {
+    window._armed_clearGs = true;
+    toast('⚠ DANGER: Delete all rows from Google Sheet? — click again to confirm', 4000);
+    setTimeout(() => { window._armed_clearGs = false; }, 4000);
+    return;
+  }
+  window._armed_clearGs = false;
+  _dangerMsg('Clearing Google Sheets…');
+  try{
+    const r=await api('/admin/api/db/clear-gsheets',{method:'POST'});
+    _dangerMsg(r.ok?'✔ Google Sheets cleared':'Error: '+(r.error||'?'), !r.ok);
+  }catch(e){ _dangerMsg('Error: '+e.message, true); }
+}
+
+async function loadQuotaLeaderboard(){
+  const cont=document.getElementById('quota-leaderboard-tbl');
+  try{
+    const d=await api(WA_ADM+'/bot-users');
+    const users=d.users||[];
+    if(!users.length){ cont.innerHTML='<div class="muted empty">No bot users found.</div>'; return; }
+    const sorted=[...users].sort((a,b)=>(b.points||0)-(a.points||0));
+    cont.innerHTML='<div class="table-wrap"><table><thead><tr>'
+      +'<th>#</th><th>JID</th><th>Role</th>'
+      +'<th>Quota (MB/day)</th><th>Used Today</th>'
+      +'<th>Points</th><th>Last seen</th>'
+      +'</tr></thead><tbody>'
+      +sorted.map((u,i)=>{
+        const jid=u.jid||'—';
+        const role=u.role||'—';
+        const quota=u.daily_quota_mb!=null?u.daily_quota_mb+' MB':'—';
+        const used=u.used_today_mb!=null?u.used_today_mb.toFixed(1)+' MB':'—';
+        const pts=u.points||0;
+        const ls=u.last_seen_at?new Date(u.last_seen_at*1000).toLocaleString():'—';
+        const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+        return '<tr>'
+          +'<td>'+(i+1)+(medal?'&nbsp;'+medal:'')+'</td>'
+          +'<td><code style="font-size:11px">'+jid+'</code></td>'
+          +'<td><span class="badge b-mut">'+role+'</span></td>'
+          +'<td>'+quota+'</td>'
+          +'<td>'+used+'</td>'
+          +'<td style="font-weight:600;color:var(--accent)">'+pts+'</td>'
+          +'<td class="muted" style="font-size:11px">'+ls+'</td>'
+          +'</tr>';
+      }).join('')
+      +'</tbody></table></div>';
+  } catch(e){ cont.innerHTML='<div class="muted">Error: '+e.message+'</div>'; }
+}
+
+startWaPoll();
+loadBotUsers();
+loadUserRoles();
+loadJdAccounts();
+loadQuotaLeaderboard();
+
+/* ── Domain Doctor ─────────────────────────────────────────────────────── */
+function _ddMsg(msg, isErr){
+  const el=document.getElementById('dd-status-msg');
+  if(el){ el.textContent=msg; el.style.color=isErr?'var(--err)':'var(--ok)'; }
+}
+
+function _ddRender(sites){
+  const el=document.getElementById('dd-table');
+  if(!el) return;
+  const keys=Object.keys(sites);
+  if(!keys.length){ el.innerHTML='<div class="muted empty">No site data yet. Click "Run All Sites".</div>'; return; }
+  const statusBadge=s=>{
+    if(!s||!s.status) return '<span class="badge b-mut">unknown</span>';
+    if(s.status==='ok') return '<span class="badge b-ok">ok</span>';
+    return '<span class="badge b-err">down</span>';
+  };
+  const fmtTs=ts=>{
+    if(!ts) return '—';
+    const d=new Date(ts*1000);
+    return d.toLocaleString();
+  };
+  el.innerHTML='<div class="table-wrap"><table><thead><tr>'
+    +'<th>Site</th><th>Status</th><th>Active Domain</th><th>Stored Domain</th><th>Last Probed</th><th></th>'
+    +'</tr></thead><tbody>'
+    +keys.map(site=>{
+      const s=sites[site]||{};
+      const active=s.active_domain||s.stored_domain||'—';
+      const stored=s.stored_domain||'—';
+      const hasLink=active&&active!=='—'&&active!=='DOWN';
+      const activeCell=hasLink?'<a href="'+active+'" target="_blank" style="font-size:12px;word-break:break-all">'+active+'</a>':'<span class="muted">'+active+'</span>';
+      const storedCell=stored&&stored!=='—'?'<span style="font-size:11px;color:var(--muted);word-break:break-all">'+stored+'</span>':'<span class="muted">—</span>';
+      return '<tr>'
+        +'<td style="font-weight:600;text-transform:capitalize">'+site+'</td>'
+        +'<td>'+statusBadge(s)+'</td>'
+        +'<td>'+activeCell+'</td>'
+        +'<td>'+storedCell+'</td>'
+        +'<td class="muted" style="font-size:11px">'+fmtTs(s.last_probe_at||s.stored_at)+'</td>'
+        +'<td><button class="ghost" style="padding:3px 8px;font-size:11px" onclick="ddRunSite(\''+site+'\')">↺</button></td>'
+        +'</tr>';
+    }).join('')
+    +'</tbody></table></div>';
+}
+
+async function ddRefreshStatus(){
+  try{
+    const d=await api('/admin/api/domain-doctor/status');
+    _ddRender(d.sites||{});
+    _ddMsg('Status loaded at '+new Date().toLocaleTimeString());
+  } catch(e){ _ddMsg('Error: '+e.message, true); }
+}
+
+async function ddRunAll(){
+  const btn=document.getElementById('btn-dd-run');
+  if(btn){ btn.disabled=true; btn.textContent='Running…'; }
+  _ddMsg('Discovery started — this may take 30–60 seconds…');
+  try{
+    await api('/admin/api/domain-doctor/run',{method:'POST'});
+    setTimeout(async()=>{
+      await ddRefreshStatus();
+      if(btn){ btn.disabled=false; btn.textContent='▶ Run All Sites'; }
+    }, 15000);
+  } catch(e){
+    _ddMsg('Error: '+e.message, true);
+    if(btn){ btn.disabled=false; btn.textContent='▶ Run All Sites'; }
+  }
+}
+
+async function ddRunSite(site){
+  _ddMsg('Probing '+site+'…');
+  try{
+    await api('/admin/api/domain-doctor/run',{method:'POST',body:{site}});
+    setTimeout(async()=>{
+      await ddRefreshStatus();
+    }, 8000);
+  } catch(e){ _ddMsg('Error: '+e.message, true); }
+}
+
+
+<!-- ── Delta Sync ──────────────────────────────────────────────────────── -->
+<div class="card" id="delta-card">
+  <div class="row" style="justify-content:space-between;margin-bottom:14px">
+    <h3 style="margin:0">Delta Sync (Zero-Rated)</h3>
+    <span class="badge b-mut" id="ds-state-badge">loading…</span>
+  </div>
+
+  <!-- Status row -->
+  <div class="grid grid-2" style="gap:10px;margin-bottom:16px">
+    <div class="card" style="margin:0;background:var(--panel2);padding:10px 14px">
+      <div class="muted" style="font-size:11px;margin-bottom:4px">Last upload</div>
+      <div id="ds-last-upload" style="font-size:13px;font-weight:600">—</div>
+    </div>
+    <div class="card" style="margin:0;background:var(--panel2);padding:10px 14px">
+      <div class="muted" style="font-size:11px;margin-bottom:4px">Last error</div>
+      <div id="ds-last-error" style="font-size:12px;color:var(--danger)">—</div>
+    </div>
+  </div>
+
+  <!-- Config -->
+  <div class="form-row" style="align-items:center;gap:12px;margin-bottom:10px">
+    <label style="min-width:130px">Auto-sync enabled</label>
+    <label class="toggle">
+      <input type="checkbox" id="ds-enabled">
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="form-row" style="margin-bottom:16px">
+    <label>Interval (hours)</label>
+    <input type="number" id="ds-interval" min="1" max="168" style="width:100px">
+    <span class="muted" style="font-size:12px">Minimum 1 h · restart not required</span>
+  </div>
+
+  <!-- Action buttons -->
+  <div class="row" style="gap:8px;flex-wrap:wrap">
+    <button id="ds-save-btn" onclick="dsSaveConfig()">💾 Save config</button>
+    <button class="ghost" id="ds-trigger-btn" onclick="dsTriggerNow()">▶ Generate now</button>
+    <button class="ghost" id="ds-restart-btn" onclick="dsRestartOracle()">↺ Restart Oracle</button>
+  </div>
+  <div id="ds-msg" style="margin-top:10px;font-size:13px"></div>
+</div>
+
+<script>
+// ── Delta Sync panel ──────────────────────────────────────────────────────────
+
+const _dsAuthHdr = () => ({
+  Authorization: 'Basic ' + btoa(document.cookie.match(/adm_u=([^;]+)/)?.[1]||'admin'
+    + ':' + (document.cookie.match(/adm_p=([^;]+)/)?.[1]||'')),
+});
+
+async function dsLoad() {
+  try {
+    const s = await fetch('/api/catalog/delta-push/status').then(r=>r.json());
+    document.getElementById('ds-last-upload').textContent =
+      s.last_upload_at ? new Date(s.last_upload_at*1000).toLocaleString() : 'Never';
+    document.getElementById('ds-last-error').textContent = s.last_error || 'None';
+
+    const badge = document.getElementById('ds-state-badge');
+    if (s.running) {
+      badge.textContent = 'running'; badge.className = 'badge b-ok';
+    } else if (s.auto_enabled) {
+      badge.textContent = 'idle · auto ON'; badge.className = 'badge b-mut';
+    } else {
+      badge.textContent = 'auto OFF'; badge.className = 'badge b-warn';
+    }
+
+    document.getElementById('ds-enabled').checked  = s.auto_enabled;
+    document.getElementById('ds-interval').value   = s.interval_h || 6;
+  } catch(e) { _dsMsg('Load failed: '+e.message, true); }
+}
+
+function _dsMsg(m, isErr) {
+  const el = document.getElementById('ds-msg');
+  el.textContent = m;
+  el.style.color = isErr ? 'var(--danger)' : 'var(--accent)';
+}
+
+async function dsSaveConfig() {
+  const btn = document.getElementById('ds-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const body = {
+      enabled:    document.getElementById('ds-enabled').checked,
+      interval_h: parseInt(document.getElementById('ds-interval').value, 10) || 6,
+    };
+    const r = await fetch('/api/catalog/delta-push/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ..._dsAuthHdr() },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.ok) { _dsMsg('Config saved — loop will apply new interval on next cycle'); dsLoad(); }
+    else       { _dsMsg(d.error||'Save failed', true); }
+  } catch(e) { _dsMsg('Error: '+e.message, true); }
+  finally    { btn.disabled = false; btn.textContent = '💾 Save config'; }
+}
+
+async function dsTriggerNow() {
+  const btn = document.getElementById('ds-trigger-btn');
+  btn.disabled = true; btn.textContent = 'Generating…';
+  _dsMsg('Running pipeline — this may take ~15 s…');
+  try {
+    const r = await fetch('/api/catalog/delta-push/trigger', {
+      method: 'POST', headers: _dsAuthHdr(),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      _dsMsg('✓ Done — '+d.title_count+' titles, '+d.episode_count+' episodes, '
+             +d.size_kb+' KB');
+      dsLoad();
+    } else { _dsMsg('Pipeline failed: '+(d.error||JSON.stringify(d)), true); }
+  } catch(e) { _dsMsg('Error: '+e.message, true); }
+  finally    { btn.disabled = false; btn.textContent = '▶ Generate now'; }
+}
+
+async function dsRestartOracle() {
+  if (!window._armed_restartOracle) {
+    window._armed_restartOracle = true;
+    toast('⚠ Restart Oracle server? All connections drop for ~5s — click again to confirm', 4000);
+    setTimeout(() => { window._armed_restartOracle = false; }, 4000);
+    return;
+  }
+  window._armed_restartOracle = false;
+  const btn = document.getElementById('ds-restart-btn');
+  btn.disabled = true; btn.textContent = 'Restarting…';
+  _dsMsg('Sending restart signal…');
+  try {
+    const r = await fetch('/api/catalog/delta-push/restart', {
+      method: 'POST', headers: _dsAuthHdr(),
+    });
+    const d = await r.json();
+    _dsMsg(d.message || 'Restarting…');
+    setTimeout(() => { btn.disabled = false; btn.textContent = '↺ Restart Oracle'; dsLoad(); }, 8000);
+  } catch(e) {
+    // fetch will fail because server is restarting — that is expected
+    _dsMsg('Oracle is restarting — page will work again in ~5 s');
+    setTimeout(() => { btn.disabled = false; btn.textContent = '↺ Restart Oracle'; dsLoad(); }, 8000);
+  }
+}
+
+// Auto-refresh status every 30 s and load on page init
+dsLoad();
+setInterval(dsLoad, 30000);
+
+
+</script>
+</script>{% endblock %}

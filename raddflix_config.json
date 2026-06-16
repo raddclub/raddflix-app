@@ -1,0 +1,6 @@
+{
+  "api_base_url": "http://92.4.95.252",
+  "min_version_code": 1,
+  "update_url": "https://github.com/raddclub/raddflix-app/releases/latest",
+  "note": "Update api_base_url here to change the server without rebuilding the APK"
+}

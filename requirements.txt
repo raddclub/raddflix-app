@@ -1,0 +1,12 @@
+flask>=3.0
+flask-cors>=4.0
+werkzeug>=3.0
+pyjwt>=2.8
+requests>=2.31
+python-dotenv>=1.0
+psutil>=5.9
+colorama>=0.4.6
+httpx>=0.27
+packaging>=24.0
+cryptography>=42.0
+nest-asyncio

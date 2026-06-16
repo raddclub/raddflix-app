@@ -1,0 +1,950 @@
+{% extends "base.html" %}
+{% set active="stream" %}
+{% block content %}
+<style>
+.modal{position:fixed;z-index:1000;inset:0;background:#0008;display:flex;
+  align-items:center;justify-content:center;padding:12px}
+.modal-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  width:min(860px,100%);max-height:92vh;display:flex;flex-direction:column}
+.modal-head{padding:14px 18px;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.modal-head h3{margin:0;font-size:15px}
+.modal-body{padding:16px;overflow-y:auto;flex:1}
+.log-pre{font-family:monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;
+  background:var(--panel2);padding:12px;border-radius:7px;max-height:380px;
+  overflow-y:auto;color:#c5cde6}
+.prog-bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin-top:3px}
+.prog-bar-fill{height:100%;background:var(--accent);transition:width .3s}
+.btn-sm{padding:4px 9px;font-size:12px;border-radius:5px}
+.ctrl-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.section-head{display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.tab-btn{background:transparent;border:1px solid var(--border);color:var(--muted);
+  padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px}
+.tab-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.search-result-row{display:flex;justify-content:space-between;align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:6px}
+.search-result-row:last-child{border:none}
+.link-chip{display:inline-block;background:var(--panel2);border:1px solid var(--border);
+  border-radius:5px;padding:3px 8px;font-size:11px;color:var(--accent);
+  text-decoration:none;margin:2px}
+.link-chip:hover{background:var(--accent);color:#fff}
+.otp-step{background:var(--panel2);border-radius:8px;padding:14px;margin-bottom:10px}
+.wa-status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
+.wa-green{background:#4ade80}.wa-red{background:#f87171}.wa-yellow{background:#fbbf24}
+.stage-label{font-size:10px;color:var(--muted);font-style:italic;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.hint-chip{display:inline-block;background:var(--panel2);border:1px solid var(--border);
+  border-radius:10px;padding:1px 6px;font-size:10px;margin-right:3px;color:var(--muted)}
+.hint-chip.year{border-color:#3d3a5c;color:#9b8fff}
+.hint-chip.lang{border-color:#1d3a4a;color:#5cb4ff}
+.speed-badge{font-size:10px;color:var(--ok);font-weight:600;white-space:nowrap}
+.eta-badge{font-size:10px;color:var(--warn);white-space:nowrap}
+.movie-cell{max-width:180px}
+.movie-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Responsive */
+@media(max-width:767px){
+  .stream-header-btns{overflow-x:auto;padding-bottom:4px;flex-wrap:nowrap !important;
+    -webkit-overflow-scrolling:touch}
+  .add-queue-row{flex-direction:column;gap:8px}
+  .add-queue-row input,.add-queue-row select{width:100%}
+  .add-queue-row button{width:100%}
+  .section-head .ctrl-row{justify-content:flex-start}
+}
+</style>
+
+<div class="h-row">
+  <h2>Downloader</h2>
+  <div class="row stream-header-btns" style="gap:6px;flex-shrink:0">
+    <button class="ghost btn-sm" id="wa-indicator" onclick="openWAPanel()">🤖 WhatsApp</button>
+    <button class="ghost btn-sm" id="jd-indicator" onclick="openJDPanel()">☁ JazzDrive</button>
+    <button class="ghost btn-sm" onclick="openSearch()">🔍 Search</button>
+    <button class="ghost btn-sm" onclick="openDirect()">🔗 Direct URL</button>
+    <button class="ghost btn-sm" onclick="openMetaFix()">✨ Meta Fix</button>
+    <button class="ghost btn-sm" onclick="openSchedule()">🕐 Schedule</button>
+    <button class="ghost btn-sm" onclick="openBatch()">📋 Batch</button>
+    <button class="ghost btn-sm" onclick="openSettings()">⚙ Settings</button>
+    <button class="ghost btn-sm" onclick="loadResults()">Results ↗</button>
+  </div>
+</div>
+
+<!-- Single add card -->
+<div class="card">
+  <h3>Add to queue</h3>
+  <div class="row add-queue-row" style="gap:8px">
+    <input id="q" placeholder="Movie / series name  (e.g. Inception 2010 Hindi)" style="flex:1;min-width:0"
+           onkeydown="if(event.key==='Enter')queueIt()">
+    <select id="site" style="width:160px;flex-shrink:0">
+      <option value="auto">Auto (all sites)</option>
+      <option value="vegamovies">VegaMovies</option>
+      <option value="katmoviehd">KatMovieHD</option>
+      <option value="rogmovies">RogMovies</option>
+      <option value="ssrmovies">SSRMovies</option>
+      <option value="rareanimes">RareAnimes</option>
+    </select>
+    <button onclick="queueIt()" style="flex-shrink:0">+ Queue</button>
+  </div>
+  <div id="queue-hint" class="muted" style="margin-top:6px;font-size:12px">
+    Tip: Include the year and language — e.g. <em>Avengers Endgame 2019 Hindi</em>.
+    Use <b>Batch</b> for many movies at once.
+  </div>
+</div>
+
+<!-- Queue card -->
+<div class="card">
+  <div class="section-head">
+    <h3>Download Queue</h3>
+    <div class="ctrl-row">
+      <button class="ghost btn-sm" onclick="bulkAction('pause-all')">⏸ Pause all</button>
+      <button class="ghost btn-sm" onclick="bulkAction('resume-all')">▶ Resume all</button>
+      <button class="danger btn-sm" onclick="bulkAction('cancel-all')">✕ Cancel all</button>
+      <button class="ghost btn-sm" onclick="removeCancelled()">🗑 Remove cancelled/error</button>
+      <button class="ghost btn-sm" onclick="clearDone()">🗑 Clear done</button>
+      <button class="ghost btn-sm" onclick="window.location.reload()">↻ Refresh</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+  <table id="qtable" style="min-width:680px">
+    <thead><tr>
+      <th style="width:80px">Job</th>
+      <th>Movie</th>
+      <th style="width:100px">Site</th>
+      <th style="width:90px">Status</th>
+      <th style="width:150px">Progress</th>
+      <th style="width:200px">Actions</th>
+    </tr></thead>
+    <tbody><tr><td colspan=6 class="empty">Loading…</td></tr></tbody>
+  </table>
+  </div>
+</div>
+
+<!-- Results card -->
+<div class="card" id="results-card" style="display:none">
+  <div class="section-head">
+    <h3>Completed — Download links</h3>
+    <button class="ghost btn-sm" onclick="document.getElementById('results-card').style.display='none'">Close</button>
+  </div>
+  <div class="table-wrap">
+  <table id="results-table">
+    <thead><tr><th>Movie</th><th>Link</th><th>Completed</th></tr></thead>
+    <tbody><tr><td colspan=3 class="empty">Loading…</td></tr></tbody>
+  </table>
+  </div>
+</div>
+
+<!-- ───── Log modal ───── -->
+<div id="log-modal" class="modal" style="display:none" onclick="if(event.target===this)closeLog()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Job Log — <span id="log-title"></span></h3>
+      <div class="row" style="gap:6px">
+        <button class="ghost btn-sm" onclick="copyToClipboard('log-pre')" title="Copy logs to clipboard">📋 Copy</button>
+        <span id="log-status-badge" class="badge b-mut"></span>
+        <button class="ghost btn-sm" onclick="closeLog()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div id="log-meta" style="margin-bottom:10px;font-size:12px;color:var(--muted)"></div>
+      <pre class="log-pre" id="log-pre">Loading…</pre>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- ─────  MetaFix modal  ───── -->
+<div id="metafix-modal" class="modal" style="display:none" onclick="if(event.target===this)closeMetaFix()">
+  <div class="modal-box" style="width:min(540px,100%)">
+    <div class="modal-head">
+      <h3>✨ Metadata Auto-Fix</h3>
+      <button class="ghost btn-sm" onclick="closeMetaFix()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="muted" style="margin-bottom:14px">
+        Enriches all published titles that have missing posters, plot, cast, or ratings.<br>
+        Sources tried in order: <b>TMDB → OMDB → IMDb → AI → YouTube</b>.<br>
+        Only fills <em>blank</em> fields — never overwrites correct data.
+      </p>
+      <div class="row" style="gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:160px">
+          <label>Confidence threshold</label>
+          <input id="mf-threshold" type="number" value="70" min="0" max="100" style="width:100%">
+          <small class="muted">Fix titles scoring below this (0-100)</small>
+        </div>
+        <div style="flex:1;min-width:160px">
+          <label>Max titles per run</label>
+          <input id="mf-limit" type="number" value="200" min="1" max="1000" style="width:100%">
+        </div>
+      </div>
+      <div id="mf-progress" style="display:none;margin-top:14px">
+        <div class="row" style="justify-content:space-between;margin-bottom:6px">
+          <span id="mf-label" class="muted" style="font-size:12px">Starting…</span>
+          <span id="mf-pct" class="muted" style="font-size:12px">0%</span>
+        </div>
+        <div style="background:var(--panel2);border-radius:6px;height:6px;overflow:hidden">
+          <div id="mf-bar" style="background:var(--accent);height:100%;width:0%;transition:width 0.4s"></div>
+        </div>
+        <div id="mf-stats" class="muted" style="font-size:11px;margin-top:6px"></div>
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:16px;gap:8px">
+        <button class="ghost" onclick="closeMetaFix()">Close</button>
+        <button id="mf-btn" onclick="startMetaFix()">✨ Start Auto-Fix</button>
+        <button id="mf-stop-btn" class="ghost" onclick="stopMetaFix()" style="display:none;color:var(--danger)">Stop</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────  Schedule modal  ───── -->
+<div id="schedule-modal" class="modal" style="display:none" onclick="if(event.target===this)closeSchedule()">
+  <div class="modal-box" style="width:min(640px,100%)">
+    <div class="modal-head">
+      <h3>🕐 Scheduled Auto-Downloads</h3>
+      <button class="ghost btn-sm" onclick="closeSchedule()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="muted" style="margin-bottom:12px">
+        Automatically queue new episodes at set intervals. The scheduler checks every 30 min.<br>
+        For ongoing shows, also enables smart episode-number detection.
+      </p>
+      <div style="background:var(--panel2);border-radius:8px;padding:14px;margin-bottom:14px">
+        <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:10px">
+          <div style="flex:2;min-width:180px">
+            <label>Label (display name)</label>
+            <input id="sc-label" placeholder="Game of Thrones S8" style="width:100%">
+          </div>
+          <div style="flex:3;min-width:200px">
+            <label>Search query</label>
+            <input id="sc-query" placeholder="Game of Thrones Season 8" style="width:100%">
+          </div>
+        </div>
+        <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:10px">
+          <div style="flex:1;min-width:120px">
+            <label>Frequency</label>
+            <select id="sc-freq" style="width:100%;background:var(--panel3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px">
+              <option value="daily">Daily</option>
+              <option value="12h">Every 12 hours</option>
+              <option value="weekly">Weekly</option>
+              <option value="manual">Manual only</option>
+            </select>
+          </div>
+          <div style="flex:1;min-width:120px" id="sc-dow-wrap" style="display:none">
+            <label>Day of week</label>
+            <select id="sc-dow" style="width:100%;background:var(--panel3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px">
+              <option value="0">Monday</option><option value="1">Tuesday</option>
+              <option value="2">Wednesday</option><option value="3">Thursday</option>
+              <option value="4">Friday</option><option value="5">Saturday</option>
+              <option value="6">Sunday</option>
+            </select>
+          </div>
+          <div style="flex:1;min-width:120px">
+            <label>Site</label>
+            <select id="sc-site" style="width:100%;background:var(--panel3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px">
+              <option value="auto">Auto</option>
+              <option value="vegamovies">VegaMovies</option>
+              <option value="katmoviehd">KatMovieHD</option>
+              <option value="ssrmovies">SSRMovies</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" style="justify-content:flex-end">
+          <button onclick="addSchedule()">+ Add Schedule</button>
+        </div>
+      </div>
+      <div id="sc-list">
+        <div class="muted" style="text-align:center;padding:20px 0">Loading schedules…</div>
+      </div>
+      <div id="sc-result" style="margin-top:10px;display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────  Direct URL modal  ───── -->
+<div id="direct-modal" class="modal" style="display:none" onclick="if(event.target===this)closeDirect()">
+  <div class="modal-box" style="width:min(640px,100%)">
+    <div class="modal-head">
+      <h3>🔗 Direct URL Download</h3>
+      <button class="ghost btn-sm" onclick="closeDirect()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="muted" style="margin-bottom:10px">
+        Paste a direct download link — movie file, episode file, or season ZIP.<br>
+        Multiple URLs: one per line. Each queues as a separate job.<br>
+        Zips are auto-extracted → episodes uploaded one-by-one to JazzDrive, same as the normal pipeline.
+      </p>
+      <div class="form-row">
+        <label>Movie / Show name <span class="muted">(for metadata &amp; poster)</span></label>
+        <input id="direct-name" placeholder="e.g. Inception 2010" style="width:100%">
+      </div>
+      <div class="form-row" style="margin-top:10px">
+        <label>Direct download URL(s) — one per line</label>
+        <textarea id="direct-urls" style="width:100%;height:120px;font-family:monospace;font-size:12px;
+          background:var(--panel2);border:1px solid var(--border);border-radius:7px;
+          color:var(--text);padding:10px;resize:vertical"
+          placeholder="https://example.com/Inception.2010.1080p.mkv&#10;https://example.com/season2.zip"></textarea>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:6px">
+        ✔ Supports: .mkv .mp4 .avi .zip &nbsp;|&nbsp;
+        ✔ ZIP = season pack (auto-extracted, episodes uploaded one-by-one) &nbsp;|&nbsp;
+        ✔ Files &gt;1.98 GB auto-split before upload
+      </div>
+      <div id="direct-result" style="margin-top:10px;display:none"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:14px;gap:8px">
+        <button class="ghost" onclick="closeDirect()">Cancel</button>
+        <button onclick="submitDirect()" id="direct-btn">⬇ Queue Download</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Batch modal ───── -->
+<div id="batch-modal" class="modal" style="display:none" onclick="if(event.target===this)closeBatch()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>📋 Batch Queue</h3>
+      <button class="ghost btn-sm" onclick="closeBatch()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="muted" style="margin-bottom:10px">Enter one movie per line:<br>
+      <code>Inception 2010</code> &nbsp; <code>Pathaan 2023 Hindi</code></p>
+      <textarea id="batch-input" style="width:100%;height:200px;font-family:monospace;font-size:13px;
+        background:var(--panel2);border:1px solid var(--border);border-radius:7px;
+        color:var(--text);padding:10px;resize:vertical"
+        placeholder="Inception 2010&#10;The Dark Knight 2008&#10;Interstellar 2014&#10;..."></textarea>
+      <div class="form-row" style="margin-top:10px">
+        <label>Download from site</label>
+        <select id="batch-site">
+          <option value="auto">Auto (all sites)</option>
+          <option value="vegamovies">VegaMovies</option>
+          <option value="katmoviehd">KatMovieHD</option>
+          <option value="rogmovies">RogMovies</option>
+          <option value="ssrmovies">SSRMovies</option>
+          <option value="rareanimes">RareAnimes</option>
+        </select>
+      </div>
+      <div id="batch-result" style="margin-top:10px;display:none"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:14px;gap:8px">
+        <button class="ghost" onclick="closeBatch()">Cancel</button>
+        <button onclick="submitBatch()" id="batch-btn">Queue All</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Search Sites modal ───── -->
+<div id="search-modal" class="modal" style="display:none" onclick="if(event.target===this)closeSearch()">
+  <div class="modal-box" style="width:min(1000px,100%)">
+    <div class="modal-head">
+      <h3>🔍 Search Movie Sites</h3>
+      <button class="ghost btn-sm" onclick="closeSearch()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="row add-queue-row" style="gap:8px;margin-bottom:14px">
+        <input id="search-q" placeholder="Movie title (e.g. Inception 2010)" style="flex:1;min-width:0"
+               onkeydown="if(event.key==='Enter')runSearch()">
+        <input id="search-year" placeholder="Year" style="width:80px;flex-shrink:0">
+        <button onclick="runSearch()" id="search-btn" style="flex-shrink:0">Search All</button>
+      </div>
+      <div class="muted" style="margin-bottom:10px;font-size:12px">Searches VegaMovies, RogMovies, KatMovieHD, SSRMovies, RareAnimes simultaneously.</div>
+      <div id="search-status" style="margin-bottom:10px"></div>
+      <div id="search-results"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ───── JazzDrive OTP modal ───── -->
+<div id="jd-modal" class="modal" style="display:none" onclick="if(event.target===this)closeJDPanel()">
+  <div class="modal-box" style="width:min(540px,100%)">
+    <div class="modal-head">
+      <h3>☁ JazzDrive Login</h3>
+      <button class="ghost btn-sm" onclick="closeJDPanel()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="jd-status-box" class="otp-step">Checking status…</div>
+      <div class="otp-step" style="margin-top:12px">
+        <h4 style="margin:0 0 10px">Step 1 — Send OTP</h4>
+        <div class="form-row">
+          <label>JazzDrive phone number</label>
+          <input id="jd-msisdn" placeholder="923xxxxxxxxx" value="">
+        </div>
+        <button onclick="jdSendOTP()" id="jd-otp-btn">Send OTP SMS</button>
+        <div id="jd-otp-msg" style="margin-top:8px;font-size:13px"></div>
+      </div>
+      <div class="otp-step" id="jd-verify-box" style="margin-top:0;display:none">
+        <h4 style="margin:0 0 10px">Step 2 — Enter OTP from SMS</h4>
+        <div class="form-row">
+          <label>OTP code</label>
+          <input id="jd-otp-code" placeholder="123456" maxlength="8"
+                 style="width:140px;font-size:18px;letter-spacing:4px"
+                 onkeydown="if(event.key==='Enter')jdVerifyOTP()">
+        </div>
+        <button onclick="jdVerifyOTP()" id="jd-verify-btn">Verify OTP &amp; Login</button>
+        <div id="jd-verify-msg" style="margin-top:8px;font-size:13px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───── WhatsApp Bot modal ───── -->
+<div id="wa-modal" class="modal" style="display:none" onclick="if(event.target===this)closeWAPanel()">
+  <div class="modal-box" style="width:min(700px,100%)">
+    <div class="modal-head">
+      <h3>🤖 WhatsApp Bot</h3>
+      <button class="ghost btn-sm" onclick="closeWAPanel()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="wa-status-box" class="otp-step" style="margin-bottom:12px">Loading…</div>
+      <div class="ctrl-row" style="margin-bottom:14px">
+        <button onclick="waBotAction('start')" class="ghost">▶ Start</button>
+        <button onclick="waBotAction('stop')" class="ghost">■ Stop</button>
+        <button onclick="waBotAction('restart')" class="ghost">↺ Restart</button>
+        <button onclick="fetchWALogs()" class="ghost btn-sm">📋 Logs</button>
+      </div>
+      <div id="wa-pairing-box" style="display:none;margin-bottom:12px">
+        <div class="otp-step">
+          <h4 style="margin:0 0 8px">Pair WhatsApp</h4>
+          <div class="form-row">
+            <label>WhatsApp phone number (with country code)</label>
+            <input id="wa-phone" placeholder="923xxxxxxxxx">
+          </div>
+          <button onclick="requestWAPairing()">Get Pairing Code</button>
+          <div id="wa-pair-msg" style="margin-top:8px;font-size:13px"></div>
+        </div>
+      </div>
+      <div id="wa-pairing-code-box" style="display:none;margin-bottom:12px;text-align:center">
+        <div class="otp-step">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Enter this pairing code in WhatsApp:</div>
+          <div id="wa-pairing-code-display" style="font-size:28px;font-weight:700;letter-spacing:8px;color:var(--accent)"></div>
+          <div class="muted" style="margin-top:6px;font-size:12px">WhatsApp → Linked Devices → Link a Device → Enter code manually</div>
+        </div>
+      </div>
+      <div>
+        <div class="section-head" style="margin-bottom:6px">
+          <span style="font-weight:600;font-size:13px">Bot Logs</span>
+          <div class="ctrl-row">
+            <button class="ghost btn-sm" onclick="copyToClipboard('wa-log-pre')" title="Copy logs to clipboard">📋 Copy</button>
+            <button class="ghost btn-sm" onclick="fetchWALogs()">Refresh</button>
+          </div>
+        </div>
+        <pre class="log-pre" id="wa-log-pre" style="max-height:240px">Click "Logs" to load…</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───── Settings modal ───── -->
+<div id="settings-modal" class="modal" style="display:none" onclick="if(event.target===this)closeSettings()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Download Settings</h3>
+      <button class="ghost btn-sm" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="row" style="gap:6px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="tab-btn active" id="tab-dl" onclick="showTab('dl')">Download</button>
+        <button class="tab-btn" id="tab-domain" onclick="showTab('domain')">Site Domains</button>
+      </div>
+      <div id="pane-dl">
+        <div class="form-row">
+          <label>Auto-download</label>
+          <select id="s-auto_download">
+            <option value="1">Enabled</option>
+            <option value="0">Disabled (link only)</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Download directory</label>
+          <input id="s-download_dir" placeholder="/path/to/downloads">
+        </div>
+        <div class="form-row">
+          <label>Browser mode</label>
+          <select id="s-headless">
+            <option value="1">Headless (no window)</option>
+            <option value="0">Visible (debug)</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Max parallel downloads</label>
+          <select id="s-max_parallel">
+            <option value="1">1</option><option value="2">2</option>
+            <option value="3">3</option><option value="4">4</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Preferred quality</label>
+          <select id="s-preferred_quality">
+            <option value="360p">360p</option><option value="480p">480p</option>
+            <option value="720p">720p</option><option value="1080p">1080p</option>
+            <option value="4k">4K</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Preferred language</label>
+          <select id="s-preferred_language">
+            <option value="Hindi">Hindi</option><option value="English">English</option>
+            <option value="Tamil">Tamil</option><option value="Telugu">Telugu</option>
+            <option value="Dual Audio">Dual Audio</option><option value="Multi">Multi Audio</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Content type</label>
+          <select id="s-content_type">
+            <option value="any">Any</option><option value="movie">Movie only</option>
+            <option value="series">Series only</option><option value="anime">Anime only</option>
+          </select>
+        </div>
+      </div>
+      <div id="pane-domain" style="display:none">
+        <div class="muted" style="margin-bottom:12px">Override default site domains if the site has moved. Leave blank to use plugin default.</div>
+        <div class="form-row"><label>VegaMovies</label><input id="s-domain_vegamovies" placeholder="vegamovies.nz"></div>
+        <div class="form-row"><label>KatMovieHD</label><input id="s-domain_katmoviehd" placeholder="katmoviehd.nexus"></div>
+        <div class="form-row"><label>RogMovies</label><input id="s-domain_rogmovies" placeholder="rogmovies.com"></div>
+        <div class="form-row"><label>SSRMovies</label><input id="s-domain_ssrmovies" placeholder="ssrmovies.observer"></div>
+        <div class="form-row"><label>RareAnimes</label><input id="s-domain_rareanimes" placeholder="rareanimes.buzz"></div>
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:16px;gap:8px">
+        <button class="ghost" onclick="closeSettings()">Cancel</button>
+        <button onclick="saveSettings()">Save settings</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}<script>
+const _rowMap = {};
+const STATUS_CLASS = {
+  done:'b-ok', error:'b-err', failed:'b-err',
+  processing:'b-info', searching:'b-info', generating:'b-warn',
+  downloading:'b-info', paused:'b-warn', queued:'b-mut', cancelled:'b-mut',
+};
+function badgeFor(s){ return `<span class="badge ${STATUS_CLASS[s]||'b-info'}">${s}</span>`; }
+
+function parseSpeedEta(msg){
+  if(!msg) return {speed:null, eta:null, pct:null};
+  const speedM = msg.match(/Speed:\s*([\d.]+\s*[KMGT]?B\/s)/i);
+  const etaM   = msg.match(/ETA:\s*(\S+)/i);
+  const pctM   = msg.match(/Progress:\s*([\d.]+)%/i);
+  return { speed: speedM?speedM[1]:null, eta: etaM?etaM[1]:null, pct: pctM?parseFloat(pctM[1]):null };
+}
+
+function actionButtons(r){
+  const s=r.status; const id=r.job_id; let btns='';
+  if(['processing','searching','downloading','generating'].includes(s))
+    btns+=`<button class="ghost btn-sm" onclick="jobAction('${id}','pause')" title="Pause">⏸</button>`;
+  if(s==='paused')
+    btns+=`<button class="ghost btn-sm" onclick="jobAction('${id}','resume')" title="Resume">▶</button>`;
+  if(['error','cancelled','failed','done'].includes(s))
+    btns+=`<button class="ghost btn-sm" onclick="jobAction('${id}','retry')" title="Retry">↺</button>`;
+  if(!['done','cancelled'].includes(s))
+    btns+=`<button class="ghost btn-sm" onclick="jobAction('${id}','cancel')" title="Cancel">✕</button>`;
+  btns+=`<button class="ghost btn-sm" onclick="viewLog('${id}')">📋</button>`;
+  btns+=`<button class="danger btn-sm" onclick="removeJob('${id}')" title="Remove">🗑</button>`;
+  return btns;
+}
+
+function movieCell(r){
+  const name=r.movie_clean||r.movie||'—'; let hints='';
+  if(r.year_hint) hints+=`<span class="hint-chip year">${r.year_hint}</span>`;
+  if(r.lang_hint) hints+=`<span class="hint-chip lang">${r.lang_hint}</span>`;
+  const msg=r.message||''; let stageText='';
+  if(r.stage&&!['done','error','cancelled'].includes(r.status)){stageText=r.stage;}
+  else if(msg&&!['done','error','cancelled','queued'].includes(r.status)){stageText=msg.split('\n')[0].slice(0,50);}
+  return `<div class="movie-cell">
+    <div class="movie-name" title="${r.movie||''}">${name}</div>
+    ${hints?`<div style="margin-top:3px">${hints}</div>`:''}
+    ${stageText?`<div class="stage-label">${stageText}</div>`:''}
+  </div>`;
+}
+
+function progressCell(r){
+  const pct=Math.round(r.progress||0);
+  const {speed,eta,pct:msgPct}=parseSpeedEta(r.message||'');
+  const dp=(msgPct!==null&&msgPct>0)?Math.round(msgPct):pct;
+  const bar=`<div class="prog-bar"><div class="prog-bar-fill" style="width:${dp}%"></div></div>`;
+  const pctLine=`<div style="font-size:11px;color:var(--muted);margin-top:2px">${dp}%${speed?` &nbsp;<span class="speed-badge">⚡ ${speed}</span>`:''}${eta?` &nbsp;<span class="eta-badge">⏱ ${eta}</span>`:''}</div>`;
+  return bar+pctLine;
+}
+
+async function refresh(){
+  try{
+    const rows=await api('/stream/api/queue');
+    rows.forEach(r=>{ _rowMap[r.job_id]=r; });
+    const tb=document.querySelector('#qtable tbody');
+    if(!rows.length){ tb.innerHTML='<tr><td colspan=6 class="empty">Queue is empty. Add a movie above.</td></tr>'; return; }
+    tb.innerHTML=rows.map(r=>`<tr>
+      <td><code style="font-size:11px">${r.job_id}</code><div class="muted" style="font-size:10px;margin-top:2px">${r.site||'auto'}</div></td>
+      <td>${movieCell(r)}</td>
+      <td><span class="muted" style="font-size:12px">${r.site||'auto'}</span></td>
+      <td>${badgeFor(r.status)}</td>
+      <td>${progressCell(r)}</td>
+      <td><div class="ctrl-row">${actionButtons(r)}</div></td>
+    </tr>`).join('');
+    if(_logJobId) fetchJobLog();
+  }catch(e){console.warn('refresh error',e)}
+}
+
+async function queueIt(){
+  const m=document.getElementById('q').value.trim();
+  if(!m){ toast('Enter a movie name'); return; }
+  try{
+    const d=await api('/stream/api/queue',{method:'POST',body:{movie:m,site:document.getElementById('site').value}});
+    document.getElementById('q').value='';
+    let hint='';
+    if(d.year_hint) hint+=` [${d.year_hint}]`;
+    if(d.lang_hint) hint+=` [${d.lang_hint}]`;
+    refresh(); toast('Queued: '+(d.movie_clean||m)+(hint||''));
+  }catch(e){ toast('Failed: '+e.message); }
+}
+
+async function jobAction(id, action){
+  try{ await api('/stream/api/queue/'+id+'/'+action,{method:'POST'}); setTimeout(refresh,400); }
+  catch(e){ toast('Failed: '+e.message); }
+}
+async function removeJob(id){
+  if(!confirm('Remove this job?')) return;
+  try{ await api('/stream/api/queue/'+id,{method:'DELETE'}); setTimeout(refresh,300); }
+  catch(e){ toast('Failed: '+e.message); }
+}
+async function bulkAction(action){
+  try{ await api('/stream/api/queue/'+action,{method:'POST'}); setTimeout(refresh,400); }
+  catch(e){ toast('Failed: '+e.message); }
+}
+async function clearDone(){
+  try{ await api('/stream/api/queue/clear-done',{method:'POST'}); setTimeout(refresh,300); }
+  catch(e){ toast('Failed: '+e.message); }
+}
+async function removeCancelled(){
+  try{ await api('/stream/api/queue/remove-cancelled',{method:'POST'}); setTimeout(refresh,300); }
+  catch(e){ toast('Failed: '+e.message); }
+}
+
+let _logJobId=null;
+function viewLog(id){
+  const r=_rowMap[id]||{};
+  _logJobId=id;
+  document.getElementById('log-title').textContent=r.movie_clean||r.movie||id;
+  document.getElementById('log-status-badge').textContent=r.status||'';
+  document.getElementById('log-status-badge').className='badge '+(STATUS_CLASS[r.status]||'b-mut');
+  document.getElementById('log-meta').textContent=`Site: ${r.site||'auto'} | Added: ${fmtTime(r.created_at)}`;
+  fetchJobLog();
+  document.getElementById('log-modal').style.display='flex';
+}
+async function fetchJobLog(){
+  if(!_logJobId) return;
+  try{
+    const d=await api('/stream/api/queue/'+_logJobId+'/log');
+    const pre=document.getElementById('log-pre');
+    pre.textContent=(d.log||'(no log yet)');
+    pre.scrollTop=pre.scrollHeight;
+  }catch(e){}
+}
+function closeLog(){ document.getElementById('log-modal').style.display='none'; _logJobId=null; }
+
+async function loadResults(){
+  const card=document.getElementById('results-card');
+  card.style.display='';
+  try{
+    const rows=await api('/stream/api/results');
+    const tb=document.querySelector('#results-table tbody');
+    if(!rows||!rows.length){ tb.innerHTML='<tr><td colspan=3 class="empty">No completed downloads yet.</td></tr>'; return; }
+    tb.innerHTML=rows.map(r=>`<tr>
+      <td>${r.movie||'—'}</td>
+      <td>${r.share_url?`<a href="${r.share_url}" target="_blank" class="link-chip">Open ↗</a>`:'<span class="muted">—</span>'}</td>
+      <td class="muted" style="font-size:12px">${fmtTime(r.completed_at)}</td>
+    </tr>`).join('');
+  }catch(e){ toast('Failed: '+e.message); }
+}
+
+function openBatch(){ document.getElementById('batch-modal').style.display='flex'; }
+function closeBatch(){ document.getElementById('batch-modal').style.display='none'; }
+async function submitBatch(){
+  const lines=(document.getElementById('batch-input').value||'').split('\n').map(l=>l.trim()).filter(Boolean);
+  if(!lines.length){ toast('Enter at least one movie'); return; }
+  const btn=document.getElementById('batch-btn'); btn.disabled=true; btn.textContent='Queuing…';
+  const res=document.getElementById('batch-result'); res.style.display='block'; res.innerHTML='Queuing…';
+  try{
+    const d=await api('/stream/api/queue/batch',{method:'POST',body:{movies:lines,site:document.getElementById('batch-site').value}});
+    res.innerHTML=`<div class="badge b-ok">Queued ${d.queued||lines.length} movies</div>`;
+    setTimeout(()=>{ closeBatch(); refresh(); }, 800);
+  }catch(e){ res.innerHTML=`<div class="badge b-err">Error: ${e.message}</div>`; }
+  finally{ btn.disabled=false; btn.textContent='Queue All'; }
+}
+
+function openSearch(){ document.getElementById('search-modal').style.display='flex'; document.getElementById('search-q').focus(); }
+function closeSearch(){ document.getElementById('search-modal').style.display='none'; }
+async function runSearch(){
+  const q=document.getElementById('search-q').value.trim();
+  if(!q){ toast('Enter a movie name'); return; }
+  const btn=document.getElementById('search-btn'); btn.disabled=true; btn.textContent='Searching…';
+  document.getElementById('search-status').innerHTML='<span class="muted">Searching all sites…</span>';
+  document.getElementById('search-results').innerHTML='';
+  try{
+    const d=await api('/stream/api/search?q='+encodeURIComponent(q)+'&year='+encodeURIComponent(document.getElementById('search-year').value||''));
+    const results=d.results||[];
+    document.getElementById('search-status').innerHTML=`<span class="muted">${results.length} results</span>`;
+    if(!results.length){ document.getElementById('search-results').innerHTML='<div class="empty">No results found.</div>'; return; }
+    document.getElementById('search-results').innerHTML=results.map(r=>`
+      <div class="search-result-row">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.title||'—'}</div>
+          <div class="muted" style="font-size:11px">${r.site||''} ${r.year?'· '+r.year:''}</div>
+        </div>
+        <div style="flex-shrink:0">
+          ${(r.links||[]).map(l=>`<a href="${l.url}" target="_blank" class="link-chip">${l.label||'Link'}</a>`).join('')}
+          <button class="ghost btn-sm" onclick="queueSearchResult('${(r.title||'').replace(/'/g,"\\'")}')">+ Queue</button>
+        </div>
+      </div>`).join('');
+  }catch(e){ document.getElementById('search-status').innerHTML=`<span class="badge b-err">Error: ${e.message}</span>`; }
+  finally{ btn.disabled=false; btn.textContent='Search All'; }
+}
+function queueSearchResult(title){
+  document.getElementById('q').value=title;
+  closeSearch();
+  queueIt();
+}
+
+function openSettings(){ loadSettings(); document.getElementById('settings-modal').style.display='flex'; }
+function closeSettings(){ document.getElementById('settings-modal').style.display='none'; }
+function showTab(t){
+  document.getElementById('pane-dl').style.display=t==='dl'?'':'none';
+  document.getElementById('pane-domain').style.display=t==='domain'?'':'none';
+  document.getElementById('tab-dl').className='tab-btn'+(t==='dl'?' active':'');
+  document.getElementById('tab-domain').className='tab-btn'+(t==='domain'?' active':'');
+}
+async function loadSettings(){
+  try{
+    const d=await api('/stream/api/settings');
+    Object.entries(d||{}).forEach(([k,v])=>{
+      const el=document.getElementById('s-'+k);
+      if(el) el.value=v;
+    });
+  }catch(e){}
+}
+async function saveSettings(){
+  const keys=['auto_download','download_dir','headless','max_parallel','preferred_quality','preferred_language','content_type',
+    'domain_vegamovies','domain_katmoviehd','domain_rogmovies','domain_ssrmovies','domain_rareanimes'];
+  const body={};
+  keys.forEach(k=>{ const el=document.getElementById('s-'+k); if(el) body[k]=el.value; });
+  try{ await api('/stream/api/settings',{method:'POST',body}); toast('Settings saved'); closeSettings(); }
+  catch(e){ toast('Failed: '+e.message); }
+}
+
+function openJDPanel(){ document.getElementById('jd-modal').style.display='flex'; checkJDStatus(); }
+function closeJDPanel(){ document.getElementById('jd-modal').style.display='none'; }
+async function checkJDStatus(){
+  try{
+    const d=await api('/upload/api/jd-stats');
+    if(d.ok && d.session){
+      const s = d.session;
+      document.getElementById('jd-status-box').textContent=s.logged_in?'✔ Logged in as '+s.msisdn:'Not logged in';
+      document.getElementById('jd-status-box').style.color=s.logged_in?'var(--ok)':'var(--muted)';
+      document.getElementById('jd-indicator').textContent=(s.logged_in?'🟢':'🔴')+' JazzDrive';
+    }
+  }catch(e){}
+}
+async function jdSendOTP(){
+  const msisdn=document.getElementById('jd-msisdn').value.trim();
+  if(!msisdn){ toast('Enter phone number'); return; }
+  const btn=document.getElementById('jd-otp-btn'); btn.disabled=true;
+  try{
+    const d=await api('/upload/api/login/otp',{method:'POST',body:{msisdn}});
+    document.getElementById('jd-otp-msg').textContent=d.ok?'OTP sent — check your SMS':'Error: '+(d.error||'unknown');
+    if(d.ok) document.getElementById('jd-verify-box').style.display='block';
+  }catch(e){ document.getElementById('jd-otp-msg').textContent='Error: '+e.message; }
+  finally{ btn.disabled=false; }
+}
+async function jdVerifyOTP(){
+  const otp=document.getElementById('jd-otp-code').value.trim();
+  const msisdn=document.getElementById('jd-msisdn').value.trim();
+  if(!otp){ toast('Enter OTP'); return; }
+  const btn=document.getElementById('jd-verify-btn'); btn.disabled=true;
+  try{
+    const d=await api('/upload/api/login/verify',{method:'POST',body:{otp,msisdn}});
+    document.getElementById('jd-verify-msg').textContent=d.ok?'✔ Logged in!':'Error: '+(d.error||'?');
+    if(d.ok) setTimeout(checkJDStatus,500);
+  }catch(e){ document.getElementById('jd-verify-msg').textContent='Error: '+e.message; }
+  finally{ btn.disabled=false; }
+}
+
+function openWAPanel(){ document.getElementById('wa-modal').style.display='flex'; checkWAStatus(); }
+function closeWAPanel(){ document.getElementById('wa-modal').style.display='none'; }
+async function checkWAStatus(){
+  try{
+    const d=await api('/bots/api/whatsapp/qr');
+    const box=document.getElementById('wa-status-box');
+    if(d.connected){ box.textContent='✔ WhatsApp connected'; box.style.color='var(--ok)'; }
+    else if(d.running){ box.textContent='Bot running — not connected'; box.style.color='var(--warn)'; }
+    else { box.textContent='Bot stopped'; box.style.color='var(--muted)'; }
+    if(!d.connected) document.getElementById('wa-pairing-box').style.display='block';
+    if(d.pairing_code){
+      document.getElementById('wa-pairing-code-box').style.display='block';
+      document.getElementById('wa-pairing-code-display').textContent=d.pairing_code;
+    }
+    document.getElementById('wa-indicator').textContent=(d.connected?'🟢':'🔴')+' WhatsApp';
+  }catch(e){}
+}
+async function waBotAction(cmd){
+  try{ await api('/bots/api/whatsapp/'+cmd,{method:'POST'}); toast(cmd+' sent'); setTimeout(checkWAStatus,1500); }
+  catch(e){ toast('Failed: '+e.message); }
+}
+async function requestWAPairing(){
+  const ph=document.getElementById('wa-phone').value.trim();
+  if(!ph){ toast('Enter phone number'); return; }
+  try{
+    const d=await api('/bots/api/whatsapp/pair',{method:'POST',body:{phone:ph}});
+    if(d.ok||d.code){
+      document.getElementById('wa-pairing-code-box').style.display='block';
+      document.getElementById('wa-pairing-code-display').textContent=d.code||d.pairing_code||'(check QR)';
+      document.getElementById('wa-pair-msg').textContent='Code ready!';
+    } else { toast('Error: '+(d.error||'?')); }
+  }catch(e){ toast('Failed: '+e.message); }
+}
+async function fetchWALogs(){
+  try{
+    const d=await api('/bots/api/whatsapp/logs?n=60');
+    const pre=document.getElementById('wa-log-pre');
+    pre.textContent=(d.lines||[]).join('\n')||'(no logs)';
+    pre.scrollTop=pre.scrollHeight;
+  }catch(e){ document.getElementById('wa-log-pre').textContent='Error: '+e.message; }
+}
+
+function openDirect(){
+  document.getElementById('direct-result').style.display='none';
+  document.getElementById('direct-modal').style.display='flex';
+  setTimeout(()=>document.getElementById('direct-name').focus(),100);
+}
+function closeDirect(){ document.getElementById('direct-modal').style.display='none'; }
+
+async function submitDirect(){
+  const name = document.getElementById('direct-name').value.trim();
+  const urls = document.getElementById('direct-urls').value.trim();
+  if(!urls){ toast('Paste at least one URL'); return; }
+  const btn = document.getElementById('direct-btn');
+  const res  = document.getElementById('direct-result');
+  btn.disabled=true; btn.textContent='Queuing…';
+  res.style.display='block'; res.innerHTML='<span class="muted">Queuing…</span>';
+  try{
+    const d = await api('/stream/api/queue/direct',{
+      method:'POST', body:{urls, name: name||undefined}
+    });
+    if(d.ok){
+      res.innerHTML=`<div class="badge b-ok">✔ Queued ${d.queued} job${d.queued>1?'s':''} — <b>${d.name||'Direct'}</b></div>`;
+      setTimeout(()=>{ closeDirect(); refresh(); }, 900);
+    } else {
+      res.innerHTML=`<div class="badge b-err">Error: ${d.error||'unknown'}</div>`;
+    }
+  }catch(e){ res.innerHTML=`<div class="badge b-err">Error: ${e.message}</div>`; }
+  finally{ btn.disabled=false; btn.textContent='⬇ Queue Download'; }
+}
+
+// ─── Meta Auto-Fix ───────────────────────────────────────────────────────────
+function openMetaFix(){
+  document.getElementById('metafix-modal').style.display='flex';
+  pollMetaFix();
+}
+function closeMetaFix(){ document.getElementById('metafix-modal').style.display='none'; }
+
+let _mfTimer = null;
+async function startMetaFix(){
+  const threshold = document.getElementById('mf-threshold').value || 70;
+  const limit     = document.getElementById('mf-limit').value || 200;
+  document.getElementById('mf-btn').disabled=true;
+  document.getElementById('mf-btn').textContent='Running…';
+  document.getElementById('mf-stop-btn').style.display='';
+  document.getElementById('mf-progress').style.display='block';
+  try{
+    await api('/api/meta/autofix',{method:'POST',body:{threshold:+threshold,limit:+limit}});
+    _mfTimer = setInterval(pollMetaFix, 1500);
+    pollMetaFix();
+  }catch(e){ toast('Error: '+e.message); resetMetaFixBtn(); }
+}
+async function stopMetaFix(){
+  await api('/api/meta/autofix/stop',{method:'POST'});
+  clearInterval(_mfTimer); resetMetaFixBtn();
+}
+function resetMetaFixBtn(){
+  document.getElementById('mf-btn').disabled=false;
+  document.getElementById('mf-btn').textContent='✨ Start Auto-Fix';
+  document.getElementById('mf-stop-btn').style.display='none';
+}
+async function pollMetaFix(){
+  try{
+    const s = await api('/api/meta/autofix/status');
+    const pct = s.total > 0 ? Math.round(100*s.done/s.total) : 0;
+    document.getElementById('mf-bar').style.width = pct+'%';
+    document.getElementById('mf-pct').textContent = pct+'%';
+    document.getElementById('mf-label').textContent = s.current ? `Processing: ${s.current}` : (s.running ? 'Running…' : 'Idle');
+    document.getElementById('mf-stats').textContent = `Fixed: ${s.fixed||0}  |  Errors: ${s.errors||0}  |  Done: ${s.done||0} / ${s.total||0}`;
+    if(!s.running && _mfTimer){ clearInterval(_mfTimer); _mfTimer=null; resetMetaFixBtn(); }
+  }catch(_){}
+}
+
+// ─── Scheduled Downloads ─────────────────────────────────────────────────────
+function openSchedule(){
+  document.getElementById('schedule-modal').style.display='flex';
+  loadSchedules();
+}
+function closeSchedule(){ document.getElementById('schedule-modal').style.display='none'; }
+
+document.addEventListener('DOMContentLoaded',()=>{
+  const freqSel = document.getElementById('sc-freq');
+  if(freqSel) freqSel.addEventListener('change',()=>{
+    const dow = document.getElementById('sc-dow-wrap');
+    if(dow) dow.style.display = freqSel.value==='weekly' ? '' : 'none';
+  });
+});
+
+async function loadSchedules(){
+  const el = document.getElementById('sc-list');
+  try{
+    const d = await api('/api/schedule/list');
+    if(!d.schedules || d.schedules.length===0){
+      el.innerHTML='<div class="muted" style="text-align:center;padding:16px">No schedules yet. Add one above.</div>';
+      return;
+    }
+    el.innerHTML = d.schedules.map(s=>`
+      <div class="row" style="align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1">
+          <div style="font-weight:600">${s.label}</div>
+          <div class="muted" style="font-size:11px">${s.query} &nbsp;·&nbsp; ${s.site} &nbsp;·&nbsp; ${s.frequency}
+            ${s.next_run_at ? ' &nbsp;·&nbsp; Next: '+new Date(s.next_run_at*1000).toLocaleString() : ''}</div>
+        </div>
+        <label class="toggle-switch" style="margin:0">
+          <input type="checkbox" ${s.is_active?'checked':''} onchange="toggleSchedule(${s.id},this.checked)">
+          <span class="slider"></span>
+        </label>
+        <button class="ghost btn-sm" style="color:var(--danger)" onclick="deleteSchedule(${s.id})">✕</button>
+      </div>`).join('');
+  }catch(e){ el.innerHTML='<div class="muted">Error loading schedules.</div>'; }
+}
+
+async function addSchedule(){
+  const label = document.getElementById('sc-label').value.trim();
+  const query = document.getElementById('sc-query').value.trim();
+  const freq  = document.getElementById('sc-freq').value;
+  const site  = document.getElementById('sc-site').value;
+  const dow   = document.getElementById('sc-dow').value;
+  const res   = document.getElementById('sc-result');
+  if(!label||!query){toast('Label and query are required');return;}
+  res.style.display='block';res.innerHTML='<span class="muted">Adding…</span>';
+  try{
+    const d = await api('/api/schedule/add',{method:'POST',body:{label,query,site,frequency:freq,day_of_week:+dow}});
+    if(d.ok){ res.innerHTML='<div class="badge b-ok">✔ Schedule added!</div>'; loadSchedules(); }
+    else res.innerHTML=`<div class="badge b-err">Error: ${d.error}</div>`;
+  }catch(e){ res.innerHTML=`<div class="badge b-err">${e.message}</div>`; }
+}
+async function deleteSchedule(id){
+  if(!confirm('Delete this schedule?')) return;
+  await api('/api/schedule/delete',{method:'POST',body:{id}});
+  loadSchedules();
+}
+async function toggleSchedule(id, active){
+  await api('/api/schedule/toggle',{method:'POST',body:{id,active}});
+  loadSchedules();
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>{% endblock %}

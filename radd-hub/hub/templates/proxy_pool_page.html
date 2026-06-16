@@ -1,0 +1,437 @@
+{% extends "base.html" %}
+{% block title %}🔀 SAPI Proxy Pool — Radd Hub{% endblock %}
+
+{% block content %}
+<div class="h-row">
+  <div>
+    <h2>🔀 SAPI Proxy Pool</h2>
+    <div class="muted" style="font-size:12px;margin-top:2px">
+      Auto-rotating proxies for <code>cloud.jazzdrive.com.pk/sapi</code> — 🇵🇰 Pakistani priority, global pool.
+      All must pass dual-host test (SAPI + OTP domain). Dead proxies demoted automatically.
+    </div>
+  </div>
+  <div class="row">
+    <button onclick="ppDiscover()" id="pp-btn-discover">🔍 Discover</button>
+    <button onclick="ppHealthCheck()" id="pp-btn-hc" class="ghost">❤️ Health Check</button>
+    <button onclick="ppResetDead()" id="pp-btn-reset" class="ghost">♻️ Reset Dead</button>
+    <button onclick="ppExport()" class="ghost">⬇ Export</button>
+  </div>
+</div>
+
+{# ── Stats row ── #}
+<div class="grid grid-4" style="margin-bottom:16px">
+  <div class="stat">
+    <div class="k">Total</div>
+    <div class="v" id="pp-stat-total">—</div>
+  </div>
+  <div class="stat">
+    <div class="k">🟢 Alive</div>
+    <div class="v" style="color:var(--ok)" id="pp-stat-alive">—</div>
+  </div>
+  <div class="stat">
+    <div class="k">🇵🇰 PK Alive</div>
+    <div class="v" style="color:var(--accent)" id="pp-stat-pk">—</div>
+  </div>
+  <div class="stat">
+    <div class="k">⚡ Circuit</div>
+    <div class="v" id="pp-stat-circuit">—</div>
+  </div>
+</div>
+
+{# ── Country + Source breakdown ── #}
+<div class="grid grid-2" style="margin-bottom:16px">
+  <div class="card">
+    <h3>🌍 By Country <span class="muted" style="font-size:11px;font-weight:400">(alive proxies)</span></h3>
+    <div id="pp-country-breakdown" style="font-size:12px;line-height:1.8">Loading…</div>
+  </div>
+  <div class="card">
+    <h3>📊 By Source</h3>
+    <div id="pp-source-breakdown" style="font-size:13px;line-height:1.8">Loading…</div>
+    <div style="margin-top:8px;font-size:11px;color:var(--muted)">
+      Best ping: <span id="pp-stat-bestping">—</span>ms &nbsp;·&nbsp; Avg: <span id="pp-stat-avgping">—</span>ms
+    </div>
+  </div>
+</div>
+
+{# ── Add proxies ── #}
+<div class="grid grid-2" style="margin-bottom:16px">
+  <div class="card">
+    <h3>+ Add Single Proxy</h3>
+    <div class="form-row">
+      <label>Proxy URL</label>
+      <input id="pp-new-url" placeholder="socks5://1.2.3.4:1080  or  http://…">
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);text-transform:none;letter-spacing:0;cursor:pointer;white-space:nowrap">
+        <input type="checkbox" id="pp-test-on-add" checked> Test before adding
+      </label>
+      <button onclick="ppAdd()">+ Add</button>
+    </div>
+  </div>
+  <div class="card">
+    <h3>📥 Bulk Import</h3>
+    <div class="form-row">
+      <label>One per line — <code>socks5://ip:port</code>, <code>http://ip:port</code>, or bare <code>ip:port</code></label>
+      <textarea id="pp-bulk-text" style="height:75px;font-family:monospace;font-size:12px;resize:vertical"
+        placeholder="socks5://103.121.120.242:1080&#10;http://39.40.88.58:8080&#10;182.191.84.2:3128"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);text-transform:none;letter-spacing:0;cursor:pointer;white-space:nowrap">
+        <input type="checkbox" id="pp-bulk-test" checked> Test all on import
+      </label>
+      <button onclick="ppBulkImport()">📥 Import</button>
+      <span id="pp-bulk-msg" class="muted" style="font-size:12px"></span>
+    </div>
+  </div>
+</div>
+
+{# ── Discovery info ── #}
+<div class="card" style="margin-bottom:16px;border-color:var(--accent);background:linear-gradient(135deg,#0f0d1f 0%,#12151e 100%)">
+  <h3>🌐 Auto-Discovery — 22+ Sources, Every 15 Minutes</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;color:var(--muted);margin-top:6px">
+    <div>🇵🇰 <strong style="color:var(--text)">PK Priority:</strong> GeoNode PK ×5 pages, ProxyScrape PK, OpenProxy, PubProxy, proxy-list.download</div>
+    <div>🌍 <strong style="color:var(--text)">Global:</strong> TheSpeedX HTTP(~15k), SOCKS5(~5k), SOCKS4; monosans, clarketm, ShiftyTR, HyperBeats, proxifly, roosterkid, ProxyScrape global</div>
+  </div>
+  <div style="margin-top:8px;font-size:11px;color:var(--muted)" id="pp-disc-status">Discovery runs automatically — click 🔍 Discover to trigger immediately.</div>
+</div>
+
+{# ── Filter bar ── #}
+<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+  <span class="muted" style="font-size:12px">Filter:</span>
+  <button class="pp-filter-btn active" data-filter="all"    onclick="ppSetFilter('all',this)">All</button>
+  <button class="pp-filter-btn"        data-filter="alive"  onclick="ppSetFilter('alive',this)">🟢 Alive</button>
+  <button class="pp-filter-btn"        data-filter="pk"     onclick="ppSetFilter('pk',this)">🇵🇰 PK Only</button>
+  <button class="pp-filter-btn"        data-filter="dead"   onclick="ppSetFilter('dead',this)">Dead/Off</button>
+  <button class="pp-filter-btn"        data-filter="socks5" onclick="ppSetFilter('socks5',this)">SOCKS5</button>
+  <button class="pp-filter-btn"        data-filter="http"   onclick="ppSetFilter('http',this)">HTTP</button>
+  <span style="margin-left:auto;font-size:11px;color:var(--muted)">
+    <span id="pp-last-refresh">Loading…</span> · auto 10s
+  </span>
+</div>
+
+{# ── Table ── #}
+<div class="card" style="padding:0">
+  <div class="table-wrap">
+    <table id="pp-table">
+      <thead>
+        <tr>
+          <th style="cursor:pointer" onclick="ppSortBy('url')">URL ↕</th>
+          <th style="text-align:center">Flag</th>
+          <th style="text-align:center;cursor:pointer" onclick="ppSortBy('status')">Status</th>
+          <th style="text-align:center;cursor:pointer" onclick="ppSortBy('score')">Score ↕</th>
+          <th style="text-align:center;cursor:pointer" onclick="ppSortBy('avg_ms')">Ping ↕</th>
+          <th style="text-align:center;cursor:pointer" onclick="ppSortBy('ok_count')">✓ OK</th>
+          <th style="text-align:center;cursor:pointer" onclick="ppSortBy('fail_count')">✗ Fail</th>
+          <th style="text-align:center">Src</th>
+          <th style="text-align:center">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="pp-tbody">
+        <tr><td colspan="9" class="empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div id="pp-table-footer" style="font-size:11px;color:var(--muted);padding:8px 12px;text-align:right"></div>
+</div>
+
+<style>
+.pp-filter-btn{background:var(--panel2);border:1px solid var(--border);border-radius:5px;cursor:pointer;color:var(--muted);font-size:11px;padding:3px 10px;transition:all .15s;white-space:nowrap;font-weight:500}
+.pp-filter-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pp-filter-btn:hover:not(.active){border-color:var(--accent);color:var(--text);filter:none}
+.pp-ping-bar{display:inline-block;height:7px;border-radius:3px;vertical-align:middle;margin-left:4px;min-width:4px}
+.pp-flag{font-size:16px;line-height:1}
+</style>
+
+<script>
+(function(){
+  // ── Country flag detection ─────────────────────────────────────────────
+  const FLAG_MAP = {
+    'PK':'🇵🇰','SA':'🇸🇦','AE':'🇦🇪','TR':'🇹🇷','IN':'🇮🇳','ID':'🇮🇩',
+    'EG':'🇪🇬','DE':'🇩🇪','US':'🇺🇸','GB':'🇬🇧','RU':'🇷🇺','CN':'🇨🇳',
+    'SG':'🇸🇬','MY':'🇲🇾','TH':'🇹🇭','PH':'🇵🇭','BD':'🇧🇩','NG':'🇳🇬',
+    'BR':'🇧🇷','UA':'🇺🇦','FR':'🇫🇷','NL':'🇳🇱','JP':'🇯🇵','KR':'🇰🇷',
+    'VN':'🇻🇳','MX':'🇲🇽','KE':'🇰🇪','QA':'🇶🇦','KW':'🇰🇼','OM':'🇴🇲',
+    'MA':'🇲🇦','TN':'🇹🇳','IR':'🇮🇷','IQ':'🇮🇶','JO':'🇯🇴','LB':'🇱🇧',
+    'PL':'🇵🇱','CZ':'🇨🇿','HU':'🇭🇺','RO':'🇷🇴','BA':'🇧🇦',
+  };
+  const _PK_OCT1  = new Set([39,58,110,111,115,119,180,182]);
+  const _PK_103   = new Set([25,26,47,88,94,97,106,121,141,149,211,248,255]);
+  const _PK_202   = new Set([59,142]);
+  const _PK_203   = new Set([82,128]);
+
+  function detectCountry(ip) {
+    try {
+      const p = ip.split('.');
+      const o1 = +p[0], o2 = +p[1];
+      if (_PK_OCT1.has(o1)) return 'PK';
+      if (o1===103 && _PK_103.has(o2)) return 'PK';
+      if (o1===202 && _PK_202.has(o2)) return 'PK';
+      if (o1===203 && _PK_203.has(o2)) return 'PK';
+    } catch(e) {}
+    return '';
+  }
+
+  function getFlag(proxy) {
+    const cc = (proxy.country || '').toUpperCase().trim();
+    if (cc && FLAG_MAP[cc]) return FLAG_MAP[cc];
+    // Detect from IP in URL
+    try {
+      const ip = (proxy.url || '').split('://')[1].split(':')[0];
+      const detected = detectCountry(ip);
+      if (detected && FLAG_MAP[detected]) return FLAG_MAP[detected];
+    } catch(e) {}
+    return '🌐';
+  }
+
+  function getCC(proxy) {
+    const cc = (proxy.country || '').toUpperCase().trim();
+    if (cc) return cc;
+    try {
+      const ip = (proxy.url || '').split('://')[1].split(':')[0];
+      return detectCountry(ip) || '';
+    } catch(e) { return ''; }
+  }
+
+  // ── State ──────────────────────────────────────────────────────────────
+  let _ppData    = [];
+  let _ppFilter  = 'all';
+  let _ppSortKey = 'score';
+  let _ppSortDir = -1;
+
+  // ── Stats loader ───────────────────────────────────────────────────────
+  async function ppLoadStats() {
+    try {
+      const r = await api('/settings/api/pool/stats');
+      if (!r.ok) return;
+      const s = r.stats || {};
+      const g = id => document.getElementById(id);
+      if (g('pp-stat-total'))   g('pp-stat-total').textContent   = s.total   ?? '—';
+      if (g('pp-stat-alive'))   g('pp-stat-alive').textContent   = s.alive   ?? '—';
+      if (g('pp-stat-pk'))      g('pp-stat-pk').textContent      = s.pk_alive ?? '—';
+      if (g('pp-stat-bestping')) g('pp-stat-bestping').textContent = s.best_ping_ms ?? '—';
+      if (g('pp-stat-avgping'))  g('pp-stat-avgping').textContent  = s.avg_ping_ms  ?? '—';
+
+      // Circuit breaker
+      const cEl = g('pp-stat-circuit');
+      if (cEl) {
+        if (s.circuit_open) { cEl.textContent='⚡ OPEN'; cEl.style.color='var(--err)'; }
+        else { cEl.textContent='✓ Closed'; cEl.style.color='var(--ok)'; }
+      }
+
+      // Country breakdown
+      const cntEl = g('pp-country-breakdown');
+      if (cntEl && s.by_country) {
+        const entries = Object.entries(s.by_country).sort((a,b)=>b[1]-a[1]);
+        cntEl.innerHTML = entries.map(([cc,cnt])=>{
+          const flag = (cc && cc!=='unknown' && cc!=='🌐') ? (FLAG_MAP[cc.toUpperCase()]||'🌐') : '🌐';
+          const isPK = cc==='PK';
+          return `<span style="display:inline-flex;align-items:center;gap:4px;margin:1px 4px 1px 0;padding:2px 8px;border-radius:10px;font-size:11px;background:${isPK?'rgba(124,92,255,.18)':'var(--panel2)'};border:1px solid ${isPK?'var(--accent)':'var(--border)'}">
+            <span>${flag}</span><span style="font-weight:${isPK?700:400}">${cc}</span><span style="color:var(--muted)">${cnt}</span>
+          </span>`;
+        }).join('') || '<span class="muted">No data yet</span>';
+      }
+
+      // Source breakdown
+      const srcEl = g('pp-source-breakdown');
+      if (srcEl && s.by_source) {
+        const SRC_LABELS = {seed:'🌱 seed',discovered:'🔍 discovered',manual:'✏️ manual',bulk_import:'📥 bulk',global_seed:'🌐 global seed'};
+        srcEl.innerHTML = Object.entries(s.by_source).sort((a,b)=>b[1]-a[1])
+          .map(([src,cnt])=>`<span class="badge b-mut" style="font-size:11px;margin:2px">${SRC_LABELS[src]||src}: ${cnt}</span>`)
+          .join(' ') || '<span class="muted">No data</span>';
+      }
+    } catch(e) { console.error('ppLoadStats', e); }
+  }
+
+  // ── Data loader ────────────────────────────────────────────────────────
+  window.ppLoad = async function() {
+    try {
+      const r = await api('/settings/api/pool/list');
+      if (!r.ok) return;
+      _ppData = r.proxies || [];
+      ppRender();
+      ppLoadStats();
+      const el = document.getElementById('pp-last-refresh');
+      if (el) el.textContent = 'refreshed ' + new Date().toLocaleTimeString();
+    } catch(e) { console.error('ppLoad', e); }
+  };
+
+  // ── Render table ───────────────────────────────────────────────────────
+  function ppRender() {
+    let data = [..._ppData];
+    if (_ppFilter === 'alive')  data = data.filter(p => p.is_enabled && p.fail_count < 5);
+    if (_ppFilter === 'pk')     data = data.filter(p => getCC(p) === 'PK');
+    if (_ppFilter === 'dead')   data = data.filter(p => !p.is_enabled || p.fail_count >= 5);
+    if (_ppFilter === 'socks5') data = data.filter(p => (p.url||'').startsWith('socks5'));
+    if (_ppFilter === 'http')   data = data.filter(p => (p.url||'').startsWith('http'));
+
+    data.sort((a, b) => {
+      let av = a[_ppSortKey] ?? a.score ?? 0;
+      let bv = b[_ppSortKey] ?? b.score ?? 0;
+      if (_ppSortKey === 'url') { av = a.url||''; bv = b.url||''; }
+      if (_ppSortKey === 'status') {
+        av = (a.is_enabled && a.fail_count < 5) ? 2 : a.is_enabled ? 1 : 0;
+        bv = (b.is_enabled && b.fail_count < 5) ? 2 : b.is_enabled ? 1 : 0;
+      }
+      if (typeof av === 'string') return _ppSortDir * av.localeCompare(bv);
+      return _ppSortDir * ((av||0) - (bv||0));
+    });
+
+    const tbody  = document.getElementById('pp-tbody');
+    const footer = document.getElementById('pp-table-footer');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="empty">No proxies match — click 🔍 Discover to fetch from 22+ global sources</td></tr>';
+      if (footer) footer.textContent = '';
+      return;
+    }
+
+    tbody.innerHTML = data.map(p => {
+      const alive = p.is_enabled && p.fail_count < 5;
+      let badge, rowOp = '';
+      if (!p.is_enabled)     { badge = '<span class="badge b-err">disabled</span>';  rowOp = 'opacity:.6'; }
+      else if (alive)        { badge = '<span class="badge b-ok">alive</span>'; }
+      else                   { badge = '<span class="badge b-warn">degraded</span>'; }
+
+      const proto    = (p.url||'').startsWith('socks5') ? '🧦' : '🌐';
+      const urlShort = (p.url||'').replace(/^.*\/\//, '').slice(0, 36);
+      const ms       = p.avg_ms || 0;
+      const pingColor = ms > 3000 ? 'var(--err)' : ms > 1500 ? 'var(--warn)' : ms > 800 ? '#eab308' : 'var(--ok)';
+      const pingW     = ms > 3000 ? 100 : ms > 1500 ? 80 : ms > 800 ? 50 : 60;
+      const pingBar   = ms ? `<span class="pp-ping-bar" style="width:${pingW}%;max-width:36px;background:${pingColor}"></span>` : '';
+      const score     = (p.score ?? 0).toFixed(1);
+      const scoreClr  = p.score >= 70 ? 'var(--ok)' : p.score >= 40 ? 'var(--warn)' : 'var(--err)';
+      const flag      = getFlag(p);
+      const cc        = getCC(p);
+      const isPK      = cc === 'PK';
+      const SRC_SHORT = {seed:'🌱',discovered:'🔍',manual:'✏️',bulk_import:'📥',global_seed:'🌐'};
+      const srcIcon   = SRC_SHORT[p.source] || p.source || '?';
+
+      let actions = '';
+      if (!p.is_enabled)        actions += `<button class="ghost" style="font-size:10px;padding:2px 7px" onclick="ppEnable(${p.id},true)">↑ On</button> `;
+      else if (p.fail_count>0)  actions += `<button class="ghost" style="font-size:10px;padding:2px 7px" onclick="ppEnable(${p.id},true)">↺</button> `;
+      actions += `<button class="ghost" style="font-size:10px;padding:2px 7px" onclick="ppTestOne(${p.id})" title="Test now">⚡</button> `;
+      actions += `<button class="ghost" style="font-size:10px;padding:2px 7px;color:var(--err)" onclick="ppRemove(${p.id})">✕</button>`;
+
+      return `<tr style="border-bottom:1px solid var(--border);${rowOp}${isPK?';background:rgba(124,92,255,.04)':''}" id="pp-row-${p.id}">
+        <td style="font-family:monospace;font-size:11px" title="${p.url||''}">${proto} ${urlShort}</td>
+        <td style="text-align:center" title="${cc||'unknown'}"><span class="pp-flag">${flag}</span></td>
+        <td style="text-align:center">${badge}</td>
+        <td style="text-align:center;font-weight:700;color:${scoreClr}">${score}</td>
+        <td style="text-align:center;color:var(--muted)">${ms ? ms+'ms'+pingBar : '—'}</td>
+        <td style="text-align:center;color:var(--ok)">${p.ok_count||0}</td>
+        <td style="text-align:center;color:${(p.fail_count||0)>0?'var(--err)':'var(--muted)'}">${p.fail_count||0}</td>
+        <td style="text-align:center" title="${p.source||''}">${srcIcon}</td>
+        <td style="text-align:center;white-space:nowrap">${actions}</td>
+      </tr>`;
+    }).join('');
+
+    if (footer) footer.textContent = `Showing ${data.length} of ${_ppData.length} proxies`;
+  }
+
+  // ── Controls ───────────────────────────────────────────────────────────
+  window.ppSetFilter = function(f, btn) {
+    _ppFilter = f;
+    document.querySelectorAll('.pp-filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    ppRender();
+  };
+  window.ppSortBy = function(k) {
+    if (_ppSortKey === k) { _ppSortDir *= -1; } else { _ppSortKey = k; _ppSortDir = -1; }
+    ppRender();
+  };
+  window.ppAdd = async function() {
+    const url  = (document.getElementById('pp-new-url').value || '').trim();
+    const test = document.getElementById('pp-test-on-add').checked;
+    if (!url) return;
+    toast('Adding proxy…');
+    const r = await api('/settings/api/pool/add', {method:'POST', body:{url, test}});
+    if (r.ok) {
+      toast(test ? (r.alive ? '✓ Alive — added!' : '⚠ Added (not responding)') : '✓ Added');
+      document.getElementById('pp-new-url').value = '';
+      ppLoad();
+    } else { toast('Error: ' + (r.error || 'unknown')); }
+  };
+  window.ppBulkImport = async function() {
+    const text = (document.getElementById('pp-bulk-text').value || '').trim();
+    const test = document.getElementById('pp-bulk-test').checked;
+    const msgEl = document.getElementById('pp-bulk-msg');
+    if (!text) return;
+    const urls = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+    if (!urls.length) return;
+    if (msgEl) { msgEl.textContent = `Testing ${urls.length}…`; msgEl.style.color = 'var(--muted)'; }
+    const btn = document.querySelector('[onclick="ppBulkImport()"]');
+    if (btn) btn.disabled = true;
+    try {
+      const r = await api('/settings/api/pool/bulk-import', {method:'POST', body:{urls, test}});
+      if (r.ok) {
+        const msg = `✓ +${r.added} | Alive: ${r.alive??'—'} | Dupes: ${r.duplicates||0}`;
+        if (msgEl) { msgEl.textContent = msg; msgEl.style.color = r.added > 0 ? 'var(--ok)' : 'var(--muted)'; }
+        if (r.added > 0) document.getElementById('pp-bulk-text').value = '';
+        ppLoad();
+      } else if (msgEl) { msgEl.textContent = 'Error: ' + (r.error||'?'); msgEl.style.color='var(--err)'; }
+    } catch(e) { if (msgEl) { msgEl.textContent = 'Error: '+e; msgEl.style.color='var(--err)'; } }
+    finally { if (btn) btn.disabled = false; }
+  };
+  window.ppRemove = async function(id) {
+    if (!confirm('Remove proxy?')) return;
+    await api('/settings/api/pool/remove/'+id, {method:'DELETE'});
+    ppLoad();
+  };
+  window.ppEnable = async function(id, enabled) {
+    await api('/settings/api/pool/enable/'+id, {method:'POST', body:{enabled}});
+    ppLoad();
+  };
+  window.ppTestOne = async function(id) {
+    const row = document.getElementById('pp-row-'+id);
+    if (row) row.style.opacity = '.4';
+    try {
+      const r = await api('/settings/api/pool/test/'+id, {method:'POST'});
+      if (r.ok) toast(r.alive ? `✓ Alive ${r.ping_ms}ms (HTTP ${r.sapi_status})` : `✗ Dead — ${r.error||'timeout'}`);
+      ppLoad();
+    } catch(e) { toast('Error: '+e); }
+    if (row) row.style.opacity = '';
+  };
+  window.ppHealthCheck = async function() {
+    const btn = document.getElementById('pp-btn-hc');
+    if (btn) { btn.disabled=true; btn.textContent='⏳ Checking…'; }
+    toast('Health check started — all proxies retested in background');
+    try { await api('/settings/api/pool/healthcheck', {method:'POST'}); } catch(e) {}
+    setTimeout(() => { ppLoad(); if(btn){btn.disabled=false;btn.textContent='❤️ Health Check';} }, 15000);
+  };
+  window.ppDiscover = async function() {
+    const btn    = document.getElementById('pp-btn-discover');
+    const status = document.getElementById('pp-disc-status');
+    if (btn) { btn.disabled=true; btn.textContent='⏳ Discovering…'; }
+    if (status) status.textContent = '⏳ Fetching from 22+ sources (GeoNode PK × 5 pages, TheSpeedX ~25k, monosans, clarketm, ProxyScrape…)';
+    toast('Discovery started — 22+ sources, testing candidates vs SAPI+OTP…');
+    try { await api('/settings/api/pool/discover', {method:'POST'}); } catch(e) {}
+    setTimeout(() => {
+      ppLoad();
+      if (btn) { btn.disabled=false; btn.textContent='🔍 Discover'; }
+      if (status) status.textContent = '✅ Discovery pass complete — new alive proxies added. Next auto-run in 15 min.';
+    }, 45000);
+  };
+  window.ppResetDead = async function() {
+    if (!confirm('Re-enable all disabled proxies and queue them for re-testing?')) return;
+    const btn = document.getElementById('pp-btn-reset');
+    if (btn) { btn.disabled=true; btn.textContent='⏳ Resetting…'; }
+    const r = await api('/settings/api/pool/reset-dead', {method:'POST'});
+    toast(r.ok ? `✓ Reset ${r.reset} disabled proxies — re-testing in background` : 'Error: '+(r.error||'?'));
+    ppLoad();
+    if (btn) { btn.disabled=false; btn.textContent='♻️ Reset Dead'; }
+  };
+  window.ppExport = async function() {
+    try {
+      const r = await api('/settings/api/pool/export');
+      if (!r.ok || !r.urls) { toast('Nothing to export'); return; }
+      const blob = new Blob([r.urls.join('\n')], {type:'text/plain'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = 'sapi_proxies.txt'; a.click();
+      toast(`Exported ${r.urls.length} proxies`);
+    } catch(e) { toast('Export error: '+e); }
+  };
+
+  ppLoad();
+  setInterval(ppLoad, 10000);
+})();
+</script>
+{% endblock %}

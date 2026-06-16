@@ -1,0 +1,418 @@
+<div id="bypass-banner" class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 16px;margin-bottom:16px;border:2px solid var(--accent);background:rgba(99,102,241,.07);border-radius:10px">
+  <div style="display:flex;align-items:center;gap:12px">
+    <span id="bypass-icon" style="font-size:1.8rem;line-height:1">?</span>
+    <div>
+      <div style="font-weight:700;font-size:15px" id="bypass-label">Checking connection mode...</div>
+      <div class="muted" style="font-size:12px;margin-top:2px" id="bypass-sub">Loading...</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button id="bypass-btn-direct" class="btn-sm btn-primary" style="min-width:160px;font-weight:600;font-size:13px" onclick="setBypass(true)">Direct (No Proxy)</button>
+    <button id="bypass-btn-proxy"  class="btn-sm ghost"       style="min-width:160px;font-size:13px"               onclick="setBypass(false)">Use Proxy Pool</button>
+  </div>
+</div>
+
+{# SAPI Proxy Pool Management Panel — God-Level Edition #}
+<div class="section" id="proxy-pool-section">
+
+  {# ── Header + stat cards ── #}
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+    <div>
+      <h3 style="margin:0 0 3px">🔀 SAPI Proxy Pool</h3>
+      <div class="muted" style="font-size:12px">Auto-rotating Pakistani proxies for cloud.jazzdrive.com.pk — dead proxies demoted, recovered automatically.</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn-sm" onclick="ppDiscover()" id="pp-btn-discover">🔍 Discover</button>
+      <button class="btn-sm" onclick="ppHealthCheck()" id="pp-btn-hc">❤️ Health Check</button>
+      <button class="btn-sm" onclick="ppResetDead()" id="pp-btn-reset">♻️ Reset Dead</button>
+      <button class="btn-sm ghost" onclick="ppExport()">⬇ Export</button>
+    </div>
+  </div>
+
+  {# ── Stats row ── #}
+  <div id="pp-stats-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:16px">
+    <div class="card" style="padding:10px 12px;text-align:center;background:var(--panel2)">
+      <div style="font-size:1.4rem;font-weight:700" id="pp-stat-total">—</div>
+      <div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.05em">Total</div>
+    </div>
+    <div class="card" style="padding:10px 12px;text-align:center;background:var(--panel2)">
+      <div style="font-size:1.4rem;font-weight:700;color:#22c55e" id="pp-stat-alive">—</div>
+      <div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.05em">Alive</div>
+    </div>
+    <div class="card" style="padding:10px 12px;text-align:center;background:var(--panel2)">
+      <div style="font-size:1.4rem;font-weight:700;color:#f59e0b" id="pp-stat-dead">—</div>
+      <div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.05em">Dead</div>
+    </div>
+    <div class="card" style="padding:10px 12px;text-align:center;background:var(--panel2)">
+      <div style="font-size:1.4rem;font-weight:700" id="pp-stat-avgping">—</div>
+      <div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.05em">Avg Ping</div>
+    </div>
+    <div class="card" style="padding:10px 12px;text-align:center;background:var(--panel2)">
+      <div style="font-size:1.1rem;font-weight:700" id="pp-stat-circuit">—</div>
+      <div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.05em">Circuit</div>
+    </div>
+  </div>
+
+  {# ── Add single proxy ── #}
+  <details style="margin-bottom:10px">
+    <summary style="cursor:pointer;font-size:13px;color:var(--accent);user-select:none;padding:4px 0">+ Add proxy manually</summary>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <input id="pp-new-url" class="inp" placeholder="socks5://1.2.3.4:1080  or  http://…" style="flex:1;min-width:220px">
+      <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap">
+        <input type="checkbox" id="pp-test-on-add" checked> Test on add
+      </label>
+      <button class="btn-sm btn-primary" onclick="ppAdd()">+ Add</button>
+    </div>
+  </details>
+
+  {# ── Bulk import ── #}
+  <details style="margin-bottom:14px">
+    <summary style="cursor:pointer;font-size:13px;color:var(--accent);user-select:none;padding:4px 0">+ Bulk import (paste list)</summary>
+    <div style="margin-top:8px">
+      <div class="muted" style="font-size:12px;margin-bottom:6px">Paste one proxy per line: <code>socks5://ip:port</code>, <code>http://ip:port</code>, or bare <code>ip:port</code> (auto-detected as HTTP)</div>
+      <textarea id="pp-bulk-text" style="width:100%;height:110px;font-size:12px;font-family:monospace;resize:vertical"
+                placeholder="socks5://103.121.120.242:1080&#10;http://39.40.88.58:8080&#10;182.191.84.2:3128"></textarea>
+      <div style="display:flex;gap:8px;margin-top:6px;align-items:center;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px">
+          <input type="checkbox" id="pp-bulk-test" checked> Test all on import
+        </label>
+        <button class="btn-sm btn-primary" onclick="ppBulkImport()">📥 Import</button>
+        <span id="pp-bulk-msg" class="muted" style="font-size:12px"></span>
+      </div>
+    </div>
+  </details>
+
+  {# ── Filter bar ── #}
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+    <div style="font-size:12px;color:var(--muted)">Filter:</div>
+    <button class="pp-filter-btn active" data-filter="all" onclick="ppSetFilter('all',this)" style="font-size:11px;padding:3px 10px">All</button>
+    <button class="pp-filter-btn" data-filter="alive" onclick="ppSetFilter('alive',this)" style="font-size:11px;padding:3px 10px">Alive</button>
+    <button class="pp-filter-btn" data-filter="dead" onclick="ppSetFilter('dead',this)" style="font-size:11px;padding:3px 10px">Dead/Disabled</button>
+    <button class="pp-filter-btn" data-filter="socks5" onclick="ppSetFilter('socks5',this)" style="font-size:11px;padding:3px 10px">SOCKS5</button>
+    <button class="pp-filter-btn" data-filter="http" onclick="ppSetFilter('http',this)" style="font-size:11px;padding:3px 10px">HTTP</button>
+    <div style="margin-left:auto;font-size:11px;color:var(--muted)">
+      <span id="pp-last-refresh">Loading…</span>
+      <span style="margin-left:6px" id="pp-auto-badge" class="badge b-mut" style="font-size:10px">auto 10s</span>
+    </div>
+  </div>
+
+  {# ── Pool table ── #}
+  <div style="overflow-x:auto">
+  <table id="pp-table" style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead>
+      <tr style="color:var(--muted);border-bottom:1px solid var(--surface2)">
+        <th style="text-align:left;padding:5px 8px;cursor:pointer" onclick="ppSortBy('url')">URL ↕</th>
+        <th style="text-align:center;padding:5px 8px;cursor:pointer" onclick="ppSortBy('status')">Status</th>
+        <th style="text-align:center;padding:5px 8px;cursor:pointer" onclick="ppSortBy('score')">Score ↕</th>
+        <th style="text-align:center;padding:5px 8px;cursor:pointer" onclick="ppSortBy('avg_ms')">Ping ↕</th>
+        <th style="text-align:center;padding:5px 8px;cursor:pointer" onclick="ppSortBy('ok_count')">✓ OK</th>
+        <th style="text-align:center;padding:5px 8px;cursor:pointer" onclick="ppSortBy('fail_count')">✗ Fails</th>
+        <th style="text-align:center;padding:5px 8px">Source</th>
+        <th style="text-align:center;padding:5px 8px">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="pp-tbody">
+      <tr><td colspan="8" class="empty">Loading…</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div id="pp-table-footer" style="font-size:11px;color:var(--muted);margin-top:8px;text-align:right"></div>
+</div>
+
+<style>
+.pp-filter-btn { background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; color: var(--muted); transition: all .15s; }
+.pp-filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pp-filter-btn:hover:not(.active) { border-color: var(--accent); color: var(--text); }
+.pp-ping-bar { display:inline-block;height:8px;border-radius:4px;vertical-align:middle;margin-left:4px;min-width:4px }
+</style>
+
+<script>
+(function(){
+  let _ppData = [];
+  let _ppFilter = 'all';
+  let _ppSortKey = 'score';
+  let _ppSortDir = -1;
+  let _ppTimer = null;
+
+  async function ppLoadStats() {
+    try {
+      const r = await api('/settings/api/pool/stats');
+      if (!r.ok) return;
+      const s = r.stats || {};
+      const el = id => document.getElementById(id);
+      if (el('pp-stat-total'))   el('pp-stat-total').textContent   = s.total   ?? '—';
+      if (el('pp-stat-alive'))   el('pp-stat-alive').textContent   = s.alive   ?? '—';
+      if (el('pp-stat-dead'))    el('pp-stat-dead').textContent    = (s.dead || 0) + (s.disabled ? ' (+'+s.disabled+' off)' : '');
+      if (el('pp-stat-avgping')) el('pp-stat-avgping').textContent = s.avg_ping_ms ? s.avg_ping_ms+'ms' : '—';
+      if (el('pp-stat-circuit')) {
+        el('pp-stat-circuit').textContent = s.circuit_open ? '⚡ OPEN' : '✓ Closed';
+        el('pp-stat-circuit').style.color = s.circuit_open ? 'var(--err,#f55)' : '#22c55e';
+      }
+    } catch(e) {}
+  }
+
+  window.ppLoad = async function() {
+    try {
+      const r = await api('/settings/api/pool/list');
+      if (!r.ok) return;
+      _ppData = r.proxies || [];
+      ppRender();
+      ppLoadStats();
+      if (document.getElementById('pp-last-refresh'))
+        document.getElementById('pp-last-refresh').textContent = 'refreshed ' + new Date().toLocaleTimeString();
+    } catch(e) { console.error('ppLoad', e); }
+  };
+
+  function ppRender() {
+    let data = [..._ppData];
+
+    // Filter
+    if (_ppFilter === 'alive')  data = data.filter(p => p.is_enabled && p.fail_count < 5);
+    if (_ppFilter === 'dead')   data = data.filter(p => !p.is_enabled || p.fail_count >= 5);
+    if (_ppFilter === 'socks5') data = data.filter(p => (p.url||'').startsWith('socks5'));
+    if (_ppFilter === 'http')   data = data.filter(p => (p.url||'').startsWith('http'));
+
+    // Sort
+    data.sort((a, b) => {
+      let av = a[_ppSortKey] ?? a.score ?? 0;
+      let bv = b[_ppSortKey] ?? b.score ?? 0;
+      if (_ppSortKey === 'url') { av = (a.url||''); bv = (b.url||''); }
+      if (_ppSortKey === 'status') { av = (a.is_enabled && a.fail_count < 5) ? 2 : a.is_enabled ? 1 : 0; bv = (b.is_enabled && b.fail_count < 5) ? 2 : b.is_enabled ? 1 : 0; }
+      if (typeof av === 'string') return _ppSortDir * av.localeCompare(bv);
+      return _ppSortDir * ((av||0) - (bv||0));
+    });
+
+    const tbody = document.getElementById('pp-tbody');
+    const footer = document.getElementById('pp-table-footer');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">No proxies match filter — click <strong>Discover</strong> to auto-add Pakistani proxies</td></tr>';
+      if (footer) footer.textContent = '';
+      return;
+    }
+
+    tbody.innerHTML = data.map(p => {
+      const alive  = p.is_enabled && p.fail_count < 5;
+      const degrad = p.is_enabled && p.fail_count >= 3;
+      let badge, rowStyle = '';
+      if (!p.is_enabled) {
+        badge = '<span class="badge b-err" style="font-size:10px">disabled</span>';
+        rowStyle = 'opacity:.65';
+      } else if (alive) {
+        badge = '<span class="badge b-ok" style="font-size:10px">alive</span>';
+      } else {
+        badge = '<span class="badge b-warn" style="font-size:10px">degraded</span>';
+      }
+
+      const proto = (p.url||'').startsWith('socks5') ? '🧦' : '🌐';
+      const urlShort = (p.url||'').replace(/^.*\/\//, '').slice(0, 36);
+
+      // Ping bar color
+      const ms = p.avg_ms || 0;
+      let pingColor = '#22c55e'; let pingW = 60;
+      if (ms > 3000) { pingColor = '#ef4444'; pingW = 100; }
+      else if (ms > 1500) { pingColor = '#f59e0b'; pingW = 80; }
+      else if (ms > 800) { pingColor = '#eab308'; pingW = 50; }
+      const pingBar = ms ? `<span class="pp-ping-bar" style="width:${pingW}%;max-width:40px;background:${pingColor}"></span>` : '';
+
+      const score = (p.score ?? 0).toFixed(1);
+      const scoreColor = p.score >= 70 ? '#22c55e' : p.score >= 40 ? '#f59e0b' : '#ef4444';
+
+      const srcBadge = {seed:'seed',discovered:'disc',manual:'manual',bulk_import:'bulk'}[p.source] || p.source || '?';
+
+      let actions = '';
+      if (!p.is_enabled) actions += `<button class="ghost" style="font-size:10px;padding:2px 6px" onclick="ppEnable(${p.id},true)" title="Re-enable">↑ Enable</button> `;
+      if (p.is_enabled && p.fail_count > 0) actions += `<button class="ghost" style="font-size:10px;padding:2px 6px" onclick="ppEnable(${p.id},true)" title="Reset fail count">↺ Reset</button> `;
+      actions += `<button class="ghost" style="font-size:10px;padding:2px 6px" onclick="ppTestOne(${p.id})" title="Test now">⚡ Test</button> `;
+      actions += `<button class="ghost" style="font-size:10px;padding:2px 6px;color:var(--err,#f55)" onclick="ppRemove(${p.id})" title="Remove">✕</button>`;
+
+      return `<tr style="border-bottom:1px solid var(--surface2);${rowStyle}" id="pp-row-${p.id}">
+        <td style="padding:5px 8px;font-family:monospace;font-size:11px" title="${p.url||''}">${proto} ${urlShort}</td>
+        <td style="text-align:center;padding:5px 8px">${badge}</td>
+        <td style="text-align:center;padding:5px 8px;font-weight:600;color:${scoreColor}">${score}</td>
+        <td style="text-align:center;padding:5px 8px;color:var(--muted)">${ms ? ms+'ms'+pingBar : '—'}</td>
+        <td style="text-align:center;padding:5px 8px;color:#22c55e">${p.ok_count||0}</td>
+        <td style="text-align:center;padding:5px 8px;color:${(p.fail_count||0)>0?'var(--err,#f55)':'var(--muted)'}">${p.fail_count||0}</td>
+        <td style="text-align:center;padding:5px 8px"><span class="badge b-mut" style="font-size:10px">${srcBadge}</span></td>
+        <td style="text-align:center;padding:5px 8px;white-space:nowrap">${actions}</td>
+      </tr>`;
+    }).join('');
+
+    if (footer) footer.textContent = `Showing ${data.length} of ${_ppData.length} proxies`;
+  }
+
+  window.ppSetFilter = function(f, btn) {
+    _ppFilter = f;
+    document.querySelectorAll('.pp-filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    ppRender();
+  };
+
+  window.ppSortBy = function(key) {
+    if (_ppSortKey === key) { _ppSortDir *= -1; }
+    else { _ppSortKey = key; _ppSortDir = -1; }
+    ppRender();
+  };
+
+  window.ppAdd = async function() {
+    const url  = (document.getElementById('pp-new-url').value || '').trim();
+    const test = document.getElementById('pp-test-on-add').checked;
+    if (!url) return;
+    toast('Adding proxy…');
+    try {
+      const r = await api('/settings/api/pool/add', 'POST', { url, test });
+      if (r.ok) {
+        toast(test ? (r.alive ? '✓ Proxy alive — added!' : '⚠ Added (not responding)') : '✓ Added');
+        document.getElementById('pp-new-url').value = '';
+        ppLoad();
+      } else { toast('Error: ' + (r.error || 'unknown')); }
+    } catch(e) { toast('Error: ' + e); }
+  };
+
+  window.ppBulkImport = async function() {
+    const text = (document.getElementById('pp-bulk-text').value || '').trim();
+    const test = document.getElementById('pp-bulk-test').checked;
+    const msgEl = document.getElementById('pp-bulk-msg');
+    if (!text) return;
+    const urls = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+    if (!urls.length) return;
+    if (msgEl) { msgEl.textContent = `Testing ${urls.length} proxies…`; msgEl.style.color='var(--muted)'; }
+    const btn = document.querySelector('[onclick="ppBulkImport()"]');
+    if (btn) btn.disabled = true;
+    try {
+      const r = await api('/settings/api/pool/bulk-import', 'POST', { urls, test });
+      if (r.ok) {
+        const msg = `✓ Added ${r.added} | Alive: ${r.alive ?? '(not tested)'} | Dupes: ${r.duplicates || 0} | Invalid: ${r.invalid || 0}`;
+        if (msgEl) { msgEl.textContent = msg; msgEl.style.color = r.added > 0 ? '#22c55e' : 'var(--muted)'; }
+        if (r.added > 0) document.getElementById('pp-bulk-text').value = '';
+        ppLoad();
+      } else {
+        if (msgEl) { msgEl.textContent = 'Error: ' + (r.error||'unknown'); msgEl.style.color='var(--err)'; }
+      }
+    } catch(e) {
+      if (msgEl) { msgEl.textContent = 'Error: '+e; msgEl.style.color='var(--err)'; }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  window.ppRemove = async function(id) {
+    if (!confirm('Remove this proxy?')) return;
+    await api('/settings/api/pool/remove/' + id, 'DELETE');
+    ppLoad();
+  };
+
+  window.ppEnable = async function(id, enabled) {
+    await api('/settings/api/pool/enable/' + id, 'POST', { enabled });
+    ppLoad();
+  };
+
+  window.ppTestOne = async function(id) {
+    const row = document.getElementById('pp-row-' + id);
+    if (row) row.style.opacity = '.5';
+    try {
+      const r = await api('/settings/api/pool/test/' + id, 'POST');
+      if (r.ok) {
+        toast(r.alive
+          ? `✓ Alive — ${r.ping_ms}ms (HTTP ${r.sapi_status})`
+          : `✗ Dead — ${r.error || 'no response'}`);
+        ppLoad();
+      }
+    } catch(e) { toast('Error: '+e); }
+    if (row) row.style.opacity = '';
+  };
+
+  window.ppHealthCheck = async function() {
+    const btn = document.getElementById('pp-btn-hc');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Checking…'; }
+    toast('Health check started — all proxies will be retested in background');
+    try {
+      await api('/settings/api/pool/healthcheck', 'POST');
+    } catch(e) {}
+    setTimeout(() => { ppLoad(); if (btn) { btn.disabled = false; btn.textContent = '❤️ Health Check'; } }, 15000);
+  };
+
+  window.ppDiscover = async function() {
+    const btn = document.getElementById('pp-btn-discover');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Discovering…'; }
+    toast('Discovery started — fetching Pakistani proxies from 8 sources…');
+    try {
+      await api('/settings/api/pool/discover', 'POST');
+    } catch(e) {}
+    setTimeout(() => { ppLoad(); if (btn) { btn.disabled = false; btn.textContent = '🔍 Discover'; } }, 25000);
+  };
+
+  window.ppResetDead = async function() {
+    if (!confirm('Re-enable all disabled proxies and queue them for re-testing?')) return;
+    const btn = document.getElementById('pp-btn-reset');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Resetting…'; }
+    try {
+      const r = await api('/settings/api/pool/reset-dead', 'POST');
+      toast(r.ok ? `✓ Reset ${r.reset} disabled proxies — re-testing in background` : 'Error: '+(r.error||'unknown'));
+      ppLoad();
+    } catch(e) { toast('Error: '+e); }
+    if (btn) { btn.disabled = false; btn.textContent = '♻️ Reset Dead'; }
+  };
+
+  window.ppExport = async function() {
+    try {
+      const r = await api('/settings/api/pool/export');
+      if (!r.ok || !r.urls) { toast('Nothing to export'); return; }
+      const text = r.urls.join('\n');
+      const blob = new Blob([text], {type:'text/plain'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'sapi_proxies.txt';
+      a.click();
+      toast(`Exported ${r.urls.length} proxies`);
+    } catch(e) { toast('Export error: '+e); }
+  };
+
+
+  async function loadBypassState() {
+    try {
+      const r = await api("/settings/api/proxies/bypass");
+      const bypass = r.bypass;
+      const icon  = document.getElementById("bypass-icon");
+      const label = document.getElementById("bypass-label");
+      const sub   = document.getElementById("bypass-sub");
+      const banner = document.getElementById("bypass-banner");
+      const btnD  = document.getElementById("bypass-btn-direct");
+      const btnP  = document.getElementById("bypass-btn-proxy");
+      if (bypass) {
+        if (icon)  icon.textContent  = "⚡";
+        if (label) label.textContent = "Direct Connection — Proxies OFF";
+        if (sub)   sub.textContent   = "All JazzDrive calls go direct. Fast uploads, no proxy overhead.";
+        if (banner) banner.style.borderColor = "#22c55e";
+        if (btnD) { btnD.style.opacity="0.5"; btnD.disabled=true; }
+        if (btnP) { btnP.style.opacity="1";   btnP.disabled=false; }
+      } else {
+        if (icon)  icon.textContent  = "🔀";
+        if (label) label.textContent = "Proxy Pool Active";
+        if (sub)   sub.textContent   = "JazzDrive calls route through the proxy pool below.";
+        if (banner) banner.style.borderColor = "var(--accent)";
+        if (btnD) { btnD.style.opacity="1";   btnD.disabled=false; }
+        if (btnP) { btnP.style.opacity="0.5"; btnP.disabled=true; }
+      }
+    } catch(e) { console.error("loadBypassState", e); }
+  }
+
+  window.setBypass = async function(bypass) {
+    try {
+      const r = await api("/settings/api/proxies/bypass", "POST", {bypass});
+      if (r.ok) {
+        toast(bypass ? "Direct connection enabled — proxies bypassed" : "Proxy pool re-enabled");
+        loadBypassState();
+      } else {
+        toast("Error saving bypass setting");
+      }
+    } catch(e) { toast("Error: " + e.message); }
+  };
+
+  loadBypassState();
+
+  // Auto-refresh every 10 seconds
+  ppLoad();
+  _ppTimer = setInterval(ppLoad, 10000);
+})();
+</script>

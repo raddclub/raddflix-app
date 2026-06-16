@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    FileProvider paths for RaddFlix (authority: com.raddflix.app.provider)
+
+    Used by:
+      - openVideoWith MethodChannel: convert file:// → content:// for external players (API 24+)
+      - Subtitle file picker: share loaded .srt/.ass/.vtt via content:// URI
+      - Screenshot saves: temp JPEG before writing to MediaStore gallery
+      - share_plus fallback: any app-internal file shared with other apps
+
+    Note: share_plus >= 10 bundles its own FileProvider (.fileprovider authority)
+    for its own URI generation; this provider (.provider) is for our native code.
+-->
+<paths>
+    <!-- Internal app files (getFilesDir) -->
+    <files-path name="files" path="." />
+
+    <!-- Internal cache (getCacheDir) — screenshots, temp subtitles -->
+    <cache-path name="cache" path="." />
+
+    <!-- External app-specific files (getExternalFilesDir) — downloads -->
+    <external-files-path name="external_files" path="." />
+
+    <!-- External app-specific cache (getExternalCacheDir) -->
+    <external-cache-path name="external_cache" path="." />
+
+    <!-- External shared storage root (Environment.getExternalStorageDirectory)
+         Required on API ≤28 to share files from Downloads or DCIM.
+         On API 29+ MediaStore is preferred but this path remains harmless. -->
+    <external-path name="external_root" path="." />
+</paths>

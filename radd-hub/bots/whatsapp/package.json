@@ -1,0 +1,18 @@
+{
+  "name": "radd-whatsapp-bot",
+  "version": "2.0.0",
+  "description": "Radd Movies WhatsApp Bot — v2.0 plugin architecture, 4-tier roles, daily quotas, multi-account, dedupe, trailers, rewards.",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.9",
+    "better-sqlite3": "^11.3.0",
+    "node-fetch": "^2.7.0",
+    "pino": "^9.5.0",
+    "qrcode-terminal": "^0.12.0",
+    "qrcode": "^1.5.4"
+  }
+}

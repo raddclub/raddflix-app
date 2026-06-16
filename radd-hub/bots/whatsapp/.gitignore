@@ -1,0 +1,11 @@
+# WhatsApp bot runtime state — do NOT commit these
+bot-state.json
+users.json
+pairing-number.txt
+*.session
+auth_info/
+store/
+baileys_store.json
+baileys_creds.json
+creds.json
+session.json
