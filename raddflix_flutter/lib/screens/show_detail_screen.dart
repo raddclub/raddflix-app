@@ -1089,6 +1089,7 @@ class _EpisodeTile extends StatelessWidget {
           ),
         ),
       ),
+      ),
       // ── Play + Download button row ─────────────────────────────────────
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
