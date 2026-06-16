@@ -593,10 +593,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _lastAfTs = ts;
     await Future.delayed(const Duration(milliseconds: 60));
     if (_lastAfTs != ts || !mounted) return; // FIX-H01
-    // Hardware decoder
-    await _np.setProperty('hwdec', p.hwDecoderEnabled ? 'auto' : 'no');
-    // Deinterlace
-    await _np.setProperty('deinterlace', p.deinterlaceEnabled ? 'yes' : 'no');
+    // Hardware decoder — CRITICAL: do NOT change while video is playing.
+    // Changing hwdec mid-playback on Android forces MPV to restart its video
+    // decoder pipeline and destroys the GL surface texture → blank screen with
+    // audio-only (this was the "screen goes black after 2-3 seconds" bug for
+    // local files, triggered by _loadPrefs completing after playback started).
+    // The new value takes effect on the next media open.
+    if (!_playing) {
+      await _np.setProperty('hwdec', p.hwDecoderEnabled ? 'auto' : 'no');
+      await _np.setProperty('deinterlace', p.deinterlaceEnabled ? 'yes' : 'no');
+    }
 
     // ── Build a single combined MPV audio filter chain (af=) ─────────────────
     // All active filters are joined with commas into ONE setProperty call.
@@ -4649,8 +4655,10 @@ class _ControlsOverlay extends StatelessWidget {
                                   data: SliderTheme.of(ctx).copyWith(
                                     trackHeight: seekBarStyle != 'classic'
                                         ? 0 : (sliderDragging ? 5 : 3),
-                                    thumbShape: RoundSliderThumbShape(
-                                        enabledThumbRadius: sliderDragging ? 10 : 6),
+                                    thumbShape: seekBarStyle != 'classic'
+                                        ? SliderComponentShape.noThumb
+                                        : RoundSliderThumbShape(
+                                            enabledThumbRadius: sliderDragging ? 10 : 6),
                                     overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
                                     activeTrackColor: seekBarStyle != 'classic'
                                         ? Colors.transparent : accentColor,
