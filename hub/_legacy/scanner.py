@@ -151,31 +151,57 @@ def list_videos(sess: requests.Session, tokens: dict, folder_id: int, account_id
         _jid = tokens.get('jsessionid') if tokens else None
         _tok = {"validationkey": _vk, "jsessionid": _jid} if _vk else None
 
-        data = jazzdrive.sapi_request(
-            endpoint="/media/video",
-            action="get",
-            params={"parentId": folder_id, "folderId": folder_id},
-            account_id=account_id,
-            tokens=_tok,
-        )
-        if data.get('error'):
-            return []
+        # Paginate until more=false (GetMediaWrapper.more from Android RE)
         items = []
-        if isinstance(data, dict):
-            for key in ('data', 'videos', 'items', 'result'):
-                v = data.get(key)
-                if isinstance(v, list):
-                    items = v
-                    break
-                if isinstance(v, dict):
-                    for sub in ('videos', 'items', 'files'):
-                        if isinstance(v.get(sub), list):
-                            items = v[sub]
-                            break
-                    if items:
+        _offset = 0
+        _MAX_PAGES = 50
+        for _page in range(_MAX_PAGES):
+            _params = {"parentId": folder_id, "folderId": folder_id}
+            if _offset > 0:
+                _params["offset"] = _offset
+            data = jazzdrive.sapi_request(
+                endpoint="/media/video",
+                action="get",
+                params=_params,
+                account_id=account_id,
+                tokens=_tok,
+            )
+            if data.get('error'):
+                break
+            _page_items = []
+            if isinstance(data, dict):
+                for key in ('data', 'videos', 'items', 'result'):
+                    v = data.get(key)
+                    if isinstance(v, list):
+                        _page_items = v
                         break
-        elif isinstance(data, list):
-            items = data
+                    if isinstance(v, dict):
+                        for sub in ('videos', 'items', 'files'):
+                            if isinstance(v.get(sub), list):
+                                _page_items = v[sub]
+                                break
+                        if _page_items:
+                            break
+            elif isinstance(data, list):
+                _page_items = data
+            if not _page_items:
+                break
+            items.extend(_page_items)
+            _offset += len(_page_items)
+            # Check more flag (GetMediaWrapper.more / hasMore)
+            _more = False
+            if isinstance(data, dict):
+                for _dk in ('data', 'result'):
+                    _dv = data.get(_dk)
+                    if isinstance(_dv, dict):
+                        _more = bool(_dv.get('more') or _dv.get('hasMore'))
+                        break
+                if not _more:
+                    _more = bool(data.get('more') or data.get('hasMore'))
+            if not _more:
+                break
+            log.debug("list_videos folder=%s page=%d: %d items, more=True offset=%d",
+                      folder_id, _page+1, len(_page_items), _offset)
             
         # Non-video extensions we always skip (docs, archives, misc images).
         # .jpg / .jpeg are handled explicitly below so we can distinguish
@@ -456,13 +482,7 @@ def scan_account(account_id: int, progress_cb=None, extra_skip_folders=None) -> 
             all_folders_flat[fid] = {**f, 'path': full_path}
             if fid not in visited:
                 queue.append(fid)
-        # Rate-limit the BFS folder listing to avoid triggering Jazz rate-limits
-        try:
-            from .. import db as _hub_db
-            _bfs_delay = float(_hub_db.setting('scan_request_delay') or '0.8')
-        except Exception:
-            _bfs_delay = 0.8
-        time.sleep(_bfs_delay)
+        time.sleep(0.05)
 
     emit('info', f"Found {len(all_folders_flat)} folders. Scanning for videos in parallel...")
     
@@ -515,13 +535,6 @@ def scan_account(account_id: int, progress_cb=None, extra_skip_folders=None) -> 
 
         emit('folder', f"📁 {folder_path} ({len(videos)} files)")
 
-        # Per-request rate limit inside each thread
-        try:
-            from .. import db as _hub_db3
-            _req_delay = float(_hub_db3.setting('scan_request_delay') or '0.8')
-        except Exception:
-            _req_delay = 0.8
-
         folder_files = []
         for video in videos:
             season, episode = _parse_episode_info(video['filename'])
@@ -547,13 +560,8 @@ def scan_account(account_id: int, progress_cb=None, extra_skip_folders=None) -> 
             })
         return folder_files
 
-    # Thread count from settings (default 3 — keep low to avoid Jazz suspension)
-    try:
-        from .. import db as _hub_db
-        _scan_workers = max(1, min(10, int(_hub_db.setting('scan_threads') or '3')))
-    except Exception:
-        _scan_workers = 3
-    with ThreadPoolExecutor(max_workers=_scan_workers) as executor:
+    # Use 10 threads for crawling
+    with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {executor.submit(scan_folder, fid, info): fid for fid, info in all_folders_flat.items()}
         for future in as_completed(futures):
             try:
@@ -564,13 +572,6 @@ def scan_account(account_id: int, progress_cb=None, extra_skip_folders=None) -> 
                     emit('progress', f"Files found so far: {len(all_files)}")
             except Exception as e:
                 log.warning("Parallel folder scan error: %s", e)
-            # Small inter-folder delay — spread load across time
-            try:
-                from .. import db as _hub_db2
-                _fd = float(_hub_db2.setting('scan_request_delay') or '0.8')
-            except Exception:
-                _fd = 0.8
-            time.sleep(_fd * 0.5)  # half the per-request delay between folders
 
     # ── Root-level loose file scan ─────────────────────────────────────────────
     # Some JazzDrive accounts keep files directly at parentId=0 (not inside any
@@ -672,11 +673,7 @@ def enrich_and_save(files: list, account_id: int, progress_cb=None) -> int:
             else:
                 emit('tmdb_miss', f"⚠️ No TMDB match for: {sample}")
             _tmdb_cache[cache_key] = (metadata, title_id)
-            try:
-                from .. import db as _hub_db4
-                time.sleep(float(_hub_db4.setting('scan_request_delay') or '0.8') * 0.25)
-            except Exception:
-                time.sleep(0.2)
+            time.sleep(0.05)
 
         for file_rec in folder_files:
             file_rec['title_id'] = title_id
@@ -686,61 +683,80 @@ def enrich_and_save(files: list, account_id: int, progress_cb=None) -> int:
 
 def mobile_direct_verify_otp(msisdn: str, otp: str, proxies: Optional[dict] = None) -> dict:
     """Verify OTP via JazzDrive Android mobile API."""
-    import uuid as _uuid2
-    device_id      = _uuid2.uuid4().hex[:16]
+    from .. import db as _db
+    # Use the stored device ID/name so every login registers the SAME device on
+    # JazzDrive. This eliminates the one-active-Android-device conflict with the
+    # real phone — JazzDrive sees both as the same device.
+    _m = str(msisdn).strip().replace("+92", "0").replace("+", "").replace(" ", "")
+    device_id   = (_db.setting("JAZZDRIVE_DEVICE_ID") or "").strip() or f"fac-{_m[-10:]}"
+    device_name = (_db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix Hot 9 Play").strip()
     encoded_otp    = urllib.parse.quote(str(otp).strip(),    safe='')
     encoded_msisdn = urllib.parse.quote(str(msisdn).strip(), safe='')
 
     sess = requests.Session()
     hdrs = {
-        'User-Agent':       'Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)',
+        'User-Agent':       'omh android client',
         'Accept':           'application/json, */*',
-        'X-deviceid':       f'android-{device_id}',
+        'X-deviceid':       device_id,
+        'X-devicename':     device_name,
         'X-Requested-With': 'com.jazz.drive',
+        'x-request-id':     str(uuid.uuid4()),
     }
 
-    candidates = [
-        f'{CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=otp&key={encoded_otp}&msisdn={encoded_msisdn}',
-        f'{CLOUD_BASE}/sapi/login?action=login&platform=Android&keytype=otp&key={encoded_otp}&msisdn={encoded_msisdn}',
-        f'{CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=otp&key={encoded_otp}',
-        f'{CLOUD_BASE}/sapi/login/oauth?keytype=otp&key={encoded_otp}&msisdn={encoded_msisdn}',
-    ]
-
-    for url in candidates:
-        try:
-            r = sess.get(url, headers=hdrs, timeout=25, proxies=proxies)
-            log.debug("mobile_direct_verify: HTTP %d @ %s", r.status_code, url[:100])
-            if r.status_code != 200:
-                log.debug("mobile_direct_verify: HTTP %d body: %s", r.status_code, r.text[:150])
-                continue
+    # APK CONFIRMED: keytype=otp does NOT exist in Jazz Drive 8.0.1 API.
+    # Only keytype=accesstoken is used (OAuth2LogoutTask). The OTP/SMS flow goes
+    # through the MobileConnect WebView — WebView extracts code+state and the app
+    # POSTs to /sapi/credential/mobileconnect?action=validate (Path B, LOGIN_FLOW.md).
+    #
+    # `otp` is treated as the OAuth2 authorization code from the MobileConnect redirect.
+    # If callers pass a raw SMS OTP it will fail at the server — use jazzdrive_login()
+    # to drive the full OAuth2 WebView flow and obtain a real code+state pair.
+    validate_url = (
+        f"{CLOUD_BASE}/sapi/credential/mobileconnect"
+        "?action=validate&responsetime=true"
+    )
+    body_json = {"data": {"code": str(otp).strip(), "state": "0"}}
+    try:
+        r = sess.post(validate_url, json=body_json, headers=hdrs, timeout=25, proxies=proxies)
+        log.debug("mobile_direct_verify: mobileconnect validate HTTP %d", r.status_code)
+        if r.status_code == 200:
             try:
                 body = r.json()
             except Exception:
-                continue
-            data = body.get('data', body) if isinstance(body, dict) else {}
+                body = {}
+            data = body.get("data", body) if isinstance(body, dict) else {}
             if not isinstance(data, dict):
-                data = body if isinstance(body, dict) else {}
-            vk  = (data.get('validationkey') or data.get('validation_key') or
-                   data.get('accesstoken')   or data.get('access_token') or '')
-            rt  = (data.get('refreshtoken')  or data.get('refresh_token') or
-                   data.get('RefreshToken')  or '')
-            jid = (data.get('jsessionid')    or data.get('JSESSIONID') or
-                   data.get('sessionId')     or sess.cookies.get('JSESSIONID', '') or '')
-            node = jid.split('.')[-1] if jid and '.' in jid else ''
-            if vk:
-                log.info("mobile_direct_verify: OK vk_len=%d rt=%s", len(vk), bool(rt))
+                data = {}
+            at  = (data.get("access_token")   or data.get("accesstoken")  or "")
+            rt  = (data.get("refresh_token")  or data.get("refreshtoken") or "")
+            vk  = (data.get("validationkey")  or data.get("validation_key") or "")
+            jid = (data.get("jsessionid")     or data.get("JSESSIONID")
+                   or sess.cookies.get("JSESSIONID", "") or "")
+            msisdn_resp = data.get("msisdn") or msisdn or ""
+            node = jid.split(".")[-1] if jid and "." in jid else ""
+            if at or rt or vk:
+                log.info("mobile_direct_verify: mobileconnect OK vk=%s at=%s rt=%s",
+                         bool(vk), bool(at), bool(rt))
                 return {
-                    'validation_key': vk,
-                    'jsessionid':     jid,
-                    'node':           node,
-                    'refresh_token':  rt,
+                    "validation_key":  vk,
+                    "jsessionid":      jid,
+                    "node":            node,
+                    "refresh_token":   rt,
+                    "raw_accesstoken": at,
+                    "msisdn":          msisdn_resp,
                 }
-            log.debug("mobile_direct_verify: 200 but no vk in body: %s", str(data)[:200])
-        except Exception as _req_e:
-            log.debug("mobile_direct_verify: error: %s", _req_e)
+            log.warning("mobile_direct_verify: mobileconnect 200 but no tokens: %s", str(data)[:200])
+        else:
+            log.warning("mobile_direct_verify: mobileconnect HTTP %d: %s",
+                        r.status_code, r.text[:150])
+    except Exception as _e:
+        log.warning("mobile_direct_verify: mobileconnect request failed: %s", _e)
 
     raise RuntimeError(
-        f"mobile_direct_verify_otp: all {len(candidates)} candidates failed"
+        "mobile_direct_verify_otp: MobileConnect validate failed. "
+        "keytype=otp does NOT exist in JazzDrive API (confirmed Jazz Drive 8.0.1 APK). "
+        "Use jazzdrive_login() to complete the full OAuth2 WebView flow and obtain "
+        "a real code+state pair for /sapi/credential/mobileconnect?action=validate."
     )
 
 
@@ -756,7 +772,7 @@ def jazzdrive_login(msisdn: str, use_android: bool = True, proxies: Optional[dic
     else:
         msisdn_local = m
 
-    _UA_ANDROID = "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)"
+    _UA_ANDROID = "Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)"
     _UA_WEB     = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
                    "Chrome/124.0.0.0 Safari/537.36")
@@ -941,7 +957,7 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
       Step 4b: Wrap raw_at in base64-JSON, GET /sapi/login/oauth?keytype=accesstoken
                → fresh validationkey + JSESSIONID.
     """
-    _UA_ANDROID = "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)"
+    _UA_ANDROID = "Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)"
     _UA_WEB     = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
                    "Chrome/124.0.0.0 Safari/537.36")
@@ -1131,9 +1147,10 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
     _vk_from_chain  = (_cloud_cookies.get("validation_key") or
                        _cloud_cookies.get("validationkey") or "")
 
-    if _jid_from_chain:
+    if _jid_from_chain and _vk_from_chain:
+        # Got both JSESSIONID and VK from cookies — fully done, no SAPI call needed
         log.info(
-            "JSESSIONID obtained directly from OAuth redirect chain (no SAPI call needed) "
+            "JSESSIONID and VK both obtained from OAuth redirect chain — done. "
             "jid=%s... vk=%s", _jid_from_chain[:16], bool(_vk_from_chain)
         )
         _node = _jid_from_chain.split('.')[-1] if '.' in _jid_from_chain else ''
@@ -1145,10 +1162,18 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
             'raw_accesstoken': raw_at,
             'access_token':    raw_at,
         }
+    elif _jid_from_chain:
+        # JSESSIONID found in cookies but VK is missing — fall through to SAPI step below.
+        # If SAPI also fails, that code sets _sapi_blocked=True and the caller in
+        # scanner.py will try mobile_direct_verify_otp (keytype=otp) for VK.
+        log.info(
+            "JSESSIONID obtained from OAuth redirect chain but VK missing — "
+            "continuing to SAPI step for VK. jid=%s...", _jid_from_chain[:16]
+        )
 
     # Cookies not set yet — try fetching clientoauth.html explicitly.
     # This is what a real browser does after the OTP redirect; it sets JSESSIONID
-    # on cloud.jazzdrive.com.pk naturally without any geo-restricted SAPI endpoint.
+    # on cloud.jazzdrive.com.pk naturally.
     if current_url and "cloud.jazzdrive" in current_url and "clientoauth" in current_url:
         try:
             log.info("Fetching clientoauth.html to obtain session cookies: %s", current_url[:100])
@@ -1161,8 +1186,8 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
                                _cloud_cookies.get("jsessionid") or "")
             _vk_from_chain  = (_cloud_cookies.get("validation_key") or
                                _cloud_cookies.get("validationkey") or "")
-            if _jid_from_chain:
-                log.info("JSESSIONID obtained via clientoauth.html fetch: jid=%s...", _jid_from_chain[:16])
+            if _jid_from_chain and _vk_from_chain:
+                log.info("JSESSIONID and VK from clientoauth.html fetch — done. jid=%s...", _jid_from_chain[:16])
                 _node = _jid_from_chain.split('.')[-1] if '.' in _jid_from_chain else ''
                 return {
                     'validation_key':  _vk_from_chain,
@@ -1172,12 +1197,14 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
                     'raw_accesstoken': raw_at,
                     'access_token':    raw_at,
                 }
+            elif _jid_from_chain:
+                # JSESSIONID from clientoauth.html but VK missing — fall through to SAPI
+                log.info("JSESSIONID from clientoauth.html but VK missing — continuing to SAPI. jid=%s...", _jid_from_chain[:16])
         except Exception as _coe:
             log.debug("clientoauth.html fetch failed: %s", _coe)
 
     # Last resort: SAPI silent-login using the raw_accesstoken.
-    # This endpoint is geo-restricted by JazzDrive to PK IPs, so it may fail
-    # from non-Pakistani servers.  Clear any stale cloud.jazzdrive cookies first.
+    # Clear any stale cloud.jazzdrive cookies first.
     _stale = [
         (c.domain, c.path, c.name)
         for c in sess.cookies
@@ -1193,28 +1220,40 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
                  len(_stale), [n for _, _, n in _stale])
 
     msisdn_clean = (msisdn or "").replace("+", "").replace(" ", "").replace("-", "")
-    device_id    = (f"android-raddhub-{msisdn_clean[-10:]}" if len(msisdn_clean) >= 10
-                    else "android-raddhub-12345678")
+    # Use real Android device ID/name from DB settings so JazzDrive's My Devices
+    # page shows "Infinix Hot 9 Play" instead of a blank unnamed entry.
+    # Falls back to fac-<msisdn> only when JAZZDRIVE_DEVICE_ID is not configured.
+    from .. import db as _db_dev
+    _stored_device_id = (_db_dev.setting("JAZZDRIVE_DEVICE_ID") or "").strip()
+    device_id    = _stored_device_id if _stored_device_id else (
+        f"fac-{msisdn_clean[-10:]}" if len(msisdn_clean) >= 10 else "fac-0000000000"
+    )
+    device_name  = (_db_dev.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix Hot 9 Play").strip()
 
     at_json  = _json_mod.dumps({"data": {"accesstoken": raw_at}})
     at_b64e  = urllib.parse.quote(_b64_mod.b64encode(at_json.encode()).decode(), safe="")
     
-    # We try multiple candidates to avoid HTTP 500
+    # Android-Nested only — exact format from Jazz Drive 8.0.1 APK (FINDINGS.md / LOGIN_FLOW.md).
+    # platform=Android, keytype=accesstoken, key=base64({"data":{"accesstoken":"<raw_at>"}})
     candidates = [
         (f"{CLOUD_BASE}/sapi/login/oauth?action=login&platform=Android&keytype=accesstoken&key={at_b64e}", "Android-Nested"),
-        (f"{CLOUD_BASE}/sapi/login/oauth?action=login&platform=web&keytype=accesstoken&key={at_b64e}", "Web-Nested"),
-        (f"{CLOUD_BASE}/sapi/login/oauth?keytype=accesstoken&key={at_b64e}", "Legacy-Direct"),
-        (f"{CLOUD_BASE}/sapi/login?action=login&platform=Android&keytype=accesstoken&key={at_b64e}", "Android-Raw"),
     ]
 
     # Temporarily restore SSL verification for cloud.jazzdrive.com.pk (valid cert)
     _prev_verify = sess.verify
     sess.verify = True
+    import uuid as _uuid_mod
+    import base64 as _b64_auth
+    _auth_token = _b64_auth.b64encode(raw_at.encode()).decode() if raw_at else ""
     sess.headers.update({
-        "Accept":             "application/json, text/javascript, */*; q=0.01",
+        # All 7 headers from APK OkHttp interceptors (LOGIN_FLOW.md section 2):
+        "User-Agent":         "omh android client",          # C30921b AddUserAgentInterceptor
+        "x-request-id":       str(_uuid_mod.uuid4()),        # C30920a AddRequestIdInterceptor
+        "X-deviceid":         device_id,                     # C30924e DeviceInterceptor
+        "X-devicename":       device_name,                   # C30924e DeviceInterceptor
         "X-Requested-With":   "com.jazz.drive",
-        "X-deviceid":         device_id,
-        "User-Agent":         "Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016)",
+        "Accept":             "application/json, text/javascript, */*; q=0.01",
+        **({"Authorization": f"oauth {_auth_token}"} if _auth_token else {}),  # C12815c
     })
     # Remove browser headers for pure app look
     sess.headers.pop("Origin", None)
@@ -1238,19 +1277,22 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
     sess.verify = _prev_verify
 
     if not r4b or r4b.status_code != 200:
-        # SAPI silent login is blocked on non-Pakistani IPs (JazzDrive geo-restricts
-        # the keytype=accesstoken endpoint to PK network ranges).
+        # SAPI silent login via keytype=accesstoken did not succeed.
         # Return a partial result so the caller can persist refresh_token + raw_at,
         # and prompt the user to paste browser cookies instead.
         log.warning(
-            "SAPI silent login blocked (%s) — returning partial tokens "
-            "(no JSESSIONID). User must paste browser cookies to activate session.",
+            "SAPI keytype=accesstoken failed (%s) — returning partial tokens "
+            "(no VK). User must paste browser cookies to activate session.",
             last_err,
         )
         return {
             "validation_key":  "",
-            "jsessionid":      "",
-            "node":            "",
+            # FIX-JD-LOGIN-1: preserve JSESSIONID captured from clientoauth.html.
+            # Previously hardcoded "" discarded a valid working JSESSIONID.
+            # Without it submit_otp saves no JID and android_refresh_session
+            # has nothing to work with for the keepalive/VK-refresh cycle.
+            "jsessionid":      _jid_from_chain,
+            "node":            (_jid_from_chain.split(".")[-1] if "." in _jid_from_chain else ""),
             "refresh_token":   raw_rt,
             "raw_accesstoken": raw_at,
             "access_token":    raw_at,
