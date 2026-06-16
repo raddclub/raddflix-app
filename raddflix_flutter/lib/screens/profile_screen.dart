@@ -459,9 +459,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     child: GestureDetector(
                       onTap: () {
-                        if (!kDebugMode) return;
                         setState(() => _versionTapCount++);
-                        if (_versionTapCount >= 7) {
+                        if (_versionTapCount >= 5) {
                           setState(() => _versionTapCount = 0);
                           Navigator.of(context).push(MaterialPageRoute(
                             builder: (_) => const DebugDiagnosticsScreen()));
