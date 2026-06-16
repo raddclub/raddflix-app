@@ -11,6 +11,7 @@ import 'dart:convert';
 class ThumbService {
   ThumbService._();
   static final _mem = <String, Uint8List>{};
+  static const int _maxMemEntries = 100; // H-10: cap in-memory thumbnail cache
   static Directory? _cacheDir;
 
   static Future<Directory> _getDir() async {
@@ -44,7 +45,9 @@ class ThumbService {
       final dir = await _getDir();
       final file = File(p.join(dir.path, '$key.jpg'));
       if (file.existsSync()) {
-        final bytes = file.readAsBytesSync();
+        final bytes = await file.readAsBytes(); // H-10: async — was blocking main thread
+        // H-10: evict oldest entries if cache is at capacity
+        if (_mem.length >= _maxMemEntries) _mem.remove(_mem.keys.first);
         _mem[key] = bytes;
         return bytes;
       }
@@ -58,7 +61,8 @@ class ThumbService {
         quality: quality,
       );
       if (bytes != null) {
-        file.writeAsBytesSync(bytes);
+        await file.writeAsBytes(bytes); // H-10: async — was blocking main thread
+        if (_mem.length >= _maxMemEntries) _mem.remove(_mem.keys.first);
         _mem[key] = bytes;
       }
       return bytes;

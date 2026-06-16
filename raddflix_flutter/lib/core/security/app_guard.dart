@@ -94,21 +94,27 @@ class AppGuard {
   /// Detection methods:
   ///   1. Try to connect to Frida's default port (27042)
   ///   2. Check for Frida agent library in /proc/self/maps via native channel
+  // H-08: Frida server can be started on any port; check all common ones.
+  // Default is 27042 but tooling repos often rebind to avoid the obvious check.
+  static const List<int> _fridaPorts = [27042, 27043, 27044, 27045, 1234, 8088];
+
   static Future<void> _checkFrida() async {
-    // Method 1: Frida server default port
-    try {
-      final socket = await Socket.connect(
-        '127.0.0.1',
-        27042,
-        timeout: const Duration(milliseconds: 400),
-      );
-      socket.destroy();
-      // Connection succeeded → Frida server is running
-      isTampered = true;
-      SecurityTelemetry.reportTamperAttempt('frida_port');
-      return;
-    } catch (_) {
-      // Connection refused = Frida not running = good
+    // Method 1: Frida server port scan (H-08: multiple ports, not just 27042)
+    for (final port in _fridaPorts) {
+      try {
+        final socket = await Socket.connect(
+          '127.0.0.1',
+          port,
+          timeout: const Duration(milliseconds: 250),
+        );
+        socket.destroy();
+        // Connection succeeded → Frida server is running
+        isTampered = true;
+        SecurityTelemetry.reportTamperAttempt('frida_port_$port');
+        return;
+      } catch (_) {
+        // Not listening on this port — continue scanning
+      }
     }
 
     // Method 2: Native memory map scan

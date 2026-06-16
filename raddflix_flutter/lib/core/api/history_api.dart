@@ -57,7 +57,13 @@ class HistoryApi {
   /// Parse watched_at from server response correctly.
   /// Server returns epoch SECONDS; DateTime needs milliseconds (BUG-A11).
   static DateTime watchedAtToDateTime(dynamic watchedAt) {
-    final secs = (watchedAt as num?)?.toInt() ?? 0;
+    // M-13: server may send int, double, or stringified number — cast-as-num? throws
+    // if the type is String, so we use is-check + tryParse fallback.
+    final secs = watchedAt == null
+        ? 0
+        : (watchedAt is num)
+            ? watchedAt.toInt()
+            : int.tryParse(watchedAt.toString()) ?? 0;
     return DateTime.fromMillisecondsSinceEpoch(secs * 1000);
   }
 

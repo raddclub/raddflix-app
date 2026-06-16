@@ -10,6 +10,13 @@ import '../models/user.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
+class RegistrationException implements Exception {
+  final String message;
+  const RegistrationException(this.message);
+  @override
+  String toString() => message;
+}
+
 class AuthState {
   final AuthStatus status;
   final AppUser? user;
@@ -153,7 +160,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> register({required String phone, required String password}) async {
-    await AuthApi.register(phone: phone, password: password);
+    // H-03: missing try-catch meant DioException (e.g. 422 "phone already taken")
+    // crashed with an unhandled exception.  Wrap and rethrow as RegistrationException
+    // so the UI can surface a user-readable message.
+    try {
+      await AuthApi.register(phone: phone, password: password);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final msg = (data is Map)
+          ? (data['message'] ?? data['error'] ?? 'Registration failed').toString()
+          : 'Registration failed. Please try again.';
+      throw RegistrationException(msg);
+    } catch (_) {
+      throw RegistrationException('Registration failed. Please try again.');
+    }
     // Auto-login removed: calling login() after register caused auth-state
     // race conditions that showed "Registration failed" even when the account
     // was created. User is sent to the login screen to sign in manually.
@@ -180,7 +200,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// Called in background after guest login — never blocks the guest UX.
   /// If offline or server unavailable, does nothing (zero-rated catalog still works).
   void _tryAcquireGuestServerToken() {
-    AuthApi.guestLogin().then((token) {
+    AuthApi.guestLogin().then((token) async {
+      // H-04: race guard — user may have logged out between the API call starting
+      // and this .then() callback firing.  Only persist tokens if still in guest mode.
+      final prefs = await SharedPreferences.getInstance();
+      if (!(prefs.getBool(StorageKeys.isGuest) ?? false)) return;
       return Keystore.saveTokens(
         accessToken:  token,
         refreshToken: '',

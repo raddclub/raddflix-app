@@ -1,3 +1,0 @@
-# RaddFlix Telegram Bot dependencies
-# Only requests is needed — all else uses stdlib
-requests>=2.28.0

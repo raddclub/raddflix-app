@@ -142,7 +142,7 @@ class DebugLogger {
     _memBuffer.add(line);
     if (_memBuffer.length > _maxMemLines) _memBuffer.removeAt(0);
     try {
-      _logFile?.writeAsStringSync('$line\n', mode: FileMode.append, flush: true);
+      _logFile?.writeAsString('$line\n', mode: FileMode.append).ignore();
     } catch (_) {}
   }
 

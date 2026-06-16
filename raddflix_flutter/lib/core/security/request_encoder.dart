@@ -77,7 +77,9 @@ class RequestEncoder {
         (i) => encodedBytes[i] ^ keyBytes[i % keyBytes.length],
       );
       return utf8.decode(decoded);
-    } catch (_) {
+    } catch (e) {
+      // C-02: log decode failures so clock-skew / corrupt data is detectable
+      assert(() { print('[XOR] decode failed: $e'); return true; }());
       return encodedBody;
     }
   }

@@ -56,9 +56,11 @@ class AuthApi {
   static Future<AppUser> getMe() async {
     final response = await _client.get(ApiPaths.me);
     final raw = response.data;
+    // M-12: null guard — XOR interceptor may return empty body on error
+    if (raw == null) throw Exception('getMe: empty response body');
     final data = raw is Map<String, dynamic>
         ? raw
-        : jsonDecode(raw as String) as Map<String, dynamic>;
+        : jsonDecode(raw.toString()) as Map<String, dynamic>;
     return AppUser.fromJson(data);
   }
 

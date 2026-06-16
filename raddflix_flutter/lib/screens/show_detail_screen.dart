@@ -95,6 +95,14 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     }
 
     if (mounted) {
+      // H-01: dispose the old TabController BEFORE setState — disposing inside
+      // setState risks destroying a controller the framework still reads during
+      // the current build phase, causing a 'disposed controller' assertion.
+      final willHaveMultipleSeasons = seasonNums.length > 1;
+      if (willHaveMultipleSeasons) {
+        _seasonTab?.dispose();
+        _seasonTab = null;
+      }
       setState(() {
         _episodes = eps;
         _seasons = seasonNums.isEmpty ? [1] : seasonNums;
@@ -103,8 +111,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         _overrides = overrides;
         _resumeEpisodeIndex = resumeIdx;
         _loading = false;
-        if (_seasons.length > 1) {
-          _seasonTab?.dispose(); // FIX-TAB-01: dispose old controller before recreating (fixes memory leak on pull-to-refresh)
+        if (willHaveMultipleSeasons) {
           _seasonTab = TabController(length: _seasons.length, vsync: this);
           _seasonTab!.addListener(() {
             if (!_seasonTab!.indexIsChanging) {

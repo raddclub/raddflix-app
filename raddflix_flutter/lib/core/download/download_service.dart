@@ -10,7 +10,7 @@ import '../api/api_client.dart';
 class DownloadService {
   static final Dio _dio = Dio();
   static final _cancelTokens = <String, CancelToken>{};
-  static int _lastProgressPct5 = -1; // FIX-DL-THROTTLE: tracks last 5% bucket written to DB
+
 
   static Future<void> _checkDownloadQuota() async {
     try {
@@ -110,7 +110,7 @@ class DownloadService {
 
     final cancelToken = CancelToken();
     _cancelTokens[fileId] = cancelToken;
-    _lastProgressPct5 = -1; // reset throttle bucket for new download
+    int localProgressPct5 = -1; // H-06: local per-download, not shared across concurrent downloads
     try {
       await _dio.download(
         resolvedUrl,
@@ -122,8 +122,8 @@ class DownloadService {
           // FIX-DL-THROTTLE: only write to DB when progress crosses a 5% boundary
           // to avoid flooding SQLite with hundreds of UPDATE calls per second.
           final pct5 = (progress * 20).floor();
-          if (pct5 != _lastProgressPct5) {
-            _lastProgressPct5 = pct5;
+          if (pct5 != localProgressPct5) {
+            localProgressPct5 = pct5;
             LocalDb.updateDownloadProgress(fileId, progress);
           }
         },

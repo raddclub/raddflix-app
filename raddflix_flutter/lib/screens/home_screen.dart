@@ -90,6 +90,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         currentIndex: _navIndex,
         onTap: (i) {
           setState(() => _navIndex = i);
+          // M-01: pop to root before pushing so tapping the same icon repeatedly
+          // doesn't build an unbounded back-stack (e.g. Profile → Profile → …).
+          if (i == 1 || i == 2 || i == 3) {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
           if (i == 1) Navigator.of(context).pushNamed(AppRoutes.localMedia);
           else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.downloads);
           else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.profile);

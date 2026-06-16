@@ -33,6 +33,8 @@ class JazzDriveService {
   static const Duration _cacheTtl = Duration(minutes: 110);
 
   static final _inMemory = <String, _CacheEntry>{};
+  static const int _maxCacheEntries = 200; // H-05: cap to prevent unbounded growth
+  static final _inFlight = <String, Future<JazzDriveLink>>{}; // H-05: dedup concurrent requests
 
   static final Dio _dio = Dio(
     BaseOptions(
@@ -83,6 +85,15 @@ class JazzDriveService {
   ///
   /// Returns a [JazzDriveLink] with streamUrl + optional posterUrl.
   /// Throws if all attempts fail.
+  /// H-05: Evict expired entries and trim to _maxCacheEntries to bound memory usage.
+  static void _evictExpired() {
+    final now = DateTime.now();
+    _inMemory.removeWhere((_, v) => v.expiresAt.isBefore(now));
+    while (_inMemory.length > _maxCacheEntries) {
+      _inMemory.remove(_inMemory.keys.first);
+    }
+  }
+
   static Future<JazzDriveLink> getStreamLink(
     String fileId,
     String shareUrl, {
@@ -90,6 +101,16 @@ class JazzDriveService {
     String? targetFilename,
     int remoteId = 0,
   }) async {
+    // H-05: periodic eviction — runs when cache is getting large
+    if (_inMemory.length > _maxCacheEntries ~/ 2) _evictExpired();
+
+    // H-05: in-flight dedup — if a concurrent call is already generating this
+    // link, wait for it rather than firing a duplicate JazzDrive API request.
+    if (_inFlight.containsKey(fileId)) {
+      DebugLogger.log('JAZZDRIVE', 'In-flight dedup for file $fileId');
+      return _inFlight[fileId]!;
+    }
+
     // 1. Check in-memory cache
     final mem = _inMemory[fileId];
     if (mem != null && mem.expiresAt.isAfter(DateTime.now())) {
@@ -123,8 +144,16 @@ class JazzDriveService {
     }
 
     // 3. Generate fresh link via JazzDrive API (zero-rated)
+    // H-05: register in-flight future before awaiting to dedup races
     DebugLogger.log('JAZZDRIVE', 'Generating fresh link for file $fileId');
-    final link = await _generateLink(shareUrl, targetFilename: targetFilename, remoteId: remoteId);
+    final generationFuture = _generateLink(shareUrl, targetFilename: targetFilename, remoteId: remoteId);
+    _inFlight[fileId] = generationFuture;
+    late final JazzDriveLink link;
+    try {
+      link = await generationFuture;
+    } finally {
+      _inFlight.remove(fileId);
+    }
 
     // 4. Cache result
     final expiresAt = DateTime.now().add(_cacheTtl);

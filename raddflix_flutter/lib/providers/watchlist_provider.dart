@@ -7,21 +7,27 @@ class WatchlistState {
   final Set<int> ids;
   final bool loading;
 
+  final String? error;
+
   const WatchlistState({
     this.items = const [],
     this.ids = const {},
     this.loading = false,
+    this.error,
   });
 
   WatchlistState copyWith({
     List<CatalogItem>? items,
     Set<int>? ids,
     bool? loading,
+    String? error,
+    bool clearError = false,
   }) {
     return WatchlistState(
       items: items ?? this.items,
       ids: ids ?? this.ids,
       loading: loading ?? this.loading,
+      error: clearError ? null : (error ?? this.error),
     );
   }
 
@@ -39,8 +45,9 @@ class WatchlistNotifier extends StateNotifier<WatchlistState> {
       final items = await LocalDb.getWatchlist();
       final idSet = items.map((i) => i.id).toSet();
       state = state.copyWith(items: items, ids: idSet, loading: false);
-    } catch (_) {
-      state = state.copyWith(loading: false);
+    } catch (e) {
+      // M-11: surface load errors so caller / UI can react
+      state = state.copyWith(loading: false, error: e.toString());
     }
   }
 

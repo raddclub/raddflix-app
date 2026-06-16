@@ -81,6 +81,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           final String? subtitlePath = pendingSubtitleUri;
           pendingSubtitleUri = null;
           Future.delayed(const Duration(milliseconds: 400), () {
+            // H-02: widget may be disposed during the 400ms wait
+            if (!mounted) return;
             // Prefer ContentResolver display name; fall back to fully-decoded URI segment.
             final String title = (resolvedTitle != null && resolvedTitle.isNotEmpty)
                 ? resolvedTitle
