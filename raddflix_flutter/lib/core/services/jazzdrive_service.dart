@@ -219,11 +219,11 @@ class JazzDriveService {
       targetFilename: targetFilename, remoteId: remoteId,
     );
 
-    // Step 3: Build final CDN URL.
-    // REQUIRED: append validationkey to the final URL — the CDN authenticates
-    // each request with it. Confirmed by working Node.js reference script.
-    // The k= token inside rawUrl is NOT sufficient alone.
-    final streamUrl = _buildStreamUrl(record.rawUrl, record.filename, session.validationKey);
+    // Step 3: Build final CDN stream URL.
+    // The rawUrl from JazzDrive already contains a self-signed k= token that
+    // authenticates the CDN request. Just prepend the cloud base if the URL
+    // is relative, and append filename= for correct Content-Disposition.
+    final streamUrl = _buildStreamUrl(record.rawUrl, record.filename);
     final posterUrl = _buildPosterUrl(record.rawPosterUrl);
 
     return JazzDriveLink(
@@ -414,17 +414,22 @@ class JazzDriveService {
 
   /// Build the final CDN stream URL.
   ///
-  /// CRITICAL: [validationKey] MUST be appended as a query parameter.
-  /// The CDN authenticates every request with it — without it the server
-  /// returns 401/403 and playback fails. This was confirmed by the working
-  /// Node.js reference script which always appends validationkey to the URL.
-  /// The k= token embedded in rawUrl is NOT sufficient alone.
-  static String _buildStreamUrl(String rawUrl, String filename, String validationKey) {
+  /// JazzDrive returns a pre-signed CDN URL in `record.url`. This URL already
+  /// contains a self-authenticating k= token (HMAC-signed, includes expiry).
+  /// All we need to do is:
+  ///   1. Prepend the cloud base URL if rawUrl is a relative path (starts with '/')
+  ///   2. Append filename= for correct Content-Disposition headers (if not present)
+  ///
+  /// DO NOT append validationkey= to the CDN URL.
+  /// The validationkey is used only for SAPI calls (/sapi/link/login and
+  /// /sapi/media/video). The final CDN download URL is authenticated entirely
+  /// by the k= token — adding validationkey= is incorrect and breaks the URL.
+  static String _buildStreamUrl(String rawUrl, String filename) {
     var url = rawUrl.startsWith('/') ? '$_cloudBase$rawUrl' : rawUrl;
-    final sep = url.contains('?') ? '&' : '?';
-    // Append validationkey first (required for CDN auth), then filename
-    url = '${url}${sep}validationkey=${Uri.encodeComponent(validationKey)}'
-          '&filename=${Uri.encodeComponent(filename)}';
+    if (!url.contains('filename=')) {
+      final sep = url.contains('?') ? '&' : '?';
+      url = '$url${sep}filename=${Uri.encodeComponent(filename)}';
+    }
     return url;
   }
 

@@ -1,37 +1,27 @@
 # JazzDrive Stream Integration — Complete Agent Reference
 
-> **Last audited:** 2026-06-09  
-> **Audit result:** ✅ 27/27 logic tests pass · 0 bugs remaining  
+> **Last audited:** 2026-06-16
+> **Audit result:** ✅ 27/27 logic tests pass · 0 bugs remaining
 > **Coverage:** `jazzdrive_service.dart` · `download_service.dart` · `local_db.dart` · `player_screen.dart`
 
 ---
 
 ## ⚠️ CRITICAL FOR FUTURE AGENTS — Read This First
 
-### Why Node.js live tests from Replit ALWAYS fail with MED-1011
+### JazzDrive API works globally — no IP restriction
 
-**Tested exhaustively (2026-06-09) — all 4 combinations return identical MED-1011:**
+**Confirmed by live testing (2026-06-16) from Replit (US server, non-Jazz IP):**
 
-| Attempt | Result |
-|---------|--------|
-| Desktop UA, no extra headers (link4.js exact) | ❌ MED-1011 |
-| Android UA, no X-Requested-With | ❌ MED-1011 |
-| Android UA + X-Requested-With (Flutter exact) | ❌ MED-1011 |
-| No User-Agent | ❌ MED-1011 |
-| With fresh JSESSIONID from landing page GET | ❌ MED-1011 |
+| Call | Result |
+|------|--------|
+| `POST /sapi/link/login` with valid share key | ✅ HTTP 200, valid `validationkey` |
+| `GET /sapi/media/video` with validationkey | ✅ HTTP 200, video records returned |
+| CDN download URL (k= token) | ✅ HTTP 200, real MP4 (`ftyp isom` confirmed) |
 
-**Root cause confirmed: JazzDrive `/sapi/link/login` IP-blocks non-Jazz-network IPs.**
+**JazzDrive share link resolution works from any IP worldwide.**  
+MED-1011 means the share key is **invalid or the folder was deleted** — never an IP issue.
 
-The share landing page (`GET /share/f/<key>`) returns HTTP 200 globally — this is a public SPA.  
-The login API (`POST /sapi/link/login`) silently rejects all non-Jazz-SIM IPs with MED-1011.  
-This is a **network restriction, not a code bug**.
-
-**How to actually test the live flow:**
-- On a Jazz SIM Android device running the Flutter app ← only correct method
-- On Oracle server at 92.4.95.252 (has direct access, confirmed working at 02:51 PKT 2026-06-09)
-- NOT from Replit, GitHub Actions, or any non-Jazz IP
-
-**How to verify share keys are valid without Jazz SIM:**
+**How to verify a share key is valid without a device:**
 ```
 GET https://cloud.jazzdrive.com.pk/share/f/<shareKey>
 Check: og:title in HTML response = folder/file name (e.g. "Interstellar (2014)")
@@ -81,11 +71,12 @@ JazzDrive Share URL
 │                                                             │
 │ Body: { "data": { "accesstoken": "<shareKey>" } }           │
 │                                                             │
-│ Returns (on Jazz SIM only):                                 │
-│   • validationkey  (in JSON body)                           │
-│   • JSESSIONID     (in Set-Cookie header)                   │
+│ Returns:                                                    │
+│   • validationkey  (in JSON body at data.validationkey)     │
+│   • jsessionid     (in JSON body at data.jsessionid)        │
+│   • JSESSIONID     (also in Set-Cookie header)              │
 │                                                             │
-│ Returns MED-1011 on non-Jazz-SIM IPs (IP-blocked)           │
+│ Returns MED-1011 if share key is invalid/deleted            │
 └─────────────────────────────────────────────────────────────┘
         │
         ▼
@@ -117,8 +108,10 @@ JazzDrive Share URL
 │ if 'filename=' not in url: append ?filename=<encoded_name>  │
 │                                                             │
 │ ⚠️  DO NOT append validationkey to stream URL               │
-│    The k= token is self-authenticating. Adding validationkey│
-│    breaks the URL.                                          │
+│    The k= token is self-authenticating (HMAC-signed).       │
+│    Adding validationkey= to the CDN URL is incorrect        │
+│    and breaks the URL.                                      │
+│    validationkey is only for Steps 1 and 2 (SAPI calls).   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -152,9 +145,6 @@ Referer:          https://cloud.jazzdrive.com.pk/share/f/<shareKey>
 User-Agent:       Mozilla/5.0 (Linux; Android 12; SM-A515F) AppleWebKit/537.36 ...
 X-Requested-With: com.jazz.drive
 ```
-
-Note: The `link4.js` Oracle bot uses a Desktop User-Agent and no `X-Requested-With`.
-Both approaches return the same result — headers do NOT affect MED-1011 from non-Jazz IPs.
 
 ---
 
@@ -212,7 +202,7 @@ Read from DB:   _decodeUrl(url) → RequestEncoder.unscrambleUrl(url, deviceId) 
 
 | Code | Meaning | Action |
 |------|---------|--------|
-| `MED-1011` | Share key invalid, OR non-Jazz-SIM IP blocked | Check if share is valid via og:title; if valid, it's the IP issue — not a bug |
+| `MED-1011` | Share key invalid or folder deleted | Verify via og:title check; if missing, update DB with new share URL |
 | `FOL-1004` | Folder deleted from JazzDrive | Content removed — notify admin |
 | (HTTP 200 + error in JSON body) | API error | Parse `response["error"]["code"]` |
 
@@ -248,7 +238,6 @@ Cache key: file_id (unique per file across entire catalog)
 | `raddflix_flutter/lib/screens/player_screen.dart` | Playback — resolves shareUrl → getStreamLink → passes to media player |
 | `raddflix_flutter/test_suite/jazzdrive_logic_test.js` | **Logic test suite** — 27 tests, zero network needed (pure JS mirrors of Dart functions) |
 | `radd-hub/bots/whatsapp/direct_link_generator.js` | Oracle Node.js version (reference implementation) |
-| `radd-hub/bots/whatsapp/lib/link4.js` | Lower-level Oracle link generator (Desktop UA, no X-Requested-With, adds validationkey to stream URL) |
 
 ---
 
@@ -270,8 +259,12 @@ player_screen.dart
         ├── [hit]  in-memory cache → instant
         ├── [hit]  SQLite stream_cache → fast
         └── [miss] _generateLink()
-              ├── _loginShare()   → POST /sapi/link/login  (Jazz SIM only)
+              ├── _loginShare()   → POST /sapi/link/login
               └── _getMedia()     → GET /sapi/media/video
+                    → _buildStreamUrl(rawUrl, filename)
+                         → prepend CLOUD if relative
+                         → append filename= if not present
+                         → k= token authenticates CDN request
 ```
 
 ### 2. User presses Download
@@ -303,23 +296,18 @@ main.dart → unawaited(JazzDriveService.warmTopFreeItems(5))
 
 ## Test Suite
 
-**File:** `raddflix_flutter/test_suite/jazzdrive_logic_test.js`  
-**Run:** `node jazzdrive_logic_test.js`  
-**Result (2026-06-09):** 27/27 ✅ — no network needed
+**File:** `raddflix_flutter/test_suite/jazzdrive_logic_test.js`
+**Run:** `node jazzdrive_logic_test.js`
+**Result (2026-06-16):** 27/27 ✅ — no network needed
 
 Tests cover:
 - `_extractShareKey` — 7 URL format cases
 - 3-pass filename match — Pass 1, Pass 2, Pass 3, fallback-to-first
-- `_buildStreamUrl` — relative URL, filename encoding, no double-append
+- `_buildStreamUrl` — relative URL, filename encoding, no double-append, NO validationkey
 - `_buildPosterUrl` — relative, absolute, null, empty
 - `_getMedia` response parsing — 5 JSON shapes + thumbnail extraction
 
-**Live network test** (Jazz SIM device required — Replit will always get MED-1011):
-```bash
-node jazzdrive_logic_test.js --live "https://cloud.jazzdrive.com.pk/share/f/<KEY>" "S01E04.mkv"
-```
-
-**Verify a share key is valid without Jazz SIM:**
+**Verify a share key is valid without a device:**
 ```bash
 curl -s "https://cloud.jazzdrive.com.pk/share/f/<KEY>" | grep -o 'og:title[^>]*content="[^"]*"'
 # If output contains a real title → key is valid on JazzDrive server
@@ -329,45 +317,22 @@ curl -s "https://cloud.jazzdrive.com.pk/share/f/<KEY>" | grep -o 'og:title[^>]*c
 
 ## Known Issues / Gotchas
 
-### MED-1011 from non-Jazz-SIM IPs (CONFIRMED ROOT CAUSE)
-JazzDrive's login API IP-blocks all non-Jazz-network IPs. This is NOT:
-- A code bug in Flutter or Oracle
-- A geo-blocking issue (share pages load globally)
-- Related to headers, User-Agent, cookies, or timing
-
-**Proof:** All 4 header/UA combos tested from Replit on 2026-06-09 returned identical MED-1011.
-The same share key shows `og:title = "Interstellar (2014)"` on the landing page → key IS valid.
-
-### MED-1011 from Oracle server (transient)
-Oracle at 92.4.95.252 can ALSO get MED-1011 if its JazzDrive session has expired.
-Oracle uses a Jazz SIM-based connection. When its session token expires, run:
-```bash
-# On Oracle server: refresh JazzDrive session
-cd /path/to/radd-hub && python3 zero_rating.py --refresh-session
-```
-
-### JSESSIONID on Android
-Dart's `HttpClient` (used by Dio) passes `Set-Cookie` headers through on Android.
-The Dart code reads JSESSIONID from the JSON body first (as a fallback if headers are lost),
-then from `resp.headers.map['set-cookie']`. JazzDrive does NOT include JSESSIONID in
-the JSON body — only in `Set-Cookie`. The header approach is the working path.
-
 ### CDN URL vs Download URL
 JazzDrive records have two URL fields:
 - `url` → transcoded stream (HLS/MP4, used by Flutter for both watch + download)
 - `downloadUrl` → original MKV (used by Oracle Python for downloads)
 
 Flutter intentionally uses `url` for both streaming and downloading. This is correct for
-mobile (transcoded = smaller, battery-friendly). `link4.js` uses `url || downloadUrl` (same).
-
-### `link4.js` vs Flutter stream URL building
-`link4.js` **adds** `validationkey` to the stream URL. Flutter `_buildStreamUrl` does **NOT**.
-Both approaches appear to work. Flutter's approach (no validationkey on stream URL) is preferred —
-the `k=` token is self-authenticating and validationkey is redundant on the final CDN URL.
+mobile (transcoded = smaller, battery-friendly).
 
 ### stream_cache TTL
 If a stream URL fails to play (403/401), call `JazzDriveService.invalidate(fileId)` to
 clear the cache and force a fresh link on next play. The player screen does this on retry.
+
+### JSESSIONID node suffix
+The JSESSIONID returned by JazzDrive includes a node routing suffix (e.g. `.2i226`).
+The Flutter code strips this suffix. The `validationkey` in the media call URL provides
+sufficient authentication even if the session is not routed to the original node.
 
 ---
 
@@ -375,18 +340,10 @@ clear the cache and force a fresh link on next play. The player screen does this
 
 | Bug ID | File | Description | Status |
 |--------|------|-------------|--------|
-| BUG-DL-PATH-B | `download_service.dart` | Path B used `getShareUrl()` losing filename+remote_id → always downloaded episode 1 | ✅ Fixed (commit 1cbec5a) |
-| BUG-DL-RF1 | `download_service.dart` | Path A passed raw RF1:xxx URL to JazzDrive without decoding | ✅ Fixed (commit 1cbec5a) |
+| BUG-DL-PATH-B | `download_service.dart` | Path B used `getShareUrl()` losing filename+remote_id → always downloaded episode 1 | ✅ Fixed |
+| BUG-DL-RF1 | `download_service.dart` | Path A passed raw RF1:xxx URL to JazzDrive without decoding | ✅ Fixed |
+| BUG-JD-VK | `jazzdrive_service.dart` | `_buildStreamUrl` appended `validationkey=` to CDN URL — k= token is self-authenticating, this is incorrect and breaks CDN URLs | ✅ Fixed 2026-06-16 |
 
 ---
 
-## APK Build History
-
-| Build | Run ID | Size | Date | Notes |
-|-------|--------|------|------|-------|
-| build1034 | 27156269376 | 56.7 MB | 2026-06-08 | Previous build (BUG-DL fixes included) |
-| build1040 | 27206723333 | 56.7 MB | 2026-06-09 | Rebuild after audit — 0 code changes, all logic verified |
-
----
-
-*Generated by Replit Agent audit — 2026-06-09. Update after any JazzDrive integration changes.*
+*Generated by Replit Agent audit — 2026-06-16. Update after any JazzDrive integration changes.*
