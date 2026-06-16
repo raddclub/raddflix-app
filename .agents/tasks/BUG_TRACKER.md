@@ -30,6 +30,7 @@ _No open bugs._
 | XOR padding | `final pad = (4 - b64.length % 4) % 4; b64 += '=' * pad;` — never remove from `request_encoder.dart` |
 | sqflite_sqlcipher | Never upgrade past `3.1.0+1` |
 | VideoController | Never add `androidAttachSurfaceAfterVideoParameters: true` — causes black screen |
+| hwdec mid-play | **NEVER call `_np.setProperty('hwdec', ...)` while `_playing == true`** — changing hwdec on Android while playing destroys GL surface texture → blank screen (audio continues). Guard with `if (!_playing)` in `_applyAudioPrefs()`. |
 | Dart semicolons | Semicolons MUST come BEFORE inline comments: `expr); // comment` — never after |
 | Oracle git pull | Always `git stash && git pull && git stash pop` — Oracle has local uncommitted files |
 | Bulk DELETEs | Use direct `sqlite3.connect()` + `BEGIN IMMEDIATE`, NOT `db.conn()` |
