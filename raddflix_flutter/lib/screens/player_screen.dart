@@ -1,3 +1,12 @@
+// TECH-DEBT(C-01): This file is ~6 500 lines and should be split into focused
+// sub-components. Planned extraction targets:
+//   • _PlayerSleepLogic      — _setSleepTimer, _startSleepFade, _cancelSleepTimer
+//   • _PlayerNextEpLogic     — _startNextEpCountdown, _playNextEpisode, _playPrevEpisode
+//   • _PlayerHudController   — _scheduleHide, _showControlsFor, gesture callbacks
+//   • _PlayerJazzDriveLogic  — _resolveStream, _handleJazzError, _jazzRetryTimer
+//   • _PlayerQuotaService    — _checkQuota, _quotaTimer
+// Until that refactor, please keep all new methods ≤ 80 lines and add a
+// unit-testable helper function rather than growing existing switch blocks.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -2079,6 +2088,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _startNextEpCountdown() {
+    // H-12 FIX: guard against being called from a video-completion callback
+    // that fires after the widget has been disposed (e.g. rapid episode skip,
+    // background navigation, or PiP exit while end-of-episode fires).
+    if (!mounted) return;
     setState(() {
       _showNextEpisode = true;
       _nextCountdown = 7;
@@ -2194,7 +2207,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── Sleep Timer ───────────────────────────────────────────────────────────
   void _startSleepFade() {
-    if (_sleepFadeActive) return;
+    // H-12 FIX: same mounted guard — sleep callback can fire after dispose
+    if (!mounted || _sleepFadeActive) return;
     _sleepFadeActive = true;
     _preFadeVolume = _volume;
     final steps = _prefs.sleepFadeDurationSeconds.clamp(5, 120);
@@ -2220,6 +2234,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _setSleepTimer(int minutes) {
+    // H-12 FIX: mounted guard for async-invoked timer creators
+    if (!mounted) return;
     _cancelSleepTimer();
     // FIX-SLEEP: -1 = "End of episode" — pause when playback ends naturally
     if (minutes == -1) {

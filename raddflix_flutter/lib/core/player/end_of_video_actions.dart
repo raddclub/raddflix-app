@@ -78,6 +78,10 @@ class _CountdownNextOverlayState extends State<CountdownNextOverlay>
   late AnimationController _ctrl;
   late Timer _ticker;
   late int _remaining;
+  // L-14 FIX: guard against onDone() firing twice if the overlay stays alive
+  // briefly after navigation (e.g. route transition still in progress when the
+  // last timer tick fires just before dispose cancels the ticker).
+  bool _done = false;
 
   @override
   void initState() {
@@ -91,7 +95,8 @@ class _CountdownNextOverlayState extends State<CountdownNextOverlay>
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() => _remaining--);
-      if (_remaining <= 0) {
+      if (_remaining <= 0 && !_done) {
+        _done = true;
         _ticker.cancel();
         widget.onDone();
       }

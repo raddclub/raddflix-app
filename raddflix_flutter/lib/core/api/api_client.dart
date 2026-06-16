@@ -91,6 +91,21 @@ class _TamperInterceptor extends Interceptor {
       return handler.next(options);
     }
     // Return fake empty response — never hits the real network
+    // M-08 FIX: auth paths must reject with DioException (401) instead of resolving
+    // with a fake HTTP 200. A 200 response with {ok: false} bypasses the login
+    // screen's error handler (which catches DioException), leaving the spinner
+    // running forever on tampered APKs.
+    if (options.path.contains('/auth/login') || options.path.contains('/auth/register')) {
+      return handler.reject(DioException(
+        requestOptions: options,
+        response: Response(
+          requestOptions: options,
+          statusCode: 401,
+          data: {'ok': false, 'error': 'Invalid credentials'},
+        ),
+        type: DioExceptionType.badResponse,
+      ));
+    }
     final fake = Response(
       requestOptions: options,
       statusCode: 200,
@@ -217,8 +232,12 @@ class _AuthInterceptor extends Interceptor {
       }
     }
     if (err.response?.statusCode == 401 && _refreshCompleter == null && !_noRefreshPaths.contains(err.requestOptions.path)) {
-      DebugLogger.logWarn('AUTH', '401 received on ${err.requestOptions.path} — attempting token refresh');
+      // M-07 FIX: assign Completer synchronously BEFORE any log or await call to
+      // close the narrow window where two concurrent 401s could both see null and
+      // both start a refresh. Dart is single-threaded but async interleaving can
+      // happen at every await point — assigning first ensures only one refresh runs.
       _refreshCompleter = Completer<bool>();
+      DebugLogger.logWarn('AUTH', '401 received on ${err.requestOptions.path} — attempting token refresh');
       bool refreshed = false;
       try {
         refreshed = await _tryRefresh();
@@ -397,7 +416,13 @@ class _XorInterceptor extends Interceptor {
         }
       }
     } catch (e) {
-      DebugLogger.logWarn('XOR', 'Decode error: $e');
+      // L-10 FIX: XOR session key is derived from UTC hour. If the device clock
+      // is off by ≥1 hour, the session key mismatches the server's key and every
+      // API response silently returns garbled/empty data. Log a specific warning
+      // so support can identify clock-skew as the root cause.
+      DebugLogger.logWarn('XOR',
+          'Decode error — verify device clock is correct (XOR session key is '
+          'UTC-hour-based; clock skew ≥1h silently breaks all API responses): $e');
     }
     handler.next(response);
   }

@@ -94,6 +94,12 @@ class LocalDb {
         quality   TEXT,
         is_free   INTEGER DEFAULT 0,
         share_url TEXT,
+        -- M-15 GUARD: share_url scrambling with DeviceId as key is NOT yet wired.
+        -- When wiring RequestEncoder.scrambleUrl()/unscrambleUrl(), ALWAYS:
+        --   1. Keep the RF1: prefix check so legacy plain URLs pass through unchanged.
+        --   2. Wrap unscrambleUrl() in try/catch; fall back to raw URL on failure —
+        --      prevents device-ID change (reinstall) from permanently breaking all URLs.
+        --   See: agent-hub/SECURITY_ARCHITECTURE.md §Layer-4 and §Rules line 306.
         filename  TEXT,
         remote_id INTEGER DEFAULT 0,
         FOREIGN KEY (title_id) REFERENCES titles(id)
@@ -584,6 +590,14 @@ class LocalDb {
   }) async {
     final db = await instance;
 
+    // M-14 FIX: whitelist sortBy before it is interpolated directly into the SQL
+    // ORDER BY clause. All filter values use ? params (safe), but sortBy and limit
+    // are string/int-interpolated. An unexpected sortBy value could inject arbitrary
+    // SQL; clamp limit to a safe range to prevent unbounded result sets.
+    const _validSorts = {'relevance', 'rating', 'year_desc', 'year_asc', 'title'};
+    final effectiveSortBy = _validSorts.contains(sortBy) ? sortBy : 'relevance';
+    final safeLimit = limit.clamp(1, 500);
+
     // Build WHERE clauses
     final conditions = <String>[];
     final args = <dynamic>[];
@@ -622,9 +636,9 @@ class LocalDb {
         ? "INNER JOIN downloads dl ON dl.file_id = t.file_id AND dl.status = 'completed'"
         : '';
 
-    // Sort clause
+    // Sort clause — uses effectiveSortBy (whitelisted above, M-14)
     final orderClause = () {
-      switch (sortBy) {
+      switch (effectiveSortBy) {
         case 'rating':     return 'ORDER BY t.rating DESC NULLS LAST, t.title ASC';
         case 'year_desc':  return 'ORDER BY t.year DESC NULLS LAST, t.title ASC';
         case 'year_asc':   return 'ORDER BY t.year ASC NULLS LAST, t.title ASC';
@@ -643,7 +657,7 @@ class LocalDb {
       snippetQuery = ftsQuery;
 
       final whereStr = conditions.isNotEmpty ? 'AND ${conditions.join(" AND ")}' : '';
-      final ftsOrder = sortBy == 'relevance' ? 'ORDER BY rank, t.title ASC' : orderClause;
+      final ftsOrder = effectiveSortBy == 'relevance' ? 'ORDER BY rank, t.title ASC' : orderClause;
 
       try {
         rows = await db.rawQuery('''
@@ -655,14 +669,14 @@ class LocalDb {
           WHERE catalog_fts MATCH ?
           $whereStr
           $ftsOrder
-          LIMIT $limit
+          LIMIT $safeLimit
         ''', [ftsQuery, ...args]);
       } catch (_) {
         // FTS unavailable — fallback LIKE
         final likeWhere = ['t.title LIKE ?', ...conditions].join(' AND ');
         rows = await db.rawQuery('''
           SELECT t.* FROM titles t $offlineJoin
-          WHERE $likeWhere $orderClause LIMIT $limit
+          WHERE $likeWhere $orderClause LIMIT $safeLimit
         ''', ['%$query%', ...args]);
       }
     } else {
@@ -670,7 +684,7 @@ class LocalDb {
       final whereStr = conditions.isNotEmpty ? 'WHERE ${conditions.join(" AND ")}' : '';
       rows = await db.rawQuery('''
         SELECT t.* FROM titles t $offlineJoin
-        $whereStr $orderClause LIMIT $limit
+        $whereStr $orderClause LIMIT $safeLimit
       ''', args);
     }
 

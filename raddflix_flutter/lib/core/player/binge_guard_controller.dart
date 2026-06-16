@@ -9,6 +9,9 @@ class BingeGuardController {
   int _accumulatedSeconds = 0;
   Timer? _ticker;
   bool _fired = false;
+  // L-05 FIX: track disposed state so onPlay() cannot restart a leaked timer
+  // after the controller has been disposed.
+  bool _isDisposed = false;
 
   BingeGuardController({
     required this.thresholdMinutes,
@@ -16,8 +19,9 @@ class BingeGuardController {
   });
 
   void onPlay() {
+    // L-05 FIX: guard against timer restart after dispose()
+    if (_isDisposed || _fired) return;
     _ticker?.cancel();
-    if (_fired) return;
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       _accumulatedSeconds++;
       if (_accumulatedSeconds >= thresholdMinutes * 60) {
@@ -41,6 +45,7 @@ class BingeGuardController {
   int get watchedMinutes => _accumulatedSeconds ~/ 60;
 
   void dispose() {
+    _isDisposed = true;
     _ticker?.cancel();
   }
 }
