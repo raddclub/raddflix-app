@@ -285,13 +285,15 @@ class SeekBarPainter extends CustomPainter {
     const dotR = 3.0;
     const gap = 7.0;
     final count = (size.width / (dotR * 2 + gap)).floor();
+    final tx = size.width * progress.clamp(0.0, 1.0);
+    const thumbR = 7.0;
     for (int i = 0; i < count; i++) {
       final x = i * (dotR * 2 + gap) + dotR;
+      if ((x - tx).abs() < thumbR + dotR) continue; // skip dots hidden under thumb
       final played = (i / count) <= progress;
       canvas.drawCircle(Offset(x, cy), played ? dotR : dotR * 0.6,
           Paint()..color = played ? accentColor : Colors.white24);
     }
-    final tx = size.width * progress.clamp(0.0, 1.0);
     canvas.drawCircle(Offset(tx, cy), 7, Paint()..color = accentColor);
     canvas.drawCircle(Offset(tx, cy), 7,
         Paint()..color = Colors.white.withOpacity(0.3)..style = PaintingStyle.stroke..strokeWidth = 2);
