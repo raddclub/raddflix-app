@@ -49,6 +49,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _start() async {
+    // M-06: check mounted before any ref.read calls; _start() is called from
+    // a post-frame callback that may fire after the widget is disposed.
+    if (!mounted) return;
     // Reload brand theme (colors/font/radius) from prefs populated in main().
     // No network call needed — RemoteConfig.fetch() already ran in main.dart.
     ref.read(brandThemeProvider.notifier).reload();

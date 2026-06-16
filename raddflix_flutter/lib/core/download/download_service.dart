@@ -169,22 +169,23 @@ class DownloadService {
     await LocalDb.deleteDownload(fileId);
   }
 
+  // H-07: isDownloaded previously fetched ALL downloads (full-table scan) to
+  // find one record. Fix: short-circuit via filesystem check — if the file does
+  // not exist on disk we skip the DB entirely (the common fast path).
   static Future<bool> isDownloaded(String fileId) async {
+    final dir = await _getDownloadDir();
+    final localPath = dir.path + '/' + fileId + '.mp4';
+    if (!await File(localPath).exists()) return false;
+    // File present on disk — verify DB records it as completed, not partial
     final downloads = await LocalDb.getDownloads();
-    final match = downloads.where((d) =>
-        d['file_id'] == fileId && d['status'] == 'completed');
-    if (match.isEmpty) return false;
-    final path = match.first['local_path'] as String?;
-    if (path == null) return false;
-    return File(path).exists();
+    return downloads.any((d) => d['file_id'] == fileId && d['status'] == 'completed');
   }
 
+  // H-07: same fast-path as isDownloaded — filesystem check first
   static Future<String?> getLocalPath(String fileId) async {
-    final downloads = await LocalDb.getDownloads();
-    final match = downloads.where((d) =>
-        d['file_id'] == fileId && d['status'] == 'completed');
-    if (match.isEmpty) return null;
-    return match.first['local_path'] as String?;
+    final dir = await _getDownloadDir();
+    final localPath = dir.path + '/' + fileId + '.mp4';
+    return (await File(localPath).exists()) ? localPath : null;
   }
 
   static Future<Directory> _getDownloadDir() async {

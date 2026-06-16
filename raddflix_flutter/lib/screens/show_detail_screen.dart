@@ -59,6 +59,9 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   }
 
   Future<void> _loadEpisodes() async {
+    // M-02: multiple DB awaits with no error handling — a LocalDb failure would
+    // leave the detail screen in a permanent loading state with no user feedback.
+    try {
     final eps = await LocalDb.getEpisodes(widget.item.id);
     // Clear the new-episode badge on the home screen card for this show
     if (widget.item.isShow) {
@@ -120,6 +123,12 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
           });
         }
       });
+    }
+  }
+
+    } catch (e) {
+      DebugLogger.logError('DETAIL', 'Failed to load episodes', e);
+      if (mounted) setState(() { _loading = false; });
     }
   }
 
