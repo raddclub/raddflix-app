@@ -25,7 +25,11 @@ class ConnectivitySyncService {
   /// Start listening for connectivity changes.
   /// Idempotent — safe to call multiple times (only one listener created).
   static void start() {
-    if (_sub != null) return;
+    // L-13: cancel any existing subscription before creating a new one.
+    // A Flutter engine restart resets static vars to null but an in-flight
+    // subscription from a prior session can still fire. stop() is idempotent.
+    stop();
+
 
     // BUG-F13 fix: pessimistic default — assume offline until probe confirms otherwise.
     // If listener fires before checkConnectivity().then() resolves, _stateSettled
@@ -62,6 +66,8 @@ class ConnectivitySyncService {
   }
 
   /// Stop the connectivity listener (call on app dispose if needed).
+  // L-13: stop() is idempotent and resets _wasOffline so the next start()
+  // triggers a sync as soon as connectivity is restored.
   static void stop() {
     _sub?.cancel();
     _sub = null;

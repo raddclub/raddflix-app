@@ -66,6 +66,12 @@ class SyncService {
       final fullResult = await CatalogApi.syncFull();
       items = fullResult.items;
       await _persistItems(items);
+      // M-17: write timestamps BEFORE the optional prune step so they are
+      // committed even if prune throws — prevents a repeated full sync on next
+      // launch due to missing timestamp when prune rarely fails.
+      final nowTs1 = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      await LocalDb.setLastSyncVersion(serverVersion.version);
+      await LocalDb.setLastSyncTimestamp(nowTs1);
       // Prune stale IDs after a full sync (BUG-STALE-IDS fix).
       if (fullResult.validTitleIds.isNotEmpty) {
         final pruned = await LocalDb.pruneStaleIds(fullResult.validTitleIds);
@@ -76,11 +82,11 @@ class SyncService {
     } else {
       items = await CatalogApi.syncDelta(localVersion);
       await _persistItems(items);
+      // M-17: write timestamps immediately after persist (delta sync)
+      final nowTs2 = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      await LocalDb.setLastSyncVersion(serverVersion.version);
+      await LocalDb.setLastSyncTimestamp(nowTs2);
     }
-
-    final nowTs = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    await LocalDb.setLastSyncVersion(serverVersion.version);
-    await LocalDb.setLastSyncTimestamp(nowTs);
 
     DebugLogger.log('SYNC', 'Oracle sync complete: ${items.length} item(s)');
     unawaited(JazzDriveService.warmTopFreeItems(8));

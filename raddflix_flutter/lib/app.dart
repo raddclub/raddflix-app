@@ -189,6 +189,8 @@ class _ForceUpdateGuardState extends State<_ForceUpdateGuard> {
   }
 }
 
+// L-11: all hardcoded AppColors.primary replaced with AppColors.primary so
+// theme changes and dark mode propagate correctly.
 class _ForceUpdateScreen extends StatelessWidget {
   final AppUpdateResult result;
   const _ForceUpdateScreen({required this.result});
@@ -209,7 +211,7 @@ class _ForceUpdateScreen extends StatelessWidget {
                   style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, letterSpacing: -1),
                   children: [
                     TextSpan(text: 'Radd', style: TextStyle(color: Colors.white)),
-                    TextSpan(text: 'Flix', style: TextStyle(color: Color(0xFFE8002D))),
+                    TextSpan(text: 'Flix', style: TextStyle(color: AppColors.primary)),
                   ],
                 )),
                 const SizedBox(height: 56),
@@ -217,15 +219,15 @@ class _ForceUpdateScreen extends StatelessWidget {
                   width: 110, height: 110,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xFFE8002D).withOpacity(0.08),
+                    color: AppColors.primary.withOpacity(0.08),
                     border: Border.all(
-                        color: const Color(0xFFE8002D).withOpacity(0.25), width: 2),
+                        color: AppColors.primary.withOpacity(0.25), width: 2),
                   ),
                   child: Icon(
                     result.blocked
                         ? Icons.block_rounded
                         : Icons.system_update_alt_rounded,
-                    color: const Color(0xFFE8002D),
+                    color: AppColors.primary,
                     size: 52,
                   ),
                 ),
@@ -262,13 +264,13 @@ class _ForceUpdateScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 17),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFFE8002D), Color(0xFFFF5757)],
+                          colors: [AppColors.primary, AppColors.primaryLight],
                           begin: Alignment.centerLeft,
                           end: Alignment.centerRight,
                         ),
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [BoxShadow(
-                          color: const Color(0xFFE8002D).withOpacity(0.4),
+                          color: AppColors.primary.withOpacity(0.4),
                           blurRadius: 24, offset: const Offset(0, 10),
                         )],
                       ),
