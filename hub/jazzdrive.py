@@ -436,13 +436,17 @@ def get_x_deviceid(msisdn: Optional[str] = None) -> str:
 
     Priority:
       1. JAZZDRIVE_DEVICE_ID setting — user's real Android device ID
-         (makes server appear as the same device as their phone, bypassing
-         JazzDrive's single-active-Android-device limit)
-      2. fac-<last-10-of-MSISDN> — original fallback
+         (makes server appear as the same device as their phone)
+      2. fac-<last-10-of-MSISDN> — fallback
+
+    APK confirmed (C9765k.java mo42302k()): X-deviceid ALWAYS starts with
+    'fac-'. If the stored value does not have the prefix we add it so the
+    server receives the same format as the real app.
     """
     stored = (db.setting("JAZZDRIVE_DEVICE_ID") or "").strip()
     if stored:
-        return stored
+        # Normalise: APK always sends fac-<id>; user may have stored the raw id
+        return stored if stored.startswith("fac-") else f"fac-{stored}"
     m = str(msisdn or db.setting("JAZZDRIVE_MSISDN") or "").strip()
     m = m.replace("+", "").replace(" ", "").replace("-", "")
     suffix = m[-10:] if len(m) >= 10 else "raddhub"
@@ -464,30 +468,36 @@ def get_auth_headers(vk: str, jid: str, msisdn: Optional[str] = None,
     """
     import base64 as _b64_ah
     device_name = db.setting("JAZZDRIVE_DEVICE_NAME") or "Infinix Hot 9 Play"
+    import json as _json_ah
     headers = {
-        "Accept":           "application/json, text/plain, */*",
-        "User-Agent":       "omh android client",
-        "x-request-id":     _request_id or str(_uuid.uuid4()),
-        "X-deviceid":       get_x_deviceid(msisdn),
-        "X-devicename":     device_name,
+        # APK OkHttp interceptors (C30920a / C30921b / C30924e):
+        "Accept":           "application/json",           # Retrofit+Gson default
+        "User-Agent":       "omh android client",         # C30921b AddUserAgentInterceptor
+        "x-request-id":     _request_id or str(_uuid.uuid4()),  # C30920a
+        "X-deviceid":       get_x_deviceid(msisdn),      # C30924e — always fac-<id>
+        "X-devicename":     device_name,                  # C30924e DeviceInterceptor
         "X-Requested-With": "com.jazz.drive",
     }
     if jid:
         headers["Cookie"] = f"JSESSIONID={jid}"
     if vk:
         headers["validation_key"] = vk
-    if raw_accesstoken:
-        # APK confirmed (nk/c.java OAuth2Credentials.d()): Authorization header must be
-        # oauth <Base64(JSON)> where JSON = {"data":{"accesstoken":"...","refreshtoken":"...",
-        # "platform":"android","expiresin":"...","lastrefreshdate":<ms>,"msisdn":"..."}}
-        import json as _json_ah
+    # APK: OAuth2AuthenticatorInterceptor ALWAYS adds Authorization if user is logged in.
+    # We build it whenever we have raw_accesstoken; fall back to empty tokens so the
+    # header is never missing on accounts that were registered before the raw_at column.
+    _at_for_auth = raw_accesstoken or ""
+    _rt_for_auth = refresh_token or ""
+    if _at_for_auth or vk or jid:   # only skip when completely unauthenticated
+        # APK confirmed (nk/c.java OAuth2Credentials.d()): Authorization header:
+        # oauth <Base64({"data":{"accesstoken":"...","refreshtoken":"...",
+        #   "platform":"android","expiresin":"3600","lastrefreshdate":<ms>,"msisdn":"..."}})>
         _cred_obj = {"data": {
-            "accesstoken":    raw_accesstoken,
-            "refreshtoken":   (refresh_token or ""),
-            "platform":       "android",
-            "expiresin":      "3600",
+            "accesstoken":     _at_for_auth,
+            "refreshtoken":    _rt_for_auth,
+            "platform":        "android",
+            "expiresin":       "3600",
             "lastrefreshdate": int(time.time() * 1000),
-            "msisdn":         (msisdn or ""),
+            "msisdn":          (msisdn or ""),
         }}
         headers["Authorization"] = "oauth " + _b64_ah.b64encode(
             _json_ah.dumps(_cred_obj, separators=(",", ":")).encode()
@@ -912,6 +922,9 @@ def sapi_request(endpoint: str, action: str,
     _t0_sapi = time.time() if _proxy_url else None
     try:
         _t0r = time.time()
+        # APK OkHttp: JSON bodies use Content-Type: application/json; charset=UTF-8
+        if method.upper() in ("POST", "PUT", "PATCH") and json_data is not None:
+            req_headers.setdefault("Content-Type", "application/json; charset=UTF-8")
         r = _req.request(method, url, params=req_params, json=json_data, data=data, headers=req_headers, timeout=timeout, proxies=_req_proxies)
         log.info("[JD:SAPI] RSP  HTTP %d  %.0fms  %s", r.status_code, (time.time()-_t0r)*1000, endpoint.lstrip("/"))
 

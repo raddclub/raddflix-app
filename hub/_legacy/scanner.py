@@ -696,7 +696,7 @@ def mobile_direct_verify_otp(msisdn: str, otp: str, proxies: Optional[dict] = No
     sess = requests.Session()
     hdrs = {
         'User-Agent':       'omh android client',
-        'Accept':           'application/json, */*',
+        'Accept':           'application/json',
         'X-deviceid':       device_id,
         'X-devicename':     device_name,
         'X-Requested-With': 'com.jazz.drive',
@@ -772,7 +772,7 @@ def jazzdrive_login(msisdn: str, use_android: bool = True, proxies: Optional[dic
     else:
         msisdn_local = m
 
-    _UA_ANDROID = "Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)"
+    _UA_ANDROID = "Mozilla/5.0 (Linux; Android 10; Infinix X680F Build/QP1A.190711.020; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/87.0.4280.141 Mobile Safari/537.36"
     _UA_WEB     = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
                    "Chrome/124.0.0.0 Safari/537.36")
@@ -957,7 +957,7 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
       Step 4b: Wrap raw_at in base64-JSON, GET /sapi/login/oauth?keytype=accesstoken
                → fresh validationkey + JSESSIONID.
     """
-    _UA_ANDROID = "Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)"
+    _UA_ANDROID = "Mozilla/5.0 (Linux; Android 10; Infinix X680F Build/QP1A.190711.020; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/87.0.4280.141 Mobile Safari/537.36"
     _UA_WEB     = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
                    "Chrome/124.0.0.0 Safari/537.36")
@@ -1252,7 +1252,7 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
         "X-deviceid":         device_id,                     # C30924e DeviceInterceptor
         "X-devicename":       device_name,                   # C30924e DeviceInterceptor
         "X-Requested-With":   "com.jazz.drive",
-        "Accept":             "application/json, text/javascript, */*; q=0.01",
+        "Accept":             "application/json",
         **({"Authorization": f"oauth {_auth_token}"} if _auth_token else {}),  # C12815c
     })
     # Remove browser headers for pure app look
