@@ -11,7 +11,7 @@
 | App (Oracle) | ✅ RUNNING | raddflix_radd via supervisorctl, port 5000, v3.0.0 |
 | JazzDrive Session | ✅ LIVE | Account id=11 (03257719165): VK ✅ JID ✅ raw_accesstoken ✅ refresh_token ✅ |
 | JazzDrive Chain | ✅ PROVEN | Full login→media→CDN tested 2026-06-16, real MP4 bytes confirmed |
-| Flutter app | ✅ STABLE | All known bugs fixed — latest APK build 1053 |
+| Flutter app | ✅ STABLE | Blank screen + seek bar double-dot fixed — build 1058 in progress |
 | Login screen | ✅ FIXED | Wrong password no longer navigates to home — shows error banner |
 | Catalog sync | ✅ FORCED | catalog_forced_version=1781620750 — all devices will full re-sync |
 | Debug screen | ✅ LIVE | Accessible in release — tap version text 5× in Profile |
@@ -26,6 +26,8 @@
 | Build | APK | Status |
 |-------|-----|--------|
 | build-1053 (run 27626589677) | RaddFlix-1.0.0+1-build1053.apk (56.8 MB) | ✅ Success |
+| build-1057 (run) | RaddFlix-1.0.0+1-build1057.apk | ✅ Success (Play+Download buttons) |
+| build-1058 (run) | RaddFlix-1.0.0+1-build1058.apk | 🔄 Building (blank screen fix + seek bar) |
 
 ---
 
@@ -65,7 +67,7 @@ open('/tmp/oracle_key','w').write(key)
 
 ## Pending User Actions
 
-None. Install build 1053 and test.
+Install build 1058 APK when ready and test local video playback (blank screen was fixed).
 
 ---
 

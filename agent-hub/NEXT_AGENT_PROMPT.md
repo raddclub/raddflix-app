@@ -51,12 +51,13 @@ curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub
 
 ---
 
-## Current System State (as of 2026-06-08 — post TASK-057)
+## Current System State (as of 2026-06-16 — post blank-screen fix)
 
 | Component | State |
 |-----------|-------|
-| Oracle Flask | ✅ RUNNING — PID 3008136 (raddflix_radd) |
+| Oracle Flask | ✅ RUNNING (raddflix_radd, port 5000) |
 | v3 DB | ✅ 17 titles / 28 files — all Live (`is_published=1`) |
+| Flutter APK | ✅ Build 1058 in progress — blank screen + seek bar fixed (commit 3b56547) |
 | Library UI | ✅ Publish All / Unpublish All / bulk controls / bulk delete working |
 | Admin UI | ✅ All confirm()/prompt() replaced with two-step arm+fire toasts |
 | Scan UI | ✅ Excluded folders remove — error toast added; role change two-step |
@@ -114,6 +115,7 @@ settings columns: k and v (NOT key / value)
 16. Template GitHub path: radd-hub/hub/templates/ — push sequentially (not parallel)
 17. Dart semicolons MUST come BEFORE inline comments: `expr); // comment` (never after)
 18. Never suggest new features — user is burnt out; only fix bugs when asked
+19. hwdec/deinterlace must NOT be changed via setProperty while _playing==true — changing hwdec mid-play on Android destroys the GL surface texture (blank screen, audio continues). Guard with if (!_playing) in _applyAudioPrefs.
 ```
 
 ---

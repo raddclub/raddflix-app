@@ -1,5 +1,5 @@
-# Next Agent Brief — RaddFlix / JazzDrive (2026-06-13)
-**Priority**: HIGH — user needs one OTP re-login before uploads work
+# Next Agent Brief — RaddFlix / JazzDrive (2026-06-16)
+**Priority**: NORMAL — all known bugs fixed, build 1058 in progress
 
 ---
 
@@ -19,23 +19,16 @@ Expected: `{"ok":true,"version":"3.0.0"}`
 
 ---
 
-## ⚠️ FIRST USER ACTION — OTP Re-Login Required
+## ✅ App Status — All Known Bugs Fixed
 
-Account id=4 (`03257719165`) has JSESSIONID + refresh_token but **no validation_key (VK)**.
-Without VK every SAPI call fails with AUTH-001. The fix is already deployed (commit 0ceb1544).
+  | Bug | Fix | Commit |
+  |-----|-----|--------|
+  | Blank screen (local videos, 2-3s) | hwdec guard in `_applyAudioPrefs()` | 3b56547 |
+  | Double-dot seek bar (non-classic) | `SliderComponentShape.noThumb` | 3b56547 |
+  | Dots style overlap under thumb | Skip dots within thumbR+dotR | 936a0a2 |
+  | Separate Play+Download buttons | Equal-width buttons in show_detail_screen | 24beefa |
 
-**Tell user**: "Please go to Scan page → Send OTP → enter the SMS code"
-
-**Verify in logs** (`sudo tail -50 /var/log/raddflix_radd.out.log`):
-```
-verify_otp: mobile_direct gave VK — merging with OAuth2 tokens
-```
-
-**After successful OTP**:
-1. Delete stuck file: Upload page → find `Karuppu.2026.480p...` → delete (files.id=37)
-2. Re-upload the file — should upload immediately
-
----
+  ---
 
 ## Project Summary
 
@@ -91,7 +84,14 @@ RaddFlix — Pakistani Flutter streaming app. Jazz SIM users get zero-rated acce
 
 ---
 
-## Session Work Done (2026-06-13)
+## Session Work Done (2026-06-16)
+
+  1. **BUG-PLAYER-BLANK** — Blank screen fix: `_applyAudioPrefs()` hwdec guard (commit 3b56547)
+  2. **BUG-SEEK-DOUBLE-DOT** — Slider `noThumb` for non-classic seek bar styles (commit 3b56547)
+  3. **BUG-DOTS-OVERLAP** — Dots painter: skip track dots under thumb (commit 936a0a2)
+  4. **TASK-BUTTONS-01** — Separate Play + Download buttons in show_detail_screen (commit 24beefa)
+
+  ## Session Work Done (2026-06-13)
 
 1. **FIX-UA-STRINGS** — All 10 UA strings → Infinix X680F/Android10 (commit db30e8bf)
 2. **FEAT-CONFLICT-DETECTOR** — keepalive.py: conflict classifier, event log, auto-pause (commits b2e7bc5f, 05c73576)
