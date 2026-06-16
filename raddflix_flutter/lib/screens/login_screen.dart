@@ -34,10 +34,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       await ref.read(authProvider.notifier).login(
         phone: _phoneCtrl.text.trim(), password: _passCtrl.text);
-      // Device conflict: notifier sets state and returns without throwing
+      // auth_provider catches all DioExceptions internally — it never throws.
+      // Must explicitly check state after the call to detect failure.
       final s = ref.read(authProvider);
       if (s.isDeviceConflict) {
         setState(() { _loading = false; });
+        return;
+      }
+      // BUG-LOGIN-01: login() sets state.error on wrong password instead of
+      // throwing, so the original code always reached pushReplacementNamed and
+      // navigated to home regardless of failure → appeared as guest login.
+      if (s.error != null) {
+        setState(() { _error = s.error; _loading = false; });
         return;
       }
       if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.home);
