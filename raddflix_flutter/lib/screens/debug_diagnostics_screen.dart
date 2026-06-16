@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,11 +9,12 @@ import '../core/debug/debug_logger.dart';
 import '../core/security/keystore.dart';
 import '../core/security/request_encoder.dart';
 import '../core/security/device_id.dart';
+import '../core/services/jazzdrive_service.dart';
 import '../core/theme/radd_theme.dart';
 import '../providers/auth_provider.dart';
 
-/// Debug-only diagnostics screen — completely absent from release APK.
-/// Entry: tap version text in Profile 7 times (kDebugMode only).
+/// Diagnostics screen — accessible in all builds.
+/// Entry: tap version text in Profile 5 times.
 class DebugDiagnosticsScreen extends ConsumerStatefulWidget {
   const DebugDiagnosticsScreen({super.key});
   @override
@@ -35,7 +35,7 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
   String _rawLogs    = '';
   bool   _autoScroll = true;
   final ScrollController _logScroll = ScrollController();
-  static const _filters = ['ALL', 'ERROR', 'WARN', 'API', 'SYNC', 'DB'];
+  static const _filters = ['ALL', 'ERROR', 'WARN', 'JAZZDRIVE', 'API', 'SYNC', 'DB'];
 
   @override
   void initState() {
@@ -45,9 +45,7 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
       if (_tabs.index == 1 && !_tabs.indexIsChanging) _startLogTimer();
       if (_tabs.index == 0 && !_tabs.indexIsChanging) _stopLogTimer();
     });
-    if (kDebugMode) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _runAll());
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _runAll());
   }
 
   @override
@@ -83,6 +81,7 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
     if (_running) return;
     setState(() { _running = true; _results.clear(); });
     await _check('Oracle Server',  _checkOracle);
+    await _check('JazzDrive API',  _checkJazzDrive);
     await _check('XOR Decode',     _checkXor);
     await _check('DB: Row Counts', _checkDb);
     await _check('Auth Tokens',    _checkAuth);
@@ -94,7 +93,7 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
   Future<void> _check(String label, Future<_DiagResult> Function() fn) async {
     setState(() => _results.add(_DiagResult(label: label, status: _Status.running)));
     try {
-      final r = await fn().timeout(const Duration(seconds: 10));
+      final r = await fn().timeout(const Duration(seconds: 15));
       setState(() => _results[_results.length - 1] = r.withLabel(label));
     } catch (e) {
       setState(() => _results[_results.length - 1] =
@@ -116,6 +115,74 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
       return _DiagResult(label: '', status: _Status.fail,
           detail: e.toString().split('\n').first);
     }
+  }
+
+  /// Live end-to-end test of the JazzDrive share link chain.
+  /// Picks the first episode (or movie) from local SQLite, decodes its
+  /// share_url, and runs login → getMedia through the actual JazzDrive API.
+  /// Each step result is shown so you can see exactly where a failure occurs.
+  Future<_DiagResult> _checkJazzDrive() async {
+    final db = await LocalDb.instance;
+
+    // Prefer episode (TV show) so we test the folder-share matching path
+    String? fileId;
+    String type = '';
+    final epRows = await db.rawQuery(
+        "SELECT file_id FROM episodes WHERE share_url IS NOT NULL "
+        "AND share_url != '' LIMIT 1");
+    if (epRows.isNotEmpty) {
+      fileId = epRows.first['file_id'] as String?;
+      type = 'ep';
+    } else {
+      final mvRows = await db.rawQuery(
+          "SELECT file_id FROM titles "
+          "WHERE share_url IS NOT NULL AND share_url != '' "
+          "AND media_type='movie' AND file_id IS NOT NULL LIMIT 1");
+      if (mvRows.isNotEmpty) {
+        fileId = mvRows.first['file_id'] as String?;
+        type = 'movie';
+      }
+    }
+
+    if (fileId == null || fileId.isEmpty) {
+      return _DiagResult(
+        label: '', status: _Status.warn,
+        detail: 'No share URLs in local DB — open Settings → Sync first',
+      );
+    }
+
+    final shareInfo    = await LocalDb.getShareInfo(fileId);
+    final shareUrl     = shareInfo['share_url'] as String?;
+    final targetFname  = shareInfo['filename']  as String?;
+    final remoteId     = shareInfo['remote_id'] as int? ?? 0;
+
+    if (shareUrl == null || shareUrl.isEmpty) {
+      return _DiagResult(
+        label: '', status: _Status.warn,
+        detail: 'share_url is empty for $type file_id=$fileId',
+      );
+    }
+
+    final result = await JazzDriveService.diagnosticTest(
+      shareUrl: shareUrl,
+      targetFilename: targetFname,
+      remoteId: remoteId,
+    );
+
+    if (result.containsKey('error')) {
+      return _DiagResult(
+        label: '', status: _Status.fail,
+        detail: '[$type id=$fileId]\n${result["error"]}',
+      );
+    }
+
+    return _DiagResult(
+      label: '', status: _Status.ok,
+      detail: '[$type id=$fileId]\n'
+              'Login: ${result["login"]}\n'
+              'Media: ${result["media"]}\n'
+              'URL:   ${result["stream_url"]}',
+    );
   }
 
   Future<_DiagResult> _checkXor() async {
@@ -185,7 +252,6 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    if (!kDebugMode) return const SizedBox.shrink();
     return Scaffold(
       backgroundColor: const Color(0xFF050510),
       appBar: AppBar(
@@ -202,7 +268,7 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
               borderRadius: BorderRadius.circular(4),
               border: Border.all(color: Colors.orange.withOpacity(0.4)),
             ),
-            child: const Text('DEBUG', style: TextStyle(
+            child: const Text('DIAG', style: TextStyle(
                 color: Colors.orange, fontSize: 10,
                 fontWeight: FontWeight.w800, letterSpacing: 1.5)),
           ),
@@ -245,34 +311,21 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
           tabs: const [Tab(text: 'Checks'), Tab(text: 'Live Logs')],
         ),
       ),
-      body: Column(children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: Colors.orange.withOpacity(0.07),
-          child: Row(children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 14),
-            const SizedBox(width: 8),
-            Text('Debug only — stripped from release APK',
-                style: TextStyle(color: Colors.orange.withOpacity(0.75), fontSize: 11)),
-          ]),
-        ),
-        Expanded(child: TabBarView(
-          controller: _tabs,
-          children: [
-            _ChecksTab(results: _results, running: _running),
-            _LogsTab(
-              rawLogs:    _rawLogs,
-              filter:     _logFilter,
-              autoScroll: _autoScroll,
-              scrollCtrl: _logScroll,
-              filters:    _filters,
-              onFilter:   (f) { setState(() => _logFilter = f); _refreshLogs(); },
-              onClear:    () { DebugLogger.clearBuffer(); setState(() => _rawLogs = ''); },
-            ),
-          ],
-        )),
-      ]),
+      body: TabBarView(
+        controller: _tabs,
+        children: [
+          _ChecksTab(results: _results, running: _running),
+          _LogsTab(
+            rawLogs:    _rawLogs,
+            filter:     _logFilter,
+            autoScroll: _autoScroll,
+            scrollCtrl: _logScroll,
+            filters:    _filters,
+            onFilter:   (f) { setState(() => _logFilter = f); _refreshLogs(); },
+            onClear:    () { DebugLogger.clearBuffer(); setState(() => _rawLogs = ''); },
+          ),
+        ],
+      ),
     );
   }
 }
@@ -313,7 +366,7 @@ class _ChecksTab extends StatelessWidget {
               onPressed: () {
                 final txt = results.map((r) {
                   final ic = r.status == _Status.ok ? '✓' : r.status == _Status.warn ? '⚠' : '✗';
-                  return '${ic} ${r.label}: ${r.detail}';
+                  return '$ic ${r.label}: ${r.detail}';
                 }).join('\n');
                 Clipboard.setData(ClipboardData(text: txt));
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -343,8 +396,9 @@ class _LogsTab extends StatelessWidget {
   Color _lineColor(String line) {
     if (line.contains('[ERROR]') || line.contains('[CRASH]')) return const Color(0xFFEF4444);
     if (line.contains('[WARN ]')) return Colors.orange;
+    if (line.contains('[JAZZDRIVE]')) return const Color(0xFF34D399);
     if (line.contains('[API  ]')) return const Color(0xFF60A5FA);
-    if (line.contains('[SYNC ]')) return const Color(0xFF34D399);
+    if (line.contains('[SYNC ]')) return const Color(0xFF818CF8);
     if (line.contains('[DB   ]')) return const Color(0xFF22D3EE);
     if (line.contains('[NAV  ]')) return const Color(0xFFA78BFA);
     if (line.contains('[UI   ]')) return const Color(0xFFFBBF24);
@@ -355,6 +409,9 @@ class _LogsTab extends StatelessWidget {
   List<String> _filtered() {
     final lines = rawLogs.split('\n').where((l) => l.isNotEmpty).toList();
     if (filter == 'ALL') return lines;
+    if (filter == 'JAZZDRIVE') {
+      return lines.where((l) => l.contains('[JAZZDRIVE]')).toList();
+    }
     final tag = '[${filter.padRight(5)}]';
     return lines.where((l) => l.contains(tag)).toList();
   }
