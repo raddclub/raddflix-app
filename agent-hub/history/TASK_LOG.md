@@ -850,3 +850,26 @@ startup_refresh warns on invalid_grant but does NOT wipe VK — uploads continue
 - Upload: WORKING — Karuppu (2026) folder active, poster uploaded at 20:55 PKT
 - refresh_token: DEAD (invalid_grant) — session self-sustains via sapi_direct_login fallback on next restart
 - Open: RENEW-REFRESH-TOKEN (will auto-fix on next OTP login), RENEW-PK-PROXIES, DELETE-STUCK-FILE
+
+---
+
+## Session 2026-06-16 — Closed all open tasks (verified complete)
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| DELETE-STUCK-FILE | Verified files.id=37 no longer in DB — already cleaned up | ✅ DONE |
+| RENEW-PK-PROXIES | Proxy pool has 150+ active proxies (fail_count=0, ok_count=2–4) | ✅ DONE |
+| RENEW-REFRESH-TOKEN | Account 11 has valid 40-char refresh_token in DB | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| agent-hub/TASKS.md | Removed 3 completed tasks from Pending/Blocked; added to Completed 2026-06-16 | this commit |
+| agent-hub/history/TASK_LOG.md | This entry | this commit |
+
+### State at end of session
+- Oracle Flask: RUNNING (healthz OK, version 3.0.0)
+- Account id=11 (03257719165): VK=valid (32 chars), JID=valid, raw_accesstoken=valid (40 chars), refresh_token=valid (40 chars)
+- Proxy pool: 150+ active proxies, pool healthy
+- Open tasks: none
