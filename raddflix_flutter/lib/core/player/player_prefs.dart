@@ -337,6 +337,7 @@ class PlayerPrefs {
   /// Content mode preset ID — 'standard'|'movie'|'sports'|'anime'|
   /// 'low_light'|'amoled'|'drama'|'documentary'
   final String smartEnhanceMode;
+  final int    sidebarMode;          // 0=full 1=icons-only 2=hidden
 
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
@@ -399,7 +400,7 @@ class PlayerPrefs {
     this.nightModeIntensity = 0.5,
     this.sharpnessEnabled = false,
     this.sharpness = 0.3,
-    this.rotationMode = 'sensor_landscape',
+    this.rotationMode = 'auto',
     this.playbackSpeed = 1.0,
     this.rememberSpeed = false,
     this.rememberPosition = true,
@@ -510,6 +511,7 @@ class PlayerPrefs {
     this.quickBarItems               = 'pip,bgplay,fit,screenshot,speed',
     this.smartEnhanceEnabled         = false,
     this.smartEnhanceMode            = 'standard',
+    this.sidebarMode                 = 0,
   });
 
   PlayerPrefs copyWith({
@@ -617,6 +619,7 @@ class PlayerPrefs {
     String? quickBarItems,
     bool?   smartEnhanceEnabled,
     String? smartEnhanceMode,
+    int?    sidebarMode,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -783,6 +786,7 @@ class PlayerPrefs {
       quickBarItems:               quickBarItems               ?? this.quickBarItems,
       smartEnhanceEnabled:         smartEnhanceEnabled         ?? this.smartEnhanceEnabled,
       smartEnhanceMode:            smartEnhanceMode            ?? this.smartEnhanceMode,
+      sidebarMode:                 sidebarMode                 ?? this.sidebarMode,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -967,6 +971,7 @@ class PlayerPrefs {
       quickBarItems:               s.getString('${_p}quick_bar_items')           ?? 'pip,bgplay,fit,screenshot,speed',
       smartEnhanceEnabled:         s.getBool('${_p}smart_enhance_enabled')        ?? false,
       smartEnhanceMode:            s.getString('${_p}smart_enhance_mode')         ?? 'standard',
+      sidebarMode:                 s.getInt('${_p}sidebar_mode')                ?? 0,
     );
   }
 
@@ -1147,6 +1152,7 @@ class PlayerPrefs {
       s.setString('${_p}quick_bar_items',            quickBarItems),
       s.setBool('${_p}smart_enhance_enabled',         smartEnhanceEnabled),
       s.setString('${_p}smart_enhance_mode',          smartEnhanceMode),
+      s.setInt('${_p}sidebar_mode',               sidebarMode),
     ]);
   }
 }
