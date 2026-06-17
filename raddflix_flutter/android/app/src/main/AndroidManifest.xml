@@ -82,15 +82,15 @@
             </intent-filter>
         </activity>
 
-        <!-- media_kit background playback service -->
+        <!-- Background audio playback foreground service.
+             Keeps the process alive while media_kit plays audio in background.
+             Without this service, Android kills the process after ~1 minute
+             and audio stops even with Background Play enabled.
+             Started/stopped via the pip method channel from player_screen.dart. -->
         <service
-            android:name="com.ryanheise.audioservice.AudioService"
+            android:name=".PlaybackService"
             android:foregroundServiceType="mediaPlayback"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.media.browse.MediaBrowserService"/>
-            </intent-filter>
-        </service>
+            android:exported="false"/>
 
         <!-- WorkManager: background download worker -->
         <service
