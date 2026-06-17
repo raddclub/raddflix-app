@@ -726,7 +726,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         child: ListView.builder(
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
           itemCount: res.length,
-          itemBuilder: (_, i) => _SearchResultTile(result: res[i]),
+          itemBuilder: (_, i) => _SearchResultTile(result: res[i])
+              .animate(delay: Duration(milliseconds: i * 25))
+              .fadeIn(duration: 260.ms)
+              .slideX(begin: 0.07, end: 0, duration: 260.ms, curve: Curves.easeOut),
         ),
       ),
     ]);
@@ -752,7 +755,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             onPressed: _clearAll,
             child: const Text('Clear filters', style: TextStyle(color: AppColors.primary)),
           ),
-      ]),
+      ]).animate()
+        .fadeIn(duration: 320.ms)
+        .slideY(begin: 0.12, end: 0, duration: 320.ms, curve: Curves.easeOut),
     );
   }
 
@@ -866,11 +871,39 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
         itemCount: 8,
         itemBuilder: (_, __) => Container(
-          height: 86,
+          height: 80,
           margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(
             color: t.surface,
             borderRadius: BorderRadius.circular(AppRadius.md)),
+          child: Row(children: [
+            // Poster thumbnail area
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(AppRadius.md)),
+              child: Container(
+                width: 56, height: 80, color: t.surfaceHigh)),
+            const SizedBox(width: 14),
+            // Text placeholder lines
+            Expanded(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(height: 13, width: double.infinity,
+                    decoration: BoxDecoration(color: t.surfaceHigh,
+                        borderRadius: BorderRadius.circular(4))),
+                const SizedBox(height: 7),
+                Container(height: 10, width: 110,
+                    decoration: BoxDecoration(color: t.surfaceHigh,
+                        borderRadius: BorderRadius.circular(3))),
+                const SizedBox(height: 5),
+                Container(height: 8, width: 75,
+                    decoration: BoxDecoration(color: t.surfaceHigh,
+                        borderRadius: BorderRadius.circular(3))),
+              ],
+            )),
+            const SizedBox(width: 16),
+          ]),
         ),
       ),
     );
