@@ -262,3 +262,45 @@ APK builds run#1095–1098 all failed at "Build release APK" step.
 - Account id=11: active (JID/VK/AT all healthy per handoff)
 - APK build: run#1099 ✅ SUCCESS / run#1100 ✅ SUCCESS
 - Open tasks: DATA-01 (All Of Us Are Dead missing E03/E04/E05/E09 — no change this session)
+
+## Session 2026-06-18 (continued) — FIX-VF-BLACKSCREEN: Month-long blank screen root cause found
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| FIX-VF-BLACKSCREEN | Identify and fix root cause of "local video black screen after 1-2s" | ✅ DONE |
+
+### Root Cause Analysis
+Analysed bug-reproduction video (attached_assets/20260618034906_1781736674110.mp4) frame by frame using ffprobe + frame extraction.
+
+Frame sequence confirmed:
+- Frames 1-7: Local Media browse (portrait, normal)
+- Frame 8: Screen rotation during player open transition
+- Frames 9-12: Player in landscape, video plays correctly (music video visible at 00:01)
+- Frames 13-17: COMPLETELY BLACK — permanent, audio continues
+
+Root cause: `_applyVideoFilters` (in `player_screen.dart`) called from `_loadPrefs` with a 60ms debounce. On most devices, SharedPreferences returns in <500ms, so the 60ms debounce fires AFTER the local video has started playing with an active Android HW decoder.
+
+Calling `_np.setProperty('vf', ...)` — even with an EMPTY string (default settings = no filters) — on an active HW decoder pipeline (MediaTek/Infinix) destroys the GL surface texture → permanent black screen while audio continues. This is why the bug manifested as "video plays for 1-2 seconds then goes black".
+
+The hwdec guard in `_applyAudioPrefs` was correctly fixed (BUG-BLANK-SURFACE-RACE, 2026-06-17), but `_applyVideoFilters` was called from the same `_loadPrefs` code path and never received an equivalent guard — the missing fix for a month.
+
+### Fix Details
+Two-layer guard added to `_applyVideoFilters`:
+1. **STARTUP GATE** — first call (always from `_loadPrefs`) is skipped if `_player.state.playing || _playing`; `_firstVfApplied` flag tracks first-call status
+2. **DEDUP** — `_lastAppliedVf` sentinel tracks last applied vf string; skips `setProperty` when value is identical (no-op vf= calls also reset HW pipeline on some MediaTek SoCs)
+3. **SEEK-AFTER** — user-initiated mid-play filter changes now seek to current position after applying vf= (mirrors `onSwDecoderChanged` hwdec live-switch pattern) to force MPV to re-render current frame through new filter chain
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| `raddflix_flutter/lib/screens/player_screen.dart` | `_applyVideoFilters` startup guard + dedup + seek-after; added `_firstVfApplied`/`_lastAppliedVf` state vars | `cd241fc` |
+| `agent-hub/TASKS.md` | Added FIX-VF-BLACKSCREEN to completed table | (this commit) |
+| `.agents/tasks/BUG_TRACKER.md` | New critical rule + fixed bug entry | `da2d21b` |
+| `AGENT_HANDOFF.md` | Updated status + new critical rule | (this commit) |
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0
+- APK build: last success run#1099/1100, commit 91e52dc. New fix at cd241fc — build not yet triggered.
+- Open tasks: DATA-01 (All Of Us Are Dead missing E03/E04/E05/E09 — not addressed this session)
+- Critical fix: FIX-VF-BLACKSCREEN — month-long blank screen on local video **FIXED**
