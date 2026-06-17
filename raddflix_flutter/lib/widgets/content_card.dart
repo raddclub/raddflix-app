@@ -19,7 +19,7 @@ class ContentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    return GestureDetector(
+    return _PressableCard(
       onTap: onTap ?? () => _onTap(context),
       onLongPress: onLongPress ?? () => _showQuickView(context),
       child: Container(
@@ -173,7 +173,33 @@ class ShimmerCard extends StatelessWidget {
       child: Shimmer.fromColors(
         baseColor: t.surface,
         highlightColor: t.surfaceHigh,
-        child: Container(color: t.surface),
+        child: Stack(fit: StackFit.expand, children: [
+          Container(color: t.surface),
+          // Subtle gradient sheen at the bottom
+          Positioned(bottom: 0, left: 0, right: 0,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(6, 22, 6, 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, t.card],
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(height: 8, width: double.infinity,
+                      decoration: BoxDecoration(color: t.surfaceHigh,
+                          borderRadius: BorderRadius.circular(4))),
+                  const SizedBox(height: 4),
+                  Container(height: 6, width: 50,
+                      decoration: BoxDecoration(color: t.surfaceHigh,
+                          borderRadius: BorderRadius.circular(3))),
+                ],
+              ),
+            )),
+        ]),
       ),
     );
   }
@@ -202,15 +228,34 @@ class _Fallback extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
     return Container(
-      color: t.card,
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(item.isShow ? Icons.tv_outlined : Icons.movie_outlined,
-            color: t.textMuted, size: 28),
-        const SizedBox(height: 6),
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: Text(item.title, textAlign: TextAlign.center, maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: t.textMuted, fontSize: 10))),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+          colors: [t.card, t.surface],
+        ),
+      ),
+      child: Stack(fit: StackFit.expand, children: [
+        Center(
+          child: Icon(
+            item.isShow ? Icons.tv_outlined : Icons.movie_outlined,
+            color: t.textMuted.withOpacity(0.4), size: 30),
+        ),
+        Positioned(bottom: 0, left: 0, right: 0,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(6, 18, 6, 8),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                colors: [Colors.transparent, Color(0xD0000000)],
+              ),
+            ),
+            child: Text(item.title,
+                textAlign: TextAlign.center, maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white70, fontSize: 10,
+                    fontWeight: FontWeight.w500)),
+          ),
+        ),
       ]),
     );
   }
@@ -382,6 +427,40 @@ class _UploadingBadgeState extends State<_UploadingBadge>
         child: const Text('⬆ UPLOADING',
           style: TextStyle(color: Colors.white, fontSize: 7,
               fontWeight: FontWeight.w800, letterSpacing: 0.4)),
+      ),
+    );
+  }
+}
+
+// ── Pressable card wrapper: scale on press + haptic tap feedback ──────────────
+class _PressableCard extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  const _PressableCard({required this.child, this.onTap, this.onLongPress});
+  @override
+  State<_PressableCard> createState() => _PressableCardState();
+}
+
+class _PressableCardState extends State<_PressableCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: () {
+        HapticFeedback.selectionClick();
+        widget.onTap?.call();
+      },
+      onLongPress: widget.onLongPress,
+      child: AnimatedScale(
+        scale: _pressed ? 0.93 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: RepaintBoundary(child: widget.child),
       ),
     );
   }
