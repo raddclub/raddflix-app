@@ -1,6 +1,6 @@
 # AGENT_STATUS.md
 > Current project status for agent coordination.
-> Last updated: 2026-06-16
+> Last updated: 2026-06-17
 
 ---
 
@@ -11,7 +11,7 @@
 | App (Oracle) | ✅ RUNNING | raddflix_radd via supervisorctl, port 5000, v3.0.0 |
 | JazzDrive Session | ✅ LIVE | Account id=11 (03257719165): VK ✅ JID ✅ raw_accesstoken ✅ refresh_token ✅ |
 | JazzDrive Chain | ✅ PROVEN | Full login→media→CDN tested 2026-06-16, real MP4 bytes confirmed |
-| Flutter app | ✅ STABLE | Blank screen + seek bar double-dot fixed — build 1058 in progress |
+| Flutter app | ✅ STABLE | All known bugs fixed — build 1067 (commit 61f58908) |
 | Login screen | ✅ FIXED | Wrong password no longer navigates to home — shows error banner |
 | Catalog sync | ✅ FORCED | catalog_forced_version=1781620750 — all devices will full re-sync |
 | Debug screen | ✅ LIVE | Accessible in release — tap version text 5× in Profile |
@@ -23,11 +23,30 @@
 
 ## Latest APK
 
-| Build | APK | Status |
-|-------|-----|--------|
-| build-1053 (run 27626589677) | RaddFlix-1.0.0+1-build1053.apk (56.8 MB) | ✅ Success |
-| build-1057 (run) | RaddFlix-1.0.0+1-build1057.apk | ✅ Success (Play+Download buttons) |
-| build-1058 (run) | RaddFlix-1.0.0+1-build1058.apk | 🔄 Building (blank screen fix + seek bar) |
+| Build | Commit | Status | Key Fix |
+|-------|--------|--------|---------|
+| build-1067 | 61f58908 | 🔄 Building | Black screen + Jazz error messages |
+| build-1066 | 5647a86e | ✅ Success (56.8MB) | Icon fix + SERVER_SETUP.md |
+| build-1053 | — | ✅ Success | Debug screen accessible in release |
+
+---
+
+## Bug Fixes — 2026-06-17 (commit 61f58908)
+
+### BUG-BLACKSCREEN-LOCAL (CRITICAL)
+**Local video goes black after ~2 seconds — hwdec race condition**
+- Root cause: `_loadPrefs()` async + `_player.open()` race. When prefs loaded, `_applyAudioPrefs` checked `if (!_playing)` — but `_playing` (Flutter state var) lags behind MPV state. MPV already had active decoder; setting `hwdec` mid-decode destroyed GL surface.
+- Fix: guard changed to `if (!_playing && !_player.state.playing && _player.state.duration == Duration.zero)` — uses actual synchronous MPV state. `duration` becomes non-zero as soon as media is opened.
+
+### BUG-BLACKSCREEN-LP
+**Long-press fast-forward leaves black frame on release**
+- Root cause: MPV drops frames at high speed, surface stays black when speed returns to 1.0x.
+- Fix: 80ms after long-press end, seek to `_player.state.position` to force MPV to decode fresh frame.
+
+### BUG-JAZZ-GENERIC-ERROR
+**Catalog movies always show "Jazz SIM Required" regardless of real error**
+- Root cause: (1) No `validateStatus` on Dio — non-200 responses threw opaque DioException. (2) HTML error pages crashed JSON cast. (3) All exceptions → same generic message.
+- Fix: `validateStatus: (s) => true` + HTML detection in `_loginShare` and `_getMedia`. New `_buildJazzError()` in player_screen translates MED-/FOL- codes, HTTP 401/403, timeout, HTML page into specific messages.
 
 ---
 
@@ -62,12 +81,6 @@ open('/tmp/oracle_key','w').write(key)
 | ID | MSISDN | Role | Active | VK | JSESSIONID | Refresh Token | Notes |
 |----|--------|------|--------|----|-----------|--------------|-------|
 | 11 | 03257719165 | flix | YES | ✅ valid | ✅ .2i182 node | ✅ valid | All tokens healthy |
-
----
-
-## Pending User Actions
-
-Install build 1058 APK when ready and test local video playback (blank screen was fixed).
 
 ---
 

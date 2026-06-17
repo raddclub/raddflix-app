@@ -1,5 +1,57 @@
 # RaddFlix Task Board
-Last updated: 2026-06-16
+Last updated: 2026-06-17
+
+## Completed Tasks — 2026-06-17 Bug Fixes (commit 61f58908)
+
+### BUG-BLACKSCREEN-LP ✅ — Long-press fast-forward leaves black frame
+**File:** `raddflix_flutter/lib/screens/player_screen.dart`
+**Priority:** HIGH
+**Status:** Fixed 2026-06-17
+
+**Root cause:** After `_player.setRate(2.5x)` on long-press, MPV drops frames during fast-forward to keep up. On long-press release, `setRate(1.0)` is called but MPV does not immediately decode a fresh frame — the surface stays black until the next natural keyframe arrives.
+
+**Fix:** 80 ms after `onLongPressEnd`, seek to `_player.state.position` — this forces MPV to immediately decode and render a fresh frame, clearing the stale black surface.
+
+---
+
+### BUG-BLACKSCREEN-LOCAL ✅ — Local video black after ~2 seconds (hwdec race)
+**File:** `raddflix_flutter/lib/screens/player_screen.dart`
+**Priority:** CRITICAL
+**Status:** Fixed 2026-06-17 (previous fix 2026-06-16 incomplete)
+
+**Root cause:** `_loadPrefs()` runs async from `initState` and completes ~1-2 seconds after `_player.open()`. When it calls `_applyAudioPrefs()`, the guard was:
+```dart
+if (!_playing) { setProperty('hwdec', ...) }  // BROKEN
+```
+`_playing` is a Flutter state variable — it lags one `setState()` cycle behind actual MPV state. At the time `_loadPrefs` resolves, `_playing` is still `false` even though MPV already has an active decoder pipeline with a live GL surface. Setting `hwdec` mid-decode forces MPV to restart its decoder → GL surface destroyed → black screen.
+
+**Fix:**
+```dart
+if (!_playing && !_player.state.playing && _player.state.duration == Duration.zero) {
+  setProperty('hwdec', ...)
+}
+```
+`_player.state.playing` and `_player.state.duration` are synchronous reads from MPV's actual state. `duration` becomes non-zero as soon as `_player.open()` is called — so the guard blocks any hwdec changes for the lifetime of any open media file.
+
+---
+
+### BUG-JAZZ-GENERIC-ERROR ✅ — Catalog movies always show "Jazz SIM Required"
+**Files:** `raddflix_flutter/lib/screens/player_screen.dart`, `raddflix_flutter/lib/core/services/jazzdrive_service.dart`
+**Priority:** HIGH
+**Status:** Fixed 2026-06-17
+
+**Root cause (2 stacked issues):**
+1. **Dio threw on non-200 before code could inspect the body.** No `validateStatus` override on `_loginShare` or `_getMedia`. Any non-200 from JazzDrive (401, 403, 500) threw a `DioException` with no response body — the actual error reason was lost.
+2. **HTML error pages crashed the JSON cast.** When the device is not on Jazz SIM mobile data, JazzDrive returns an HTML page. `_dio.post<Map<String, dynamic>>` tried to cast it and failed silently. The exception propagated as a meaningless Dart type error.
+3. **All exceptions were shown as "Jazz SIM Required".** The `catch(e)` block in `_openMedia` discarded the exception and showed the same generic message regardless of whether the real cause was a bad share key, deleted content, timeout, or network error.
+
+**Fixes applied:**
+- `jazzdrive_service.dart` `_loginShare`: changed to `_dio.post<dynamic>` + `validateStatus: (s) => true`; added HTML-page detection (throws clear message); added safe JSON parse with try/catch
+- `jazzdrive_service.dart` `_getMedia`: same treatment — `_dio.get<dynamic>` + `validateStatus` + HTML detection
+- `player_screen.dart` `_openMedia`: capture exception as `_linkGenError`; pass to new `_buildJazzError()` helper
+- `player_screen.dart` `_buildJazzError()`: translates raw exception strings into human-readable messages — MED-xxxx / FOL-xxxx error codes, HTTP 401/403, timeout, "no records", HTML page, invalid URL — each gets a specific message instead of the catch-all "Jazz SIM Required"
+
+---
 
 ## Completed Tasks — Debug Diagnostics Screen
 
@@ -50,24 +102,6 @@ Adding it to CDN URLs produced broken download/stream links.
 - Removed `validationKey` parameter from `_buildStreamUrl(rawUrl, filename)` — now 2 args not 3
 - Removed `validationkey=` from URL construction
 - Added `filename=` guard (no double-append if already present in rawUrl)
-
----
-
-### TASK-JD-FIX-02 ✅ — Fix wrong comments in `jazzdrive_service.dart`
-**File:** `raddflix_flutter/lib/core/services/jazzdrive_service.dart`
-**Status:** Fixed alongside TASK-JD-FIX-01
-
----
-
-### TASK-JD-FIX-03 ✅ — Correct `JAZZDRIVE_FLUTTER_AUDIT.md`
-**File:** `agent-hub/JAZZDRIVE_FLUTTER_AUDIT.md`
-**Status:** Fixed 2026-06-16
-
----
-
-### TASK-JD-FIX-04 ✅ — Correct `JAZZDRIVE_STREAM_FLOW.md`
-**File:** `agent-hub/JAZZDRIVE_STREAM_FLOW.md`
-**Status:** Fixed 2026-06-16
 
 ---
 
