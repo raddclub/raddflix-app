@@ -286,39 +286,65 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
 
   Widget _buildEmpty() {
     return Center(
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Container(
-          width: 100, height: 100,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: t.surface,
-            border: Border.all(color: t.border, width: 1.5),
-          ),
-          child: Icon(Icons.download_for_offline_outlined,
-              color: t.textMuted, size: 48),
-        ),
-        SizedBox(height: 24),
-        Text('No Downloads Yet', style: TextStyle(
-            color: t.textPrimary, fontSize: 20, fontWeight: FontWeight.w800,
-            letterSpacing: -0.3)),
-        SizedBox(height: 8),
-        Text('Download videos to watch offline.',
-            style: TextStyle(color: t.textMuted, fontSize: 14)),
-        const SizedBox(height: 28),
-        GestureDetector(
-          onTap: () => Navigator.of(context).pushReplacementNamed(AppRoutes.home),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          // Animated download icon
+          Container(
+            width: 100, height: 100,
             decoration: BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              borderRadius: BorderRadius.circular(AppRadius.round),
-              boxShadow: AppShadows.primary,
+              shape: BoxShape.circle,
+              color: t.surface,
+              border: Border.all(color: AppColors.primary.withOpacity(0.2), width: 1.5),
+              boxShadow: [
+                BoxShadow(color: AppColors.primary.withOpacity(0.08),
+                    blurRadius: 24, spreadRadius: 4),
+              ],
             ),
-            child: const Text('Browse Content', style: TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+            child: Icon(Icons.download_for_offline_outlined,
+                color: AppColors.primary.withOpacity(0.7), size: 48),
+          ).animate(onPlay: (c) => c.repeat(reverse: true))
+           .scaleXY(begin: 0.96, end: 1.0,
+               duration: const Duration(milliseconds: 1800),
+               curve: Curves.easeInOut),
+          const SizedBox(height: 24),
+          Text('No Downloads Yet',
+              style: TextStyle(color: t.textPrimary,
+                  fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+          const SizedBox(height: 8),
+          Text(
+            'Save movies and shows to watch
+offline — no internet needed.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: t.textMuted, fontSize: 14, height: 1.5),
           ),
-        ),
-      ]).animate().fadeIn(duration: 400.ms),
+          const SizedBox(height: 20),
+          // Feature pills
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            _FeaturePill(icon: Icons.wifi_off_rounded, label: 'Works offline', t: t),
+            const SizedBox(width: 8),
+            _FeaturePill(icon: Icons.bolt_rounded, label: 'Fast resume', t: t),
+          ]),
+          const SizedBox(height: 28),
+          GestureDetector(
+            onTap: () => Navigator.of(context).pushReplacementNamed(AppRoutes.home),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
+              decoration: BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius: BorderRadius.circular(AppRadius.round),
+                boxShadow: AppShadows.primary,
+              ),
+              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.explore_rounded, color: Colors.white, size: 16),
+                SizedBox(width: 6),
+                Text('Browse Content', style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+              ]),
+            ),
+          ),
+        ]).animate().fadeIn(duration: 400.ms),
+      ),
     );
   }
 
@@ -1021,3 +1047,27 @@ class _ShowGroupState extends State<_ShowGroup> {
   }
 }
 
+
+
+/// Small icon+label pill for the downloads empty state feature hints.
+class _FeaturePill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final RaddTheme t;
+  const _FeaturePill({required this.icon, required this.label, required this.t});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(
+      color: t.surface,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: t.border),
+    ),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 13, color: AppColors.primary),
+      const SizedBox(width: 5),
+      Text(label, style: TextStyle(color: t.textSecondary,
+          fontSize: 12, fontWeight: FontWeight.w500)),
+    ]),
+  );
+}

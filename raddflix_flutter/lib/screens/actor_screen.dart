@@ -9,8 +9,7 @@ import '../models/catalog_item.dart';
 import '../services/actor_service.dart';
 import '../widgets/content_card.dart';
 
-/// Full-screen view for an actor: large photo + every title in our catalog
-/// that features them. Tapping a title navigates to its detail screen.
+/// Full-screen view for an actor: large photo + bio + every title in our catalog.
 class ActorScreen extends StatelessWidget {
   final CastMember member;
   const ActorScreen({super.key, required this.member});
@@ -20,16 +19,20 @@ class ActorScreen extends StatelessWidget {
     final t = RaddTheme.of(context);
     return Scaffold(
       backgroundColor: t.bg,
-      body: FutureBuilder<List<CatalogItem>>(
-        future: ActorService.getFilmography(member.personId),
+      body: FutureBuilder<(List<CatalogItem>, String?)>(
+        future: Future.wait([
+          ActorService.getFilmography(member.personId),
+          ActorService.getBio(member.name),
+        ]).then((r) => (r[0] as List<CatalogItem>, r[1] as String?)),
         builder: (context, snap) {
-          final titles = snap.data ?? [];
+          final titles = snap.data?.$1 ?? [];
+          final bio    = snap.data?.$2;
           return CustomScrollView(slivers: [
             // ── Collapsing header with photo ──────────────────────────────
             SliverAppBar(
               backgroundColor: t.bg,
               surfaceTintColor: Colors.transparent,
-              expandedHeight: 280,
+              expandedHeight: 300,
               pinned: true,
               leading: IconButton(
                 icon: Icon(Icons.arrow_back_ios_new_rounded,
@@ -39,7 +42,7 @@ class ActorScreen extends StatelessWidget {
               flexibleSpace: FlexibleSpaceBar(
                 collapseMode: CollapseMode.parallax,
                 background: Stack(fit: StackFit.expand, children: [
-                  // Blurred backdrop (actor photo, desaturated)
+                  // Blurred backdrop
                   _buildPhoto(64, BoxFit.cover, t, blur: true),
                   // Dark gradient overlay
                   Container(
@@ -60,27 +63,36 @@ class ActorScreen extends StatelessWidget {
                   Positioned(
                     bottom: 20, left: 0, right: 0,
                     child: Column(children: [
-                      // Circular photo
                       Container(
-                        width: 96, height: 96,
+                        width: 100, height: 100,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.primary, width: 2),
+                          border: Border.all(color: AppColors.primary, width: 2.5),
                           boxShadow: [
-                            BoxShadow(color: AppColors.primary.withOpacity(0.3),
-                                blurRadius: 16, spreadRadius: 2),
+                            BoxShadow(color: AppColors.primary.withOpacity(0.35),
+                                blurRadius: 20, spreadRadius: 2),
                           ],
                         ),
-                        child: ClipOval(child: _buildPhoto(96, BoxFit.cover, t)),
+                        child: ClipOval(child: _buildPhoto(100, BoxFit.cover, t)),
                       ),
                       const SizedBox(height: 10),
                       Text(member.name,
-                          style: TextStyle(color: t.textPrimary, fontSize: 20,
+                          style: TextStyle(color: t.textPrimary, fontSize: 22,
                               fontWeight: FontWeight.w800),
                           textAlign: TextAlign.center),
-                      if (titles.isNotEmpty)
+                      if (member.character != null && member.character!.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 3),
+                          child: Text(
+                            'as ${member.character!}',
+                            style: TextStyle(color: AppColors.primary,
+                                fontSize: 12, fontWeight: FontWeight.w500,
+                                fontStyle: FontStyle.italic),
+                          ),
+                        ),
+                      if (titles.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
                           child: Text(
                             '${titles.length} title${titles.length == 1 ? "" : "s"} in RaddFlix',
                             style: TextStyle(color: t.textMuted, fontSize: 12),
@@ -92,10 +104,36 @@ class ActorScreen extends StatelessWidget {
               ),
             ),
 
+            // ── Bio section ───────────────────────────────────────────────
+            if (snap.connectionState == ConnectionState.done && bio != null && bio.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: t.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: t.border),
+                    ),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.info_outline_rounded,
+                          size: 15, color: t.textMuted),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(bio,
+                            style: TextStyle(color: t.textSecondary,
+                                fontSize: 13, height: 1.6)),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+
             // ── Filmography section title ─────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                 child: Text('Filmography',
                     style: TextStyle(color: t.textPrimary, fontSize: 16,
                         fontWeight: FontWeight.w800)),
@@ -187,9 +225,6 @@ class ActorScreen extends StatelessWidget {
 class _Shimmer extends StatelessWidget {
   final RaddTheme t;
   const _Shimmer({required this.t});
-  // M-04: replaced GridView.builder(shrinkWrap:true) inside a SliverToBoxAdapter
-  // with a plain Column of rows — shrinkWrap inside CustomScrollView causes double
-  // layout passes and scroll performance issues.
   @override
   Widget build(BuildContext context) => Shimmer.fromColors(
     baseColor: t.surface, highlightColor: t.border,

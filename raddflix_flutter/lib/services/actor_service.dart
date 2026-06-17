@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 import '../core/db/local_db.dart';
 import '../models/catalog_item.dart';
 
-/// A single cast member fetched from IMDB/Wikipedia and cached locally.
+/// A single cast member fetched from TVMaze/IMDB/Wikipedia and cached locally.
 class CastMember {
   final int    personId;
   final String name;
@@ -15,6 +15,7 @@ class CastMember {
   final int    orderIdx;
   final String? profileUrl;
   final String? profileLocal;
+  final String? bio;
 
   const CastMember({
     required this.personId,
@@ -23,6 +24,7 @@ class CastMember {
     required this.orderIdx,
     this.profileUrl,
     this.profileLocal,
+    this.bio,
   });
 }
 
@@ -30,32 +32,33 @@ class CastMember {
 ///
 /// ## Data sources (all free, no paid subscription required)
 ///
-/// 1. **IMDB suggestion API** — `v3.sg.media-imdb.com/suggestion/titles`
-///    IMDB's own autocomplete endpoint. No API key. Used to resolve
-///    title → IMDB `tt` ID and grab the top-billed star names.
+/// 1. **TVMaze API** — `api.tvmaze.com/singlesearch/shows?q={title}&embed=cast`
+///    Free, no API key. Returns full cast with character names and profile photos
+///    for TV shows. Primary source for any show.
 ///
-/// 2. **OMDb API** — `omdbapi.com` (optional, free tier 1000 req/day)
+/// 2. **IMDB suggestion API** — `v3.sg.media-imdb.com/suggestion/titles`
+///    IMDB's own autocomplete endpoint. No API key. Used for movies and as
+///    fallback for shows. Returns 2-3 top-billed star names.
+///
+/// 3. **OMDb API** — `omdbapi.com` (optional, free tier 1000 req/day)
 ///    Extends the cast list beyond the ~2 names from the suggestion API.
 ///    Only used when `--dart-define=OMDB_API_KEY=<key>` is supplied at
 ///    build time. Completely optional — the service works without it.
 ///
-/// 3. **Wikipedia Thumbnail API** — `en.wikipedia.org/w/api.php`
+/// 4. **Wikipedia Thumbnail API** — `en.wikipedia.org/w/api.php`
 ///    Batch-fetches actor profile photos (one HTTP request for all actors).
-///    Completely free, no API key required.
+///    Completely free, no API key required. Also used for short actor bios.
 ///
 /// ## Caching
 /// All cast rows are persisted to SQLite (`persons` + `cast_members` tables)
 /// after the first fetch. Photos are downloaded to
 /// `getApplicationDocumentsDirectory()/.cast_imgs/` — app-private internal
 /// storage, invisible to file managers and other apps.
-///
-/// ## Person IDs
-/// SQLite requires INTEGER primary keys. Since we no longer have TMDB numeric
-/// IDs, each actor name is hashed with a deterministic FNV-1a 32-bit function.
-/// The same name always produces the same ID across devices and app versions,
-/// enabling the filmography query (`getPersonTitles`) to work correctly.
 class ActorService {
   ActorService._();
+
+  // TVMaze API — completely free, no key
+  static const String _tvMazeBase = 'https://api.tvmaze.com';
 
   // IMDB suggestion API — free, no key, IMDB's own autocomplete endpoint
   static const String _imdbSuggest =
@@ -67,14 +70,14 @@ class ActorService {
       String.fromEnvironment('OMDB_API_KEY', defaultValue: '');
   static bool get _hasOmdb => _omdbKey.isNotEmpty;
 
-  // Wikipedia Thumbnail API — completely free, no key
+  // Wikipedia APIs — completely free, no key
   static const String _wikiApi = 'https://en.wikipedia.org/w/api.php';
 
   static final _dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 15),
     headers: {
-      'User-Agent': 'RaddFlix/1.0 (Android; imdb-wikipedia-cast)',
+      'User-Agent': 'RaddFlix/1.0 (Android; tvmaze-imdb-wikipedia-cast)',
       'Accept-Language': 'en-US,en;q=0.9',
     },
   ));
@@ -93,10 +96,6 @@ class ActorService {
       p.join(dir.path, '$personId.jpg');
 
   /// Deterministic FNV-1a 32-bit hash of actor name.
-  ///
-  /// Produces a stable integer person_id that is consistent across devices,
-  /// platforms, and app versions — so the same actor in two different titles
-  /// always gets the same ID, enabling filmography queries to work correctly.
   static int _nameToId(String name) {
     var h = 2166136261;
     for (final c in name.toLowerCase().trim().codeUnits) {
@@ -108,11 +107,12 @@ class ActorService {
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  /// Returns the top cast for [item] (up to ~12 members).
+  /// Returns cast for [item] — up to 20 members for shows (via TVMaze),
+  /// up to ~10 for movies (via IMDB/OMDb + Wikipedia photos).
   ///
-  /// Checks SQLite cache first. On miss: searches IMDB, expands cast list
-  /// via OMDb (if key available), fetches photos from Wikipedia, saves to DB,
-  /// and kicks off background image downloads to internal storage.
+  /// Checks SQLite cache first. On miss: fetches from TVMaze (shows) or
+  /// IMDB+OMDb (movies), photos from Wikipedia, saves to DB, and kicks off
+  /// background image downloads to internal storage.
   static Future<List<CastMember>> getCastForTitle(CatalogItem item) async {
     final cached = await LocalDb.getCastRaw(item.id);
     if (cached.isNotEmpty) {
@@ -121,40 +121,24 @@ class ActorService {
     }
 
     try {
-      // Step 1 — resolve title → IMDB ID + initial star names (keyless)
-      final (imdbId, initialNames) = await _searchImdb(item);
-      if (imdbId == null && initialNames.isEmpty) return [];
+      List<Map<String, dynamic>> rows;
 
-      // Step 2 — extend cast list via OMDb if key is available; else use
-      //          the 2–3 names returned by the IMDB suggestion API
-      final List<String> actorNames;
-      if (_hasOmdb && imdbId != null) {
-        final omdbNames = await _fetchOmdbCast(imdbId);
-        actorNames = omdbNames.isNotEmpty ? omdbNames : initialNames;
+      if (item.isShow) {
+        // TV shows: TVMaze gives full cast with character names + photos
+        rows = await _fetchTvMazeCast(item.title);
       } else {
-        actorNames = initialNames;
+        rows = [];
       }
-      if (actorNames.isEmpty) return [];
 
-      // Step 3 — batch-fetch Wikipedia profile photos (single HTTP call)
-      final photos = await _fetchWikiPhotos(actorNames);
-
-      // Step 4 — build rows, persist to SQLite, start background downloads
-      final dir  = await _dir();
-      final rows = <Map<String, dynamic>>[];
-      for (var i = 0; i < actorNames.length; i++) {
-        final name = actorNames[i];
-        rows.add({
-          'person_id':    _nameToId(name),
-          'name':         name,
-          'character':    null,
-          'order_idx':    i,
-          'profile_url':  photos[name],
-          'profile_local': null,
-        });
+      // Fallback to IMDB/OMDb for movies or when TVMaze returns nothing
+      if (rows.isEmpty) {
+        rows = await _fetchImdbOmdbCast(item);
       }
+
+      if (rows.isEmpty) return [];
 
       await LocalDb.saveCastRaw(item.id, rows);
+      final dir = await _dir();
       final members = _hydrate(rows, dir);
       _downloadImages(rows, dir);
       return members;
@@ -168,13 +152,125 @@ class ActorService {
   static Future<List<CatalogItem>> getFilmography(int personId) =>
       LocalDb.getPersonTitles(personId);
 
+  /// Fetch a short biography for an actor from Wikipedia (1–2 sentences).
+  /// Returns null if not found or network error.
+  static Future<String?> getBio(String name) async {
+    try {
+      final r = await _dio.get(_wikiApi, queryParameters: {
+        'action':       'query',
+        'prop':         'extracts',
+        'exintro':      '1',
+        'exsentences':  '2',
+        'explaintext':  '1',
+        'titles':       name,
+        'format':       'json',
+        'formatversion':'2',
+      });
+      final d = r.data is String
+          ? jsonDecode(r.data as String) as Map
+          : r.data as Map;
+      final pages = (d['query']?['pages'] as List? ?? []);
+      if (pages.isEmpty) return null;
+      final extract = pages.first['extract'] as String?;
+      if (extract == null || extract.isEmpty || extract.startsWith('may refer to')) {
+        return null;
+      }
+      // Trim to 2 sentences max
+      final sentences = extract.split(RegExp(r'(?<=[.!?])\s+'));
+      return sentences.take(2).join(' ').trim();
+    } catch (e) {
+      if (kDebugMode) debugPrint('[ActorService] getBio error: $e');
+      return null;
+    }
+  }
+
+  // ── TVMaze Cast (TV Shows — free, full cast with character names) ──────────
+
+  /// Fetches full cast from TVMaze for a TV show.
+  /// Returns rows ready for SQLite insertion, including profile_url from TVMaze.
+  /// TVMaze provides character names and actor photos — no secondary fetch needed
+  /// for photos (though Wikipedia fallback is still tried for missing ones).
+  static Future<List<Map<String, dynamic>>> _fetchTvMazeCast(String title) async {
+    try {
+      final r = await _dio.get(
+        '$_tvMazeBase/singlesearch/shows',
+        queryParameters: {
+          'q':       title,
+          'embed':   'cast',
+        },
+        options: Options(validateStatus: (_) => true),
+      );
+      if (r.statusCode != 200) return [];
+      final d = r.data is String
+          ? jsonDecode(r.data as String) as Map
+          : r.data as Map;
+      final cast = (d['_embedded']?['cast'] as List? ?? []);
+      if (cast.isEmpty) return [];
+
+      final rows = <Map<String, dynamic>>[];
+      for (var i = 0; i < cast.length && i < 20; i++) {
+        final entry  = cast[i] as Map;
+        final person = entry['person'] as Map? ?? {};
+        final char   = entry['character'] as Map? ?? {};
+        final name   = person['name'] as String? ?? '';
+        if (name.isEmpty) continue;
+        final imgMap     = person['image'] as Map?;
+        final profileUrl = imgMap?['medium'] as String? ?? imgMap?['original'] as String?;
+        rows.add({
+          'person_id':    _nameToId(name),
+          'name':         name,
+          'character':    char['name'] as String?,
+          'order_idx':    i,
+          'profile_url':  profileUrl,
+          'profile_local': null,
+        });
+      }
+      return rows;
+    } catch (e) {
+      if (kDebugMode) debugPrint('[ActorService] TVMaze error: $e');
+      return [];
+    }
+  }
+
+  // ── IMDB + OMDb flow (movies + show fallback) ─────────────────────────────
+
+  static Future<List<Map<String, dynamic>>> _fetchImdbOmdbCast(
+      CatalogItem item) async {
+    // Step 1 — resolve title → IMDB ID + initial star names
+    final (imdbId, initialNames) = await _searchImdb(item);
+    if (imdbId == null && initialNames.isEmpty) return [];
+
+    // Step 2 — extend cast list via OMDb if key available
+    final List<String> actorNames;
+    if (_hasOmdb && imdbId != null) {
+      final omdbNames = await _fetchOmdbCast(imdbId);
+      actorNames = omdbNames.isNotEmpty ? omdbNames : initialNames;
+    } else {
+      actorNames = initialNames;
+    }
+    if (actorNames.isEmpty) return [];
+
+    // Step 3 — batch-fetch Wikipedia profile photos
+    final photos = await _fetchWikiPhotos(actorNames);
+
+    // Step 4 — build rows
+    final rows = <Map<String, dynamic>>[];
+    for (var i = 0; i < actorNames.length; i++) {
+      final name = actorNames[i];
+      rows.add({
+        'person_id':    _nameToId(name),
+        'name':         name,
+        'character':    null,
+        'order_idx':    i,
+        'profile_url':  photos[name],
+        'profile_local': null,
+      });
+    }
+    return rows;
+  }
+
   // ── IMDB Suggestion API (keyless) ─────────────────────────────────────────
 
-  /// Resolves [item] to an IMDB `tt` ID and returns the top-billed star names
-  /// from IMDB's own autocomplete endpoint.
-  ///
-  /// URL format: `https://v3.sg.media-imdb.com/suggestion/titles/{c}/{q}.json`
-  /// where {c} is the first character of the query (lowercase).
   static Future<(String?, List<String>)> _searchImdb(CatalogItem item) async {
     try {
       final query = item.title.trim();
@@ -191,7 +287,6 @@ class ActorService {
       final results = (d['d'] as List? ?? []);
       if (results.isEmpty) return (null, <String>[]);
 
-      // Prefer an entry whose year and type match our catalog item
       Map<String, dynamic>? best;
       for (final entry in results) {
         final e    = Map<String, dynamic>.from(entry as Map);
@@ -224,9 +319,6 @@ class ActorService {
 
   // ── OMDb Cast List (optional free key) ────────────────────────────────────
 
-  /// Fetches the cast list from OMDb using the IMDB title ID.
-  /// OMDb free tier: 1 000 requests/day. Key via `--dart-define=OMDB_API_KEY`.
-  /// Returns actor names as a list (OMDb provides up to ~4 top-billed actors).
   static Future<List<String>> _fetchOmdbCast(String imdbId) async {
     try {
       final r = await _dio.get(_omdbBase, queryParameters: {
@@ -251,16 +343,10 @@ class ActorService {
 
   // ── Wikipedia Batch Thumbnail Fetch (keyless) ─────────────────────────────
 
-  /// Fetches profile photo thumbnails for up to 50 actor names in a single
-  /// Wikipedia API call. Returns a map of {name → thumbnail URL}.
-  ///
-  /// Uses Wikipedia's `pageimages` prop with `formatversion=2` so the response
-  /// is an array (easier to iterate than the legacy keyed-by-pageid object).
   static Future<Map<String, String>> _fetchWikiPhotos(
       List<String> names) async {
     if (names.isEmpty) return {};
     try {
-      // Wikipedia supports up to 50 titles per query separated by |
       final batch = names.take(50).toList();
       final r = await _dio.get(_wikiApi, queryParameters: {
         'action':        'query',
@@ -281,7 +367,6 @@ class ActorService {
         final thumbUrl = page['thumbnail']?['source'] as String?;
         if (thumbUrl == null) continue;
         final pageTitle = page['title'] as String? ?? '';
-        // Match back to the original name (Wikipedia normalises capitalisation)
         final match = batch.firstWhere(
           (n) => n.toLowerCase() == pageTitle.toLowerCase(),
           orElse: () => '',
@@ -316,9 +401,6 @@ class ActorService {
 
   // ── Background image download ──────────────────────────────────────────────
 
-  /// Downloads actor profile images to app-private internal storage.
-  /// Runs in the background (microtask queue) — never blocks the UI.
-  /// Already-cached files are skipped. Failures are silent.
   static void _downloadImages(
       List<Map<String, dynamic>> rows, Directory dir) {
     Future.microtask(() async {

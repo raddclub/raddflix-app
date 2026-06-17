@@ -737,27 +737,106 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
   Widget _buildEmpty() {
     final hasQuery = _ctrl.text.isNotEmpty;
+    final hasFilters = _filters.hasAny;
     return Center(
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(hasQuery ? Icons.search_off_rounded : Icons.filter_alt_off_rounded,
-            size: 52, color: t.textMuted.withOpacity(0.4)),
-        const SizedBox(height: 12),
-        Text(
-          hasQuery
-              ? 'No results for "${_ctrl.text}"'
-              : 'No titles match these filters',
-          style: TextStyle(color: t.textMuted, fontSize: 15, fontWeight: FontWeight.w500),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 6),
-        if (_filters.hasAny)
-          TextButton(
-            onPressed: _clearAll,
-            child: const Text('Clear filters', style: TextStyle(color: AppColors.primary)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          // Illustrated icon container
+          Container(
+            width: 80, height: 80,
+            decoration: BoxDecoration(
+              color: t.surface,
+              shape: BoxShape.circle,
+              border: Border.all(color: t.border),
+            ),
+            child: Icon(
+              hasQuery
+                  ? Icons.search_off_rounded
+                  : Icons.filter_alt_off_rounded,
+              size: 36,
+              color: t.textMuted.withOpacity(0.6)),
           ),
-      ]).animate()
-        .fadeIn(duration: 320.ms)
-        .slideY(begin: 0.12, end: 0, duration: 320.ms, curve: Curves.easeOut),
+          const SizedBox(height: 16),
+          Text(
+            hasQuery
+                ? 'No results for'
+                : 'No titles match',
+            style: TextStyle(color: t.textMuted,
+                fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+          if (hasQuery) ...[
+            const SizedBox(height: 2),
+            Text(
+              '“${_ctrl.text}”',
+              style: TextStyle(color: t.textPrimary,
+                  fontSize: 18, fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ] else ...[
+            const SizedBox(height: 2),
+            Text('your current filters',
+                style: TextStyle(color: t.textPrimary,
+                    fontSize: 18, fontWeight: FontWeight.w800)),
+          ],
+          const SizedBox(height: 16),
+          // Suggestions
+          if (hasQuery) ...[
+            Text('Try a different title, actor name,
+or shorter keywords.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: t.textMuted, fontSize: 13, height: 1.5)),
+            const SizedBox(height: 20),
+            GestureDetector(
+              onTap: () {
+                _ctrl.clear();
+                setState(() {});
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: t.surface,
+                  borderRadius: BorderRadius.circular(AppRadius.round),
+                  border: Border.all(color: t.border),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.close_rounded, size: 14, color: t.textMuted),
+                  const SizedBox(width: 6),
+                  Text('Clear search',
+                      style: TextStyle(color: t.textSecondary,
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+                ]),
+              ),
+            ),
+          ],
+          if (hasFilters && !hasQuery) ...[
+            Text('Try adjusting or removing some filters.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: t.textMuted, fontSize: 13, height: 1.5)),
+            const SizedBox(height: 20),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              GestureDetector(
+                onTap: _clearAll,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    borderRadius: BorderRadius.circular(AppRadius.round),
+                  ),
+                  child: const Text('Clear all filters',
+                      style: TextStyle(color: Colors.white,
+                          fontSize: 13, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ]),
+          ],
+        ]).animate()
+          .fadeIn(duration: 320.ms)
+          .slideY(begin: 0.12, end: 0, duration: 320.ms, curve: Curves.easeOut),
+      ),
     );
   }
 
@@ -1124,3 +1203,4 @@ class _SnippetText extends StatelessWidget {
     );
   }
 }
+

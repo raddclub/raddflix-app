@@ -53,45 +53,67 @@ class _NavButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    // L-12: Semantics so screen readers announce tab name and active state
     return Semantics(
       label: item.label,
       hint: isActive ? 'currently selected tab' : 'activate',
       button: true,
       selected: isActive,
       child: GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: 72,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: 44, height: 30,
-            decoration: BoxDecoration(
-              color: isActive ? AppColors.primary.withOpacity(0.15) : Colors.transparent,
-              borderRadius: BorderRadius.circular(15),
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: 72,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            // Icon + animated pill background
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              width: isActive ? 52 : 44,
+              height: 30,
+              decoration: BoxDecoration(
+                color: isActive
+                    ? AppColors.primary.withOpacity(0.16)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: isActive
+                    ? [BoxShadow(
+                        color: AppColors.primary.withOpacity(0.18),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2))]
+                    : null,
+              ),
+              child: Icon(
+                isActive ? item.active : item.icon,
+                color: isActive ? AppColors.primary : t.textMuted,
+                size: 22,
+              ),
             ),
-            child: Icon(
-              isActive ? item.active : item.icon,
-              color: isActive ? AppColors.primary : t.textMuted,
-              size: 22,
+            const SizedBox(height: 3),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                color: isActive ? AppColors.primary : t.textMuted,
+                fontSize: 10,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
+              ),
+              child: Text(item.label),
             ),
-          ),
-          const SizedBox(height: 3),
-          AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 200),
-            style: TextStyle(
-              color: isActive ? AppColors.primary : t.textMuted,
-              fontSize: 10,
-              fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
+            // Active indicator dot
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              margin: const EdgeInsets.only(top: 3),
+              width: isActive ? 4 : 0,
+              height: isActive ? 4 : 0,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+              ),
             ),
-            child: Text(item.label),
-          ),
-        ]),
+          ]),
+        ),
       ),
-    ),
-  );
+    );
   }
 }
 
