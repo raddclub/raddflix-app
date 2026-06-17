@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'constants.dart';
 import 'api/api_client.dart';
+import 'debug/debug_logger.dart';
 
 /// Remote config loader for RaddFlix.
 ///

@@ -15,6 +15,7 @@ import '../providers/downloads_provider.dart';
 import '../providers/watchlist_provider.dart';
 import 'subscription_screen.dart';
 import '../widgets/cast_rail.dart';
+import '../core/debug/debug_logger.dart';
 
 class ShowDetailScreen extends ConsumerStatefulWidget {
   final CatalogItem item;
@@ -124,8 +125,6 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         }
       });
     }
-  }
-
     } catch (e) {
       DebugLogger.logError('DETAIL', 'Failed to load episodes', e);
       if (mounted) setState(() { _loading = false; });
