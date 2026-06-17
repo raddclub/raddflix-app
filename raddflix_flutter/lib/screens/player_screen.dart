@@ -2028,7 +2028,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // Smart skip intro: load saved position or show at 85s default
     _skipIntroTimer = Timer(const Duration(seconds: 5), () async {
-      if (!mounted) return;
+      if (!mounted || _isLocalFile) return; // FIX-LOCAL-UI: local media has no intro markers
       if (!SmartIntroStore.shouldShow(
           contentType: widget.contentType,
           totalDuration: _duration)) return;
@@ -2410,7 +2410,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String get _currentTitle {
     if (widget.episodes != null && widget.episodes!.isNotEmpty) {
       final ep = widget.episodes![_currentEpIdx];
-      return ep['label'] as String? ?? widget.title;
+      return ep['label'] as String? ?? ep['title'] as String? ?? widget.title;
     }
     return widget.title;
   }
@@ -2418,7 +2418,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String get _nextEpLabel {
     if (!_hasNextEp) return '';
     final ep = widget.episodes![_currentEpIdx + 1];
-    return ep['label'] as String? ?? 'Episode ${_currentEpIdx + 2}';
+    return ep['label'] as String? ?? ep['title'] as String? ?? 'Episode ${_currentEpIdx + 2}';
   }
 
   // ── Sleep Timer ───────────────────────────────────────────────────────────
@@ -4533,7 +4533,7 @@ class _ControlsOverlay extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (currentEp != null && totalEps != null)
+                      if (currentEp != null && totalEps != null && !isLocal)
                         Text('EP ${currentEp! + 1} / $totalEps',
                             style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w500)),
                       Text(title,
@@ -5492,7 +5492,7 @@ class _SleepPanel extends StatelessWidget {
     (label: '45 minutes', value: 45),
     (label: '1 hour',     value: 60),
     (label: '2 hours',    value: 120),
-    (label: 'End of episode', value: -1),
+    (label: 'End of video', value: -1),
   ];
 
   @override
@@ -5512,7 +5512,7 @@ class _SleepPanel extends StatelessWidget {
             child: Text(
               remaining != null
                 ? 'Stopping in ${remaining! ~/ 60}:${(remaining! % 60).toString().padLeft(2, '0')}'
-                : 'Pausing at episode end',
+                : 'Pausing at video end',
               style: const TextStyle(color: Colors.orange, fontSize: 12))),
           ListTile(dense: true,
             leading: const Icon(Icons.cancel_outlined, color: Colors.red, size: 18),
