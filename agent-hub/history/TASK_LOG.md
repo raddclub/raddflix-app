@@ -113,3 +113,54 @@ All three bugs shared a common thread: inadequate guards on operations that dest
 - JazzDrive: active (id=11)
 - APK build: TRIGGERED
 - Open tasks: none
+
+---
+
+## Session: 2026-06-17 (Part 2) — Feature Audit + Background Play + PiP Exit
+
+### Objective
+Complete audit of all features for mock/broken implementations, then fix all issues found.
+
+### Audit Results
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Background Play | ❌ → ✅ FIXED | No foreground service; Android killed process after ~1 min |
+| PiP exit handling | ❌ → ✅ FIXED | `_inPiP` never reset; controls permanently hidden after PiP |
+| PiP enter | ✅ Real | `MainActivity.kt` uses real `enterPictureInPictureMode` |
+| Chromecast | ✅ Real | Full Cast SDK + CastOptionsProvider.kt |
+| Downloads | ✅ Real | Real DownloadService, Riverpod provider |
+| Watchlist | ✅ Real | LocalDB-backed provider |
+| History | ✅ Real | HistoryApi + catalogProvider |
+| Search | ✅ Real | Real filter state + catalog queries |
+| Headphone unplug | ✅ Real | becomingNoisyEventStream in _initAudioSession |
+| Audio focus | ✅ Real | interruptionEventStream |
+| Security | ✅ Real | Frida/root/signature checks |
+
+### Fixes applied
+
+#### BUG-BGPLAY-FOREGROUND
+- **Root cause**: Android 8+ kills background processes without a foreground service with `FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK`, even if native audio threads are still running. AndroidManifest declared `com.ryanheise.audioservice.AudioService` which is from the `audio_service` package — but only `audio_session` (completely different package) is in pubspec.yaml. The service class did not exist in the APK.
+- **Fix A**: Created `PlaybackService.kt` — minimal foreground service that calls `startForeground()` with a media-style notification. `START_NOT_STICKY` — won't restart if OS kills it after player is gone.
+- **Fix B**: Added `startBgPlayback(title)` and `stopBgPlayback()` to PIP_CHANNEL in `MainActivity.kt`.
+- **Fix C**: `AndroidManifest.xml` — removed dead `com.ryanheise.audioservice.AudioService` entry; added real `.PlaybackService` with `foregroundServiceType="mediaPlayback"`; added `FOREGROUND_SERVICE_MEDIA_PLAYBACK` permission.
+- **Fix D**: `player_screen.dart`: `didChangeAppLifecycleState(paused+bgplay)` → `startBgPlayback`; `didChangeAppLifecycleState(resumed)` → `stopBgPlayback`; `dispose()` → `stopBgPlayback`.
+
+#### BUG-PIP-EXIT
+- **Root cause**: `_inPiP = true` set in `_enterPiP()` when entering system PiP. No corresponding code ever set `_inPiP = false`. Controls widget checks `!_inPiP` and hides itself when PiP is active — so after the first PiP session, controls NEVER appeared again.
+- **Fix A**: Added `onPictureInPictureModeChanged(isInPiP, config)` override in `MainActivity.kt`. When `isInPiP=false` (PiP exited), sends `onPipExited` event via MethodChannel on PIP_CHANNEL.
+- **Fix B**: Added `_initPipChannel()` method in `player_screen.dart`, called from `initState()`. Registers `_pipChannel.setMethodCallHandler` that handles `onPipExited` → `setState(() => _inPiP = false)`.
+
+### Files changed
+| File | Change |
+|------|--------|
+| `raddflix_flutter/android/app/src/main/kotlin/com/raddflix/app/PlaybackService.kt` | NEW — foreground service |
+| `raddflix_flutter/android/app/src/main/kotlin/com/raddflix/app/MainActivity.kt` | Added bg-service methods + onPictureInPictureModeChanged |
+| `raddflix_flutter/android/app/src/main/AndroidManifest.xml` | Removed dead AudioService, added PlaybackService + permission |
+| `raddflix_flutter/lib/screens/player_screen.dart` | _initPipChannel() + lifecycle + dispose |
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0
+- JazzDrive: active (id=11)
+- APK build: needs trigger
+- Open tasks: none
+
