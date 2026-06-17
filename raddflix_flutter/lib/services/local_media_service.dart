@@ -38,9 +38,15 @@ import 'dart:io';
         final prefs = await SharedPreferences.getInstance();
         final seen = prefs.getStringList(_seenKey) ?? [];
 
-        final videos = raw.map((item) {
-          final m = Map<String, dynamic>.from(item as Map);
-          return LocalVideo(
+        // await not allowed inside .map() — resolve all subtitle paths first
+        final maps = raw.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+        final subtitlePaths = await Future.wait(
+          maps.map((m) => _findSubtitlePath(m['file_path'] as String? ?? '')),
+        );
+        final videos = <LocalVideo>[];
+        for (int i = 0; i < maps.length; i++) {
+          final m = maps[i];
+          final v = LocalVideo(
             id:             m['id'] as int? ?? 0,
             title:          m['title'] as String? ?? '',
             displayName:    m['display_name'] as String? ?? '',
@@ -53,9 +59,10 @@ import 'dart:io';
             height:         m['height'] as int? ?? 0,
             dateModifiedMs: (m['date_modified'] as int? ?? 0) * 1000,
             mimeType:       m['mime_type'] as String?,
-            subtitlePath:   await _findSubtitlePath(m['file_path'] as String? ?? ''),
+            subtitlePath:   subtitlePaths[i],
           );
-        }).where((v) => v.durationMs > 0 && v.sizeBytes > 50 * 1024).toList();
+          if (v.durationMs > 0 && v.sizeBytes > 50 * 1024) videos.add(v);
+        }
 
         return videos;
       } on PlatformException catch (e) {
