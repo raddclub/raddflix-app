@@ -1,12 +1,12 @@
 # RaddFlix Agent Handoff
-Updated: 2026-06-18 | Flask running port 5000 at /opt/jazzmax/radd-hub
+Updated: 2026-06-18 (FIX-VF-BLACKSCREEN) | Flask running port 5000 at /opt/jazzmax/radd-hub
 
 ## Current System State
 - **Oracle Flask:** RUNNING — `{"ok":true,"version":"3.0.0"}`
 - **Account id=11** (03257719165): VK ✅ JID ✅ raw_accesstoken ✅ (40 hex chars) refresh_token ✅
 - **JazzDrive chain:** PROVEN — full login→media→CDN chain tested with real video bytes (HTTP 206, ftyp isom confirmed 2026-06-16)
 - **Proxy pool:** 150+ active proxies, all healthy (fail_count=0)
-- **Flutter app: All known bugs fixed. Player UX improved (8 features + icon compat fix). APK builds green — last success run#1100 commit 91e52dc.
+- **Flutter app: All known bugs fixed including FIX-VF-BLACKSCREEN (month-long blank screen root cause). Player UX improved (8 features + icon compat fix). APK builds green — last success run#1099/1100 commit 91e52dc. FIX-VF-BLACKSCREEN at commit cd241fc (build not yet triggered).
 - **Debug screen:** Live in release builds — tap version text 5× in Profile to open
 
 ---
