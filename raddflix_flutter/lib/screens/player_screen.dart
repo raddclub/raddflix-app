@@ -4895,7 +4895,7 @@ class _ControlsOverlay extends StatelessWidget {
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.replay_15,
+                        icon: const Icon(Icons.replay_10,
                             color: Colors.white, size: 22),
                         onPressed: onSeekBack,
                         padding: const EdgeInsets.all(6),
@@ -4919,7 +4919,7 @@ class _ControlsOverlay extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       IconButton(
-                        icon: const Icon(Icons.forward_15,
+                        icon: const Icon(Icons.forward_10,
                             color: Colors.white, size: 22),
                         onPressed: onSeekForward,
                         padding: const EdgeInsets.all(6),
