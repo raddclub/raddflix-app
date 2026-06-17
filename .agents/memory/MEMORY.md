@@ -15,3 +15,5 @@
 - [No new features rule](no-new-features.md) — never suggest features; user is burnt out; only fix bugs
 - [Catalog sync stale IDs](catalog-sync.md) — after DB rebuild, always force-version-bump or Flutter keeps stale data
 - [OTP VK missing bug](jazzdrive-session-vk.md) — jazzdrive_verify_otp returns early with JID but no VK; fix: call mobile_direct_verify_otp for VK after OAuth2; keytype=otp is geo-unrestricted
+- [Player sidebar iconsOnly pattern](player-sidebar-ux.md) — _MxSideBtn iconsOnly param; sidebarMode 0/1/2 persisted; _clockTimer must be cancelled in dispose
+- [Speed picker horizontal track](player-sidebar-ux.md) — _SpeedTrackPanel replaces _SpeedPanel; anchor for _SpeedPanel class spans 22 lines exactly
