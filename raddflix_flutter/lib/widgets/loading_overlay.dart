@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../core/theme/radd_theme.dart';
 import '../core/constants.dart';
 
@@ -16,28 +17,73 @@ class LoadingOverlay extends StatelessWidget {
       if (loading)
         Positioned.fill(
           child: Container(
-            color: Colors.black54,
+            color: Colors.black.withOpacity(0.58),
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
                 decoration: BoxDecoration(
                   color: t.surface,
                   borderRadius: BorderRadius.circular(AppRadius.lg),
                   boxShadow: AppShadows.elevated,
+                  border: Border.all(color: AppColors.primary.withOpacity(0.18)),
                 ),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                    strokeCap: StrokeCap.round,
+                  // Pulse ring + spinner stack
+                  SizedBox(
+                    width: 60, height: 60,
+                    child: Stack(alignment: Alignment.center, children: [
+                      // Outer pulse ring — animates outward and fades
+                      Container(
+                        width: 52, height: 52,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.primary.withOpacity(0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                      ).animate(onPlay: (c) => c.repeat())
+                       .scale(
+                         begin: const Offset(1.0, 1.0),
+                         end: const Offset(1.45, 1.45),
+                         duration: 950.ms,
+                         curve: Curves.easeOut,
+                       )
+                       .fadeOut(duration: 950.ms),
+                      // Spinner
+                      SizedBox(
+                        width: 36, height: 36,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                          strokeCap: StrokeCap.round,
+                        ),
+                      ),
+                    ]),
                   ),
                   if (message != null) ...[
-                    SizedBox(height: 14),
-                    Text(message!, style: TextStyle(
-                        color: t.textSecondary, fontSize: 13)),
+                    const SizedBox(height: 16),
+                    Text(
+                      message!,
+                      style: TextStyle(
+                        color: t.textSecondary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ],
                 ]),
-              ),
+              )
+              // Card entrance: scale up from 0.88 + fade in
+              .animate()
+              .scale(
+                begin: const Offset(0.88, 0.88),
+                end: const Offset(1.0, 1.0),
+                duration: 220.ms,
+                curve: Curves.easeOut,
+              )
+              .fadeIn(duration: 200.ms),
             ),
           ),
         ),
