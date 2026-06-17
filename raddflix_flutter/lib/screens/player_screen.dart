@@ -2194,7 +2194,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       final quota = await UsageService.getCachedQuota();
 
-      // Plan expiry check — enforced for streaming AND local vault downloads.
+      // BUG-QUOTA-01 FIX: local files (gallery videos, vault downloads) must
+      // bypass ALL quota and plan-expiry enforcement — the user owns the file
+      // on-device and no subscription is needed to play it. Guard moved here,
+      // before the expiry gate, so an expired-plan user is never incorrectly
+      // redirected to planExpired while watching a downloaded episode.
+      if (_isLocalFile) return;
+
+      // Plan expiry check — enforced for streaming only.
       // FIX-M08: was localPath-only, allowing streaming users with expired plans to
       // watch indefinitely. Now covers all Oracle fileIds (excludes gallery = fileId=''
       // and raw device paths content:// /).
@@ -2211,9 +2218,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           }
         }
       }
-
-      // Local files never count against data quota — skip allowed check
-      if (_isLocalFile) return;
 
       if (quota['allowed'] == false) {
         WidgetsBinding.instance.addPostFrameCallback((_) {

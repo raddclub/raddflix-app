@@ -62,6 +62,9 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     // Prefer stored content_type if available (set at download time)
     final ct = m['content_type'] as String?;
     if (ct == 'show' || ct == 'series' || ct == 'tv') return 'TV Shows';
+    // BUG-FOLDER-01 FIX: handle legacy raw content_type values written before
+    // CatalogItem.mediaType normalisation locked values to 'show'/'movie'.
+    if (ct == 'anime' || ct == 'cartoon' || ct == 'donghua') return 'TV Shows';
     if (ct == 'drama') return 'Dramas';
     if (ct == 'movie') return 'Movies';
     // Fallback: heuristic on title

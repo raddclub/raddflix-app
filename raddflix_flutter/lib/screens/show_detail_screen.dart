@@ -516,6 +516,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                     titleText: widget.item.title,
                                     streamUrl: widget.item.shareUrl ?? '',
                                     posterUrl: widget.item.posterUrl,
+                                    contentType: widget.item.mediaType,
                                   );
                                 } on DownloadQuotaException catch (e) {
                                   if (context.mounted) _showQuotaError(context, e.userMessage);
@@ -853,6 +854,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                     posterUrl: widget.item.posterUrl,
                                     targetFilename: ep['filename'] as String?,
                                     remoteId: ep['remote_id'] as int? ?? 0,
+                                    contentType: widget.item.mediaType,
                                   );
                                 } on DownloadQuotaException catch (e) {
                                   if (context.mounted) _showQuotaError(context, e.userMessage);
