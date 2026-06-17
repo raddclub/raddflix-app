@@ -100,7 +100,10 @@ static Future<Map<String, dynamic>> diagnosticTest({
 })
 ```
 
-**Do NOT re-add `kDebugMode` gate** to `DebugDiagnosticsScreen` — it is intentionally release-accessible. See `BUG_TRACKER.md` Critical Rules.
+| Background play foreground service | When `_bgPlayEnabled=true` and app goes to background, `startBgPlayback` is invoked via pip channel → starts `PlaybackService` (foreground, mediaPlayback type). On resume or dispose, `stopBgPlayback` stops the service. Never start the service when bgplay is OFF. |
+| PiP exit detection | `MainActivity.onPictureInPictureModeChanged(false)` sends `onPipExited` via PIP channel. Flutter `_initPipChannel()` handler sets `_inPiP=false`. This is the ONLY place `_inPiP` is reset. |
+| audio_session vs audio_service | Only `audio_session` is in pubspec (handles audio focus). The `audio_service` package (foreground service) is NOT and was never added. Background process survival uses our own `PlaybackService.kt`, not any Flutter package. |
+| **Do NOT re-add `kDebugMode` gate** to `DebugDiagnosticsScreen` — it is intentionally release-accessible. See `BUG_TRACKER.md` Critical Rules.
 
 ---
 
