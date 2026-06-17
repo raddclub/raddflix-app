@@ -164,3 +164,51 @@ Complete audit of all features for mock/broken implementations, then fix all iss
 - APK build: needs trigger
 - Open tasks: none
 
+
+---
+
+## Session 2026-06-17-C — Blank/Dark Screen Bug Fix (3-fix commit efb3319)
+
+### Task
+Find and fix the persistent blank/dark screen bug in the video player.
+Symptoms: player display goes blank/dark, no gestures work, audio continues.
+Triggers: during normal playback AND during long-press (fast-forward).
+Does NOT occur if user opens Settings or another tab immediately after opening the player.
+
+### Root Causes Identified
+
+**RC-1: `_videoSurfaceReady` latch fires too late (startup race)**
+- `VideoController(_player, ...)` establishes the Android GL surface on construction (~20ms into initState)
+- `_videoSurfaceReady` only latches to `true` on first `playing=true` stream event (could be seconds later)
+- `_loadPrefs()` completes ~10ms after initState, then `_applyAudioPrefs` fires after 60ms debounce → at t=70ms
+- At t=70ms: `!_playing=true`, `!state.playing=true`, `duration=zero=true`, `!_videoSurfaceReady=true` → ALL guard conditions pass
+- `hwdec` is changed while the GL surface is already live → surface destroyed → permanent blank screen
+- This is why opening Settings "fixes" it: the resulting setState/rebuild re-registers the surface with MPV
+
+**RC-2: `_setSpeed` command channel race**
+- `_np.setProperty('framedrop', ...)` sends via NativePlayer channel
+- `_player.setRate(s)` sends via separate Dart API path (Player → GeneratedPlayer → platform channel)
+- These CAN arrive at MPV out of order: setRate can be processed before framedrop
+- HW decoder receives >1× rate change without framedrop protection → MediaCodec crashes → blank screen
+
+**RC-3: Long-press recovery too short and incomplete**
+- `onLongPressEnd` seeks to current position after only 80ms
+- MPV hasn't fully stabilised at 1× speed in 80ms — frame buffer still draining
+- No re-assertion of `framedrop=vo` before recovery seek
+
+### Fixes Applied
+
+| Fix | Location | Change |
+|-----|----------|--------|
+| FIX-SURFACE-RACE | `_initPlayer()` after VideoController ctor | `_videoSurfaceReady = true` immediately after VideoController construction (not waiting for first playing=true event) |
+| FIX-SPEED-CHANNEL | `_setSpeed()` | Replaced `_player.setRate(s)` with `_np.setProperty('speed', s.toStringAsFixed(4))` — both framedrop and speed now go through same NativePlayer channel, guaranteeing in-order delivery |
+| FIX-BLACKSCREEN-LP | `onLongPressEnd` | Increased delay 80ms→200ms; added explicit `_np.setProperty('framedrop', 'vo')` before recovery seek |
+
+### Commit
+- `efb3319fd6c09007854d671b3eb08830156358f4` on main — `fix: close blank-screen race (3 fixes)`
+- File: `raddflix_flutter/lib/screens/player_screen.dart`
+
+### State at End of Session
+- Oracle Flask: not checked this session (not needed)
+- All three blank-screen root causes closed
+- APK build: needs trigger
