@@ -6,7 +6,7 @@ Updated: 2026-06-17 | Flask running port 5000 at /opt/jazzmax/radd-hub
 - **Account id=11** (03257719165): VK ✅ JID ✅ raw_accesstoken ✅ (40 hex chars) refresh_token ✅
 - **JazzDrive chain:** PROVEN — full login→media→CDN chain tested with real video bytes (HTTP 206, ftyp isom confirmed 2026-06-16)
 - **Proxy pool:** 150+ active proxies, all healthy (fail_count=0)
-- **Flutter app:** All known bugs fixed (incl. blank/dark screen — 3-fix commit efb3319). Latest APK: build 1068; new APK build needed for blank-screen fixes.
+- **Flutter app:** All known bugs fixed. Player UX improved (8 features, commits 01fc775f + bd75f9d6). APK build needed for new features.
 - **Debug screen:** Live in release builds — tap version text 5× in Profile to open
 
 ---
@@ -100,6 +100,9 @@ static Future<Map<String, dynamic>> diagnosticTest({
 })
 ```
 
+| Player UX — floating ball | White 40px circle visible when controls hidden. Tap=show controls, drag=reposition. State: `_ballOffset`, `_sidebarMode`, `_clockStr`, `_clockTimer`. |
+| Player sidebar 3-state | Chevron at top of right rail: full(58px)→icons-only(40px)→hidden. Persisted in `PlayerPrefs.sidebarMode`. All 11 `_MxSideBtn` calls use `iconsOnly: sidebarMode==1`. |
+| Speed picker → horizontal track | `_SpeedPanel` (right-side list) replaced by `_SpeedTrackPanel` (top bar). Active=13px #4DB6FF dot; inactive=7px white38. |
 | Background play foreground service | When `_bgPlayEnabled=true` and app goes to background, `startBgPlayback` is invoked via pip channel → starts `PlaybackService` (foreground, mediaPlayback type). On resume or dispose, `stopBgPlayback` stops the service. Never start the service when bgplay is OFF. |
 | PiP exit detection | `MainActivity.onPictureInPictureModeChanged(false)` sends `onPipExited` via PIP channel. Flutter `_initPipChannel()` handler sets `_inPiP=false`. This is the ONLY place `_inPiP` is reset. |
 | audio_session vs audio_service | Only `audio_session` is in pubspec (handles audio focus). The `audio_service` package (foreground service) is NOT and was never added. Background process survival uses our own `PlaybackService.kt`, not any Flutter package. |
