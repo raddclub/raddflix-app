@@ -3,3 +3,4 @@
 - [jazzdrive.py Android client](jazzdrive-android-client.md) — headers, device fingerprint, OAuth credentials, suspension protection patterns
 - [Account suspension fixes](suspension-fixes.md) — what caused suspensions and what was fixed across sessions
 - [Session Guardian](session-guardian.md) — 45-min read-only probe, WA alerts, expiry countdown in UI, smart 401 alert
+- [Player UX 3-state sidebar](player-ux-sidebar.md) — sidebarMode 0/1/2; iconsOnly _MxSideBtn; _SpeedTrackPanel anchor; _clockTimer dispose pattern
