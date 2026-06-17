@@ -394,6 +394,16 @@ class JazzDriveService {
       }
     }
 
+    // FIX-JSESSIONID: if JSESSIONID is missing from both JSON body and Set-Cookie
+    // the subsequent /sapi/media/video call will hit a different node with no
+    // session and return a 401 / HTML page. Fail fast with a clear message so
+    // _buildJazzError can classify it correctly instead of showing a confusing error.
+    if (cookie.isEmpty) {
+      throw Exception(
+          'JazzDrive login: no session cookie (JSESSIONID) in response — '
+          'try again on Jazz SIM data');
+    }
+
     return _ShareSession(validationKey: vk, cookie: cookie);
   }
 
@@ -521,6 +531,13 @@ class JazzDriveService {
 
     final rawUrl  = (rec['url'] ?? rec['downloadUrl'] ?? rec['download_url'] ?? '') as String;
     final filename = (rec['name'] ?? rec['filename'] ?? 'video.mkv') as String;
+
+    // FIX-EMPTY-URL: a record with no download URL would produce a broken
+    // stream URL like "?filename=..." that MPV silently fails on, wasting the
+    // auto-retry budget. Throw early with a clear message instead.
+    if (rawUrl.isEmpty) {
+      throw Exception('JazzDrive: file "$filename" has no download URL in share');
+    }
 
     // Extract poster from thumbnails[]
     final thumbs = (rec['thumbnails'] as List<dynamic>?) ?? [];

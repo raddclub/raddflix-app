@@ -1699,8 +1699,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// Equivalent of "delete cookies + reload" in a browser.
   void _jazzAutoRetry(String reason) {
     if (_jazzRetryCount >= 1) {
-      // Already retried once — show error overlay
-      if (mounted) setState(() => _streamError = reason);
+      // Already retried once — show error overlay with a human-readable message.
+      // FIX-RETRY-MSG: route through _buildJazzError so raw MPV/network error
+      // strings (e.g. "Failed to open url") are never shown directly to the user.
+      if (mounted) setState(() => _streamError = _buildJazzError(reason));
       return;
     }
     _jazzRetryCount++;
@@ -1918,11 +1920,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (effectiveLocalPath != null) {
       _currentPlaybackUrl = effectiveLocalPath;
       await _player.open(Media(effectiveLocalPath));
-      setState(() { _ended = false; _position = Duration.zero; });
+      // FIX-STALE-ERR: clear any stale error overlay when opening new media
+      if (mounted) setState(() { _streamError = null; _ended = false; _position = Duration.zero; });
       return;
     }
 
-    if (mounted) setState(() => _isLinkLoading = true);
+    // FIX-STALE-ERR: clear stale error AND show spinner in one setState —
+    // prevents the old error overlay from showing while link generation runs.
+    if (mounted) setState(() { _streamError = null; _isLinkLoading = true; });
 
     // Step 0.5: Read inline share_url from route args BEFORE any await
     // (BuildContext is only safe to use synchronously before first await)
@@ -2024,13 +2029,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (raw.contains('HTTP ')) {
       return 'JazzDrive returned an error. Try again or check your connection.';
     }
+    // HTML page served instead of JSON — session expired or not on Jazz SIM
+    if (raw.contains('HTML response') || raw.contains('HTML page') ||
+        raw.contains('session cookie')) {
+      return 'Jazz SIM data required. Make sure you are using Jazz mobile data, then try again.';
+    }
+    // CDN stream content error (MPV got an XML/HTML error page instead of video)
+    if (raw.contains('XML error page') || raw.contains('non-video content')) {
+      return 'Stream error. Tap retry — if it keeps happening, resync in Settings → Sync Catalog.';
+    }
     // Network timeouts
     if (raw.toLowerCase().contains('timeout') ||
         raw.toLowerCase().contains('socketexception') ||
         raw.toLowerCase().contains('connection refused')) {
       return 'Connection timed out. Check your data connection and try again.';
     }
-    // Generic fallback
+    // Generic fallback (also covers raw MPV errors like "Failed to open url")
     return 'Could not connect to JazzDrive. Make sure you are on Jazz SIM data.';
   }
 
