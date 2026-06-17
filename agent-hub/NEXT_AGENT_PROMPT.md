@@ -51,13 +51,14 @@ curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub
 
 ---
 
-## Current System State (as of 2026-06-16 — post blank-screen fix)
+## Current System State (as of 2026-06-17 — post player UX session)
 
 | Component | State |
 |-----------|-------|
 | Oracle Flask | ✅ RUNNING (raddflix_radd, port 5000) |
 | v3 DB | ✅ 17 titles / 28 files — all Live (`is_published=1`) |
-| Flutter APK | ✅ Build 1058 in progress — blank screen + seek bar fixed (commit 3b56547) |
+| Flutter APK | ✅ Build needed — player UX improvements pushed (commits 01fc775f, bd75f9d6) |
+| Player UX | ✅ 8 improvements: floating ball, sidebar 3-state, clock, speed track, side panels, auto-rotate |
 | Library UI | ✅ Publish All / Unpublish All / bulk controls / bulk delete working |
 | Admin UI | ✅ All confirm()/prompt() replaced with two-step arm+fire toasts |
 | Scan UI | ✅ Excluded folders remove — error toast added; role change two-step |
