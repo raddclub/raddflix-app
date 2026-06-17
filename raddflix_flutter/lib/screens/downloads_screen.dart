@@ -8,6 +8,7 @@ import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../providers/downloads_provider.dart';
 import '../services/thumb_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 enum _SortMode { name, size, date }
 enum _FilterMode { all, completed, downloading, failed }
@@ -75,6 +76,21 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         title.contains('series') || title.contains('show')) return 'TV Shows';
     return 'Movies';
   }
+
+  /// Extracts show title from episode titles like "Show Name S01E01".
+  String _showTitleFrom(String text) {
+    final m = RegExp(r'\s+[Ss]\d{2}[Ee]\d{2}').firstMatch(text);
+    if (m != null) return text.substring(0, m.start).trim();
+    return text;
+  }
+
+  /// Total stored bytes for all items in a named folder.
+  int _totalSizeForFolder(List<Map<String, dynamic>> all, String folder) =>
+      all.where((d) => _folderFor(d) == folder)
+          .fold<int>(0, (s, d) => s + _size(d));
+
+  /// Poster URL stored at download time (may be null/empty).
+  String? _posterUrl(Map m) => m['poster_url'] as String?;
 
   List<Map<String, dynamic>> _applyFilter(List<Map<String, dynamic>> items) {
     switch (_filter) {
@@ -363,6 +379,9 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 SizedBox(height: 2),
                 Text(count == 0 ? 'Empty' : '$count video${count == 1 ? '' : 's'}',
                     style: TextStyle(color: t.textMuted, fontSize: 11)),
+                if (count > 0) ...[SizedBox(height: 2),
+                  Text(_fmtSize(_totalSizeForFolder(state.downloads, folder)),
+                      style: TextStyle(color: t.textMuted, fontSize: 10))],
               ]),
             ),
           ),
@@ -387,7 +406,73 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       ]));
     }
 
+    // TV Shows: group episodes by show title for a cleaner browsing experience
+    if (_activeFolder == 'TV Shows') return _groupedTvView(items, state);
     return _view == _ViewMode.grid ? _gridView(items, state) : _listView(items, state);
+  }
+
+  Widget _groupedTvView(List<Map<String, dynamic>> items, DownloadsState state) {
+    // Group flat episode list by extracted show title
+    final groups = <String, List<Map<String, dynamic>>>{};
+    for (final d in items) {
+      groups.putIfAbsent(_showTitleFrom(_title(d)), () => []).add(d);
+    }
+    final showNames = groups.keys.toList()..sort();
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+      physics: const BouncingScrollPhysics(),
+      itemCount: showNames.length,
+      itemBuilder: (_, i) {
+        final show = showNames[i];
+        final eps  = groups[show]!;
+        eps.sort((a, b) => _title(a).compareTo(_title(b)));
+        final poster = _posterUrl(eps.first);
+        final total  = eps.fold<int>(0, (s, d) => s + _size(d));
+        final done   = eps.where(_isComplete).length;
+        final active = eps.where(_isDownloading).length;
+        return _ShowGroup(
+          showName:    show,
+          episodes:    eps,
+          posterUrl:   poster,
+          totalSize:   _fmtSize(total),
+          doneCount:   done,
+          totalCount:  eps.length,
+          activeCount: active,
+          activeProgress: state.activeProgress,
+          isSelecting: _selecting,
+          selected:    _selected,
+          onTapEp:     (d) {
+            final id = _id(d);
+            if (_selecting) {
+              setState(() {
+                _selected.contains(id) ? _selected.remove(id) : _selected.add(id);
+              });
+            } else if (_isComplete(d)) {
+              final doneEps = eps.where(_isComplete).toList();
+              final epIdx   = doneEps.indexOf(d);
+              final epList  = doneEps.asMap().entries.map((e) => <String, dynamic>{
+                'file_id':    _id(e.value),
+                'local_path': _path(e.value),
+                'label':      _title(e.value),
+                'episode':    e.key,
+              }).toList();
+              Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
+                'file_id':      id,
+                'title':        _title(d),
+                'local_path':   _path(d),
+                'episodes':     epList,
+                'episode_index': epIdx < 0 ? 0 : epIdx,
+                'content_type': d['content_type'] as String? ?? 'show',
+              });
+            }
+          },
+          onDeleteEp:  (d) => _deleteOne(_id(d), _title(d)),
+          onLongPress: (d) => setState(() {
+            _selecting = true; _selected.add(_id(d));
+          }),
+        ).animate(delay: (i * 50).ms).fadeIn(duration: 280.ms);
+      },
+    );
   }
 
   Widget _gridView(List<Map<String, dynamic>> items, DownloadsState state) {
@@ -422,6 +507,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
           onDelete: () => _deleteOne(id, _title(d)),
           localPath: _path(d),
+          posterUrl: _posterUrl(d),
         ).animate(delay: (i * 30).ms).fadeIn(duration: 250.ms);
       },
     );
@@ -457,6 +543,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
           onDelete: () => _deleteOne(id, _title(d)),
           localPath: _path(d),
+          posterUrl: _posterUrl(d),
         ).animate(delay: (i * 30).ms).fadeIn(duration: 250.ms)
             .slideX(begin: 0.1, end: 0, duration: 250.ms, curve: AppCurves.standard);
       },
@@ -515,6 +602,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
 // ── Download Card (Grid) ────────────────────────���─────────────────────────────
 class _DownloadCard extends StatefulWidget {
   final String title, sizeStr, statusStr, localPath;
+  final String? posterUrl;
   final double progress;
   final bool isActive, isComplete, isSelected, isSelecting;
   final VoidCallback onTap, onLongPress, onDelete;
@@ -522,7 +610,7 @@ class _DownloadCard extends StatefulWidget {
       required this.statusStr, required this.progress, required this.isActive,
       required this.isComplete, required this.isSelected, required this.isSelecting,
       required this.onTap, required this.onLongPress, required this.onDelete,
-      this.localPath = ''});
+      this.localPath = '', this.posterUrl});
   @override State<_DownloadCard> createState() => _DownloadCardState();
 }
 class _DownloadCardState extends State<_DownloadCard> {
@@ -555,9 +643,16 @@ class _DownloadCardState extends State<_DownloadCard> {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.sm - 1)),
               child: _thumb != null
                 ? Image.memory(_thumb!, fit: BoxFit.cover)
-                : Container(color: t.card,
-                    child: Center(child: Icon(Icons.movie_outlined,
-                        color: t.textMuted, size: 36)))),
+                : (widget.posterUrl != null && widget.posterUrl!.isNotEmpty)
+                    ? CachedNetworkImage(
+                        imageUrl: widget.posterUrl!,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(color: t.card,
+                            child: Center(child: Icon(Icons.movie_outlined,
+                                color: t.textMuted, size: 36))))
+                    : Container(color: t.card,
+                        child: Center(child: Icon(Icons.movie_outlined,
+                            color: t.textMuted, size: 36)))),
             // Play overlay
             if (widget.isComplete && !widget.isSelecting)
               Center(child: Container(
@@ -624,6 +719,7 @@ class _DownloadCardState extends State<_DownloadCard> {
 class _DownloadListTile extends StatefulWidget {
   final String title, sizeStr, statusStr;
   final String localPath;
+  final String? posterUrl;
   final double progress;
   final bool isActive, isComplete, isSelected, isSelecting;
   final VoidCallback onTap, onLongPress, onDelete;
@@ -631,7 +727,7 @@ class _DownloadListTile extends StatefulWidget {
       required this.statusStr, required this.progress, required this.isActive,
       required this.isComplete, required this.isSelected, required this.isSelecting,
       required this.onTap, required this.onLongPress, required this.onDelete,
-      this.localPath = ''});
+      this.localPath = '', this.posterUrl});
   @override State<_DownloadListTile> createState() => _DownloadListTileState();
 }
 class _DownloadListTileState extends State<_DownloadListTile> {
@@ -668,7 +764,12 @@ class _DownloadListTileState extends State<_DownloadListTile> {
             child: Stack(fit: StackFit.expand, children: [
               _thumb != null
                 ? Image.memory(_thumb!, fit: BoxFit.cover)
-                : Center(child: Icon(Icons.movie_outlined, color: t.textMuted, size: 24)),
+                : (widget.posterUrl != null && widget.posterUrl!.isNotEmpty)
+                    ? CachedNetworkImage(imageUrl: widget.posterUrl!,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) =>
+                            Center(child: Icon(Icons.movie_outlined, color: t.textMuted, size: 24)))
+                    : Center(child: Icon(Icons.movie_outlined, color: t.textMuted, size: 24)),
               if (widget.isComplete && !widget.isSelecting)
                 Center(child: Container(width: 24, height: 24,
                     decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black54),
@@ -716,5 +817,206 @@ class _DownloadListTileState extends State<_DownloadListTile> {
         ]),
       ),
     );
+  }
+}
+
+// ── Grouped TV show row in Downloads screen ─────────────────────────────────
+class _ShowGroup extends StatefulWidget {
+  final String showName;
+  final List<Map<String, dynamic>> episodes;
+  final String? posterUrl;
+  final String totalSize;
+  final int doneCount, totalCount, activeCount;
+  final Map<String, double> activeProgress;
+  final bool isSelecting;
+  final Set<String> selected;
+  final void Function(Map) onTapEp;
+  final void Function(Map) onDeleteEp;
+  final void Function(Map) onLongPress;
+  const _ShowGroup({
+    required this.showName, required this.episodes, this.posterUrl,
+    required this.totalSize, required this.doneCount, required this.totalCount,
+    required this.activeCount, required this.activeProgress,
+    required this.isSelecting, required this.selected,
+    required this.onTapEp, required this.onDeleteEp, required this.onLongPress,
+  });
+  @override State<_ShowGroup> createState() => _ShowGroupState();
+}
+
+class _ShowGroupState extends State<_ShowGroup> {
+  bool _expanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: t.border, width: 0.5),
+        boxShadow: [BoxShadow(
+            color: Colors.black.withOpacity(0.07),
+            blurRadius: 14, offset: const Offset(0, 4))],
+      ),
+      child: Column(children: [
+        // ── Show header row ──────────────────────────────────────────────
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.md)),
+          child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+            // Poster
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(width: 50, height: 70,
+                child: (widget.posterUrl != null && widget.posterUrl!.isNotEmpty)
+                    ? CachedNetworkImage(imageUrl: widget.posterUrl!, fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(color: t.card,
+                            child: Icon(Icons.tv_rounded, color: t.textMuted, size: 22)))
+                    : Container(color: t.card,
+                        child: Icon(Icons.tv_rounded, color: t.textMuted, size: 22))),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(widget.showName, maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: t.textPrimary, fontSize: 14,
+                      fontWeight: FontWeight.w700, height: 1.3)),
+              const SizedBox(height: 6),
+              Wrap(spacing: 6, runSpacing: 4, children: [
+                _pill('${widget.doneCount}/${widget.totalCount} eps', AppColors.primary),
+                _pill(widget.totalSize, t.textMuted),
+                if (widget.activeCount > 0)
+                  _pill('↓ ${widget.activeCount} loading', const Color(0xFF22C55E)),
+              ]),
+              const SizedBox(height: 8),
+              // Progress bar: X of Y episodes complete
+              ClipRRect(borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: widget.totalCount > 0 ? widget.doneCount / widget.totalCount : 0.0,
+                  backgroundColor: t.card,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                      widget.doneCount == widget.totalCount
+                          ? const Color(0xFF22C55E) : AppColors.primary),
+                  minHeight: 4)),
+            ])),
+            const SizedBox(width: 8),
+            Icon(_expanded
+                ? Icons.keyboard_arrow_up_rounded
+                : Icons.keyboard_arrow_down_rounded,
+                color: t.textMuted, size: 22),
+          ])),
+        ),
+        // ── Episode rows ─────────────────────────────────────────────────
+        if (_expanded) ...[
+          Divider(height: 1, indent: 0, endIndent: 0, color: t.border.withOpacity(0.5)),
+          ...widget.episodes.asMap().entries.map((entry) {
+            final ep       = entry.value;
+            final id       = ep['file_id'] as String? ?? '';
+            final titleTxt = ep['title_text'] as String? ?? 'Unknown';
+            final status   = ep['status'] as String? ?? 'pending';
+            final isComp   = status == 'completed';
+            final isAct    = widget.activeProgress.containsKey(id);
+            final prog     = widget.activeProgress[id]
+                ?? (ep['progress'] as num?)?.toDouble() ?? 0.0;
+            final bytes    = ep['file_size'] as int? ?? 0;
+            final isSel    = widget.selected.contains(id);
+            return InkWell(
+              onTap:      () => widget.onTapEp(ep),
+              onLongPress: () => widget.onLongPress(ep),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                color: isSel ? AppColors.primary.withOpacity(0.07) : Colors.transparent,
+                child: Row(children: [
+                  // Status dot
+                  Container(
+                    width: 26, height: 26,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isComp
+                          ? AppColors.primary.withOpacity(0.12)
+                          : isAct
+                              ? const Color(0xFF22C55E).withOpacity(0.12)
+                              : status == 'failed'
+                                  ? AppColors.error.withOpacity(0.12)
+                                  : RaddTheme.of(context).card,
+                    ),
+                    child: Icon(
+                      isComp ? Icons.play_arrow_rounded
+                          : isAct ? Icons.downloading_rounded
+                          : status == 'failed' ? Icons.error_outline_rounded
+                          : Icons.hourglass_top_rounded,
+                      size: 14,
+                      color: isComp ? AppColors.primary
+                          : isAct ? const Color(0xFF22C55E)
+                          : status == 'failed' ? AppColors.error
+                          : RaddTheme.of(context).textMuted,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(_epCode(titleTxt),
+                        style: TextStyle(color: RaddTheme.of(context).textPrimary,
+                            fontSize: 12, fontWeight: FontWeight.w600)),
+                    if (isAct) ...[
+                      const SizedBox(height: 4),
+                      LinearProgressIndicator(value: prog,
+                          backgroundColor: RaddTheme.of(context).card,
+                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF22C55E)),
+                          minHeight: 2),
+                      const SizedBox(height: 2),
+                      Text('${(prog * 100).toStringAsFixed(0)}%',
+                          style: const TextStyle(color: Color(0xFF22C55E),
+                              fontSize: 10, fontWeight: FontWeight.w600)),
+                    ] else if (bytes > 0)
+                      Text(_fmtB(bytes),
+                          style: TextStyle(color: RaddTheme.of(context).textMuted, fontSize: 10)),
+                  ])),
+                  if (!widget.isSelecting)
+                    GestureDetector(
+                      onTap: () => widget.onDeleteEp(ep),
+                      child: Padding(padding: const EdgeInsets.all(6),
+                        child: Icon(Icons.delete_outline_rounded,
+                            size: 16, color: RaddTheme.of(context).textMuted))),
+                  if (widget.isSelecting)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 18, height: 18,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isSel ? AppColors.primary : Colors.transparent,
+                        border: Border.all(
+                            color: isSel ? AppColors.primary
+                                : RaddTheme.of(context).textMuted, width: 1.5)),
+                      child: isSel
+                          ? const Icon(Icons.check_rounded, color: Colors.white, size: 11)
+                          : null),
+                ]),
+              ),
+            );
+          }),
+          const SizedBox(height: 6),
+        ],
+      ]),
+    );
+  }
+
+  Widget _pill(String text, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+    decoration: BoxDecoration(
+        color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(5)),
+    child: Text(text, style: TextStyle(
+        color: color, fontSize: 10, fontWeight: FontWeight.w700)));
+
+  /// Extract episode code (e.g. "S01E03") from full title_text.
+  String _epCode(String full) {
+    final m = RegExp(r'[Ss]\d{2}[Ee]\d{2}.*').firstMatch(full);
+    return m?.group(0) ?? full;
+  }
+
+  /// Compact file-size formatter for episode rows.
+  String _fmtB(int bytes) {
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 }

@@ -45,6 +45,8 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
 
   // Sort
   bool _sortAscending = true;
+  // Tracks active "Download Season" batch to prevent duplicate triggers.
+  bool _isDownloadingAll = false;
 
   @override
   void initState() {
@@ -269,6 +271,62 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         ),
       ),
     ));
+  }
+
+  // ── Download all available episodes in the current season ──────────────
+  Future<void> _downloadCurrentSeason() async {
+    if (_isDownloadingAll) return;
+    final dlState = ref.read(downloadsProvider);
+    // Only queue episodes that have a fileId and are not already downloaded/queued
+    final toQueue = _currentEpisodes.where((ep) {
+      final fid = ep['file_id']?.toString() ?? '';
+      return fid.isNotEmpty
+          && !dlState.isDownloaded(fid)
+          && !dlState.isDownloading(fid);
+    }).toList();
+    if (toQueue.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('All available episodes are already downloaded'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating));
+      return;
+    }
+    setState(() => _isDownloadingAll = true);
+    int queued = 0;
+    for (final ep in toQueue) {
+      final fid   = ep['file_id']?.toString() ?? '';
+      final sNum  = (ep['season']   as int? ?? _selectedSeason).toString().padLeft(2, '0');
+      final eNum  = (ep['episode']  as int? ?? 0).toString().padLeft(2, '0');
+      final label = ep['label']    as String? ?? 'S${sNum}E${eNum}';
+      final rawUrl = ep['share_url'] as String?;
+      final shareUrl = await LocalDb.decodeShareUrl(rawUrl) ?? '';
+      if (shareUrl.isEmpty) continue;
+      try {
+        await ref.read(downloadsProvider.notifier).startDownload(
+          fileId:         fid,
+          titleText:      '${widget.item.title} $label',
+          streamUrl:      shareUrl,
+          posterUrl:      widget.item.posterUrl,
+          targetFilename: ep['filename'] as String?,
+          remoteId:       ep['remote_id'] as int? ?? 0,
+          contentType:    widget.item.mediaType,
+        );
+        queued++;
+      } on DownloadQuotaException catch (e) {
+        if (mounted) _showQuotaError(context, e.userMessage);
+        break; // quota hit — stop queuing
+      } catch (_) {}
+    }
+    if (mounted) {
+      setState(() => _isDownloadingAll = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(queued > 0
+            ? 'Queued $queued episode${queued == 1 ? '' : 's'} for download'
+            : 'Nothing new to download'),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating));
+    }
   }
 
   Future<void> _showAdminSheet(int episode, int season) async {
@@ -712,6 +770,33 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                           Text(
                             '${_currentEpisodes.length} eps',
                             style: TextStyle(color: t.textSecondary, fontSize: 13),
+                          ),
+                          const SizedBox(width: 6),
+                          // Download all available episodes for this season
+                          GestureDetector(
+                            onTap: _isDownloadingAll ? null : _downloadCurrentSeason,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                              ),
+                              child: _isDownloadingAll
+                                  ? const SizedBox(width: 13, height: 13,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 1.5,
+                                          valueColor: AlwaysStoppedAnimation(AppColors.primary)))
+                                  : Row(mainAxisSize: MainAxisSize.min, children: [
+                                      const Icon(Icons.download_for_offline_outlined,
+                                          size: 14, color: AppColors.primary),
+                                      const SizedBox(width: 4),
+                                      const Text('Season', style: TextStyle(
+                                          color: AppColors.primary,
+                                          fontSize: 11, fontWeight: FontWeight.w700)),
+                                    ]),
+                            ),
                           ),
                           const SizedBox(width: 6),
                           GestureDetector(
