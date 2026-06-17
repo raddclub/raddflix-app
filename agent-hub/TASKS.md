@@ -1,6 +1,6 @@
 # RaddFlix Agent Task Board
 
-_Last updated: 2026-06-17_
+_Last updated: 2026-06-18_
 
 ## Completed This Session (2026-06-17)
 
@@ -33,4 +33,5 @@ _No open tasks._
 
 | ID | Changed | Summary |
 |----|---------|---------|
+| ✅ FIX-VF-BLACKSCREEN | `player_screen.dart` | **ROOT CAUSE of month-long “local video black screen after 1-2s” fixed (commit cd241fc).** `_applyVideoFilters` called from `_loadPrefs` with 60ms debounce — fires AFTER local video starts playing with active Android HW decoder. `setProperty('vf', ...)` even with empty string destroys GL surface on MediaTek/Infinix → permanent black screen while audio continues. hwdec was guarded in `_applyAudioPrefs` but `_applyVideoFilters` had no equivalent guard — the missing fix. Two-layer fix: startup gate (`_firstVfApplied` flag skips first call if playing) + dedup (`_lastAppliedVf` sentinel prevents no-op pipeline resets) + seek-after for user-initiated mid-play filter changes. |
 | ✅ BUG-ICON-COMPAT | `player_screen.dart` | Fixed 2 Dart compile errors breaking APK builds run#1095–1098: `Icons.replay_15_rounded` and `Icons.forward_15_rounded` do not exist in Flutter 3.22.3. Replaced with `Icons.replay_10` / `Icons.forward_10` (confirmed in Flutter 3.22.3 source). Commit `91e52dc` — builds run#1099/1100 ✅ SUCCESS. |
