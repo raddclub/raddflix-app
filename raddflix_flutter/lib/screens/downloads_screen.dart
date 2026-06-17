@@ -313,8 +313,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                   fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
           const SizedBox(height: 8),
           Text(
-            'Save movies and shows to watch
-offline — no internet needed.',
+            'Save movies and shows to watch offline — no internet needed.',
             textAlign: TextAlign.center,
             style: TextStyle(color: t.textMuted, fontSize: 14, height: 1.5),
           ),

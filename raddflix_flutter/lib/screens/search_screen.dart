@@ -785,8 +785,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           const SizedBox(height: 16),
           // Suggestions
           if (hasQuery) ...[
-            Text('Try a different title, actor name,
-or shorter keywords.',
+            Text('Try a different title, actor name, or shorter keywords.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: t.textMuted, fontSize: 13, height: 1.5)),
             const SizedBox(height: 20),
