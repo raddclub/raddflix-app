@@ -36,17 +36,18 @@ class MainActivity : FlutterActivity() {
     private var pendingVideoTitle: String? = null
     private var pendingSubtitleUri: String? = null
 
+    // Stored reference used by onPictureInPictureModeChanged to send events back to Flutter.
+    // configureFlutterEngine() runs before any lifecycle callbacks, so this is always set
+    // by the time PiP exit can be triggered.
+    private var activeEngine: FlutterEngine? = null
+
     companion object {
         private val SUBTITLE_EXTS = setOf("srt", "ass", "ssa", "vtt", "sub")
         private val VIDEO_EXTS    = setOf("mp4", "mkv", "avi", "mov", "flv", "wmv", "m4v", "3gp", "ts", "webm", "m2ts", "mts")
-        // Request code for MediaStore.createDeleteRequest (Android 11+ vault import cleanup)
         private const val DELETE_MEDIA_REQUEST_CODE = 9002
     }
 
     private var intentMethodChannel: MethodChannel? = null
-
-    // Holds the pending MethodChannel.Result for deleteMediaFiles while the
-    // system delete-permission dialog is shown on Android 11+.
     private var pendingDeleteResult: MethodChannel.Result? = null
 
     private var castContext: CastContext? = null
@@ -55,6 +56,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        activeEngine = flutterEngine
 
         // ── MediaStore Plugin (local video browser) ──────────────────────
         flutterEngine.plugins.add(MediaStorePlugin())
@@ -96,10 +98,11 @@ class MainActivity : FlutterActivity() {
         }
         extractVideoUri(intent)
 
-        // ── PiP Channel ──────────────────────────────────────────────────
+        // ── PiP + Background Playback Channel ────────────────────────────
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PIP_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+
                     "enterPiP" -> {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             val params = PictureInPictureParams.Builder()
@@ -111,21 +114,40 @@ class MainActivity : FlutterActivity() {
                             result.success(false)
                         }
                     }
+
+                    // FIX-BGPLAY: start a foreground service so Android doesn't kill
+                    // the process after ~1 minute of background audio playback.
+                    "startBgPlayback" -> {
+                        val title = call.argument<String>("title") ?: "Playing…"
+                        val svcIntent = Intent(this, PlaybackService::class.java).apply {
+                            putExtra(PlaybackService.EXTRA_TITLE, title)
+                        }
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                startForegroundService(svcIntent)
+                            } else {
+                                startService(svcIntent)
+                            }
+                            result.success(null)
+                        } catch (e: Exception) {
+                            result.success(null) // best-effort — don't crash Flutter
+                        }
+                    }
+
+                    // FIX-BGPLAY: stop the foreground service when app comes back
+                    // to foreground or the player is closed.
+                    "stopBgPlayback" -> {
+                        try {
+                            stopService(Intent(this, PlaybackService::class.java))
+                        } catch (_: Exception) {}
+                        result.success(null)
+                    }
+
                     else -> result.notImplemented()
                 }
             }
 
         // ── Media Channel (scanFile + deleteMediaFiles for vault) ─────────
-        //
-        // deleteMediaFiles — removes the ORIGINAL files from MediaStore so they
-        // disappear from the gallery and all third-party media players after
-        // the user imports them into the private vault.
-        //
-        // Android 11+ (API 30+): uses MediaStore.createDeleteRequest which shows
-        // a one-time system confirmation dialog "Allow RaddFlix to delete N items?"
-        //
-        // Android 10 and below: deletes via ContentResolver directly (works
-        // because requestLegacyExternalStorage=true grants broad write access).
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -157,9 +179,6 @@ class MainActivity : FlutterActivity() {
                         }
 
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            // Android 11+: show system dialog asking user to approve deletion.
-                            // The system enforces this — apps cannot silently delete MediaStore
-                            // items they don't own without MANAGE_EXTERNAL_STORAGE permission.
                             try {
                                 val deleteRequest = MediaStore.createDeleteRequest(contentResolver, uris)
                                 pendingDeleteResult = result
@@ -168,22 +187,16 @@ class MainActivity : FlutterActivity() {
                                     DELETE_MEDIA_REQUEST_CODE,
                                     null, 0, 0, 0
                                 )
-                                // result will be resolved in onActivityResult
                             } catch (e: Exception) {
                                 result.success(false)
                             }
                         } else {
-                            // Android 10 and below: direct delete via ContentResolver.
-                            // With requestLegacyExternalStorage=true, the app has write
-                            // access to external storage, so this succeeds.
                             var deletedCount = 0
                             for (uri in uris) {
                                 try {
                                     val rows = contentResolver.delete(uri, null, null)
                                     if (rows > 0) deletedCount++
                                 } catch (e: SecurityException) {
-                                    // Fallback: scan the path so MediaStore removes
-                                    // the stale entry when it finds the file gone
                                     val filePath = getFilePath(uri)
                                     if (filePath != null) {
                                         MediaScannerConnection.scanFile(
@@ -191,9 +204,7 @@ class MainActivity : FlutterActivity() {
                                         )
                                         deletedCount++
                                     }
-                                } catch (e: Exception) {
-                                    // Silent — best-effort deletion
-                                }
+                                } catch (e: Exception) {}
                             }
                             result.success(deletedCount > 0)
                         }
@@ -288,10 +299,10 @@ class MainActivity : FlutterActivity() {
                     }
                     "castVideo" -> {
                         try {
-                            val url       = call.argument<String>("url")       ?: ""
-                            val title     = call.argument<String>("title")     ?: ""
-                            val posMs     = call.argument<Int>("positionMs")   ?: 0
-                            val sess = castContext?.sessionManager?.currentCastSession
+                            val url   = call.argument<String>("url")     ?: ""
+                            val title = call.argument<String>("title")   ?: ""
+                            val posMs = call.argument<Int>("positionMs") ?: 0
+                            val sess  = castContext?.sessionManager?.currentCastSession
                             if (sess == null || !sess.isConnected) {
                                 result.success(false); return@setMethodCallHandler
                             }
@@ -311,10 +322,10 @@ class MainActivity : FlutterActivity() {
                             result.success(true)
                         } catch (e: Exception) { result.success(false) }
                     }
-                    "pause"  -> { castSession?.remoteMediaClient?.pause(); result.success(null) }
-                    "resume" -> { castSession?.remoteMediaClient?.play();  result.success(null) }
-                    "stop"   -> { castSession?.remoteMediaClient?.stop();  result.success(null) }
-                    "seek"   -> {
+                    "pause"       -> { castSession?.remoteMediaClient?.pause(); result.success(null) }
+                    "resume"      -> { castSession?.remoteMediaClient?.play();  result.success(null) }
+                    "stop"        -> { castSession?.remoteMediaClient?.stop();  result.success(null) }
+                    "seek"        -> {
                         val ms = call.argument<Int>("positionMs") ?: 0
                         castSession?.remoteMediaClient?.seek(ms.toLong())
                         result.success(null)
@@ -324,7 +335,7 @@ class MainActivity : FlutterActivity() {
                             castContext?.sessionManager?.currentCastSession?.isConnected == true
                         result.success(connected)
                     }
-                    "disconnect" -> {
+                    "disconnect"  -> {
                         castContext?.sessionManager?.endCurrentSession(true)
                         result.success(null)
                     }
@@ -333,18 +344,32 @@ class MainActivity : FlutterActivity() {
             }
     }
 
-    // ── Activity result: handle MediaStore.createDeleteRequest response ───
-    // Called after the system dialog "Allow RaddFlix to delete N items?" on API 30+.
+    // ── PiP exit → notify Flutter ─────────────────────────────────────────
+    // Called by Android when the activity enters or exits picture-in-picture mode.
+    // When isInPictureInPictureMode=false (exiting), we send "onPipExited" to Flutter
+    // so player_screen.dart can reset _inPiP=false and show controls again.
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: android.content.res.Configuration?
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (!isInPictureInPictureMode) {
+            activeEngine?.dartExecutor?.binaryMessenger?.let { messenger ->
+                MethodChannel(messenger, PIP_CHANNEL).invokeMethod("onPipExited", null)
+            }
+        }
+    }
+
+    // ── Activity result: handle MediaStore.createDeleteRequest on API 30+ ─
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == DELETE_MEDIA_REQUEST_CODE) {
-            val approved = resultCode == Activity.RESULT_OK
-            pendingDeleteResult?.success(approved)
+            pendingDeleteResult?.success(resultCode == Activity.RESULT_OK)
             pendingDeleteResult = null
         }
     }
 
-    // ── Warm-start intent (user taps "Open with RaddFlix" while app is running) ─
+    // ── Warm-start intent ────────────────────────────────────────────────
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         extractVideoUri(intent)
@@ -455,39 +480,32 @@ class MainActivity : FlutterActivity() {
     private fun getFilePath(uri: android.net.Uri): String? {
         return try {
             when (uri.scheme) {
-                "file" -> uri.path
+                "file"    -> uri.path
                 "content" -> contentResolver.query(
                     uri,
                     arrayOf(android.provider.MediaStore.MediaColumns.DATA),
                     null, null, null
-                )?.use { c ->
-                    if (c.moveToFirst()) c.getString(0) else null
-                }
-                else -> null
+                )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+                else      -> null
             }
         } catch (_: Exception) { null }
     }
 
     private fun resolveDisplayName(uri: android.net.Uri): String? {
         return when (uri.scheme) {
-            "content" -> {
-                try {
-                    val cursor = contentResolver.query(uri, null, null, null, null)
-                    cursor?.use {
-                        if (it.moveToFirst()) {
-                            val col = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                            if (col >= 0) it.getString(col) else null
-                        } else null
-                    }
-                } catch (e: Exception) { null }
-            }
-            "file" -> {
-                try {
-                    val raw = uri.lastPathSegment ?: return null
-                    java.net.URLDecoder.decode(raw, "UTF-8")
-                } catch (e: Exception) { uri.lastPathSegment }
-            }
-            else -> null
+            "content" -> try {
+                contentResolver.query(uri, null, null, null, null)?.use {
+                    if (it.moveToFirst()) {
+                        val col = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (col >= 0) it.getString(col) else null
+                    } else null
+                }
+            } catch (e: Exception) { null }
+            "file"    -> try {
+                val raw = uri.lastPathSegment ?: return null
+                java.net.URLDecoder.decode(raw, "UTF-8")
+            } catch (e: Exception) { uri.lastPathSegment }
+            else      -> null
         }
     }
 }
