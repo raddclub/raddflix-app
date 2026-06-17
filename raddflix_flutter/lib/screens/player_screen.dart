@@ -2194,14 +2194,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       final quota = await UsageService.getCachedQuota();
 
-      // BUG-QUOTA-01 FIX: local files (gallery videos, vault downloads) must
-      // bypass ALL quota and plan-expiry enforcement — the user owns the file
-      // on-device and no subscription is needed to play it. Guard moved here,
-      // before the expiry gate, so an expired-plan user is never incorrectly
-      // redirected to planExpired while watching a downloaded episode.
-      if (_isLocalFile) return;
-
-      // Plan expiry check — enforced for streaming only.
+      // Plan expiry check — enforced for streaming AND local vault downloads.
       // FIX-M08: was localPath-only, allowing streaming users with expired plans to
       // watch indefinitely. Now covers all Oracle fileIds (excludes gallery = fileId=''
       // and raw device paths content:// /).
@@ -2218,6 +2211,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           }
         }
       }
+
+      // Local files never count against data quota — skip allowed check
+      if (_isLocalFile) return;
 
       if (quota['allowed'] == false) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -3026,29 +3022,53 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     isBoost: _inBoostGesture,
                     boostValue: _inBoostGesture ? _volumeBoost : null,
                   )
-                : _DragIndicator(
-                    icon: _draggingBrightness
-                        ? Icons.brightness_medium_rounded
-                        : (_inBoostGesture ? Icons.speaker_rounded : Icons.volume_up_rounded),
+                : _SideDragSlider(
+                    isBrightness: _draggingBrightness,
                     value: _draggingBrightness ? _brightness : _volume,
                     boostValue: (!_draggingBrightness && _inBoostGesture) ? _volumeBoost : null,
                   ),
 
-          // ── Seek scrub label ──
+          // ── Seek scrub label (MX Player style) ──
           if (_draggingSeek && _dragSeekDelta != null)
             Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
                 decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(12)),
-                child: Text(
-                  '${_fmtDur(_previewPosition)}  (${_dragSeekDelta! >= 0 ? '+' : ''}${_dragSeekDelta!.toInt()}s)',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700),
-                ),
+                    color: Colors.black.withOpacity(0.78),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.12), width: 0.5),
+                    boxShadow: [BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        blurRadius: 20, spreadRadius: 2)]),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(
+                    _fmtDur(_previewPosition),
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        shadows: [Shadow(color: Colors.black54, blurRadius: 8)]),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(
+                      _dragSeekDelta! >= 0
+                          ? Icons.fast_forward_rounded
+                          : Icons.fast_rewind_rounded,
+                      color: _dragSeekDelta! >= 0
+                          ? const Color(0xFF4DB6FF)
+                          : Colors.orangeAccent,
+                      size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${_dragSeekDelta! >= 0 ? '+' : ''}${_dragSeekDelta!.toInt()}s',
+                      style: TextStyle(
+                        color: _dragSeekDelta! >= 0
+                            ? const Color(0xFF4DB6FF)
+                            : Colors.orangeAccent,
+                        fontSize: 13, fontWeight: FontWeight.w700),
+                    ),
+                  ]),
+                ]),
               ),
             ),
 
@@ -5362,6 +5382,7 @@ List<String> _buildSubLabels(List<dynamic> tracks) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SEEK FLASH
 // ═══════════════════════════════════════════════════════════════════════════════
+// MX Player / YouTube-style double-tap seek flash with cascading triple chevrons
 class _SeekFlash extends StatelessWidget {
   final bool isRight;
   final String label;
@@ -5370,21 +5391,54 @@ class _SeekFlash extends StatelessWidget {
   Widget build(BuildContext context) {
     final w = MediaQuery.of(context).size.width;
     return Positioned(
-      left: isRight ? w / 2 : 0, right: isRight ? 0 : w / 2, top: 0, bottom: 0,
-      child: Container(
-        decoration: BoxDecoration(gradient: LinearGradient(
-          begin: isRight ? Alignment.centerLeft : Alignment.centerRight,
-          end:   isRight ? Alignment.centerRight : Alignment.centerLeft,
-          colors: [Colors.white.withOpacity(0.08), Colors.transparent])),
-        child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(isRight ? Icons.fast_forward_rounded : Icons.fast_rewind_rounded,
-              color: Colors.white, size: 36),
-          const SizedBox(height: 4),
-          Text(label, style: const TextStyle(
-              color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-        ])),
+      left: isRight ? w * 0.32 : 0,
+      right: isRight ? 0 : w * 0.32,
+      top: 0, bottom: 0,
+      child: IgnorePointer(
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: isRight ? Alignment.centerLeft : Alignment.centerRight,
+              radius: 1.4,
+              colors: [
+                Colors.white.withOpacity(0.22),
+                Colors.white.withOpacity(0.08),
+                Colors.transparent,
+              ],
+              stops: const [0.0, 0.45, 1.0],
+            ),
+          ),
+          child: Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              // Triple cascading chevrons (staggered fade-in = sweep feel)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(3, (i) {
+                  final idx = isRight ? i : (2 - i);
+                  return Icon(
+                    isRight
+                        ? Icons.chevron_right_rounded
+                        : Icons.chevron_left_rounded,
+                    color: Colors.white.withOpacity(0.35 + idx * 0.22),
+                    size: 18.0 + idx * 8.0,
+                  ).animate(
+                    delay: Duration(milliseconds: idx * 55),
+                  ).fadeIn(duration: 110.ms);
+                }),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    shadows: [Shadow(color: Colors.black54, blurRadius: 8)]),
+              ),
+            ]),
+          ),
+        ),
       ),
-    ).animate().fadeIn(duration: 150.ms).then().fadeOut(duration: 400.ms, delay: 250.ms);
+    ).animate().fadeIn(duration: 110.ms).then().fadeOut(duration: 380.ms, delay: 280.ms);
   }
 }
 
@@ -5392,6 +5446,7 @@ class _SeekFlash extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════════════
 // IMMERSIVE DRAG NUMBER — minimal number-only HUD for Immersive mode
 // ═══════════════════════════════════════════════════════════════════════════════
+// Immersive mode: side-anchored minimal brightness/volume indicator
 class _ImmersiveDragNumber extends StatelessWidget {
   final double value;
   final bool isBrightness;
@@ -5414,22 +5469,29 @@ class _ImmersiveDragNumber extends StatelessWidget {
             ? Colors.red
             : boostValue != null && boostValue! > 1.5
                 ? Colors.orange
-                : Colors.white70)
-        : Colors.white70;
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.45),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          pct,
-          style: TextStyle(
-            color: color,
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+                : const Color(0xFF4DB6FF))
+        : (isBrightness ? const Color(0xFFFFD700) : const Color(0xFF4DB6FF));
+    // Side-positioned even in immersive mode (same side as the gesture zone)
+    return Positioned(
+      top: 0, bottom: 0,
+      left:  isBrightness ? 20 : null,
+      right: isBrightness ? null : 20,
+      child: IgnorePointer(
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.52),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withOpacity(0.3), width: 0.7),
+            ),
+            child: Text(
+              pct,
+              style: TextStyle(
+                color: color, fontSize: 13, fontWeight: FontWeight.w700,
+                shadows: const [Shadow(color: Colors.black, blurRadius: 6)],
+              ),
+            ),
           ),
         ),
       ),
@@ -5437,66 +5499,156 @@ class _ImmersiveDragNumber extends StatelessWidget {
   }
 }
 
-// DRAG INDICATOR
 // ═══════════════════════════════════════════════════════════════════════════════
-class _DragIndicator extends StatelessWidget {
-  final IconData icon;
+// MX Player-style side-anchored vertical brightness (left) / volume (right) slider
+// ═══════════════════════════════════════════════════════════════════════════════
+class _SideDragSlider extends StatelessWidget {
+  final bool isBrightness;
   final double value;
-  final double? boostValue; // non-null = we are in boost territory
-  const _DragIndicator({required this.icon, required this.value, this.boostValue});
+  final double? boostValue;
+  const _SideDragSlider({
+    required this.isBrightness,
+    required this.value,
+    this.boostValue,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isBoost = boostValue != null;
-    // Color: orange at 150%+, red at 250%+
-    final pillColor = isBoost
+    // Accent: gold for brightness, blue for volume, orange/red for boost
+    final accent = isBoost
         ? (boostValue! > 2.5
-            ? Colors.red
+            ? const Color(0xFFFF4444)
             : boostValue! > 1.5
                 ? Colors.orange
-                : Colors.white)
-        : Colors.white;
-    final barValue = isBoost
-        ? ((boostValue! - 1.0) / 2.0).clamp(0.0, 1.0) // 100%-300% mapped to 0-1
-        : value;
+                : const Color(0xFF4DB6FF))
+        : (isBrightness
+            ? const Color(0xFFFFD700)
+            : const Color(0xFF4DB6FF));
+    final displayVal = isBoost
+        ? ((boostValue! - 1.0) / 2.0).clamp(0.0, 1.0)
+        : value.clamp(0.0, 1.0);
     final label = isBoost
         ? '${(boostValue! * 100).toInt()}%'
         : '${(value * 100).toInt()}%';
+    final icon = isBrightness
+        ? (value < 0.2
+            ? Icons.brightness_low_rounded
+            : value > 0.75
+                ? Icons.brightness_high_rounded
+                : Icons.brightness_6_rounded)
+        : (isBoost
+            ? Icons.speaker_rounded
+            : (value < 0.15
+                ? Icons.volume_off_rounded
+                : value < 0.5
+                    ? Icons.volume_down_rounded
+                    : Icons.volume_up_rounded));
 
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.75),
-          borderRadius: BorderRadius.circular(12),
-          border: isBoost
-              ? Border.all(color: pillColor.withOpacity(0.5), width: 1.2)
-              : null,
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, color: pillColor, size: 28),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: 100,
-            child: LinearProgressIndicator(
-              value: barValue,
-              backgroundColor: Colors.white24,
-              valueColor: AlwaysStoppedAnimation<Color>(pillColor),
-              minHeight: 3,
-              borderRadius: BorderRadius.circular(2),
+    const trackH = 130.0;
+    final filledH = (trackH * displayVal).clamp(0.0, trackH);
+
+    return Positioned(
+      top: 0, bottom: 0,
+      left:  isBrightness ? 20 : null,
+      right: isBrightness ? null : 20,
+      child: IgnorePointer(
+        child: Center(
+          child: Container(
+            width: 44,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.72),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: accent.withOpacity(isBoost ? 0.55 : 0.28),
+                width: isBoost ? 1.2 : 0.8,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withOpacity(0.22),
+                  blurRadius: 18, spreadRadius: 1,
+                ),
+              ],
             ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Adaptive icon that changes with level
+                Icon(icon, color: accent, size: 18),
+                if (isBoost) ...[
+                  const SizedBox(height: 3),
+                  Text('⚡', style: TextStyle(fontSize: 10, color: accent)),
+                ],
+                const SizedBox(height: 10),
+                // Vertical track — filled from the bottom like a liquid level
+                SizedBox(
+                  width: 4, height: trackH,
+                  child: Stack(
+                    alignment: Alignment.bottomCenter,
+                    clipBehavior: Clip.none,
+                    children: [
+                      // Background track
+                      Container(
+                        width: 4, height: trackH,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      // Filled gradient bar
+                      if (filledH > 0)
+                        Container(
+                          width: 4, height: filledH,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [accent.withOpacity(0.6), accent],
+                            ),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      // Glowing thumb at the current level
+                      Positioned(
+                        bottom: (filledH - 6).clamp(0.0, trackH - 12),
+                        left: -4,
+                        child: Container(
+                          width: 12, height: 12,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white,
+                            boxShadow: [
+                              BoxShadow(
+                                color: accent.withOpacity(0.7),
+                                blurRadius: 8, spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // Percentage label with matching glow
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: accent, fontSize: 10, fontWeight: FontWeight.w700,
+                    shadows: [Shadow(color: accent.withOpacity(0.45), blurRadius: 8)],
+                  ),
+                ),
+              ],
+            ),
+          ).animate().scale(
+            begin: const Offset(0.85, 0.85),
+            end: const Offset(1.0, 1.0),
+            duration: 200.ms,
+            curve: Curves.elasticOut,
           ),
-          const SizedBox(height: 6),
-          if (isBoost) ...[
-            Text('⚡ Boost', style: TextStyle(color: pillColor.withOpacity(0.8), fontSize: 10)),
-            const SizedBox(height: 2),
-          ],
-          Text(label, style: TextStyle(color: pillColor, fontSize: 12, fontWeight: FontWeight.w600)),
-        ]),
+        ),
       ),
-    ).animate().scale(
-      begin: const Offset(0.88, 0.88), end: const Offset(1, 1),
-      duration: 180.ms, curve: Curves.elasticOut,
     );
   }
 }
