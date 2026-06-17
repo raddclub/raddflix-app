@@ -181,6 +181,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // Panels
   bool _showSpeedPicker = false;
+  int _sidebarMode = 0; // 0=full, 1=icons-only, 2=hidden
+  Offset _ballOffset = const Offset(20, 200);
+  String _clockStr = '';
+  Timer? _clockTimer;
   bool _showSubtitleMenu = false;
   bool _showAudioMenu = false;
   bool _showSleepMenu = false;
@@ -387,6 +391,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _initPlayer();
     _startWakeTimer(); // Phase H4: optional wake timeout
     _scheduleHide();
+    _clockStr = _fmtTime();
+    _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() => _clockStr = _fmtTime());
+    });
     _onUserActivity(); // reset wake timer on tap
     _initBrightnessVolume();
     _loadPrefs();
@@ -505,6 +513,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
     // Apply rotation mode from prefs
     _applyRotation(loaded.rotationMode);
+    _sidebarMode = loaded.sidebarMode;
     // Apply volume boost from prefs
     if (loaded.volumeBoostMultiplier > 1.0) _applyVolumeBoost(loaded.volumeBoostMultiplier);
     _volumeBoost = loaded.volumeBoostMultiplier;
@@ -1731,6 +1740,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _rotUpdated.save();
   }
 
+  String _fmtTime() {
+    final n = DateTime.now();
+    final h = n.hour > 12 ? n.hour - 12 : (n.hour == 0 ? 12 : n.hour);
+    final m = n.minute.toString().padLeft(2, '0');
+    final ap = n.hour >= 12 ? 'PM' : 'AM';
+    return '$h:$m $ap';
+  }
+
   void _cycleRotation() {
     const order = ['sensor_landscape', 'auto', 'lock_left', 'lock_right', 'lock_portrait'];
     final idx = order.indexOf(_prefs.rotationMode);
@@ -2714,6 +2731,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     // Restore full auto-rotate so system works normally after player exit
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    _clockTimer?.cancel();
     HardwareKeyboard.instance.removeHandler(_onHardwareKey); // FIX-L08: was 4-space indent
     _mediaButtonTimer?.cancel();
     super.dispose();
@@ -3535,6 +3553,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               quickBarItems:           _prefs.quickBarItems,
               bgPlayEnabled:           _bgPlayEnabled,
               onBgPlayToggle:          (v) => setState(() => _bgPlayEnabled = v),
+              sidebarMode:             _sidebarMode,
+              onToggleSidebarMode:     () {
+                final _nm = (_sidebarMode + 1) % 3;
+                final _np = _prefs.copyWith(sidebarMode: _nm);
+                setState(() { _sidebarMode = _nm; _prefs = _np; });
+                _np.save();
+              },
               onPrevEpisode: (widget.episodes != null && _currentEpIdx > 0)
                   ? _playPrevEpisode
                   : null,
@@ -3575,8 +3600,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // ── Speed Panel ──
           if (_showSpeedPicker && !_locked)
             Positioned(
-              right: 0, top: 0, bottom: 0,
-              child: _SpeedPanel(
+              top: 0, left: 0, right: 0,
+              child: _SpeedTrackPanel(
                 currentSpeed: _speed,
                 speeds: _speeds,
                 onSelect: (s) {
@@ -3594,9 +3619,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           if (_showSubtitleMenu && !_locked)
             Positioned.fill(child: GestureDetector(
               onTap: () => setState(() => _showSubtitleMenu = false),
-              child: Container(color: Colors.black54))),
+              child: Container(color: Colors.black26))),
           if (_showSubtitleMenu && !_locked)
-            Positioned(bottom: 0, left: 0, right: 0,
+            Positioned(top: 0, right: 0, bottom: 0, width: 320,
               child: _MxSubPanel(
                 tracks: _buildSubLabels(_player.state.tracks.subtitle),
                 activeIndex: _activeSubIdx,
@@ -3618,9 +3643,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           if (_showAudioMenu && !_locked)
             Positioned.fill(child: GestureDetector(
               onTap: () => setState(() => _showAudioMenu = false),
-              child: Container(color: Colors.black54))),
+              child: Container(color: Colors.black26))),
           if (_showAudioMenu && !_locked)
-            Positioned(bottom: 0, left: 0, right: 0,
+            Positioned(top: 0, right: 0, bottom: 0, width: 320,
               child: _MxAudioPanel(
                 tracks: _buildAudioLabels(_player.state.tracks.audio),
                 activeIndex: _activeAudioIdx,
@@ -3730,6 +3755,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         color: _volumeBoost > 2.5 ? Colors.red : _volumeBoost > 1.5 ? Colors.orange : Colors.white,
                         fontSize: 11, fontWeight: FontWeight.w600)),
                   ]),
+                ),
+              ),
+            ),
+
+          // ── Clock overlay (always visible when controls hidden) ──
+          if (!_showControls && !_locked)
+            Positioned(
+              top: 10, right: 16,
+              child: IgnorePointer(
+                child: Text(
+                  _clockStr,
+                  style: const TextStyle(
+                    color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500,
+                    shadows: [Shadow(blurRadius: 4, color: Colors.black)]),
+                ),
+              ),
+            ),
+
+          // ── Floating ball (tap = show controls; drag = reposition) ──
+          if (!_showControls && !_locked && !_immersiveMode)
+            Positioned(
+              left: _ballOffset.dx,
+              top: _ballOffset.dy,
+              child: GestureDetector(
+                onTap: () { setState(() => _showControls = true); _scheduleHide(); },
+                onPanUpdate: (d) {
+                  final sz = MediaQuery.of(context).size;
+                  setState(() {
+                    _ballOffset = Offset(
+                      (_ballOffset.dx + d.delta.dx).clamp(0, sz.width - 40),
+                      (_ballOffset.dy + d.delta.dy).clamp(0, sz.height - 40),
+                    );
+                  });
+                },
+                child: Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.82),
+                    boxShadow: const [BoxShadow(blurRadius: 8, color: Colors.black45)],
+                  ),
+                  child: const Icon(Icons.play_circle_outline_rounded, color: Colors.black54, size: 22),
                 ),
               ),
             ),
@@ -4236,6 +4303,9 @@ class _ControlsOverlay extends StatelessWidget {
   final String             quickBarItems;
   final bool               bgPlayEnabled;
   final ValueChanged<bool>? onBgPlayToggle;
+  // ── Sidebar state ──────────────────────────────────────────────────────
+  final int sidebarMode;
+  final VoidCallback onToggleSidebarMode;
 
   const _ControlsOverlay({
     required this.title, required this.playing, required this.buffering,
@@ -4306,6 +4376,8 @@ class _ControlsOverlay extends StatelessWidget {
     this.quickBarItems               = 'pip,bgplay,fit,screenshot,speed',
     this.bgPlayEnabled               = false,
     this.onBgPlayToggle,
+    this.sidebarMode = 0,
+    required this.onToggleSidebarMode,
   });
 
   /// Returns the BoxDecoration for the play button based on [shape].
@@ -4624,13 +4696,13 @@ class _ControlsOverlay extends StatelessWidget {
           ),
 
       // ── RIGHT SIDEBAR (Layout #4: scrollable advanced controls) ──────────────
-      if (!locked)
+      if (!locked && sidebarMode < 2)
         Positioned(
           right: 0, top: 48, bottom: 78,
           child: SafeArea(
             top: false, bottom: false,
             child: Container(
-              width: 58,
+              width: sidebarMode == 1 ? 40 : 58,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.centerRight,
@@ -4642,7 +4714,20 @@ class _ControlsOverlay extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Column(
                   children: [
+                    // ── Collapse toggle ──
+                    GestureDetector(
+                      onTap: onToggleSidebarMode,
+                      child: Container(
+                        height: 22, alignment: Alignment.center,
+                        child: Icon(
+                          sidebarMode == 0 ? Icons.chevron_right_rounded : Icons.chevron_left_rounded,
+                          color: Colors.white38, size: 15,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
                     _MxSideBtn(
+                      iconsOnly: sidebarMode == 1,
                       icon: _iconForPack(iconPack, 'subtitle'),
                       label: subLabels.length > 1 ? 'Sub (${subLabels.length})' : 'Sub',
                       active: subLabels.isNotEmpty && activeSubIdx < subLabels.length,
@@ -4651,6 +4736,7 @@ class _ControlsOverlay extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     _MxSideBtn(
+                      iconsOnly: sidebarMode == 1,
                       icon: _iconForPack(iconPack, 'audio'),
                       label: audioLabels.length > 1 ? 'Audio (${audioLabels.length})' : 'Audio',
                       active: audioLabels.length > 1,
@@ -4659,18 +4745,21 @@ class _ControlsOverlay extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     _MxSideBtn(
+                      iconsOnly: sidebarMode == 1,
                       icon: _iconForPack(iconPack, 'settings'),
                       label: 'Settings',
                       onTap: onSettings,
                     ),
                     const SizedBox(height: 4),
                     _MxSideBtn(
+                      iconsOnly: sidebarMode == 1,
                       icon: Icons.auto_fix_high_rounded,
                       label: 'Enhance',
                       onTap: onToggleVideoEnhance,
                     ),
                     const SizedBox(height: 4),
                     _MxSideBtn(
+                      iconsOnly: sidebarMode == 1,
                       icon: Icons.repeat_rounded,
                       label: 'Loop',
                       active: abLoop.isActive,
@@ -4679,24 +4768,28 @@ class _ControlsOverlay extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     _MxSideBtn(
+                      iconsOnly: sidebarMode == 1,
                       icon: Icons.bedtime_rounded,
                       label: 'Sleep',
                       onTap: onSleep,
                     ),
                     const SizedBox(height: 4),
                     _MxSideBtn(
+                      iconsOnly: sidebarMode == 1,
                       icon: Icons.equalizer_rounded,
                       label: 'EQ',
                       onTap: onEq,
                     ),
                     const SizedBox(height: 4),
                     _MxSideBtn(
+                      iconsOnly: sidebarMode == 1,
                       icon: _rotationIcon(rotationMode),
                       label: _rotationLabel(rotationMode),
                       onTap: onCycleRotation,
                     ),
                     const SizedBox(height: 4),
                     _MxSideBtn(
+                      iconsOnly: sidebarMode == 1,
                       icon: Icons.speed_rounded,
                       label: speed == 1.0 ? '1× Spd' : '${speed}× Spd',
                       active: speed != 1.0,
@@ -4705,6 +4798,7 @@ class _ControlsOverlay extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     _MxSideBtn(
+                      iconsOnly: sidebarMode == 1,
                       icon: Icons.bookmark_border_rounded,
                       label: 'Bookmark',
                       active: bookmarks.isNotEmpty,
@@ -4713,6 +4807,7 @@ class _ControlsOverlay extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     _MxSideBtn(
+                      iconsOnly: sidebarMode == 1,
                       icon: _iconForPack(iconPack, 'more'),
                       label: 'More',
                       onTap: onMorePanel,
@@ -5049,8 +5144,9 @@ class _MxSideBtn extends StatelessWidget {
   final VoidCallback onTap;
   final bool active;
   final Color? activeColor;
+  final bool iconsOnly;
   const _MxSideBtn({required this.icon, required this.label, required this.onTap,
-      this.active = false, this.activeColor});
+      this.active = false, this.activeColor, this.iconsOnly = false});
 
   @override
   Widget build(BuildContext context) {
@@ -5058,7 +5154,7 @@ class _MxSideBtn extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 46, height: 44,
+        width: iconsOnly ? 36 : 46, height: iconsOnly ? 36 : 44,
         decoration: BoxDecoration(
           color: active ? (activeColor ?? const Color(0xFFE8002D)).withOpacity(0.18) : Colors.black45,
           borderRadius: BorderRadius.circular(10),
@@ -5068,9 +5164,9 @@ class _MxSideBtn extends StatelessWidget {
           ),
         ),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, color: col, size: 17),
-          const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: col, fontSize: 8, fontWeight: FontWeight.w600),
+          Icon(icon, color: col, size: iconsOnly ? 19 : 17),
+          if (!iconsOnly) const SizedBox(height: 2),
+          if (!iconsOnly) Text(label, style: TextStyle(color: col, fontSize: 8, fontWeight: FontWeight.w600),
               maxLines: 1, overflow: TextOverflow.ellipsis),
         ]),
       ),
@@ -5393,25 +5489,53 @@ class _SleepPanel extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SPEED PANEL
 // ═══════════════════════════════════════════════════════════════════════════════
-class _SpeedPanel extends StatelessWidget {
+class _SpeedTrackPanel extends StatelessWidget {
   final double currentSpeed;
   final List<double> speeds;
   final ValueChanged<double> onSelect;
-  const _SpeedPanel({required this.currentSpeed, required this.speeds, required this.onSelect});
+  const _SpeedTrackPanel({required this.currentSpeed, required this.speeds, required this.onSelect});
   @override
   Widget build(BuildContext context) {
-    return Container(width: 140, color: Colors.black87,
-      child: Column(children: [
-        const Padding(padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text('Speed', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700))),
-        Expanded(child: ListView(children: speeds.map((s) => ListTile(
-          title: Text('${s}×', style: TextStyle(
-              color: s == currentSpeed ? AppColors.primary : Colors.white,
-              fontWeight: s == currentSpeed ? FontWeight.w700 : FontWeight.normal)),
-          leading: s == currentSpeed
-              ? const Icon(Icons.check_rounded, color: AppColors.primary, size: 18) : null,
-          onTap: () => onSelect(s), dense: true)).toList())),
-      ])).animate().slideX(begin: 1, end: 0, duration: 200.ms, curve: AppCurves.standard);
+    return Container(
+      color: Colors.black.withOpacity(0.82),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(
+          children: speeds.map((sp) {
+            final active = sp == currentSpeed;
+            return Expanded(child: GestureDetector(
+              onTap: () => onSelect(sp),
+              behavior: HitTestBehavior.opaque,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: active ? 13 : 7, height: active ? 13 : 7,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: active ? const Color(0xFF4DB6FF) : Colors.white38,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text('${sp}×',
+                  style: TextStyle(
+                    color: active ? const Color(0xFF4DB6FF) : Colors.white54,
+                    fontSize: active ? 11 : 9,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.normal,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ]),
+            ));
+          }).toList(),
+        ),
+        const SizedBox(height: 8),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Icon(Icons.play_arrow_rounded, color: Colors.white54, size: 14),
+          const SizedBox(width: 4),
+          Text('${currentSpeed}× Speed Playing',
+            style: const TextStyle(color: Colors.white54, fontSize: 11)),
+        ]),
+      ]),
+    ).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut);
   }
 }
 
