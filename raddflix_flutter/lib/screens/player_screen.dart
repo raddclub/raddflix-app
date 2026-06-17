@@ -272,6 +272,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   int _jazzRetryCount = 0;
   Timer? _jazzRetryTimer;
   String? _streamError;
+  String? _linkGenError; // FIX-JAZZERR: captures raw exception from getStreamLink for better UX
   bool _isRetrying = false;
   String? _currentPlaybackUrl; // track current URL for "Open with" feature
   String _currentFileId = ''; // FIX-RETRY-01: tracks the currently-playing fileId (not widget.fileId which is always ep1)
@@ -607,8 +608,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // decoder pipeline and destroys the GL surface texture → blank screen with
     // audio-only (this was the "screen goes black after 2-3 seconds" bug for
     // local files, triggered by _loadPrefs completing after playback started).
-    // The new value takes effect on the next media open.
-    if (!_playing) {
+    // FIX-BLACKSCREEN: use _player.state.playing (actual MPV state, synchronous)
+    // AND _player.state.duration==Duration.zero (no media open yet) as the gate.
+    // _playing (Flutter state var) lags by one setState cycle and can be false
+    // while the decoder pipeline is already active, causing the surface to be
+    // destroyed.  duration becomes non-zero as soon as _player.open() is called,
+    // so this guard reliably blocks mid-playback hwdec changes.
+    if (!_playing && !_player.state.playing && _player.state.duration == Duration.zero) {
       await _np.setProperty('hwdec', p.hwDecoderEnabled ? 'auto' : 'no');
       await _np.setProperty('deinterlace', p.deinterlaceEnabled ? 'yes' : 'no');
     }
@@ -1904,6 +1910,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // FIX-RETRY-01: keep track of which fileId is currently being opened so
     // _jazzAutoRetry invalidates and retries the right episode, not widget.fileId.
     _currentFileId = fileId.isNotEmpty ? fileId : _currentFileId;
+    _linkGenError = null; // reset before each attempt
     // FIX-LOCAL: detect local paths passed as fileId (e.g. gallery videos).
     final effectiveLocalPath = (localPath != null && localPath.isNotEmpty)
         ? localPath
@@ -1970,6 +1977,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         return;
       }
     } catch (e) {
+      _linkGenError = e.toString();
       DebugLogger.logError('PLAYER', 'Stream resolution failed for $fileId', e);
     } finally {
       // Always clear the loading spinner — even if an unexpected exception is thrown
@@ -1981,9 +1989,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       setState(() {
         _streamError = (shareUrl == null || shareUrl.isEmpty)
             ? 'No stream link found. Please sync your library in Settings → Sync.'
-            : 'Could not connect to JazzDrive. Make sure you are on a Jazz SIM.';
+            : _buildJazzError(_linkGenError);
       });
     }
+  }
+
+  /// Build a human-readable error message from a raw exception string.
+  /// Avoids always showing "Jazz SIM Required" for errors that have nothing
+  /// to do with network access (e.g. deleted content, bad share key, timeout).
+  String _buildJazzError(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return 'Could not connect to JazzDrive. Make sure you are on a Jazz SIM.';
+    }
+    // JazzDrive content errors (deleted content, invalid share key)
+    if (raw.contains('Content unavailable') ||
+        raw.contains('MED-') ||
+        raw.contains('FOL-')) {
+      return raw.replaceFirst('Exception: ', '').trim();
+    }
+    // Invalid / unrecognised share URL format
+    if (raw.contains('Invalid JazzDrive share URL') ||
+        raw.contains('non-JSON')) {
+      return 'Invalid share link. Please resync: Settings → Sync Catalog.';
+    }
+    // No files found in the share folder
+    if (raw.contains('no video records')) {
+      return 'No video found in share folder. Please resync: Settings → Sync Catalog.';
+    }
+    // HTTP 401 / 403 — access denied (Jazz SIM check)
+    if (raw.contains('HTTP 401') || raw.contains('HTTP 403')) {
+      return 'Access denied by JazzDrive. Make sure you are on Jazz SIM data.';
+    }
+    // Other HTTP error codes
+    if (raw.contains('HTTP ')) {
+      return 'JazzDrive returned an error. Try again or check your connection.';
+    }
+    // Network timeouts
+    if (raw.toLowerCase().contains('timeout') ||
+        raw.toLowerCase().contains('socketexception') ||
+        raw.toLowerCase().contains('connection refused')) {
+      return 'Connection timed out. Check your data connection and try again.';
+    }
+    // Generic fallback
+    return 'Could not connect to JazzDrive. Make sure you are on Jazz SIM data.';
   }
 
 
@@ -2706,6 +2754,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         onLongPressEnd: (_) {
           setState(() => _longPressFast = false);
           _player.setRate(_speed);
+          // FIX-BLACKSCREEN-LP: high-speed playback drains the MPV frame buffer;
+          // when speed returns to normal the surface may show a stale black frame.
+          // Seeking to the live position forces MPV to decode + render a fresh
+          // frame immediately, clearing the black surface.
+          Future.delayed(const Duration(milliseconds: 80), () {
+            if (mounted && _player.state.playing) {
+              _player.seek(_player.state.position);
+            }
+          });
         },
         onScaleStart: _onScaleStart,
         onScaleUpdate: _onScaleUpdate,

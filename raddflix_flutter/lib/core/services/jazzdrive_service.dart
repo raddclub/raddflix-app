@@ -317,17 +317,42 @@ class JazzDriveService {
     final headers = Map<String, String>.from(_baseHeaders)
       ..['Referer'] = '$_cloudBase/share/f/$shareKey';
 
-    final resp = await _dio.post<Map<String, dynamic>>(
+    // FIX-JAZZDRIVE-HTML: use validateStatus=(s)=>true so non-200 responses
+    // don't throw before we can inspect the body.  JazzDrive sometimes returns
+    // an HTML error page (e.g. when NOT on Jazz SIM) — without validateStatus
+    // Dio throws DioException with no useful body, losing the real error reason.
+    final resp = await _dio.post<dynamic>(
       loginUrl,
       data: {'data': {'accesstoken': shareKey}},
-      options: Options(headers: headers),
+      options: Options(
+        headers: headers,
+        validateStatus: (s) => true,
+      ),
     );
 
     if (resp.statusCode != 200 || resp.data == null) {
       throw Exception('JazzDrive login failed: HTTP ${resp.statusCode}');
     }
 
-    final data = resp.data!;
+    // Parse response body — may be a pre-decoded Map or a raw JSON/HTML String.
+    final Map<String, dynamic> data;
+    if (resp.data is Map<String, dynamic>) {
+      data = resp.data as Map<String, dynamic>;
+    } else if (resp.data is String) {
+      final raw = resp.data as String;
+      if (raw.trimLeft().startsWith('<')) {
+        // HTML error page — device is not on Jazz SIM or JazzDrive is down
+        throw Exception(
+            'JazzDrive returned an HTML page (not on Jazz SIM data, or service unavailable)');
+      }
+      try {
+        data = json.decode(raw) as Map<String, dynamic>;
+      } catch (_) {
+        throw Exception('JazzDrive login: unexpected response format');
+      }
+    } else {
+      throw Exception('JazzDrive login: unreadable response');
+    }
 
     // Detect explicit JazzDrive error (MED-1011 = share key invalid, FOL-1004 = folder deleted)
     final errorObj = data['error'] as Map<String, dynamic>?;
@@ -389,18 +414,37 @@ class JazzDriveService {
       ..['validation_key'] = validationKey;
     if (cookie.isNotEmpty) headers['Cookie'] = cookie;
 
+    // FIX-JAZZDRIVE-HTML: validateStatus so non-200 responses don't discard body.
     final resp = await _dio.get<dynamic>(
       mediaUrl,
-      options: Options(headers: headers),
+      options: Options(
+        headers: headers,
+        validateStatus: (s) => true,
+      ),
     );
 
     if (resp.statusCode != 200 || resp.data == null) {
       throw Exception('JazzDrive media fetch failed: HTTP ${resp.statusCode}');
     }
 
-    final body = resp.data is String
-        ? json.decode(resp.data as String) as Map<String, dynamic>
-        : resp.data as Map<String, dynamic>;
+    // Parse — handle pre-decoded Map, raw JSON string, or HTML error page.
+    final Map<String, dynamic> body;
+    if (resp.data is Map<String, dynamic>) {
+      body = resp.data as Map<String, dynamic>;
+    } else if (resp.data is String) {
+      final raw = resp.data as String;
+      if (raw.trimLeft().startsWith('<')) {
+        throw Exception(
+            'JazzDrive media fetch: HTML response (session expired or not on Jazz SIM)');
+      }
+      try {
+        body = json.decode(raw) as Map<String, dynamic>;
+      } catch (_) {
+        throw Exception('JazzDrive media fetch: unexpected response format');
+      }
+    } else {
+      throw Exception('JazzDrive media fetch: unreadable response');
+    }
 
     // Parse records list from various response shapes
     List<dynamic> records = [];
