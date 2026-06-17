@@ -763,14 +763,59 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // FIX-H01: debounce timestamps — concurrent rapid calls race inside MPV
   int _lastVfTs = 0;
   int _lastAfTs = 0;
+  // FIX-VF-BLACKSCREEN: startup gate + dedup for _applyVideoFilters.
+  // Prevents the month-long "local video black after 1-2s" bug — see fix comment below.
+  bool   _firstVfApplied = false;
+  String _lastAppliedVf  = '\x00'; // sentinel — never matches any real vf string
 
   Future<void> _applyVideoFilters(PlayerPrefs p) async {
     final ts = DateTime.now().millisecondsSinceEpoch;
     _lastVfTs = ts;
     await Future.delayed(const Duration(milliseconds: 60));
     if (_lastVfTs != ts || !mounted) return;
+
+    // FIX-VF-BLACKSCREEN — ROOT CAUSE of the month-long "local video goes black
+    // after 1-2 seconds" bug.
+    //
+    // _loadPrefs() calls _applyVideoFilters after awaiting PlayerPrefs.load().
+    // On any device (especially MediaTek/Infinix) that returns from SharedPreferences
+    // in <500 ms, the local video is ALREADY playing by the time the 60 ms debounce
+    // expires. Calling _np.setProperty('vf', ...) — even with an EMPTY string —
+    // on an active Android hardware-decoder pipeline forces MPV to destroy and
+    // rebuild the GL surface texture → video surface goes permanently black while
+    // audio continues. The hwdec guard in _applyAudioPrefs prevents the same race
+    // for the hwdec property, but _applyVideoFilters never had an equivalent guard.
+    //
+    // Fix (two-layer):
+    //   1. STARTUP GATE: the very first call is always from _loadPrefs. If video
+    //      is already playing, abort — no filter was active yet anyway.
+    //   2. DEDUP: skip the setProperty('vf', ...) call entirely when the filter
+    //      string hasn't changed — identical no-op calls still cause pipeline resets
+    //      on some MediaTek SoCs (vf= is not idempotent on HW decoder).
+    //
+    // User-initiated changes (from settings pickers) arrive as subsequent calls
+    // (_firstVfApplied is already true) and apply normally. After applying a new
+    // filter mid-play we seek to the current position — same pattern as the
+    // onSwDecoderChanged hwdec live-switch — so MPV re-renders the current frame
+    // through the new filter chain on the refreshed GL surface.
+    if (!_firstVfApplied) {
+      _firstVfApplied = true;
+      if (_player.state.playing || _playing) return; // startup race — skip
+    }
+
     final vf = _buildVfString(p);
+    if (vf == _lastAppliedVf) return; // dedup — no-op vf= still resets HW pipeline
+    _lastAppliedVf = vf;
     await _np.setProperty('vf', vf);
+
+    // Seek to current position after mid-play vf= change so MPV re-renders the
+    // current frame through the new filter chain (mirrors onSwDecoderChanged fix).
+    if ((_player.state.playing || _playing) && _player.state.duration > Duration.zero) {
+      await Future.delayed(const Duration(milliseconds: 150));
+      if (mounted && (_player.state.playing || _playing)) {
+        _player.seek(_player.state.position);
+      }
+    }
   }
 
   void _applyVolumeBoost(double multiplier) {
