@@ -1,17 +1,23 @@
-# TASK_LOG_APPEND — 2026-06-13
+# TASK_LOG_APPEND — 2026-06-17
 > Staging area. Merged into TASK_LOG.md at session end.
 
-## Session 2026-06-13 — UA fix, conflict detector, upload hang fix, OTP VK fix, Clear Cookies
+## Session 2026-06-17 — Player UX: 8 MX Player Layout Improvements
 
 ### Commits
-- db30e8bf — FIX-UA-STRINGS: all 10 UA strings → Infinix X680F/Android10
-- b2e7bc5f — FEAT-CONFLICT-DETECTOR: keepalive conflict classifier + event log
-- 05c73576 — FEAT-KEEPALIVE-HEALTH-API: /admin/api/keepalive-health GET+POST
-- 0f133ce5 — FIX-UPLOAD-HANG: pre-flight session check, session_dead state
-- 0ceb1544 — FIX-OTP-VK-MISSING: mobile_direct_verify_otp after OAuth2; _legacy early-return guard fix
-- (2026-06-13) — FEAT-CLEAR-COOKIES: jd_clear_cookies(), /clear-cookies route, 🍪 button in scan.html
+- `01fc775f` — feat(player): add sidebarMode pref + default rotation → auto
+- `bd75f9d6` — feat(player): floating ball, sidebar 3-state, speed track, side panels, clock, auto-rotate
 
-### Pending for Next Agent / User
-- USER must do OTP re-login: account id=4 has no VK. Scan page → Send OTP → enter code → verify log: `mobile_direct gave VK`
-- Delete stuck file Karuppu.2026.480p (files.id=37) after OTP login → re-upload
-- Monitor: VK cannot be refreshed silently. If it expires between OTPs → user clicks 🍪 Clear Cookies → keepalive may recover via refresh_token (new JID) but NOT new VK → if SAPI still fails, another OTP needed
+### 8 Improvements Delivered
+1. Floating draggable ball — white circle, tap=controls, drag=reposition
+2. Sidebar 3-state — full→icons-only→hidden (chevron toggle at top of rail)
+3. Sidebar state memory — sidebarMode int persisted in SharedPreferences
+4. Clock overlay — top-right white70, always visible when controls hidden, 30s timer
+5. Subtitle+Audio panels → right-side overlays (320px, black26 scrim)
+6. Speed picker → horizontal dot-rail (#4DB6FF active, white38 inactive)
+7. Default rotation → auto (was sensor_landscape)
+8. _MxSideBtn icons-only mode (36×36, icon 19px, no label)
+
+### Verification
+- 25/25 checks passed before push
+- player_prefs.dart: 1152→1158 lines
+- player_screen.dart: 6963→7087 lines
