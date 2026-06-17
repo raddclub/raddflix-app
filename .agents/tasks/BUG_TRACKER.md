@@ -1,5 +1,5 @@
 # BUG_TRACKER.md
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 ## Status Key
 - ✅ FIXED — committed and verified
@@ -80,4 +80,13 @@ _No open bugs._
 
 _Add new bugs below this line as they are found._
 
+| BUG-VF-BLACKSCREEN | `player_screen.dart` | `_applyVideoFilters` called from `_loadPrefs` with 60ms debounce — fires after local video is playing → `vf=` on active HW decoder destroys GL surface → black screen. Fix: startup gate (`_firstVfApplied`) + dedup (`_lastAppliedVf`) + seek-after for user changes. | 2026-06-18 |
+
 | BUG-ICON-COMPAT | `player_screen.dart` | `Icons.replay_15_rounded` / `forward_15_rounded` do not exist in Flutter 3.22.3. `replay_15` / `forward_15` also do not exist. Use `replay_10` / `forward_10`. Always verify icons against Flutter 3.22.3 source before using numbered variants. | 2026-06-18 |
+
+
+## Critical Rules (added 2026-06-18)
+
+| Rule | Detail |
+|------|--------|
+| vf= mid-play guard | **NEVER call `_np.setProperty('vf', ...)` while video is playing from startup code paths.** `_applyVideoFilters` MUST check `_firstVfApplied` gate (startup) and `_lastAppliedVf` dedup before calling. On Android HW decoder (MediaTek/Infinix), even an empty `vf=` call destroys the GL surface → black screen. User-initiated changes (settings pickers) are OK but must seek-after. |
