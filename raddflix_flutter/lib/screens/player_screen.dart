@@ -1778,19 +1778,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   NativePlayer get _np => _player.platform as NativePlayer;
 
   /// Single choke-point for all playback speed changes.
-  /// Sets framedrop=decoder+vo for speeds above 1× BEFORE calling setRate.
+  /// Sets framedrop=decoder+vo for speeds above 1× BEFORE changing speed.
   /// Without this, MediaCodec HW decoder crashes at >1× on MediaTek/Infinix
-  /// devices → permanent blank screen (audio continues). Both commands go into
-  /// MPV's serial command queue in order, so no await is needed — framedrop is
-  /// guaranteed to apply before the rate change is processed by MPV.
+  /// devices → permanent blank screen (audio continues).
+  ///
+  /// FIX-SPEED-CHANNEL: both framedrop and speed are sent through the same
+  /// NativePlayer (_np) command channel. _player.setRate() routes through a
+  /// separate Dart API path (Player → GeneratedPlayer → platform channel) and
+  /// can arrive at MPV before the framedrop setProperty is applied — so the
+  /// HW decoder receives a >1× rate change without frame-dropping enabled and
+  /// crashes → blank screen. Using _np.setProperty('speed', ...) for both
+  /// commands guarantees they enter MPV's serial queue in order.
   void _setSpeed(double s) {
     _np.setProperty('framedrop', s > 1.0 ? 'decoder+vo' : 'vo');
-    _player.setRate(s);
+    _np.setProperty('speed', s.toStringAsFixed(4));
   }
 
   Future<void> _initPlayer() async {
     _player = Player();
     _videoCtrl = VideoController(_player, configuration: const VideoControllerConfiguration(androidAttachSurfaceAfterVideoParameters: false));
+    // FIX-SURFACE-RACE: VideoController establishes the Android GL surface
+    // immediately on construction — before any media is opened and before
+    // _player.stream.playing fires. The existing _videoSurfaceReady latch
+    // (set on first playing=true) misses this window: _applyAudioPrefs runs
+    // ~70ms after initState (60ms debounce) and finds _videoSurfaceReady=false,
+    // so it changes hwdec while the surface is already live → surface destroyed
+    // → permanent blank screen with audio continuing.
+    // Latching here closes the gap: hwdec is now frozen from this point forward;
+    // live decoder switches go only through onSwDecoderChanged (which does its
+    // own seek-to-recover).
+    _videoSurfaceReady = true;
     await _openMedia(widget.fileId, localPath: widget.localPath);
     // Auto-load external subtitle (sidecar .srt/.ass/.vtt from local folder or "Open With" intent)
     final _extSubPath = widget.subtitlePath;
@@ -2857,11 +2874,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           setState(() => _longPressFast = false);
           // _setSpeed restores framedrop=vo when speed drops back to ≤1×.
           _setSpeed(_speed);
-          // FIX-BLACKSCREEN-LP: high-speed playback drains the MPV frame buffer;
-          // seeking to the live position forces MPV to decode + render a fresh
-          // frame immediately, clearing any stale black surface.
-          Future.delayed(const Duration(milliseconds: 80), () {
-            if (mounted && _player.state.playing) {
+          // FIX-BLACKSCREEN-LP: after fast-forward, MPV's frame buffer may be
+          // exhausted and the HW decoder surface stale. Wait 200ms (was 80ms)
+          // for MPV to fully stabilise at 1× speed, then re-assert framedrop=vo
+          // (guards against any residual channel-ordering race from _setSpeed)
+          // before seeking to force a fresh decode+render cycle.
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (!mounted) return;
+            _np.setProperty('framedrop', 'vo');
+            if (_player.state.playing) {
               _player.seek(_player.state.position);
             }
           });
