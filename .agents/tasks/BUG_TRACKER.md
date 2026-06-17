@@ -30,6 +30,10 @@ _No open bugs._
 | XOR padding | `final pad = (4 - b64.length % 4) % 4; b64 += '=' * pad;` — never remove from `request_encoder.dart` |
 | sqflite_sqlcipher | Never upgrade past `3.1.0+1` |
 | VideoController | Never add `androidAttachSurfaceAfterVideoParameters: true` — causes black screen |
+| Long-press framedrop | Always set `framedrop=decoder+vo` BEFORE `setRate(>1x)` in `onLongPressStart`. Restore `framedrop=vo` in `onLongPressEnd`. Without this, MediaCodec HW decoder crashes at >1x speed on MediaTek/Infinix → blank screen. |
+| _jazzRetryCount reset | Reset `_jazzRetryCount = 0` inside `_openMedia` on every successful `_player.open()` call. Failure to reset causes any subsequent MPV error to immediately show the error overlay even while video plays. |
+| _videoSurfaceReady hwdec gate | `_applyAudioPrefs` hwdec guard MUST include `!_videoSurfaceReady`. Without it, episode-navigation transitions (playing=false + duration=zero) allow hwdec mid-session → permanent blank. |
+| _jazzAutoRetry playing guard | `_jazzAutoRetry` MUST check `if (_playing) return` before setting `_streamError`. Mid-play errors are transient; never show error overlay over a live video. |
 | hwdec mid-play | **NEVER call `_np.setProperty('hwdec', ...)` while video is playing or media is open.** Correct guard in `_applyAudioPrefs()`: `if (!_playing && !_player.state.playing && _player.state.duration == Duration.zero)`. The `_playing` Flutter state var alone is NOT sufficient — it lags one setState cycle behind MPV state. `_player.state.duration == Duration.zero` is the reliable gate: it becomes non-zero the moment `_player.open()` is called. |
 | Dart semicolons | Semicolons MUST come BEFORE inline comments: `expr); // comment` — never after |
 | Oracle git pull | Always `git stash && git pull && git stash pop` — Oracle has local uncommitted files |
@@ -41,6 +45,11 @@ _No open bugs._
 ---
 
 ## Fixed Bugs (History)
+
+| BUG-PLAYER-TRIFECTA-A | `player_screen.dart` | Catalog popup over playing video: `_jazzRetryCount` not reset on successful open + `_jazzAutoRetry` set `_streamError` even when `_playing=true`. Fix: reset count after each `_player.open()`; guard with `if (_playing) return` | 2026-06-17 |
+| BUG-PLAYER-TRIFECTA-B | `player_screen.dart` | Local video permanent blank: hwdec guard episode-nav race — all three guard conditions (playing=false, state.playing=false, duration=zero) simultaneously true during `_player.open(newEp)` transition. Fix: add `!_videoSurfaceReady` fourth guard (latch never resets). | 2026-06-17 |
+| BUG-PLAYER-TRIFECTA-C | `player_screen.dart` | Long-press blank screen: MediaCodec HW decoder crashes at 2× speed on MediaTek/Infinix. Fix: `framedrop=decoder+vo` before `setRate()`, `framedrop=vo` after. | 2026-06-17 |
+| BUG-HWDEC-LIVE-TOGGLE | `player_screen.dart` | SW decoder toggle (line 3523) called `setProperty('hwdec',...)` with no guard → blank on mid-play switch. Fix: added `await + seek(position)` post-switch. | 2026-06-17 |
 
 | ID | File | Description | Fixed |
 |----|------|-------------|-------|

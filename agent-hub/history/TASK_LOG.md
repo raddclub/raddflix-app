@@ -75,3 +75,41 @@ _Append new session summaries below this line._
   - APK build 1058: TRIGGERED (commit 3b56547)
   - Open tasks: none
   
+
+## Session 2026-06-17 — Player trifecta: catalog popup + local blank + long-press blank
+
+### Root causes identified and fixed
+All three bugs shared a common thread: inadequate guards on operations that destroy the MPV GL surface texture.
+
+#### Bug 1 — Catalog popup over playing video (two causes)
+- **Cause A**: `_jazzRetryCount` never reset after a successful `_player.open()`. After any initial error+retry, `_jazzRetryCount=1`. Any subsequent MPV error (CDN hiccup, closing old stream during retry) immediately hit the `>= 1` branch and called `setState(() => _streamError = ...)` — blocking a live playing video with an error overlay.
+- **Cause B**: `_jazzAutoRetry` set `_streamError` without checking `_playing`. Video continued playing (audio) behind the overlay.
+- **Fix A**: Reset `_jazzRetryCount = 0` inside `_openMedia` on every successful `_player.open()` call (both local and remote paths).
+- **Fix B**: Added `if (_playing) return;` guard in `_jazzAutoRetry` before `_streamError` assignment.
+
+#### Bug 2 — Local video permanent blank screen
+- **Cause**: `_applyAudioPrefs` hwdec guard (`!_playing && !_player.state.playing && duration==zero`) has a timing gap during episode-navigation transitions. When `_player.open(newEp)` is called, MPV briefly fires `playing=false` AND `duration=zero` simultaneously. Any `_applyAudioPrefs` call (EQ change, AudioLab, quick settings) firing in this window changed `hwdec` mid-session → MPV destroyed the GL surface texture → VideoController held a dead texture → permanent black (audio continued). `_videoSurfaceReady` was already `true` so opacity stayed 1.0, making the blank look final.
+- **Fix**: Added `!_videoSurfaceReady` as a fourth guard condition. This latch is set on first `playing=true` and never reset, meaning hwdec is only ever applied in the pre-first-frame window. Episode-nav transitions are now blocked from changing hwdec regardless of the playing/duration state.
+
+#### Bug 3 — Long-press blank screen (during fast-forward)
+- **Cause**: `_player.setRate(2.0)` with `hwdec=auto` crashes MediaCodec on budget Android devices (Infinix/MediaTek). The HW decoder cannot sustain >1× decode rate and its pipeline crashes → GL surface destroyed → blank screen.
+- **Fix**: `await _np.setProperty('framedrop', 'decoder+vo')` is called BEFORE `setRate()` in `onLongPressStart`. This enables frame-dropping at both decoder and VO levels, keeping the pipeline alive. Restored to `framedrop=vo` in `onLongPressEnd`. No surface/texture change involved — safe to call mid-play.
+
+#### Bonus fix — SW decoder toggle
+- Line 3523 `onSwDecoderChanged` called `setProperty('hwdec', ...)` with no guard, causing blank screen when user toggles SW decoder mid-play. Added `await Future.delayed(150ms) + _player.seek(position)` to force fresh frame after decoder switch.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| BUG-PLAYER-TRIFECTA | Three persistent player bugs + SW decoder toggle bonus | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| `raddflix_flutter/lib/screens/player_screen.dart` | 6 targeted edits — see task description above | TBD |
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0
+- JazzDrive: active (id=11)
+- APK build: TRIGGERED
+- Open tasks: none

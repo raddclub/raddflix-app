@@ -614,7 +614,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // while the decoder pipeline is already active, causing the surface to be
     // destroyed.  duration becomes non-zero as soon as _player.open() is called,
     // so this guard reliably blocks mid-playback hwdec changes.
-    if (!_playing && !_player.state.playing && _player.state.duration == Duration.zero) {
+    //
+    // FIX-HWDEC-SURFACE: add !_videoSurfaceReady as a final guard layer.
+    // _videoSurfaceReady latches to true on first playing=true event and NEVER
+    // resets. Episode-navigation transitions briefly set playing=false AND
+    // duration=zero while MPV switches files — this creates a false window where
+    // the original two-condition guard passes but the GL surface IS live.
+    // Any hwdec change in that window destroys the surface → permanent black
+    // screen (audio continues). _videoSurfaceReady stays true through all
+    // transitions, closing this gap completely. hwdec is now only ever set in
+    // the pre-first-frame window (initState race / prefs loading before open).
+    if (!_playing && !_player.state.playing &&
+        _player.state.duration == Duration.zero && !_videoSurfaceReady) {
       await _np.setProperty('hwdec', p.hwDecoderEnabled ? 'auto' : 'no');
       await _np.setProperty('deinterlace', p.deinterlaceEnabled ? 'yes' : 'no');
     }
@@ -1699,6 +1710,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// Equivalent of "delete cookies + reload" in a browser.
   void _jazzAutoRetry(String reason) {
     if (_jazzRetryCount >= 1) {
+      // FIX-ERR-POPUP: never show error overlay while video is actively playing.
+      // Mid-play errors (CDN hiccup, network drop, closing old stream on retry)
+      // are transient — the decoder is still alive and audio continues. Showing
+      // the overlay here blocks a live video with a false error message.
+      // The snackbar at the call-site is sufficient feedback for mid-play errors.
+      if (_playing) return;
       // Already retried once — show error overlay with a human-readable message.
       // FIX-RETRY-MSG: route through _buildJazzError so raw MPV/network error
       // strings (e.g. "Failed to open url") are never shown directly to the user.
@@ -1930,7 +1947,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _currentPlaybackUrl = effectiveLocalPath;
       await _player.open(Media(effectiveLocalPath));
       // FIX-STALE-ERR: clear any stale error overlay when opening new media
-      if (mounted) setState(() { _streamError = null; _ended = false; _position = Duration.zero; });
+      // FIX-RETRY-RESET: reset retry count so the next error gets a full retry
+      // budget rather than immediately escalating to the error overlay.
+      if (mounted) setState(() { _streamError = null; _ended = false; _position = Duration.zero; _jazzRetryCount = 0; });
       return;
     }
 
@@ -1987,7 +2006,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final link = await JazzDriveService.getStreamLink(cacheKey, shareUrl, targetFilename: targetFilename, remoteId: remoteId);
         _currentPlaybackUrl = link.streamUrl;
         await _player.open(Media(link.streamUrl));
-        if (mounted) setState(() { _ended = false; _position = Duration.zero; _isLinkLoading = false; });
+        // FIX-RETRY-RESET: successful open — reset retry count so any future
+        // mid-play error gets a full retry attempt instead of immediately
+        // showing the error overlay (which would block the playing video).
+        if (mounted) setState(() { _ended = false; _position = Duration.zero; _isLinkLoading = false; _jazzRetryCount = 0; });
         return;
       }
     } catch (e) {
@@ -2779,13 +2801,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           HapticFeedback.selectionClick();
           _seekRelative(d.localPosition.dx < w / 2 ? -15 : 15);
         },
-        onLongPressStart: (_) {
+        onLongPressStart: (_) async {
           setState(() => _longPressFast = true);
+          // FIX-LP-BLANK: set framedrop=decoder+vo BEFORE increasing speed.
+          // On MediaTek/Infinix budget Android devices, the MediaCodec HW decoder
+          // cannot sustain decode rates above 1× and crashes its pipeline when
+          // setRate(2.0) is called → GL surface texture destroyed → permanent
+          // blank screen (audio-only). framedrop=decoder+vo allows MPV to skip
+          // frames at both decoder and VO output levels, keeping the pipeline
+          // alive under load instead of crashing it. No surface/texture change
+          // occurs — only frame-dropping behaviour changes.
+          await _np.setProperty('framedrop', 'decoder+vo');
           _player.setRate(_prefs.longPressSpeed);
         },
-        onLongPressEnd: (_) {
+        onLongPressEnd: (_) async {
           setState(() => _longPressFast = false);
           _player.setRate(_speed);
+          // FIX-LP-BLANK: restore default framedrop mode after long-press ends.
+          await _np.setProperty('framedrop', 'vo');
           // FIX-BLACKSCREEN-LP: high-speed playback drains the MPV frame buffer;
           // when speed returns to normal the surface may show a stale black frame.
           // Seeking to the live position forces MPV to decode + render a fresh
@@ -3520,7 +3553,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 onSyncChanged: _applyAudioSync,
                 onOpen: () => setState(() => _showAudioMenu = false),
                 onClose: () => setState(() => _showAudioMenu = false),
-                onSwDecoderChanged: (sw) => _np.setProperty('hwdec', sw ? 'no' : 'auto'), // FIX-M03
+                onSwDecoderChanged: (sw) async { // FIX-M03 + FIX-HWDEC-LIVE
+                  await _np.setProperty('hwdec', sw ? 'no' : 'auto');
+                  // FIX-HWDEC-LIVE: force a fresh frame after user-initiated decoder
+                  // switch so the surface doesn't go blank after the hwdec change.
+                  await Future.delayed(const Duration(milliseconds: 150));
+                  if (mounted && _player.state.playing) _player.seek(_player.state.position);
+                },
               )),
 
           // ── Rage Skip Badge ──
