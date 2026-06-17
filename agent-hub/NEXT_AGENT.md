@@ -1,5 +1,8 @@
 # NEXT AGENT BRIEFING — RaddFlix Hub
-_Written: 2026-06-10 | Read this FIRST before doing anything_
+_Written: 2026-06-10 | Updated: 2026-06-17 | Read HANDOFF_NEXT.md for latest state_
+
+> ⚠️ For up-to-date state, read `agent-hub/HANDOFF_NEXT.md` and `agent-hub/AGENT_STATUS.md` first.
+> This file covers the Oracle backend architecture and critical rules (still valid).
 
 ---
 
@@ -123,7 +126,7 @@ which no longer exist (permanently removed in PERF-02). Update the UI to show
 
 ---
 
-## CURRENT SERVER STATE (2026-06-10)
+## CURRENT SERVER STATE (updated 2026-06-17)
 
 | Item | Value |
 |------|-------|
@@ -177,6 +180,11 @@ ssh -i /tmp/oracle_key ubuntu@92.4.95.252 "git -C /opt/jazzmax/radd-hub remote g
 Step 4 — Read TASKS.md at `/opt/jazzmax/radd-hub/agent-hub/TASKS.md` before doing any work.
 
 ---
+
+## Player UX Session Completed — 2026-06-17
+8 MX Player layout improvements pushed to player_screen.dart and player_prefs.dart.
+See agent-hub/AGENT_STATUS.md for full details.
+No bugs open as of 2026-06-17.
 
 ## RECOMMENDED WORK ORDER
 
