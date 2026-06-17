@@ -12,11 +12,13 @@ STEP 3 — Read context + task list:
 curl -sL https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/HANDOFF_NEXT.md
 curl -sL https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/TASKS.md
 
-CURRENT STATE (as of 2026-06-08 — post TASK-057):
+CURRENT STATE (as of 2026-06-17 — post player UX session):
 - Oracle Flask: running as raddflix_radd (PID 3008136)
 - v3 DB: 17 titles / 28 files — all Live
 - APK: build1034 (run 27156269376) — expires 2026-07-08
 - TASK-057 complete: 8 bugs fixed (6 Flutter + 2 Oracle Python)
+- Player UX: 8 MX Player layout improvements (floating ball, sidebar 3-state, clock, speed track, side panels, auto-rotate)
+  Commits: 01fc775f (prefs), bd75f9d6 (screen)
 - Account 03286829827: session healthy, auto-recovers via Android OAuth2 + PK proxy
 
 HARD RULES (never break):
