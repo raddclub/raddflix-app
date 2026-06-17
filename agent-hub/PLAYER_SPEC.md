@@ -1,5 +1,5 @@
 # RaddFlix Player — Full Feature Specification
-> Last Updated: 2026-06-01 | Source: player_screen.dart (4521 lines)
+> Last Updated: 2026-06-17 | Source: player_screen.dart (7087 lines), player_prefs.dart (1158 lines)
 > This document is the single truth for the video player. Read before touching any player file.
 
 ---
@@ -179,3 +179,65 @@ These are items confirmed different from the MX Player screenshot reference. Fix
 8. **Subtitle panel**: "Online subtitles" is vertical text on right edge; our code has it as a small badge
 9. **Right-side strip**: Screenshots show Screenshot/Rotate/HW+/More; our code shows Sub/Audio/Rotate/More
 10. **Center play button**: Screenshots show smaller/less-glow button than our 68px red circle
+
+---
+
+## Player UX Features Added 2026-06-17
+
+### Floating Draggable Ball
+- Visible when controls are hidden and `!_locked && !_immersiveMode`
+- White 40×40 circle with `Icons.play_circle_outline_rounded` icon
+- **Tap** → sets `_showControls = true`, calls `_scheduleHide()`
+- **Drag** (`onPanUpdate`) → updates `_ballOffset` clamped to screen bounds
+- Positioned via `Positioned(left: _ballOffset.dx, top: _ballOffset.dy)`
+
+### Sidebar 3-State Cycle
+- Triggered by chevron button at top of right rail in `_ControlsOverlay`
+- State 0 (full): rail width 58px, buttons show icon + label (46×44)
+- State 1 (icons-only): rail width 40px, buttons show icon only (36×36, 19px icon)
+- State 2 (hidden): rail is removed from tree (`sidebarMode < 2` condition)
+- Chevron icon: `chevron_right_rounded` (state 0) or `chevron_left_rounded` (state 1)
+- Persisted: `_prefs.copyWith(sidebarMode: _nm).save()` on every toggle
+
+### PlayerPrefs.sidebarMode
+- **Type**: `int` (0=full, 1=icons-only, 2=hidden)
+- **Default**: 0
+- **SharedPrefs key**: `sidebar_mode`
+- **copyWith**: `int? sidebarMode` param added
+- **load**: `s.getInt('${_p}sidebar_mode') ?? 0`
+- **save**: `s.setInt('${_p}sidebar_mode', sidebarMode)`
+
+### Clock Overlay
+- Positioned top-right (top: 10, right: 16), wrapped in `IgnorePointer`
+- Visible when `!_showControls && !_locked`
+- Style: white70, 12sp, medium weight, 4px blur shadow
+- Helper `_fmtTime()`: returns `"H:MM AM/PM"` format
+- `_clockTimer` (Timer.periodic 30s) calls `setState(() => _clockStr = _fmtTime())`
+- Cancelled in `dispose()`
+
+### Subtitle + Audio Panels (right-side overlays)
+- **Before**: `Positioned(bottom:0, left:0, right:0)` (bottom sheet style)
+- **After**: `Positioned(top:0, right:0, bottom:0, width:320)` (right-side panel)
+- Scrim: `Colors.black26` (was `Colors.black54`) — lighter, less intrusive
+- Both panels (`_MxSubPanel`, `_MxAudioPanel`) unchanged internally
+
+### Speed Picker (_SpeedTrackPanel)
+- Replaced `_SpeedPanel` (vertical right-side list) with `_SpeedTrackPanel` (horizontal top bar)
+- Layout: `Positioned(top:0, left:0, right:0)` — spans full width at top
+- Each speed in an `Expanded` column with dot + label
+- Active: 13px `#4DB6FF` circle + 11sp bold blue label
+- Inactive: 7px white38 circle + 9sp white54 label
+- Footer: "${speed}× Speed Playing" with play arrow icon
+- Animation: `fadeIn(150ms)`
+
+### _MxSideBtn iconsOnly Mode
+- New field: `final bool iconsOnly;` (default `false`)
+- When `iconsOnly == true`:
+  - Container: 36×36 (was 46×44)
+  - Icon: 19px (was 17px)
+  - Label `Text` and gap `SizedBox` are hidden (`if (!iconsOnly)`)
+- All sidebar buttons use `iconsOnly: sidebarMode == 1`
+
+### Default Rotation Change
+- `PlayerPrefs.rotationMode` default: `'sensor_landscape'` → `'auto'`
+- Affects new installs and users who haven't changed rotation setting
