@@ -1,6 +1,26 @@
 # RaddFlix Task Board
 Last updated: 2026-06-17
 
+## Completed Tasks — Player UX Session (2026-06-17)
+
+### PLAYER-UX-01 through PLAYER-UX-08 ✅ — 8 MX Player Layout Improvements
+**Files:** `raddflix_flutter/lib/screens/player_screen.dart`, `raddflix_flutter/lib/core/player/player_prefs.dart`
+**Commits:** `01fc775f` (prefs) + `bd75f9d6` (screen)
+**Status:** Completed 2026-06-17 | 25/25 verification checks passed
+
+| # | Feature | Key Anchors |
+|---|---------|-------------|
+| 1 | Floating draggable ball | `_ballOffset`, `_sidebarMode`, play_circle_outline_rounded |
+| 2 | Sidebar 3-state (full/icons/hidden) | chevron_right_rounded, `sidebarMode < 2` |
+| 3 | Sidebar state persisted | `PlayerPrefs.sidebarMode`, SharedPrefs `sidebar_mode` |
+| 4 | Clock overlay (top-right) | `_clockStr`, `_fmtTime()`, `_clockTimer` |
+| 5 | Subtitle+Audio → right-side overlays | `width: 320`, black26 scrim |
+| 6 | Speed picker → horizontal dot-rail | `_SpeedTrackPanel`, `#4DB6FF` |
+| 7 | Default rotation → auto | `rotationMode = 'auto'` |
+| 8 | `_MxSideBtn` icons-only | `iconsOnly` field, 36×36, icon 19px |
+
+---
+
 ## Completed Tasks — 2026-06-17 Bug Fixes (commit 61f58908)
 
 ### BUG-BLACKSCREEN-LP ✅ — Long-press fast-forward leaves black frame
