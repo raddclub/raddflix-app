@@ -44,6 +44,7 @@ _No open bugs._
 
 | ID | File | Description | Fixed |
 |----|------|-------------|-------|
+| BUG-FAB-01 | `player_screen.dart` | FAB in Local Media always played first video — watch positions were never written for local files (condition `!_isLocalPath` excluded them); `_playAll()` resume loop found no matches → startIndex=0 always. Fix: write position using `_currentPlaybackUrl` as key for local files; guard `HistoryApi.syncPosition` to Oracle-only | 2026-06-17 |
 | BUG-AUDIT-STALE-ERR | `player_screen.dart` | `_openMedia` never cleared `_streamError` — old error overlay stayed visible while new media loaded | 2026-06-17 |
 | BUG-AUDIT-RETRY-MSG | `player_screen.dart` | `_jazzAutoRetry` set `_streamError` to raw MPV error string (e.g. "Failed to open url") — user saw technical garbage; now routed through `_buildJazzError` | 2026-06-17 |
 | BUG-AUDIT-HTML-MSG | `player_screen.dart` | `_buildJazzError` had no explicit handler for "HTML response"/"HTML page"/"session cookie"/"XML error page" strings — all fell to same generic message; now classified correctly | 2026-06-17 |

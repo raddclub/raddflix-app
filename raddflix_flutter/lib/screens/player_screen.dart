@@ -1758,17 +1758,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // A-B Loop
       final seekBack = _abLoop.maybeSeekBack(p);
       if (seekBack != null) _player.seek(seekBack);
-      // Only save for Oracle file IDs (not vault/local/Open-With URIs).
+      // Save watch position every 10s.
       // BUG-P01 FIX: use checkpoint index instead of modulo so we save exactly
       // once per 10s boundary regardless of how many stream events fire per second.
+      // BUG-FAB-01 FIX: also save for local files using _currentPlaybackUrl as key
+      // so _playAll() can resume from the last-watched episode instead of always
+      // starting at index 0 (posMap was keyed by filePath but we never wrote it).
       final _saveCheckpoint = p.inSeconds ~/ 10;
-      if (widget.fileId.isNotEmpty && !_isLocalPath(widget.fileId) &&
-          _saveCheckpoint != _lastSaveCheckpoint && _duration.inMilliseconds > 0) {
-        _lastSaveCheckpoint = _saveCheckpoint;
-        LocalDb.saveWatchPosition(
-            fileId: widget.fileId,
-            positionMs: p.inMilliseconds,
-            durationMs: _duration.inMilliseconds);
+      if (_saveCheckpoint != _lastSaveCheckpoint && _duration.inMilliseconds > 0) {
+        final _posKey = (widget.fileId.isNotEmpty && !_isLocalPath(widget.fileId))
+            ? widget.fileId
+            : (_isLocalFile && (_currentPlaybackUrl?.isNotEmpty ?? false)
+                ? _currentPlaybackUrl!
+                : '');
+        if (_posKey.isNotEmpty) {
+          _lastSaveCheckpoint = _saveCheckpoint;
+          LocalDb.saveWatchPosition(
+              fileId: _posKey,
+              positionMs: p.inMilliseconds,
+              durationMs: _duration.inMilliseconds);
+        }
       }
       // Sleep countdown handled by _sleepTimer
     });
@@ -2583,25 +2592,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _ambilightCtrl?.dispose();
     _bingeGuardCtrl?.dispose();
     _logWatchSession(); // log partial session on exit
-    // Only persist for Oracle file IDs — skip vault (fileId=''),
-    // Open-With content:// URIs, and raw device file paths.
+    // Persist final position on exit (Oracle content AND local files).
     // BUG-P02 FIX: skip save when video completed — position == duration would
     // cause the next open to resume from the very end (triggers instant next-ep
     // countdown or frozen end frame).
+    // BUG-FAB-01 FIX: also save for local files using _currentPlaybackUrl as key.
+    final _exitPosKey = (widget.fileId.isNotEmpty && !_isLocalPath(widget.fileId))
+        ? widget.fileId
+        : (_isLocalFile && (_currentPlaybackUrl?.isNotEmpty ?? false)
+            ? _currentPlaybackUrl!
+            : '');
     if (!_ended && _position.inMilliseconds > 0 && _duration.inMilliseconds > 0 &&
-        widget.fileId.isNotEmpty && !_isLocalPath(widget.fileId)) {
+        _exitPosKey.isNotEmpty) {
       LocalDb.saveWatchPosition(
-          fileId: widget.fileId,
+          fileId: _exitPosKey,
           positionMs: _position.inMilliseconds,
           durationMs: _duration.inMilliseconds);
-      // BUG-A08/A19: sync position to server on player exit.
+      // BUG-A08/A19: sync position to Oracle server on player exit.
       // BUG-A11: server expects position_ms/duration_ms in milliseconds.
       // watched_at in GET /api/history is epoch SECONDS — use
       // DateTime.fromMillisecondsSinceEpoch(watchedAt * 1000) to parse.
-      HistoryApi.syncPosition(
-          fileId: widget.fileId,
-          positionMs: _position.inMilliseconds,
-          durationMs: _duration.inMilliseconds);
+      // BUG-FAB-01 FIX: only sync to Oracle for non-local Oracle file IDs —
+      // local files use filePath as key and must NOT be sent to the server.
+      if (widget.fileId.isNotEmpty && !_isLocalPath(widget.fileId)) {
+        HistoryApi.syncPosition(
+            fileId: widget.fileId,
+            positionMs: _position.inMilliseconds,
+            durationMs: _duration.inMilliseconds);
+      }
     }
     _positionNotifier.dispose();
     _durationNotifier.dispose();
