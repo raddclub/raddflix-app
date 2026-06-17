@@ -333,24 +333,126 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildShimmer() {
+    // Local helper — inline shimmer section (title header + horizontal card row)
+    Widget section() => Shimmer.fromColors(
+      baseColor: t.surface, highlightColor: t.surfaceHigh,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+          child: Row(children: [
+            Container(width: 3, height: 20, margin: const EdgeInsets.only(right: 10),
+                decoration: BoxDecoration(color: t.surfaceHigh,
+                    borderRadius: BorderRadius.circular(2))),
+            Container(height: 14, width: 130,
+                decoration: BoxDecoration(color: t.surfaceHigh,
+                    borderRadius: BorderRadius.circular(4))),
+          ]),
+        ),
+        SizedBox(
+          height: 190,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: 5,
+            itemBuilder: (_, __) => Container(
+              width: 126, margin: const EdgeInsets.only(right: 10),
+              decoration: BoxDecoration(
+                color: t.surface,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: Stack(fit: StackFit.expand, children: [
+                Container(color: t.surface),
+                Positioned(bottom: 0, left: 0, right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(6, 22, 6, 8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, t.card],
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min, children: [
+                        Container(height: 8, width: double.infinity,
+                            decoration: BoxDecoration(color: t.surfaceHigh,
+                                borderRadius: BorderRadius.circular(4))),
+                        const SizedBox(height: 4),
+                        Container(height: 6, width: 50,
+                            decoration: BoxDecoration(color: t.surfaceHigh,
+                                borderRadius: BorderRadius.circular(3))),
+                      ]),
+                  )),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ]),
+    );
+
     return ListView(physics: const NeverScrollableScrollPhysics(), children: [
-      SizedBox(height: 96),
-      // Hero shimmer
+      const SizedBox(height: 96),
+      // Hero banner skeleton
       Shimmer.fromColors(
         baseColor: t.surface, highlightColor: t.surfaceHigh,
-        child: Container(height: 264, margin: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(color: t.surface,
-                borderRadius: BorderRadius.circular(AppRadius.lg)))),
-      SizedBox(height: 16),
-      // Row shimmer
-      SizedBox(height: 180,
-        child: ListView.builder(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: 5, itemBuilder: (_, __) =>
-              Padding(padding: const EdgeInsets.only(right: 10),
-                child: Shimmer.fromColors(baseColor: t.surface,
-                  highlightColor: t.surfaceHigh,
-                  child: Container(width: 120, decoration: BoxDecoration(color: t.surface,
-                      borderRadius: BorderRadius.circular(AppRadius.sm))))))),
+        child: Container(
+          height: 264, margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: t.surface, borderRadius: BorderRadius.circular(AppRadius.lg)),
+          child: Stack(children: [
+            // Page-indicator dots
+            Positioned(bottom: 14, left: 0, right: 0,
+              child: Row(mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (i) => Container(
+                  width: i == 0 ? 22 : 5, height: 5,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(color: t.surfaceHigh,
+                      borderRadius: BorderRadius.circular(3)),
+                )))),
+            // Title + buttons
+            Positioned(bottom: 38, left: 16, right: 16,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min, children: [
+                Container(height: 22, width: 180,
+                    decoration: BoxDecoration(color: t.surfaceHigh,
+                        borderRadius: BorderRadius.circular(4))),
+                const SizedBox(height: 12),
+                Row(children: [
+                  Container(width: 120, height: 36, decoration: BoxDecoration(
+                      color: t.surfaceHigh,
+                      borderRadius: BorderRadius.circular(AppRadius.round))),
+                  const SizedBox(width: 10),
+                  Container(width: 90, height: 36, decoration: BoxDecoration(
+                      color: t.surfaceHigh,
+                      borderRadius: BorderRadius.circular(AppRadius.round))),
+                ]),
+              ])),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 16),
+      // Category chips row skeleton
+      Shimmer.fromColors(
+        baseColor: t.surface, highlightColor: t.surfaceHigh,
+        child: SizedBox(
+          height: 48,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            itemCount: 7,
+            itemBuilder: (_, __) => Container(
+              width: 72, height: 32, margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(color: t.surface,
+                  borderRadius: BorderRadius.circular(AppRadius.round))),
+          ),
+        ),
+      ),
+      const SizedBox(height: 8),
+      // Two full content sections
+      section(),
+      section(),
+      const SizedBox(height: 24),
     ]);
   }
 }
@@ -552,6 +654,11 @@ class _HeroCard extends StatelessWidget {
       return CachedNetworkImage(
         imageUrl: item.posterUrl!,
         fit: BoxFit.cover,
+        placeholder: (_, __) => Shimmer.fromColors(
+          baseColor: AppColors.card,
+          highlightColor: const Color(0xFF2A2A2A),
+          child: Container(color: AppColors.card),
+        ),
         errorWidget: (_, __, ___) => placeholder,
       );
     }
