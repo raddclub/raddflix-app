@@ -11,7 +11,7 @@
 | App (Oracle) | ✅ RUNNING | raddflix_radd via supervisorctl, port 5000, v3.0.0 |
 | JazzDrive Session | ✅ LIVE | Account id=11 (03257719165): VK ✅ JID ✅ raw_accesstoken ✅ refresh_token ✅ |
 | JazzDrive Chain | ✅ PROVEN | Full login→media→CDN tested 2026-06-16, real MP4 bytes confirmed |
-| Flutter app | ✅ STABLE | All known bugs fixed — build 1067 (commit 61f58908) |
+| Flutter app | ✅ STABLE | All known bugs fixed — build 1067 + audit fixes (commit 832e9672) |
 | Login screen | ✅ FIXED | Wrong password no longer navigates to home — shows error banner |
 | Catalog sync | ✅ FORCED | catalog_forced_version=1781620750 — all devices will full re-sync |
 | Debug screen | ✅ LIVE | Accessible in release — tap version text 5× in Profile |
@@ -25,7 +25,8 @@
 
 | Build | Commit | Status | Key Fix |
 |-------|--------|--------|---------|
-| build-1067 | 61f58908 | 🔄 Building | Black screen + Jazz error messages |
+| build-1067 | 61f58908 | ✅ Success (57MB) | Black screen + Jazz error messages |
+| audit-patch | 832e9672 | ✅ Pushed (no build needed) | 6 audit fixes: stale error, retry msg, JSESSIONID guard, empty URL guard |
 | build-1066 | 5647a86e | ✅ Success (56.8MB) | Icon fix + SERVER_SETUP.md |
 | build-1053 | — | ✅ Success | Debug screen accessible in release |
 

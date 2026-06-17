@@ -44,6 +44,11 @@ _No open bugs._
 
 | ID | File | Description | Fixed |
 |----|------|-------------|-------|
+| BUG-AUDIT-STALE-ERR | `player_screen.dart` | `_openMedia` never cleared `_streamError` — old error overlay stayed visible while new media loaded | 2026-06-17 |
+| BUG-AUDIT-RETRY-MSG | `player_screen.dart` | `_jazzAutoRetry` set `_streamError` to raw MPV error string (e.g. "Failed to open url") — user saw technical garbage; now routed through `_buildJazzError` | 2026-06-17 |
+| BUG-AUDIT-HTML-MSG | `player_screen.dart` | `_buildJazzError` had no explicit handler for "HTML response"/"HTML page"/"session cookie"/"XML error page" strings — all fell to same generic message; now classified correctly | 2026-06-17 |
+| BUG-AUDIT-JSESSIONID | `jazzdrive_service.dart` | `_loginShare` returned empty-cookie `_ShareSession` when JSESSIONID was missing from both JSON body and Set-Cookie — next `/sapi/media/video` call hit wrong LB node and silently got 401. Now throws early with clear message. | 2026-06-17 |
+| BUG-AUDIT-EMPTY-URL | `jazzdrive_service.dart` | `_getMedia` passed empty `rawUrl` to `_buildStreamUrl` producing `"?filename=..."` — MPV failed silently, wasted auto-retry budget. Now throws before building URL. | 2026-06-17 |
 | BUG-JAZZ-GENERIC-ERROR | `player_screen.dart`, `jazzdrive_service.dart` | All JazzDrive failures showed "Jazz SIM Required" — real error lost due to no `validateStatus` on Dio, HTML page crash on JSON cast, and catch-all error message | 2026-06-17 |
 | BUG-BLACKSCREEN-LP | `player_screen.dart` | Long-press fast-forward leaves black frame after speed returns to 1x — MPV drops frames, no fresh frame rendered on release | 2026-06-17 |
 | BUG-BLACKSCREEN-LOCAL | `player_screen.dart` | Local video black after ~2s — `_applyAudioPrefs` set hwdec while MPV decoder was active because `_playing` Flutter var lags behind actual MPV state | 2026-06-17 |
