@@ -1125,19 +1125,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           if (idx >= 0 && idx < speedSteps.length - 1) {
             final ns = speedSteps[idx + 1];
             setState(() => _speed = ns);
-            _player.setRate(ns);
+            _setSpeed(ns);
           }
         } else if (cmd.value == -2) {
           final idx = speedSteps.indexWhere((s) => (_speed - s).abs() < 0.05);
           if (idx > 0) {
             final ns = speedSteps[idx - 1];
             setState(() => _speed = ns);
-            _player.setRate(ns);
+            _setSpeed(ns);
           }
         } else if (cmd.value != null && cmd.value! > 0) {
           final ns = cmd.value!.clamp(0.25, 3.0);
           setState(() => _speed = ns);
-          _player.setRate(ns);
+          _setSpeed(ns);
         }
         break;
       case VoiceIntent.volumeUp:
@@ -1188,7 +1188,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         currentSpeed: _speed,
         rememberSpeed: _prefs.rememberSpeed,
         accentColor: _prefs.accentColor,
-        onSpeedChanged: (v) { setState(() => _speed = v); _player.setRate(v); },
+        onSpeedChanged: (v) { setState(() => _speed = v); _setSpeed(v); },
         onRememberToggled: (v) {
           setState(() => _prefs = _prefs.copyWith(rememberSpeed: v));
           _prefs.save();
@@ -1359,7 +1359,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         accentColor:      _prefs.accentColor,
         onSpeedSelected:  (s) {
           setState(() => _speed = s);
-          _player.setRate(s);
+          _setSpeed(s);
         },
         onPresetsChanged: (list) {
           final json = speedPresetsToString(list);
@@ -1743,6 +1743,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // Helper: access MPV-level setProperty / getProperty / command
   NativePlayer get _np => _player.platform as NativePlayer;
+
+  /// Single choke-point for all playback speed changes.
+  /// Sets framedrop=decoder+vo for speeds above 1× BEFORE calling setRate.
+  /// Without this, MediaCodec HW decoder crashes at >1× on MediaTek/Infinix
+  /// devices → permanent blank screen (audio continues). Both commands go into
+  /// MPV's serial command queue in order, so no await is needed — framedrop is
+  /// guaranteed to apply before the rate change is processed by MPV.
+  void _setSpeed(double s) {
+    _np.setProperty('framedrop', s > 1.0 ? 'decoder+vo' : 'vo');
+    _player.setRate(s);
+  }
 
   Future<void> _initPlayer() async {
     _player = Player();
@@ -2801,28 +2812,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           HapticFeedback.selectionClick();
           _seekRelative(d.localPosition.dx < w / 2 ? -15 : 15);
         },
-        onLongPressStart: (_) async {
+        onLongPressStart: (_) {
           setState(() => _longPressFast = true);
-          // FIX-LP-BLANK: set framedrop=decoder+vo BEFORE increasing speed.
-          // On MediaTek/Infinix budget Android devices, the MediaCodec HW decoder
-          // cannot sustain decode rates above 1× and crashes its pipeline when
-          // setRate(2.0) is called → GL surface texture destroyed → permanent
-          // blank screen (audio-only). framedrop=decoder+vo allows MPV to skip
-          // frames at both decoder and VO output levels, keeping the pipeline
-          // alive under load instead of crashing it. No surface/texture change
-          // occurs — only frame-dropping behaviour changes.
-          await _np.setProperty('framedrop', 'decoder+vo');
-          _player.setRate(_prefs.longPressSpeed);
+          // _setSpeed handles framedrop=decoder+vo before setRate internally.
+          _setSpeed(_prefs.longPressSpeed);
         },
-        onLongPressEnd: (_) async {
+        onLongPressEnd: (_) {
           setState(() => _longPressFast = false);
-          _player.setRate(_speed);
-          // FIX-LP-BLANK: restore default framedrop mode after long-press ends.
-          await _np.setProperty('framedrop', 'vo');
+          // _setSpeed restores framedrop=vo when speed drops back to ≤1×.
+          _setSpeed(_speed);
           // FIX-BLACKSCREEN-LP: high-speed playback drains the MPV frame buffer;
-          // when speed returns to normal the surface may show a stale black frame.
-          // Seeking to the live position forces MPV to decode + render a fresh
-          // frame immediately, clearing the black surface.
+          // seeking to the live position forces MPV to decode + render a fresh
+          // frame immediately, clearing any stale black surface.
           Future.delayed(const Duration(milliseconds: 80), () {
             if (mounted && _player.state.playing) {
               _player.seek(_player.state.position);
@@ -3502,7 +3503,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     _speed = s;
                     _showSpeedPicker = false;
                   });
-                  _player.setRate(s);
+                  _setSpeed(s);
                   _scheduleHide();
                 },
               ),
@@ -3743,7 +3744,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 speed: _speed,
                 onSpeedChanged: (s) {
                   setState(() => _speed = s);
-                  _player.setRate(s);
+                  _setSpeed(s);
                 },
                 fitMode: _fitLabel,
                 onFitChanged: (mode) {
