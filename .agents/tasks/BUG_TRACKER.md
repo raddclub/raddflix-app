@@ -30,49 +30,50 @@ _No open bugs._
 | XOR padding | `final pad = (4 - b64.length % 4) % 4; b64 += '=' * pad;` — never remove from `request_encoder.dart` |
 | sqflite_sqlcipher | Never upgrade past `3.1.0+1` |
 | VideoController | Never add `androidAttachSurfaceAfterVideoParameters: true` — causes black screen |
-| Long-press framedrop | Always set `framedrop=decoder+vo` BEFORE `setRate(>1x)` in `onLongPressStart`. Restore `framedrop=vo` in `onLongPressEnd`. Without this, MediaCodec HW decoder crashes at >1x speed on MediaTek/Infinix → blank screen. |
+| Long-press framedrop | Always set `framedrop=decoder+vo` BEFORE speed change in `onLongPressStart`. Restore `framedrop=vo` in `onLongPressEnd`. Without this, MediaCodec HW decoder crashes at >1x speed on MediaTek/Infinix → blank screen. |
+| _setSpeed channel ordering | `_setSpeed()` MUST use `_np.setProperty('speed', ...)` — NOT `_player.setRate()`. `setRate()` travels a different Dart API path and can arrive at MPV before `framedrop=decoder+vo` is applied → HW decoder crashes at >1× → blank screen. Both framedrop and speed must go through the same NativePlayer (_np) channel. |
+| _videoSurfaceReady latch timing | `_videoSurfaceReady` MUST be set `true` immediately after `VideoController` construction in `_initPlayer()`, NOT on first `playing=true` event. The GL surface is live from VideoController ctor (~20ms); `_loadPrefs` → `_applyAudioPrefs` fires at ~70ms (60ms debounce) and finds `_videoSurfaceReady=false` if only latched on playing — changes hwdec → surface destroyed → blank screen. |
 | _jazzRetryCount reset | Reset `_jazzRetryCount = 0` inside `_openMedia` on every successful `_player.open()` call. Failure to reset causes any subsequent MPV error to immediately show the error overlay even while video plays. |
 | _videoSurfaceReady hwdec gate | `_applyAudioPrefs` hwdec guard MUST include `!_videoSurfaceReady`. Without it, episode-navigation transitions (playing=false + duration=zero) allow hwdec mid-session → permanent blank. |
 | _jazzAutoRetry playing guard | `_jazzAutoRetry` MUST check `if (_playing) return` before setting `_streamError`. Mid-play errors are transient; never show error overlay over a live video. |
-| hwdec mid-play | **NEVER call `_np.setProperty('hwdec', ...)` while video is playing or media is open.** Correct guard in `_applyAudioPrefs()`: `if (!_playing && !_player.state.playing && _player.state.duration == Duration.zero)`. The `_playing` Flutter state var alone is NOT sufficient — it lags one setState cycle behind MPV state. `_player.state.duration == Duration.zero` is the reliable gate: it becomes non-zero the moment `_player.open()` is called. |
+| hwdec mid-play | **NEVER call `_np.setProperty('hwdec', ...)` while video is playing or media is open.** Correct guard in `_applyAudioPrefs()`: `if (!_playing && !_player.state.playing && _player.state.duration == Duration.zero && !_videoSurfaceReady)`. The `_playing` Flutter state var alone is NOT sufficient — it lags one setState cycle behind MPV state. |
 | Dart semicolons | Semicolons MUST come BEFORE inline comments: `expr); // comment` — never after |
 | Oracle git pull | Always `git stash && git pull && git stash pop` — Oracle has local uncommitted files |
 | Bulk DELETEs | Use direct `sqlite3.connect()` + `BEGIN IMMEDIATE`, NOT `db.conn()` |
 | Debug screen | `DebugDiagnosticsScreen` is intentionally NOT gated by `kDebugMode` — it is accessible in release APK via 5-tap on version text in Profile. Do NOT re-add `if (!kDebugMode) return const SizedBox.shrink()`. Other debug-only code (logging widgets, test helpers) should still be gated with `kDebugMode`. |
 | Dio validateStatus | All `jazzdrive_service.dart` Dio requests MUST include `validateStatus: (s) => true`. Without it, non-200 responses throw DioException with no body — the real error reason is lost. JazzDrive returns HTML on non-Jazz-SIM; always detect `raw.trimLeft().startsWith('<')` and throw a clear exception. |
-| GitHub push method | `git commit` is blocked in main agent. Always use Node.js Trees API script: create blobs → create tree → create commit → PATCH ref. Never include `.replit` in pushes (causes 404). Binary files: `buf.toString('base64')`. |
+| GitHub push method | `git commit` is blocked in main agent. Always use Node.js GitHub Contents API (PUT) for single-file pushes. For multi-file use Trees API: create blobs → create tree → create commit → PATCH ref. Never include `.replit` in pushes (causes 404). Binary files: `buf.toString('base64')`. |
 
 ---
 
 ## Fixed Bugs (History)
 
+| ID | File | Description | Fixed |
+|----|------|-------------|-------|
+| BUG-BLANK-SURFACE-RACE | `player_screen.dart` | Startup blank screen: `_videoSurfaceReady` only latched on `playing=true` (too late). `_applyAudioPrefs` ran at ~70ms with surface already live but latch still false → hwdec changed → GL surface destroyed → permanent blank with audio. Fix: set `_videoSurfaceReady = true` immediately after `VideoController` ctor in `_initPlayer()`. | 2026-06-17 |
+| BUG-BLANK-SPEED-CHANNEL | `player_screen.dart` | Long-press blank screen (channel race): `_player.setRate()` reached MPV before `_np.setProperty('framedrop','decoder+vo')` because they travel different API paths — HW decoder crashed at >1× without framedrop protection. Fix: replaced `_player.setRate(s)` with `_np.setProperty('speed', s.toStringAsFixed(4))` so both commands share the same NativePlayer queue. | 2026-06-17 |
+| BUG-BLANK-LP-RECOVERY | `player_screen.dart` | Long-press blank screen (incomplete recovery): 80ms post-release seek too short; no framedrop re-assertion before seek. Fix: delay 80ms→200ms; add explicit `_np.setProperty('framedrop','vo')` before recovery seek in `onLongPressEnd`. | 2026-06-17 |
 | BUG-PLAYER-TRIFECTA-A | `player_screen.dart` | Catalog popup over playing video: `_jazzRetryCount` not reset on successful open + `_jazzAutoRetry` set `_streamError` even when `_playing=true`. Fix: reset count after each `_player.open()`; guard with `if (_playing) return` | 2026-06-17 |
 | BUG-PLAYER-TRIFECTA-B | `player_screen.dart` | Local video permanent blank: hwdec guard episode-nav race — all three guard conditions (playing=false, state.playing=false, duration=zero) simultaneously true during `_player.open(newEp)` transition. Fix: add `!_videoSurfaceReady` fourth guard (latch never resets). | 2026-06-17 |
 | BUG-PLAYER-TRIFECTA-C | `player_screen.dart` | Long-press blank screen: MediaCodec HW decoder crashes at 2× speed on MediaTek/Infinix. Fix: `framedrop=decoder+vo` before `setRate()`, `framedrop=vo` after. | 2026-06-17 |
-| BUG-HWDEC-LIVE-TOGGLE | `player_screen.dart` | SW decoder toggle (line 3523) called `setProperty('hwdec',...)` with no guard → blank on mid-play switch. Fix: added `await + seek(position)` post-switch. | 2026-06-17 |
-
-| ID | File | Description | Fixed |
-|----|------|-------------|-------|
-| BUG-FAB-01 | `player_screen.dart` | FAB in Local Media always played first video — watch positions were never written for local files (condition `!_isLocalPath` excluded them); `_playAll()` resume loop found no matches → startIndex=0 always. Fix: write position using `_currentPlaybackUrl` as key for local files; guard `HistoryApi.syncPosition` to Oracle-only | 2026-06-17 |
+| BUG-HWDEC-LIVE-TOGGLE | `player_screen.dart` | SW decoder toggle called `setProperty('hwdec',...)` with no guard → blank on mid-play switch. Fix: added `await + seek(position)` post-switch. | 2026-06-17 |
+| BUG-FAB-01 | `player_screen.dart` | FAB in Local Media always played first video — watch positions were never written for local files. Fix: write position using `_currentPlaybackUrl` as key for local files. | 2026-06-17 |
 | BUG-AUDIT-STALE-ERR | `player_screen.dart` | `_openMedia` never cleared `_streamError` — old error overlay stayed visible while new media loaded | 2026-06-17 |
-| BUG-AUDIT-RETRY-MSG | `player_screen.dart` | `_jazzAutoRetry` set `_streamError` to raw MPV error string (e.g. "Failed to open url") — user saw technical garbage; now routed through `_buildJazzError` | 2026-06-17 |
-| BUG-AUDIT-HTML-MSG | `player_screen.dart` | `_buildJazzError` had no explicit handler for "HTML response"/"HTML page"/"session cookie"/"XML error page" strings — all fell to same generic message; now classified correctly | 2026-06-17 |
-| BUG-AUDIT-JSESSIONID | `jazzdrive_service.dart` | `_loginShare` returned empty-cookie `_ShareSession` when JSESSIONID was missing from both JSON body and Set-Cookie — next `/sapi/media/video` call hit wrong LB node and silently got 401. Now throws early with clear message. | 2026-06-17 |
-| BUG-AUDIT-EMPTY-URL | `jazzdrive_service.dart` | `_getMedia` passed empty `rawUrl` to `_buildStreamUrl` producing `"?filename=..."` — MPV failed silently, wasted auto-retry budget. Now throws before building URL. | 2026-06-17 |
-| BUG-JAZZ-GENERIC-ERROR | `player_screen.dart`, `jazzdrive_service.dart` | All JazzDrive failures showed "Jazz SIM Required" — real error lost due to no `validateStatus` on Dio, HTML page crash on JSON cast, and catch-all error message | 2026-06-17 |
-| BUG-BLACKSCREEN-LP | `player_screen.dart` | Long-press fast-forward leaves black frame after speed returns to 1x — MPV drops frames, no fresh frame rendered on release | 2026-06-17 |
-| BUG-BLACKSCREEN-LOCAL | `player_screen.dart` | Local video black after ~2s — `_applyAudioPrefs` set hwdec while MPV decoder was active because `_playing` Flutter var lags behind actual MPV state | 2026-06-17 |
-| BUG-LOGIN-01 | `login_screen.dart` | Wrong password always navigated to home as guest — `_login()` never checked `state.error` before pushing home route | 2026-06-16 |
+| BUG-AUDIT-RETRY-MSG | `player_screen.dart` | `_jazzAutoRetry` set `_streamError` to raw MPV error string — now routed through `_buildJazzError` | 2026-06-17 |
+| BUG-AUDIT-HTML-MSG | `player_screen.dart` | `_buildJazzError` had no explicit handler for HTML/XML error strings — now classified correctly | 2026-06-17 |
+| BUG-AUDIT-JSESSIONID | `jazzdrive_service.dart` | `_loginShare` returned empty-cookie `_ShareSession` when JSESSIONID was missing — now throws early with clear message. | 2026-06-17 |
+| BUG-AUDIT-EMPTY-URL | `jazzdrive_service.dart` | `_getMedia` passed empty `rawUrl` to `_buildStreamUrl` — now throws before building URL. | 2026-06-17 |
+| BUG-JAZZ-GENERIC-ERROR | `player_screen.dart`, `jazzdrive_service.dart` | All JazzDrive failures showed "Jazz SIM Required" — real error lost due to no `validateStatus` on Dio. | 2026-06-17 |
+| BUG-BLACKSCREEN-LP | `player_screen.dart` | Long-press fast-forward leaves black frame after speed returns to 1x — superseded by BUG-BLANK-SPEED-CHANNEL + BUG-BLANK-LP-RECOVERY | 2026-06-17 |
+| BUG-BLACKSCREEN-LOCAL | `player_screen.dart` | Local video black after ~2s — superseded by BUG-BLANK-SURFACE-RACE + BUG-PLAYER-TRIFECTA-B | 2026-06-17 |
+| BUG-LOGIN-01 | `login_screen.dart` | Wrong password always navigated to home as guest — `_login()` never checked `state.error` | 2026-06-16 |
 | BUG-JD-VK | `jazzdrive_service.dart` | `_buildStreamUrl` appended `validationkey=` to CDN URL — breaks CDN authentication | 2026-06-16 |
 | BUG-JD-SESSION | `jazzdrive_service.dart` | JSESSIONID `.NODE` suffix was being stripped — causes sticky session routing to fail (HTTP 401) | 2026-06-16 |
 | BUG-DL-PATH-B | `download_service.dart` | Path B used `getShareUrl()` losing filename+remote_id → always downloaded episode 1 | 2026-06-16 |
 | BUG-DL-RF1 | `download_service.dart` | Path A passed raw `RF1:xxx` URL to JazzDrive without decoding | 2026-06-16 |
 | BUG-SYNC-02 | `catalog_provider.dart` | No `_initialized` guard — catalog re-synced on every home visit | 2026-06-15 |
-
----
-
-| BUG-BGPLAY-FOREGROUND | `PlaybackService.kt`, `MainActivity.kt`, `AndroidManifest.xml`, `player_screen.dart` | Background play stopped after ~1 min. Manifest declared dead `com.ryanheise.audioservice.AudioService` (audio_service pkg absent). Fix: PlaybackService.kt foreground service + manifest + lifecycle hooks. | 2026-06-17 |
-| BUG-PIP-EXIT | `MainActivity.kt`, `player_screen.dart` | `_inPiP` set true on entry, never reset to false. Controls permanently hidden after first PiP session. Fix: `onPictureInPictureModeChanged` in Kotlin + `_initPipChannel` handler in Flutter. | 2026-06-17 |
+| BUG-BGPLAY-FOREGROUND | `PlaybackService.kt`, `MainActivity.kt`, `AndroidManifest.xml`, `player_screen.dart` | Background play stopped after ~1 min. Fix: PlaybackService.kt foreground service + manifest + lifecycle hooks. | 2026-06-17 |
+| BUG-PIP-EXIT | `MainActivity.kt`, `player_screen.dart` | `_inPiP` set true on entry, never reset to false. Fix: `onPictureInPictureModeChanged` in Kotlin + `_initPipChannel` handler in Flutter. | 2026-06-17 |
 
 ---
 
