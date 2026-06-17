@@ -37,6 +37,7 @@ _No open bugs._
 | _videoSurfaceReady hwdec gate | `_applyAudioPrefs` hwdec guard MUST include `!_videoSurfaceReady`. Without it, episode-navigation transitions (playing=false + duration=zero) allow hwdec mid-session → permanent blank. |
 | _jazzAutoRetry playing guard | `_jazzAutoRetry` MUST check `if (_playing) return` before setting `_streamError`. Mid-play errors are transient; never show error overlay over a live video. |
 | hwdec mid-play | **NEVER call `_np.setProperty('hwdec', ...)` while video is playing or media is open.** Correct guard in `_applyAudioPrefs()`: `if (!_playing && !_player.state.playing && _player.state.duration == Duration.zero && !_videoSurfaceReady)`. The `_playing` Flutter state var alone is NOT sufficient — it lags one setState cycle behind MPV state. |
+| Flutter icon variants | Only use icon names confirmed in Flutter 3.22.3 source. `replay_15`, `forward_15` (and `_rounded` variants) do NOT exist. Use `replay_10`/`forward_10`/`replay_30`/`forward_30` (all confirmed in source). |
 | Dart semicolons | Semicolons MUST come BEFORE inline comments: `expr); // comment` — never after |
 | Oracle git pull | Always `git stash && git pull && git stash pop` — Oracle has local uncommitted files |
 | Bulk DELETEs | Use direct `sqlite3.connect()` + `BEGIN IMMEDIATE`, NOT `db.conn()` |
@@ -78,3 +79,5 @@ _No open bugs._
 ---
 
 _Add new bugs below this line as they are found._
+
+| BUG-ICON-COMPAT | `player_screen.dart` | `Icons.replay_15_rounded` / `forward_15_rounded` do not exist in Flutter 3.22.3. `replay_15` / `forward_15` also do not exist. Use `replay_10` / `forward_10`. Always verify icons against Flutter 3.22.3 source before using numbered variants. | 2026-06-18 |

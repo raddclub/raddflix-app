@@ -1,12 +1,12 @@
 # RaddFlix Agent Handoff
-Updated: 2026-06-17 | Flask running port 5000 at /opt/jazzmax/radd-hub
+Updated: 2026-06-18 | Flask running port 5000 at /opt/jazzmax/radd-hub
 
 ## Current System State
 - **Oracle Flask:** RUNNING — `{"ok":true,"version":"3.0.0"}`
 - **Account id=11** (03257719165): VK ✅ JID ✅ raw_accesstoken ✅ (40 hex chars) refresh_token ✅
 - **JazzDrive chain:** PROVEN — full login→media→CDN chain tested with real video bytes (HTTP 206, ftyp isom confirmed 2026-06-16)
 - **Proxy pool:** 150+ active proxies, all healthy (fail_count=0)
-- **Flutter app:** All known bugs fixed. Player UX improved (8 features, commits 01fc775f + bd75f9d6). APK build needed for new features.
+- **Flutter app: All known bugs fixed. Player UX improved (8 features + icon compat fix). APK builds green — last success run#1100 commit 91e52dc.
 - **Debug screen:** Live in release builds — tap version text 5× in Profile to open
 
 ---

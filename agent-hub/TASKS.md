@@ -28,3 +28,9 @@ _Last updated: 2026-06-17_
 ## Open / In Progress
 
 _No open tasks._
+
+## Completed This Session (2026-06-18)
+
+| ID | Changed | Summary |
+|----|---------|---------|
+| ✅ BUG-ICON-COMPAT | `player_screen.dart` | Fixed 2 Dart compile errors breaking APK builds run#1095–1098: `Icons.replay_15_rounded` and `Icons.forward_15_rounded` do not exist in Flutter 3.22.3. Replaced with `Icons.replay_10` / `Icons.forward_10` (confirmed in Flutter 3.22.3 source). Commit `91e52dc` — builds run#1099/1100 ✅ SUCCESS. |

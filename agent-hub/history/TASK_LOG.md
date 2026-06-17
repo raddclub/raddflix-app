@@ -237,3 +237,28 @@ Does NOT occur if user opens Settings or another tab immediately after opening t
 | `player_prefs.dart` | 1152 lines | 1158 lines | +6 |
 | `player_screen.dart` | 6963 lines | 7087 lines | +124 |
 | Total verification checks | — | 25/25 ✅ | — |
+
+## Session 2026-06-18 — Icon Compat Fix + APK Build Restored
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| BUG-ICON-COMPAT | Fix Icons.replay_15_rounded / forward_15_rounded compile errors | ✅ DONE |
+
+### Root Cause
+APK builds run#1095–1098 all failed at "Build release APK" step.
+- `Icons.replay_15_rounded` → does not exist in Flutter 3.22.3
+- `Icons.forward_15_rounded` → does not exist in Flutter 3.22.3
+- First attempted fix (`replay_15` / `forward_15`) also failed — those don't exist either
+- Confirmed correct names via Flutter 3.22.3 source: `Icons.replay_10` / `Icons.forward_10`
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| `raddflix_flutter/lib/screens/player_screen.dart` | `replay_15_rounded` → `replay_10`, `forward_15_rounded` → `forward_10` | `91e52dc` |
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0
+- Account id=11: active (JID/VK/AT all healthy per handoff)
+- APK build: run#1099 ✅ SUCCESS / run#1100 ✅ SUCCESS
+- Open tasks: DATA-01 (All Of Us Are Dead missing E03/E04/E05/E09 — no change this session)
