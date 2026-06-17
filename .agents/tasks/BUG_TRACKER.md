@@ -71,4 +71,9 @@ _No open bugs._
 
 ---
 
+| BUG-BGPLAY-FOREGROUND | `PlaybackService.kt`, `MainActivity.kt`, `AndroidManifest.xml`, `player_screen.dart` | Background play stopped after ~1 min. Manifest declared dead `com.ryanheise.audioservice.AudioService` (audio_service pkg absent). Fix: PlaybackService.kt foreground service + manifest + lifecycle hooks. | 2026-06-17 |
+| BUG-PIP-EXIT | `MainActivity.kt`, `player_screen.dart` | `_inPiP` set true on entry, never reset to false. Controls permanently hidden after first PiP session. Fix: `onPictureInPictureModeChanged` in Kotlin + `_initPipChannel` handler in Flutter. | 2026-06-17 |
+
+---
+
 _Add new bugs below this line as they are found._
