@@ -4623,53 +4623,112 @@ class _ControlsOverlay extends StatelessWidget {
             ),
           ),
 
-      // ── RIGHT-SIDE STRIP (MX Player: vertical icon strip on right edge) ──────
+      // ── RIGHT SIDEBAR (Layout #4: scrollable advanced controls) ──────────────
       if (!locked)
         Positioned(
-          right: 8, top: 0, bottom: 0,
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _MxSideBtn(
-                  icon: _iconForPack(iconPack, 'subtitle'),
-                  // BUG-N11: dead ternary — both branches were 'Sub'; now shows track count
-                  label: subLabels.length > 1 ? 'Sub (${subLabels.length})' : 'Sub',
-                  active: subLabels.isNotEmpty && activeSubIdx < subLabels.length,
-                  activeColor: const Color(0xFF4DB6FF),
-                  onTap: onSubtitleTracks,
+          right: 0, top: 48, bottom: 78,
+          child: SafeArea(
+            top: false, bottom: false,
+            child: Container(
+              width: 58,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerRight,
+                  end: Alignment.centerLeft,
+                  colors: [Colors.black.withOpacity(0.55), Colors.transparent],
                 ),
-                const SizedBox(height: 8),
-                _MxSideBtn(
-                  icon: _iconForPack(iconPack, 'audio'),
-                  // BUG-N12: dead ternary — both branches were 'Audio'; now shows track count
-                  label: audioLabels.length > 1 ? 'Audio (${audioLabels.length})' : 'Audio',
-                  active: audioLabels.length > 1,
-                  activeColor: const Color(0xFF4DB6FF),
-                  onTap: onAudioTracks,
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  children: [
+                    _MxSideBtn(
+                      icon: _iconForPack(iconPack, 'subtitle'),
+                      label: subLabels.length > 1 ? 'Sub (${subLabels.length})' : 'Sub',
+                      active: subLabels.isNotEmpty && activeSubIdx < subLabels.length,
+                      activeColor: const Color(0xFF4DB6FF),
+                      onTap: onSubtitleTracks,
+                    ),
+                    const SizedBox(height: 4),
+                    _MxSideBtn(
+                      icon: _iconForPack(iconPack, 'audio'),
+                      label: audioLabels.length > 1 ? 'Audio (${audioLabels.length})' : 'Audio',
+                      active: audioLabels.length > 1,
+                      activeColor: const Color(0xFF4DB6FF),
+                      onTap: onAudioTracks,
+                    ),
+                    const SizedBox(height: 4),
+                    _MxSideBtn(
+                      icon: _iconForPack(iconPack, 'settings'),
+                      label: 'Settings',
+                      onTap: onSettings,
+                    ),
+                    const SizedBox(height: 4),
+                    _MxSideBtn(
+                      icon: Icons.auto_fix_high_rounded,
+                      label: 'Enhance',
+                      onTap: onToggleVideoEnhance,
+                    ),
+                    const SizedBox(height: 4),
+                    _MxSideBtn(
+                      icon: Icons.repeat_rounded,
+                      label: 'Loop',
+                      active: abLoop.isActive,
+                      activeColor: const Color(0xFF4DB6FF),
+                      onTap: onToggleAbPanel,
+                    ),
+                    const SizedBox(height: 4),
+                    _MxSideBtn(
+                      icon: Icons.bedtime_rounded,
+                      label: 'Sleep',
+                      onTap: onSleep,
+                    ),
+                    const SizedBox(height: 4),
+                    _MxSideBtn(
+                      icon: Icons.equalizer_rounded,
+                      label: 'EQ',
+                      onTap: onEq,
+                    ),
+                    const SizedBox(height: 4),
+                    _MxSideBtn(
+                      icon: _rotationIcon(rotationMode),
+                      label: _rotationLabel(rotationMode),
+                      onTap: onCycleRotation,
+                    ),
+                    const SizedBox(height: 4),
+                    _MxSideBtn(
+                      icon: Icons.speed_rounded,
+                      label: speed == 1.0 ? '1× Spd' : '${speed}× Spd',
+                      active: speed != 1.0,
+                      activeColor: const Color(0xFF4DB6FF),
+                      onTap: onSpeed,
+                    ),
+                    const SizedBox(height: 4),
+                    _MxSideBtn(
+                      icon: Icons.bookmark_border_rounded,
+                      label: 'Bookmark',
+                      active: bookmarks.isNotEmpty,
+                      activeColor: const Color(0xFF4DB6FF),
+                      onTap: onToggleBookmarks,
+                    ),
+                    const SizedBox(height: 4),
+                    _MxSideBtn(
+                      icon: _iconForPack(iconPack, 'more'),
+                      label: 'More',
+                      onTap: onMorePanel,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                _MxSideBtn(
-                  icon: _rotationIcon(rotationMode),
-                  label: _rotationLabel(rotationMode),
-                  onTap: onCycleRotation,
-                ),
-                const SizedBox(height: 8),
-                _MxSideBtn(
-                  icon: _iconForPack(iconPack, 'more'),
-                  label: 'More',
-                  onTap: onMorePanel,
-                ),
-              ],
+              ),
             ).animate().fadeIn(duration: 150.ms, curve: Curves.easeOut),
           ),
         ),
 
   
-      // ── BOTTOM SEEK BAR (standard horizontal layout) ─────────────────────
+      // ── SLIM BOTTOM BAR (Layout #4: essential controls + seek bar) ──────────
       if (!locked)
         Positioned(
-          bottom: 0, left: 0, right: 0,
+          bottom: 0, left: 0, right: 58,
           child: SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
@@ -4737,22 +4796,50 @@ class _ControlsOverlay extends StatelessWidget {
                           onPressed: onFrameStep),
                       ]),
                     ),
-                  // ── Quick Shortcut Bar ────────────────────────────────────────
-                  if (showQuickBar && !locked)
-                    _QuickShortcutBar(
-                      items:          quickBarItems,
-                      bgPlayEnabled:  bgPlayEnabled,
-                      accentColor:    accentColor,
-                      onPiP:          onPiP,
-                      onBgPlay:       onBgPlayToggle ?? (v) {},
-                      onFit:          onCycleFit,
-                      onScreenshot:   onTakeScreenshot,
-                      onSpeed:        onSpeed,
-                      onSubtitle:     onSubtitleTracks,
-                      onLock:         onLock,
-                      onNightMode:    onToggleNightMode,  // BUG-P-NEW-07 FIX
-                      nightModeActive: nightModeActive,    // FIX-M01
-                    ),
+                  // ── Layout #4: Slim playback row (◀◀  ⏸  ▶▶  🔒) ───────────
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.replay_15_rounded,
+                            color: Colors.white, size: 22),
+                        onPressed: onSeekBack,
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: onPlayPause,
+                        onLongPress: onLongPressPlay,
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: _playBtnDecoration(buttonShape, accentColor),
+                          clipBehavior: Clip.hardEdge,
+                          child: Icon(
+                            playing
+                                ? _iconForPack(iconPack, 'pause')
+                                : _iconForPack(iconPack, 'play'),
+                            color: Colors.white, size: 24),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      IconButton(
+                        icon: const Icon(Icons.forward_15_rounded,
+                            color: Colors.white, size: 22),
+                        onPressed: onSeekForward,
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.lock_open_rounded,
+                            color: Colors.white70, size: 20),
+                        onPressed: onLock,
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
                   // ── Seek row: position | slider | duration ──────────────────
                   Row(
                     children: [
