@@ -265,78 +265,267 @@ class _Fallback extends StatelessWidget {
 class _DetailSheet extends StatelessWidget {
   final CatalogItem item;
   const _DetailSheet({required this.item});
+
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
+    final isShow = item.isShow;
+
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
       decoration: BoxDecoration(
         color: t.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: t.border),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: t.border.withOpacity(0.5)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.55), blurRadius: 32, spreadRadius: 2),
+        ],
       ),
+      clipBehavior: Clip.hardEdge,
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        // Handle
-        Container(width: 36, height: 4, margin: const EdgeInsets.only(top: 12, bottom: 16),
-            decoration: BoxDecoration(color: t.textMuted.withOpacity(0.4),
-                borderRadius: BorderRadius.circular(2))),
-        Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 24), child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // Mini poster
-            if (item.posterUrl != null)
-              ClipRRect(borderRadius: BorderRadius.circular(AppRadius.sm),
-                child: SizedBox(width: 64, height: 96,
-                  child: CachedNetworkImage(imageUrl: item.posterUrl!, fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => Container(color: t.card)))),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(item.title, style: TextStyle(color: t.textPrimary,
-                  fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
-              const SizedBox(height: 6),
-              Row(children: [
-                if (item.displayYear.isNotEmpty)
-                  Text(item.displayYear, style: TextStyle(color: t.textMuted, fontSize: 13)),
-                if (item.displayYear.isNotEmpty && item.displayRating.isNotEmpty)
-                  Text(' · ', style: TextStyle(color: t.textMuted)),
-                if (item.displayRating.isNotEmpty)
+        // ── Hero banner ──────────────────────────────────────────────
+        SizedBox(
+          height: 185,
+          child: Stack(fit: StackFit.expand, children: [
+            // Backdrop poster (local first, then network)
+            _SheetPoster(item: item, theme: t),
+            // Gradient: transparent → surface colour
+            DecoratedBox(decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  Colors.transparent,
+                  t.surface.withOpacity(0.75),
+                  t.surface,
+                ],
+                stops: const [0.0, 0.3, 0.7, 1.0],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            )),
+            // Drag handle
+            Positioned(top: 10, left: 0, right: 0,
+              child: Center(
+                child: Container(width: 40, height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.45),
+                        borderRadius: BorderRadius.circular(2))))),
+            // Type chip (top-right)
+            Positioned(top: 14, right: 14,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.92),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(color: Colors.black38, blurRadius: 6)],
+                ),
+                child: Text(isShow ? 'TV Show' : 'Movie',
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 10,
+                        fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+              )),
+            // Title + meta (bottom)
+            Positioned(left: 14, right: 14, bottom: 14,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(item.title,
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white, fontSize: 20,
+                      fontWeight: FontWeight.w800, letterSpacing: -0.5,
+                      shadows: [Shadow(color: Colors.black87, blurRadius: 10,
+                          offset: Offset(0, 1))],
+                    )),
+                  const SizedBox(height: 5),
                   Row(children: [
-                    const Icon(Icons.star_rounded, color: Colors.amber, size: 14),
-                    Text(item.displayRating, style: TextStyle(color: t.textMuted, fontSize: 13)),
+                    if (item.displayYear.isNotEmpty) ...[
+                      Icon(Icons.calendar_today_rounded,
+                          size: 11, color: Colors.white.withOpacity(0.7)),
+                      const SizedBox(width: 4),
+                      Text(item.displayYear,
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.82),
+                              fontSize: 12, fontWeight: FontWeight.w500)),
+                    ],
+                    if (item.displayYear.isNotEmpty &&
+                        item.displayRating.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 7),
+                        child: Text('•',
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.4),
+                                fontSize: 12)),
+                      ),
+                    if (item.displayRating.isNotEmpty) ...[
+                      const Icon(Icons.star_rounded, color: Colors.amber, size: 13),
+                      const SizedBox(width: 3),
+                      Text(item.displayRating,
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.88),
+                              fontSize: 12, fontWeight: FontWeight.w600)),
+                    ],
                   ]),
-              ]),
-              const SizedBox(height: 8),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(20)),
-                child: Text(item.isShow ? 'TV Show' : 'Movie',
-                    style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600))),
-            ])),
+                ],
+              )),
           ]),
-          if (item.description != null && item.description!.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(item.description!, maxLines: 4, overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: t.textSecondary, fontSize: 13, height: 1.6)),
-          ],
-          const SizedBox(height: 20),
-          Container(height: 50,
-            decoration: BoxDecoration(gradient: AppColors.primaryGradient,
-                borderRadius: BorderRadius.circular(AppRadius.md), boxShadow: AppShadows.primary),
-            child: Material(color: Colors.transparent,
-              child: InkWell(borderRadius: BorderRadius.circular(AppRadius.md),
-                onTap: item.fileId != null ? () {
-                  Navigator.pop(context);
-                  Navigator.of(context).pushNamed(AppRoutes.player,
-                      arguments: {'file_id': item.fileId!, 'title': item.title});
-                } : null,
-                child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
-                  SizedBox(width: 6),
-                  Text('Watch Now', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
-                ])))),
-        ]),
+        ),
+
+        // ── Body ─────────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (item.description != null &&
+                  item.description!.isNotEmpty) ...[
+                Text(item.description!,
+                    maxLines: 3, overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: t.textSecondary,
+                        fontSize: 13, height: 1.6)),
+                const SizedBox(height: 14),
+              ] else
+                const SizedBox(height: 4),
+
+              // Action buttons
+              Row(children: [
+                Expanded(
+                  flex: 3,
+                  child: _SheetBtn(
+                    label: isShow ? 'Browse Episodes' : 'Watch Now',
+                    icon: isShow
+                        ? Icons.video_library_rounded
+                        : Icons.play_arrow_rounded,
+                    useGradient: true,
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (isShow) {
+                        Navigator.of(context).pushNamed(
+                            AppRoutes.showDetail, arguments: item);
+                      } else if (item.fileId != null) {
+                        Navigator.of(context).pushNamed(AppRoutes.player,
+                            arguments: {
+                              'file_id': item.fileId!,
+                              'title': item.title,
+                            });
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: _SheetBtn(
+                    label: 'Details',
+                    icon: Icons.info_outline_rounded,
+                    useGradient: false,
+                    theme: t,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).pushNamed(
+                          AppRoutes.showDetail, arguments: item);
+                    },
+                  ),
+                ),
+              ]),
+            ],
+          ),
         ),
       ]),
+    );
+  }
+}
+
+/// Poster widget for the detail sheet hero — local file first, then network.
+class _SheetPoster extends StatelessWidget {
+  final CatalogItem item;
+  final dynamic theme;
+  const _SheetPoster({required this.item, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    if (item.posterPath != null && item.posterPath!.isNotEmpty) {
+      final f = File(item.posterPath!);
+      if (f.existsSync()) {
+        return Image.file(f, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _netPoster(context));
+      }
+    }
+    return _netPoster(context);
+  }
+
+  Widget _netPoster(BuildContext context) {
+    if (item.posterUrl != null && item.posterUrl!.isNotEmpty) {
+      return CachedNetworkImage(
+          imageUrl: item.posterUrl!, fit: BoxFit.cover,
+          errorWidget: (_, __, ___) => _fallback());
+    }
+    return _fallback();
+  }
+
+  Widget _fallback() => Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.card, AppColors.surface],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+      );
+}
+
+/// Reusable action button for the detail sheet.
+class _SheetBtn extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool useGradient;
+  final dynamic theme;
+  final VoidCallback? onTap;
+
+  const _SheetBtn({
+    required this.label,
+    required this.icon,
+    required this.useGradient,
+    this.theme,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme ?? RaddTheme.of(context);
+    return Container(
+      height: 46,
+      decoration: BoxDecoration(
+        gradient: useGradient ? AppColors.primaryGradient : null,
+        color: useGradient ? null : t.card,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: useGradient ? null : Border.all(color: t.border, width: 1.5),
+        boxShadow: useGradient ? AppShadows.primary : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          onTap: onTap,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  color: useGradient ? Colors.white : t.textSecondary,
+                  size: 18),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: TextStyle(
+                      color: useGradient ? Colors.white : t.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

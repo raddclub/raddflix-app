@@ -16,8 +16,9 @@ import '../debug/debug_logger.dart';
 ///   2. Show placeholder — poster arrives when user taps play
 ///      (JazzDrive thumbnail is fetched for free alongside stream link)
 ///
-/// Storage: getExternalFilesDir / getApplicationDocumentsDirectory + /raddflix_posters/
-/// Files named title_{id}.jpg — no collisions even if JazzDrive names all "poster.jpg"
+/// Storage: getApplicationDocumentsDirectory() + /.raddflix_media/
+/// Dot-prefix makes the folder HIDDEN from Android file-manager apps.
+/// Files named title_{id}.jpg — no collisions even if JazzDrive names all "poster.jpg".
 class PosterService {
   static Directory? _posterDir;
   static bool _initialized = false;
@@ -25,6 +26,12 @@ class PosterService {
   static const int _dailyDownloadLimit = 100;
   static int _downloadsToday = 0;
   static DateTime? _downloadCountDate;
+
+  /// Hidden folder name (starts with `.` so Android file managers skip it).
+  static const String _folderName = '.raddflix_media';
+
+  /// Legacy folder name — migrated automatically on first init.
+  static const String _legacyFolderName = 'raddflix_posters';
 
   static final Dio _dio = Dio(
     BaseOptions(
@@ -34,16 +41,38 @@ class PosterService {
   );
 
   /// Initialize the poster directory. Call once on app start.
+  /// Migrates any existing posters from the legacy visible folder.
   static Future<void> init() async {
     if (_initialized) return;
     try {
       final base = await getApplicationDocumentsDirectory();
-      _posterDir = Directory('${base.path}/raddflix_posters');
+      _posterDir = Directory('${base.path}/$_folderName');
       if (!await _posterDir!.exists()) {
         await _posterDir!.create(recursive: true);
       }
+
+      // Migrate legacy posters from old visible folder → hidden folder
+      final legacy = Directory('${base.path}/$_legacyFolderName');
+      if (await legacy.exists()) {
+        try {
+          await for (final entity in legacy.list()) {
+            if (entity is File) {
+              final dest = File('${_posterDir!.path}/${entity.uri.pathSegments.last}');
+              if (!await dest.exists()) {
+                await entity.copy(dest.path);
+              }
+            }
+          }
+          // Remove legacy folder after migration
+          await legacy.delete(recursive: true);
+          DebugLogger.log('POSTER', 'Migrated legacy posters to hidden folder');
+        } catch (e) {
+          DebugLogger.logError('POSTER', 'Legacy migration failed', e);
+        }
+      }
+
       _initialized = true;
-      DebugLogger.log('POSTER', 'Poster dir: ${_posterDir!.path}');
+      DebugLogger.log('POSTER', 'Poster dir (hidden): ${_posterDir!.path}');
     } catch (e) {
       DebugLogger.logError('POSTER', 'init failed', e);
     }
@@ -69,7 +98,7 @@ class PosterService {
 
     try {
       await _dio.download(url, file.path);
-      // Task 3.6: persist local path so CatalogItem.posterPath is populated on next load
+      // Persist local path so CatalogItem.posterPath is populated on next load
       await LocalDb.savePosterPath(titleId, file.path);
       DebugLogger.log('POSTER', 'Saved poster for title $titleId');
       return file.path;
@@ -113,7 +142,7 @@ class PosterService {
 
     for (final item in items) {
       if (_downloadsToday >= _dailyDownloadLimit) break;
-      final titleId = item['id'] as int? ?? 0;
+      final titleId   = item['id'] as int? ?? 0;
       final posterUrl = item['poster_url'] as String? ?? '';
       if (titleId <= 0 || posterUrl.isEmpty) continue;
       final file = _file(titleId);
