@@ -1,6 +1,6 @@
 # AGENT_STATUS.md
 > Current project status for agent coordination.
-> Last updated: 2026-06-17
+> Last updated: 2026-06-17 (Player UX session)
 
 ---
 
@@ -48,6 +48,21 @@
 **Catalog movies always show "Jazz SIM Required" regardless of real error**
 - Root cause: (1) No `validateStatus` on Dio — non-200 responses threw opaque DioException. (2) HTML error pages crashed JSON cast. (3) All exceptions → same generic message.
 - Fix: `validateStatus: (s) => true` + HTML detection in `_loginShare` and `_getMedia`. New `_buildJazzError()` in player_screen translates MED-/FOL- codes, HTTP 401/403, timeout, HTML page into specific messages.
+
+---
+
+## Player UX Improvements — 2026-06-17
+
+| # | Feature | Commits |
+|---|---------|---------|
+| 1 | Floating draggable ball (tap=controls, drag=reposition) | `bd75f9d6` |
+| 2 | Sidebar 3-state: full→icons-only→hidden (chevron toggle) | `bd75f9d6` |
+| 3 | Sidebar mode persisted in PlayerPrefs (`sidebar_mode` SharedPrefs key) | `01fc775f` |
+| 4 | Clock overlay: top-right, always visible when controls hidden | `bd75f9d6` |
+| 5 | Subtitle + Audio panels → right-side overlays (320px, lighter scrim) | `bd75f9d6` |
+| 6 | Speed picker → horizontal dot-rail at top (MX Player style, #4DB6FF) | `bd75f9d6` |
+| 7 | Default rotation `sensor_landscape` → `auto` | `01fc775f` |
+| 8 | `_MxSideBtn` icons-only mode (36×36, icon 19px, no label) | `bd75f9d6` |
 
 ---
 
