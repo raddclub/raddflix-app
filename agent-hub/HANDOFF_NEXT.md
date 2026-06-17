@@ -1,5 +1,5 @@
 # Next Agent Brief — RaddFlix / JazzDrive
-**Date**: 2026-06-17 | **Priority**: NORMAL — All known bugs fixed
+**Date**: 2026-06-17 | **Priority**: NORMAL — All known bugs fixed. Player UX session complete.
 
 ---
 
@@ -99,3 +99,17 @@ Device:   Infinix Hot 9 Play, ID: fcbf291eddd5d372
 GitHub:   Push via Node.js Trees API at /tmp/push_*.js using GITHUB_TOKEN (git shell blocked)
 Rules:    db.setting(k) NOT db.get_setting(k); supervisorctl NOT systemctl
 ```
+
+---
+## Files Changed — 2026-06-17 Session (Player UX)
+| File | Change | Commit |
+|------|--------|--------|
+| `raddflix_flutter/lib/core/player/player_prefs.dart` | `sidebarMode` field+ctor+copyWith+load+save; default `rotationMode`→`auto` | `01fc775f` |
+| `raddflix_flutter/lib/screens/player_screen.dart` | Floating ball, sidebar 3-state, clock overlay, side-panel overlays, speed track, `_MxSideBtn` iconsOnly | `bd75f9d6` |
+
+### State at End of Player UX Session (2026-06-17)
+- Oracle Flask: RUNNING v3.0.0
+- JazzDrive: active (id=11, 03257719165), all tokens valid
+- Flutter: player_screen.dart 7087 lines, player_prefs.dart 1158 lines
+- APK: needs new build to include player UX changes
+- Open tasks: none
