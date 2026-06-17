@@ -6,7 +6,7 @@ Updated: 2026-06-17 | Flask running port 5000 at /opt/jazzmax/radd-hub
 - **Account id=11** (03257719165): VK ✅ JID ✅ raw_accesstoken ✅ (40 hex chars) refresh_token ✅
 - **JazzDrive chain:** PROVEN — full login→media→CDN chain tested with real video bytes (HTTP 206, ftyp isom confirmed 2026-06-16)
 - **Proxy pool:** 150+ active proxies, all healthy (fail_count=0)
-- **Flutter app:** All known bugs fixed. Latest APK: build 1068 (triggered — see TASK_LOG.md)
+- **Flutter app:** All known bugs fixed (incl. blank/dark screen — 3-fix commit efb3319). Latest APK: build 1068; new APK build needed for blank-screen fixes.
 - **Debug screen:** Live in release builds — tap version text 5× in Profile to open
 
 ---
