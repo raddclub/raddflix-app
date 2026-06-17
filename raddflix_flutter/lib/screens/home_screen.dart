@@ -383,7 +383,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 borderRadius: BorderRadius.circular(3))),
                       ]),
                   )),
-                ),
               ]),
             ),
           ),
@@ -1018,4 +1017,5 @@ class _RecommendCard extends StatelessWidget {
     );
   }
 }
+
 

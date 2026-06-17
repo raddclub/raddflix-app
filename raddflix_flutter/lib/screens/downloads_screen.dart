@@ -449,7 +449,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
               });
             } else if (_isComplete(d)) {
               final doneEps = eps.where(_isComplete).toList();
-              final epIdx   = doneEps.indexOf(d);
+              final epIdx   = doneEps.indexOf(d as Map<String, dynamic>);
               final epList  = doneEps.asMap().entries.map((e) => <String, dynamic>{
                 'file_id':    _id(e.value),
                 'local_path': _path(e.value),
@@ -1020,3 +1020,4 @@ class _ShowGroupState extends State<_ShowGroup> {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 }
+
