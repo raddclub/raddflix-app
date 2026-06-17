@@ -392,6 +392,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _loadPrefs();
     _initAudioSession();
     _audioSessionInitialized = true; // BUG-P-NEW-01: mark initialized so BG-play toggle guard works
+    _initPipChannel(); // FIX-BGPLAY/PIP-EXIT: register PiP-exit + bg-service handlers
     // FIX-M09: _loadSmartIntro() removed — duration is zero in initState so
     // SmartIntroStore.shouldShow() always returns early. Real load happens in
     // _initPlayer() via _skipIntroTimer after 5s when duration is known.
@@ -434,14 +435,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       if (_bgPlayEnabled && !_userPaused) {
-        // Background audio allowed — keep playing, just disable wakelock
+        // Background audio allowed — keep playing, just disable wakelock.
         WakelockPlus.disable();
+        // FIX-BGPLAY: start foreground service so Android doesn't kill the
+        // process after ~1 min. Without FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+        // Android treats this as a background process and terminates it,
+        // stopping all audio even though media_kit's native thread could
+        // otherwise continue indefinitely.
+        _pipChannel.invokeMethod('startBgPlayback', {
+          'title': (widget.title?.isNotEmpty == true) ? widget.title! : 'Playing…',
+        }).ignore();
       } else if (!_bgPlayEnabled && !_userPaused) {
         // BUG-07: background play disabled — pause video when app goes background
         _player.pause();
         WakelockPlus.disable();
       }
     } else if (state == AppLifecycleState.resumed) {
+      // FIX-BGPLAY: stop the foreground service — app is visible again.
+      _pipChannel.invokeMethod('stopBgPlayback').ignore();
       if (!_userPaused) {
         WakelockPlus.enable();
         // Seek back N seconds so user doesn't miss anything after switching apps
@@ -454,6 +465,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (!_player.state.playing) _player.play();
       }
     }
+  }
+
+  /// Register the native→Flutter method call handler on the shared PiP channel.
+  ///
+  /// Events received from Kotlin (MainActivity) on this channel:
+  ///
+  /// • onPipExited — fired by onPictureInPictureModeChanged() when the system
+  ///   PiP window is dismissed or expanded back to full screen. Resets
+  ///   _inPiP = false so player controls become visible again.
+  ///   Bug: without this, _inPiP stays true forever after the first PiP
+  ///   session — controls never appear again because the controls widget
+  ///   hides itself whenever _inPiP is true.
+  void _initPipChannel() {
+    _pipChannel.setMethodCallHandler((call) async {
+      if (!mounted) return;
+      switch (call.method) {
+        case 'onPipExited':
+          // FIX-PIP-EXIT: system PiP was dismissed — restore controls visibility.
+          setState(() => _inPiP = false);
+          break;
+      }
+    });
   }
 
   Future<void> _initBrightnessVolume() async {
@@ -2657,6 +2690,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _positionNotifier.dispose();
     _durationNotifier.dispose();
     _player.dispose();
+    // FIX-BGPLAY: ensure foreground service is stopped when player closes
+    // (e.g. user presses back while background play is active).
+    _pipChannel.invokeMethod('stopBgPlayback').ignore();
     WakelockPlus.disable();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     // Restore full auto-rotate so system works normally after player exit
