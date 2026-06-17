@@ -103,6 +103,7 @@ import 'player_screen.dart';
       final episodes = sorted.map((v) => <String, dynamic>{
         'file_id': '',
         'title': v.title,
+        'label': v.title, // FIX-LOCAL-UI: player uses 'label' as next-ep display name
         'local_path': v.filePath,
         'episode': sorted.indexOf(v) + 1,
       }).toList();
