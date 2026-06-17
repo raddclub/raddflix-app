@@ -212,3 +212,28 @@ Does NOT occur if user opens Settings or another tab immediately after opening t
 - Oracle Flask: not checked this session (not needed)
 - All three blank-screen root causes closed
 - APK build: needs trigger
+
+## Session 2026-06-17 — Player UX: 8 MX Player Layout Improvements
+
+### Commits
+- `01fc775f` — feat(player): add sidebarMode pref + default rotation → auto (player_prefs.dart)
+- `bd75f9d6` — feat(player): floating ball, sidebar 3-state, speed track, side panels, clock, auto-rotate
+
+### Changes Delivered
+| # | Feature | Details |
+|---|---------|---------|
+| 1 | **Floating draggable ball** | White 40px circle with play icon; shown when controls are hidden. Tap → restore controls + reschedule hide. Drag → reposition anywhere on screen (clamped to bounds). |
+| 2 | **Sidebar 3-state toggle** | Chevron at top of right rail cycles: full (58px) → icons-only (40px) → hidden. Chevron flips direction. |
+| 3 | **Sidebar state memory** | `sidebarMode` (int 0/1/2) added to `PlayerPrefs` — persists via SharedPreferences key `sidebar_mode`. Loaded in `_loadPrefs()`, saved on toggle. |
+| 4 | **Clock overlay** | Top-right corner, white70, 12sp, always visible when controls are hidden. Updated every 30s via `_clockTimer`. `_fmtTime()` helper formats 12-hour AM/PM. |
+| 5 | **Subtitle + Audio panels → right-side overlays** | Changed from bottom sheets → `Positioned(top:0, right:0, bottom:0, width:320)`. Scrim lightened from black54 → black26. Slides from right edge. |
+| 6 | **Speed picker → horizontal dot-rail** | Replaced `_SpeedPanel` (vertical right-side list) with `_SpeedTrackPanel` (horizontal top bar). Active speed: 13px blue `#4DB6FF` dot + bold label. Inactive: 7px white38 dot + small label. |
+| 7 | **Auto-rotation default** | `PlayerPrefs` default `rotationMode` changed `'sensor_landscape'` → `'auto'`. |
+| 8 | **`_MxSideBtn` icons-only mode** | New `iconsOnly` bool param. When true: 36×36 size, icon 19px, label hidden. All 11 sidebar buttons use `iconsOnly: sidebarMode == 1`. |
+
+### File Stats
+| File | Before | After | Δ |
+|------|--------|-------|---|
+| `player_prefs.dart` | 1152 lines | 1158 lines | +6 |
+| `player_screen.dart` | 6963 lines | 7087 lines | +124 |
+| Total verification checks | — | 25/25 ✅ | — |
