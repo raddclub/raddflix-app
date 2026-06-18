@@ -6,6 +6,7 @@ import '../core/api/api_client.dart';
 import '../core/constants.dart';
 import '../core/db/local_db.dart';
 import '../core/debug/debug_logger.dart';
+  import '../core/debug/playback_timeline.dart';
 import '../core/security/keystore.dart';
 import '../core/security/request_encoder.dart';
 import '../core/security/device_id.dart';
@@ -24,7 +25,13 @@ class DebugDiagnosticsScreen extends ConsumerStatefulWidget {
 class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
     with SingleTickerProviderStateMixin {
 
-  // ── Checks tab state ─────────────────────────────────────────────────────
+  // ── Timeline tab state ───────────────────────────────────────────────────
+    List<PtSession>  _tlSessions   = [];
+    PtSession?       _tlCurrent;
+    Timer?           _tlTimer;
+    int              _tlSelected   = -1; // -1 = current session
+
+    // ── Checks tab state ─────────────────────────────────────────────────────
   final List<_DiagResult> _results = [];
   bool _running = false;
 
@@ -40,12 +47,14 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, initialIndex: 1, vsync: this);
+    _tabs = TabController(length: 3, initialIndex: 1, vsync: this);
     _tabs.addListener(() {
       if (_tabs.index == 1 && !_tabs.indexIsChanging) _startLogTimer();
       if (_tabs.index == 0 && !_tabs.indexIsChanging) _stopLogTimer();
+      if (_tabs.index == 2 && !_tabs.indexIsChanging) _startTimelineTimer();
+      if (_tabs.index != 2 && !_tabs.indexIsChanging) _stopTimelineTimer();
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) { _runAll(); _startLogTimer(); });
+    WidgetsBinding.instance.addPostFrameCallback((_) { _runAll(); _startLogTimer(); _refreshTimeline(); });
   }
 
   @override
@@ -62,7 +71,22 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
     _refreshLogs();
     _logTimer = Timer.periodic(const Duration(seconds: 2), (_) => _refreshLogs());
   }
-  void _stopLogTimer() { _logTimer?.cancel(); _logTimer = null; }
+  void _stopLogTimer()      { _logTimer?.cancel(); _logTimer = null; }
+
+    void _startTimelineTimer() {
+      _tlTimer?.cancel();
+      _refreshTimeline();
+      _tlTimer = Timer.periodic(const Duration(seconds: 2), (_) => _refreshTimeline());
+    }
+    void _stopTimelineTimer() { _tlTimer?.cancel(); _tlTimer = null; }
+
+    void _refreshTimeline() {
+      if (!mounted) return;
+      setState(() {
+        _tlSessions = PlaybackTimeline.sessions.reversed.toList();
+        _tlCurrent  = PlaybackTimeline.currentSession;
+      });
+    }
 
   void _refreshLogs() {
     if (!mounted) return;
@@ -308,7 +332,7 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
           indicatorColor: Colors.orange,
           labelColor: Colors.orange,
           unselectedLabelColor: Colors.grey,
-          tabs: const [Tab(text: 'Checks'), Tab(text: 'Live Logs')],
+          tabs: const [Tab(text: 'Checks'), Tab(text: 'Live Logs'), Tab(text: 'Player')],
         ),
       ),
       body: TabBarView(
@@ -323,6 +347,12 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
             filters:    _filters,
             onFilter:   (f) { setState(() => _logFilter = f); _refreshLogs(); },
             onClear:    () { DebugLogger.clearBuffer(); setState(() => _rawLogs = ''); },
+          ),
+          _PlayerTimelineTab(
+            current:    _tlCurrent,
+            sessions:   _tlSessions,
+            selected:   _tlSelected,
+            onSelect:   (i) => setState(() => _tlSelected = i),
           ),
         ],
       ),
@@ -527,3 +557,224 @@ class _DiagResult {
   const _DiagResult({required this.label, required this.status, this.detail = ''});
   _DiagResult withLabel(String l) => _DiagResult(label: l, status: status, detail: detail);
 }
+
+  // ── Player Timeline Tab ───────────────────────────────────────────────────────
+  class _PlayerTimelineTab extends StatelessWidget {
+    final PtSession?       current;
+    final List<PtSession>  sessions;
+    final int              selected;   // -1 = current, 0+ = history index
+    final void Function(int) onSelect;
+
+    const _PlayerTimelineTab({
+      required this.current,
+      required this.sessions,
+      required this.selected,
+      required this.onSelect,
+    });
+
+    @override
+    Widget build(BuildContext context) {
+      final allSessions = <({String label, PtSession? s})>[];
+      if (current != null) {
+        allSessions.add((label: 'CURRENT', s: current));
+      }
+      for (int i = 0; i < sessions.length; i++) {
+        allSessions.add((label: 'Session ${i + 1}', s: sessions[i]));
+      }
+
+      if (allSessions.isEmpty) {
+        return Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.timeline_rounded, color: Colors.grey[700], size: 48),
+            const SizedBox(height: 12),
+            Text('No playback sessions recorded yet.',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+            const SizedBox(height: 6),
+            Text('Play a video to see the startup timeline.',
+                style: TextStyle(color: Colors.grey[700], fontSize: 11)),
+          ]),
+        );
+      }
+
+      final displayIdx = selected == -1 ? 0 : (selected + (current != null ? 1 : 0));
+      final displaySession = displayIdx < allSessions.length
+          ? allSessions[displayIdx].s
+          : allSessions.first.s;
+
+      return Column(children: [
+        // Session selector chips
+        Container(
+          height: 36,
+          color: const Color(0xFF0A0A1A),
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            itemCount: allSessions.length,
+            itemBuilder: (_, i) {
+              final s     = allSessions[i].s;
+              final label = allSessions[i].label;
+              final active  = i == displayIdx;
+              final hasWarn = s != null && (!s.isHealthy || s.hadBlackScreen);
+              return GestureDetector(
+                onTap: () => onSelect(i == 0 && current != null ? -1 : i - (current != null ? 1 : 0)),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: active
+                        ? (hasWarn ? Colors.red.withOpacity(0.25) : Colors.orange.withOpacity(0.2))
+                        : Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: active
+                          ? (hasWarn ? Colors.red.withOpacity(0.7) : Colors.orange.withOpacity(0.6))
+                          : Colors.white.withOpacity(0.08),
+                    ),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (hasWarn) ...[
+                      const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 11),
+                      const SizedBox(width: 3),
+                    ],
+                    Text(label, style: TextStyle(
+                      color: active ? Colors.white : Colors.grey[500],
+                      fontSize: 11, fontWeight: FontWeight.w600,
+                    )),
+                  ]),
+                ),
+              );
+            },
+          ),
+        ),
+
+        // Session status banner
+        if (displaySession != null) _StatusBanner(session: displaySession),
+
+        // Event list
+        Expanded(
+          child: displaySession == null
+              ? const Center(child: Text('No data', style: TextStyle(color: Colors.grey)))
+              : ListView.builder(
+                  padding: const EdgeInsets.only(top: 4, bottom: 16),
+                  itemCount: displaySession.events.length,
+                  itemBuilder: (_, i) => _EventRow(event: displaySession.events[i]),
+                ),
+        ),
+      ]);
+    }
+  }
+
+  class _StatusBanner extends StatelessWidget {
+    final PtSession session;
+    const _StatusBanner({required this.session});
+
+    @override
+    Widget build(BuildContext context) {
+      final hasBS   = session.hadBlackScreen;
+      final hasBad  = session.hadVfGatePassed;
+      final isGood  = session.isHealthy;
+
+      final Color  bg     = hasBS  ? Colors.red.withOpacity(0.12)
+                          : hasBad ? Colors.orange.withOpacity(0.12)
+                          :          Colors.green.withOpacity(0.08);
+      final Color  border = hasBS  ? Colors.red.withOpacity(0.5)
+                          : hasBad ? Colors.orange.withOpacity(0.5)
+                          :          Colors.green.withOpacity(0.3);
+      final String icon   = hasBS ? '🖤' : hasBad ? '⚠️' : '✓';
+      final String msg    = hasBS  ? 'BLACK SCREEN DETECTED — gate passed + audio at T+3s'
+                          : hasBad ? 'GATE PASSED — vf= fired during startup window. Black screen likely.'
+                          :          'Healthy — vf gate blocked correctly. No black screen.';
+      final Color  textColor = isGood ? Colors.green[300]!
+                             : hasBS  ? Colors.red[300]!
+                             :          Colors.orange[300]!;
+
+      return Container(
+        margin: const EdgeInsets.fromLTRB(8, 6, 8, 2),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: bg, borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: border),
+        ),
+        child: Row(children: [
+          Text(icon, style: const TextStyle(fontSize: 13)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(msg,
+              style: TextStyle(color: textColor, fontSize: 11,
+                  fontWeight: FontWeight.w600))),
+        ]),
+      );
+    }
+  }
+
+  class _EventRow extends StatelessWidget {
+    final PtEvent event;
+    const _EventRow({required this.event});
+
+    @override
+    Widget build(BuildContext context) {
+      final isWarn  = event.event.contains('PASS') || event.event.contains('BLACK') ||
+                      event.event.contains('⚠️');
+      final isGood  = event.event.contains('BLOCKED');
+      final isMpv   = event.event.startsWith('mpv_playing');
+      final isFrame = event.event.startsWith('first_frame');
+
+      final Color nameColor = isWarn  ? Colors.red[300]!
+                            : isGood  ? Colors.green[300]!
+                            : isMpv   ? Colors.lightBlue[300]!
+                            : isFrame ? Colors.purple[300]!
+                            :           Colors.grey[300]!;
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.04))),
+          color: isWarn ? Colors.red.withOpacity(0.05) : Colors.transparent,
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Timestamp column
+          SizedBox(width: 72,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text('T+' + event.relMs.toString() + 'ms',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 10,
+                      fontFamily: 'monospace')),
+              Text('+' + event.deltaMs.toString() + 'ms',
+                  style: TextStyle(
+                    color: event.deltaMs > 200 ? Colors.orange[700] : Colors.grey[700],
+                    fontSize: 9, fontFamily: 'monospace',
+                  )),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          // Status dot
+          Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Container(
+              width: 6, height: 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isWarn ? Colors.red : isGood ? Colors.green : Colors.grey[600]!,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Event name + detail
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(event.event,
+                  style: TextStyle(color: nameColor, fontSize: 11,
+                      fontWeight: isWarn || isGood ? FontWeight.w700 : FontWeight.w500,
+                      fontFamily: 'monospace')),
+              if (event.extra != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(event.extra!,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 9,
+                          fontFamily: 'monospace')),
+                ),
+            ]),
+          ),
+        ]),
+      );
+    }
+  }
+  
