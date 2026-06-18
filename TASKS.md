@@ -1,5 +1,5 @@
 # RaddFlix Task Board
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 ## Completed Tasks — Player UX Session (2026-06-17)
 
@@ -177,3 +177,13 @@ Flutter app on-device (fully zero-rated on Jazz SIM):
   → validationkey is NEVER added to the final CDN stream URL
   → JSESSIONID .NODE suffix MUST be kept — LB uses it for sticky routing
 ```
+
+  ---
+
+  ## Completed Tasks — PlaybackTimeline Diagnostics (2026-06-18)
+
+  | ID | File | Summary |
+  |----|------|---------|
+  | ✅ FIX-VF-STARTUP | `player_screen.dart` | Synchronous `_videoOpened=true` before every `player.open()` — closes 200-500ms MediaTek race window |
+  | ✅ FEAT-TIMELINE | `playback_timeline.dart`, `player_screen.dart`, `debug_diagnostics_screen.dart` | 10-probe startup tracer, 3s black screen auto-detector, Player tab in Diagnostics |
+  
