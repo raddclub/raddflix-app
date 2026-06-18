@@ -1,4 +1,6 @@
 You are continuing work on RaddFlix — a Pakistani Flutter streaming app (Jazz SIM zero-rated).
+
+LATEST SESSION (2026-06-18): FIX-VF-STARTUP + FEAT-TIMELINE (PlaybackTimeline diagnostics) committed. Build #1147 triggered. No open bugs.
 GITHUB_TOKEN and ORACLE_SSH_KEY are already in Replit Secrets. Start immediately.
 
 STEP 1 — Restore SSH key (run this every session):
