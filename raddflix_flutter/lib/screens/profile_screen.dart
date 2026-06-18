@@ -19,6 +19,7 @@ import '../core/player/scene_bookmark_store.dart';  // BUG-A23
 import '../core/player/player_prefs.dart';          // BUG-A21
 import '../core/db/local_db.dart';                  // BUG-A22
 import 'debug_diagnostics_screen.dart';
+import '../core/debug/debug_logger.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -40,6 +41,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    DebugLogger.logLifecycle('ProfileScreen', 'initState');
     DeviceIdentifier.getDeviceName().then((n) {
       if (mounted) setState(() => _deviceName = n);
     });
@@ -88,6 +90,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   void dispose() {
+    DebugLogger.logLifecycle('ProfileScreen', 'dispose');
     _connectivitySub.cancel();
     super.dispose();
   }
@@ -248,7 +251,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ],
                       ])),
                       TextButton(
-                        onPressed: () => Navigator.of(context).pushNamed(AppRoutes.subscription),
+                        onPressed: () { DebugLogger.logTap('Profile', 'subscription'); Navigator.of(context).pushNamed(AppRoutes.subscription); },
                         child: Text('Manage', style: TextStyle(fontSize: 12))),
                     ]),
                   ),
@@ -340,14 +343,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       icon: Icons.bookmark_rounded,
                       iconColor: AppColors.primary,
                       label: 'My Watchlist',
-                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.watchlist),
+                      onTap: () { DebugLogger.logTap('Profile', 'watchlist'); Navigator.of(context).pushNamed(AppRoutes.watchlist); },
                     ),
                     _divider(),
                     _SectionTile(
                       icon: Icons.history_rounded,
                       iconColor: const Color(0xFF22C55E),
                       label: 'Watch History',
-                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.history),
+                      onTap: () { DebugLogger.logTap('Profile', 'history'); Navigator.of(context).pushNamed(AppRoutes.history); },
                     ),
                   ]),
                   SizedBox(height: 12),
@@ -420,7 +423,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _SectionTile(
                       icon: Icons.download_outlined,
                       label: 'Downloads',
-                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.downloads),
+                      onTap: () { DebugLogger.logTap('Profile', 'downloads'); Navigator.of(context).pushNamed(AppRoutes.downloads); },
                     ),
                     if (user?.isGuest != true && _hasInternet) ...[
                       _divider(),
