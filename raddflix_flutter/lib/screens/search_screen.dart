@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../core/db/local_db.dart';
+import '../core/debug/debug_logger.dart';
 import '../providers/catalog_provider.dart';
 import '../models/catalog_item.dart';
 import '../widgets/content_card.dart';
@@ -119,6 +120,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   @override
   void initState() {
     super.initState();
+    DebugLogger.logLifecycle('SearchScreen', 'initState');
     _glowCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
     _glowAnim = CurvedAnimation(parent: _glowCtrl, curve: Curves.easeOut);
     _focus.addListener(() {
@@ -141,6 +143,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
   @override
   void dispose() {
+    DebugLogger.logLifecycle('SearchScreen', 'dispose query="${_ctrl.text}"');
     _ctrl.dispose();
     _focus.dispose();
     _debounce?.cancel();
@@ -199,7 +202,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   void _onQueryChanged(String q) {
     _debounce?.cancel();
     setState(() {});
-    _debounce = Timer(const Duration(milliseconds: 220), () => _doSearch());
+    final _dQ = q;
+    _debounce = Timer(const Duration(milliseconds: 220), () {
+      DebugLogger.logTap('Search', 'query "${_dQ}"');
+      _doSearch();
+    });
   }
 
   Future<void> _doSearch() async {
@@ -226,6 +233,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       if (f.type == 'Shows')  results = raw.where((r) => r.item.isShow).toList();
 
       if (mounted) setState(() { _results = results; _loading = false; });
+      DebugLogger.log('SEARCH', 'results ${results.length} q="${_ctrl.text.trim()}" type=${f.type} genre=${f.genre} lang=${f.language}');
       if (_ctrl.text.trim().isNotEmpty) await _saveToHistory(_ctrl.text.trim());
     } catch (_) {
       if (mounted) setState(() { _results = []; _loading = false; });
@@ -233,17 +241,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   }
 
   void _applyFilter(_FilterState f) {
+    DebugLogger.logTap('Search', 'filter type=${f.type} genre=${f.genre} year=${f.year} lang=${f.language} rating=${f.minRating} free=${f.isFree}');
     setState(() => _filters = f);
     _doSearch();
   }
 
   void _clearAll() {
+    DebugLogger.logTap('Search', 'clearFilters');
     setState(() { _filters = const _FilterState(); });
     if (_ctrl.text.trim().isNotEmpty) _doSearch();
     else setState(() => _results = null);
   }
 
   void _tapSuggestion(String q) {
+    DebugLogger.logTap('Search', 'suggestion "$q"');
     _ctrl.text = q;
     _ctrl.selection = TextSelection.collapsed(offset: q.length);
     _doSearch();
@@ -1074,8 +1085,10 @@ class _SearchResultTile extends StatelessWidget {
     final hasSnippet = rawSnippet != null && rawSnippet.isNotEmpty;
 
     return GestureDetector(
-      onTap: () => Navigator.of(context).pushNamed(
-        AppRoutes.showDetail, arguments: item),
+      onTap: () {
+        DebugLogger.logTap('Search', 'result id=${item.id} "${item.title}"');
+        Navigator.of(context).pushNamed(AppRoutes.showDetail, arguments: item);
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(10),
