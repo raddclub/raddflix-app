@@ -33,6 +33,7 @@ import 'screens/watchlist_screen.dart';
 import 'screens/history_screen.dart';
 import 'core/services/app_update_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'core/debug/debug_logger.dart';
 
 /// Global navigator key — lets background intent handler push PlayerScreen
 /// without needing a BuildContext.
@@ -51,6 +52,30 @@ String? pendingVideoTitle;
 /// subtitle file and the matching video is found in the same directory.
 String? pendingSubtitleUri;
 
+/// Logs every Navigator push / pop / replace to DebugLogger.
+/// Registered in MaterialApp.navigatorObservers so ALL screens are covered.
+class _RaddNavObserver extends NavigatorObserver {
+  @override
+  void didPush(Route route, Route? previousRoute) {
+    final from = previousRoute?.settings.name ?? 'root';
+    DebugLogger.logNav('PUSH', route.settings.name ?? '(anon)', 'from=$from');
+  }
+  @override
+  void didPop(Route route, Route? previousRoute) {
+    final to = previousRoute?.settings.name ?? 'root';
+    DebugLogger.logNav('POP', route.settings.name ?? '(anon)', 'to=$to');
+  }
+  @override
+  void didReplace({Route? newRoute, Route? oldRoute}) {
+    DebugLogger.logNav('REPLACE',
+        '${oldRoute?.settings.name ?? "?"} → ${newRoute?.settings.name ?? "?"}');
+  }
+  @override
+  void didRemove(Route route, Route? previousRoute) {
+    DebugLogger.logNav('REMOVE', route.settings.name ?? '(anon)');
+  }
+}
+
 class RaddFlixApp extends ConsumerWidget {
   const RaddFlixApp({super.key});
 
@@ -61,6 +86,7 @@ class RaddFlixApp extends ConsumerWidget {
     Animate.restartOnHotReload = true;
     return MaterialApp(
       navigatorKey: appNavigatorKey,
+      navigatorObservers: [_RaddNavObserver()],
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: JazzThemeData.build(themeState.mode, brandState),
