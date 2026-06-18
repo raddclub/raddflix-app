@@ -1,15 +1,14 @@
 # RaddFlix Agent Handoff
 
-_Last updated: 2026-06-18 — Exhaustive debug logging added to player_screen.dart (91 patches across 2 rounds), build ✅ r1 / ⏳ r2_
+_Last updated: 2026-06-18 — GOD-LEVEL debug logging complete in player_screen.dart (91+36 patches, build ✅ run#1136 commit e98e620)_
 
 ## Current State
 
 | Item | Status |
 |------|--------|
 | Oracle Flask | Running v3.0.0 at 92.4.95.252:5000 |
-| Last passing APK build | ✅ SUCCESS — commit `272ac0c` (player debug r1, run#1131) |
-| Pending build | run#1132 ⏳ — commit `c4905b5` (player debug r2) |
-| Latest commit | `c4905b5` — 48 more DebugLogger patches round 2 |
+| Last passing APK build | ✅ SUCCESS — commit `e98e620` (god-level debug logger, run#1136) |
+| Latest commit | `e98e620` — fix 2 compile errors + complete god-level logger |
 | Open tasks | DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 |
 
 ## Rules (MUST follow — from AGENT_PROMPT.md)
@@ -22,17 +21,39 @@ _Last updated: 2026-06-18 — Exhaustive debug logging added to player_screen.da
 - **Never remove XOR padding fix** in request_encoder.dart
 - **Update TASKS.md before AND after work** (Rule 0)
 
-## What was done this session (2026-06-18) — Debug logging
+## What was done this session (2026-06-18) — God-Level Debug Logging
 
-### Overall: 91 DebugLogger patches to player_screen.dart across 2 rounds
+### Overall: 127 DebugLogger patches to player_screen.dart across 3 rounds
 
 #### Round 1 — commit `272ac0c` (build ✅ run#1131)
-43 patches: All silent `catch (_) {}` → named errors, app lifecycle (background/resume), episode nav (prev/next with fileId), sleep timer lifecycle (set/cancel/fire/fade start), full playback-ended decision tree (loop/return_home/nothing/next-ep countdown), watch-position periodic save, slow connection detection, duration stream, audio+subtitle track selection with language names, volume boost, audio/subtitle sync, cinematic mode, immersive mode, cycle fit (aspect ratio), frame step fwd/back, screenshot, voice commands, hardware media button multi-press, subtitle file picker, bookmark add, skip intro visibility + auto-skip, cast enter, long-press-play restart.
+43 patches: All silent `catch (_) {}` → named errors, app lifecycle, episode nav, sleep timer, playback-ended tree, watch-position save, slow connection, duration stream, audio/subtitle track selection, volume boost, audio/subtitle sync, cinematic/immersive, cycle fit, frame step, screenshot, voice commands, hardware media button multi-press, subtitle file picker, bookmark add, skip intro, cast enter, long-press restart.
 
-#### Round 2 — commit `c4905b5` (build ⏳ run#1132)
-48 patches: `_logPlayerState()` state-snapshot helper (12 fields in one line), dispose() with final position+ep, ALL 22 panel-open functions (every showModalBottomSheet, Navigator.push, and setState-toggle panel), _loadPrefs with all key settings, _loadSmartIntro/Bookmarks/SkipSegments counts, _deleteBookmark, _toggleControls show/hide with reason, _seekRelative from/to, lock toggle, _applyRotation + _cycleRotation, _initAmbilight, _startWakeTimer with wakeTimer FIRED, _shareTimestamp, _onSeekBarLongPress, _showJumpToTime, _handleCenterTap, _initBingeGuard, _initPipChannel, audio interruption (type logged), headphone unplug, _logWatchSession, _logPlayerState called at jazz-retry exhaustion. Fixed `_nextIdx` lint issue.
+#### Round 2 — commit `c4905b5` (build ❌ — 4 compile errors fixed in round 3)
+48 patches: `_logPlayerState()` state-snapshot helper, dispose(), ALL 22 panel-open functions, _loadPrefs, _loadSmartIntro/Bookmarks/SkipSegments counts, _deleteBookmark, _toggleControls, _seekRelative, lock toggle, _applyRotation, _cycleRotation, _initAmbilight, _startWakeTimer, _shareTimestamp, _onSeekBarLongPress, _showJumpToTime, _handleCenterTap, _initBingeGuard, _initPipChannel, audio interruption, headphone unplug, _logWatchSession.
 
-### Log tags now available for filtering in debug screen
+#### Round 3 (God-Level) — commit `e98e620` (build ✅ run#1136)
+Fixes all 4 r2 compile errors (silenceSkipEnabled→skipSilenceEnabled, bingeGuardIntervalMins→bingeGuardThresholdMinutes, _ratioLabels→inline BoxFit comparison, debandingEnabled→nightMode, tracks.sub→tracks.subtitle) + 36 new deep-engine patches:
+- Position milestones at 25/50/75/95% of duration
+- AB loop A set / B set / loop fire log
+- Track list counts on stream.tracks update (audio/subtitle/video counts)
+- Subtitle text event log (first 60 chars of subtitle line)
+- Skip segment active/cleared state log
+- _openMedia entry log + step1 DB fetch timing
+- _buildJazzError context log (fileId, error, url)
+- Buffering cleared log (was buffering→playing)
+- Watch position save % of duration
+- seekRelative as % of duration
+- Completed event: episodes remaining, loop mode
+- Playing event: speed, position, hwdec decoder name
+- Episode nav: prev/next with fileId + title
+- Binge guard threshold log
+- _logWatchSession: total seconds + quality label
+- piTimer tick: pos + codec/res/fps/buffer/decoder
+- Session start: fileId, title, epIdx, isLocal, Jazz/LOCAL
+- af= audio chain: full filter string logged
+- vf= video filter: colorblind/sharpness/brightness/contrast/saturation/night/smartEnhance
+
+### Log tags for filtering in debug screen
 
 | Tag | What it captures |
 |-----|-----------------|
@@ -40,48 +61,43 @@ _Last updated: 2026-06-18 — Exhaustive debug logging added to player_screen.da
 | `LIFECYCLE` | App foreground/background, dispose, wake timer |
 | `EPISODE` | Prev/next nav, playback ended, countdown start |
 | `SLEEP` | Timer set/cancel/fire, end-of-episode mode |
-| `SAVE` | Watch position saves and logWatchSession |
+| `SAVE` | Watch position saves % and _logWatchSession seconds+quality |
 | `QUOTA` | Plan expiry redirect, data quota exceeded |
 | `PIP` | PiP enter/exit |
-| `TRACK` | Audio/subtitle selection, restore, auto-select |
+| `TRACK` | Audio/subtitle/video track counts + selection + restore |
 | `INTRO` | Skip intro visibility, auto-skip, editor |
-| `SEEK` | seekRelative from/to, seekBar long press |
+| `SEEK` | seekRelative from/to as % of duration |
 | `PANEL` | Every panel/sheet open |
 | `VOICE` | Voice command intent+value |
 | `HW` | Hardware media button press count |
 | `CAST` | Cast device discovery |
+| `MILESTONE` | 25/50/75/95% watched milestones |
+| `AB` | AB loop A set, B set, loop fire |
+| `SUB` | Subtitle text events |
+| `SKIP` | Skip segment active/cleared |
 | `GESTURE` | Long-press play restart |
 | `TAP/MODE` | Cinematic, immersive, rotation |
 | `TAP/VIDEO` | Frame step, screenshot, cycle fit |
 | `TAP` | Controls show/hide, lock toggle, bookmark add/delete, share |
 | `AUDIO` | Volume boost, audio/sub sync, interruption, headphone unplug |
-| `BUF` | Slow connection detected |
+| `BUF` | Slow connection detected, buffering cleared |
 | `INIT` | All init functions with key param values |
-
-## What was done this session — Prior work
-
-| Commit | Summary |
-|--------|---------|
-| `8c8f331`+`2b9e051` | Debug screen via Profile → Account → Debug Logs |
-| `426d78c` | 6 missing DebugLogger methods added |
-| `4882ba1` | 10 bugs fixed across player files |
-| `c099057` | 4 additional player bugs (orphan import, clock drift, dead guard, shadowed var) |
-| `09760ca` | 11 player bugs fixed |
-| `cd241fc` | ROOT CAUSE local video black screen (vf= during HW decode) |
-| `91e52dc` | Icon compat fix (replay_15/forward_15 not in Flutter 3.22.3) |
-| `96f8cc1` | dart:ui import fix — PlatformDispatcher |
+| `LOAD` | openMedia entry, step1 DB, JAZZ/LOCAL session start, success |
 
 ## Architecture pointers
 
-- **player_screen.dart**: 7280 lines, ~320KB. All subsystems are now logged.
+- **player_screen.dart**: ~7300 lines, ~323KB. Every subsystem is now logged.
 - **debug_logger.dart**: `lib/core/debug/debug_logger.dart` — buffer 5000, 8MB rotation, session ID, auto-flush 30s
 - **Debug screen**: Profile → Account → Debug Logs (opens on Logs tab)
 - **Oracle**: Flask v3.0.0 at 92.4.95.252:5000 — proxy for JazzDrive + catalog
-- **JazzDrive retry**: max 1 retry; if playing at retry-exhaustion, error overlay is suppressed (live stream stays alive)
+- **JazzDrive retry**: max 1 retry; if playing at retry-exhaustion, error overlay suppressed
 - **vf= black screen fix**: never call setProperty('vf',...) while HW decoder is active on first play — guarded by `_firstVfApplied` flag
+- **_ratioLabels**: does NOT exist; aspect ratio cycling uses `_ratios` (List<BoxFit>) directly — compare with `BoxFit.contain/cover/fill`
+- **debandingEnabled**: does NOT exist in PlayerPrefs — use `nightMode`, `sharpnessEnabled`, `smartEnhanceEnabled`
+- **tracks.subtitle** (not .sub) — Tracks class has .audio, .subtitle, .video
 
 ## For next agent
 
-1. **Check if run#1132 passed** — if failed, look at build log for Dart compile errors and fix
-2. **DATA-01** — All Of Us Are Dead missing E03/E04/E05/E09: catalog issue, requires Oracle DB update
-3. **Now that all logging is in place**, the next step is to actually TEST the player and collect logs to find real bugs. Ask user to reproduce the issue, retrieve logs via debug screen, and analyze.
+1. **DATA-01** — All Of Us Are Dead missing E03/E04/E05/E09: catalog issue, requires Oracle DB update
+2. **Now that all logging is in place**: Test the player, collect logs via Profile → Account → Debug Logs, and analyze to find real runtime bugs
+3. **run#1137** was also triggered for e98e620 — it may also pass or may show duplicate-trigger warning; ignore it, run#1136 is the confirmed success
