@@ -16,6 +16,7 @@ import '../widgets/bottom_nav.dart';
 import '../widgets/notification_banner.dart';
 import '../core/services/notification_service.dart';
 import '../widgets/simosa_card.dart';
+import '../core/debug/debug_logger.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -36,6 +37,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    DebugLogger.logLifecycle('HomeScreen', 'initState');
     _scroll.addListener(() {
       final now = _scroll.offset > 50;
       if (now != _scrolled) setState(() => _scrolled = now);
@@ -50,6 +52,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   void dispose() {
+    DebugLogger.logLifecycle('HomeScreen', 'dispose');
     _notifTimer?.cancel();
     _scroll.dispose();
     super.dispose();
@@ -90,6 +93,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         currentIndex: _navIndex,
         onTap: (i) {
           setState(() => _navIndex = i);
+          DebugLogger.logTap('Home', 'bottomNav tab=$i', i == 0 ? 'Home' : i == 1 ? 'LocalMedia' : i == 2 ? 'Downloads' : 'Profile');
           // M-01: pop to root before pushing so tapping the same icon repeatedly
           // doesn't build an unbounded back-stack (e.g. Profile → Profile → …).
           if (i == 1 || i == 2 || i == 3) {
@@ -128,13 +132,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         const NotificationBell(),
         IconButton(
           icon: const Icon(Icons.search_rounded, size: 26),
-          onPressed: () => Navigator.of(context).pushNamed(AppRoutes.search),
+          onPressed: () { DebugLogger.logTap('Home', 'searchIcon'); Navigator.of(context).pushNamed(AppRoutes.search); },
         ),
         if (user != null)
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: GestureDetector(
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.profile),
+              onTap: () { DebugLogger.logTap('Home', 'profileAvatar'); Navigator.of(context).pushNamed(AppRoutes.profile); },
               child: Container(
                 width: 34, height: 34,
                 decoration: BoxDecoration(
@@ -203,7 +207,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               itemBuilder: (_, i) => _CategoryChip(
                 label: _categories[i],
                 isSelected: _selectedCategory == _categories[i],
-                onTap: () => setState(() => _selectedCategory = _categories[i]),
+                onTap: () { DebugLogger.logTap('Home', 'category ${_categories[i]}'); setState(() => _selectedCategory = _categories[i]); },
               ).animate(delay: (i * 40).ms).fadeIn(duration: 300.ms)
                   .slideX(begin: 0.2, end: 0, duration: 300.ms, curve: AppCurves.standard),
             ),
@@ -525,6 +529,7 @@ class _HeroCard extends StatelessWidget {
     final t = RaddTheme.of(context);
     return GestureDetector(
       onTap: () {
+        DebugLogger.logTap('Home', 'heroCard', 'title="${item.title}" id=${item.id}');
         Navigator.of(context).pushNamed(AppRoutes.showDetail, arguments: item);
       },
       child: Container(
