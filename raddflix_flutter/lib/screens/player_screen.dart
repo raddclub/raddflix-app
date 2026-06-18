@@ -218,10 +218,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Timer? _slowConnTimer;
   bool _playing = false;
   bool _videoSurfaceReady = false; // FIX-PLAYER-02: set true on first playing=true to avoid transient black screen
-    // FIX-VF-STARTUP: set true immediately before _player.open() so _applyVideoFilters
-    // startup gate reliably blocks even when _player.state.playing is still false
-    // (MediaTek GL surface isn't ready until ~200-500ms after open() — gate must cover that gap).
-    bool _videoOpened = false;
+  // FIX-VF-STARTUP: set true immediately before _player.open() so _applyVideoFilters
+  // startup gate reliably blocks even when _player.state.playing is still false
+  // (MediaTek GL surface isn't ready until ~200-500ms after open() — gate must cover that gap).
+  bool _videoOpened = false;
   bool _ended = false;
   DateTime? _sessionStartTime; // track watch-time for usage reporting
   Duration _bufferedPosition = Duration.zero;
