@@ -7,11 +7,19 @@ _Last updated: 2026-06-18 — BUG-DEBUGLOGGER-MISSING fixed, APK ✅_
 | Item | Status |
 |------|--------|
 | Oracle Flask | Running v3.0.0 at 92.4.95.252:5000 |
-| Last APK build | ✅ run#27754376552, commit 426d78c — **SUCCESS** |
-| Latest commit | 426d78c — fix(debug_logger): add 6 missing methods |
+| Last APK build | ⏳ triggered after commits 8c8f331 + 2b9e051 — awaiting result |
+| Latest commit | 2b9e051 — debug screen opens on Logs tab by default |
 | Open tasks | DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 |
 
 ## What was done this session
+
+Made debug diagnostics screen directly accessible:
+1. `profile_screen.dart` — added visible "Debug Logs" tile in Account section (one tap, always visible). Old 5-tap on version text still works as backup.
+2. `debug_diagnostics_screen.dart` — opens on Logs tab by default; log timer auto-starts so logs appear immediately without switching tabs.
+
+---
+
+## Previous session
 
 Investigated 2 consecutive APK build failures (run#27753380200 commit 5ce16d8, run#27753231660 commit 9439a69). Both failed at "Build release APK" step with `Member not found` Dart compile errors for 6 `DebugLogger` methods that were called across 5 files but never existed in the class:
 
