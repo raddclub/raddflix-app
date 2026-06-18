@@ -50,7 +50,8 @@
   - DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 — catalog data, not code
 
   ## Current Build Status
-  - Last code commit: 4d88e277 (FIX-VF-STARTUP)
+  - Last code commit: 4454e04f (PlaybackTimeline probes in player_screen.dart)
+  - Other commits this session: 5dd1ffde (playback_timeline.dart new), ff40236a (debug_diagnostics_screen.dart + Player tab)
   - Build needs to be triggered manually via CI
   - Oracle: RUNNING v3.0.0
 
@@ -59,5 +60,5 @@
   2. Add task row to TASKS.md before starting work
   3. Check Oracle alive: `ssh -i /tmp/oracle_key ubuntu@92.4.95.252 "curl -s http://localhost:5000/health"`
   4. If user reports black screen: read this handoff + Fix 4 notes above first
-  5. The most recent fix (FIX-VF-STARTUP) should have eliminated the startup black screen — if user still reports it, check if there's a THIRD `_player.open()` call path not yet patched
+  5. FIX-VF-STARTUP should have eliminated the startup black screen — if it still happens, open Diagnostics → Player tab — the timeline will show exactly which flag failed and at what ms
   
