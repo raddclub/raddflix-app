@@ -106,7 +106,7 @@ class JumpToSheet extends StatelessWidget {
           const SizedBox(width: 8),
           _PresetJump(label: '75%',     icon: Icons.looks_3_rounded,         color: accentColor, onTap: () { onJumpTo(totalDuration * 0.75); Navigator.pop(context); }),
           const SizedBox(width: 8),
-          _PresetJump(label: 'End',     icon: Icons.last_page_rounded,       color: accentColor, onTap: () { onJumpTo(totalDuration - const Duration(seconds: 5)); Navigator.pop(context); }),
+          _PresetJump(label: 'End',     icon: Icons.last_page_rounded,       color: accentColor, onTap: () { onJumpTo(totalDuration > const Duration(seconds: 10) ? totalDuration - const Duration(seconds: 5) : totalDuration); Navigator.pop(context); }),
         ]),
       ]),
     )

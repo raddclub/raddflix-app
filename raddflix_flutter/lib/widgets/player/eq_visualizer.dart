@@ -161,7 +161,7 @@ class _VisualizerBarsState extends State<_VisualizerBars> with SingleTickerProvi
     super.initState();
     _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600))
       ..repeat(reverse: true)
-      ..addListener(() => setState(() {}));
+      ..addListener(() { if (widget.enabled) setState(() {}); });
   }
   @override void dispose() { _ctrl.dispose(); super.dispose(); }
   @override

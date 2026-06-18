@@ -86,6 +86,14 @@ class _PictureProfilesSheetState extends State<PictureProfilesSheet> {
     _selectedId = widget.prefs.pictureProfile;
   }
 
+  @override
+  void didUpdateWidget(PictureProfilesSheet old) {
+    super.didUpdateWidget(old);
+    if (old.prefs.pictureProfile != widget.prefs.pictureProfile) {
+      _selectedId = widget.prefs.pictureProfile;
+    }
+  }
+
   void _apply(PictureProfile p) {
     setState(() => _selectedId = p.id);
     widget.onApply(widget.prefs.copyWith(

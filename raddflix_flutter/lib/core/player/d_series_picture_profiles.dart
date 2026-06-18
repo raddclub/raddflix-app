@@ -99,6 +99,7 @@ class PictureProfileStore {
   void loadFromJson(String json) {
     try {
       final list = jsonDecode(json) as List;
+      _custom.clear();
       _custom.addAll(list.cast<Map<String, dynamic>>()
           .map(PictureProfile.fromJson));
     } catch (_) {}
@@ -110,8 +111,13 @@ class PictureProfileStore {
   void add(PictureProfile profile) => _custom.add(profile);
   void remove(String id) => _custom.removeWhere((p) => p.id == id);
 
-  PictureProfile? findById(String id) =>
-      all.firstWhere((p) => p.id == id, orElse: () => PictureProfile.standard);
+  PictureProfile? findById(String id) {
+    try {
+      return all.firstWhere((p) => p.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -39,7 +39,8 @@ class ContinueWatchingEntry {
     final rem = Duration(milliseconds: durationMs - positionMs);
     if (rem.inMinutes < 1) return 'Almost done';
     if (rem.inHours < 1) return '${rem.inMinutes}m left';
-    return '${rem.inHours}h ${rem.inMinutes.remainder(60)}m left';
+    final mins = rem.inMinutes.remainder(60);
+    return mins > 0 ? '${rem.inHours}h ${mins}m left' : '${rem.inHours}h left';
   }
 
   Map<String, dynamic> toJson() => {

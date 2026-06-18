@@ -55,7 +55,9 @@ class WatchTimeLimitService {
     _timer = Timer.periodic(const Duration(minutes: 1), (_) {
       _watchedTodayMinutes++;
       final remaining = _dailyLimitMinutes - _watchedTodayMinutes;
-      if (remaining <= 10) _warningCtrl.add(remaining * 60);
+      if (remaining == 10 || remaining == 5 || remaining == 3 || remaining == 1) {
+        _warningCtrl.add(remaining * 60);
+      }
     });
   }
 

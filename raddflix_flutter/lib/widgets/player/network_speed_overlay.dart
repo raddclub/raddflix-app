@@ -84,7 +84,7 @@ class NetworkSpeedOverlay extends StatelessWidget {
               minHeight: 4),
           )),
           const SizedBox(width: 6),
-          Text('${(bufferFraction * 100).toInt()}%',
+          Text('${(bufferFraction.clamp(0.0, 1.0) * 100).toInt()}%',
               style: TextStyle(color: healthColor, fontSize: 9, fontWeight: FontWeight.w700)),
         ]),
         const SizedBox(height: 6),

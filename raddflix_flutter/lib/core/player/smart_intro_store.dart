@@ -7,6 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class SmartIntroStore {
   static const _prefix = 'intro_pos_';
   static const _clearedValue = -1;
+  static SharedPreferences? _prefs;
+  static Future<SharedPreferences> get _instance async =>
+      _prefs ??= await SharedPreferences.getInstance();
 
   /// Content types for which skip-intro is applicable.
   static const Set<String> _introTypes = {
@@ -28,7 +31,7 @@ class SmartIntroStore {
     required String seriesId,
     required int epIndex,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _instance;
     final key = '$_prefix${seriesId}_$epIndex';
     final val = prefs.getInt(key);
     if (val == null || val == _clearedValue) return null;
@@ -41,7 +44,7 @@ class SmartIntroStore {
     required int epIndex,
     required int positionSeconds,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _instance;
     await prefs.setInt('$_prefix${seriesId}_$epIndex', positionSeconds);
   }
 
@@ -50,7 +53,7 @@ class SmartIntroStore {
     required String seriesId,
     required int epIndex,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _instance;
     await prefs.setInt('$_prefix${seriesId}_$epIndex', _clearedValue);
   }
 }

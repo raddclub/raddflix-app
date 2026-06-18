@@ -41,8 +41,9 @@ class AbLoopController {
   String get bLabel => pointB == null ? '--:--' : _fmt(pointB!);
 
   static String _fmt(Duration d) {
+    final h = d.inHours;
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
+    return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 }

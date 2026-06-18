@@ -123,7 +123,7 @@ class _ReactionStampsOverlayState extends State<ReactionStampsOverlay>
       vsync: this,
     );
     p.ctrl.addStatusListener((s) {
-      if (s == AnimationStatus.completed) {
+      if (s == AnimationStatus.completed && mounted) {
         setState(() { _particles.remove(p); p.dispose(); });
       }
     });

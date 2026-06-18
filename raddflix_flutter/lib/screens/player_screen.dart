@@ -1318,7 +1318,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         accentColor: _prefs.accentColor,
         onSeekTo: (pos) => _player.seek(pos),
         onAddBookmark: _addBookmarkAtPosition,
-        onDeleteBookmark: (bm) => setState(() => _bookmarks.remove(bm)),
+        onDeleteBookmark: (bm) {
+          setState(() => _bookmarks.remove(bm));
+          if (bm.id != null) SceneBookmarkStore.delete(bm.id!);
+        },
         onUpdateBookmark: (bm) {},
       ),
     );
@@ -2534,7 +2537,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ? widget.localPath!
         : widget.fileId;
     _seekThumbDebounce?.cancel();
-    _seekThumbDebounce = Timer(const Duration(milliseconds: 120), () async {
+    _seekThumbDebounce = Timer(const Duration(milliseconds: 250), () async {
       final ms = (fraction * _duration.inMilliseconds).toInt();
       try {
         final thumb = await VideoThumbnail.thumbnailData(
@@ -3382,11 +3385,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             top: 16, right: 80,
             child: KaraokeActiveIndicator(
               accentColor: _prefs.accentColor,
-              levelLabel: _prefs.audioLabConfig.split('|').length > 1
-                  ? _prefs.audioLabConfig.split('|')[1]
-                  : 'off',
-              visible: _prefs.audioLabConfig.contains('|') &&
-                  _prefs.audioLabConfig.split('|')[1] != 'off',
+              levelLabel: () {
+                final _alParts = _prefs.audioLabConfig.split('|');
+                return _alParts.length > 1 ? _alParts[1] : 'off';
+              }(),
+              visible: () {
+                final _alParts = _prefs.audioLabConfig.split('|');
+                return _alParts.length > 1 && _alParts[1] != 'off';
+              }(),
             ),
           ),
 

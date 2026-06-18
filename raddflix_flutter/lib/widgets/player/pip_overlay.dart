@@ -36,6 +36,7 @@ class _PiPOverlayState extends State<PiPOverlay> {
 
   void _snapToCorner(Size screen) {
     const margin = 12.0;
+    final padding = MediaQuery.of(context).padding;
     final cx = _position.dx + _size.width / 2;
     final cy = _position.dy + _size.height / 2;
     final left   = cx < screen.width / 2;
@@ -43,7 +44,7 @@ class _PiPOverlayState extends State<PiPOverlay> {
     setState(() {
       _position = Offset(
         left ? margin : screen.width - _size.width - margin,
-        top  ? margin + 60 : screen.height - _size.height - 100);
+        top  ? padding.top + margin : screen.height - _size.height - padding.bottom - margin);
     });
   }
 

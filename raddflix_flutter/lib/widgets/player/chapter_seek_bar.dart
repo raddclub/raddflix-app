@@ -11,7 +11,7 @@ class Chapter {
   const Chapter({required this.title, required this.start, this.end});
 }
 
-class ChapterSeekBar extends StatelessWidget {
+class ChapterSeekBar extends StatefulWidget {
   final List<Chapter> chapters;
   final Duration position;
   final Duration totalDuration;
@@ -31,42 +31,66 @@ class ChapterSeekBar extends StatelessWidget {
     this.moodEnabled = false,
   });
 
-  Chapter? get _current {
-    if (chapters.isEmpty) return null;
-    final sorted = [...chapters]..sort((a, b) => a.start.compareTo(b.start));
-    for (int i = sorted.length - 1; i >= 0; i--) {
-      if (position >= sorted[i].start) return sorted[i];
+  @override
+  State<ChapterSeekBar> createState() => _ChapterSeekBarState();
+}
+
+class _ChapterSeekBarState extends State<ChapterSeekBar> {
+  late List<Chapter> _sorted;
+
+  @override
+  void initState() {
+    super.initState();
+    _sorted = _sortChapters(widget.chapters);
+  }
+
+  @override
+  void didUpdateWidget(ChapterSeekBar old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.chapters, widget.chapters) ||
+        old.chapters.length != widget.chapters.length) {
+      _sorted = _sortChapters(widget.chapters);
     }
-    return sorted.first;
+  }
+
+  static List<Chapter> _sortChapters(List<Chapter> chapters) =>
+      List<Chapter>.of(chapters)..sort((a, b) => a.start.compareTo(b.start));
+
+  Chapter? get _current {
+    if (_sorted.isEmpty) return null;
+    for (int i = _sorted.length - 1; i >= 0; i--) {
+      if (widget.position >= _sorted[i].start) return _sorted[i];
+    }
+    return _sorted.first;
   }
 
   @override
   Widget build(BuildContext context) {
     final current = _current;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      if (showLabel && current != null)
+      if (widget.showLabel && current != null)
         Padding(
           padding: const EdgeInsets.only(bottom: 4, left: 4),
           child: Text(current.title, style: TextStyle(
-              color: accentColor, fontSize: 11, fontWeight: FontWeight.w600),
+              color: widget.accentColor, fontSize: 11, fontWeight: FontWeight.w600),
               maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
       SizedBox(
         height: 24,
         child: GestureDetector(
           onTapDown: (details) {
-            if (onSeek == null || totalDuration.inMilliseconds == 0) return;
+            if (widget.onSeek == null || widget.totalDuration.inMilliseconds == 0) return;
             final frac = (details.localPosition.dx / context.size!.width).clamp(0.0, 1.0);
-            onSeek!(Duration(milliseconds: (frac * totalDuration.inMilliseconds).round()));
+            widget.onSeek!(Duration(milliseconds: (frac * widget.totalDuration.inMilliseconds).round()));
           },
           child: CustomPaint(
             size: const Size(double.infinity, 24),
             painter: _ChapterPainter(
-              chapters: chapters,
-              position: position,
-              totalDuration: totalDuration,
-              accentColor: accentColor,
-              moodEnabled: moodEnabled,
+              chapters: _sorted,
+              position: widget.position,
+              totalDuration: widget.totalDuration,
+              accentColor: widget.accentColor,
+              moodEnabled: widget.moodEnabled,
             ),
           ),
         ),
@@ -100,10 +124,9 @@ class _ChapterPainter extends CustomPainter {
     final trackY  = size.height / 2;
     const trackH  = 4.0;
 
-    // Sort chapters
-    final sorted = [...chapters]..sort((a, b) => a.start.compareTo(b.start));
+    final sorted = chapters; // pre-sorted by _ChapterSeekBarState
 
-    if (chapters.isEmpty) {
+    if (sorted.isEmpty) {
       // Plain track
       _drawTrack(canvas, size, posX, trackY, trackH);
       return;
