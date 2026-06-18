@@ -631,40 +631,33 @@ Fix all 4 compile errors from round 2 (commit c4905b5) and add remaining deep-en
 
 ---
 
-## 2026-06-18 — FIX-VF-BLACKSCREEN-GAP (commit a7898f8f)
+## 2026-06-18 — FIX-BLACKSCREEN-LP2 (commit 69824d79dbfb)
 
 ### Problem
-The existing `FIX-VF-BLACKSCREEN` (commit `cd241fc`) had a gap. The startup gate in
-`_applyVideoFilters` correctly blocked `setProperty('vf', …)` when `playing=true` on the
-first call — but it returned early **without** updating `_lastAppliedVf` from its sentinel
-value `'\x00'`. This meant any subsequent call saw `"" != '\x00'` → dedup bypassed →
-`setProperty('vf', "")` fired while the video was actively playing on the MediaTek HW decoder
-→ GL surface destroyed permanently → black screen with audio continuing.
+Long-pressing the video (fast-forward to `longPressSpeed`, default 2×) caused a permanent
+black screen — identical symptoms to the startup gate bug: GL surface destroyed, audio
+continues. The existing `FIX-BLACKSCREEN-LP` only added a recovery seek at **long press
+END** (after returning to normal speed). But the destruction happens at **long press START**
+when `setProperty('framedrop', 'decoder+vo')` + `setProperty('speed', '2.0')` is issued
+while the MediaTek HW decoder is actively playing.
 
-### Root cause timing
-For **local files** (fast open, no network): `player.open()` fires `playing=true` within
-~100–200ms. `_loadPrefs()` completes at ~60–120ms (SharedPreferences + debounce). These two
-are in a race. When the prefs debounce fires after `playing=true`, the startup gate blocks and
-`_lastAppliedVf` stays at `'\x00'`. Then the `playerPrefsProvider` `ref.listen` callback fires
-~1–2s later with the same prefs → dedup bypass → `vf=` while playing → **black screen**.
-
-For **FAB play** (`_playAll`): `await LocalDb.getWatchPositions()` adds ~50–200ms before
-pushing to the player route, so by the time the player opens and starts, the prefs debounce
-fires while `playing=false` → gate allows → `_lastAppliedVf=""` → dedup protects all
-subsequent calls → **no black screen**. This explains why FAB play was immune.
+### Root cause
+Same root cause as `FIX-VF-BLACKSCREEN` and `FIX-VF-BLACKSCREEN-GAP`: any MPV property
+change that touches the MediaTek decoder pipeline (`framedrop`, `vf=`, `hwdec`) while
+actively playing can destroy the GL surface texture permanently. The recovery seek pattern
+(wait N ms for decoder to settle, then `_player.seek(position)`) forces a fresh
+decode+render cycle that restores the surface.
 
 ### Fix
-In the startup gate's blocked branch, added `_lastAppliedVf = _buildVfString(p);` before
-the early `return`. This primes the dedup baseline correctly, so the next call with identical
-prefs is silently skipped.
+Added `Future.delayed(150ms)` recovery seek inside `onLongPressStart`, after `_setSpeed`.
+Guard: only fires if widget is still mounted AND long press is still active (`_longPressFast`).
+Mirrors the existing pattern in `_applyVideoFilters` and `onSwDecoderChanged`.
 
 ### Files changed
-- `raddflix_flutter/lib/screens/player_screen.dart` — `_applyVideoFilters` startup gate (+8 lines)
+- `raddflix_flutter/lib/screens/player_screen.dart` — `onLongPressStart` handler (+8 lines)
 - `agent-hub/TASKS.md` — task marked ✅
 
 ### Lessons learned
-- When a guard/gate blocks and returns early, it must still update any "already-done" tracking
-  state. Failing to do so creates a "ghost sentinel" that makes the next call look like a fresh
-  one, bypassing dedup protection.
-- Local files are faster than streaming — race conditions that are harmless for online content
-  can be fatal for local playback on fast storage (MediaTek).
+- Recovery-seek pattern applies to ANY MPV pipeline property change mid-play on MediaTek.
+  Document clearly: framedrop, hwdec, vf= all need the same 150ms delay → seek pattern.
+- Fix must be at the SITE of the disruption (START), not only at the recovery point (END).
