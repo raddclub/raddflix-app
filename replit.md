@@ -37,3 +37,6 @@ RaddFlix is a Pakistani Flutter streaming app (Jazz SIM zero-rated). Backend is 
 - Always show what changed before committing
 - Never touch Oracle without explicit approval
 - Add TASK row to agent-hub/TASKS.md BEFORE starting work (Rule 0)
+- PlatformDispatcher needs `import 'dart:ui' show PlatformDispatcher;` (not in flutter/material.dart)
+- Always verify DebugLogger methods exist before calling them (v2 method list in RULES.md Rule 40)
+- Sequential GitHub pushes only — never parallel (≥1.2s delay between commits)
