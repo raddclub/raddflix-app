@@ -1,103 +1,63 @@
 # RaddFlix Agent Handoff
 
-_Last updated: 2026-06-18 — GOD-LEVEL debug logging complete in player_screen.dart (91+36 patches, build ✅ run#1136 commit e98e620)_
+  ## Project
+  Pakistani Flutter streaming app (Jazz SIM zero-rated). Local video player on MediaTek/Infinix.
 
-## Current State
+  ## Last Updated
+  2026-06-18 (Session: FIX-VF-STARTUP black screen regression fix)
 
-| Item | Status |
-|------|--------|
-| Oracle Flask | Running v3.0.0 at 92.4.95.252:5000 |
-| Last passing APK build | ✅ SUCCESS — commit `e98e620` (god-level debug logger, run#1136) |
-| Latest commit | `e98e620` — fix 2 compile errors + complete god-level logger |
-| Open tasks | DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 |
+  ## Critical Rules (DO NOT VIOLATE)
+  - Never name a local variable `_np` (shadows the getter)
+  - Never add `androidAttachSurfaceAfterVideoParameters: true` (causes blank frames)
+  - Never upgrade `sqflite_sqlcipher` past 3.1.0+1 (breaks encryption)
+  - GitHub pushes: Contents API ONLY (Node.js), 1.5s between pushes, always fetch fresh SHA in pushFile()
+  - player_screen.dart is ~7,515 lines — edit with targeted string/line replacement only
+  - Add TASKS.md row BEFORE starting work, mark done AFTER
 
-## Rules (MUST follow — from AGENT_PROMPT.md)
+  ## Architecture
+  - Flutter 3.22.3 + media_kit/MPV (NativePlayer for low-level MPV properties)
+  - VideoController: `androidAttachSurfaceAfterVideoParameters: false` (critical, don't change)
+  - Oracle Flask v3.0.0 at 92.4.95.252:5000 — SSH via /tmp/oracle_key
+  - SQLCipher 3.1.0+1 for encrypted local DB
 
-- **NEVER use git shell** — GitHub Contents API only for file pushes
-- **Sequential pushes** — never push files in parallel
-- **Never use `Icons.replay_15_rounded` / `Icons.forward_15_rounded`** — not in Flutter 3.22.3
-- **Never name a local variable `_np`** in player_screen.dart — shadows class getter
-- **Never add `androidAttachSurfaceAfterVideoParameters:true`**
-- **Never remove XOR padding fix** in request_encoder.dart
-- **Update TASKS.md before AND after work** (Rule 0)
+  ## Black Screen Bug History (MediaTek/Infinix)
+  The long-running "local video goes black after 1-2s, audio continues" has been through 4 fix iterations:
 
-## What was done this session (2026-06-18) — God-Level Debug Logging
+  ### Fix 1: FIX-VF-BLACKSCREEN-GAP (commit a7898f8f)
+  - Added startup gate in `_applyVideoFilters` + dedup
+  - Primed `_lastAppliedVf` in gate to prevent dedup bypass on 2nd call
 
-### Overall: 127 DebugLogger patches to player_screen.dart across 3 rounds
+  ### Fix 2: FIX-BLACKSCREEN-LP2 (commit 69824d79)  
+  - Long-press START black screen: 150ms recovery seek after `_setSpeed` on longPressStart
 
-#### Round 1 — commit `272ac0c` (build ✅ run#1131)
-43 patches: All silent `catch (_) {}` → named errors, app lifecycle, episode nav, sleep timer, playback-ended tree, watch-position save, slow connection, duration stream, audio/subtitle track selection, volume boost, audio/subtitle sync, cinematic/immersive, cycle fit, frame step, screenshot, voice commands, hardware media button multi-press, subtitle file picker, bookmark add, skip intro, cast enter, long-press restart.
+  ### Fix 3: FIX-SPEED-RECOVERY (commit 1d50a31)
+  - Speed change black screen: `_currentFramedrop` direction tracker, built-in recovery seek in `_setSpeed`
+  - ⚠️ This made the original startup black screen WORSE (see Fix 4)
 
-#### Round 2 — commit `c4905b5` (build ❌ — 4 compile errors fixed in round 3)
-48 patches: `_logPlayerState()` state-snapshot helper, dispose(), ALL 22 panel-open functions, _loadPrefs, _loadSmartIntro/Bookmarks/SkipSegments counts, _deleteBookmark, _toggleControls, _seekRelative, lock toggle, _applyRotation, _cycleRotation, _initAmbilight, _startWakeTimer, _shareTimestamp, _onSeekBarLongPress, _showJumpToTime, _handleCenterTap, _initBingeGuard, _initPipChannel, audio interruption, headphone unplug, _logWatchSession.
+  ### Fix 4: FIX-VF-STARTUP (commit 4d88e277) ← CURRENT
+  - **Root cause of regression**: startup gate checked `_player.state.playing||_playing` at ~90ms, but `playing=true` fires ~200-500ms after `player.open()` on MediaTek. Gate passed, vf= + recovery seek destroyed GL surface on EVERY play.
+  - **Fix**: `_videoOpened=true` before each `_player.open()` call; gate condition: `_videoOpened||playing||_playing`
+  - **Key insight**: Never rely solely on `_player.state.playing` for startup gates — use a flag set synchronously before `player.open()`
 
-#### Round 3 (God-Level) — commit `e98e620` (build ✅ run#1136)
-Fixes all 4 r2 compile errors (silenceSkipEnabled→skipSilenceEnabled, bingeGuardIntervalMins→bingeGuardThresholdMinutes, _ratioLabels→inline BoxFit comparison, debandingEnabled→nightMode, tracks.sub→tracks.subtitle) + 36 new deep-engine patches:
-- Position milestones at 25/50/75/95% of duration
-- AB loop A set / B set / loop fire log
-- Track list counts on stream.tracks update (audio/subtitle/video counts)
-- Subtitle text event log (first 60 chars of subtitle line)
-- Skip segment active/cleared state log
-- _openMedia entry log + step1 DB fetch timing
-- _buildJazzError context log (fileId, error, url)
-- Buffering cleared log (was buffering→playing)
-- Watch position save % of duration
-- seekRelative as % of duration
-- Completed event: episodes remaining, loop mode
-- Playing event: speed, position, hwdec decoder name
-- Episode nav: prev/next with fileId + title
-- Binge guard threshold log
-- _logWatchSession: total seconds + quality label
-- piTimer tick: pos + codec/res/fps/buffer/decoder
-- Session start: fileId, title, epIdx, isLocal, Jazz/LOCAL
-- af= audio chain: full filter string logged
-- vf= video filter: colorblind/sharpness/brightness/contrast/saturation/night/smartEnhance
+  ## Key Files
+  - `raddflix_flutter/lib/screens/player_screen.dart` — main player (7,515 lines)
+  - `agent-hub/TASKS.md` — task board
+  - `agent-hub/history/TASK_LOG.md` — session history
+  - `.agents/tasks/BUG_TRACKER.md` — bug registry
+  - `agent-hub/CONTEXT.md` — system architecture
 
-### Log tags for filtering in debug screen
+  ## Open Tasks
+  - DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 — catalog data, not code
 
-| Tag | What it captures |
-|-----|-----------------|
-| `STATE` | Full snapshot: pos/dur/playing/buffering/ep/local/loading/speed/hwdec/pip/locked/ended/err |
-| `LIFECYCLE` | App foreground/background, dispose, wake timer |
-| `EPISODE` | Prev/next nav, playback ended, countdown start |
-| `SLEEP` | Timer set/cancel/fire, end-of-episode mode |
-| `SAVE` | Watch position saves % and _logWatchSession seconds+quality |
-| `QUOTA` | Plan expiry redirect, data quota exceeded |
-| `PIP` | PiP enter/exit |
-| `TRACK` | Audio/subtitle/video track counts + selection + restore |
-| `INTRO` | Skip intro visibility, auto-skip, editor |
-| `SEEK` | seekRelative from/to as % of duration |
-| `PANEL` | Every panel/sheet open |
-| `VOICE` | Voice command intent+value |
-| `HW` | Hardware media button press count |
-| `CAST` | Cast device discovery |
-| `MILESTONE` | 25/50/75/95% watched milestones |
-| `AB` | AB loop A set, B set, loop fire |
-| `SUB` | Subtitle text events |
-| `SKIP` | Skip segment active/cleared |
-| `GESTURE` | Long-press play restart |
-| `TAP/MODE` | Cinematic, immersive, rotation |
-| `TAP/VIDEO` | Frame step, screenshot, cycle fit |
-| `TAP` | Controls show/hide, lock toggle, bookmark add/delete, share |
-| `AUDIO` | Volume boost, audio/sub sync, interruption, headphone unplug |
-| `BUF` | Slow connection detected, buffering cleared |
-| `INIT` | All init functions with key param values |
-| `LOAD` | openMedia entry, step1 DB, JAZZ/LOCAL session start, success |
+  ## Current Build Status
+  - Last code commit: 4d88e277 (FIX-VF-STARTUP)
+  - Build needs to be triggered manually via CI
+  - Oracle: RUNNING v3.0.0
 
-## Architecture pointers
-
-- **player_screen.dart**: ~7300 lines, ~323KB. Every subsystem is now logged.
-- **debug_logger.dart**: `lib/core/debug/debug_logger.dart` — buffer 5000, 8MB rotation, session ID, auto-flush 30s
-- **Debug screen**: Profile → Account → Debug Logs (opens on Logs tab)
-- **Oracle**: Flask v3.0.0 at 92.4.95.252:5000 — proxy for JazzDrive + catalog
-- **JazzDrive retry**: max 1 retry; if playing at retry-exhaustion, error overlay suppressed
-- **vf= black screen fix**: never call setProperty('vf',...) while HW decoder is active on first play — guarded by `_firstVfApplied` flag
-- **_ratioLabels**: does NOT exist; aspect ratio cycling uses `_ratios` (List<BoxFit>) directly — compare with `BoxFit.contain/cover/fill`
-- **debandingEnabled**: does NOT exist in PlayerPrefs — use `nightMode`, `sharpnessEnabled`, `smartEnhanceEnabled`
-- **tracks.subtitle** (not .sub) — Tracks class has .audio, .subtitle, .video
-
-## For next agent
-
-1. **DATA-01** — All Of Us Are Dead missing E03/E04/E05/E09: catalog issue, requires Oracle DB update
-2. **Now that all logging is in place**: Test the player, collect logs via Profile → Account → Debug Logs, and analyze to find real runtime bugs
-3. **run#1137** was also triggered for e98e620 — it may also pass or may show duplicate-trigger warning; ignore it, run#1136 is the confirmed success
+  ## Next Agent Instructions
+  1. Read TASKS.md, TASK_LOG.md, BUG_TRACKER.md at session start
+  2. Add task row to TASKS.md before starting work
+  3. Check Oracle alive: `ssh -i /tmp/oracle_key ubuntu@92.4.95.252 "curl -s http://localhost:5000/health"`
+  4. If user reports black screen: read this handoff + Fix 4 notes above first
+  5. The most recent fix (FIX-VF-STARTUP) should have eliminated the startup black screen — if user still reports it, check if there's a THIRD `_player.open()` call path not yet patched
+  
