@@ -442,6 +442,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ],
                     _divider(),
                     _SectionTile(
+                      icon: Icons.bug_report_outlined,
+                      iconColor: Colors.orange,
+                      label: 'Debug Logs',
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => const DebugDiagnosticsScreen())),
+                    ),
+                    _divider(),
+                    _SectionTile(
                       icon: Icons.logout_rounded,
                       iconColor: AppColors.error,
                       label: 'Sign Out',
