@@ -785,3 +785,40 @@ the direction-change guard, dragging from 1× to 2× at 60fps queues 60 recovery
   - Build: needs trigger (commit 4d88e277 ready)
   - Open tasks: DATA-01 (All Of Us Are Dead missing episodes — data not code)
   
+
+  ---
+
+  ## Session 2026-06-18 — PlaybackTimeline Diagnostics (FEAT-TIMELINE)
+
+  ### Tasks completed
+  1. **FIX-VF-STARTUP audit** — Deep-audited all 25 `setProperty` calls and all short-delay timers in `player_screen.dart`. Confirmed no secondary operations can destroy GL surface during startup window. Confirmed `_videoOpened=true` is set synchronously before `_player.open()` in EVERY call path. Fixed cosmetic indentation bug on `_videoOpened` field declaration.
+
+  2. **FEAT-TIMELINE** — Created `PlaybackTimeline` singleton (`raddflix_flutter/lib/core/debug/playback_timeline.dart`):
+     - 10 probe types: `SESSION_START`, `SURFACE_READY`, `VIDEO_OPENED`, `PLAYER_OPEN_CALLED`, `PREFS_LOADED`, `VF_DEBOUNCE_FIRED`, `VF_GATE_CHECKED`, `HWDEC_GATE_CHECKED`, `MPV_PLAYING`, `FIRST_FRAME`
+     - Ring buffer — 20 sessions, persistent to `/tmp/raddflix_timeline.log`
+     - `hadVfGatePassed` flag set whenever gate is NOT blocked
+     - 3-second black screen auto-detector: if flag set AND playing at T+3s → logs `BLACK_SCREEN_SUSPECTED`
+
+  3. **Player probes in player_screen.dart** — Added 11 probe points: `startSession`, `surface_ready`, `video_opened_local/jazz`, `player_open_called`, `prefs_loaded`, `vf_debounce_fired`, `recordGate` (with DebugLogger warning if PASSED), `recordHwdecGate`, `recordMpvPlaying`, `recordFirstFrame`. Commit: `4454e04f`.
+
+  4. **Diagnostics Player tab** — Added 3rd "Player" tab to `debug_diagnostics_screen.dart` (`ff40236a`):
+     - Session selector chips (current + last 20)
+     - Status banner: 🟢 HEALTHY / 🟠 VF GATE PASSED / 🔴 BLACK SCREEN DETECTED
+     - Per-event rows with T+ms, delta, color-coded by type
+     - Copy-to-clipboard button in AppBar
+
+  ### Files changed
+  | File | Change | Commit |
+  |------|--------|--------|
+  | `raddflix_flutter/lib/core/debug/playback_timeline.dart` | NEW — PlaybackTimeline singleton | `5dd1ffde` |
+  | `raddflix_flutter/lib/screens/player_screen.dart` | 11 probe points added | `4454e04f` |
+  | `raddflix_flutter/lib/screens/debug_diagnostics_screen.dart` | Player tab added | `ff40236a` |
+  | `agent-hub/TASKS.md` | FEAT-TIMELINE row added | `b6df3e77` |
+  | `AGENT_HANDOFF.md` | Updated with timeline commits + diagnostics guide | `7fa2d8a7` |
+
+  ### State at end of session
+  - Oracle Flask: RUNNING v3.0.0 (not touched this session)
+  - player_screen.dart: 7,556 lines
+  - Build #1147: triggered via workflow_dispatch
+  - No open bugs
+  
