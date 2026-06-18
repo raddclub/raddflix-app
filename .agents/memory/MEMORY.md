@@ -19,3 +19,4 @@
 - [PlatformDispatcher dart:ui import](raddflix-constraints.md) — PlatformDispatcher NOT in flutter/material.dart; needs `import 'dart:ui' show PlatformDispatcher;`
 - [DebugLogger v2 methods](raddflix-constraints.md) — full method list: log,logError,logWarn,logApi,logState,logTap,logNav,logLifecycle,logFeature,logCrash,getFiltered,getLastLines,getRecent,clearBuffer,getLogPath,copyToClipboard,flush,share,shareLogs
 - [GitHub sequential push rule](raddflix-constraints.md) — NEVER parallel GitHub API pushes; always sequential with ≥1.2s delay between commits
+- [MediaTek black screen](mediatek-blackscreen.md) — _videoOpened flag + PlaybackTimeline diagnostics; definitive fix for Infinix devices
