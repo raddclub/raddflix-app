@@ -441,9 +441,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    DebugLogger.log('LIFECYCLE', 'app→${state.name} playing=$_playing userPaused=$_userPaused bgPlay=$_bgPlayEnabled pos=${_fmtDur(_position)}');
     if (state == AppLifecycleState.paused) {
       if (_bgPlayEnabled && !_userPaused) {
         // Background audio allowed — keep playing, just disable wakelock.
+        DebugLogger.log('LIFECYCLE', 'backgrounded → bg audio ALLOWED, foreground service starting');
         WakelockPlus.disable();
         // FIX-BGPLAY: start foreground service so Android doesn't kill the
         // process after ~1 min. Without FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
@@ -455,6 +457,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }).ignore();
       } else if (!_bgPlayEnabled && !_userPaused) {
         // BUG-07: background play disabled — pause video when app goes background
+        DebugLogger.log('LIFECYCLE', 'backgrounded → bg audio DISABLED, pausing');
         _player.pause();
         WakelockPlus.disable();
       }
@@ -463,14 +466,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _pipChannel.invokeMethod('stopBgPlayback').ignore();
       if (!_userPaused) {
         WakelockPlus.enable();
-        // Seek back N seconds so user doesn't miss anything after switching apps
         final seekBack = _prefs.seekBackOnResumeSeconds;
         if (seekBack > 0 && _position.inSeconds > seekBack) {
           // BUG-14: use live player position, not stale _position state
+          DebugLogger.log('LIFECYCLE', 'resumed → seekBack=${seekBack}s from ${_fmtDur(_player.state.position)}');
           _player.seek(_player.state.position - Duration(seconds: seekBack));
         }
         // BUG-N03: OS may have paused the player while backgrounded; resume it
-        if (!_player.state.playing) _player.play();
+        if (!_player.state.playing) {
+          DebugLogger.log('LIFECYCLE', 'resumed → player was paused by OS, resuming');
+          _player.play();
+        }
       }
     }
   }
@@ -501,7 +507,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       _brightness = await ScreenBrightness().current;
       _volume = await VolumeController().getVolume();
-    } catch (_) {}
+      DebugLogger.log('INIT', 'brightness=${_brightness.toStringAsFixed(2)} volume=${_volume.toStringAsFixed(2)}');
+    } catch (e) { DebugLogger.logWarn('INIT', 'brightness/volume init failed: $e'); }
   }
 
   Future<void> _loadPrefs() async {
@@ -560,7 +567,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ));
         }
       });
-    } catch (_) {}
+    } catch (e) { DebugLogger.logWarn('INIT', 'audioSession init failed: $e'); }
   }
 
   Future<void> _loadSmartIntro() async {
@@ -830,6 +837,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _applyVolumeBoost(double multiplier) {
+    DebugLogger.log('AUDIO', 'volumeBoost=${multiplier.toStringAsFixed(2)}× vol=${_volume.toStringAsFixed(2)} mpvVol=${((_volume * multiplier) * 100).toInt()}');
     _volumeBoost = multiplier;
     // FIX-C01: Do NOT override system volume here — gesture handlers
     // already call VolumeController().setVolume(1.0) when actively boosting.
@@ -839,11 +847,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _applyAudioSync(int ms) async {
+    DebugLogger.log('AUDIO', 'audioSync=${ms}ms');
     _audioDelayMs = ms;
     await _np.setProperty('audio-delay', '${ms / 1000.0}');
   }
 
   Future<void> _applySubSync(int ms) async {
+    DebugLogger.log('AUDIO', 'subSync=${ms}ms');
     _subDelayMs = ms;
     await _np.setProperty('sub-delay', '${ms / 1000.0}');
   }
@@ -866,7 +876,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _piBuffer  = buf != null ? '${double.tryParse(buf)?.toStringAsFixed(1) ?? buf}s' : '—';
         _piDecoder = (hwdec != null && hwdec.isNotEmpty && hwdec != 'no') ? 'HW' : 'SW';
       });
-    } catch (_) {}
+      DebugLogger.log('PLAYER', 'playbackInfo codec=$_piCodec res=$_piRes fps=$_piFps bitrate=$_piBitrate buf=$_piBuffer decoder=$_piDecoder');
+    } catch (e) { DebugLogger.logWarn('PLAYER', 'fetchPlaybackInfo failed: $e'); }
   }
 
   /// Triple-tap center = Rage Skip
@@ -953,12 +964,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── §3K: Frame-by-frame step ──────────────────────────────────────────────
   void _frameStep() {
+    DebugLogger.log('TAP/VIDEO', 'frameStep FORWARD pos=${_fmtDur(_position)}');
     if (_playing) { _player.pause(); _userPaused = true; }
     _np.command(['frame-step']);
     setState(() => _showFrameStep = true);
   }
 
   void _frameBackStep() {
+    DebugLogger.log('TAP/VIDEO', 'frameStep BACK pos=${_fmtDur(_position)}');
     if (_playing) { _player.pause(); _userPaused = true; }
     _np.command(['frame-back-step']);
     setState(() => _showFrameStep = true);
@@ -974,12 +987,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final timeSec = (ch['time'] as num? ?? 0).toDouble();
         return Duration(milliseconds: (timeSec * 1000).toInt());
       }).where((d) => d > Duration.zero).toList();
-      if (mounted && chapters.isNotEmpty) setState(() => _chapters = chapters);
-    } catch (_) {}
+      if (mounted && chapters.isNotEmpty) {
+        setState(() => _chapters = chapters);
+        DebugLogger.log('PLAYER', 'chapters loaded: ${chapters.length} markers');
+      }
+    } catch (e) { DebugLogger.logWarn('PLAYER', 'loadChapters failed: $e'); }
   }
 
   // ── Cinematic Mode ────────────────────────────────────────────────────────
   void _toggleCinematic() {
+    DebugLogger.log('TAP/MODE', 'cinematic→${!_cinematicMode} opacity=$_cinematicOpacity');
     setState(() => _cinematicMode = !_cinematicMode);
       // Phase H5: DND mode indicator on cinematic
       if (_cinematicMode && _prefs.dndOnCinematic) {
@@ -993,6 +1010,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── Immersive Mode ────────────────────────────────────────────────────────
   void _toggleImmersive() {
+    DebugLogger.log('TAP/MODE', 'immersive→${!_immersiveMode}');
     setState(() {
       _immersiveMode = !_immersiveMode;
       if (_immersiveMode) _showControls = false;
@@ -1032,6 +1050,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_duration == Duration.zero) return;
     final emoji = await showBookmarkEmojiPicker(context);
     if (emoji == null) return;
+    DebugLogger.log('TAP', 'bookmark ADD emoji=$emoji pos=${_fmtDur(_position)}');
     await SceneBookmarkStore.add(SceneBookmark(
       contentId: widget.fileId,
       episodeId: widget.episodes != null ? _currentEpIdx.toString() : null,
@@ -1054,7 +1073,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _openGestureMap() {
     Map<String, String> map = Map.from(kDefaultGestureMap);
     if (_prefs.gestureActionMapJson.isNotEmpty) {
-      try { map = Map<String, String>.from(jsonDecode(_prefs.gestureActionMapJson)); } catch (_) {}
+      try { map = Map<String, String>.from(jsonDecode(_prefs.gestureActionMapJson)); } catch (e) { DebugLogger.logWarn('PLAYER', 'gestureMap decode failed: $e'); }
     }
     showModalBottomSheet(
       context: context,
@@ -1155,7 +1174,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         accentColor: _prefs.accentColor,
         onTrackSelected: (id) {
           if (id >= 0 && id < _player.state.tracks.audio.length) {
-            _player.setAudioTrack(_player.state.tracks.audio[id]);
+            final t = _player.state.tracks.audio[id];
+            DebugLogger.log('TRACK', 'audio SELECTED idx=$id lang=${t.language ?? "?"} title=${t.title ?? "?"}');
+            _player.setAudioTrack(t);
           }
           setState(() => _activeAudioIdx = id);
           _applyAudioPrefs(_prefs);
@@ -1207,6 +1228,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _handleVoiceCommand(VoiceCommand cmd) {
+    DebugLogger.log('VOICE', 'cmd intent=${cmd.intent.name} value=${cmd.value}');
     const List<double> speedSteps = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
     switch (cmd.intent) {
       case VoiceIntent.skip:
@@ -1532,19 +1554,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _takeScreenshot() async {
     try {
+      DebugLogger.log('TAP/VIDEO', 'screenshot pos=${_fmtDur(_position)}');
       final frame = await _player.screenshot();
-      if (frame == null) return;
+      if (frame == null) {
+        DebugLogger.logWarn('TAP/VIDEO', 'screenshot: player returned null frame');
+        return;
+      }
       final result = await SaverGallery.saveImage(
         frame,
         fileName: 'raddflix_${DateTime.now().millisecondsSinceEpoch}',
         androidRelativePath: 'Pictures',
         skipIfExists: false,
       );
-      if (result.isSuccess != true) throw Exception('Save failed');
+      if (result.isSuccess != true) throw Exception('Save failed: ${result.isSuccess}');
+      DebugLogger.log('TAP/VIDEO', 'screenshot saved OK');
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Screenshot saved to gallery'),
             duration: Duration(seconds: 2)));
-    } catch (_) {
+    } catch (e) {
+      DebugLogger.logError('TAP/VIDEO', 'screenshot failed: $e');
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not save screenshot'),
             duration: Duration(seconds: 2)));
@@ -1628,6 +1656,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             if (tracks[i].language == savedAudioLang) {
               setState(() => _activeAudioIdx = i);
               _player.setAudioTrack(tracks[i]);
+              DebugLogger.log('TRACK', 'restored audio lang=$savedAudioLang idx=$i');
               break;
             }
           }
@@ -1638,6 +1667,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             if (tracks[i].language == savedSubLang) {
               setState(() => _activeSubIdx = i);
               _player.setSubtitleTrack(tracks[i]);
+              DebugLogger.log('TRACK', 'restored subtitle lang=$savedSubLang idx=$i');
               break;
             }
           }
@@ -1646,7 +1676,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (savedAudioLang == null || !_prefs.rememberAudioTrack) {
           _autoSelectTrackByLocale();
         }
-      } catch (_) {}
+      } catch (e) { DebugLogger.logWarn('TRACK', 'restoreTrackMemory failed: $e'); }
     }
   
     // §3.16F: Headphone button double/triple press ────────────────────────────
@@ -1674,6 +1704,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (!mounted) return;
         final count = _mediaButtonPressCount;
         _mediaButtonPressCount = 0;
+        DebugLogger.log('HW', 'mediaButton ×$count playing=$_playing hasNextEp=$_hasNextEp');
         if (count == 1) {
           setState(() => _userPaused = _playing);
           _player.playOrPause();
@@ -1690,6 +1721,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // §3.16D: Long-press play button = restart from beginning ─────────────────
     void _onLongPressPlay() {
       if (!_prefs.longPressPlayRestart) return;
+      DebugLogger.log('GESTURE', 'longPressPlay → restart from beginning (was at ${_fmtDur(_position)})');
       _player.seek(Duration.zero);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -1722,12 +1754,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               if (_activeAudioIdx != i) {
                 setState(() => _activeAudioIdx = i);
                 _player.setAudioTrack(tracks[i]);
+                DebugLogger.log('TRACK', 'autoSelect audio by locale deviceLang=$deviceLang matchLang=$lang idx=$i');
               }
               return;
             }
           }
         }
-      } catch (_) {}
+      } catch (e) { DebugLogger.logWarn('TRACK', 'autoSelectTrackByLocale failed: $e'); }
     }
   
     void _initBingeGuard() {
@@ -1936,6 +1969,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 : '');
         if (_posKey.isNotEmpty) {
           _lastSaveCheckpoint = _saveCheckpoint;
+          DebugLogger.log('SAVE', 'watchPos key=${_posKey.length > 40 ? _posKey.substring(0, 40) + "…" : _posKey} pos=${_fmtDur(p)} dur=${_fmtDur(_duration)}');
           LocalDb.saveWatchPosition(
               fileId: _posKey,
               positionMs: p.inMilliseconds,
@@ -1948,8 +1982,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return;
       _duration = d;
       _durationNotifier.value = d;
-      // Load chapter markers once duration is known
-      if (d.inSeconds > 0) _loadChapters();
+      if (d.inSeconds > 0) {
+        DebugLogger.log('LOAD', 'duration=${_fmtDur(d)} epIdx=$_currentEpIdx local=$_isLocalFile');
+        _loadChapters();
+      }
     });
     _player.stream.buffering.listen((b) {
       if (!mounted) return;
@@ -1962,6 +1998,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             if (!mounted || !_buffering) return;
             if (!_slowConnectionShown) {
               _slowConnectionShown = true;
+              DebugLogger.logWarn('BUF', 'SLOW CONNECTION detected (buffering >8s) pos=${_fmtDur(_position)} playing=$_playing');
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Slow connection — video may stutter'),
@@ -2248,9 +2285,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _onPlaybackEnded() {
+    DebugLogger.log('EPISODE', 'playback ENDED epIdx=$_currentEpIdx hasNextEp=$_hasNextEp action=${_prefs.endOfVideoAction} sleepAtEpEnd=$_sleepAtEpisodeEnd pos=${_fmtDur(_position)}');
     _logWatchSession();
     // FIX-SLEEP: if "End of episode" sleep timer is set, pause here
     if (_sleepAtEpisodeEnd) {
+      DebugLogger.log('SLEEP', 'end-of-episode sleep → pausing');
       _sleepAtEpisodeEnd = false;
       _player.pause();
       _userPaused = true;
@@ -2258,20 +2297,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     if (_hasNextEp && (_prefs.endOfVideoAction == 'play_next' || _prefs.endOfVideoAction == '')) {
+      DebugLogger.log('EPISODE', 'endAction → startNextEpCountdown');
       _startNextEpCountdown();
     } else {
       switch (_prefs.endOfVideoAction) {
         case 'loop':
+          DebugLogger.log('EPISODE', 'endAction → loop');
           _player.seek(Duration.zero);
           _player.play();
           break;
         case 'return_home':
+          DebugLogger.log('EPISODE', 'endAction → return_home');
           if (mounted) Navigator.pop(context);
           break;
         case 'nothing':
+          DebugLogger.log('EPISODE', 'endAction → nothing (show controls)');
           setState(() { _showControls = true; _ended = true; });
           break;
         default: // play_next or when no next ep
+          DebugLogger.log('EPISODE', 'endAction → default/noNextEp (show controls)');
           setState(() => _showControls = true);
       }
     }
@@ -2312,6 +2356,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (subExpiresAt != null && subExpiresAt is int && subExpiresAt > 0) {
           final nowUnix = DateTime.now().millisecondsSinceEpoch ~/ 1000;
           if (subExpiresAt < nowUnix) {
+            DebugLogger.logWarn('QUOTA', 'plan EXPIRED subExpiresAt=$subExpiresAt now=$nowUnix fileId=${widget.fileId} → redirecting to planExpired');
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
               Navigator.of(context).pushReplacementNamed(AppRoutes.planExpired);
@@ -2325,12 +2370,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (_isLocalFile) return;
 
       if (quota['allowed'] == false) {
+        DebugLogger.logWarn('QUOTA', 'data quota EXCEEDED → redirecting to quotaFull');
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           Navigator.of(context).pushReplacementNamed(AppRoutes.quotaFull);
         });
       }
-    } catch (_) {}
+    } catch (e) { DebugLogger.logError('QUOTA', 'checkQuota failed: $e'); }
   }
 
   void _startNextEpCountdown() {
@@ -2338,6 +2384,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // that fires after the widget has been disposed (e.g. rapid episode skip,
     // background navigation, or PiP exit while end-of-episode fires).
     if (!mounted) return;
+    DebugLogger.log('EPISODE', 'nextEpCountdown START epIdx=${_currentEpIdx}→${_currentEpIdx + 1} nextLabel=$_nextEpLabel');
     setState(() {
       _showNextEpisode = true;
       _nextCountdown = 7;
@@ -2372,8 +2419,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final saved = await SmartIntroStore.getIntroEnd(
           seriesId: seriesId, epIndex: _currentEpIdx);
       if (!mounted) return;
-      setState(() { _savedIntroEnd = saved; _skipIntroVisible = _duration.inSeconds > 60; });
+      final _shouldShowIntro = _duration.inSeconds > 60;
+      DebugLogger.log('INTRO', 'skipIntro visible=$_shouldShowIntro savedEnd=$saved autoSkip=${_prefs.autoSkipIntroEnabled} dur=${_fmtDur(_duration)}');
+      setState(() { _savedIntroEnd = saved; _skipIntroVisible = _shouldShowIntro; });
       if (_prefs.autoSkipIntroEnabled && saved != null && _duration.inSeconds > 60) {
+        DebugLogger.log('INTRO', 'AUTO-SKIP intro → seeking to ${saved}s');
         _player.seek(Duration(seconds: saved));
         setState(() => _skipIntroVisible = false);
         return;
@@ -2391,6 +2441,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final prev = widget.episodes![_currentEpIdx - 1];
     final prevFileId   = prev['file_id']?.toString() ?? '';
     final prevLocalPath = prev['local_path'] as String?;
+    DebugLogger.log('EPISODE', 'PREV epIdx $_currentEpIdx→${_currentEpIdx - 1} fileId=$prevFileId pos=${_fmtDur(_position)}');
     setState(() {
       _currentEpIdx--;
       _showNextEpisode = false;
@@ -2412,6 +2463,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // FIX-LOCAL-3: local-folder "Play All" stores 'local_path' in episode map;
     // pass it through so _openMedia plays the file locally, not via Oracle.
     final nextLocalPath = next['local_path'] as String?;
+    DebugLogger.log('EPISODE', 'NEXT epIdx $_currentEpIdx→${_currentEpIdx + 1} fileId=$nextFileId pos=${_fmtDur(_position)}');
     setState(() {
       _currentEpIdx++;
       _showNextEpisode = false;
@@ -2442,6 +2494,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _startSleepFade() {
     // H-12 FIX: same mounted guard — sleep callback can fire after dispose
     if (!mounted || _sleepFadeActive) return;
+    DebugLogger.log('SLEEP', 'fade START preFadeVol=${_volume.toStringAsFixed(2)} fadeSecs=${_prefs.sleepFadeDurationSeconds}');
     _sleepFadeActive = true;
     _preFadeVolume = _volume;
     final steps = _prefs.sleepFadeDurationSeconds.clamp(5, 120);
@@ -2472,10 +2525,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _cancelSleepTimer();
     // FIX-SLEEP: -1 = "End of episode" — pause when playback ends naturally
     if (minutes == -1) {
+      DebugLogger.log('SLEEP', 'timer SET → end-of-episode mode');
       setState(() => _sleepAtEpisodeEnd = true);
       return;
     }
     if (minutes <= 0) return;
+    DebugLogger.log('SLEEP', 'timer SET ${minutes}min pos=${_fmtDur(_position)}');
     setState(() => _sleepRemainingSeconds = minutes * 60);
     _sleepTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) { t.cancel(); return; }
@@ -2493,6 +2548,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
       // Expiry logic outside setState — avoids nested setState anti-pattern
       if (_sleepRemainingSeconds != null && _sleepRemainingSeconds! <= 0) {
+        DebugLogger.log('SLEEP', 'timer FIRED → pausing pos=${_fmtDur(_position)}');
         t.cancel();
         _player.pause();           // pause FIRST
         _userPaused = true;
@@ -2503,6 +2559,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _cancelSleepTimer() {
+    if (_sleepRemainingSeconds != null || _sleepAtEpisodeEnd) {
+      DebugLogger.log('SLEEP', 'timer CANCELLED remaining=${_sleepRemainingSeconds}s atEpEnd=$_sleepAtEpisodeEnd');
+    }
     _sleepTimer?.cancel();
     _sleepFadeTimer?.cancel();
     if (_sleepFadeActive) _restoreVolumeAfterSleep();
@@ -2514,14 +2573,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // ── PiP ──────────────────────────────────────────────────────────────────
   Future<void> _enterPiP() async {
     try {
+      DebugLogger.log('PIP', 'entering PiP pos=${_fmtDur(_position)}');
       await _pipChannel.invokeMethod('enterPiP');
       setState(() => _inPiP = true);
-    } catch (_) {}
+      DebugLogger.log('PIP', 'PiP entered OK');
+    } catch (e) { DebugLogger.logError('PIP', 'enterPiP failed: $e'); }
   }
 
   Future<void> _enterCast() async {
+    DebugLogger.log('CAST', 'enterCast pos=${_fmtDur(_position)}');
     await CastService.discoverDevices();
     final connected = await CastService.isConnected();
+    DebugLogger.log('CAST', 'discoveryDone alreadyConnected=$connected');
     if (!mounted) return;
     if (connected) {
       // Already casting — show disconnect option
@@ -2580,7 +2643,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           maxWidth: 160,
         );
         if (mounted) setState(() => _seekThumb = thumb);
-      } catch (_) {}
+      } catch (e) { DebugLogger.logWarn('PLAYER', 'seekThumb gen failed: $e'); }
     });
   }
 
@@ -2716,7 +2779,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // BUG-N07: MPV requires file:// URI prefix for local file paths
     final localPath = r.files.single.path!;
     final uri = localPath.startsWith('file://') ? localPath : 'file://$localPath';
+    DebugLogger.log('TRACK', 'subtitle PICKED path=$localPath');
     await _player.setSubtitleTrack(SubtitleTrack.uri(uri));
+    DebugLogger.log('TRACK', 'subtitle loaded OK');
   }
 
   // ── IDEA-01: Universal Subtitle Hunter ───────────────────────────────────────
@@ -2862,7 +2927,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
   }
 
-  void _cycleFit() => setState(() => _ratioIdx = (_ratioIdx + 1) % _ratios.length);
+  void _cycleFit() {
+    final _nextIdx = (_ratioIdx + 1) % _ratios.length;
+    DebugLogger.log('TAP/VIDEO', 'cycleFit idx $_ratioIdx→$_nextIdx label=$_fitLabel');
+    setState(() => _ratioIdx = _nextIdx);
+  }
 
   String get _fitLabel {
     switch (_ratios[_ratioIdx]) {
