@@ -1,5 +1,5 @@
-# Next Agent Brief — RaddFlix / JazzDrive (2026-06-16)
-**Priority**: NORMAL — all known bugs fixed, build 1058 in progress
+# Next Agent Brief — RaddFlix (2026-06-18)
+**Priority**: LOW — all known bugs fixed + comprehensive logging in place.
 
 ---
 
@@ -21,18 +21,30 @@ Expected: `{"ok":true,"version":"3.0.0"}`
 
 ## ✅ App Status — All Known Bugs Fixed
 
-  | Bug | Fix | Commit |
-  |-----|-----|--------|
-  | Blank screen (local videos, 2-3s) | hwdec guard in `_applyAudioPrefs()` | 3b56547 |
-  | Double-dot seek bar (non-classic) | `SliderComponentShape.noThumb` | 3b56547 |
-  | Dots style overlap under thumb | Skip dots within thumbR+dotR | 936a0a2 |
-  | Separate Play+Download buttons | Equal-width buttons in show_detail_screen | 24beefa |
+| Bug | Fix | Commit |
+|-----|-----|--------|
+| Black screen (local videos) | vf= startup gate + hwdec guard | multiple |
+| Long-press blank frame | framedrop channel + seek after | multiple |
+| Mute override by SmartVolume | clamp min 20→0 | 09760ca |
+| Cancel exiting player | removed Navigator.pop | 09760ca |
+| Retry wrong episode | use _currentFileId | 09760ca |
+| All debug logging | DebugLogger v2 + nav observer + crash handler | 96f8cc1 |
 
-  ---
+---
+
+## Comprehensive Debug Logging — DONE ✅
+
+The app now captures EVERYTHING. See AGENT_HANDOFF.md for full details.
+
+To read logs on device: **Profile → Account → Debug Logs**
+Filter chips: CRASH → ERR → VIDEO/AUDIO → NAV → TAP
+
+---
 
 ## Project Summary
 
-RaddFlix — Pakistani Flutter streaming app. Jazz SIM users get zero-rated access to content hosted on JazzDrive CDN. Oracle server (`92.4.95.252`) runs a Flask hub that proxies all JazzDrive SAPI calls.
+RaddFlix — Pakistani Flutter streaming app. Jazz SIM zero-rated access to JazzDrive CDN content.
+Oracle server (`92.4.95.252`) runs Flask hub proxying all JazzDrive SAPI calls.
 
 **Stack**: Flutter app → HTTPS → nginx (port 80) → Flask (port 5000) → JazzDrive SAPI
 
@@ -42,75 +54,16 @@ RaddFlix — Pakistani Flutter streaming app. Jazz SIM users get zero-rated acce
 
 | Rule | Why |
 |------|-----|
-| `db.setting(k)` not `db.get_setting(k)` | Function doesn't exist |
+| `db.setting(k)` not `db.get_setting(k)` | Function doesn't exist → AttributeError |
 | `sudo supervisorctl restart raddflix_radd` | NOT systemctl |
-| Push via Python+urllib + GITHUB_TOKEN | No git shell on Oracle |
-| UA: `Dalvik/2.1.0 (Linux; U; Android 10; Infinix X680F Build/QP1A.190711.020)` | Must match real device |
-| Device: `Infinix Hot 9 Play`, ID: `fcbf291eddd5d372` | Must match real device |
-| `keytype=accesstoken` SAPI endpoint → always 401 | Wrong token format — never use |
-| VK only obtainable during OTP login | keytype=otp endpoint, geo-unrestricted |
+| Push via GitHub Contents/Trees API | No git shell on Replit main |
+| Never parallel-push to GitHub | Creates SHA tree conflicts |
+| `import 'dart:ui' show PlatformDispatcher;` | NOT exported by flutter/material.dart |
+| sqflite_sqlcipher ≤ 3.1.0+1 | Breaks encrypted DB on older Android |
+| Never `androidAttachSurfaceAfterVideoParameters:true` | Black screen |
+| Check DebugLogger method exists before calling it | Past builds failed from missing methods |
+| DebugDiagnosticsScreen NOT gated by kDebugMode | Intentional — release-accessible |
 
----
+## Open Data Gap
 
-## Key Architecture
-
-### Files on Oracle
-```
-/opt/jazzmax/radd-hub/
-├── hub/
-│   ├── jazzdrive.py          — JD SAPI client; jd_clear_cookies(), jd_logout_account()
-│   ├── scanner.py            — OTP flow; verify_otp() calls mobile_direct_verify_otp for VK
-│   ├── uploader.py           — Upload worker; pre-flight session check; session_dead state
-│   ├── keepalive.py          — Heartbeat; conflict detector; event log
-│   ├── db.py                 — SQLite helpers; db.setting(k)
-│   ├── routes/
-│   │   ├── scan.py           — /scan/* routes incl. POST /clear-cookies
-│   │   ├── admin.py          — /admin/* routes incl. /keepalive-health
-│   │   └── upload.py         — /upload/* routes
-│   └── templates/
-│       ├── scan.html         — Account cards with 🍪 Clear Cookies + Logout JD buttons
-│       ├── upload.html       — Upload UI with session_dead badge
-│       └── services.html     — Session Health panel
-├── data/
-│   ├── radd_hub.db           — SQLite DB
-│   └── jazzdrive_session.json — JD session file (cookies field is pickle b64)
-```
-
-### Account Buttons (scan page)
-| Button | What it wipes | What it keeps | Account status |
-|--------|--------------|---------------|----------------|
-| 🍪 Clear Cookies | JSESSIONID, VK, node | refresh_token, raw_accesstoken | stays active |
-| Logout JD | ALL tokens | nothing | marked inactive |
-
----
-
-## Session Work Done (2026-06-16)
-
-  1. **BUG-PLAYER-BLANK** — Blank screen fix: `_applyAudioPrefs()` hwdec guard (commit 3b56547)
-  2. **BUG-SEEK-DOUBLE-DOT** — Slider `noThumb` for non-classic seek bar styles (commit 3b56547)
-  3. **BUG-DOTS-OVERLAP** — Dots painter: skip track dots under thumb (commit 936a0a2)
-  4. **TASK-BUTTONS-01** — Separate Play + Download buttons in show_detail_screen (commit 24beefa)
-
-  ## Session Work Done (2026-06-13)
-
-1. **FIX-UA-STRINGS** — All 10 UA strings → Infinix X680F/Android10 (commit db30e8bf)
-2. **FEAT-CONFLICT-DETECTOR** — keepalive.py: conflict classifier, event log, auto-pause (commits b2e7bc5f, 05c73576)
-3. **FEAT-KEEPALIVE-HEALTH-API** — GET/POST /admin/api/keepalive-health in admin.py
-4. **FEAT-SESSION-HEALTH-PANEL** — JD Session Health panel in services.html
-5. **FIX-UPLOAD-HANG** — pre-flight check in uploader.py; session_dead state (commit 0f133ce5)
-6. **FIX-OTP-VK-MISSING** — mobile_direct_verify_otp after OAuth2; _legacy guard fix (commit 0ceb1544)
-7. **FEAT-CLEAR-COOKIES** — 🍪 button + jd_clear_cookies() + /clear-cookies route
-
----
-
-## DB Quick Reference
-```bash
-# Check account tokens
-ssh oracle "python3 -c \"
-import sqlite3, json
-db = sqlite3.connect('/opt/jazzmax/radd-hub/data/radd_hub.db')
-db.row_factory = sqlite3.Row
-for r in db.execute('SELECT id,msisdn,role,is_active,validation_key,jsessionid,refresh_token FROM accounts'):
-    print(dict(r))
-\""
-```
+- **DATA-01**: All Of Us Are Dead — E03/E04/E05/E09 missing from JazzDrive. Needs admin re-upload.
