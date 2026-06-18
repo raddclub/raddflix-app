@@ -1,6 +1,6 @@
 # AGENT_STATUS.md
 > Current project status for agent coordination.
-> Last updated: 2026-06-17 (Player UX session)
+> Last updated: 2026-06-18 (Comprehensive debug logging session)
 
 ---
 
@@ -9,13 +9,11 @@
 | Area | Status | Notes |
 |------|--------|-------|
 | App (Oracle) | ✅ RUNNING | raddflix_radd via supervisorctl, port 5000, v3.0.0 |
-| JazzDrive Session | ✅ LIVE | Account id=11 (03257719165): VK ✅ JID ✅ raw_accesstoken ✅ refresh_token ✅ |
+| JazzDrive Session | ✅ LIVE | Account id=11 (03257719165): VK ✅ JID ✅ tokens ✅ |
 | JazzDrive Chain | ✅ PROVEN | Full login→media→CDN tested 2026-06-16, real MP4 bytes confirmed |
-| Flutter app | ✅ STABLE | All known bugs fixed — build 1067 + audit fixes (commit 832e9672) |
-| Login screen | ✅ FIXED | Wrong password no longer navigates to home — shows error banner |
-| Catalog sync | ✅ FORCED | catalog_forced_version=1781620750 — all devices will full re-sync |
-| Debug screen | ✅ LIVE | Accessible in release — tap version text 5× in Profile |
-| JazzDrive diag | ✅ LIVE | Checks tab runs live JazzDrive chain test on-device |
+| Flutter app | ✅ STABLE | Build ✅ commit 96f8cc1 |
+| Debug Logging | ✅ COMPLETE | All screens + global crash handler + nav observer active |
+| Debug screen | ✅ LIVE | Profile → Account → Debug Logs (one tap, always visible) |
 | WhatsApp Bot | ✅ RUNNING | autostart=false, pid alive |
 | Admin Panel | ✅ AUDITED | All 27 route files clean |
 
@@ -25,44 +23,47 @@
 
 | Build | Commit | Status | Key Fix |
 |-------|--------|--------|---------|
-| build-1067 | 61f58908 | ✅ Success (57MB) | Black screen + Jazz error messages |
-| audit-patch | 832e9672 | ✅ Pushed (no build needed) | 6 audit fixes: stale error, retry msg, JSESSIONID guard, empty URL guard |
-| build-1066 | 5647a86e | ✅ Success (56.8MB) | Icon fix + SERVER_SETUP.md |
-| build-1053 | — | ✅ Success | Debug screen accessible in release |
+| debug-logging-fix | 96f8cc1 | ✅ Success | dart:ui import fix — all logging commits now live |
+| downloads-log | 1e7128f | ❌ Cascaded (main.dart) | downloads_screen logging |
+| profile-log | 198033b | ❌ Cascaded (main.dart) | profile_screen logging |
+| search-log | f739564 | ❌ Cascaded (main.dart) | search_screen logging |
+| show-detail-log | 69a7d63 | ❌ Cascaded (main.dart) | show_detail logging |
+| home-log | 9c55499 | ❌ Cascaded (main.dart) | home_screen logging |
+| nav-observer | d5a449c | ❌ Cascaded (main.dart) | NavigatorObserver in app.dart |
+| debuglogger-v2 | 613f686 | ✅ Success | DebugLogger v2 upgrade |
+
+> All "cascaded" failures were caused by a single missing `import 'dart:ui' show PlatformDispatcher;`
+> in main.dart. The fix (96f8cc1) passes and includes ALL prior logging commits.
 
 ---
 
-## Bug Fixes — 2026-06-17 (commit 61f58908)
+## Debug Logging System (added 2026-06-18)
 
-### BUG-BLACKSCREEN-LOCAL (CRITICAL)
-**Local video goes black after ~2 seconds — hwdec race condition**
-- Root cause: `_loadPrefs()` async + `_player.open()` race. When prefs loaded, `_applyAudioPrefs` checked `if (!_playing)` — but `_playing` (Flutter state var) lags behind MPV state. MPV already had active decoder; setting `hwdec` mid-decode destroyed GL surface.
-- Fix: guard changed to `if (!_playing && !_player.state.playing && _player.state.duration == Duration.zero)` — uses actual synchronous MPV state. `duration` becomes non-zero as soon as media is opened.
+### DebugLogger v2 — `lib/core/debug/debug_logger.dart`
+| Method | Tag | Usage |
+|--------|-----|-------|
+| `logTap(screen, action, [detail])` | `TAP/Screen` | Every user tap |
+| `logNav(action, route, [detail])` | `NAV` | Every route push/pop/replace |
+| `logLifecycle(screen, event)` | `LC/Screen` | initState / dispose |
+| `logFeature(feature, [params])` | `FEAT` | Feature usage |
+| `logCrash(tag, error, stack)` | `CRASH` | Crash with full stack |
+| `getFiltered(tagFragment)` | — | Filter log entries by tag |
+| buffer | 5000 entries | — |
+| rotation | 8 MB max | — |
+| auto-flush | every 30s | — |
+| session ID | UUID | Embedded in every log file |
 
-### BUG-BLACKSCREEN-LP
-**Long-press fast-forward leaves black frame on release**
-- Root cause: MPV drops frames at high speed, surface stays black when speed returns to 1.0x.
-- Fix: 80ms after long-press end, seek to `_player.state.position` to force MPV to decode fresh frame.
-
-### BUG-JAZZ-GENERIC-ERROR
-**Catalog movies always show "Jazz SIM Required" regardless of real error**
-- Root cause: (1) No `validateStatus` on Dio — non-200 responses threw opaque DioException. (2) HTML error pages crashed JSON cast. (3) All exceptions → same generic message.
-- Fix: `validateStatus: (s) => true` + HTML detection in `_loginShare` and `_getMedia`. New `_buildJazzError()` in player_screen translates MED-/FOL- codes, HTTP 401/403, timeout, HTML page into specific messages.
-
----
-
-## Player UX Improvements — 2026-06-17
-
-| # | Feature | Commits |
-|---|---------|---------|
-| 1 | Floating draggable ball (tap=controls, drag=reposition) | `bd75f9d6` |
-| 2 | Sidebar 3-state: full→icons-only→hidden (chevron toggle) | `bd75f9d6` |
-| 3 | Sidebar mode persisted in PlayerPrefs (`sidebar_mode` SharedPrefs key) | `01fc775f` |
-| 4 | Clock overlay: top-right, always visible when controls hidden | `bd75f9d6` |
-| 5 | Subtitle + Audio panels → right-side overlays (320px, lighter scrim) | `bd75f9d6` |
-| 6 | Speed picker → horizontal dot-rail at top (MX Player style, #4DB6FF) | `bd75f9d6` |
-| 7 | Default rotation `sensor_landscape` → `auto` | `01fc775f` |
-| 8 | `_MxSideBtn` icons-only mode (36×36, icon 19px, no label) | `bd75f9d6` |
+### Coverage
+| Layer | File | Events |
+|-------|------|--------|
+| Dart crash net | main.dart | ALL uncaught Dart errors via PlatformDispatcher.onError |
+| Navigation | app.dart | Every push/pop/replace/remove |
+| Home | home_screen.dart | Lifecycle, nav tabs, filters, hero taps |
+| Show detail | show_detail_screen.dart | Lifecycle, play/download ep taps |
+| Search | search_screen.dart | Lifecycle, query, filter, results, taps |
+| Profile | profile_screen.dart | Lifecycle, nav tab taps |
+| Downloads | downloads_screen.dart | Lifecycle, play taps |
+| Player | player_screen.dart | 13 crash-path checkpoints |
 
 ---
 
@@ -94,14 +95,13 @@ open('/tmp/oracle_key','w').write(key)
 
 ## Account State (2026-06-16)
 
-| ID | MSISDN | Role | Active | VK | JSESSIONID | Refresh Token | Notes |
-|----|--------|------|--------|----|-----------|--------------|-------|
-| 11 | 03257719165 | flix | YES | ✅ valid | ✅ .2i182 node | ✅ valid | All tokens healthy |
+| ID | MSISDN | Role | Active | VK | JSESSIONID | Notes |
+|----|--------|------|--------|----|-----------|-------|
+| 11 | 03257719165 | flix | YES | ✅ valid | ✅ .2i182 node | All tokens healthy |
 
 ---
 
 ## Known Limitations
 
-- `keytype=accesstoken` SAPI endpoint always returns 401 for fnbroot OAuth2 tokens — use `keytype=otp` at OTP login time only.
-- `android_refresh_session()` rotates refresh_token but cannot get fresh VK without OTP — keepalive covers this via heartbeat.
-- JSESSIONID `.NODE` suffix MUST NOT be stripped — sticky routing to same LB node is mandatory.
+- `keytype=accesstoken` SAPI endpoint always returns 401 — use `keytype=otp` at OTP login time only.
+- JSESSIONID `.NODE` suffix MUST NOT be stripped — sticky routing mandatory.
