@@ -304,3 +304,39 @@ Two-layer guard added to `_applyVideoFilters`:
 - APK build: last success run#1099/1100, commit 91e52dc. New fix at cd241fc — build not yet triggered.
 - Open tasks: DATA-01 (All Of Us Are Dead missing E03/E04/E05/E09 — not addressed this session)
 - Critical fix: FIX-VF-BLACKSCREEN — month-long blank screen on local video **FIXED**
+
+
+---
+
+## Session 2026-06-18 — FIX-PLAYER-BUGS (11 bugs in player_screen.dart)
+
+### What was done
+Full audit of player_screen.dart (7,131 lines) completed. Analysed all 7,131 lines across 8 parallel reads. Found and fixed 11 confirmed bugs in one session.
+
+### Fixes applied (commit 09760ca)
+
+| Fix ID | Category | What was wrong | What was fixed |
+|--------|----------|---------------|----------------|
+| C6 | Critical | SmartVolumeController._tick() clamped volume to min 20.0 — overrode user mute every tick | Changed clamp(20.0, 130.0) → clamp(0.0, 130.0) |
+| S13 | Serious | Manual retry in _StreamErrorOverlay used widget.fileId (always ep1) not _currentFileId | Changed both JazzDriveService.invalidate() and _openMedia() calls to use _currentFileId |
+| X2 | UX | "Cancel" in _NextEpisodeOverlay called Navigator.of(context).pop() — exited the entire player | Removed the Navigator.pop() call; only cancels the overlay now |
+| X7 | UX | Sleep fade badge AND sleep timer badge shown simultaneously (both at screen top) | Added !_sleepFadeActive guard to timer badge condition |
+| X1 | UX | Floating ball widget always showed play_circle_outline icon regardless of playback state | Changed to toggle between pause_circle_outline / play_circle_outline based on _playing |
+| U4 | Dead code | ReactionStampsOverlay wrapped in if(false) — shipped dead code in every release build | Removed entire if(false) block and dead widget instantiation |
+| S1 | Duplicate | _playNextEpisode and _playPrevEpisode had identical 20-line skip-intro timer blocks | Extracted into _scheduleSkipIntroCheck(String fileId) helper; both methods now call it |
+| S3 | Logic | ZoomCropOverlay.onZoomChanged triggered two consecutive setState() calls in same callback | Merged into single setState(() { _zoomLevel = z; _prefs = next; }) |
+| X3 | UX | _showFrameStep set true in _frameStep()/_frameBackStep() but never cleared on play resume | Added if(p) _showFrameStep = false inside playing stream listener setState |
+| U1 | Dead code | 6 state variables declared and never assigned/read: _audioTracks, _selectedAudioTrack, _castScanning, _castDevices, _showSubtitleHunter, _abLoopActive | Removed all 6 declarations; cleaned up section comment |
+| S11 | UX | "Stereo mode" button in _MxAudioPanel had empty onTap: () {} — visible but non-functional | Removed button from audio panel Row |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| `raddflix_flutter/lib/screens/player_screen.dart` | 11 bugs fixed, 32 lines removed (7131→7099) | `09760ca` |
+
+### State at end of session
+- Oracle Flask: not checked this session (no server changes needed)
+- Last successful APK build: run#1099/1100, commit 91e52dc
+- New commit 09760ca has not yet triggered a build (player-only fix, safe to build)
+- Open tasks: DATA-01 (All Of Us Are Dead missing episodes — not addressed)
+- Remaining player audit items: duplicate UX systems (D1–D7), UX illogic (X4–X9), architecture extraction (A1–A6)
