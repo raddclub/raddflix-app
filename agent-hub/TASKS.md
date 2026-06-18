@@ -70,3 +70,4 @@ _Last updated: 2026-06-18_
 | ID | Changed | Summary |
 |----|---------|----------|
 | ✅ FIX-VF-STARTUP | `player_screen.dart` | Black screen regression fix: _videoOpened gate. Commit 4d88e277. |
+| ✅ FEAT-TIMELINE | `playback_timeline.dart`, `player_screen.dart`, `debug_diagnostics_screen.dart` | PlaybackTimeline: 10 probe points, black screen auto-detector, Player tab in Diagnostics. |
