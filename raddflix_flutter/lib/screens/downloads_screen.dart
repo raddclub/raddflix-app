@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../providers/downloads_provider.dart';
+import '../core/debug/debug_logger.dart';
 import '../services/thumb_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -35,6 +36,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   @override
   void initState() {
     super.initState();
+    DebugLogger.logLifecycle('DownloadsScreen', 'initState');
     WidgetsBinding.instance.addPostFrameCallback((_) =>
         ref.read(downloadsProvider.notifier).loadDownloads());
   }
@@ -481,6 +483,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 'label':      _title(e.value),
                 'episode':    e.key,
               }).toList();
+              DebugLogger.logFeature('PlayDownloaded', 'from DownloadsScreen');
               Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
                 'file_id':      id,
                 'title':        _title(d),
