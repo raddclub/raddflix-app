@@ -59,5 +59,6 @@ _Last updated: 2026-06-18_
 
 | ID | Details |
 |----|---------|
+| ✅ FIX-BLACKSCREEN-LP2 | `player_screen.dart` | **Long-press START black screen**: `framedrop=decoder+vo`+`speed=2×` on active MediaTek HW decoder resets pipeline → GL surface destroyed. Existing `FIX-BLACKSCREEN-LP` only recovered at END. Fix: 150ms recovery seek after `_setSpeed` on longPressStart (commit `69824d79dbfb`). |
 | ✅ FIX-VF-BLACKSCREEN-GAP | `player_screen.dart` | **Startup gate primed fix**: gate correctly blocked vf= when playing=true, but never updated `_lastAppliedVf` from sentinel — causing dedup bypass on 2nd call (ref.listen fires ~1-2s) → setProperty(vf) while playing → MediaTek GL surface destroyed → black screen. Fix: `_lastAppliedVf = _buildVfString(p)` before early return (commit `a7898f8f`). |
 | 📌 DATA-01 | All Of Us Are Dead missing E03/E04/E05/E09 — catalog data issue, not code |
