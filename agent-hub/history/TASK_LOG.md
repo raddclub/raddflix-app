@@ -340,3 +340,42 @@ Full audit of player_screen.dart (7,131 lines) completed. Analysed all 7,131 lin
 - New commit 09760ca has not yet triggered a build (player-only fix, safe to build)
 - Open tasks: DATA-01 (All Of Us Are Dead missing episodes — not addressed)
 - Remaining player audit items: duplicate UX systems (D1–D7), UX illogic (X4–X9), architecture extraction (A1–A6)
+
+
+---
+
+## Session 2026-06-18 — FIX-PLAYER-REAUDIT (4 additional bugs, APK ✅)
+
+### Objective
+Full line-by-line re-audit of player_screen.dart (7,094 lines after previous fixes). Find anything missed in the 11-bug fix session. Push, rebuild, verify.
+
+### Audit findings from previous session (confirmed still present)
+| Issue | Status after previous session |
+|-------|------------------------------|
+| _previewPosition usage in _openIntroSkipEditor | ✅ Already defined as getter at line 2855 — not a bug |
+| _speeds const list "unused" | ✅ Used at line 3621 (SpeedTrackPanel) — not a bug |
+| _abLoopStart / _abLoopEnd | ✅ Legitimately used in _openClipTrimmer() — correct state |
+| reaction_stamps_overlay import | ❌ ORPHANED — widget removed in 09760ca, import not cleaned up |
+| Clock timer 30s interval | ❌ WRONG — HH:MM display can be 30s stale |
+| _audioSessionInitialized guard in BG toggle | ❌ DEAD — flag always true after initState; block unreachable |
+| final _np variable shadowing NativePlayer getter | ❌ MAINTENANCE HAZARD — local _np shadows class-level get _np |
+
+### Fixes applied (commit c099057)
+
+| Fix | Line | Root Cause | Fix Applied |
+|-----|------|-----------|-------------|
+| FIX-ORPHAN-IMPORT | 45 | `reaction_stamps_overlay.dart` imported after widget removal | Removed import line |
+| FIX-CLOCK-TIMER | 389 | Timer.periodic(30s) — HH:MM could be ≤30s stale | Changed to 10s interval |
+| FIX-DEAD-BG-GUARD | ~4053 | `if (v && !_audioSessionInitialized)` always false; `_initAudioSession()` called in initState | Removed unreachable block, left clarifying comment |
+| FIX-NP-SHADOW | ~3574 | `final _np = _prefs.copyWith(...)` inside callback shadowed `NativePlayer get _np` getter | Renamed to `final newPrefs` + `final newMode` |
+
+### Result
+- Commit: `c099057849c631d68c8b62a04569f9b2af1790ca`
+- File: 7094 lines (−5 from 7099)
+- APK build run#27729363694 → **status: completed, conclusion: success** ✅
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0
+- Latest APK: build run#27729363694 ✅ SUCCESS, commit c099057
+- Open tasks: DATA-01 (All Of Us Are Dead missing E03/E04/E05/E09)
+- player_screen.dart audit: complete — all actionable bugs fixed
