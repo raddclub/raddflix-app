@@ -218,6 +218,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Timer? _slowConnTimer;
   bool _playing = false;
   bool _videoSurfaceReady = false; // FIX-PLAYER-02: set true on first playing=true to avoid transient black screen
+    // FIX-VF-STARTUP: set true immediately before _player.open() so _applyVideoFilters
+    // startup gate reliably blocks even when _player.state.playing is still false
+    // (MediaTek GL surface isn't ready until ~200-500ms after open() — gate must cover that gap).
+    bool _videoOpened = false;
   bool _ended = false;
   DateTime? _sessionStartTime; // track watch-time for usage reporting
   Duration _bufferedPosition = Duration.zero;
@@ -827,7 +831,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // through the new filter chain on the refreshed GL surface.
     if (!_firstVfApplied) {
       _firstVfApplied = true;
-      if (_player.state.playing || _playing) {
+      if (_videoOpened || _player.state.playing || _playing) {
         // FIX-VF-BLACKSCREEN-GAP: prime _lastAppliedVf with the vf string we
         // would have applied, so the dedup on the NEXT call (e.g. the
         // playerPrefsProvider ref.listen firing ~1-2s after startup) correctly
@@ -2257,6 +2261,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (effectiveLocalPath != null) {
       _currentPlaybackUrl = effectiveLocalPath;
       DebugLogger.log('LOAD', 'player.open LOCAL: $effectiveLocalPath sfc=$_videoSurfaceReady');
+      _videoOpened = true; // FIX-VF-STARTUP: arm gate before surface is live
       await _player.open(Media(effectiveLocalPath));
       // FIX-STALE-ERR: clear any stale error overlay when opening new media
       // FIX-RETRY-RESET: reset retry count so the next error gets a full retry
@@ -2320,6 +2325,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final link = await JazzDriveService.getStreamLink(cacheKey, shareUrl, targetFilename: targetFilename, remoteId: remoteId);
         _currentPlaybackUrl = link.streamUrl;
         DebugLogger.log('LOAD', 'player.open JAZZ fn=${link.filename} url=${link.streamUrl.length > 60 ? link.streamUrl.substring(0, 60) + "…" : link.streamUrl}');
+        _videoOpened = true; // FIX-VF-STARTUP: arm gate before surface is live
         await _player.open(Media(link.streamUrl));
         // FIX-RETRY-RESET: successful open — reset retry count so any future
         // mid-play error gets a full retry attempt instead of immediately
