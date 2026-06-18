@@ -42,6 +42,72 @@ curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/.agents/t
 
 ---
 
+## Step 2.5 — Local Workspace (ALWAYS do this before editing any file)
+
+**Download all files you plan to edit into `/tmp/raddflix/` first. Edit locally. Push once at the end.**
+This avoids repeated GitHub API round-trips and prevents SHA drift mid-edit.
+
+```bash
+mkdir -p /tmp/raddflix
+
+# Download everything you plan to touch in one batch:
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/raddflix_flutter/lib/screens/player_screen.dart" > /tmp/raddflix/player_screen.dart
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/TASKS.md" > /tmp/raddflix/TASKS.md
+curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/history/TASK_LOG.md" > /tmp/raddflix/TASK_LOG.md
+# … add any other files you need
+```
+
+**Edit using Node.js string replacement** (never use sed for multi-line Dart):
+```javascript
+const fs = require('fs');
+let c = fs.readFileSync('/tmp/raddflix/player_screen.dart', 'utf8');
+c = c.replace(OLD_STRING, NEW_STRING);
+if (c === original) throw new Error('patch had no effect!');
+fs.writeFileSync('/tmp/raddflix/player_screen.dart', c);
+```
+
+**Push all changed files in one go** using the `pushFile` helper from Step 3, or the `pushTree`
+helper for an atomic multi-file commit. Always push SEQUENTIALLY with 1.5s delays between calls.
+
+```javascript
+// Recommended push script pattern — write to /tmp/push.js and run with node /tmp/push.js:
+const fs = require('fs'), https = require('https');
+const TOKEN = process.env.GITHUB_TOKEN, REPO = 'raddclub/raddflix-app';
+
+function api(method, path, body) { /* … same as Step 3 … */ }
+
+async function pushFile(repoPath, localPath, message) {
+  const meta = await api('GET', `contents/${repoPath}`);   // always fetch fresh SHA
+  const content = fs.readFileSync(localPath).toString('base64');
+  const r = await api('PUT', `contents/${repoPath}`, { message, content, sha: meta.sha });
+  if (!r.commit) throw new Error(r.message);
+  console.log('✅', repoPath, '->', r.commit.sha.slice(0,7));
+  return r.commit.sha.slice(0,7);
+}
+
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
+async function main() {
+  const sha1 = await pushFile('raddflix_flutter/lib/screens/player_screen.dart',
+                              '/tmp/raddflix/player_screen.dart',
+                              'fix: description');
+  await delay(1500);
+  await pushFile('agent-hub/TASKS.md', '/tmp/raddflix/TASKS.md',
+                 `chore(tasks): mark X done (${sha1})`);
+  await delay(1500);
+  await pushFile('agent-hub/history/TASK_LOG.md', '/tmp/raddflix/TASK_LOG.md',
+                 'docs(tasklog): document fix X');
+}
+main().catch(e => { console.error(e.message); process.exit(1); });
+```
+
+> **Why `pushFile` fetches the SHA fresh inside the function**: if any earlier push in the same
+> session already bumped that file, a stale SHA will cause a 422 conflict. Always GET the file
+> meta right before PUT — never cache SHAs across pushes.
+
+
+---
+
 ## Step 3 — GitHub file push (the ONLY way — no git shell ever)
 
 **For 1–2 files** — write to `/tmp/push.js` using Replit `write` tool, then `node /tmp/push.js`:
@@ -176,6 +242,9 @@ Mark ✅ DONE when complete + pushed. This is the handoff bridge between agents.
 17. **`_np` getter in player_screen.dart**: Never name a local variable `_np` inside `player_screen.dart`. The class has `NativePlayer get _np => _player.platform as NativePlayer`. A local `final _np = anything` silently shadows it — any `_np.setProperty()` in that scope compiles but calls the wrong object.
 18. **Import hygiene**: When removing a widget or class from `player_screen.dart`, always check for and remove its import. Orphaned imports cause Dart unused-import warnings on every build.
 19. **Clock/timer displays**: Any timer driving a visible HH:MM clock overlay must fire at ≤10s intervals. 30s intervals leave the display up to 30s stale.
+20. **Local workspace first**: Before editing any file, download it to `/tmp/raddflix/`. Edit locally. Push at the end using `pushFile` (always fetches fresh SHA inside the fn). Never edit-and-push in the same GitHub API round-trip without downloading first. See Step 2.5.
+21. **MediaTek recovery-seek after pipeline changes**: Any `_np.setProperty` that touches the decoder pipeline mid-play (`vf=`, `framedrop`, `speed` above 1×) needs: set property → `Future.delayed(150ms)` → `_player.seek(position)`. Not needed for audio-only props (`af=`, `audio-delay`, `volume`).
+22. **`_lastAppliedVf` must be primed on gate block**: `_applyVideoFilters` startup gate must call `_lastAppliedVf = _buildVfString(p)` in the blocked branch. Any guard/gate that returns early must still update its "already-done" tracking state or the next call bypasses dedup.
 
 Full rules: `agent-hub/RULES.md` | Architecture: `agent-hub/CONTEXT.md`
 
@@ -218,21 +287,23 @@ Coordination (GitHub main):
 
 | Item | Detail |
 |------|--------|
-| Lines | 7,094 (down from 7,131 at start of session) |
-| Last commit | `c099057` — re-audit: 4 more bugs fixed |
-| Last build | ✅ run#27729363694, conclusion: **success** |
-| Total bugs fixed this session | 15 (11 in 09760ca + 4 in c099057) |
+| Lines | 7,488 (as of 2026-06-18, after LP2 fix) |
+| Last commit | `69824d79` — FIX-BLACKSCREEN-LP2: recovery seek on longPress START |
+| Last build | ✅ run#27729363694 (build triggered by latest commits — check GitHub Actions) |
+| Total bugs fixed this session | 17 (15 previous + FIX-VF-BLACKSCREEN-GAP `a7898f8f` + FIX-BLACKSCREEN-LP2 `69824d79`) |
 | Remaining | Duplicate UX systems (D1–D6), ghost features (safe no-ops), architecture (A1–A6) |
 
 ### Critical player_screen.dart rules (hardware-specific bugs)
 
 | Rule | Detail |
 |------|--------|
-| vf= mid-play | NEVER call `_np.setProperty('vf', ...)` from startup code paths while playing. Check `_firstVfApplied` gate + `_lastAppliedVf` dedup. Even empty `vf=` destroys GL surface on MediaTek/Infinix HW decoder → black screen. |
+| vf= mid-play | NEVER call `_np.setProperty('vf', ...)` from startup code paths while playing. Check `_firstVfApplied` gate + `_lastAppliedVf` dedup. Even empty `vf=` destroys GL surface on MediaTek/Infinix HW decoder → black screen. When gate blocks, still set `_lastAppliedVf = _buildVfString(p)`. Mid-play vf= changes (user-initiated) require the recovery-seek pattern after. |
 | hwdec mid-play | NEVER call `_np.setProperty('hwdec', ...)` while video is playing or media is open. Guard: `if (!_playing && !_player.state.playing && _player.state.duration == Duration.zero && !_videoSurfaceReady)`. |
 | Speed channel ordering | `_setSpeed()` MUST use `_np.setProperty('speed', ...)` — NOT `_player.setRate()`. Both framedrop and speed must go through the same NativePlayer channel. |
 | _videoSurfaceReady latch | Set `true` immediately after `VideoController` construction — NOT on first `playing=true` event. |
-| Long-press framedrop | Always set `framedrop=decoder+vo` BEFORE speed change. Restore `framedrop=vo` after. |
+| Long-press framedrop | Always set `framedrop=decoder+vo` BEFORE speed change. Restore `framedrop=vo` after. ADD 150ms recovery seek at **start AND end**: `Future.delayed(150ms, () { if (mounted && _longPressFast) _player.seek(position); })` |
+| MediaTek recovery-seek pattern | After ANY MPV pipeline property change mid-play (`vf=`, `framedrop`, `speed`) do: ① set property ② `await Future.delayed(150ms)` ③ `_player.seek(_player.state.position)`. NOT needed for `af=`, `audio-delay`, `volume`. |
+| `_lastAppliedVf` gate gap | When `_applyVideoFilters` startup gate BLOCKS (playing=true on first call), it MUST still set `_lastAppliedVf = _buildVfString(p)` before returning. Omitting this leaves the sentinel `'\\x00'`, causing the NEXT call (e.g. `ref.listen` provider fire ~1–2s later) to bypass dedup → `vf=` while playing → black screen. |
 | androidAttachSurface | Never add `androidAttachSurfaceAfterVideoParameters: true` — HW decoder crash. |
 | _jazzRetryCount reset | Reset to 0 inside `_openMedia` on every successful `_player.open()`. |
 | _jazzAutoRetry guard | Must check `if (_playing) return` before setting `_streamError`. |
