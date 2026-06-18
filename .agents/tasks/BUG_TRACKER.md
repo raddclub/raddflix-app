@@ -127,4 +127,32 @@ _Add new bugs below this line as they are found._
   - **Root cause**: `_applyVideoFilters` startup gate checked `_player.state.playing||_playing`. On local files, `playing=true` fires ~200-500ms after `player.open()`. Gate ran at ~90ms (SharedPrefs load + 60ms debounce) when playing was still false → gate passed → `setProperty('vf','')` + FIX-SPEED-RECOVERY's 150ms-delayed recovery seek both fired during decoder init window → GL surface destroyed
   - **Fix**: FIX-VF-STARTUP — add `_videoOpened=true` before each `_player.open()` call; include in gate: `_videoOpened||playing||_playing`
   - **Commit**: 4d88e277
+
+  ## PlaybackTimeline Diagnostics (added 2026-06-18)
+
+  Tool to prove/detect the MediaTek black screen bug. Produces an auditable startup trace per playback session.
+
+  **Where to find it:** Profile → tap version text 5× → "Player" tab
+
+  | Banner color | Meaning |
+  |---|---|
+  | 🟢 Green | Healthy startup — vf gate blocked correctly |
+  | 🟠 Orange | ⚠️ vf gate PASSED during startup window (risk of black screen) |
+  | 🔴 Red | Gate passed + audio confirmed at T+3s = black screen detected |
+
+  **Key timeline events recorded:**
+  - T+0ms — SESSION_START (player screen opened)
+  - ~10ms — SURFACE_READY (GL surface live)
+  - ~15ms — VIDEO_OPENED + PLAYER_OPEN_CALLED
+  - ~45ms — PREFS_LOADED (SharedPrefs load complete)
+  - ~105ms — VF_DEBOUNCE_FIRED (60ms debounce expired)
+  - ~105ms — VF_GATE_CHECKED (with every flag value logged)
+  - ~200-500ms — MPV_PLAYING (when MPV emits playing=true)
+  - later — FIRST_FRAME (codec, resolution, decoder name)
+
+  **Fix validation:** With FIX-VF-STARTUP in place:
+  - VF_GATE_CHECKED always shows `_videoOpened=true` → gate BLOCKED → 🟢
+  - MPV_PLAYING always arrives AFTER VF_GATE_CHECKED → no race window
+
+  **Files:** `lib/core/debug/playback_timeline.dart`, `lib/screens/debug_diagnostics_screen.dart` (Player tab)
   
