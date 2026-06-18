@@ -573,3 +573,58 @@ Every function entry, every panel open, every user gesture, every error path (in
 - APK build: run#1132 ⏳ in_progress (round 2 build)
 - Round 1 build: ✅ SUCCESS run#1131 (commit 272ac0c)
 - Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
+
+
+---
+
+## Session 2026-06-18 — God-Level Debug Logger (player_screen.dart complete)
+
+### Objective
+Fix all 4 compile errors from round 2 (commit c4905b5) and add remaining deep-engine logging patches to player_screen.dart to achieve complete god-level debug coverage.
+
+### What failed in round 2 (c4905b5)
+| Error | Wrong field | Correct field |
+|-------|-------------|---------------|
+| silenceSkipEnabled | — | skipSilenceEnabled |
+| bingeGuardIntervalMins | — | bingeGuardThresholdMinutes |
+| _ratioLabels | — | does not exist; compare BoxFit values directly |
+| debandingEnabled | — | does not exist; use nightMode |
+| tracks.sub | — | tracks.subtitle |
+
+### Changes
+- Commit `2ae548e`: initial god-level push (still had tracks.subtitle + debandingEnabled errors — 2 new compile errors)
+- Commit `e98e620`: all compile errors fixed + 36 deep-engine patches added (build ✅ run#1136)
+
+### 36 God-level patches added (commit e98e620)
+1. Position milestones: 25/50/75/95% of duration → MILESTONE tag
+2. AB loop A set / B set / loop fire → AB tag
+3. stream.tracks listener: audio/subtitle/video count → TRACK tag
+4. Subtitle text event (first 60 chars) → SUB tag
+5. Skip segment active / cleared → SKIP tag
+6. _openMedia entry: fileId, title, epIdx, isLocal → LOAD tag
+7. _openMedia step1 DB fetch started → LOAD tag
+8. _buildJazzError context: fileId, error, url → ERR tag
+9. Buffering cleared (was buffering → now playing) → BUF tag
+10. Watch position save as % of duration → SAVE tag
+11. seekRelative as % of duration → SEEK tag
+12. Completed event: episodes remaining, loop mode → PLAY tag
+13. Playing event: speed, position, hwdec decoder name → PLAY tag
+14. Episode nav prev/next: fileId + title → EPISODE tag
+15. Binge guard threshold log → INIT tag
+16. _logWatchSession: total seconds + quality label → SAVE tag
+17. piTimer tick: pos + codec/res/fps/buffer/decoder → PLAYER tag
+18. Session start: fileId, title, epIdx, isLocal, Jazz/LOCAL → LOAD tag
+19. af= audio filter chain full string → AUDIO tag
+20. vf= video filters: colorblind/sharp/bright/contrast/sat/night/smartEnhance → VIDEO tag
+
+### Root causes / lessons learned
+- `Tracks` class: fields are `.audio`, `.subtitle`, `.video` — NOT `.sub`
+- `PlayerPrefs` video fields: `nightMode`, `sharpnessEnabled`, `sharpness`, `smartEnhanceEnabled`, `brightness`, `contrast`, `saturation` — no `debandingEnabled`
+- `_ratioLabels` map does NOT exist — aspect ratio cycling uses `_ratios` List<BoxFit> directly
+- `LocalDb.getWatchPosition()` does NOT exist in API — only `saveWatchPosition()`
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0
+- Latest commit: `e98e620` — god-level logger complete
+- APK build: ✅ SUCCESS run#1136 (commit e98e620)
+- Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
