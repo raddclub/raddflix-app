@@ -31,6 +31,7 @@ import '../core/api/catalog_api.dart';
 import '../core/api/history_api.dart';
 import '../core/services/jazzdrive_service.dart';
 import '../core/debug/debug_logger.dart';
+  import '../core/debug/playback_timeline.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/player/player_prefs.dart';
 import '../core/player/player_prefs_provider.dart';
