@@ -1,32 +1,29 @@
 # RaddFlix Agent Handoff
 
-_Last updated: 2026-06-18 — HUNTER-AUDIT session_
+_Last updated: 2026-06-18 — BUG-DEBUGLOGGER-MISSING fix_
 
 ## Current State
 
 | Item | Status |
 |------|--------|
 | Oracle Flask | Running v3.0.0 at 92.4.95.252:5000 |
-| Last APK build | ✅ run#27730921492, commit 4882ba1 — **SUCCESS** |
-| Latest commit | 4882ba1 — hunter audit: 10 bugs fixed across player files |
-| Build triggered? | Yes — build completed **success** |
+| Last APK build | ⏳ triggered after commit 426d78c — awaiting result |
+| Latest commit | 426d78c — fix(debug_logger): add 6 missing methods (logWarn, logApi, getLastLines, shareLogs, clearBuffer, getLogPath) |
+| Previous passing build | ✅ run#27752025995, commit 1a4294c |
 | Open tasks | DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 |
 
 ## What was done this session
 
-Full "hunter mode" audit of all 100 player-related Flutter files. 5 parallel subagents audited every file. 10 bugs confirmed and fixed across 10 files in commit 4882ba1. APK build triggered.
+Investigated 2 consecutive APK build failures (run#27753380200 commit 5ce16d8, run#27753231660 commit 9439a69). Both failed at "Build release APK" step with `Member not found` Dart compile errors for 6 `DebugLogger` methods that were called across 5 files but never existed in the class:
 
-**Fixes in 4882ba1:**
-1. `n_series_network.dart` — removed `_lastBytes` (declared, never read)
-2. `p_series_parental.dart` — removed `_todayKey` field + assignment in `configure()` (computed, never read)
-3. `enhanced_screenshot_service.dart` — removed unused `title` param from `_saveToGallery()`
-4. `sync_panel.dart` — double spaces `'delayed by  +'` → `'delayed by +'`
-5. `scene_bookmarks_panel.dart` — null-safe `bm.id`: `Dismissible` key now `bm.id?.toString() ?? bm.positionMs.toString()`; `onDismissed`/`onLongPress` guard `bm.id != null`
-6. `smart_enhance_sheet.dart` — Before/After hold button caches `_prevEnabled` on press, restores it on release (was blindly setting `true`); extracted duplicate portrait/landscape lambda into `_handleBeforeHold()`
-7. `subtitle_overlay.dart` — RegExp `r"[\w']+"` and `r"^[\w']+$"` moved from local vars (O(n) recompilation per subtitle line/token) to `static final` class fields
-8. `video_enhance_suite.dart` — triplicate `_pctDelta` lambda extracted into `static String _pctDelta(double v)` method
-9. `speed_presets_sheet.dart` — `_toggle()` now shows `SnackBar('Keep at least 2 speeds')` instead of silent no-op when minimum reached
-10. `player_screen.dart` `_VDSTile` — replaced hardcoded `_blue` (0xFF1565C0) with `_accent` (0xFFE8002D) for active tile state
+- `logWarn(tag, msg)` — called in `remote_config.dart`, `jazzdrive_service.dart`, `usage_service.dart`, `api_client.dart`, `download_service.dart`
+- `logApi({method, url, ...})` — called in `api_client.dart` with named params
+- `getLastLines(n)` → `String` — called in `debug_diagnostics_screen.dart`
+- `shareLogs()` — used as `onPressed` callback in `debug_diagnostics_screen.dart`
+- `clearBuffer()` — called in `debug_diagnostics_screen.dart`
+- `getLogPath()` → `String` — called in `debug_diagnostics_screen.dart`
+
+All 6 methods added to `lib/core/debug/debug_logger.dart` in commit `426d78c`. New APK build triggered.
 
 ## Critical Rules — never violate
 
@@ -40,10 +37,11 @@ Full "hunter mode" audit of all 100 player-related Flutter files. 5 parallel sub
 | GitHub push | GitHub API only — never `git push` from shell. Push files SEQUENTIALLY (never parallel) — parallel creates branch tree SHA conflicts. Use Trees API for multi-file atomic commits. |
 | DebugDiagnosticsScreen | Do NOT re-add `kDebugMode` gate — intentionally release-accessible. |
 | _np getter shadow | Never name a local variable `_np` inside `player_screen.dart` — it shadows the `NativePlayer get _np` class getter. |
+| DebugLogger methods | When adding calls to `DebugLogger.*` in any file, ensure the method exists in `lib/core/debug/debug_logger.dart` first. Class has: `log`, `logError`, `logWarn`, `logApi`, `logState`, `getLastLines`, `getRecent`, `clearBuffer`, `getLogPath`, `copyToClipboard`, `flush`, `share`, `shareLogs`. |
 
 ## Known open data issue
 
-- **DATA-01**: All Of Us Are Dead — E03/E04/E05/E09 missing from Oracle DB. Not in scope for player audit sessions.
+- **DATA-01**: All Of Us Are Dead — E03/E04/E05/E09 missing from Oracle DB. Not in scope for current sessions.
 
 ## Common Commands
 
