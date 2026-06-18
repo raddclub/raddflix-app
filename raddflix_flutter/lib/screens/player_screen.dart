@@ -492,6 +492,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   ///   session — controls never appear again because the controls widget
   ///   hides itself whenever _inPiP is true.
   void _initPipChannel() {
+    DebugLogger.log('INIT', 'PiP channel setup');
     _pipChannel.setMethodCallHandler((call) async {
       if (!mounted) return;
       switch (call.method) {
@@ -540,6 +541,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
     if (loaded.smartVolumeLevelingEnabled) _svc!.start();
     _startWakeTimer(); // FIX-H03: apply user's saved wake timeout after prefs load
+    DebugLogger.log('INIT', 'prefs LOADED hwdec=${loaded.hwDecoderEnabled} bgPlay=${loaded.backgroundPlayEnabled} smartVol=${loaded.smartVolumeLevelingEnabled} volBoost=${loaded.volumeBoostMultiplier.toStringAsFixed(2)}× rotation=${loaded.rotationMode} endAction=${loaded.endOfVideoAction} autoSkipIntro=${loaded.autoSkipIntroEnabled} silenceSkip=${loaded.silenceSkipEnabled} ambilight=${loaded.ambilightEnabled}');
   }
 
   Future<void> _initAudioSession() async {
@@ -548,6 +550,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       await session.configure(const AudioSessionConfiguration.music());
       session.interruptionEventStream.listen((event) {
         if (!mounted) return;
+        DebugLogger.logWarn('AUDIO', 'interruption begin=${event.begin} type=${event.type} playing=$_playing userPaused=$_userPaused');
         if (event.begin) {
           _player.pause();
         } else if (event.type == AudioInterruptionType.pause && !_userPaused) {
@@ -557,6 +560,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Pause on headphone unplug + user toast
       session.becomingNoisyEventStream.listen((_) {
         if (!mounted) return;
+        DebugLogger.logWarn('AUDIO', 'HEADPHONES UNPLUGGED (becomingNoisy) playing=$_playing pos=${_fmtDur(_position)}');
         if (!_userPaused) {
           _player.pause();
           _userPaused = true;
@@ -573,10 +577,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _loadSmartIntro() async {
     if (!SmartIntroStore.shouldShow(
         contentType: widget.contentType,
-        totalDuration: _duration)) return;
+        totalDuration: _duration)) {
+      DebugLogger.log('INTRO', 'loadSmartIntro skipped (shouldShow=false contentType=${widget.contentType})');
+      return;
+    }
     final seriesId = widget.fileId.split('/').first;
     final end = await SmartIntroStore.getIntroEnd(
         seriesId: seriesId, epIndex: _currentEpIdx);
+    DebugLogger.log('INTRO', 'loadSmartIntro seriesId=$seriesId epIdx=$_currentEpIdx introEndSec=$end');
     if (mounted) setState(() => _savedIntroEnd = end);
   }
 
@@ -584,6 +592,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final bm = await SceneBookmarkStore.getAll(
         contentId: widget.fileId,
         episodeId: widget.episodes != null ? _currentEpIdx.toString() : null);
+    DebugLogger.log('PLAYER', 'bookmarks loaded count=${bm.length} epIdx=$_currentEpIdx');
     if (mounted) setState(() => _bookmarks = bm);
   }
 
@@ -882,6 +891,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   /// Triple-tap center = Rage Skip
   void _handleCenterTap() {
+    DebugLogger.log('TAP', 'centerTap playing=$_playing userPaused=$_userPaused locked=$_locked pos=${_fmtDur(_position)}');
     DebugLogger.log('TAP', 'center tap ctrl=$_showControls locked=$_locked imm=$_immersiveMode bk=$_showBookmarksPanel more=$_showMorePanel qs=$_showQuickSettings binge=$_showBingeGuard load=$_isLinkLoading');
     if (_rageSkipActive) return; // FIX-L05: block double-fire during animation
     // Immersive mode: tap = play/pause only, never show controls.
@@ -913,12 +923,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _shareTimestamp() {
+    DebugLogger.log('TAP', 'shareTimestamp pos=${_fmtDur(_position)} fileId=${widget.fileId.length > 30 ? widget.fileId.substring(0, 30) + "…" : widget.fileId}');
     final pos = _fmtDur(_position);
     Share.share('Watching ${widget.title} at $pos on RaddFlix');
   }
 
   // ── §3.3 item 5: Seek bar long-press → "Set intro end here" ──────────────
   void _onSeekBarLongPress() {
+    DebugLogger.log('SEEK', 'seekBar LONG PRESS pos=${_fmtDur(_position)}');
     if (_duration == Duration.zero) return;
     if (!SmartIntroStore.shouldShow(
         contentType: widget.contentType, totalDuration: _duration)) return;
@@ -1018,6 +1030,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _showCinematicSettings() {
+    DebugLogger.log('PANEL', 'OPEN CinematicSettings opacity=$_cinematicOpacity');
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1037,6 +1050,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _showImmersiveSettings() {
+    DebugLogger.log('PANEL', 'OPEN ImmersiveSettings');
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1064,6 +1078,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _deleteBookmark(int id) async {
+    DebugLogger.log('TAP', 'bookmark DELETE id=$id pos=${_fmtDur(_position)}');
     await SceneBookmarkStore.delete(id);
     await _loadBookmarks();
   }
@@ -1071,6 +1086,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── Phase C: Gesture Map ─────────────────────────────────────────────────
   void _openGestureMap() {
+    DebugLogger.log('PANEL', 'OPEN GestureMap');
     Map<String, String> map = Map.from(kDefaultGestureMap);
     if (_prefs.gestureActionMapJson.isNotEmpty) {
       try { map = Map<String, String>.from(jsonDecode(_prefs.gestureActionMapJson)); } catch (e) { DebugLogger.logWarn('PLAYER', 'gestureMap decode failed: $e'); }
@@ -1093,6 +1109,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── Phase D1: Picture Profiles ────────────────────────────────────────────
   void _openPictureProfiles() {
+    DebugLogger.log('PANEL', 'OPEN PictureProfiles');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1111,6 +1128,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── Phase E: Audio Lab ────────────────────────────────────────────────────
   void _openAudioLab() {
+    DebugLogger.log('PANEL', 'OPEN AudioLab');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1129,6 +1147,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── Phase P: Intro Skip Editor ────────────────────────────────────────────
   void _openIntroSkipEditor() {
+    DebugLogger.log('PANEL', 'OPEN IntroSkipEditor savedEnd=$_savedIntroEnd');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1149,10 +1168,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // ── Load custom skip segments for this video ───────────────────────────────
   Future<void> _loadSkipSegments() async {
     final segs = await IntroSkipStore.load(widget.fileId);
+    DebugLogger.log('INTRO', 'skipSegments loaded count=${segs.length}');
     if (mounted) setState(() => _skipSegments = segs);
   }
 
   void _openAudioMixer() {
+    DebugLogger.log('PANEL', 'OPEN AudioMixer activeAudio=$_activeAudioIdx activeSub=$_activeSubIdx');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1201,6 +1222,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openClipTrimmer() {
+    DebugLogger.log('PANEL', 'OPEN ClipTrimmer pos=${_fmtDur(_position)} dur=${_fmtDur(_duration)}');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1224,6 +1246,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openABLoop() {
+    DebugLogger.log('PANEL', 'TOGGLE ABLoop→${!_showAbPanel} pos=${_fmtDur(_position)}');
     setState(() => _showAbPanel = !_showAbPanel);
   }
 
@@ -1301,6 +1324,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openSpeedPicker() {
+    DebugLogger.log('PANEL', 'OPEN SpeedPicker currentSpeed=$_speed pos=${_fmtDur(_position)}');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1320,6 +1344,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openEqVisualizer() {
+    DebugLogger.log('PANEL', 'OPEN EqVisualizer');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1348,6 +1373,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openBookmarkPanel() {
+    DebugLogger.log('PANEL', 'OPEN BookmarkPanel count=${_bookmarks.length} pos=${_fmtDur(_position)}');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1369,6 +1395,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openPlayerSettings() {
+    DebugLogger.log('PANEL', 'OPEN PlayerSettings pos=${_fmtDur(_position)} speed=$_speed');
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => PlayerSettingsScreen(
         prefs: _prefs,
@@ -1386,15 +1413,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openHudSettings() {
+    DebugLogger.log('PANEL', 'OPEN HudSettings');
     setState(() { _showMorePanel = false; _showHudSettings = true; });
   }
 
   void _openSmartEnhance() {
+    DebugLogger.log('PANEL', 'OPEN SmartEnhance enabled=${_prefs.smartEnhanceEnabled} mode=${_prefs.smartEnhanceMode}');
     setState(() { _showMorePanel = false; _showSmartEnhance = true; });
     HapticFeedback.mediumImpact();
   }
 
   void _openSleepTimer() {
+    DebugLogger.log('PANEL', 'OPEN SleepTimer remaining=${_sleepRemainingSeconds}s atEpEnd=$_sleepAtEpisodeEnd');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1416,6 +1446,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openVideoEnhanceSuite() {
+    DebugLogger.log('PANEL', 'OPEN VideoEnhanceSuite');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1460,6 +1491,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openJumpTo() {
+    DebugLogger.log('PANEL', 'OPEN JumpTo pos=${_fmtDur(_position)} dur=${_fmtDur(_duration)}');
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1473,6 +1505,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openSpeedPresets() {
+    DebugLogger.log('PANEL', 'OPEN SpeedPresets currentSpeed=$_speed');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1496,6 +1529,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openEndAction() {
+    DebugLogger.log('PANEL', 'OPEN EndAction current=${_prefs.endOfVideoAction} hasNextEp=$_hasNextEp');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1512,6 +1546,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openZoomCrop() {
+    DebugLogger.log('PANEL', 'TOGGLE ZoomCrop→${!_showZoomOverlay} zoomLevel=${_zoomLevel.toStringAsFixed(2)} savedZoom=${_prefs.savedZoomLevel.toStringAsFixed(2)}');
     setState(() => _showZoomOverlay = !_showZoomOverlay);
     // Restore saved zoom level on first open
     if (_showZoomOverlay && _zoomLevel == 1.0 && _prefs.savedZoomLevel > 1.0) {
@@ -1522,7 +1557,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _startWakeTimer() {
     _wakeTimer?.cancel();
     if (_prefs.wakeTimeoutMins <= 0) return; // 0 = always on
+    DebugLogger.log('LIFECYCLE', 'wakeTimer SET ${_prefs.wakeTimeoutMins}min');
     _wakeTimer = Timer(Duration(minutes: _prefs.wakeTimeoutMins), () {
+      DebugLogger.logWarn('LIFECYCLE', 'wakeTimer FIRED → disabling wakelock pos=${_fmtDur(_position)} playing=$_playing');
       WakelockPlus.disable();
     });
   }
@@ -1534,6 +1571,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openSilenceSkip() {
+    DebugLogger.log('PANEL', 'OPEN SilenceSkip enabled=${_prefs.silenceSkipEnabled}');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1580,6 +1618,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _showJumpToTime() async {
+    DebugLogger.log('PANEL', 'OPEN JumpToTimeDialog pos=${_fmtDur(_position)} dur=${_fmtDur(_duration)}');
     final ctrl = TextEditingController();
     final result = await showModalBottomSheet<String>(
       context: context,
@@ -1764,6 +1803,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   
     void _initBingeGuard() {
+    DebugLogger.log('INIT', 'bingeGuard enabled=${_prefs.bingeGuardEnabled} intervalMins=${_prefs.bingeGuardIntervalMins}');
     _bingeGuardCtrl?.dispose();
     if (!_prefs.bingeGuardEnabled) return;
     _bingeGuardCtrl = BingeGuardController(
@@ -1783,6 +1823,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _initAmbilight() {
     _ambilightCtrl?.dispose();
+    DebugLogger.log('INIT', 'ambilight enabled=${_prefs.ambilightEnabled} intervalMs=${_prefs.ambilightSampleIntervalMs}');
     if (!_prefs.ambilightEnabled) return;
     _ambilightCtrl = AmbilightController(
       player: _player,
@@ -1791,6 +1832,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (mounted) setState(() => _ambilightColors = colors);
       },
     );
+    DebugLogger.log('INIT', 'ambilight started intervalMs=${_prefs.ambilightSampleIntervalMs}');
     _ambilightCtrl!.start();
   }
 
@@ -1832,6 +1874,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final _rotUpdated = _prefs.copyWith(rotationMode: mode);
     setState(() => _prefs = _rotUpdated);
     _rotUpdated.save();
+    DebugLogger.log('TAP/MODE', 'rotation applied mode=$mode');
   }
 
   String _fmtTime() {
@@ -1846,6 +1889,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     const order = ['sensor_landscape', 'auto', 'lock_left', 'lock_right', 'lock_portrait'];
     final idx = order.indexOf(_prefs.rotationMode);
     final next = order[(idx + 1) % order.length];
+    DebugLogger.log('TAP/MODE', 'cycleRotation ${_prefs.rotationMode}→$next');
     _applyRotation(next);
     HapticFeedback.selectionClick();
   }
@@ -1864,7 +1908,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Already retried once — show error overlay with a human-readable message.
       // FIX-RETRY-MSG: route through _buildJazzError so raw MPV/network error
       // strings (e.g. "Failed to open url") are never shown directly to the user.
-      if (mounted) setState(() => _streamError = _buildJazzError(reason));
+      if (mounted) {
+        setState(() => _streamError = _buildJazzError(reason));
+        _logPlayerState('jazzAutoRetry/maxRetries');
+      }
       return;
     }
     _jazzRetryCount++;
@@ -2333,6 +2380,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   /// Call at session end or dispose to record watch time to usage log.
   void _logWatchSession() {
+    DebugLogger.log('SAVE', 'logWatchSession pos=${_fmtDur(_position)} dur=${_fmtDur(_duration)} epIdx=$_currentEpIdx ended=$_ended');
     final start = _sessionStartTime;
     if (start == null) return;
     _sessionStartTime = null;
@@ -2805,7 +2853,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   @override
+  /// Snapshot all key player fields into one log line — call at error, load, transition.
+  void _logPlayerState(String trigger) {
+    final errorSnip = (_streamError != null && _streamError!.isNotEmpty)
+        ? _streamError!.substring(0, _streamError!.length.clamp(0, 60))
+        : 'none';
+    DebugLogger.log('STATE', '[$trigger] '
+        'pos=${_fmtDur(_position)} dur=${_fmtDur(_duration)} '
+        'playing=$_playing buf=$_buffering '
+        'ep=$_currentEpIdx local=$_isLocalFile loading=$_isLinkLoading '
+        'speed=$_speed hwdec=${_prefs.hwDecoderEnabled} '
+        'pip=$_inPiP locked=$_locked ended=$_ended '
+        'sfc=$_videoSurfaceReady err=$errorSnip');
+  }
+
   void dispose() {
+    DebugLogger.log('LIFECYCLE', 'dispose START pos=${_fmtDur(_position)} dur=${_fmtDur(_duration)} ended=$_ended epIdx=$_currentEpIdx local=$_isLocalFile');
     WidgetsBinding.instance.removeObserver(this);
     _hideTimer?.cancel();
     _quotaTimer?.cancel();
@@ -2902,13 +2965,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _toggleControls() {
     if (_showNextEpisode) return;
     if (_immersiveMode) return; // controls never show in immersive
+    final wasShowing = _showControls;
     setState(() => _showControls = !_showControls);
+    DebugLogger.log('TAP', 'controls ${wasShowing ? "HIDE" : "SHOW"} pos=${_fmtDur(_position)} playing=$_playing locked=$_locked');
     if (_showControls) _scheduleHide();
   }
 
   void _seekRelative(int seconds) {
     final target = _position + Duration(seconds: seconds);
-    _player.seek((target < Duration.zero ? Duration.zero : target > _duration ? _duration : target));
+    final clamped = target < Duration.zero ? Duration.zero : target > _duration ? _duration : target;
+    DebugLogger.log('SEEK', 'seekRelative ${seconds > 0 ? "+" : ""}${seconds}s from=${_fmtDur(_position)} to=${_fmtDur(clamped)} dur=${_fmtDur(_duration)}');
+    _player.seek(clamped);
     final label = seconds > 0 ? '+${seconds}s' : '${seconds}s';
     setState(() {
       if (seconds > 0) {
@@ -2928,9 +2995,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _cycleFit() {
-    final _nextIdx = (_ratioIdx + 1) % _ratios.length;
-    DebugLogger.log('TAP/VIDEO', 'cycleFit idx $_ratioIdx→$_nextIdx label=$_fitLabel');
-    setState(() => _ratioIdx = _nextIdx);
+    final nextRatioIdx = (_ratioIdx + 1) % _ratios.length;
+    DebugLogger.log('TAP/VIDEO', 'cycleFit $_fitLabel → ${_ratioLabels[nextRatioIdx]} (idx $_ratioIdx→$nextRatioIdx)');
+    setState(() => _ratioIdx = nextRatioIdx);
   }
 
   String get _fitLabel {
@@ -3586,10 +3653,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               },
               onSeekBack: () => _seekRelative(-15),
               onSeekForward: () => _seekRelative(15),
-              onLock: () => setState(() {
-                _locked = !_locked;
-                _showControls = false;
-              }),
+              onLock: () {
+                DebugLogger.log('TAP', 'lock → ${!_locked} pos=${_fmtDur(_position)}');
+                setState(() { _locked = !_locked; _showControls = false; });
+              },
               onCycleFit: _cycleFit,
               onSpeed: () => setState(() {
                 _showSpeedPicker = !_showSpeedPicker;
