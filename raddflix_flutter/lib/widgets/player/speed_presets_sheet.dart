@@ -86,9 +86,18 @@ class _SpeedPresetsSheetState extends State<SpeedPresetsSheet> {
 
   void _toggle(double speed) {
     HapticFeedback.lightImpact();
+    if (_presets.contains(speed) && _presets.length <= 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Keep at least 2 speeds in your list'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     setState(() {
       if (_presets.contains(speed)) {
-        if (_presets.length <= 2) return; // keep at least 2
         _presets.remove(speed);
       } else {
         _presets.add(speed);

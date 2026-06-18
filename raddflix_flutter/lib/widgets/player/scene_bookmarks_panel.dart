@@ -67,14 +67,14 @@ class SceneBookmarksPanel extends StatelessWidget {
               itemBuilder: (ctx, i) {
                 final bm = bookmarks[i];
                 return Dismissible(
-                  key: Key(bm.id.toString()),
+                  key: Key(bm.id?.toString() ?? bm.positionMs.toString()),
                   direction: DismissDirection.endToStart,
                   background: Container(
                     color: Colors.red.withOpacity(0.3),
                     alignment: Alignment.centerRight,
                     padding: const EdgeInsets.only(right: 20),
                     child: const Icon(Icons.delete_rounded, color: Colors.red, size: 20)),
-                  onDismissed: (_) => onDelete(bm.id!),
+                  onDismissed: (_) { if (bm.id != null) onDelete(bm.id!); },
                   child: ListTile(
                     dense: true,
                     leading: Text(bm.emoji, style: const TextStyle(fontSize: 20)),
@@ -89,7 +89,7 @@ class SceneBookmarksPanel extends StatelessWidget {
                     },
                     onLongPress: () {
                       HapticFeedback.mediumImpact();
-                      onDelete(bm.id!);
+                      if (bm.id != null) onDelete(bm.id!);
                     },
                   ),
                 );

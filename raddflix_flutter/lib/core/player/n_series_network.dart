@@ -41,7 +41,6 @@ class NetworkSpeedMonitor {
 
   double _kbps = 0;
   Timer? _timer;
-  int _lastBytes = 0;
 
   Stream<double>? _stream;
   final _ctrl = StreamController<double>.broadcast();

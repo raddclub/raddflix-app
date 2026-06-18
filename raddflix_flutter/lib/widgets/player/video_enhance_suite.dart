@@ -134,20 +134,25 @@ class _VideoEnhanceSuiteState extends State<VideoEnhanceSuite>
                .fadeIn(duration: 180.ms);
   }
 
+  static String _pctDelta(double v) {
+    final n = ((v - 1.0) * 100).round();
+    return (n >= 0 ? '+' : '') + n.toString() + '%';
+  }
+
   Widget _buildColourTab(Color acc) => ListView(
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
     children: [
       _EnhanceSlider(label: 'Brightness', icon: Icons.brightness_6_rounded,
         value: _brightness, min: 0.0, max: 2.0, neutral: 1.0, accent: acc,
-        format: (v) { final n = ((v - 1.0) * 100).round(); return (n >= 0 ? '+' : '') + n.toString() + '%'; },
+        format: _pctDelta,
         onChanged: (v) { setState(() => _brightness = v); _emit(); }),
       _EnhanceSlider(label: 'Contrast', icon: Icons.contrast_rounded,
         value: _contrast, min: 0.0, max: 3.0, neutral: 1.0, accent: acc,
-        format: (v) { final n = ((v - 1.0) * 100).round(); return (n >= 0 ? '+' : '') + n.toString() + '%'; },
+        format: _pctDelta,
         onChanged: (v) { setState(() => _contrast = v); _emit(); }),
       _EnhanceSlider(label: 'Saturation', icon: Icons.palette_rounded,
         value: _saturation, min: 0.0, max: 3.0, neutral: 1.0, accent: acc,
-        format: (v) { final n = ((v - 1.0) * 100).round(); return (n >= 0 ? '+' : '') + n.toString() + '%'; },
+        format: _pctDelta,
         onChanged: (v) { setState(() => _saturation = v); _emit(); }),
       _EnhanceSlider(label: 'Hue', icon: Icons.color_lens_rounded,
         value: _hue, min: -180.0, max: 180.0, neutral: 0.0, accent: acc,

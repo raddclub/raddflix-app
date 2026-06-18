@@ -41,14 +41,12 @@ class WatchTimeLimitService {
   int _dailyLimitMinutes = 0; // 0 = unlimited
   int _watchedTodayMinutes = 0;
   Timer? _timer;
-  String? _todayKey;
 
   final _warningCtrl = StreamController<int>.broadcast(); // seconds remaining
   Stream<int> get warnings => _warningCtrl.stream;
 
   void configure({required int dailyLimitMinutes}) {
     _dailyLimitMinutes = dailyLimitMinutes;
-    _todayKey = DateTime.now().toIso8601String().substring(0, 10);
   }
 
   void startTracking() {

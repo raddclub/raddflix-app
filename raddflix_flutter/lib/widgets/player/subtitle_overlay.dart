@@ -27,6 +27,9 @@ class SubtitleOverlay extends StatefulWidget {
 class _SubtitleOverlayState extends State<SubtitleOverlay> {
   String? _tappedWord;
 
+  static final _reTokenize = RegExp(r"[\w']+|[^\w']+");
+  static final _reWord     = RegExp(r"^[\w']+$");
+
   Alignment get _alignment {
     switch (widget.prefs.subtitlePosition) {
       case 'top':    return Alignment.topCenter;
@@ -133,15 +136,14 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
   Widget _buildTappableText(BuildContext ctx, String line, TextStyle style) {
     // Split into tokens: words and non-word characters
     final tokens = <String>[];
-    final re = RegExp(r"[\w']+|[^\w']+");
-    for (final m in re.allMatches(line)) {
+    for (final m in _reTokenize.allMatches(line)) {
       tokens.add(m.group(0)!);
     }
 
     return Wrap(
       alignment: WrapAlignment.center,
       children: tokens.map((token) {
-        final isWord = RegExp(r"^[\w']+$").hasMatch(token);
+        final isWord = _reWord.hasMatch(token);
         if (!isWord) {
           // Punctuation / spaces — render as-is
           return Text(token, style: style);

@@ -65,7 +65,7 @@ class EnhancedScreenshotService {
 
       // Try to save via MethodChannel to gallery (requires gallery saver plugin)
       // or fall back to saving in app documents
-      final saved = await _saveToGallery(finalBytes, contentTitle);
+      final saved = await _saveToGallery(finalBytes);
       raw.dispose();
       return ScreenshotResult(
           success: true,
@@ -165,7 +165,7 @@ class EnhancedScreenshotService {
     return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 
-  Future<String?> _saveToGallery(Uint8List bytes, String title) async {
+  Future<String?> _saveToGallery(Uint8List bytes) async {
     try {
       // Try native gallery saver via platform channel
       const ch = MethodChannel('com.raddflix/gallery');

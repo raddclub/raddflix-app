@@ -42,6 +42,7 @@ class _SmartEnhanceSheetState extends State<SmartEnhanceSheet>
   late final Animation<double>   _anim;
   bool _closing   = false;
   bool _beforeMode = false;  // holds "before" state while button held
+  bool _prevEnabled = true;  // saved state restored when "Before" button released
 
   // Local copy of intensity multiplier (1.0 = preset default, 0.5 = subtle, 1.5 = strong)
   late double _intensity;
@@ -66,6 +67,16 @@ class _SmartEnhanceSheetState extends State<SmartEnhanceSheet>
   }
 
   void _save(PlayerPrefs p) => widget.onPrefsChanged(p);
+
+  void _handleBeforeHold(bool hold) {
+    setState(() => _beforeMode = hold);
+    if (hold) {
+      _prevEnabled = widget.prefs.smartEnhanceEnabled;
+      _save(widget.prefs.copyWith(smartEnhanceEnabled: false));
+    } else {
+      _save(widget.prefs.copyWith(smartEnhanceEnabled: _prevEnabled));
+    }
+  }
 
   void _toggleEnabled() {
     HapticFeedback.mediumImpact();
@@ -113,15 +124,7 @@ class _SmartEnhanceSheetState extends State<SmartEnhanceSheet>
                 onToggle: _toggleEnabled,
                 onMode: _selectMode,
                 onIntensity: (v) => setState(() => _intensity = v),
-                onBeforeHold: (hold) {
-                  setState(() => _beforeMode = hold);
-                  // temporarily apply/remove enhance for live compare
-                  if (hold) {
-                    _save(widget.prefs.copyWith(smartEnhanceEnabled: false));
-                  } else {
-                    _save(widget.prefs.copyWith(smartEnhanceEnabled: true));
-                  }
-                },
+                onBeforeHold: _handleBeforeHold,
                 onClose: _dismiss,
                 isLandscape: true,
               ));
@@ -136,14 +139,7 @@ class _SmartEnhanceSheetState extends State<SmartEnhanceSheet>
                 onToggle: _toggleEnabled,
                 onMode: _selectMode,
                 onIntensity: (v) => setState(() => _intensity = v),
-                onBeforeHold: (hold) {
-                  setState(() => _beforeMode = hold);
-                  if (hold) {
-                    _save(widget.prefs.copyWith(smartEnhanceEnabled: false));
-                  } else {
-                    _save(widget.prefs.copyWith(smartEnhanceEnabled: true));
-                  }
-                },
+                onBeforeHold: _handleBeforeHold,
                 onClose: _dismiss,
                 isLandscape: false,
               ));

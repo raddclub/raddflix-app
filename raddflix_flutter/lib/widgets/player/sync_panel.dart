@@ -88,7 +88,7 @@ class _SyncPanelState extends State<SyncPanel> {
 
         // Delay display
         Text(
-          '${widget.label} is ${_delay == 0 ? 'in sync' : (_delay > 0 ? 'delayed by  +' : 'advanced by  ')}${_delay == 0 ? '' : '${_delay.abs()} ms'}',
+          '${widget.label} is ${_delay == 0 ? 'in sync' : (_delay > 0 ? 'delayed by +' : 'advanced by ')}${_delay == 0 ? '' : '${_delay.abs()} ms'}',
           style:const TextStyle(color:Colors.white70,fontSize:13),
           textAlign:TextAlign.center,
         ).animate(key:ValueKey(_delay)).fadeIn(duration:200.ms),

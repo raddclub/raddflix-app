@@ -6257,7 +6257,6 @@ class _VDSTile extends StatelessWidget {
   final _VDSBtn btn;
   const _VDSTile({required this.btn});
 
-  static const _blue   = Color(0xFF1565C0);
   static const _accent = Color(0xFFE8002D);
 
   @override
@@ -6269,13 +6268,13 @@ class _VDSTile extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         decoration: BoxDecoration(
-          color: on ? _blue : Colors.white.withOpacity(0.07),
+          color: on ? _accent : Colors.white.withOpacity(0.07),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: on ? _blue.withOpacity(0.8) : Colors.white12,
+            color: on ? _accent.withOpacity(0.8) : Colors.white12,
             width: on ? 1.5 : 1.0,
           ),
-          boxShadow: on ? [BoxShadow(color: _blue.withOpacity(0.25), blurRadius: 8)] : null,
+          boxShadow: on ? [BoxShadow(color: _accent.withOpacity(0.25), blurRadius: 8)] : null,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
