@@ -423,3 +423,53 @@ Full "hunter mode" bug audit of all 100 player-related Flutter files. 5 parallel
 - Commit: `4882ba1`
 - APK build run#27730921492 → **status: completed, conclusion: success** ✅
 - Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
+
+
+---
+
+## Session 2026-06-18 — BUG-DEBUGLOGGER-MISSING (2 build failures fixed)
+
+### Objective
+Investigate and fix 2 consecutive APK build failures (run#27753380200, run#27753231660) introduced by recent commits 9439a69 and 5ce16d8.
+
+### Root Cause
+Both commits added calls to 6 `DebugLogger` methods across 5 files, but those methods were never added to the `DebugLogger` class itself → Dart compile-time `Member not found` errors on every build.
+
+| Missing method | Called from |
+|----------------|-------------|
+| `logWarn(tag, msg)` | `remote_config.dart`, `jazzdrive_service.dart`, `usage_service.dart`, `api_client.dart`, `download_service.dart` |
+| `logApi({method, url, statusCode?, ...})` | `api_client.dart` (3 call sites, named params) |
+| `getLastLines(n) → String` | `debug_diagnostics_screen.dart:69` |
+| `shareLogs()` | `debug_diagnostics_screen.dart:301` (used as `onPressed` reference) |
+| `clearBuffer()` | `debug_diagnostics_screen.dart:325` |
+| `getLogPath() → String` | `debug_diagnostics_screen.dart:456` |
+
+### Fix applied (commit 426d78c)
+
+| Method | Implementation |
+|--------|---------------|
+| `logWarn` | `_write('WARN/$tag', msg)` |
+| `logApi` | Named params: builds parts list → `_write('API', parts.join(' \| '))` |
+| `getLastLines` | Joins `getRecent(n)` with `\n` → returns `String` |
+| `shareLogs` | Alias for `share()` — compatible with `onPressed` callback type |
+| `clearBuffer` | `_buffer.clear()` |
+| `getLogPath` | `_logPath ?? ''` |
+
+### Tasks completed
+
+| ID | Task | Status |
+|----|------|--------|
+| BUG-DEBUGLOGGER-MISSING | Add 6 missing DebugLogger methods, fix builds | ✅ DONE |
+
+### Files changed
+
+| File | Change | Commit |
+|------|--------|--------|
+| `raddflix_flutter/lib/core/debug/debug_logger.dart` | Added 6 missing methods | 426d78c |
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0
+- Latest commit: 426d78c — fix(debug_logger): add missing methods
+- APK build: triggered (awaiting result)
+- Previous passing build: run#27752025995 commit 1a4294c ✅
+- Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
