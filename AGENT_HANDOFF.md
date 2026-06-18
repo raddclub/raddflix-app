@@ -7,9 +7,9 @@ _Last updated: 2026-06-18 — HUNTER-AUDIT session_
 | Item | Status |
 |------|--------|
 | Oracle Flask | Running v3.0.0 at 92.4.95.252:5000 |
-| Last APK build | ⏳ run#27730921492, commit 4882ba1 — **IN PROGRESS** |
+| Last APK build | ✅ run#27730921492, commit 4882ba1 — **SUCCESS** |
 | Latest commit | 4882ba1 — hunter audit: 10 bugs fixed across player files |
-| Build triggered? | Yes — monitoring |
+| Build triggered? | Yes — build completed **success** |
 | Open tasks | DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 |
 
 ## What was done this session
