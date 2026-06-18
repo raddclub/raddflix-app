@@ -379,3 +379,47 @@ Full line-by-line re-audit of player_screen.dart (7,094 lines after previous fix
 - Latest APK: build run#27729363694 ✅ SUCCESS, commit c099057
 - Open tasks: DATA-01 (All Of Us Are Dead missing E03/E04/E05/E09)
 - player_screen.dart audit: complete — all actionable bugs fixed
+
+
+---
+
+## Session 2026-06-18 — HUNTER-AUDIT (10 bugs across 100 files, APK ⏳)
+
+### Objective
+Full "hunter mode" bug audit of all 100 player-related Flutter files. 5 parallel subagents dispatched covering `core/player/`, `widgets/player/`, `screens/`, and `services/`. Every confirmed bug fixed, commit pushed, APK triggered.
+
+### Audit findings and fixes
+
+| ID | File | Category | Root Cause | Fix Applied |
+|----|------|----------|-----------|-------------|
+| N-01 | `n_series_network.dart` | Dead code | `_lastBytes int` declared at line 44, never read or written after declaration | Removed field |
+| P-01 | `p_series_parental.dart` | Dead code | `_todayKey String?` field computed in `configure()` but never read | Removed field + assignment |
+| ESS-01 | `enhanced_screenshot_service.dart` | Dead code | `title` param in `_saveToGallery(bytes, title)` never used in method body | Removed `title` param; updated call site |
+| SYN-01 | `sync_panel.dart` | UX text | `'delayed by  +'` had two spaces before `+` — visual glitch in delay status string | Fixed to `'delayed by +'` |
+| SBP-01 | `scene_bookmarks_panel.dart` | Null safety | `Dismissible(key: Key(bm.id.toString()))` + `onDismissed: (_) => onDelete(bm.id!)` crashes if SQLite row has no id | `key: Key(bm.id?.toString() ?? bm.positionMs.toString())`; `onDismissed` and `onLongPress` both guard `if (bm.id != null)` |
+| SES-01 | `smart_enhance_sheet.dart` | Logic | Before/After hold button released → blindly called `copyWith(smartEnhanceEnabled: true)` — if user had enhance OFF, releasing "Before" would turn it ON | Added `_prevEnabled` field; `_handleBeforeHold()` caches value on press, restores it on release |
+| SES-02 | `smart_enhance_sheet.dart` | DRY | Portrait and landscape branches each had an identical inline `onBeforeHold` lambda (6 lines × 2) | Extracted into `_handleBeforeHold(bool hold)` method; both branches pass `_handleBeforeHold` |
+| SUB-01 | `subtitle_overlay.dart` | Performance | `RegExp(r"[\w']+|[^\w']+")` and `RegExp(r"^[\w']+$")` declared as local `final` variables inside `_buildTappableText` — recreated on every subtitle build call and for every token | Promoted to `static final _reTokenize` / `_reWord` class fields |
+| VES-01 | `video_enhance_suite.dart` | DRY | `(v) { final n = ((v-1.0)*100).round(); return (n>=0?'+':'')+n.toString()+'%'; }` lambda copy-pasted 3× for Brightness/Contrast/Saturation sliders | Extracted into `static String _pctDelta(double v)`; all 3 sliders pass `_pctDelta` |
+| SPS-01 | `speed_presets_sheet.dart` | Silent failure | `_toggle()` returned silently (no feedback) when user tried to remove a preset with `_presets.length <= 2` | Added `ScaffoldMessenger.showSnackBar('Keep at least 2 speeds in your list')` before returning |
+| VDS-01 | `player_screen.dart` | Visual | `_VDSTile` active state used hardcoded `_blue` (0xFF1565C0) — `_accent` (0xFFE8002D, RaddFlix red) was already defined in the class as `static const` but never referenced | Removed `_blue`; all 3 active-state references now use `_accent` |
+
+### Files changed (commit 4882ba1)
+
+| File | Change |
+|------|--------|
+| `raddflix_flutter/lib/core/player/n_series_network.dart` | Removed `_lastBytes` field |
+| `raddflix_flutter/lib/core/player/p_series_parental.dart` | Removed `_todayKey` field + assignment |
+| `raddflix_flutter/lib/core/player/enhanced_screenshot_service.dart` | Removed `title` param from `_saveToGallery` |
+| `raddflix_flutter/lib/widgets/player/sync_panel.dart` | Fixed double-space in delay string |
+| `raddflix_flutter/lib/widgets/player/scene_bookmarks_panel.dart` | Null-safe bm.id in Dismissible + callbacks |
+| `raddflix_flutter/lib/widgets/player/smart_enhance_sheet.dart` | Before/After state preservation + DRY extraction |
+| `raddflix_flutter/lib/widgets/player/subtitle_overlay.dart` | RegExp promoted to static final |
+| `raddflix_flutter/lib/widgets/player/video_enhance_suite.dart` | Format lambda extracted to _pctDelta() |
+| `raddflix_flutter/lib/widgets/player/speed_presets_sheet.dart` | SnackBar on min-presets guard |
+| `raddflix_flutter/lib/screens/player_screen.dart` | _VDSTile: _blue → _accent |
+
+### Result
+- Commit: `4882ba1`
+- APK build run#27730921492 → **in progress at time of writing**
+- Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
