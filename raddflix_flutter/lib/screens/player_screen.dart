@@ -331,6 +331,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   List<SceneBookmark> _bookmarks = [];
   bool _showBookmarksPanel = false;
 
+  // ── Debug overlay (tap clock 5× to toggle) ────────────────────────────────
+  bool _debugOverlayVisible = false;
+  int  _debugTapCount = 0;
+  Timer? _debugTapTimer;
+
   // ── Phase 3K: A-B Loop ────────────────────────────────────────────────────
   final AbLoopController _abLoop = AbLoopController();
   bool _showAbPanel = false;
@@ -400,6 +405,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _loadBookmarks();
     _checkQuota();
     _quotaTimer = Timer.periodic(const Duration(minutes: 5), (_) => _checkQuota());
+    DebugLogger.init();
+    DebugLogger.log('PLAYER', 'initState fileId=${widget.fileId} local=${widget.localPath}');
       HardwareKeyboard.instance.addHandler(_onHardwareKey);
     }
 
@@ -853,6 +860,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   /// Triple-tap center = Rage Skip
   void _handleCenterTap() {
+    DebugLogger.log('TAP', 'center tap ctrl=$_showControls locked=$_locked imm=$_immersiveMode bk=$_showBookmarksPanel more=$_showMorePanel qs=$_showQuickSettings binge=$_showBingeGuard load=$_isLinkLoading');
     if (_rageSkipActive) return; // FIX-L05: block double-fire during animation
     // Immersive mode: tap = play/pause only, never show controls.
     if (_immersiveMode) {
@@ -1718,6 +1726,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       thresholdMinutes: _prefs.bingeGuardThresholdMinutes,
       onThreshold: () {
         if (mounted) {
+          DebugLogger.log('BINGE', 'threshold hit threshold=${_prefs.bingeGuardThresholdMinutes}min');
           _player.pause();
           setState(() {
             _showBingeGuard = true;
@@ -1814,6 +1823,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     _jazzRetryCount++;
+    DebugLogger.log('LOAD', 'isLinkLoading→true jazz retry #$_jazzRetryCount');
     if (mounted) {
       setState(() {
         _streamError = null;
@@ -1951,6 +1961,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
     _player.stream.playing.listen((p) {
       if (!mounted) return;
+      DebugLogger.log('PLAY', 'playing→$p sfc=$_videoSurfaceReady load=$_isLinkLoading binge=$_showBingeGuard ctrl=$_showControls');
       setState(() {
         _playing = p;
         if (p) _videoSurfaceReady = true; // FIX-PLAYER-02: latch on first frame
@@ -2075,6 +2086,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // FIX-STALE-ERR: clear stale error AND show spinner in one setState —
     // prevents the old error overlay from showing while link generation runs.
+    DebugLogger.log('LOAD', 'isLinkLoading→true _openMedia start');
     if (mounted) setState(() { _streamError = null; _isLinkLoading = true; });
 
     // Step 0.5: Read inline share_url from route args BEFORE any await
@@ -2717,6 +2729,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _wakeTimer?.cancel();
     _jazzRetryTimer?.cancel();
     _tapTimer?.cancel();
+    _debugTapTimer?.cancel();
     _piTimer?.cancel(); // FIX-H05
     _ambilightCtrl?.dispose();
     _bingeGuardCtrl?.dispose();
@@ -2772,6 +2785,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _hideTimer?.cancel();
     final secs = _prefs.autoHideSeconds;
     if (secs <= 0) return; // never auto-hide
+    DebugLogger.log('HIDE', 'scheduleHide(${secs}s)');
     _hideTimer = Timer(Duration(seconds: secs), () {
       if (mounted &&
           !_showSpeedPicker &&
@@ -2789,6 +2803,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           !_showVideoDisplay &&
           !_showJumpPanel &&        // BUG-P05 FIX: was missing — JumpTo panel left floating
           !_showTransparentSlider) {
+        DebugLogger.log('HIDE', 'CONTROLS HIDDEN bk=$_showBookmarksPanel more=$_showMorePanel qs=$_showQuickSettings binge=$_showBingeGuard load=$_isLinkLoading playing=$_playing sfc=$_videoSurfaceReady');
         setState(() => _showControls = false);
       }
     });
@@ -3779,11 +3794,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             ),
 
-          // ── Clock overlay (always visible when controls hidden) ──
+          // ── Clock overlay — tap 5× rapidly to toggle debug overlay ──
           if (!_showControls && !_locked)
             Positioned(
               top: 10, right: 16,
-              child: IgnorePointer(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () {
+                  _debugTapCount++;
+                  _debugTapTimer?.cancel();
+                  _debugTapTimer = Timer(const Duration(milliseconds: 1500), () {
+                    if (_debugTapCount >= 5) {
+                      setState(() => _debugOverlayVisible = !_debugOverlayVisible);
+                      DebugLogger.log('DEBUG', 'overlay toggled → $_debugOverlayVisible');
+                    }
+                    _debugTapCount = 0;
+                  });
+                },
                 child: Text(
                   _clockStr,
                   style: const TextStyle(
@@ -4220,8 +4247,134 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               },
               onClose: () => setState(() => _showTransparentSlider = false),
             ),
+
+          // ── Debug Overlay (5-tap clock in top-right to toggle) ──────────
+          if (_debugOverlayVisible)
+            _buildDebugOverlay(),
         ]),
       );
+  }
+
+  Widget _buildDebugOverlay() {
+    final flags = <String, bool>{
+      'CTRL':  _showControls,
+      'LOCK':  _locked,
+      'IMM':   _immersiveMode,
+      'LOAD':  _isLinkLoading,
+      'PLAY':  _playing,
+      'BUF':   _buffering,
+      'SFC':   _videoSurfaceReady,
+      'ERR':   _streamError != null,
+      'LOCAL': _isLocalFile,
+      'BINGE': _showBingeGuard,
+      'MORE':  _showMorePanel,
+      'BK':    _showBookmarksPanel,
+      'AB':    _showAbPanel,
+      'QS':    _showQuickSettings,
+      'EQ':    _showEqPanel,
+      'SPD':   _showSpeedPicker,
+      'SLP':   _showSleepMenu,
+      'SUB':   _showSubtitleMenu,
+      'AUD':   _showAudioMenu,
+      'VID':   _showVideoEnhance,
+      'JUMP':  _showJumpPanel,
+      'HUD':   _showHudSettings,
+    };
+    DebugLogger.logState('DBGSNAP', {
+      for (final e in flags.entries) e.key: e.value ? '1' : '0',
+      'dur': _fmtDur(_duration), 'pos': _fmtDur(_position),
+    });
+    final recent = DebugLogger.getRecent(30);
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withOpacity(0.88),
+        child: SafeArea(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            // Header
+            Container(
+              color: const Color(0xFF1A1A2E),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(children: [
+                const Text('🐛 RaddFlix Debug', style: TextStyle(color: Colors.greenAccent, fontSize: 13, fontWeight: FontWeight.w700)),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () async {
+                    await DebugLogger.copyToClipboard();
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Log copied to clipboard'), duration: Duration(seconds: 2)));
+                  },
+                  icon: const Icon(Icons.copy, size: 14, color: Colors.white70),
+                  label: const Text('Copy', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                  style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2)),
+                ),
+                TextButton.icon(
+                  onPressed: () => DebugLogger.share(),
+                  icon: const Icon(Icons.share, size: 14, color: Colors.cyanAccent),
+                  label: const Text('Share Log', style: TextStyle(color: Colors.cyanAccent, fontSize: 11)),
+                  style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2)),
+                ),
+                IconButton(
+                  onPressed: () => setState(() => _debugOverlayVisible = false),
+                  icon: const Icon(Icons.close, color: Colors.white54, size: 18),
+                  padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+                ),
+              ]),
+            ),
+            // State flags
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Wrap(spacing: 6, runSpacing: 4,
+                children: flags.entries.map((e) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: e.value ? Colors.red.withOpacity(0.85) : Colors.green.withOpacity(0.25),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: e.value ? Colors.redAccent : Colors.green.withOpacity(0.5), width: 0.8),
+                  ),
+                  child: Text(
+                    '${e.key}:${e.value ? "ON" : "off"}',
+                    style: TextStyle(color: e.value ? Colors.white : Colors.white54, fontSize: 10, fontWeight: e.value ? FontWeight.w700 : FontWeight.normal),
+                  ),
+                )).toList(),
+              ),
+            ),
+            // Position / duration
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Text(
+                'pos=${_fmtDur(_position)}  dur=${_fmtDur(_duration)}  entries=${DebugLogger.entryCount}',
+                style: const TextStyle(color: Colors.white60, fontSize: 10),
+              ),
+            ),
+            const Divider(color: Colors.white12, height: 10),
+            // Recent log
+            const Padding(
+              padding: EdgeInsets.only(left: 10, bottom: 2),
+              child: Text('─── Recent Log ───', style: TextStyle(color: Colors.white38, fontSize: 9)),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                reverse: true,
+                itemCount: recent.length,
+                itemBuilder: (_, i) {
+                  final line = recent[recent.length - 1 - i];
+                  final isErr = line.contains('[ERR/') || line.contains('[BINGE]') || line.contains('HIDDEN');
+                  final isWarn = line.contains('LOAD') || line.contains('BINGE');
+                  return Text(
+                    line,
+                    style: TextStyle(
+                      color: isErr ? Colors.redAccent : isWarn ? Colors.orangeAccent : Colors.white70,
+                      fontSize: 9,
+                      fontFamily: 'monospace',
+                    ),
+                  );
+                },
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 }
 

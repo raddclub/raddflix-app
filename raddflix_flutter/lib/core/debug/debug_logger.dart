@@ -1,169 +1,94 @@
+/// RaddFlix Player Debug Logger
+/// Keeps an in-memory ring buffer (2 000 entries) and writes to a temp file.
+/// Activate the in-player debug overlay by tapping the clock (top-right) 5× rapidly.
+/// Then press "Share Log" inside the overlay to send the log file.
+
 import 'dart:io';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
-const bool kDebugLogging = true;
-
 class DebugLogger {
-  static File? _logFile;
-  static final List<String> _memBuffer = [];
-  static const int _maxMemLines = 3000;
-  static DateTime? _startTime;
+  static const int _maxEntries = 2000;
+  static final List<String> _buffer = [];
+  static IOSink? _sink;
+  static String? _logPath;
 
   static Future<void> init() async {
-    if (!kDebugLogging) return;
-    _startTime = DateTime.now();
+    _write('INIT', '=== RaddFlix Debug Session Start ===');
     try {
-      Directory? dir;
-      if (Platform.isAndroid) {
-        dir = await getExternalStorageDirectory();
+      // Write to system temp — no storage permission needed, always writable.
+      final tmp = Directory.systemTemp;
+      _logPath = '${tmp.path}/raddflix_player.log';
+      final f = File(_logPath!);
+      // Rotate if file grows over 3 MB.
+      if (f.existsSync() && f.lengthSync() > 3 * 1024 * 1024) {
+        f.deleteSync();
       }
-      dir ??= await getApplicationDocumentsDirectory();
-      _logFile = File('${dir.path}/raddflix_debug.log');
-      if (await _logFile!.exists()) await _logFile!.delete();
-      _raw('=' * 70);
-      _raw('RADDFLIX DEBUG LOG  |  Session: ${DateTime.now().toIso8601String()}');
-      _raw('=' * 70);
+      _sink = f.openWrite(mode: FileMode.append);
+      _sink?.writeln('[${_ts()}] [INIT] === RaddFlix Debug Session Start ===');
     } catch (e) {
-      print('[DebugLogger] init error: $e');
+      _write('INIT', 'File logger failed: $e (in-memory only)');
     }
   }
 
-  static Future<void> logDeviceInfo() async {
-    if (!kDebugLogging) return;
-    try {
-      if (Platform.isAndroid) {
-        final info = DeviceInfoPlugin();
-        final a = await info.androidInfo;
-        log('DEVICE', 'Manufacturer: ${a.manufacturer}  Model: ${a.model}');
-        log('DEVICE', 'Android: ${a.version.release}  SDK: ${a.version.sdkInt}');
-        log('DEVICE', 'Physical: ${a.isPhysicalDevice}  Brand: ${a.brand}');
-        log('DEVICE', 'Fingerprint: ${a.fingerprint}');
-      }
-    } catch (e) {
-      logError('DEVICE', 'Failed to get device info', e);
-    }
-  }
+  static void log(String tag, String msg) => _write(tag, msg);
 
-  static void log(String tag, String message) {
-    if (!kDebugLogging) return;
-    _raw('[${_ts()}] [INFO ] [$tag] $message');
-  }
+  static void logError(String tag, String msg, [Object? err]) =>
+      _write('ERR/$tag', err != null ? '$msg | $err' : msg);
 
-  static void logWarn(String tag, String message) {
-    if (!kDebugLogging) return;
-    _raw('[${_ts()}] [WARN ] [$tag] $message');
-  }
+  static void logState(String tag, Map<String, dynamic> state) =>
+      _write(tag, state.entries.map((e) => '${e.key}=${e.value}').join(' | '));
 
-  static void logError(String tag, String message,
-      [dynamic error, StackTrace? stack]) {
-    if (!kDebugLogging) return;
-    _raw('[${_ts()}] [ERROR] [$tag] $message');
-    if (error != null) _raw('         └─ $error');
-    if (stack != null) {
-      for (final l in stack.toString().split('\n').take(8)) {
-        _raw('            $l');
-      }
-    }
-  }
-
-  static void logCrash(String context, dynamic error, StackTrace? stack) {
-    if (!kDebugLogging) return;
-    _raw('[${_ts()}] [CRASH] [$context] $error');
-    if (stack != null) {
-      for (final l in stack.toString().split('\n').take(15)) {
-        _raw('   $l');
-      }
-    }
-  }
-
-  static void logApi({
-    required String method,
-    required String url,
-    int? statusCode,
-    String? responsePreview,
-    dynamic error,
-    int? durationMs,
-    String? requestBody,
-  }) {
-    if (!kDebugLogging) return;
-    final dur = durationMs != null ? ' ${durationMs}ms' : '';
-    if (error != null) {
-      _raw('[${_ts()}] [API  ] $method $url →$dur ERROR: $error');
-    } else {
-      _raw('[${_ts()}] [API  ] $method $url →$dur HTTP $statusCode');
-      if (responsePreview != null && responsePreview.isNotEmpty) {
-        final p = responsePreview.length > 700
-            ? '${responsePreview.substring(0, 700)}…[truncated ${responsePreview.length} chars]'
-            : responsePreview;
-        _raw('         └─ $p');
-      }
-    }
-    if (requestBody != null && requestBody.isNotEmpty) {
-      _raw('         └─ REQ: $requestBody');
-    }
-  }
-
-  static void logNav(String route, {String? args}) {
-    if (!kDebugLogging) return;
-    _raw(
-        '[${_ts()}] [NAV  ] → $route${args != null && args.isNotEmpty ? "  args=$args" : ""}');
-  }
-
-  static void logDb(String op, String detail) {
-    if (!kDebugLogging) return;
-    _raw('[${_ts()}] [DB   ] $op: $detail');
-  }
-
-  static void logSync(String stage, String detail) {
-    if (!kDebugLogging) return;
-    _raw('[${_ts()}] [SYNC ] $stage: $detail');
-  }
-
-  static void logUi(String widget, String event) {
-    if (!kDebugLogging) return;
-    _raw('[${_ts()}] [UI   ] [$widget] $event');
+  static void _write(String tag, String msg) {
+    final entry = '[${_ts()}] [$tag] $msg';
+    _buffer.add(entry);
+    if (_buffer.length > _maxEntries) _buffer.removeAt(0);
+    try { _sink?.writeln(entry); } catch (_) {}
   }
 
   static String _ts() {
-    final now = DateTime.now();
-    final up = _startTime != null
-        ? '+${now.difference(_startTime!).inSeconds}s'
-        : '';
-    final h = now.hour.toString().padLeft(2, '0');
-    final m = now.minute.toString().padLeft(2, '0');
-    final s = now.second.toString().padLeft(2, '0');
-    return '$h:$m:$s $up';
+    final n = DateTime.now();
+    final hh = n.hour.toString().padLeft(2, '0');
+    final mm = n.minute.toString().padLeft(2, '0');
+    final ss = n.second.toString().padLeft(2, '0');
+    final ms = n.millisecond.toString().padLeft(3, '0');
+    return '$hh:$mm:$ss.$ms';
   }
 
-  static void _raw(String line) {
-    print(line);
-    _memBuffer.add(line);
-    if (_memBuffer.length > _maxMemLines) _memBuffer.removeAt(0);
-    try {
-      _logFile?.writeAsString('$line\n', mode: FileMode.append).ignore();
-    } catch (_) {}
+  /// Returns up to [n] most recent log entries.
+  static List<String> getRecent([int n = 150]) => _buffer.length <= n
+      ? List.of(_buffer)
+      : _buffer.sublist(_buffer.length - n);
+
+  /// Copies entire log to clipboard.
+  static Future<void> copyToClipboard() async {
+    await Clipboard.setData(ClipboardData(text: _buffer.join('\n')));
   }
 
-  static String getLogPath() => _logFile?.path ?? 'in-memory only';
+  /// Flushes the file sink.
+  static Future<void> flush() async {
+    try { await _sink?.flush(); } catch (_) {}
+  }
 
-  static String getLastLines(int n) =>
-      _memBuffer.length <= n
-          ? _memBuffer.join('\n')
-          : _memBuffer.sublist(_memBuffer.length - n).join('\n');
-
-  /// Clears the in-memory log buffer (does not delete the log file).
-  static void clearBuffer() => _memBuffer.clear();
-
-  static Future<void> shareLogs() async {
+  /// Shares the log file via the system share sheet.
+  static Future<void> share() async {
     try {
-      final path = _logFile?.path;
-      if (path != null && await File(path).exists()) {
-        await Share.shareXFiles([XFile(path)], subject: 'RaddFlix Debug Log');
+      await flush();
+      if (_logPath != null && File(_logPath!).existsSync()) {
+        await Share.shareXFiles(
+          [XFile(_logPath!)],
+          subject: 'RaddFlix Player Debug Log',
+          text: 'Debug log — please share with RaddFlix support.',
+        );
         return;
       }
     } catch (_) {}
-    await Share.share(getLastLines(500), subject: 'RaddFlix Debug Log');
+    // Fallback: share as plain text.
+    try {
+      await Share.share(_buffer.join('\n'), subject: 'RaddFlix Player Debug Log');
+    } catch (_) {}
   }
+
+  static String? get logPath => _logPath;
+  static int get entryCount => _buffer.length;
 }
