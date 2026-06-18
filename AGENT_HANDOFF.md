@@ -50,9 +50,9 @@
   - DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 — catalog data, not code
 
   ## Current Build Status
-  - Last code commit: 4454e04f (PlaybackTimeline probes in player_screen.dart)
+  - Last code commit: 773a26b8 (add missing PlaybackTimeline import to player_screen.dart)
   - Other commits this session: 5dd1ffde (playback_timeline.dart new), ff40236a (debug_diagnostics_screen.dart + Player tab)
-  - Build needs to be triggered manually via CI
+  - Build #1148 ✅ SUCCESS — artifact: RaddFlix-1.0.0+1-build1148.apk (57.1 MB)
   - Oracle: RUNNING v3.0.0
 
   ## Next Agent Instructions
