@@ -1,5 +1,5 @@
 # agent-hub/CONTEXT.md — RaddFlix System Context
-Last updated: 2026-06-07
+Last updated: 2026-06-18
 
 ## What is RaddFlix?
 Pakistani Flutter streaming app. Content is zero-rated (free data) on Jazz SIM via JazzDrive.
@@ -131,3 +131,11 @@ radd-hub/hub/
 Use Contents API for 1-2 files, Trees API for 3+ files (atomic commit).
 See AGENT_PROMPT.md Step 3 for the exact Node.js templates.
 Always fetch fresh SHA immediately before PUT — stale SHA = 409 conflict.
+
+---
+
+## Session 2026-06-18 — PlaybackTimeline Diagnostics
+- FIX-VF-STARTUP: `_videoOpened=true` set synchronously before every `_player.open()` — closes MediaTek 200-500ms race window
+- FEAT-TIMELINE: `PlaybackTimeline` singleton with 10 probes + 3s black screen auto-detector
+- New "Player" tab in Diagnostics screen (Profile → tap version 5×)
+- Build #1148/#1149 triggered (import fix: added missing `playback_timeline.dart` import to `player_screen.dart`)
