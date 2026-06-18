@@ -836,7 +836,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return; // dedup — no-op vf= still resets HW pipeline
     }
     _lastAppliedVf = vf;
-    DebugLogger.log('VIDEO', 'videoPrefs colorblind=${p.colorBlindMode} sharp=${p.sharpness.toStringAsFixed(2)} bright=${p.brightness.toStringAsFixed(2)} contrast=${p.contrast.toStringAsFixed(2)} saturation=${p.saturation.toStringAsFixed(2)} deband=${p.debandingEnabled} smartEnhance=${p.smartEnhanceEnabled}(${p.smartEnhanceMode})');
+    DebugLogger.log('VIDEO', 'videoPrefs colorblind=${p.colorBlindMode} sharp=${p.sharpnessEnabled}(${p.sharpness.toStringAsFixed(2)}) bright=${p.brightness.toStringAsFixed(2)} contrast=${p.contrast.toStringAsFixed(2)} sat=${p.saturation.toStringAsFixed(2)} night=${p.nightMode} smartEnhance=${p.smartEnhanceEnabled}(${p.smartEnhanceMode})');
     DebugLogger.log('VIDEO', 'vf= SET "${vf.isEmpty ? "(empty)" : vf.length > 80 ? vf.substring(0, 80) + "…" : vf}" playing=$_playing mpvPlay=${_player.state.playing} sfc=$_videoSurfaceReady');
     await _np.setProperty('vf', vf);
 
@@ -2122,7 +2122,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _player.stream.tracks.listen((tracks) {
       if (!mounted) return;
       final aud = tracks.audio.length;
-      final sub = tracks.sub.length;
+      final sub = tracks.subtitle.length;
       final vid = tracks.video.length;
       DebugLogger.log('TRACK', 'tracklist UPDATE audio=$aud sub=$sub video=$vid epIdx=$_currentEpIdx');
       if (_activeAudioIdx == 0) _restoreTrackMemory();
