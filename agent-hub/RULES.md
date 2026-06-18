@@ -143,3 +143,26 @@ Last updated: 2026-06-09 (added Rules 32–38 — RemoteConfig, sync, confirm/pr
 29. Update `HANDOFF_NEXT.md` with what was done + what's next
 30. Update `PLAYER_SPEC.md` if any player architecture changed
 31. Push ALL doc changes to GitHub before ending session
+
+
+---
+
+## Dart/Flutter Rules (added 2026-06-18)
+
+**Rule 39: `PlatformDispatcher` requires `dart:ui`.**
+`import 'dart:ui' show PlatformDispatcher;` must be added explicitly.
+`package:flutter/material.dart` does NOT re-export it in Flutter 3.22.3.
+Forgetting this causes `Undefined name 'PlatformDispatcher'` → build fails for every commit.
+
+**Rule 40: Verify DebugLogger methods exist before calling them.**
+Before adding any `DebugLogger.methodName()` call to any file, confirm the method is
+declared in `lib/core/debug/debug_logger.dart`. Past failures: 6 missing methods caused
+2 consecutive build failures (run#27753380200, run#27753231660).
+Current v2 method list: `log`, `logError`, `logWarn`, `logApi`, `logState`, `logTap`,
+`logNav`, `logLifecycle`, `logFeature`, `logCrash`, `getLastLines`, `getRecent`,
+`getFiltered`, `clearBuffer`, `getLogPath`, `copyToClipboard`, `flush`, `share`, `shareLogs`.
+
+**Rule 41: Never parallel-push multiple commits to GitHub.**
+Always push commits SEQUENTIALLY with ≥1.2s delay between each push.
+Parallel PUT requests to the GitHub Contents API create branch tree SHA conflicts
+(second push cannot resolve parent commit SHA while first is in-flight).
