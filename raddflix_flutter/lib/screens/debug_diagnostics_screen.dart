@@ -40,12 +40,12 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 2, initialIndex: 1, vsync: this);
     _tabs.addListener(() {
       if (_tabs.index == 1 && !_tabs.indexIsChanging) _startLogTimer();
       if (_tabs.index == 0 && !_tabs.indexIsChanging) _stopLogTimer();
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _runAll());
+    WidgetsBinding.instance.addPostFrameCallback((_) { _runAll(); _startLogTimer(); });
   }
 
   @override
