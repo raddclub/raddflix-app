@@ -1,62 +1,97 @@
 # RaddFlix Agent Handoff
 
-_Last updated: 2026-06-18 — BUG-DEBUGLOGGER-MISSING fixed, APK ✅_
+_Last updated: 2026-06-18 — Comprehensive debug logging added to all screens, build ✅_
 
 ## Current State
 
 | Item | Status |
 |------|--------|
 | Oracle Flask | Running v3.0.0 at 92.4.95.252:5000 |
-| Last APK build | ⏳ triggered after commits 8c8f331 + 2b9e051 — awaiting result |
-| Latest commit | 2b9e051 — debug screen opens on Logs tab by default |
+| Last APK build | ✅ SUCCESS — commit `96f8cc1` (dart:ui fix, build passed) |
+| Latest commit | `96f8cc1` — fix(build): add dart:ui import for PlatformDispatcher in main.dart |
 | Open tasks | DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 |
 
-## What was done this session
+## What was done this session (2026-06-18)
 
-Made debug diagnostics screen directly accessible:
-1. `profile_screen.dart` — added visible "Debug Logs" tile in Account section (one tap, always visible). Old 5-tap on version text still works as backup.
-2. `debug_diagnostics_screen.dart` — opens on Logs tab by default; log timer auto-starts so logs appear immediately without switching tabs.
+Implemented **maximum comprehensive debug logging** — every crash, black screen, user tap, navigation event, and player error is now captured and visible in the debug log screen.
+
+### DebugLogger v2 (commit `613f686`) — `lib/core/debug/debug_logger.dart`
+| Addition | Detail |
+|----------|--------|
+| Buffer size | 1000 → 5000 entries |
+| Log rotation | 8 MB max (was 5 MB) |
+| New: `logTap(screen, action, [detail])` | Logs every user tap with screen + action |
+| New: `logNav(action, route, [detail])` | Logs every navigation event |
+| New: `logLifecycle(screen, event)` | Logs initState/dispose for every screen |
+| New: `logFeature(feature, [params])` | Logs feature usage |
+| New: `logCrash(tag, error, stack)` | Logs crashes with full stack |
+| New: `getFiltered(tagFragment)` | Returns entries where tag contains fragment |
+| Auto-flush | Every 30 seconds (was manual only) |
+| Session ID | `_sessionId` — UUID embedded in every log file |
+
+### Global crash handler — `lib/main.dart` (commits `bb59f50` + `96f8cc1`)
+- `PlatformDispatcher.instance.onError` catches **all** uncaught Dart errors (requires `import 'dart:ui' show PlatformDispatcher;`)
+- `DebugLogger.init()` called at very first line of `main()` before anything else
+- Any crash before `runApp()` is now captured
+
+### Global navigation logging — `lib/app.dart` (commit `d5a449c`)
+- `_RaddNavObserver` implements `NavigatorObserver`
+- Every push/pop/replace/remove logs: `[NAV] PUSH /route | from=/prev`
+- Registered globally in `MaterialApp.navigatorObservers`
+
+### Screens patched with full logging
+
+| Screen | Commit | What's logged |
+|--------|--------|---------------|
+| `player_screen.dart` | `2413c3f` | 13 crash paths: initPlayer, hwdec guard, vf= gate, setSpeed, open() URLs, buffering stream, completed event, error stream, jazzAutoRetry, onSwDecoderChanged |
+| `home_screen.dart` | `9c55499` | lifecycle + bottom nav tabs + filter chips + hero card taps |
+| `show_detail_screen.dart` | `69a7d63` | lifecycle + play/download episode taps with title+id |
+| `search_screen.dart` | `f739564` | lifecycle + query changes + filter changes + clearAll + suggestion taps + result taps |
+| `profile_screen.dart` | `198033b` | lifecycle + subscription/watchlist/history/downloads tabs |
+| `downloads_screen.dart` | `1e7128f` | lifecycle + play-download tap |
+
+### Build fix (commit `96f8cc1`)
+- `PlatformDispatcher` not in `package:flutter/material.dart` — requires explicit `import 'dart:ui' show PlatformDispatcher;`
+- All 4 prior failures (commits `d5a449c`, `9c55499`, `69a7d63`, `bb59f50`) cascaded from this missing import
+- Fix pushed as `96f8cc1` — build ✅ SUCCESS
 
 ---
 
-## Previous session
+## Previous session (2026-06-18, earlier)
 
-Investigated 2 consecutive APK build failures (run#27753380200 commit 5ce16d8, run#27753231660 commit 9439a69). Both failed at "Build release APK" step with `Member not found` Dart compile errors for 6 `DebugLogger` methods that were called across 5 files but never existed in the class:
+Made debug diagnostics screen directly accessible:
+1. `profile_screen.dart` — added visible "Debug Logs" tile in Account section (one tap, always visible)
+2. `debug_diagnostics_screen.dart` — opens on Logs tab by default; log timer auto-starts
 
-- `logWarn(tag, msg)` — called in `remote_config.dart`, `jazzdrive_service.dart`, `usage_service.dart`, `api_client.dart`, `download_service.dart`
-- `logApi({method, url, ...})` — called in `api_client.dart` with named params
-- `getLastLines(n)` → `String` — called in `debug_diagnostics_screen.dart`
-- `shareLogs()` — used as `onPressed` callback in `debug_diagnostics_screen.dart`
-- `clearBuffer()` — called in `debug_diagnostics_screen.dart`
-- `getLogPath()` → `String` — called in `debug_diagnostics_screen.dart`
+---
 
-All 6 methods added to `lib/core/debug/debug_logger.dart` in commit `426d78c`. APK build confirmed **SUCCESS** (run#27754376552).
+## How to read debug logs (on device)
+1. Open app → Profile → Account → **Debug Logs**
+2. Filter chips: tap **CRASH** first, then **ERR**, then **VIDEO** or **AUDIO**
+3. Tap **Share** (top right) to export `.log` file
+
+---
 
 ## Critical Rules — never violate
 
 | Rule | Detail |
 |------|--------|
-| vf= mid-play guard | NEVER call `_np.setProperty('vf', ...)` while playing from startup code paths. Must check `_firstVfApplied` gate and `_lastAppliedVf` dedup. On MediaTek/Infinix HW decoder, even empty `vf=` destroys GL surface. |
+| vf= mid-play guard | NEVER call `_np.setProperty('vf', ...)` while playing from startup code paths. Must check `_firstVfApplied` gate and `_lastAppliedVf` dedup. |
 | sqflite_sqlcipher | NEVER upgrade past 3.1.0+1 — breaks encrypted DB on older Android. |
 | androidAttachSurface | NEVER add `androidAttachSurfaceAfterVideoParameters:true` — HW decoder crash. |
 | XOR padding fix | `request_encoder.dart` XOR padding must stay. Do not revert. |
 | Icons | Never use `Icons.replay_15_rounded` / `forward_15_rounded` — don't exist in Flutter 3.22.3. Use `replay_10` / `forward_10`. |
-| GitHub push | GitHub API only — never `git push` from shell. Push files SEQUENTIALLY (never parallel) — parallel creates branch tree SHA conflicts. Use Trees API for multi-file atomic commits. |
+| GitHub push | GitHub API only — never `git push` from shell. Push files SEQUENTIALLY (never parallel). |
 | DebugDiagnosticsScreen | Do NOT re-add `kDebugMode` gate — intentionally release-accessible. |
-| _np getter shadow | Never name a local variable `_np` inside `player_screen.dart` — it shadows the `NativePlayer get _np` class getter. |
-| DebugLogger methods | When adding calls to `DebugLogger.*` in any file, ensure the method exists in `lib/core/debug/debug_logger.dart` first. Class has: `log`, `logError`, `logWarn`, `logApi`, `logState`, `getLastLines`, `getRecent`, `clearBuffer`, `getLogPath`, `copyToClipboard`, `flush`, `share`, `shareLogs`. |
+| _np getter shadow | Never name a local variable `_np` inside `player_screen.dart` — shadows the `NativePlayer get _np` getter. |
+| PlatformDispatcher import | Requires `import 'dart:ui' show PlatformDispatcher;` — NOT exported by flutter/material.dart. |
+| DebugLogger methods | When calling `DebugLogger.*`, ensure the method exists in the class first. Current v2 methods: `log`, `logError`, `logWarn`, `logApi`, `logState`, `logTap`, `logNav`, `logLifecycle`, `logFeature`, `logCrash`, `getLastLines`, `getRecent`, `getFiltered`, `clearBuffer`, `getLogPath`, `copyToClipboard`, `flush`, `share`, `shareLogs`. |
 
 ## Known open data issue
 
-- **DATA-01**: All Of Us Are Dead — E03/E04/E05/E09 missing from Oracle DB. Not in scope for current sessions.
+- **DATA-01**: All Of Us Are Dead — E03/E04/E05/E09 missing from Oracle DB. Not in scope.
 
 ## Common Commands
-
-### Verify Oracle is alive
-```bash
-ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
-  "curl -s http://localhost:5000/healthz"
-```
 
 ### Trigger APK build
 ```bash
@@ -75,4 +110,9 @@ curl -s -H "Authorization: token $GITHUB_TOKEN" \
     JSON.parse(d).workflow_runs.forEach(r=>
       console.log('run#'+r.id,'|',r.status,'|',(r.conclusion||'-'),'| commit:',r.head_sha.slice(0,7)));
   });"
+```
+
+### Verify Oracle is alive
+```bash
+ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 "curl -s http://localhost:5000/healthz"
 ```
