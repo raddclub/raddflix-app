@@ -19,6 +19,11 @@ import 'core/services/usage_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialise logger immediately — before any other code so cold-start crashes
+  // are written to the log file, not just the in-memory buffer.
+  await DebugLogger.init();
+  DebugLogger.log('MAIN', 'App start ${DateTime.now().toString().substring(0, 19)}');
+
   // L-15: Capture Flutter framework errors in release mode — these are normally
   // printed to console but lost in production. We route them through DebugLogger
   // so they are written to the local crash log file for post-mortem analysis.
@@ -29,6 +34,14 @@ void main() async {
       details.exceptionAsString(),
       details.exception,
     );
+  };
+
+  // Catch ALL uncaught Dart async errors at the platform level — this is the
+  // last safety net before a silent crash. Captures errors in async callbacks,
+  // plugin handlers, and isolates that Flutter's onError misses.
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    DebugLogger.logCrash('PLATFORM', error, stack);
+    return true; // prevent default crash handler
   };
 
   // Lock to portrait (player screen overrides to landscape when needed)
@@ -104,6 +117,7 @@ void main() async {
   const MethodChannel('com.raddflix.app/intent')
       .setMethodCallHandler((call) async {
     if (call.method == 'onVideoUri') {
+      DebugLogger.log('MAIN', 'onVideoUri warm-start intent received');
       final args = call.arguments;
       final String? uri = args is Map ? args['uri'] as String? : args as String?;
       if (uri == null || uri.isEmpty) return;
