@@ -51,12 +51,14 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   @override
   void initState() {
     super.initState();
+    DebugLogger.logLifecycle('ShowDetail', 'initState id=${widget.item.id} title="${widget.item.title}" type=${widget.item.mediaType}');
     _seasonTab = null;
     _loadEpisodes();
   }
 
   @override
   void dispose() {
+    DebugLogger.logLifecycle('ShowDetail', 'dispose id=${widget.item.id}');
     _seasonTab?.dispose();
     super.dispose();
   }
@@ -101,6 +103,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     }
 
     if (mounted) {
+      DebugLogger.log('DETAIL', '_loadEpisodes done: ${eps.length} eps, ${seasonNums.length} seasons, resumeIdx=$resumeIdx for id=${widget.item.id}');
       // H-01: dispose the old TabController BEFORE setState — disposing inside
       // setState risks destroying a controller the framework still reads during
       // the current build phase, causing a 'disposed controller' assertion.
@@ -205,6 +208,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
 
     // Mark this episode as "now playing" so the tile shows the indicator;
     // clear it when the player route pops (user exits or PiP closes).
+    DebugLogger.logFeature('PlayEpisode', 'id=${widget.item.id} title="${widget.item.title}" epIdx=$episodeIndex S$_selectedSeason fileId=${fileId ?? "null"} local=${localPath != null}');
     setState(() => _nowPlayingIdx = episodeIndex);
     await Navigator.pushNamed(
       context,
@@ -224,6 +228,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   }
 
   void _playMovie() {
+    DebugLogger.logFeature('PlayMovie', 'id=${widget.item.id} title="${widget.item.title}" fileId=${widget.item.fileId ?? "null"}');
     final fileId = widget.item.fileId;
     final shareUrl = widget.item.shareUrl;
     if (fileId == null && (shareUrl == null || shareUrl.isEmpty)) {
