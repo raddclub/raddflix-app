@@ -120,3 +120,11 @@ _Add new bugs below this line as they are found._
 |------|--------|
 | `PlatformDispatcher` import | Requires `import 'dart:ui' show PlatformDispatcher;` — NOT exported by `package:flutter/material.dart`. Missing this causes Dart compile error `Undefined name 'PlatformDispatcher'` on every build. |
 | DebugLogger v2 methods (complete list) | `log`, `logError`, `logWarn`, `logApi`, `logState`, `logTap`, `logNav`, `logLifecycle`, `logFeature`, `logCrash`, `getLastLines`, `getRecent`, `getFiltered`, `clearBuffer`, `getLogPath`, `copyToClipboard`, `flush`, `share`, `shareLogs` |
+
+  ## BUG-BLACKSCREEN-REGRESSION (RESOLVED 2026-06-18)
+  - **Symptom**: Build #1141 (FIX-SPEED-RECOVERY) made black screen WORSE — happens on EVERY local file play within 1-3s, not intermittently
+  - **Device**: MediaTek/Infinix (also reproduced on any fast Android device)
+  - **Root cause**: `_applyVideoFilters` startup gate checked `_player.state.playing||_playing`. On local files, `playing=true` fires ~200-500ms after `player.open()`. Gate ran at ~90ms (SharedPrefs load + 60ms debounce) when playing was still false → gate passed → `setProperty('vf','')` + FIX-SPEED-RECOVERY's 150ms-delayed recovery seek both fired during decoder init window → GL surface destroyed
+  - **Fix**: FIX-VF-STARTUP — add `_videoOpened=true` before each `_player.open()` call; include in gate: `_videoOpened||playing||_playing`
+  - **Commit**: 4d88e277
+  
