@@ -498,3 +498,56 @@ Make the debug diagnostics screen easier to open. User could not reliably open i
 - Latest commit: 2b9e051 (debug_diagnostics_screen) / 8c8f331 (profile_screen)
 - APK build: triggered (awaiting result)
 - Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
+
+---
+
+## Session 2026-06-18 — Comprehensive Debug Logging (DebugLogger v2)
+
+### Objective
+Add maximum comprehensive debug logging to every screen so every crash, black screen, user tap,
+navigation event, and feature usage is captured and visible in the debug log screen.
+
+### Changes
+
+| File | Change | Commit |
+|------|--------|--------|
+| `lib/core/debug/debug_logger.dart` | DebugLogger v2: 5000 buffer, 8MB rotation, session ID, auto-flush 30s, logTap/Nav/Lifecycle/Feature/Crash, getFiltered | 613f686 |
+| `lib/main.dart` | PlatformDispatcher.onError global crash handler + early DebugLogger.init | bb59f50 |
+| `lib/app.dart` | _RaddNavObserver NavigatorObserver registered in MaterialApp | d5a449c |
+| `lib/screens/player_screen.dart` | 13 crash-path logging patches | 2413c3f |
+| `lib/screens/home_screen.dart` | lifecycle + all tap logging | 9c55499 |
+| `lib/screens/show_detail_screen.dart` | lifecycle + play/download tap logging | 69a7d63 |
+| `lib/screens/search_screen.dart` | lifecycle + query/filter/results/tap logging | f739564 |
+| `lib/screens/profile_screen.dart` | lifecycle + nav tab logging | 198033b |
+| `lib/screens/downloads_screen.dart` | lifecycle + play tap logging | 1e7128f |
+| `lib/main.dart` | **BUILD FIX**: add `import 'dart:ui' show PlatformDispatcher;` | 96f8cc1 |
+
+### Root cause of build failures
+Commits `d5a449c` through `bb59f50` all failed with `Undefined name 'PlatformDispatcher'`.
+`PlatformDispatcher` is in `dart:ui`, NOT exported by `package:flutter/material.dart`.
+Fix: `import 'dart:ui' show PlatformDispatcher;` added to `main.dart` as commit `96f8cc1`.
+All 9 logging commits are included in the passing build.
+
+### What is now logged
+
+| Layer | Tag | Events |
+|-------|-----|--------|
+| Dart crash net | `CRASH/PLATFORM` | ALL uncaught Dart errors with full stack |
+| Navigation | `NAV` | Every push/pop/replace/remove |
+| Home | `LC/HomeScreen`, `TAP/Home` | Lifecycle, nav tabs, filters, hero taps |
+| Show detail | `LC/ShowDetail`, `TAP/ShowDetail` | Lifecycle, play/download ep |
+| Search | `LC/SearchScreen`, `TAP/Search` | Lifecycle, query, filter, results, taps |
+| Profile | `LC/ProfileScreen`, `TAP/Profile` | Lifecycle, nav tab taps |
+| Downloads | `LC/DownloadsScreen`, `TAP/Downloads` | Lifecycle, play taps |
+| Player | `INIT`, `AUDIO`, `VIDEO`, `SPEED`, `LOAD`, `BUF`, `PLAY`, `ERR/PLAYER`, `WARN/LOAD` | 13 crash-path checkpoints |
+
+### Key lesson learned
+`PlatformDispatcher` requires explicit `import 'dart:ui' show PlatformDispatcher;`.
+It is NOT re-exported by flutter/material.dart in Flutter 3.22.3.
+This is now documented in RULES.md, BUG_TRACKER.md, and .agents/memory/.
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0
+- Latest commit: `96f8cc1` — dart:ui import fix
+- APK build: ✅ SUCCESS (run#27757913296)
+- Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
