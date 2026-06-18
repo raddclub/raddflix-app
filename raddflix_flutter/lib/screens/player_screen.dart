@@ -520,6 +520,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Future<void> _loadPrefs() async {
     final loaded = await PlayerPrefs.load();
     if (!mounted) return;
+    PlaybackTimeline.record('prefs_loaded');
     setState(() {
       _prefs = loaded;
       _cinematicOpacity = loaded.cinematicOpacity; // BACKLOG-01: restore persisted opacity
@@ -688,8 +689,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // screen (audio continues). _videoSurfaceReady stays true through all
     // transitions, closing this gap completely. hwdec is now only ever set in
     // the pre-first-frame window (initState race / prefs loading before open).
-    if (!_playing && !_player.state.playing &&
-        _player.state.duration == Duration.zero && !_videoSurfaceReady) {
+    final _hwBlocked = _playing || _player.state.playing ||
+        _player.state.duration != Duration.zero || _videoSurfaceReady;
+    PlaybackTimeline.recordHwdecGate(
+      blocked:           _hwBlocked,
+      videoSurfaceReady: _videoSurfaceReady,
+      mpvPlaying:        _player.state.playing,
+      flutterPlaying:    _playing,
+      duration:          _player.state.duration,
+      hwEnabled:         p.hwDecoderEnabled,
+    );
+    if (!_hwBlocked) {
       DebugLogger.log('AUDIO', 'hwdec SET → ${p.hwDecoderEnabled ? "auto" : "no"} deinterlace=${p.deinterlaceEnabled}');
       await _np.setProperty('hwdec', p.hwDecoderEnabled ? 'auto' : 'no');
       await _np.setProperty('deinterlace', p.deinterlaceEnabled ? 'yes' : 'no');
@@ -804,6 +814,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _lastVfTs = ts;
     await Future.delayed(const Duration(milliseconds: 60));
     if (_lastVfTs != ts || !mounted) return;
+    PlaybackTimeline.record('vf_debounce_fired');
 
     // FIX-VF-BLACKSCREEN — ROOT CAUSE of the month-long "local video goes black
     // after 1-2 seconds" bug.
@@ -831,18 +842,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // through the new filter chain on the refreshed GL surface.
     if (!_firstVfApplied) {
       _firstVfApplied = true;
-      if (_videoOpened || _player.state.playing || _playing) {
-        // FIX-VF-BLACKSCREEN-GAP: prime _lastAppliedVf with the vf string we
-        // would have applied, so the dedup on the NEXT call (e.g. the
-        // playerPrefsProvider ref.listen firing ~1-2s after startup) correctly
-        // sees "already applied" and skips the setProperty('vf',…) that would
+      final _gateBlocked = _videoOpened || _player.state.playing || _playing;
+      final _primedVf    = _buildVfString(p);
+      PlaybackTimeline.recordGate(
+        blocked:        _gateBlocked,
+        videoOpened:    _videoOpened,
+        mpvPlaying:     _player.state.playing,
+        flutterPlaying: _playing,
+        lastVf:         _lastAppliedVf,
+        builtVf:        _primedVf,
+      );
+      if (_gateBlocked) {
+        // FIX-VF-BLACKSCREEN-GAP: prime _lastAppliedVf so dedup on the next call
+        // sees 'already applied' and skips the setProperty('vf',…) that would
         // destroy the MediaTek GL surface → permanent black screen.
-        // Without this, the gate blocks but _lastAppliedVf stays at '\x00',
-        // so the very next call with vf="" bypasses dedup → black screen.
-        _lastAppliedVf = _buildVfString(p);
-        DebugLogger.logWarn('VIDEO', 'vf= STARTUP GATE BLOCKED+PRIMED mpvPlay=${_player.state.playing} _playing=$_playing sfc=$_videoSurfaceReady lastVf="${_lastAppliedVf.isEmpty ? "(empty)" : _lastAppliedVf.length > 40 ? _lastAppliedVf.substring(0, 40) + "…" : _lastAppliedVf}" → skipped to prevent black screen');
+        // Without this, gate blocks but _lastAppliedVf stays at '\x00',
+        // so the next call with vf="" bypasses dedup → black screen.
+        _lastAppliedVf = _primedVf;
+        DebugLogger.logWarn('VIDEO', 'vf= STARTUP GATE BLOCKED+PRIMED vOpened=$_videoOpened mpvPlay=${_player.state.playing} _playing=$_playing sfc=$_videoSurfaceReady lastVf="${_lastAppliedVf.isEmpty ? "(empty)" : _lastAppliedVf.length > 40 ? _lastAppliedVf.substring(0, 40) + "…" : _lastAppliedVf}" → skipped');
         return;
       }
+      // ⚠️ Gate PASSED — should NEVER happen with FIX-VF-STARTUP applied.
+      DebugLogger.logWarn('VIDEO', '⚠️ vf= STARTUP GATE PASSED — vOpened=$_videoOpened mpv=${_player.state.playing} fl=$_playing sfc=$_videoSurfaceReady — surface destruction likely!');
     }
 
     final vf = _buildVfString(p);
@@ -906,6 +927,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _piDecoder = (hwdec != null && hwdec.isNotEmpty && hwdec != 'no') ? 'HW' : 'SW';
       });
       DebugLogger.log('PLAYER', 'playbackInfo codec=$_piCodec res=$_piRes fps=$_piFps bitrate=$_piBitrate buf=$_piBuffer decoder=$_piDecoder');
+      PlaybackTimeline.recordFirstFrame(codec: _piCodec, resolution: _piRes, fps: _piFps, decoder: _piDecoder);
     } catch (e) { DebugLogger.logWarn('PLAYER', 'fetchPlaybackInfo failed: $e'); }
   }
 
@@ -2003,6 +2025,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _initPlayer() async {
     DebugLogger.log('INIT', 'initPlayer START fileId=${widget.fileId} local=${widget.localPath ?? "none"}');
+    PlaybackTimeline.startSession(widget.fileId, isLocal: widget.localPath != null && widget.localPath!.isNotEmpty);
     _player = Player();
     DebugLogger.log('INIT', 'Player() constructed');
     _videoCtrl = VideoController(_player, configuration: const VideoControllerConfiguration(androidAttachSurfaceAfterVideoParameters: false));
@@ -2018,8 +2041,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // live decoder switches go only through onSwDecoderChanged (which does its
     // own seek-to-recover).
     _videoSurfaceReady = true;
+    PlaybackTimeline.record('surface_ready');
     DebugLogger.log('INIT', '_videoSurfaceReady=true — calling _openMedia');
     await _openMedia(widget.fileId, localPath: widget.localPath);
+    // BLACK SCREEN DETECTOR: T+3s — if vf gate PASSED during startup,
+    // audio continuing + playing=true confirms surface destruction.
+    Future.delayed(const Duration(milliseconds: 3000), () {
+      if (!mounted) return;
+      if (PlaybackTimeline.hadVfGatePassed && (_player.state.playing || _playing)) {
+        PlaybackTimeline.recordSuspectedBlackScreen(
+          audioPlaying: _player.state.playing || _playing,
+          position:     _player.state.position,
+        );
+        DebugLogger.logWarn('PLAYER', '⚠️ T+3s BLACK SCREEN DETECTOR — vf gate had PASSED! audio is running but surface was destroyed. pos=${_fmtDur(_player.state.position)}');
+      }
+    });
     // Auto-load external subtitle (sidecar .srt/.ass/.vtt from local folder or "Open With" intent)
     final _extSubPath = widget.subtitlePath;
     if (_extSubPath != null && _extSubPath.isNotEmpty) {
@@ -2131,6 +2167,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
     _player.stream.playing.listen((p) {
       if (!mounted) return;
+      PlaybackTimeline.recordMpvPlaying(p);
       DebugLogger.log('PLAY', 'playing→$p pos=${_fmtDur(_position)} sfc=$_videoSurfaceReady load=$_isLinkLoading binge=$_showBingeGuard locked=$_locked speed=$_speed decoder=$_piDecoder res=$_piRes epIdx=$_currentEpIdx');
       setState(() {
         _playing = p;
@@ -2261,7 +2298,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (effectiveLocalPath != null) {
       _currentPlaybackUrl = effectiveLocalPath;
       DebugLogger.log('LOAD', 'player.open LOCAL: $effectiveLocalPath sfc=$_videoSurfaceReady');
+      PlaybackTimeline.record('video_opened_local');
       _videoOpened = true; // FIX-VF-STARTUP: arm gate before surface is live
+      PlaybackTimeline.record('player_open_called');
       await _player.open(Media(effectiveLocalPath));
       // FIX-STALE-ERR: clear any stale error overlay when opening new media
       // FIX-RETRY-RESET: reset retry count so the next error gets a full retry
@@ -2325,7 +2364,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final link = await JazzDriveService.getStreamLink(cacheKey, shareUrl, targetFilename: targetFilename, remoteId: remoteId);
         _currentPlaybackUrl = link.streamUrl;
         DebugLogger.log('LOAD', 'player.open JAZZ fn=${link.filename} url=${link.streamUrl.length > 60 ? link.streamUrl.substring(0, 60) + "…" : link.streamUrl}');
+        PlaybackTimeline.record('video_opened_jazz');
         _videoOpened = true; // FIX-VF-STARTUP: arm gate before surface is live
+        PlaybackTimeline.record('player_open_called');
         await _player.open(Media(link.streamUrl));
         // FIX-RETRY-RESET: successful open — reset retry count so any future
         // mid-play error gets a full retry attempt instead of immediately
