@@ -791,6 +791,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Prevents the month-long "local video black after 1-2s" bug — see fix comment below.
   bool   _firstVfApplied = false;
   String _lastAppliedVf  = '\x00'; // sentinel — never matches any real vf string
+  // FIX-SPEED-RECOVERY: tracks last-applied framedrop mode so recovery seek only
+  // fires when direction actually changes (vo↔decoder+vo), not on every slider tick.
+  String _currentFramedrop = 'vo';
 
   Future<void> _applyVideoFilters(PlayerPrefs p) async {
     final ts = DateTime.now().millisecondsSinceEpoch;
@@ -1964,9 +1967,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// crashes → blank screen. Using _np.setProperty('speed', ...) for both
   /// commands guarantees they enter MPV's serial queue in order.
   void _setSpeed(double s) {
-    DebugLogger.log('SPEED', 'setSpeed ${s.toStringAsFixed(2)}× framedrop=${s > 1.0 ? "decoder+vo" : "vo"} pos=${_fmtDur(_position)}');
-    _np.setProperty('framedrop', s > 1.0 ? 'decoder+vo' : 'vo');
+    final newFd = s > 1.0 ? 'decoder+vo' : 'vo';
+    DebugLogger.log('SPEED', 'setSpeed ${s.toStringAsFixed(2)}× framedrop=$newFd (was $_currentFramedrop) pos=${_fmtDur(_position)}');
+    _np.setProperty('framedrop', newFd);
     _np.setProperty('speed', s.toStringAsFixed(4));
+    // FIX-SPEED-RECOVERY: changing framedrop direction (vo↔decoder+vo) mid-play
+    // resets the MediaTek HW decoder pipeline → GL surface goes permanently black
+    // (audio continues). Same mechanism as vf= and hwdec live-switch black screen.
+    // Recovery seek fires 150ms after the direction change to force MPV to
+    // re-render the current frame through the new decoder pipeline.
+    //
+    // This covers ALL callers:
+    //   • SpeedPickerSheet slider (fires on every drag tick — guard prevents cascade)
+    //   • SpeedPresetsSheet, SpeedTrackPanel, QuickSettingsPanel
+    //   • Voice intent speedSet commands
+    //   • onLongPressStart / onLongPressEnd
+    //
+    // Guard: only fire when framedrop direction actually changes. SpeedPickerSheet
+    // fires _setSpeed on every slider frame; without the guard, dragging from 1×
+    // to 2× at 60fps would queue 60+ recovery seeks — crashing or stalling MPV.
+    if (newFd != _currentFramedrop) {
+      _currentFramedrop = newFd;
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (mounted && (_player.state.playing || _playing)) {
+          DebugLogger.log('SPEED', 'framedrop-change recovery seek pos=${_fmtDur(_position)}');
+          _player.seek(_player.state.position);
+        }
+      });
+    }
   }
 
   Future<void> _initPlayer() async {
@@ -3149,19 +3177,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         onLongPressStart: (_) {
           DebugLogger.log('GESTURE', 'longPress START → ${_prefs.longPressSpeed}× pos=${_fmtDur(_position)}');
           setState(() => _longPressFast = true);
+          // FIX-SPEED-RECOVERY: recovery seek is now built into _setSpeed and fires
+          // automatically when framedrop changes from vo→decoder+vo. No explicit
+          // seek needed here — it would duplicate the one inside _setSpeed.
+          // onLongPressEnd still has its own 200ms delayed framedrop+seek as an
+          // extra guarantee for the end-of-fast-forward pipeline stabilisation.
           _setSpeed(_prefs.longPressSpeed);
-          // FIX-BLACKSCREEN-LP2: framedrop=decoder+vo resets MediaTek HW decoder
-          // pipeline on longPress start, same as vf= mid-play does → GL surface
-          // goes permanently black. Seek to current position 150ms after the
-          // framedrop change to force a fresh decode+render cycle through the new
-          // pipeline (mirrors vf= recovery and onSwDecoderChanged fix).
-          Future.delayed(const Duration(milliseconds: 150), () {
-            if (!mounted || !_longPressFast) return;
-            if (_player.state.playing) {
-              DebugLogger.log('GESTURE', 'longPress START recovery seek pos=${_fmtDur(_position)}');
-              _player.seek(_player.state.position);
-            }
-          });
         },
         onLongPressEnd: (_) {
           DebugLogger.log('GESTURE', 'longPress END → back to ${_speed}× pos=${_fmtDur(_position)}');

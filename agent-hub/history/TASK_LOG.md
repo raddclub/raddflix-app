@@ -661,3 +661,74 @@ Mirrors the existing pattern in `_applyVideoFilters` and `onSwDecoderChanged`.
 - Recovery-seek pattern applies to ANY MPV pipeline property change mid-play on MediaTek.
   Document clearly: framedrop, hwdec, vf= all need the same 150ms delay → seek pattern.
 - Fix must be at the SITE of the disruption (START), not only at the recovery point (END).
+
+
+---
+
+## 2026-06-18 — FIX-SPEED-RECOVERY (comprehensive black screen audit)
+
+### Session summary
+Full audit of all video player-related files to find any remaining black-screen causes.
+Mapped every `setProperty` call, every `_applyVideoFilters` path, the Video widget tree,
+and all `_setSpeed` callers. Found one new critical bug + updated AGENT_PROMPT.md.
+
+### Tasks completed
+
+| ID | File | Change | Status |
+|----|------|--------|--------|
+| FIX-SPEED-RECOVERY | `player_screen.dart` | recovery seek in `_setSpeed` for all callers | ✅ DONE |
+| AGENT_PROMPT.md | docs | Step 2.5 local workspace + rules 20-22 | ✅ DONE |
+
+### Bug found: FIX-SPEED-RECOVERY
+
+**Root cause**: `_setSpeed(s)` is called from 6+ different places (speed picker slider,
+speed presets sheet, quick settings panel, speed track panel, voice commands, long-press).
+All of them change `framedrop` from `vo` → `decoder+vo` when speed > 1×, which on
+MediaTek HW decoder destroys the GL surface texture → permanent black screen (audio continues).
+
+Previously only `onLongPressStart` had an explicit recovery seek. Every other caller had none.
+SpeedPickerSheet is the worst case: it fires `_setSpeed` on EVERY slider drag tick, so
+without the direction-change guard it would queue 60+ recovery seeks per second.
+
+**Fix:**
+1. Added `String _currentFramedrop = 'vo'` instance variable (tracks last-set framedrop).
+2. Rebuilt `_setSpeed`: compute `newFd` first, compare to `_currentFramedrop`. If changed:
+   update tracker + `Future.delayed(150ms)` → `_player.seek(position)` (guarded by mounted + playing).
+3. Removed now-redundant explicit `Future.delayed` seek from `onLongPressStart` — it is now
+   handled automatically by `_setSpeed` whenever framedrop direction changes.
+
+**Why the guard matters**: SpeedPickerSheet fires `_setSpeed` on every drag frame. Without
+the direction-change guard, dragging from 1× to 2× at 60fps queues 60 recovery seeks in
+150ms — stalling/crashing MPV. With the guard, exactly one seek fires for each direction change.
+
+### Audit findings (no additional bugs)
+
+| Area | Finding | Status |
+|------|---------|--------|
+| `hwdec` toggle (onSwDecoderChanged) | Already has 150ms recovery seek | ✅ OK |
+| `vf=` pipeline | Only called via `_applyVideoFilters` (1 call, dedup-protected) | ✅ OK |
+| `Video()` widget | NOT conditionally removed from tree — always in Scaffold | ✅ OK |
+| `_showVideoDisplay` conditionals | Settings panel overlays — not the Video widget | ✅ OK |
+| `np` at SmartVolumeController | Constructor parameter (= `_np`) not a local shadow | ✅ OK |
+| Multiple `_applyAudioPrefs` calls | 60ms debounce (_lastAfTs) serialises them to one | ✅ OK |
+| `_applyVideoFilters` from SilenceSkip | Harmless — dedup blocks if colorblind unchanged | ✅ OK |
+| Episode transition `_applyVideoFilters` | Goes through dedup — no-op if vf unchanged | ✅ OK |
+
+### Files changed
+
+| File | Change | Commit |
+|------|--------|--------|
+| `raddflix_flutter/lib/screens/player_screen.dart` | FIX-SPEED-RECOVERY (3 patches) | TBD |
+| `agent-hub/TASKS.md` | Added FIX-SPEED-RECOVERY row | TBD |
+| `agent-hub/history/TASK_LOG.md` | This entry | TBD |
+| `AGENT_PROMPT.md` | Step 2.5 + rules 20-22 + status update | `a9580b8` |
+
+### Rules learned / to remember
+- Recovery-seek pattern applies to ANY framedrop direction change (vo↔decoder+vo) mid-play.
+- ALWAYS build recovery seek INTO the function itself (not just at specific call sites).
+- Slider callbacks fire on every frame — direction-change guards are mandatory.
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0
+- player_screen.dart: 7,509 lines
+- Open tasks: DATA-01 (All Of Us Are Dead missing episodes — data not code)
