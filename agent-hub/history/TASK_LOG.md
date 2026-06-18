@@ -473,3 +473,28 @@ Both commits added calls to 6 `DebugLogger` methods across 5 files, but those me
 - APK build: triggered (awaiting result)
 - Previous passing build: run#27752025995 commit 1a4294c ✅
 - Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
+
+
+---
+
+## Session 2026-06-18 — DEBUG-ACCESS-SIMPLE (easier debug log access)
+
+### Objective
+Make the debug diagnostics screen easier to open. User could not reliably open it via the hidden 5-tap version gesture.
+
+### Changes
+
+| File | Change | Commit |
+|------|--------|--------|
+| `profile_screen.dart` | Added visible "Debug Logs" tile in Account section (before Sign Out) | 8c8f331 |
+| `debug_diagnostics_screen.dart` | Opens on Logs tab by default; log timer auto-starts in initState | 2b9e051 |
+
+### How to open debug screen now
+**Profile → scroll down → Account section → Debug Logs**
+(One tap, always visible. The old 5-tap on version text still works as backup.)
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0
+- Latest commit: 2b9e051 (debug_diagnostics_screen) / 8c8f331 (profile_screen)
+- APK build: triggered (awaiting result)
+- Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
