@@ -2565,6 +2565,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── Gesture Handlers (unified onScale) ────────────────────────────────────
   void _onScaleStart(ScaleStartDetails d) {
+    DebugLogger.log('GESTURE', 'dragStart pointers=${d.pointerCount} x=${d.localFocalPoint.dx.toInt()} y=${d.localFocalPoint.dy.toInt()}');
     _dragStartLocal = d.localFocalPoint;
     _startBrightness = _brightness;
     _startVolume = _volume;
@@ -2604,10 +2605,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           delta.dy.abs() > delta.dx.abs() * 1.5 && delta.dy.abs() > 8;
       if (isDefinitelyHorizontal) {
         _dragIntent = 'seek';
+        DebugLogger.log('GESTURE', 'intent→SEEK');
       } else if (isDefinitelyVertical) {
         // MX Player: vertical swipe = brightness (left) or volume (right) on both up and down
         _dragIntent =
             d.localFocalPoint.dx < size.width / 2 ? 'brightness' : 'volume';
+        DebugLogger.log('GESTURE', 'intent→${_dragIntent!.toUpperCase()} side=${d.localFocalPoint.dx < size.width / 2 ? "LEFT" : "RIGHT"}');
       }
     }
 
@@ -2662,6 +2665,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _onScaleEnd(ScaleEndDetails d) {
+    DebugLogger.log('GESTURE', 'dragEnd intent=$_dragIntent seek=${_dragSeekDelta?.toInt()}s vol=${_volume.toStringAsFixed(2)} boost=${_volumeBoost.toStringAsFixed(2)} bright=${_brightness.toStringAsFixed(2)}');
     // Persist volume boost if changed via swipe-into-boost
     if (_inBoostGesture && _volumeBoost != _startVolumeBoost) {
       final np = _prefs.copyWith(volumeBoostMultiplier: _volumeBoost);
@@ -2920,19 +2924,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         onDoubleTapDown: (d) {
           final w = MediaQuery.of(context).size.width;
           if (_scale > 1.01) {
-            // Double-tap to reset zoom
+            DebugLogger.log('TAP', 'double-tap → reset zoom from ${_scale.toStringAsFixed(2)}×');
             setState(() { _scale = 1.0; });
             return;
           }
+          final side = d.localPosition.dx < w / 2 ? 'LEFT(-15s)' : 'RIGHT(+15s)';
+          DebugLogger.log('TAP', 'double-tap $side pos=${_fmtDur(_position)}');
           HapticFeedback.selectionClick();
           _seekRelative(d.localPosition.dx < w / 2 ? -15 : 15);
         },
         onLongPressStart: (_) {
+          DebugLogger.log('GESTURE', 'longPress START → ${_prefs.longPressSpeed}× pos=${_fmtDur(_position)}');
           setState(() => _longPressFast = true);
           // _setSpeed handles framedrop=decoder+vo before setRate internally.
           _setSpeed(_prefs.longPressSpeed);
         },
         onLongPressEnd: (_) {
+          DebugLogger.log('GESTURE', 'longPress END → back to ${_speed}× pos=${_fmtDur(_position)}');
           setState(() => _longPressFast = false);
           // _setSpeed restores framedrop=vo when speed drops back to ≤1×.
           _setSpeed(_speed);
@@ -3498,21 +3506,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 _scheduleHide();
               }),
               onSubtitleFile: _pickSubtitle,
-              onSubtitleTracks: () =>
-                  setState(() => _showSubtitleMenu = !_showSubtitleMenu),
-              onAudioTracks: () =>
-                  setState(() => _showAudioMenu = !_showAudioMenu),
+              onSubtitleTracks: () { DebugLogger.log('PANEL', 'TOGGLE subtitleMenu→${!_showSubtitleMenu}'); setState(() => _showSubtitleMenu = !_showSubtitleMenu); },
+              onAudioTracks: () { DebugLogger.log('PANEL', 'TOGGLE audioMenu→${!_showAudioMenu}'); setState(() => _showAudioMenu = !_showAudioMenu); },
               rotationMode: _prefs.rotationMode,
               onCycleRotation: _cycleRotation,
               audioDelayMs: _audioDelayMs,
               subDelayMs: _subDelayMs,
               volumeBoost: _volumeBoost,
               showPlaybackInfo: _showPlaybackInfo,
-              onSettings: () => setState(() => _showQuickSettings = true),
-              onMorePanel: () => setState(() => _showMorePanel = true),
-              onEq: () => setState(() => _showEqPanel = true),
-              onAudioSync: () => setState(() => _showAudioSyncPanel = true),
-              onSubSync: () => setState(() => _showSubSyncPanel = true),
+              onSettings: () { DebugLogger.log('PANEL', 'OPEN quickSettings'); setState(() => _showQuickSettings = true); },
+              onMorePanel: () { DebugLogger.log('PANEL', 'OPEN morePanel'); setState(() => _showMorePanel = true); },
+              onEq: () { DebugLogger.log('PANEL', 'OPEN eqPanel'); setState(() => _showEqPanel = true); },
+              onAudioSync: () { DebugLogger.log('PANEL', 'OPEN audioSync'); setState(() => _showAudioSyncPanel = true); },
+              onSubSync: () { DebugLogger.log('PANEL', 'OPEN subSync'); setState(() => _showSubSyncPanel = true); },
               onShareTimestamp: _shareTimestamp,
               onJumpToTime: _showJumpToTime,
               onTogglePlaybackInfo: () {
@@ -3532,7 +3538,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               onPiP: _enterPiP,
               onCast: _enterCast,
               castConnected: _castConnected,
-              onSleep: () => setState(() => _showSleepMenu = !_showSleepMenu),
+              onSleep: () { DebugLogger.log('PANEL', 'TOGGLE sleepMenu→${!_showSleepMenu}'); setState(() => _showSleepMenu = !_showSleepMenu); },
               onResetZoom: _scale > 1.02
                   ? () => setState(() => _scale = 1.0)
                   : null,
@@ -3556,7 +3562,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               showTrackCountBadge: _prefs.showTrackCountBadge,
               bookmarks: _bookmarks,
               abLoop: _abLoop,
-              onToggleAbPanel: () => setState(() => _showAbPanel = !_showAbPanel),
+              onToggleAbPanel: () { DebugLogger.log('PANEL', 'TOGGLE abPanel→${!_showAbPanel}'); setState(() => _showAbPanel = !_showAbPanel); },
               onToggleBookmarks: _openBookmarkPanel,
               onToggleVideoEnhance: _openVideoEnhanceSuite,
               onTakeScreenshot: _takeScreenshot,
