@@ -645,6 +645,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _lastAfTs = ts;
     await Future.delayed(const Duration(milliseconds: 60));
     if (_lastAfTs != ts || !mounted) return; // FIX-H01
+    DebugLogger.log('AUDIO', 'applyAudioPrefs playing=$_playing mpvPlay=${_player.state.playing} dur=${_player.state.duration.inMilliseconds}ms sfc=$_videoSurfaceReady hwEn=${p.hwDecoderEnabled}');
     // Hardware decoder — CRITICAL: do NOT change while video is playing.
     // Changing hwdec mid-playback on Android forces MPV to restart its video
     // decoder pipeline and destroys the GL surface texture → blank screen with
@@ -668,8 +669,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // the pre-first-frame window (initState race / prefs loading before open).
     if (!_playing && !_player.state.playing &&
         _player.state.duration == Duration.zero && !_videoSurfaceReady) {
+      DebugLogger.log('AUDIO', 'hwdec SET → ${p.hwDecoderEnabled ? "auto" : "no"} deinterlace=${p.deinterlaceEnabled}');
       await _np.setProperty('hwdec', p.hwDecoderEnabled ? 'auto' : 'no');
       await _np.setProperty('deinterlace', p.deinterlaceEnabled ? 'yes' : 'no');
+    } else {
+      DebugLogger.logWarn('AUDIO', 'hwdec BLOCKED (guard) playing=$_playing mpvPlay=${_player.state.playing} dur=${_player.state.duration.inMilliseconds}ms sfc=$_videoSurfaceReady — skipping to prevent black screen');
     }
 
     // ── Build a single combined MPV audio filter chain (af=) ─────────────────
@@ -800,12 +804,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // through the new filter chain on the refreshed GL surface.
     if (!_firstVfApplied) {
       _firstVfApplied = true;
-      if (_player.state.playing || _playing) return; // startup race — skip
+      if (_player.state.playing || _playing) {
+        DebugLogger.logWarn('VIDEO', 'vf= STARTUP GATE BLOCKED mpvPlay=${_player.state.playing} _playing=$_playing sfc=$_videoSurfaceReady → skipped to prevent black screen');
+        return;
+      }
     }
 
     final vf = _buildVfString(p);
-    if (vf == _lastAppliedVf) return; // dedup — no-op vf= still resets HW pipeline
+    if (vf == _lastAppliedVf) {
+      DebugLogger.log('VIDEO', 'vf= DEDUP skipped (unchanged) playing=$_playing sfc=$_videoSurfaceReady');
+      return; // dedup — no-op vf= still resets HW pipeline
+    }
     _lastAppliedVf = vf;
+    DebugLogger.log('VIDEO', 'vf= SET "${vf.isEmpty ? "(empty)" : vf.length > 80 ? vf.substring(0, 80) + "…" : vf}" playing=$_playing mpvPlay=${_player.state.playing} sfc=$_videoSurfaceReady');
     await _np.setProperty('vf', vf);
 
     // Seek to current position after mid-play vf= change so MPV re-renders the
@@ -1809,6 +1820,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// Called when JazzDrive stream errors (XML page / expired token).
   /// Equivalent of "delete cookies + reload" in a browser.
   void _jazzAutoRetry(String reason) {
+    DebugLogger.logWarn('LOAD', '_jazzAutoRetry reason="$reason" retryCount=$_jazzRetryCount playing=$_playing pos=${_fmtDur(_position)}');
     if (_jazzRetryCount >= 1) {
       // FIX-ERR-POPUP: never show error overlay while video is actively playing.
       // Mid-play errors (CDN hiccup, network drop, closing old stream on retry)
@@ -1858,13 +1870,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// crashes → blank screen. Using _np.setProperty('speed', ...) for both
   /// commands guarantees they enter MPV's serial queue in order.
   void _setSpeed(double s) {
+    DebugLogger.log('SPEED', 'setSpeed ${s.toStringAsFixed(2)}× framedrop=${s > 1.0 ? "decoder+vo" : "vo"} pos=${_fmtDur(_position)}');
     _np.setProperty('framedrop', s > 1.0 ? 'decoder+vo' : 'vo');
     _np.setProperty('speed', s.toStringAsFixed(4));
   }
 
   Future<void> _initPlayer() async {
+    DebugLogger.log('INIT', 'initPlayer START fileId=${widget.fileId} local=${widget.localPath ?? "none"}');
     _player = Player();
+    DebugLogger.log('INIT', 'Player() constructed');
     _videoCtrl = VideoController(_player, configuration: const VideoControllerConfiguration(androidAttachSurfaceAfterVideoParameters: false));
+    DebugLogger.log('INIT', 'VideoController constructed → _videoSurfaceReady will be set true now');
     // FIX-SURFACE-RACE: VideoController establishes the Android GL surface
     // immediately on construction — before any media is opened and before
     // _player.stream.playing fires. The existing _videoSurfaceReady latch
@@ -1876,6 +1892,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // live decoder switches go only through onSwDecoderChanged (which does its
     // own seek-to-recover).
     _videoSurfaceReady = true;
+    DebugLogger.log('INIT', '_videoSurfaceReady=true — calling _openMedia');
     await _openMedia(widget.fileId, localPath: widget.localPath);
     // Auto-load external subtitle (sidecar .srt/.ass/.vtt from local folder or "Open With" intent)
     final _extSubPath = widget.subtitlePath;
@@ -1937,6 +1954,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _player.stream.buffering.listen((b) {
       if (!mounted) return;
       setState(() => _buffering = b);
+      DebugLogger.log('BUF', 'buffering→$b pos=${_fmtDur(_position)} playing=$_playing sfc=$_videoSurfaceReady');
       if (b) {
         if (!_isLocalFile) {
           _slowConnTimer?.cancel();
@@ -1980,6 +1998,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
     _player.stream.completed.listen((done) {
       if (!mounted || !done) return;
+      DebugLogger.log('PLAY', 'completed pos=${_fmtDur(_position)} dur=${_fmtDur(_duration)}');
       setState(() => _ended = true);
       _onPlaybackEnded();
     });
@@ -2076,6 +2095,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         : (_isLocalPath(fileId) ? fileId : null);
     if (effectiveLocalPath != null) {
       _currentPlaybackUrl = effectiveLocalPath;
+      DebugLogger.log('LOAD', 'player.open LOCAL: $effectiveLocalPath sfc=$_videoSurfaceReady');
       await _player.open(Media(effectiveLocalPath));
       // FIX-STALE-ERR: clear any stale error overlay when opening new media
       // FIX-RETRY-RESET: reset retry count so the next error gets a full retry
@@ -2137,6 +2157,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final cacheKey = fileId.isNotEmpty ? fileId : 'share_${shareUrl.hashCode}';
         final link = await JazzDriveService.getStreamLink(cacheKey, shareUrl, targetFilename: targetFilename, remoteId: remoteId);
         _currentPlaybackUrl = link.streamUrl;
+        DebugLogger.log('LOAD', 'player.open JAZZ fn=${link.filename} url=${link.streamUrl.length > 60 ? link.streamUrl.substring(0, 60) + "…" : link.streamUrl}');
         await _player.open(Media(link.streamUrl));
         // FIX-RETRY-RESET: successful open — reset retry count so any future
         // mid-play error gets a full retry attempt instead of immediately
@@ -3702,6 +3723,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 onOpen: () => setState(() => _showAudioMenu = false),
                 onClose: () => setState(() => _showAudioMenu = false),
                 onSwDecoderChanged: (sw) async { // FIX-M03 + FIX-HWDEC-LIVE
+                  DebugLogger.log('AUDIO', 'onSwDecoderChanged sw=$sw → hwdec=${sw ? "no" : "auto"} playing=$_playing pos=${_fmtDur(_position)}');
                   await _np.setProperty('hwdec', sw ? 'no' : 'auto');
                   // FIX-HWDEC-LIVE: force a fresh frame after user-initiated decoder
                   // switch so the surface doesn't go blank after the hwdec change.
