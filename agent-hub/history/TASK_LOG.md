@@ -732,3 +732,56 @@ the direction-change guard, dragging from 1× to 2× at 60fps queues 60 recovery
 - Oracle Flask: RUNNING v3.0.0
 - player_screen.dart: 7,509 lines
 - Open tasks: DATA-01 (All Of Us Are Dead missing episodes — data not code)
+
+
+  ---
+
+  ## Session 2026-06-18 (Continuation — FIX-VF-STARTUP)
+
+  ### Context
+  - Continued from previous session where build #1141 (FIX-SPEED-RECOVERY + FIX-VF-BLACKSCREEN-GAP + FIX-BLACKSCREEN-LP2) was reported to make the black screen WORSE.
+  - Analysed all 49 frames of user screen recording (extracted at 1fps).
+
+  ### Frame analysis findings
+  - Frames 38-40: "Luka Chuppi" starts playing fine at 00:00
+  - Frames 41-47: ~6s of complete black screen (app alive, audio continues — GL surface destroyed)
+  - Earlier in recording: user played "Dil Meri Na Sune" at 2.0× speed (frames 23, 26, 33)
+  - Pattern: black screen happens 1-3s into EVERY fresh video play from list, not just after speed change
+
+  ### Root cause identified: FIX-VF-STARTUP
+  The startup gate in `_applyVideoFilters` was too permissive:
+  - Gate checked `_player.state.playing || _playing`
+  - On MediaTek/Infinix, local file's `playing=true` event fires **~200-500ms** after `player.open()` returns
+  - Gate fired at **~90ms** (SharedPrefs ~30ms + 60ms debounce): both flags were still false
+  - Gate passed → `setProperty('vf', '')` called on uninitialized HW decoder pipeline
+  - FIX-SPEED-RECOVERY's recovery seek (added in #1141) fired 150ms LATER when playing=true → **GL surface destroyed**
+  - This is why #1141 made it WORSE: before #1141, no recovery seek existed, so only ~50% of plays triggered surface destruction. After #1141, EVERY play that passed the gate got a surface-destroying seek 150ms in.
+
+  ### Fix applied
+  **FIX-VF-STARTUP** — 4 targeted changes, 7 lines total:
+  1. Added `bool _videoOpened = false;` field (next to `_videoSurfaceReady`)
+  2. Set `_videoOpened = true;` immediately before `await _player.open(Media(effectiveLocalPath))` (local file path)
+  3. Set `_videoOpened = true;` immediately before `await _player.open(Media(link.streamUrl))` (Jazz drive path)
+  4. Gate condition changed from `(_player.state.playing || _playing)` to `(_videoOpened || _player.state.playing || _playing)`
+
+  This ensures the FIRST `_applyVideoFilters` call (from `_loadPrefs`) is ALWAYS blocked once any media has been opened — closing the ~90-500ms window where the GL surface is live but MPV hasn't emitted playing=true yet.
+
+  ### Files changed
+  | File | Change | Commit |
+  |------|--------|--------|
+  | `raddflix_flutter/lib/screens/player_screen.dart` | FIX-VF-STARTUP (4 changes) | `4d88e277` |
+  | `agent-hub/TASKS.md` | Added FIX-VF-STARTUP row | TBD |
+  | `agent-hub/history/TASK_LOG.md` | This entry | TBD |
+  | `AGENT_HANDOFF.md` | Updated handoff state | TBD |
+
+  ### Rules learned / to remember
+  - MediaTek/Infinix: `playing=true` event fires **~200-500ms** after `player.open()`. Any gate based solely on `_player.state.playing` has a race window of this size.
+  - The pattern: set a boolean flag BEFORE `player.open()` and check THAT flag in startup gates — don't rely on the async playing event.
+  - Recovery seeks (added as "fixes") can themselves cause GL surface destruction if they fire during the decoder initialization window (~0-500ms from open to stable playback).
+
+  ### State at end of session
+  - Oracle Flask: RUNNING v3.0.0 (not touched this session)
+  - player_screen.dart: 7,515 lines
+  - Build: needs trigger (commit 4d88e277 ready)
+  - Open tasks: DATA-01 (All Of Us Are Dead missing episodes — data not code)
+  
