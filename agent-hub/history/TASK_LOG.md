@@ -628,3 +628,43 @@ Fix all 4 compile errors from round 2 (commit c4905b5) and add remaining deep-en
 - Latest commit: `e98e620` — god-level logger complete
 - APK build: ✅ SUCCESS run#1136 (commit e98e620)
 - Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
+
+---
+
+## 2026-06-18 — FIX-VF-BLACKSCREEN-GAP (commit a7898f8f)
+
+### Problem
+The existing `FIX-VF-BLACKSCREEN` (commit `cd241fc`) had a gap. The startup gate in
+`_applyVideoFilters` correctly blocked `setProperty('vf', …)` when `playing=true` on the
+first call — but it returned early **without** updating `_lastAppliedVf` from its sentinel
+value `'\x00'`. This meant any subsequent call saw `"" != '\x00'` → dedup bypassed →
+`setProperty('vf', "")` fired while the video was actively playing on the MediaTek HW decoder
+→ GL surface destroyed permanently → black screen with audio continuing.
+
+### Root cause timing
+For **local files** (fast open, no network): `player.open()` fires `playing=true` within
+~100–200ms. `_loadPrefs()` completes at ~60–120ms (SharedPreferences + debounce). These two
+are in a race. When the prefs debounce fires after `playing=true`, the startup gate blocks and
+`_lastAppliedVf` stays at `'\x00'`. Then the `playerPrefsProvider` `ref.listen` callback fires
+~1–2s later with the same prefs → dedup bypass → `vf=` while playing → **black screen**.
+
+For **FAB play** (`_playAll`): `await LocalDb.getWatchPositions()` adds ~50–200ms before
+pushing to the player route, so by the time the player opens and starts, the prefs debounce
+fires while `playing=false` → gate allows → `_lastAppliedVf=""` → dedup protects all
+subsequent calls → **no black screen**. This explains why FAB play was immune.
+
+### Fix
+In the startup gate's blocked branch, added `_lastAppliedVf = _buildVfString(p);` before
+the early `return`. This primes the dedup baseline correctly, so the next call with identical
+prefs is silently skipped.
+
+### Files changed
+- `raddflix_flutter/lib/screens/player_screen.dart` — `_applyVideoFilters` startup gate (+8 lines)
+- `agent-hub/TASKS.md` — task marked ✅
+
+### Lessons learned
+- When a guard/gate blocks and returns early, it must still update any "already-done" tracking
+  state. Failing to do so creates a "ghost sentinel" that makes the next call look like a fresh
+  one, bypassing dedup protection.
+- Local files are faster than streaming — race conditions that are harmless for online content
+  can be fatal for local playback on fast storage (MediaTek).
