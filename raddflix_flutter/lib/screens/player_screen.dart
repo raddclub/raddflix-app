@@ -825,7 +825,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!_firstVfApplied) {
       _firstVfApplied = true;
       if (_player.state.playing || _playing) {
-        DebugLogger.logWarn('VIDEO', 'vf= STARTUP GATE BLOCKED mpvPlay=${_player.state.playing} _playing=$_playing sfc=$_videoSurfaceReady → skipped to prevent black screen');
+        // FIX-VF-BLACKSCREEN-GAP: prime _lastAppliedVf with the vf string we
+        // would have applied, so the dedup on the NEXT call (e.g. the
+        // playerPrefsProvider ref.listen firing ~1-2s after startup) correctly
+        // sees "already applied" and skips the setProperty('vf',…) that would
+        // destroy the MediaTek GL surface → permanent black screen.
+        // Without this, the gate blocks but _lastAppliedVf stays at '\x00',
+        // so the very next call with vf="" bypasses dedup → black screen.
+        _lastAppliedVf = _buildVfString(p);
+        DebugLogger.logWarn('VIDEO', 'vf= STARTUP GATE BLOCKED+PRIMED mpvPlay=${_player.state.playing} _playing=$_playing sfc=$_videoSurfaceReady lastVf="${_lastAppliedVf.isEmpty ? "(empty)" : _lastAppliedVf.length > 40 ? _lastAppliedVf.substring(0, 40) + "…" : _lastAppliedVf}" → skipped to prevent black screen');
         return;
       }
     }
