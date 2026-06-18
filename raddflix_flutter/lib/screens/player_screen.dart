@@ -4562,7 +4562,7 @@ class _ControlsOverlay extends StatelessWidget {
                           scale: centerBtnScale * 0.72, onTap: onPrevEpisode!),
                         SizedBox(width: 10 * centerBtnScale),
                       ],
-                      _MxSeekBtn(isForward: false, seconds: 15, onTap: onSeekBack,
+                      _MxSeekBtn(isForward: false, seconds: 10, onTap: onSeekBack,
                         bgOpacity: centerBtnIconOnly ? 0.0 : centerBtnBgOpacity,
                         scale: centerBtnScale * 0.78),
                       SizedBox(width: 14 * centerBtnScale),
@@ -4582,7 +4582,7 @@ class _ControlsOverlay extends StatelessWidget {
                         ),
                       ),
                       SizedBox(width: 14 * centerBtnScale),
-                      _MxSeekBtn(isForward: true, seconds: 15, onTap: onSeekForward,
+                      _MxSeekBtn(isForward: true, seconds: 10, onTap: onSeekForward,
                         bgOpacity: centerBtnIconOnly ? 0.0 : centerBtnBgOpacity,
                         scale: centerBtnScale * 0.78),
                       if (showCenterNext && hasNext && onNextEpisode != null) ...[
@@ -4640,7 +4640,7 @@ class _ControlsOverlay extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       _MxSeekBtn(
-                        isForward: false, seconds: 15, onTap: onSeekBack,
+                        isForward: false, seconds: 10, onTap: onSeekBack,
                         bgOpacity: centerBtnIconOnly ? 0.0 : centerBtnBgOpacity,
                         scale: centerBtnScale,
                       ),
@@ -4663,7 +4663,7 @@ class _ControlsOverlay extends StatelessWidget {
                       ),
                       SizedBox(width: 24 * centerBtnScale),
                       _MxSeekBtn(
-                        isForward: true, seconds: 15, onTap: onSeekForward,
+                        isForward: true, seconds: 10, onTap: onSeekForward,
                         bgOpacity: centerBtnIconOnly ? 0.0 : centerBtnBgOpacity,
                         scale: centerBtnScale,
                       ),
