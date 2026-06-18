@@ -1,118 +1,87 @@
 # RaddFlix Agent Handoff
 
-_Last updated: 2026-06-18 — Comprehensive debug logging added to all screens, build ✅_
+_Last updated: 2026-06-18 — Exhaustive debug logging added to player_screen.dart (91 patches across 2 rounds), build ✅ r1 / ⏳ r2_
 
 ## Current State
 
 | Item | Status |
 |------|--------|
 | Oracle Flask | Running v3.0.0 at 92.4.95.252:5000 |
-| Last APK build | ✅ SUCCESS — commit `96f8cc1` (dart:ui fix, build passed) |
-| Latest commit | `96f8cc1` — fix(build): add dart:ui import for PlatformDispatcher in main.dart |
+| Last passing APK build | ✅ SUCCESS — commit `272ac0c` (player debug r1, run#1131) |
+| Pending build | run#1132 ⏳ — commit `c4905b5` (player debug r2) |
+| Latest commit | `c4905b5` — 48 more DebugLogger patches round 2 |
 | Open tasks | DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 |
 
-## What was done this session (2026-06-18)
+## Rules (MUST follow — from AGENT_PROMPT.md)
 
-Implemented **maximum comprehensive debug logging** — every crash, black screen, user tap, navigation event, and player error is now captured and visible in the debug log screen.
+- **NEVER use git shell** — GitHub Contents API only for file pushes
+- **Sequential pushes** — never push files in parallel
+- **Never use `Icons.replay_15_rounded` / `Icons.forward_15_rounded`** — not in Flutter 3.22.3
+- **Never name a local variable `_np`** in player_screen.dart — shadows class getter
+- **Never add `androidAttachSurfaceAfterVideoParameters:true`**
+- **Never remove XOR padding fix** in request_encoder.dart
+- **Update TASKS.md before AND after work** (Rule 0)
 
-### DebugLogger v2 (commit `613f686`) — `lib/core/debug/debug_logger.dart`
-| Addition | Detail |
-|----------|--------|
-| Buffer size | 1000 → 5000 entries |
-| Log rotation | 8 MB max (was 5 MB) |
-| New: `logTap(screen, action, [detail])` | Logs every user tap with screen + action |
-| New: `logNav(action, route, [detail])` | Logs every navigation event |
-| New: `logLifecycle(screen, event)` | Logs initState/dispose for every screen |
-| New: `logFeature(feature, [params])` | Logs feature usage |
-| New: `logCrash(tag, error, stack)` | Logs crashes with full stack |
-| New: `getFiltered(tagFragment)` | Returns entries where tag contains fragment |
-| Auto-flush | Every 30 seconds (was manual only) |
-| Session ID | `_sessionId` — UUID embedded in every log file |
+## What was done this session (2026-06-18) — Debug logging
 
-### Global crash handler — `lib/main.dart` (commits `bb59f50` + `96f8cc1`)
-- `PlatformDispatcher.instance.onError` catches **all** uncaught Dart errors (requires `import 'dart:ui' show PlatformDispatcher;`)
-- `DebugLogger.init()` called at very first line of `main()` before anything else
-- Any crash before `runApp()` is now captured
+### Overall: 91 DebugLogger patches to player_screen.dart across 2 rounds
 
-### Global navigation logging — `lib/app.dart` (commit `d5a449c`)
-- `_RaddNavObserver` implements `NavigatorObserver`
-- Every push/pop/replace/remove logs: `[NAV] PUSH /route | from=/prev`
-- Registered globally in `MaterialApp.navigatorObservers`
+#### Round 1 — commit `272ac0c` (build ✅ run#1131)
+43 patches: All silent `catch (_) {}` → named errors, app lifecycle (background/resume), episode nav (prev/next with fileId), sleep timer lifecycle (set/cancel/fire/fade start), full playback-ended decision tree (loop/return_home/nothing/next-ep countdown), watch-position periodic save, slow connection detection, duration stream, audio+subtitle track selection with language names, volume boost, audio/subtitle sync, cinematic mode, immersive mode, cycle fit (aspect ratio), frame step fwd/back, screenshot, voice commands, hardware media button multi-press, subtitle file picker, bookmark add, skip intro visibility + auto-skip, cast enter, long-press-play restart.
 
-### Screens patched with full logging
+#### Round 2 — commit `c4905b5` (build ⏳ run#1132)
+48 patches: `_logPlayerState()` state-snapshot helper (12 fields in one line), dispose() with final position+ep, ALL 22 panel-open functions (every showModalBottomSheet, Navigator.push, and setState-toggle panel), _loadPrefs with all key settings, _loadSmartIntro/Bookmarks/SkipSegments counts, _deleteBookmark, _toggleControls show/hide with reason, _seekRelative from/to, lock toggle, _applyRotation + _cycleRotation, _initAmbilight, _startWakeTimer with wakeTimer FIRED, _shareTimestamp, _onSeekBarLongPress, _showJumpToTime, _handleCenterTap, _initBingeGuard, _initPipChannel, audio interruption (type logged), headphone unplug, _logWatchSession, _logPlayerState called at jazz-retry exhaustion. Fixed `_nextIdx` lint issue.
 
-| Screen | Commit | What's logged |
-|--------|--------|---------------|
-| `player_screen.dart` | `2413c3f` | 13 crash paths: initPlayer, hwdec guard, vf= gate, setSpeed, open() URLs, buffering stream, completed event, error stream, jazzAutoRetry, onSwDecoderChanged |
-| `home_screen.dart` | `9c55499` | lifecycle + bottom nav tabs + filter chips + hero card taps |
-| `show_detail_screen.dart` | `69a7d63` | lifecycle + play/download episode taps with title+id |
-| `search_screen.dart` | `f739564` | lifecycle + query changes + filter changes + clearAll + suggestion taps + result taps |
-| `profile_screen.dart` | `198033b` | lifecycle + subscription/watchlist/history/downloads tabs |
-| `downloads_screen.dart` | `1e7128f` | lifecycle + play-download tap |
+### Log tags now available for filtering in debug screen
 
-### Build fix (commit `96f8cc1`)
-- `PlatformDispatcher` not in `package:flutter/material.dart` — requires explicit `import 'dart:ui' show PlatformDispatcher;`
-- All 4 prior failures (commits `d5a449c`, `9c55499`, `69a7d63`, `bb59f50`) cascaded from this missing import
-- Fix pushed as `96f8cc1` — build ✅ SUCCESS
+| Tag | What it captures |
+|-----|-----------------|
+| `STATE` | Full snapshot: pos/dur/playing/buffering/ep/local/loading/speed/hwdec/pip/locked/ended/err |
+| `LIFECYCLE` | App foreground/background, dispose, wake timer |
+| `EPISODE` | Prev/next nav, playback ended, countdown start |
+| `SLEEP` | Timer set/cancel/fire, end-of-episode mode |
+| `SAVE` | Watch position saves and logWatchSession |
+| `QUOTA` | Plan expiry redirect, data quota exceeded |
+| `PIP` | PiP enter/exit |
+| `TRACK` | Audio/subtitle selection, restore, auto-select |
+| `INTRO` | Skip intro visibility, auto-skip, editor |
+| `SEEK` | seekRelative from/to, seekBar long press |
+| `PANEL` | Every panel/sheet open |
+| `VOICE` | Voice command intent+value |
+| `HW` | Hardware media button press count |
+| `CAST` | Cast device discovery |
+| `GESTURE` | Long-press play restart |
+| `TAP/MODE` | Cinematic, immersive, rotation |
+| `TAP/VIDEO` | Frame step, screenshot, cycle fit |
+| `TAP` | Controls show/hide, lock toggle, bookmark add/delete, share |
+| `AUDIO` | Volume boost, audio/sub sync, interruption, headphone unplug |
+| `BUF` | Slow connection detected |
+| `INIT` | All init functions with key param values |
 
----
+## What was done this session — Prior work
 
-## Previous session (2026-06-18, earlier)
+| Commit | Summary |
+|--------|---------|
+| `8c8f331`+`2b9e051` | Debug screen via Profile → Account → Debug Logs |
+| `426d78c` | 6 missing DebugLogger methods added |
+| `4882ba1` | 10 bugs fixed across player files |
+| `c099057` | 4 additional player bugs (orphan import, clock drift, dead guard, shadowed var) |
+| `09760ca` | 11 player bugs fixed |
+| `cd241fc` | ROOT CAUSE local video black screen (vf= during HW decode) |
+| `91e52dc` | Icon compat fix (replay_15/forward_15 not in Flutter 3.22.3) |
+| `96f8cc1` | dart:ui import fix — PlatformDispatcher |
 
-Made debug diagnostics screen directly accessible:
-1. `profile_screen.dart` — added visible "Debug Logs" tile in Account section (one tap, always visible)
-2. `debug_diagnostics_screen.dart` — opens on Logs tab by default; log timer auto-starts
+## Architecture pointers
 
----
+- **player_screen.dart**: 7280 lines, ~320KB. All subsystems are now logged.
+- **debug_logger.dart**: `lib/core/debug/debug_logger.dart` — buffer 5000, 8MB rotation, session ID, auto-flush 30s
+- **Debug screen**: Profile → Account → Debug Logs (opens on Logs tab)
+- **Oracle**: Flask v3.0.0 at 92.4.95.252:5000 — proxy for JazzDrive + catalog
+- **JazzDrive retry**: max 1 retry; if playing at retry-exhaustion, error overlay is suppressed (live stream stays alive)
+- **vf= black screen fix**: never call setProperty('vf',...) while HW decoder is active on first play — guarded by `_firstVfApplied` flag
 
-## How to read debug logs (on device)
-1. Open app → Profile → Account → **Debug Logs**
-2. Filter chips: tap **CRASH** first, then **ERR**, then **VIDEO** or **AUDIO**
-3. Tap **Share** (top right) to export `.log` file
+## For next agent
 
----
-
-## Critical Rules — never violate
-
-| Rule | Detail |
-|------|--------|
-| vf= mid-play guard | NEVER call `_np.setProperty('vf', ...)` while playing from startup code paths. Must check `_firstVfApplied` gate and `_lastAppliedVf` dedup. |
-| sqflite_sqlcipher | NEVER upgrade past 3.1.0+1 — breaks encrypted DB on older Android. |
-| androidAttachSurface | NEVER add `androidAttachSurfaceAfterVideoParameters:true` — HW decoder crash. |
-| XOR padding fix | `request_encoder.dart` XOR padding must stay. Do not revert. |
-| Icons | Never use `Icons.replay_15_rounded` / `forward_15_rounded` — don't exist in Flutter 3.22.3. Use `replay_10` / `forward_10`. |
-| GitHub push | GitHub API only — never `git push` from shell. Push files SEQUENTIALLY (never parallel). |
-| DebugDiagnosticsScreen | Do NOT re-add `kDebugMode` gate — intentionally release-accessible. |
-| _np getter shadow | Never name a local variable `_np` inside `player_screen.dart` — shadows the `NativePlayer get _np` getter. |
-| PlatformDispatcher import | Requires `import 'dart:ui' show PlatformDispatcher;` — NOT exported by flutter/material.dart. |
-| DebugLogger methods | When calling `DebugLogger.*`, ensure the method exists in the class first. Current v2 methods: `log`, `logError`, `logWarn`, `logApi`, `logState`, `logTap`, `logNav`, `logLifecycle`, `logFeature`, `logCrash`, `getLastLines`, `getRecent`, `getFiltered`, `clearBuffer`, `getLogPath`, `copyToClipboard`, `flush`, `share`, `shareLogs`. |
-
-## Known open data issue
-
-- **DATA-01**: All Of Us Are Dead — E03/E04/E05/E09 missing from Oracle DB. Not in scope.
-
-## Common Commands
-
-### Trigger APK build
-```bash
-curl -s -X POST \
-  -H "Authorization: token $GITHUB_TOKEN" \
-  -H "Content-Type: application/json" \
-  "https://api.github.com/repos/raddclub/raddflix-app/actions/workflows/build-apk.yml/dispatches" \
-  -d '{"ref":"main"}'
-```
-
-### Check build status
-```bash
-curl -s -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/raddclub/raddflix-app/actions/runs?per_page=3" | \
-  node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
-    JSON.parse(d).workflow_runs.forEach(r=>
-      console.log('run#'+r.id,'|',r.status,'|',(r.conclusion||'-'),'| commit:',r.head_sha.slice(0,7)));
-  });"
-```
-
-### Verify Oracle is alive
-```bash
-ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 "curl -s http://localhost:5000/healthz"
-```
+1. **Check if run#1132 passed** — if failed, look at build log for Dart compile errors and fix
+2. **DATA-01** — All Of Us Are Dead missing E03/E04/E05/E09: catalog issue, requires Oracle DB update
+3. **Now that all logging is in place**, the next step is to actually TEST the player and collect logs to find real bugs. Ask user to reproduce the issue, retrieve logs via debug screen, and analyze.
