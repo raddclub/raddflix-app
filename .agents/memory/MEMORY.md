@@ -6,14 +6,16 @@
 - [JazzDrive dup guard](jd-dup-guard.md) — both upload paths need JD-side pre-check; trash_files() is broken
 - [JazzDrive file listing](jd-file-listing.md) — /media/video blind to file-type items; use /media/file for delta
 - [JazzDrive Pass3 bug](jazzdrive-pass3-bug.md) — backslash-dollar in Dart non-raw string = literal $, not interpolation
-- [JazzDrive session VK](jazzdrive-session-vk.md) — VK required for all SAPI; keytype=accesstoken 401 from Oracle; use keytype=otp at OTP time to get VK
+- [JazzDrive session VK](jazzdrive-session-vk.md) — VK required for all SAPI; keytype=accesstoken 401 from Oracle; use keytype=otp
 - [JazzDrive file delete](jazzdrive-file-delete.md) — always delete_files_permanent(), never trash_files()
 - [JazzDrive remote_id](jazzdrive-remote-id.md) — remote_id IS permanent JD file ID; full chain Oracle→Flutter verified
 - [Keepalive config](keepalive-config.md) — WARP + proxy pool architecture; conflict detector added 2026-06-13
 - [Warp tunnel](warp-tunnel.md) — Jazz IP watchdog accumulate mode; wg0 splits to Jazz IPs only
 - [XOR encoding](xor-encoding.md) — key formula, padding fix, candidate keys, JSESSIONID from JSON body
 - [No new features rule](no-new-features.md) — never suggest features; user is burnt out; only fix bugs
-- [Catalog sync stale IDs](catalog-sync.md) — after DB rebuild, always force-version-bump or Flutter keeps stale data
-- [OTP VK missing bug](jazzdrive-session-vk.md) — jazzdrive_verify_otp returns early with JID but no VK; fix: call mobile_direct_verify_otp for VK after OAuth2; keytype=otp is geo-unrestricted
-- [Player sidebar iconsOnly pattern](player-sidebar-ux.md) — _MxSideBtn iconsOnly param; sidebarMode 0/1/2 persisted; _clockTimer must be cancelled in dispose
-- [Speed picker horizontal track](player-sidebar-ux.md) — _SpeedTrackPanel replaces _SpeedPanel; anchor for _SpeedPanel class spans 22 lines exactly
+- [OTP VK missing bug](jazzdrive-session-vk.md) — jazzdrive_verify_otp returns early with JID but no VK
+- [Player sidebar iconsOnly pattern](player-sidebar-ux.md) — _MxSideBtn iconsOnly param; sidebarMode 0/1/2 persisted
+- [Speed picker horizontal track](player-sidebar-ux.md) — _SpeedTrackPanel replaces _SpeedPanel
+- [PlatformDispatcher dart:ui import](raddflix-constraints.md) — PlatformDispatcher NOT in flutter/material.dart; needs `import 'dart:ui' show PlatformDispatcher;`
+- [DebugLogger v2 methods](raddflix-constraints.md) — full method list: log,logError,logWarn,logApi,logState,logTap,logNav,logLifecycle,logFeature,logCrash,getFiltered,getLastLines,getRecent,clearBuffer,getLogPath,copyToClipboard,flush,share,shareLogs
+- [GitHub sequential push rule](raddflix-constraints.md) — NEVER parallel GitHub API pushes; always sequential with ≥1.2s delay between commits
