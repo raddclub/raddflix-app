@@ -36,6 +36,26 @@ class DebugLogger {
   static void logError(String tag, String msg, [Object? err]) =>
       _write('ERR/$tag', err != null ? '$msg | $err' : msg);
 
+  static void logWarn(String tag, String msg) => _write('WARN/$tag', msg);
+
+  static void logApi({
+    required String method,
+    required String url,
+    String? requestBody,
+    int? statusCode,
+    String? responsePreview,
+    String? error,
+    int? durationMs,
+  }) {
+    final parts = <String>['$method $url'];
+    if (statusCode != null) parts.add('HTTP $statusCode');
+    if (durationMs != null) parts.add('${durationMs}ms');
+    if (requestBody != null && requestBody.isNotEmpty) parts.add('req=$requestBody');
+    if (responsePreview != null && responsePreview.isNotEmpty) parts.add('resp=${responsePreview.length > 200 ? responsePreview.substring(0, 200) + "…" : responsePreview}');
+    if (error != null && error.isNotEmpty) parts.add('err=$error');
+    _write('API', parts.join(' | '));
+  }
+
   static void logState(String tag, Map<String, dynamic> state) =>
       _write(tag, state.entries.map((e) => '${e.key}=${e.value}').join(' | '));
 
@@ -55,10 +75,24 @@ class DebugLogger {
     return '$hh:$mm:$ss.$ms';
   }
 
-  /// Returns up to [n] most recent log entries.
+  /// Returns up to [n] most recent log entries as a single newline-joined string.
+  static String getLastLines([int n = 150]) {
+    final recent = _buffer.length <= n
+        ? List.of(_buffer)
+        : _buffer.sublist(_buffer.length - n);
+    return recent.join('\n');
+  }
+
+  /// Returns up to [n] most recent log entries as a List.
   static List<String> getRecent([int n = 150]) => _buffer.length <= n
       ? List.of(_buffer)
       : _buffer.sublist(_buffer.length - n);
+
+  /// Clears the in-memory ring buffer.
+  static void clearBuffer() => _buffer.clear();
+
+  /// Returns the log file path, or empty string if not initialised.
+  static String getLogPath() => _logPath ?? '';
 
   /// Copies entire log to clipboard.
   static Future<void> copyToClipboard() async {
@@ -88,6 +122,9 @@ class DebugLogger {
       await Share.share(_buffer.join('\n'), subject: 'RaddFlix Player Debug Log');
     } catch (_) {}
   }
+
+  /// Alias for [share] — used as an onPressed callback reference.
+  static Future<void> shareLogs() => share();
 
   static String? get logPath => _logPath;
   static int get entryCount => _buffer.length;
