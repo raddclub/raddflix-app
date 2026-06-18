@@ -83,7 +83,11 @@ async function pushFile(filePath, localPath, message) {
 }
 ```
 
-**For 3+ files in one atomic commit** (avoids SHA race conditions):
+**For 3+ files — push SEQUENTIALLY (never in parallel).**
+Parallel pushes cause branch tree SHA conflicts. Always `await` each push before the next,
+and add a 1–2s delay between calls (`await new Promise(r => setTimeout(r, 1200))`).
+
+**For one atomic multi-file commit** use the Trees API:
 
 ```javascript
 async function pushTree(files, commitMsg) {
@@ -154,8 +158,8 @@ Mark ✅ DONE when complete + pushed. This is the handoff bridge between agents.
    (`_ar_chain`, `_s2_chain`, `_sub_chain`, etc.) must use `is_proxy_bypass()` guard → `[None]` direct.
    Never call `pool.get_best()` or `pool.get_proxy_chain()` when bypass=1 — pool is dead/untested.
 2. **SAPI 401 with `<!DOCTYPE HTML` body** = dead proxy returning its own error, not JazzDrive.
-3. **No git shell commands** — GitHub API only (Contents or Trees API)
-4. **No bash heredoc** for Node scripts — use Replit `write` tool instead
+3. **No git shell commands** — GitHub API only (Contents or Trees API). Push files SEQUENTIALLY — parallel pushes cause SHA race conditions.
+4. **No bash heredoc** for Node scripts — use Replit `write` tool or `cat > file << 'EOF'` pattern instead
 5. **Never upgrade** `sqflite_sqlcipher` past `3.1.0+1`
 6. **Never add** `androidAttachSurfaceAfterVideoParameters: true` to VideoController (causes black screen)
 7. **Oracle port 5000 is not public** — test Flask APIs via SSH tunnel only
@@ -164,10 +168,14 @@ Mark ✅ DONE when complete + pushed. This is the handoff bridge between agents.
 9. **No Oracle destructive changes** without explicit user approval
 10. **Append session summary** to `agent-hub/history/TASK_LOG.md` when done
 11. **Always fetch fresh SHA** right before `pushFile` (or use `pushTree` for multi-file)
-12. **Debug code** must be gated behind `kDebugMode` — stripped from release APK
+12. **Debug screen** (`DebugDiagnosticsScreen`) is intentionally NOT gated by `kDebugMode` — accessible in release APK via 5-tap on version. Do NOT re-add `if (!kDebugMode)` gate. Other debug-only code should still be gated.
 13. **Use `db.setting(k)` not `db.get_setting(k)`** — `get_setting` does not exist in `db.py`
 14. **For bulk DELETEs** use direct `sqlite3.connect()` + `BEGIN IMMEDIATE`, NOT `db.conn()`
 15. **Oracle git pull**: always `git stash && git pull && git stash pop` — Oracle has local uncommitted files
+16. **Flutter icons**: Only use icon names confirmed in Flutter 3.22.3 source. `replay_15`, `forward_15` (and `_rounded` variants) do NOT exist. Use `replay_10` / `forward_10` / `replay_30` / `forward_30`.
+17. **`_np` getter in player_screen.dart**: Never name a local variable `_np` inside `player_screen.dart`. The class has `NativePlayer get _np => _player.platform as NativePlayer`. A local `final _np = anything` silently shadows it — any `_np.setProperty()` in that scope compiles but calls the wrong object.
+18. **Import hygiene**: When removing a widget or class from `player_screen.dart`, always check for and remove its import. Orphaned imports cause Dart unused-import warnings on every build.
+19. **Clock/timer displays**: Any timer driving a visible HH:MM clock overlay must fire at ≤10s intervals. 30s intervals leave the display up to 30s stale.
 
 Full rules: `agent-hub/RULES.md` | Architecture: `agent-hub/CONTEXT.md`
 
@@ -180,7 +188,7 @@ Flutter:  raddflix_flutter/lib/
   core/security/request_encoder.dart   XOR decode + padding fix (critical)
   core/api/api_client.dart             Dio + XOR + auth interceptors
   core/db/local_db.dart                SQLCipher DB, schema v17
-  screens/player_screen.dart           Video player — no androidAttachSurface
+  screens/player_screen.dart           Video player (7,094 lines) — no androidAttachSurface
   providers/auth_provider.dart         Auth state + session restore
 
 Oracle:   /opt/jazzmax/radd-hub/hub/
@@ -198,7 +206,7 @@ Coordination (GitHub main):
   agent-hub/TASKS.md                   ← READ FIRST every session
   agent-hub/CONTEXT.md                 System context + proxy architecture
   agent-hub/RULES.md                   Full rules list
-  AGENT_HANDOFF.md                     Full architecture
+  AGENT_HANDOFF.md                     Current state + handoff notes
   .agents/tasks/BUG_TRACKER.md         All known bugs + fix status
   agent-hub/history/TASK_LOG.md        Session history (append when done)
   AGENT_PROMPT.md                      This file
@@ -206,13 +214,38 @@ Coordination (GitHub main):
 
 ---
 
-## Known Open Issues (as of 2026-06-07)
+## player_screen.dart — current status (2026-06-18)
+
+| Item | Detail |
+|------|--------|
+| Lines | 7,094 (down from 7,131 at start of session) |
+| Last commit | `c099057` — re-audit: 4 more bugs fixed |
+| Last build | ✅ run#27729363694, conclusion: **success** |
+| Total bugs fixed this session | 15 (11 in 09760ca + 4 in c099057) |
+| Remaining | Duplicate UX systems (D1–D6), ghost features (safe no-ops), architecture (A1–A6) |
+
+### Critical player_screen.dart rules (hardware-specific bugs)
+
+| Rule | Detail |
+|------|--------|
+| vf= mid-play | NEVER call `_np.setProperty('vf', ...)` from startup code paths while playing. Check `_firstVfApplied` gate + `_lastAppliedVf` dedup. Even empty `vf=` destroys GL surface on MediaTek/Infinix HW decoder → black screen. |
+| hwdec mid-play | NEVER call `_np.setProperty('hwdec', ...)` while video is playing or media is open. Guard: `if (!_playing && !_player.state.playing && _player.state.duration == Duration.zero && !_videoSurfaceReady)`. |
+| Speed channel ordering | `_setSpeed()` MUST use `_np.setProperty('speed', ...)` — NOT `_player.setRate()`. Both framedrop and speed must go through the same NativePlayer channel. |
+| _videoSurfaceReady latch | Set `true` immediately after `VideoController` construction — NOT on first `playing=true` event. |
+| Long-press framedrop | Always set `framedrop=decoder+vo` BEFORE speed change. Restore `framedrop=vo` after. |
+| androidAttachSurface | Never add `androidAttachSurfaceAfterVideoParameters: true` — HW decoder crash. |
+| _jazzRetryCount reset | Reset to 0 inside `_openMedia` on every successful `_player.open()`. |
+| _jazzAutoRetry guard | Must check `if (_playing) return` before setting `_streamError`. |
+
+---
+
+## Known Open Issues (as of 2026-06-18)
 
 | Issue | Detail | Action needed |
 |-------|--------|---------------|
 | DATA-01 | All Of Us Are Dead missing E03/E04/E05/E09 | Upload missing episodes to JazzDrive + sync |
 
-*OPS-01 (session expired) → ✅ RESOLVED 2026-06-07. Session auto-recovers on every Flask restart (~3-5s) via Android OAuth2 direct via wg0. No OTP needed.*
+*OPS-01 (session expired) → ✅ RESOLVED 2026-06-07.*
 
 ---
 
@@ -222,7 +255,7 @@ Coordination (GitHub main):
 2. Append session summary to `agent-hub/history/TASK_LOG.md`
 3. Update `BUG_TRACKER.md` with any new bugs found or fixed
 4. Update `AGENT_HANDOFF.md` current state section
-5. Update this file with any new rules or findings
+5. Update this file (`AGENT_PROMPT.md`) with any new rules or findings
 6. Push ALL doc changes to GitHub before ending
 
 Session log template:
