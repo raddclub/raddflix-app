@@ -2,6 +2,22 @@
 
 _Last updated: 2026-06-18_
 
+## Completed This Session (2026-06-18) — Comprehensive Debug Logging
+
+| ID | Changed | Summary |
+|----|---------|---------|
+| ✅ DEBUG-LOG-01 | `debug_logger.dart` | **DebugLogger v2** (commit `613f686`, build ✅): buffer 5000 entries, 8MB rotation, session ID, auto-flush 30s, new methods: `logTap`, `logNav`, `logLifecycle`, `logFeature`, `logCrash`, `getFiltered`. |
+| ✅ DEBUG-LOG-02 | `main.dart` | **Global crash handler** (commits `bb59f50` + `96f8cc1`): `PlatformDispatcher.instance.onError` catches all uncaught Dart errors. `DebugLogger.init()` called at app start. Requires `import 'dart:ui' show PlatformDispatcher;` (missing import was build-breaking — fixed in `96f8cc1`). |
+| ✅ DEBUG-LOG-03 | `app.dart` | **Global nav observer** (commit `d5a449c`): `_RaddNavObserver` registered in MaterialApp — logs every push/pop/replace/remove with route name. |
+| ✅ DEBUG-LOG-04 | `player_screen.dart` | **13 crash-path patches** (commit `2413c3f`): initPlayer, hwdec guard, vf= startup gate, setSpeed framedrop, open() LOCAL+JAZZ URLs, buffering stream changes, completed event, error stream, jazzAutoRetry, onSwDecoderChanged. |
+| ✅ DEBUG-LOG-05 | `home_screen.dart` | **Lifecycle + tap logging** (commit `9c55499`): initState/dispose, bottom nav tabs, category filter chips, search icon, profile avatar, hero card taps (title+id). |
+| ✅ DEBUG-LOG-06 | `show_detail_screen.dart` | **Lifecycle + play logging** (commit `69a7d63`): initState(item id+title)/dispose, play episode tap, download episode tap. |
+| ✅ DEBUG-LOG-07 | `search_screen.dart` | **Full search logging** (commit `f739564`): lifecycle, query changes (debounced), filter changes, clearAll, suggestion taps, result card taps (title+id). |
+| ✅ DEBUG-LOG-08 | `profile_screen.dart` | **Lifecycle + nav logging** (commit `198033b`): initState/dispose, subscription/watchlist/history/downloads tab taps. |
+| ✅ DEBUG-LOG-09 | `downloads_screen.dart` | **Lifecycle + play logging** (commit `1e7128f`): initState, play downloaded file tap. |
+| ✅ DEBUG-BUILD-FIX | `main.dart` | **Build fix** (commit `96f8cc1`, build ✅ SUCCESS): all 4 prior cascading build failures fixed by adding `import 'dart:ui' show PlatformDispatcher;`. |
+
+
 ## Completed This Session (2026-06-17)
 
 | ID | Changed | Summary |
