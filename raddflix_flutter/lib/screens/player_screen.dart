@@ -270,6 +270,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // BUG-P01 FIX: track last checkpoint to avoid 50+ saves per 10s boundary
   int _lastSaveCheckpoint = -1;
+  int _lastMilestonePct = -1; // GOD-LOG: track last logged milestone %
 
   // JazzDrive XML auto-retry
   int _jazzRetryCount = 0;
@@ -406,7 +407,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _checkQuota();
     _quotaTimer = Timer.periodic(const Duration(minutes: 5), (_) => _checkQuota());
     DebugLogger.init();
-    DebugLogger.log('PLAYER', 'initState fileId=${widget.fileId} local=${widget.localPath}');
+    DebugLogger.log('PLAYER', 'initState fileId=${widget.fileId} epIdx=${widget.episodeIndex} contentType=${widget.contentType} episodes=${widget.episodes?.length ?? 0} localPath=${widget.localPath ?? "none"}');
       HardwareKeyboard.instance.addHandler(_onHardwareKey);
     }
 
@@ -541,7 +542,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
     if (loaded.smartVolumeLevelingEnabled) _svc!.start();
     _startWakeTimer(); // FIX-H03: apply user's saved wake timeout after prefs load
-    DebugLogger.log('INIT', 'prefs LOADED hwdec=${loaded.hwDecoderEnabled} bgPlay=${loaded.backgroundPlayEnabled} smartVol=${loaded.smartVolumeLevelingEnabled} volBoost=${loaded.volumeBoostMultiplier.toStringAsFixed(2)}× rotation=${loaded.rotationMode} endAction=${loaded.endOfVideoAction} autoSkipIntro=${loaded.autoSkipIntroEnabled} silenceSkip=${loaded.silenceSkipEnabled} ambilight=${loaded.ambilightEnabled}');
+    DebugLogger.log('INIT', 'prefs LOADED hwdec=${loaded.hwDecoderEnabled} bgPlay=${loaded.backgroundPlayEnabled} smartVol=${loaded.smartVolumeLevelingEnabled} volBoost=${loaded.volumeBoostMultiplier.toStringAsFixed(2)}× rotation=${loaded.rotationMode} endAction=${loaded.endOfVideoAction} autoSkipIntro=${loaded.autoSkipIntroEnabled} silenceSkip=${loaded.skipSilenceEnabled} ambilight=${loaded.ambilightEnabled}');
   }
 
   Future<void> _initAudioSession() async {
@@ -767,12 +768,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               : 'acompressor=threshold=0.89:ratio=2:attack=300:release=2000:makeup=1';
       afParts.add(acomp);
     }
+    DebugLogger.log('AUDIO', 'audioPrefs norm=${p.audioNormalization} eq=${p.equalizerEnabled} dialogue=${p.dialogueBoostEnabled} bass=${p.bassBoostEnabled}(${p.bassBoostLevel.toStringAsFixed(2)}) vocal=${p.vocalRemoverEnabled} surround=${p.surroundEnabled}(${p.surroundMode}) silenceSkip=${p.skipSilenceEnabled} smartVol=${p.smartVolumeLevelingEnabled}(${p.smartVolumeMode}) audioDelay=${p.audioTimingOffsetMs}ms');
     // Dart-side volume ramp controller — update target/mode, start/stop
     _svc?.update(targetLevel: p.smartVolumeTarget, mode: p.smartVolumeMode);
     if (p.smartVolumeLevelingEnabled) { _svc?.start(); } else { _svc?.stop(); }
 
     // Commit the complete filter chain — empty string clears all filters
-    await _np.setProperty('af', afParts.join(','));
+    final afChain = afParts.join(',');
+    DebugLogger.log('AUDIO', 'af= COMMIT chain="${afChain.isEmpty ? "(empty)" : afChain.length > 120 ? afChain.substring(0, 120) + "…" : afChain}" parts=${afParts.length} playing=$_playing');
+    await _np.setProperty('af', afChain);
 
     // Audio timing offset (sync delay in seconds)
     await _np.setProperty(
@@ -832,6 +836,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return; // dedup — no-op vf= still resets HW pipeline
     }
     _lastAppliedVf = vf;
+    DebugLogger.log('VIDEO', 'videoPrefs colorblind=${p.colorBlindMode} sharp=${p.sharpness.toStringAsFixed(2)} bright=${p.brightness.toStringAsFixed(2)} contrast=${p.contrast.toStringAsFixed(2)} saturation=${p.saturation.toStringAsFixed(2)} deband=${p.debandingEnabled} smartEnhance=${p.smartEnhanceEnabled}(${p.smartEnhanceMode})');
     DebugLogger.log('VIDEO', 'vf= SET "${vf.isEmpty ? "(empty)" : vf.length > 80 ? vf.substring(0, 80) + "…" : vf}" playing=$_playing mpvPlay=${_player.state.playing} sfc=$_videoSurfaceReady');
     await _np.setProperty('vf', vf);
 
@@ -1233,6 +1238,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         initialEnd:   _abLoopEnd   ?? (_position + const Duration(seconds: 30)),
         accentColor: _prefs.accentColor,
         onTrimChanged: (trim) {
+          DebugLogger.log('SEEK', 'AB-loop SET A=${_fmtDur(trim.start)} B=${_fmtDur(trim.end)} dur=${_fmtDur(_duration)}');
           setState(() { _abLoopStart = trim.start; _abLoopEnd = trim.end; });
           // BUG-P-NEW-05: sync to _abLoop controller so maybeSeekBack() enforces
           // the loop and seek bar markers (pointA/pointB) actually appear.
@@ -1571,7 +1577,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _openSilenceSkip() {
-    DebugLogger.log('PANEL', 'OPEN SilenceSkip enabled=${_prefs.silenceSkipEnabled}');
+    DebugLogger.log('PANEL', 'OPEN SilenceSkip enabled=${_prefs.skipSilenceEnabled}');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1803,14 +1809,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   
     void _initBingeGuard() {
-    DebugLogger.log('INIT', 'bingeGuard enabled=${_prefs.bingeGuardEnabled} intervalMins=${_prefs.bingeGuardIntervalMins}');
+    DebugLogger.log('INIT', 'bingeGuard enabled=${_prefs.bingeGuardEnabled} thresholdMins=${_prefs.bingeGuardThresholdMinutes}');
     _bingeGuardCtrl?.dispose();
     if (!_prefs.bingeGuardEnabled) return;
     _bingeGuardCtrl = BingeGuardController(
       thresholdMinutes: _prefs.bingeGuardThresholdMinutes,
       onThreshold: () {
         if (mounted) {
-          DebugLogger.log('BINGE', 'threshold hit threshold=${_prefs.bingeGuardThresholdMinutes}min');
+          DebugLogger.logWarn('BINGE', 'THRESHOLD HIT → pausing! threshold=${_prefs.bingeGuardThresholdMinutes}min watched=${_bingeGuardCtrl?.watchedMinutes ?? 0}min pos=${_fmtDur(_position)}');
           _player.pause();
           setState(() {
             _showBingeGuard = true;
@@ -1996,11 +2002,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Phase P: active skip segment check
       final _activeSeg = IntroSkipStore.activeAt(_skipSegments, p);
       if (_activeSeg != _activeSkipSegment) {
+        if (_activeSeg != null) {
+          DebugLogger.log('INTRO', 'skipSegment ACTIVE pos=${_fmtDur(p)} seg=[${_fmtDur(_activeSeg.start)}-${_fmtDur(_activeSeg.end)}]');
+        } else {
+          DebugLogger.log('INTRO', 'skipSegment CLEARED pos=${_fmtDur(p)}');
+        }
         setState(() => _activeSkipSegment = _activeSeg);
+      }
+      // Playback milestone logging (25/50/75/95%)
+      if (_duration.inSeconds > 30) {
+        final pct = (p.inMilliseconds / _duration.inMilliseconds * 100).round();
+        if ((pct == 25 || pct == 50 || pct == 75 || pct == 95) &&
+            pct != _lastMilestonePct) {
+          _lastMilestonePct = pct;
+          _logPlayerState('milestone_${pct}pct');
+          DebugLogger.log('PLAY', 'MILESTONE ${pct}% pos=${_fmtDur(p)} dur=${_fmtDur(_duration)} codec=$_piCodec res=$_piRes fps=$_piFps decoder=$_piDecoder');
+        }
       }
       // A-B Loop
       final seekBack = _abLoop.maybeSeekBack(p);
-      if (seekBack != null) _player.seek(seekBack);
+      if (seekBack != null) {
+        DebugLogger.log('SEEK', 'AB-loop SEEK-BACK pos=${_fmtDur(p)} → A=${_abLoopStart != null ? _fmtDur(_abLoopStart!) : "?"}');
+        _player.seek(seekBack);
+      }
       // Save watch position every 10s.
       // BUG-P01 FIX: use checkpoint index instead of modulo so we save exactly
       // once per 10s boundary regardless of how many stream events fire per second.
@@ -2016,7 +2040,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 : '');
         if (_posKey.isNotEmpty) {
           _lastSaveCheckpoint = _saveCheckpoint;
-          DebugLogger.log('SAVE', 'watchPos key=${_posKey.length > 40 ? _posKey.substring(0, 40) + "…" : _posKey} pos=${_fmtDur(p)} dur=${_fmtDur(_duration)}');
+          final pctSaved = _duration.inMilliseconds > 0 ? (p.inMilliseconds / _duration.inMilliseconds * 100).toInt() : 0;
+          DebugLogger.log('SAVE', 'watchPos ${pctSaved}% key=${_posKey.length > 40 ? _posKey.substring(0, 40) + "…" : _posKey} pos=${_fmtDur(p)} dur=${_fmtDur(_duration)} epIdx=$_currentEpIdx');
           LocalDb.saveWatchPosition(
               fileId: _posKey,
               positionMs: p.inMilliseconds,
@@ -2037,7 +2062,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _player.stream.buffering.listen((b) {
       if (!mounted) return;
       setState(() => _buffering = b);
-      DebugLogger.log('BUF', 'buffering→$b pos=${_fmtDur(_position)} playing=$_playing sfc=$_videoSurfaceReady');
+      DebugLogger.log('BUF', 'buffering→$b pos=${_fmtDur(_position)} dur=${_fmtDur(_duration)} playing=$_playing sfc=$_videoSurfaceReady local=$_isLocalFile epIdx=$_currentEpIdx');
       if (b) {
         if (!_isLocalFile) {
           _slowConnTimer?.cancel();
@@ -2058,12 +2083,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }
       } else {
         _slowConnTimer?.cancel();
+        if (_slowConnectionShown) {
+          DebugLogger.log('BUF', 'buffering CLEARED (slow conn snackbar was shown) pos=${_fmtDur(_position)}');
+        }
         _slowConnectionShown = false;
       }
     });
     _player.stream.playing.listen((p) {
       if (!mounted) return;
-      DebugLogger.log('PLAY', 'playing→$p sfc=$_videoSurfaceReady load=$_isLinkLoading binge=$_showBingeGuard ctrl=$_showControls');
+      DebugLogger.log('PLAY', 'playing→$p pos=${_fmtDur(_position)} sfc=$_videoSurfaceReady load=$_isLinkLoading binge=$_showBingeGuard locked=$_locked speed=$_speed decoder=$_piDecoder res=$_piRes epIdx=$_currentEpIdx');
       setState(() {
         _playing = p;
         if (p) _videoSurfaceReady = true; // FIX-PLAYER-02: latch on first frame
@@ -2071,7 +2099,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       });
       if (p) {
         _bingeGuardCtrl?.onPlay();
-        _sessionStartTime ??= DateTime.now();
+        if (_sessionStartTime == null) {
+          _sessionStartTime = DateTime.now();
+          DebugLogger.log('SAVE', 'sessionStart pos=${_fmtDur(_position)} epIdx=$_currentEpIdx local=$_isLocalFile decoder=$_piDecoder res=$_piRes');
+        }
       } else {
         _bingeGuardCtrl?.onPause();
       }
@@ -2082,20 +2113,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
     _player.stream.completed.listen((done) {
       if (!mounted || !done) return;
-      DebugLogger.log('PLAY', 'completed pos=${_fmtDur(_position)} dur=${_fmtDur(_duration)}');
+      DebugLogger.log('PLAY', 'completed pos=${_fmtDur(_position)} dur=${_fmtDur(_duration)} epIdx=$_currentEpIdx hasNextEp=$_hasNextEp decoder=$_piDecoder res=$_piRes');
       setState(() => _ended = true);
       _onPlaybackEnded();
     });
 
     // Track list -> restore saved language preferences
-    _player.stream.tracks.listen((_) {
-      if (mounted && _activeAudioIdx == 0) _restoreTrackMemory();
+    _player.stream.tracks.listen((tracks) {
+      if (!mounted) return;
+      final aud = tracks.audio.length;
+      final sub = tracks.sub.length;
+      final vid = tracks.video.length;
+      DebugLogger.log('TRACK', 'tracklist UPDATE audio=$aud sub=$sub video=$vid epIdx=$_currentEpIdx');
+      if (_activeAudioIdx == 0) _restoreTrackMemory();
     });
 
     // Subtitle text -> custom SubtitleOverlay
     _player.stream.subtitle.listen((lines) {
       if (!mounted) return;
       final text = lines.where((l) => l.trim().isNotEmpty).join('\n');
+      if (text.isNotEmpty && text != _currentSubtitleText) {
+        final snip = text.length > 60 ? text.substring(0, 60) + '…' : text;
+        DebugLogger.log('TRACK', 'subtitle TEXT pos=${_fmtDur(_position)} text="$snip"');
+      }
       setState(() => _currentSubtitleText = text.isEmpty ? null : text);
     });
 
@@ -2103,7 +2143,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Layer 1: MPV fires a hard error (expired token, DNS fail, etc.)
     _player.stream.error.listen((err) {
       if (!mounted || _isLocalFile) return;
-      DebugLogger.logError('PLAYER', 'Stream error: $err');
+      DebugLogger.logError('PLAYER', 'Stream ERROR: "${err.length > 120 ? err.substring(0, 120) + "…" : err}" pos=${_fmtDur(_position)} dur=${_fmtDur(_duration)} playing=$_playing jazzRetry=$_jazzRetryCount epIdx=$_currentEpIdx isRetrying=$_isRetrying sfc=$_videoSurfaceReady');
       // BUG-P-NEW-03: mid-stream errors (after 3s playback) were silently swallowed.
       // If already playing beyond 3s, show a dismissible snackbar and attempt soft
       // retry so the user knows about network drops / CDN URL expiry.
@@ -2132,7 +2172,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted || _isLocalFile || _jazzRetryCount > 0) return;
       // Key fix: !_playing ensures we don't show error popup during actual playback
       if (_duration == Duration.zero && !_isLinkLoading && !_playing && !_buffering) {
-        DebugLogger.logError('PLAYER', 'Duration still zero after 8s and not playing');
+        DebugLogger.logError('PLAYER', 'jazzRetryTimer FIRED: duration=zero after 8s epIdx=$_currentEpIdx sfc=$_videoSurfaceReady jazzRetryCount=$_jazzRetryCount');
         _jazzAutoRetry('Stream returned non-video content (possible XML error page)');
       }
     });
@@ -2169,6 +2209,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       path.startsWith('content://');
 
   Future<void> _openMedia(String fileId, {String? localPath}) async {
+    DebugLogger.log('LOAD', 'openMedia ENTRY fileId=${fileId.isEmpty ? "(empty)" : fileId.length > 50 ? fileId.substring(0, 50) + "…" : fileId} localPath=${localPath ?? "none"} epIdx=$_currentEpIdx jazzRetry=$_jazzRetryCount');
     // FIX-RETRY-01: keep track of which fileId is currently being opened so
     // _jazzAutoRetry invalidates and retries the right episode, not widget.fileId.
     _currentFileId = fileId.isNotEmpty ? fileId : _currentFileId;
@@ -2208,6 +2249,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         shareUrl       = shareInfo['share_url'] as String?;
         targetFilename = shareInfo['filename']  as String?;
         remoteId       = shareInfo['remote_id'] as int? ?? 0;
+        DebugLogger.log('LOAD', 'Step1 DB: shareUrl=${shareUrl != null && shareUrl!.isNotEmpty ? "FOUND" : "MISSING"} filename=${targetFilename ?? "none"} remoteId=$remoteId');
       }
 
       // Step 2: If not in local DB, use inline shareUrl passed from detail screen.
@@ -2246,6 +2288,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // FIX-RETRY-RESET: successful open — reset retry count so any future
         // mid-play error gets a full retry attempt instead of immediately
         // showing the error overlay (which would block the playing video).
+        DebugLogger.log('LOAD', 'openMedia JAZZ success epIdx=$_currentEpIdx jazzRetryCount=$_jazzRetryCount fn=${link.filename}');
         if (mounted) setState(() { _ended = false; _position = Duration.zero; _isLinkLoading = false; _jazzRetryCount = 0; });
         return;
       }
@@ -2271,7 +2314,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// Avoids always showing "Jazz SIM Required" for errors that have nothing
   /// to do with network access (e.g. deleted content, bad share key, timeout).
   String _buildJazzError(String? raw) {
+    final snippet = raw == null ? 'null' : raw.length > 80 ? raw.substring(0, 80) + '…' : raw;
+    DebugLogger.logWarn('PLAYER', 'buildJazzError raw="$snippet"');
     if (raw == null || raw.isEmpty) {
+      DebugLogger.logWarn('PLAYER', 'buildJazzError → null/empty → defaultMsg');
       return 'Could not connect to JazzDrive. Make sure you are on a Jazz SIM.';
     }
     // JazzDrive content errors (deleted content, invalid share key)
@@ -2385,7 +2431,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (start == null) return;
     _sessionStartTime = null;
     final seconds = DateTime.now().difference(start).inSeconds;
-    if (seconds < 5) return; // ignore very short views
+    DebugLogger.log('SAVE', 'watchSession seconds=$seconds quality=$_qualityFromRes epIdx=$_currentEpIdx pos=${_fmtDur(_position)}');
+    if (seconds < 5) { DebugLogger.log('SAVE', 'watchSession SKIPPED (<5s)'); return; }
     UsageService.addWatchSession(seconds: seconds, quality: _qualityFromRes);
   }
 
@@ -2489,7 +2536,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final prev = widget.episodes![_currentEpIdx - 1];
     final prevFileId   = prev['file_id']?.toString() ?? '';
     final prevLocalPath = prev['local_path'] as String?;
-    DebugLogger.log('EPISODE', 'PREV epIdx $_currentEpIdx→${_currentEpIdx - 1} fileId=$prevFileId pos=${_fmtDur(_position)}');
+    DebugLogger.log('EPISODE', 'PREV epIdx $_currentEpIdx→${_currentEpIdx - 1} fileId=$prevFileId pos=${_fmtDur(_position)} dur=${_fmtDur(_duration)} playing=$_playing decoder=$_piDecoder');
     setState(() {
       _currentEpIdx--;
       _showNextEpisode = false;
@@ -2511,7 +2558,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // FIX-LOCAL-3: local-folder "Play All" stores 'local_path' in episode map;
     // pass it through so _openMedia plays the file locally, not via Oracle.
     final nextLocalPath = next['local_path'] as String?;
-    DebugLogger.log('EPISODE', 'NEXT epIdx $_currentEpIdx→${_currentEpIdx + 1} fileId=$nextFileId pos=${_fmtDur(_position)}');
+    DebugLogger.log('EPISODE', 'NEXT epIdx $_currentEpIdx→${_currentEpIdx + 1} fileId=$nextFileId pos=${_fmtDur(_position)} dur=${_fmtDur(_duration)} playing=$_playing decoder=$_piDecoder');
     setState(() {
       _currentEpIdx++;
       _showNextEpisode = false;
@@ -2624,7 +2671,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       DebugLogger.log('PIP', 'entering PiP pos=${_fmtDur(_position)}');
       await _pipChannel.invokeMethod('enterPiP');
       setState(() => _inPiP = true);
-      DebugLogger.log('PIP', 'PiP entered OK');
+      DebugLogger.log('PIP', 'PiP entered OK playing=$_playing pos=${_fmtDur(_position)}');
     } catch (e) { DebugLogger.logError('PIP', 'enterPiP failed: $e'); }
   }
 
@@ -2974,7 +3021,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _seekRelative(int seconds) {
     final target = _position + Duration(seconds: seconds);
     final clamped = target < Duration.zero ? Duration.zero : target > _duration ? _duration : target;
-    DebugLogger.log('SEEK', 'seekRelative ${seconds > 0 ? "+" : ""}${seconds}s from=${_fmtDur(_position)} to=${_fmtDur(clamped)} dur=${_fmtDur(_duration)}');
+    final pctAfter = _duration.inMilliseconds > 0 ? (clamped.inMilliseconds / _duration.inMilliseconds * 100).toInt() : 0;
+    DebugLogger.log('SEEK', 'seekRelative ${seconds > 0 ? "+" : ""}${seconds}s from=${_fmtDur(_position)} to=${_fmtDur(clamped)} (${pctAfter}%) dur=${_fmtDur(_duration)} playing=$_playing');
     _player.seek(clamped);
     final label = seconds > 0 ? '+${seconds}s' : '${seconds}s';
     setState(() {
@@ -2996,7 +3044,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _cycleFit() {
     final nextRatioIdx = (_ratioIdx + 1) % _ratios.length;
-    DebugLogger.log('TAP/VIDEO', 'cycleFit $_fitLabel → ${_ratioLabels[nextRatioIdx]} (idx $_ratioIdx→$nextRatioIdx)');
+    DebugLogger.log('TAP/VIDEO', 'cycleFit ${_fitLabel} → ${_ratios[nextRatioIdx] == BoxFit.contain ? "Fit" : _ratios[nextRatioIdx] == BoxFit.cover ? "Zoom" : "Fill"} (idx $_ratioIdx→$nextRatioIdx)');
     setState(() => _ratioIdx = nextRatioIdx);
   }
 
@@ -3414,6 +3462,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 segment: _activeSkipSegment!,
                 accentColor: _prefs.accentColor,
                 onSkip: () {
+                  DebugLogger.log('INTRO', 'skipSegment TAP SKIP pos=${_fmtDur(_position)} seekTo=${_fmtDur(_activeSkipSegment!.end)}');
                   _player.seek(_activeSkipSegment!.end);
                   setState(() => _activeSkipSegment = null);
                 },
@@ -3685,7 +3734,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   _fetchPlaybackInfo();
                   // FIX-H05: keep info current while panel is open
                   _piTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-                    if (mounted && _showPlaybackInfo) _fetchPlaybackInfo();
+                    if (mounted && _showPlaybackInfo) {
+                      DebugLogger.log('PLAYER', 'piTimer tick pos=${_fmtDur(_position)} codec=$_piCodec res=$_piRes fps=$_piFps buf=$_piBuffer decoder=$_piDecoder');
+                      _fetchPlaybackInfo();
+                    }
                   });
                 }
               },
