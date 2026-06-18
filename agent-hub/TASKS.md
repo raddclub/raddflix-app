@@ -63,3 +63,10 @@ _Last updated: 2026-06-18_
 | ✅ FIX-VF-BLACKSCREEN-GAP | `player_screen.dart` | **Startup gate primed fix**: gate correctly blocked vf= when playing=true, but never updated `_lastAppliedVf` from sentinel — causing dedup bypass on 2nd call (ref.listen fires ~1-2s) → setProperty(vf) while playing → MediaTek GL surface destroyed → black screen. Fix: `_lastAppliedVf = _buildVfString(p)` before early return (commit `a7898f8f`). |
 | ✅ FIX-SPEED-RECOVERY | `player_screen.dart` | **Speed change black screen (all callers)**: `_setSpeed` had no recovery seek when framedrop changed direction (vo→decoder+vo) — affected speed picker slider, speed presets, voice commands, quick settings. Added direction-tracker `_currentFramedrop` + built-in recovery seek (150ms, guard: only on direction change). Removed now-redundant explicit seek from `onLongPressStart`. |
 | 📌 DATA-01 | All Of Us Are Dead missing E03/E04/E05/E09 — catalog data issue, not code |
+
+
+## Completed This Session (2026-06-18)
+
+| ID | Changed | Summary |
+|----|---------|----------|
+| ✅ FIX-VF-STARTUP | `player_screen.dart` | Black screen regression fix: _videoOpened gate. Commit 4d88e277. |
