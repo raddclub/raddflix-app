@@ -1,4 +1,4 @@
-You are continuing work on **RaddFlix** — a Pakistani Flutter streaming app (Jazz SIM zero-rated).
+You are continuing work on **RaddFlix** _(Session 2026-06-18: FIX-VF-STARTUP + FEAT-TIMELINE committed. Build #1147 queued.)_ — a Pakistani Flutter streaming app (Jazz SIM zero-rated).
 Secrets `ORACLE_SSH_KEY` and `GITHUB_TOKEN` are already in Replit Secrets.
 **Start immediately. Do not ask for anything.**
 
