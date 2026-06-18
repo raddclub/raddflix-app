@@ -90,3 +90,10 @@ _Add new bugs below this line as they are found._
 | Rule | Detail |
 |------|--------|
 | vf= mid-play guard | **NEVER call `_np.setProperty('vf', ...)` while video is playing from startup code paths.** `_applyVideoFilters` MUST check `_firstVfApplied` gate (startup) and `_lastAppliedVf` dedup before calling. On Android HW decoder (MediaTek/Infinix), even an empty `vf=` call destroys the GL surface → black screen. User-initiated changes (settings pickers) are OK but must seek-after. |
+
+| BUG-PLAYER-MUTE-OVERRIDE | `player_screen.dart` | SmartVolumeController._tick() clamped MPV volume min to 20.0 — fires every tick and overrides explicit user mute. Fixed: clamp(20.0→0.0, 130.0). | 2026-06-18 |
+| BUG-RETRY-WRONG-EP | `player_screen.dart` | _StreamErrorOverlay retry used widget.fileId (always ep1) not _currentFileId — retrying mid-series always restarted from episode 1. Fixed: use _currentFileId. | 2026-06-18 |
+| BUG-NEXTEP-EXITS-PLAYER | `player_screen.dart` | "Cancel" in _NextEpisodeOverlay called Navigator.of(context).pop() — pressing Cancel exited the entire player. Fixed: removed Navigator.pop(). | 2026-06-18 |
+| BUG-DUAL-SLEEP-BADGES | `player_screen.dart` | Sleep fade badge and sleep timer badge both visible simultaneously. Fixed: added !_sleepFadeActive guard to timer badge condition. | 2026-06-18 |
+| BUG-FRAMESTEP-STUCK | `player_screen.dart` | _showFrameStep set true in frameStep() but never cleared — frame-step controls stayed visible permanently. Fixed: clear in playing stream listener. | 2026-06-18 |
+| BUG-DEAD-STATE-VARS | `player_screen.dart` | 6 state variables declared but never used (_audioTracks, _selectedAudioTrack, _castScanning, _castDevices, _showSubtitleHunter, _abLoopActive). Removed all 6. | 2026-06-18 |
