@@ -1,5 +1,5 @@
 # Next Agent Brief — RaddFlix / JazzDrive
-**Date**: 2026-06-17 | **Priority**: NORMAL — All known bugs fixed. Player UX session complete.
+**Date**: 2026-06-18 | **Priority**: NORMAL — All known bugs fixed. PlaybackTimeline diagnostics added.
 
 ---
 
@@ -11,7 +11,15 @@ Oracle backend (`92.4.95.252`, Flask, `/opt/jazzmax/radd-hub/hub/`) handles all 
 
 ## ✅ Current Status — No Blocking Issues
 
-All known Flutter app bugs fixed as of 2026-06-17. Build 1067 in progress (commit 61f58908).
+  ### Latest session (2026-06-18) — PlaybackTimeline diagnostics
+  - **FIX-VF-STARTUP** confirmed correct: `_videoOpened=true` set synchronously before every `_player.open()`
+  - **FEAT-TIMELINE**: new `PlaybackTimeline` singleton with 10 probes, 3s black screen auto-detector
+  - **New "Player" tab** in Diagnostics screen (Profile → tap version 5×) — green/orange/red banner, per-session startup trace, copy button
+  - Build #1147 triggered (commit `4454e04f`)
+
+  ---
+
+  All known Flutter app bugs fixed as of 2026-06-17. Build 1067 in progress (commit 61f58908).
 Oracle Flask is running. JazzDrive chain is proven working.
 
 ---
