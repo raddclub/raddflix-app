@@ -1,5 +1,5 @@
 # BUG_TRACKER.md
-Last updated: 2026-06-18
+Last updated: 2026-06-18 (debug logging session complete)
 
 ## Status Key
 - ✅ FIXED — committed and verified
@@ -12,6 +12,16 @@ Last updated: 2026-06-18
 ## Open Bugs
 
 _No open bugs._
+
+---
+
+## Debug Logging Coverage (added 2026-06-18)
+
+All screens now fully instrumented. Every crash, nav event, and user tap is captured.
+See agent-hub/AGENT_STATUS.md for the full coverage table.
+
+To read logs on device: **Profile → Account → Debug Logs**
+Filter chips: CRASH → ERR → VIDEO/AUDIO → NAV → TAP → LC
 
 ---
 
@@ -101,3 +111,12 @@ _Add new bugs below this line as they are found._
 | FIX-CLOCK-TIMER | `player_screen.dart` | Clock timer fired every 30s but overlay shows HH:MM — time could be up to 30s stale. Fixed: changed Timer.periodic interval from 30s → 10s. | 2026-06-18 |
 | FIX-DEAD-BG-GUARD | `player_screen.dart` | BG-play toggle callback had `if (v && !_audioSessionInitialized) { _initAudioSession(); }` — `_audioSessionInitialized` is always true after initState so this block was permanently unreachable dead code. Fixed: removed dead guard block. | 2026-06-18 |
 | FIX-NP-SHADOW | `player_screen.dart` | `onToggleSidebarMode` callback declared `final _np = _prefs.copyWith(sidebarMode: _nm)` — local `_np` shadowed the class-level `NativePlayer get _np` getter. A future `_np.setProperty()` call in that closure would compile but call `PlayerPrefs.setProperty` (crash). Fixed: renamed to `final newPrefs` / `final newMode`. | 2026-06-18 |
+
+---
+
+## New Rule (2026-06-18)
+
+| Rule | Detail |
+|------|--------|
+| `PlatformDispatcher` import | Requires `import 'dart:ui' show PlatformDispatcher;` — NOT exported by `package:flutter/material.dart`. Missing this causes Dart compile error `Undefined name 'PlatformDispatcher'` on every build. |
+| DebugLogger v2 methods (complete list) | `log`, `logError`, `logWarn`, `logApi`, `logState`, `logTap`, `logNav`, `logLifecycle`, `logFeature`, `logCrash`, `getLastLines`, `getRecent`, `getFiltered`, `clearBuffer`, `getLogPath`, `copyToClipboard`, `flush`, `share`, `shareLogs` |
