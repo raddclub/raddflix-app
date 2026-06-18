@@ -293,7 +293,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showEqPanel          = false;
   bool _showAudioSyncPanel   = false;
   bool _showSubSyncPanel     = false;
-  bool _showSubtitleHunter   = false;
   bool _showHudSettings      = false;
   bool _showSmartEnhance     = false;
   // MX-style rotation: track last known landscape side to snap to correct one
@@ -360,18 +359,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showVideoEnhance = false;
   bool _showTransparentSlider = false;
 
-  // ── Missing state vars (fixes for CI errors) ─────────────────────────────
-  bool _castScanning = false;
-  List<CastDevice> _castDevices = const [];
+  // ── Cast / Party / UI panel state ─────────────────────────────────────────
   CastDevice? _connectedCastDevice;
   bool _showJumpPanel = false;
   bool _showCountdown = false;
   WatchPartyRoom? _watchPartyRoom;
-  List<AudioTrack> _audioTracks = const [];
-  int _selectedAudioTrack = 0;
   Duration? _abLoopStart;
   Duration? _abLoopEnd;
-  bool _abLoopActive = false;
 
   // ── Track Intelligence ────────────────────────────────────────────────────
   int _activeAudioIdx = 0;
@@ -1958,6 +1952,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       setState(() {
         _playing = p;
         if (p) _videoSurfaceReady = true; // FIX-PLAYER-02: latch on first frame
+        if (p) _showFrameStep = false; // clear frame-step controls when play resumes
       });
       if (p) {
         _bingeGuardCtrl?.onPlay();
@@ -2327,6 +2322,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
   }
 
+  /// Shared helper — cancels any existing skip-intro timer and schedules a
+  /// fresh one for [fileId]. Called by both [_playNextEpisode] and
+  /// [_playPrevEpisode] to avoid copy-paste divergence (was S1 bug).
+  void _scheduleSkipIntroCheck(String fileId) {
+    _skipIntroTimer?.cancel();
+    final seriesId = fileId.split('/').first;
+    _skipIntroTimer = Timer(const Duration(seconds: 5), () async {
+      if (!mounted) return;
+      if (!SmartIntroStore.shouldShow(
+          contentType: widget.contentType,
+          totalDuration: _duration)) return;
+      if (!_prefs.showSkipIntroButton) return;
+      final saved = await SmartIntroStore.getIntroEnd(
+          seriesId: seriesId, epIndex: _currentEpIdx);
+      if (!mounted) return;
+      setState(() { _savedIntroEnd = saved; _skipIntroVisible = _duration.inSeconds > 60; });
+      if (_prefs.autoSkipIntroEnabled && saved != null && _duration.inSeconds > 60) {
+        _player.seek(Duration(seconds: saved));
+        setState(() => _skipIntroVisible = false);
+        return;
+      }
+      Timer(const Duration(seconds: 8), () {
+        if (mounted) setState(() => _skipIntroVisible = false);
+      });
+    });
+  }
+
   void _playPrevEpisode() {
     if (widget.episodes == null || _currentEpIdx <= 0) return;
     _nextEpTimer?.cancel();
@@ -2343,27 +2365,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _activeAudioIdx = 0; // BUG-06: reset so track memory fires on new episode
     });
     _openMedia(prevFileId, localPath: prevLocalPath);
-    _skipIntroTimer?.cancel();
-    final prevSeriesId = prevFileId.split('/').first;
-    _skipIntroTimer = Timer(const Duration(seconds: 5), () async {
-      if (!mounted) return;
-      if (!SmartIntroStore.shouldShow(
-          contentType: widget.contentType,
-          totalDuration: _duration)) return;
-      if (!_prefs.showSkipIntroButton) return;
-      final saved = await SmartIntroStore.getIntroEnd(
-          seriesId: prevSeriesId, epIndex: _currentEpIdx);
-      if (!mounted) return;
-      setState(() { _savedIntroEnd = saved; _skipIntroVisible = _duration.inSeconds > 60; });
-      if (_prefs.autoSkipIntroEnabled && saved != null && _duration.inSeconds > 60) {
-        _player.seek(Duration(seconds: saved));
-        setState(() => _skipIntroVisible = false);
-        return;
-      }
-      Timer(const Duration(seconds: 8), () {
-        if (mounted) setState(() => _skipIntroVisible = false);
-      });
-    });
+    _scheduleSkipIntroCheck(prevFileId);
   }
 
   void _playNextEpisode() {
@@ -2384,27 +2386,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _activeAudioIdx = 0; // BUG-06: reset so track memory fires on new episode
     });
     _openMedia(nextFileId, localPath: nextLocalPath);
-    _skipIntroTimer?.cancel();
-    final _nextSeriesId = nextFileId.split('/').first;
-    _skipIntroTimer = Timer(const Duration(seconds: 5), () async {
-      if (!mounted) return;
-      if (!SmartIntroStore.shouldShow(
-          contentType: widget.contentType,
-          totalDuration: _duration)) return;
-      if (!_prefs.showSkipIntroButton) return;
-      final saved = await SmartIntroStore.getIntroEnd(
-          seriesId: _nextSeriesId, epIndex: _currentEpIdx);
-      if (!mounted) return;
-      setState(() { _savedIntroEnd = saved; _skipIntroVisible = _duration.inSeconds > 60; });
-      if (_prefs.autoSkipIntroEnabled && saved != null && _duration.inSeconds > 60) {
-        _player.seek(Duration(seconds: saved));
-        setState(() => _skipIntroVisible = false);
-        return;
-      }
-      Timer(const Duration(seconds: 8), () {
-        if (mounted) setState(() => _skipIntroVisible = false);
-      });
-    });
+    _scheduleSkipIntroCheck(nextFileId);
   }
 
   String get _currentTitle {
@@ -3012,10 +2994,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 currentMode: _aspectMode,
                 accentColor: _prefs.accentColor,
                 onZoomChanged: (z) {
-                  setState(() => _zoomLevel = z);
-                  // Persist last zoom level
                   final next = _prefs.copyWith(savedZoomLevel: z);
-                  setState(() => _prefs = next);
+                  setState(() { _zoomLevel = z; _prefs = next; });
                   next.save();
                 },
                 onModeChanged: (m) {
@@ -3078,8 +3058,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               isRetrying: _isRetrying,
               onRetry: () async {
                 setState(() { _streamError = null; _jazzRetryCount = 0; _isRetrying = true; });
-                await JazzDriveService.invalidate(widget.fileId);
-                await _openMedia(widget.fileId);
+                await JazzDriveService.invalidate(_currentFileId);
+                await _openMedia(_currentFileId);
                 if (mounted) setState(() => _isRetrying = false);
               },
               onBack: () => Navigator.of(context).pop(),
@@ -3224,8 +3204,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                  .fadeIn(duration: 800.ms).then().fadeOut(duration: 800.ms),
               ),
             ),
-          // ── Sleep timer badge ──
-          if (_sleepRemainingSeconds != null && !_showControls)
+          // ── Sleep timer badge ── (hidden while fade badge is already showing)
+          if (_sleepRemainingSeconds != null && !_showControls && !_sleepFadeActive)
             Positioned(
               top: 16, right: 60,
               child: Container(
@@ -3318,7 +3298,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               onCancel: () {
                 _nextEpTimer?.cancel();
                 setState(() => _showNextEpisode = false);
-                Navigator.of(context).pop();
               },
               onSkipCountdown: _playNextEpisode,
             ),
@@ -3341,15 +3320,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // ── Phase D3: Film Grain overlay ──────────────────────────────────
           if (_prefs.filmGrainLevel != 'none')
             FilmGrainOverlay(level: _prefs.filmGrainLevel),
-
-          // ── Phase I2: Reaction Stamps ─────────────────────────────────────
-          if (false) // reactions disabled — clutters landscape player
-            ReactionStampsOverlay(
-              position: _position,
-              contentId: widget.fileId,
-              accentColor: _prefs.accentColor,
-              visible: _showControls && !_locked,
-            ),
 
           // ── Phase L3: Video Zoom / Focus Mode ───────────────────────────────
           ZoomFocusOverlay(
@@ -3841,7 +3811,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     color: Colors.white.withOpacity(0.82),
                     boxShadow: const [BoxShadow(blurRadius: 8, color: Colors.black45)],
                   ),
-                  child: const Icon(Icons.play_circle_outline_rounded, color: Colors.black54, size: 22),
+                  child: Icon(_playing ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded, color: Colors.black54, size: 22),
                 ),
               ),
             ),
@@ -6524,8 +6494,6 @@ class _MxAudioPanelState extends State<_MxAudioPanel> {
         Row(children: [
           _MxPanelOption(icon: Icons.folder_open_rounded, label: 'Open', onTap: widget.onOpen),
           const SizedBox(width: 16),
-          _MxPanelOption(icon: Icons.headphones_rounded, label: 'Stereo mode', onTap: () {}),
-          const SizedBox(width: 16),
           const Spacer(),
           const Text('SW Decoder', style: TextStyle(color: Colors.white54, fontSize: 11)),
           const SizedBox(width: 6),
@@ -6916,7 +6884,7 @@ class _SmartVolumeController {
                  : _mode == 'balanced'   ? 1.5
                  :                         0.5;
       final move   = diff.sign * step.clamp(0, diff.abs());
-      final newVol = (current + move).clamp(20.0, 130.0);
+      final newVol = (current + move).clamp(0.0, 130.0);
       await np.setProperty('volume', newVol.toStringAsFixed(1));
     } catch (_) {} // ignore if player torn down mid-tick
   }
