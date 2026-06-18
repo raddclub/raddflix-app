@@ -42,7 +42,6 @@ import '../core/player/ab_loop_controller.dart';
 import '../widgets/player/seek_bar_painter.dart';
 import '../core/player/video_look_filter.dart'; // Phase D2
 import '../core/player/haptic_service.dart'; // Phase J5
-import '../widgets/player/reaction_stamps_overlay.dart'; // Phase I2
 import '../widgets/player/zoom_focus_overlay.dart'; // Phase L3
 import '../core/player/enhanced_screenshot_service.dart'; // Phase L1
 import '../widgets/player/speed_presets_sheet.dart';
@@ -386,7 +385,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _startWakeTimer(); // Phase H4: optional wake timeout
     _scheduleHide();
     _clockStr = _fmtTime();
-    _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _clockTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) setState(() => _clockStr = _fmtTime());
     });
     _onUserActivity(); // reset wake timer on tap
@@ -3570,10 +3569,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               onBgPlayToggle:          (v) => setState(() => _bgPlayEnabled = v),
               sidebarMode:             _sidebarMode,
               onToggleSidebarMode:     () {
-                final _nm = (_sidebarMode + 1) % 3;
-                final _np = _prefs.copyWith(sidebarMode: _nm);
-                setState(() { _sidebarMode = _nm; _prefs = _np; });
-                _np.save();
+                final newMode = (_sidebarMode + 1) % 3;
+                final newPrefs = _prefs.copyWith(sidebarMode: newMode);
+                setState(() { _sidebarMode = newMode; _prefs = newPrefs; });
+                newPrefs.save();
               },
               onPrevEpisode: (widget.episodes != null && _currentEpIdx > 0)
                   ? _playPrevEpisode
@@ -4049,11 +4048,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 },
                 onBgPlay: (v) {
                   setState(() => _bgPlayEnabled = v);
-                  // BUG-02: only init once — each _initAudioSession() call adds new stream listeners
-                  if (v && !_audioSessionInitialized) {
-                    _audioSessionInitialized = true;
-                    _initAudioSession();
-                  }
+                  // _initAudioSession() is always called in initState; no re-init needed here.
                 },
                 onMute: (v) {
                   // FIX-H06: silence/restore MPV internal volume too — system-only
