@@ -11,7 +11,7 @@
 | App (Oracle) | ✅ RUNNING | raddflix_radd via supervisorctl, port 5000, v3.0.0 |
 | JazzDrive Session | ✅ LIVE | Account id=11 (03257719165): VK ✅ JID ✅ tokens ✅ |
 | JazzDrive Chain | ✅ PROVEN | Full login→media→CDN tested 2026-06-16, real MP4 bytes confirmed |
-| Flutter app | ✅ STABLE | Build #1147 queued — commit 4454e04f (PlaybackTimeline probes) |
+| Flutter app | ✅ STABLE | Build #1148 ✅ SUCCESS — commit 773a26b8 (PlaybackTimeline + import fix) |
 | Debug Logging | ✅ COMPLETE | All screens + global crash handler + nav observer active |
 | Debug screen | ✅ LIVE | Profile → Account → Debug Logs (one tap, always visible) |
 | WhatsApp Bot | ✅ RUNNING | autostart=false, pid alive |
@@ -23,7 +23,7 @@
 
 | Build | Commit | Status | Key Fix |
 |-------|--------|--------|---------|
-| playback-timeline | 4454e04f | 🔄 Queued #1147 | PlaybackTimeline 10 probes + black screen detector |
+| playback-timeline | 773a26b8 | ✅ Build #1148 | PlaybackTimeline 10 probes + black screen detector + import fix | 57.1 MB |
 | debug-logging-fix | 96f8cc1 | ✅ Success | dart:ui import fix — all logging commits now live |
 | downloads-log | 1e7128f | ❌ Cascaded (main.dart) | downloads_screen logging |
 | profile-log | 198033b | ❌ Cascaded (main.dart) | profile_screen logging |
