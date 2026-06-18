@@ -1,8 +1,10 @@
 # NEXT AGENT BRIEFING — RaddFlix Hub
-_Written: 2026-06-10 | Updated: 2026-06-17 | Read HANDOFF_NEXT.md for latest state_
+_Written: 2026-06-10 | Updated: 2026-06-18 | Read HANDOFF_NEXT.md for latest state_
 
 > ⚠️ For up-to-date state, read `agent-hub/HANDOFF_NEXT.md` and `agent-hub/AGENT_STATUS.md` first.
 > This file covers the Oracle backend architecture and critical rules (still valid).
+
+**Latest (2026-06-18):** FIX-VF-STARTUP + FEAT-TIMELINE (PlaybackTimeline) committed. Build #1147 in progress.
 
 ---
 
