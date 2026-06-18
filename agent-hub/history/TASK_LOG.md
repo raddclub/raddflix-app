@@ -551,3 +551,25 @@ This is now documented in RULES.md, BUG_TRACKER.md, and .agents/memory/.
 - Latest commit: `96f8cc1` — dart:ui import fix
 - APK build: ✅ SUCCESS (run#27757913296)
 - Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
+
+
+---
+
+## Session 2026-06-18 — Debug Logging Round 2 (player_screen.dart exhaustive coverage)
+
+### What was done
+- **Round 1 (commit `272ac0c`, build ✅ run#1131):** 43 DebugLogger patches to player_screen.dart covering all silent `catch (_) {}` blocks → named errors, app lifecycle (backgrounded/resumed with seekback and OS-pause detection), episode prev/next nav, sleep timer (set/cancel/fire/fade), full playback-ended decision tree, watch-position save, slow connection detection, duration stream, audio/subtitle track selection with language names, volume boost, audio sync, subtitle sync, cinematic/immersive mode toggle, cycle fit (aspect ratio), frame step forward/back, screenshot success+failure, voice command handler, media button multi-press, subtitle file picker, bookmark add, skip intro visibility + auto-skip, cast enter, long-press play restart.
+- **Round 2 (commit `c4905b5`, build ⏳ run#1132):** 48 more patches — `_logPlayerState()` state-snapshot helper (logs pos/dur/playing/buffering/ep/local/loading/speed/hwdec/pip/locked/ended/error at any transition), dispose() with final position, ALL 22 panel-opening functions logged (SpeedPicker, EqVisualizer, BookmarkPanel, PlayerSettings, HudSettings, SmartEnhance, SleepTimer, VideoEnhanceSuite, JumpTo, SpeedPresets, EndAction, ZoomCrop, SilenceSkip, ABLoop, ClipTrimmer, IntroSkipEditor, GestureMap, PictureProfiles, AudioLab, AudioMixer, CinematicSettings, ImmersiveSettings), _loadPrefs completion with every key setting value, _loadSmartIntro result, _loadBookmarks count, _loadSkipSegments count, _deleteBookmark, _toggleControls show/hide, _seekRelative from/to/dur, lock toggle with position, _applyRotation mode, _cycleRotation old→new, _initAmbilight enabled+interval+start, _startWakeTimer set + wakeTimer FIRED, _shareTimestamp, _onSeekBarLongPress, _showJumpToTime, _handleCenterTap with play state, _initBingeGuard enabled+interval, _initPipChannel, audio interruption event with type, headphone unplug (becomingNoisy), _logWatchSession entry, _logPlayerState at jazz retry exhausted. Fixed: local var `_nextIdx` → `nextRatioIdx` (lint warning for underscore-prefix local vars).
+
+### New log tags introduced across both rounds
+`LIFECYCLE`, `EPISODE`, `SLEEP`, `SAVE`, `QUOTA`, `PIP`, `TRACK`, `INTRO`, `VOICE`, `HW`, `CAST`, `TAP/MODE`, `TAP/VIDEO`, `TAP`, `SEEK`, `PANEL`, `STATE`, `GESTURE`, `BUF`, `AUDIO`, `INIT` (extended), `LOAD` (extended)
+
+### Complete logging coverage now in player_screen.dart
+Every function entry, every panel open, every user gesture, every error path (including audio interruption, headphone unplug, PiP fail, quota redirect, plan expiry), every state transition (play→pause, episode change, lifecycle change) now emits a structured DebugLogger line with enough context to pinpoint root cause without needing a device attached.
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0
+- Latest commit: `c4905b5` — debug logging round 2
+- APK build: run#1132 ⏳ in_progress (round 2 build)
+- Round 1 build: ✅ SUCCESS run#1131 (commit 272ac0c)
+- Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
