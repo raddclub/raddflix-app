@@ -3149,8 +3149,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         onLongPressStart: (_) {
           DebugLogger.log('GESTURE', 'longPress START → ${_prefs.longPressSpeed}× pos=${_fmtDur(_position)}');
           setState(() => _longPressFast = true);
-          // _setSpeed handles framedrop=decoder+vo before setRate internally.
           _setSpeed(_prefs.longPressSpeed);
+          // FIX-BLACKSCREEN-LP2: framedrop=decoder+vo resets MediaTek HW decoder
+          // pipeline on longPress start, same as vf= mid-play does → GL surface
+          // goes permanently black. Seek to current position 150ms after the
+          // framedrop change to force a fresh decode+render cycle through the new
+          // pipeline (mirrors vf= recovery and onSwDecoderChanged fix).
+          Future.delayed(const Duration(milliseconds: 150), () {
+            if (!mounted || !_longPressFast) return;
+            if (_player.state.playing) {
+              DebugLogger.log('GESTURE', 'longPress START recovery seek pos=${_fmtDur(_position)}');
+              _player.seek(_player.state.position);
+            }
+          });
         },
         onLongPressEnd: (_) {
           DebugLogger.log('GESTURE', 'longPress END → back to ${_speed}× pos=${_fmtDur(_position)}');
