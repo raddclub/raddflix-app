@@ -223,6 +223,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // startup gate reliably blocks even when _player.state.playing is still false
   // (MediaTek GL surface isn't ready until ~200-500ms after open() — gate must cover that gap).
   bool _videoOpened = false;
+  // FIX-VF-ABSOLUTE: unix-ms timestamp of most recent _player.open() call.
+  // Provides a hard 2-second block in _applyVideoFilters after any open(),
+  // covering episode-nav re-opens where _firstVfApplied is already true.
+  int _videoOpenedAtMs = 0;
   bool _ended = false;
   DateTime? _sessionStartTime; // track watch-time for usage reporting
   Duration _bufferedPosition = Duration.zero;
@@ -873,6 +877,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return; // dedup — no-op vf= still resets HW pipeline
     }
     _lastAppliedVf = vf;
+    // FIX-VF-ABSOLUTE: hard 2-second block after any _player.open() call.
+    // Protects episode-navigation re-opens where _firstVfApplied is already true
+    // (startup gate is bypassed) but the GL surface is brand-new and not stable.
+    // setProperty('vf', ...) in this window destroys the MediaTek GL surface.
+    if (_videoOpenedAtMs > 0) {
+      final _msSinceOpen = DateTime.now().millisecondsSinceEpoch - _videoOpenedAtMs;
+      if (_msSinceOpen < 2000) {
+        DebugLogger.logWarn('VIDEO', 'vf= ABSOLUTE BLOCK (${_msSinceOpen}ms since open < 2000ms) — skipped to protect GL surface');
+        PlaybackTimeline.record('vf_absolute_blocked');
+        return;
+      }
+    }
     DebugLogger.log('VIDEO', 'videoPrefs colorblind=${p.colorBlindMode} sharp=${p.sharpnessEnabled}(${p.sharpness.toStringAsFixed(2)}) bright=${p.brightness.toStringAsFixed(2)} contrast=${p.contrast.toStringAsFixed(2)} sat=${p.saturation.toStringAsFixed(2)} night=${p.nightMode} smartEnhance=${p.smartEnhanceEnabled}(${p.smartEnhanceMode})');
     DebugLogger.log('VIDEO', 'vf= SET "${vf.isEmpty ? "(empty)" : vf.length > 80 ? vf.substring(0, 80) + "…" : vf}" playing=$_playing mpvPlay=${_player.state.playing} sfc=$_videoSurfaceReady');
     await _np.setProperty('vf', vf);
@@ -2301,6 +2317,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       DebugLogger.log('LOAD', 'player.open LOCAL: $effectiveLocalPath sfc=$_videoSurfaceReady');
       PlaybackTimeline.record('video_opened_local');
       _videoOpened = true; // FIX-VF-STARTUP: arm gate before surface is live
+      _videoOpenedAtMs = DateTime.now().millisecondsSinceEpoch; // FIX-VF-ABSOLUTE
       PlaybackTimeline.record('player_open_called');
       await _player.open(Media(effectiveLocalPath));
       // FIX-STALE-ERR: clear any stale error overlay when opening new media
@@ -2367,6 +2384,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         DebugLogger.log('LOAD', 'player.open JAZZ fn=${link.filename} url=${link.streamUrl.length > 60 ? link.streamUrl.substring(0, 60) + "…" : link.streamUrl}');
         PlaybackTimeline.record('video_opened_jazz');
         _videoOpened = true; // FIX-VF-STARTUP: arm gate before surface is live
+        _videoOpenedAtMs = DateTime.now().millisecondsSinceEpoch; // FIX-VF-ABSOLUTE
         PlaybackTimeline.record('player_open_called');
         await _player.open(Media(link.streamUrl));
         // FIX-RETRY-RESET: successful open — reset retry count so any future
