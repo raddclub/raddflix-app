@@ -662,7 +662,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: Colors.black75,
+                        color: Colors.black.withOpacity(0.75),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -705,7 +705,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.black75,
+                        color: Colors.black.withOpacity(0.75),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
@@ -1096,7 +1096,7 @@ class _SideIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-      decoration: BoxDecoration(color: Colors.black75, borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(color: Colors.black.withOpacity(0.75), borderRadius: BorderRadius.circular(10)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
