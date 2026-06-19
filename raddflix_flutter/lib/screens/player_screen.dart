@@ -164,6 +164,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showRemainingTime = false;
   bool _keepScreenOn = true;
   int _skipInterval = 10;
+  double _seekSwipeSec = 120.0;
   // Feature 26 — resume position
   Timer? _savePositionTimer;
   static const _kResumePrefix = 'resume_pos_';
@@ -180,6 +181,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // ── Subscriptions ───────────────────────────────────────────────────────────
   final List<StreamSubscription> _subs = [];
 
+  // ── Orientation ─────────────────────────────────────────────────────────────
+  // 0=Auto 1=ForceLandscape 2=ForcePortrait 3=ForceLandscapeReverse
+  int _orientMode = 0;
+  int _videoWidth = 0;
+  int _videoHeight = 0;
+
   // ── Watch position ──────────────────────────────────────────────────────────
   Timer? _posTimer;
 
@@ -192,7 +199,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    // Allow all orientations — video dimension auto-detects the right one
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     WakelockPlus.enable();
     _currentEpIdx = widget.episodeIndex;
     _currentFileId = widget.fileId;
@@ -312,6 +325,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _selectedAudio = track.audio;
           _selectedSubtitle = track.subtitle;
         });
+      }),
+      // Video dimension listeners — drive auto-orientation
+      _player.stream.width.listen((w) {
+        if (w != null && w > 0 && mounted) {
+          setState(() => _videoWidth = w);
+          _applyAutoOrientation();
+        }
+      }),
+      _player.stream.height.listen((h) {
+        if (h != null && h > 0 && mounted) {
+          setState(() => _videoHeight = h);
+          _applyAutoOrientation();
+        }
       }),
     ]);
 
@@ -680,6 +706,54 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     setState(() {});
   }
 
+  // ── Orientation control ─────────────────────────────────────────────────────
+  void _applyAutoOrientation() {
+    if (_orientMode != 0) return;
+    if (_videoWidth <= 0 || _videoHeight <= 0) return;
+    if (_videoWidth > _videoHeight) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+    }
+  }
+
+  void _cycleOrientation() {
+    final next = (_orientMode + 1) % 4;
+    setState(() => _orientMode = next);
+    switch (next) {
+      case 0:
+        _applyAutoOrientation();
+        break;
+      case 1:
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+        break;
+      case 2:
+        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+        break;
+      case 3:
+        SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeRight]);
+        break;
+    }
+  }
+
+  IconData get _orientIcon {
+    switch (_orientMode) {
+      case 1: return Icons.stay_current_landscape_rounded;
+      case 2: return Icons.stay_current_portrait_rounded;
+      case 3: return Icons.screen_lock_rotation_rounded;
+      default: return Icons.screen_rotation_rounded;
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   //  Smart Enhance
   // ═══════════════════════════════════════════════════════════════════════════
@@ -876,7 +950,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_dragIntent == 'seek') {
       // Horizontal seek: 120s across full width
       final delta = dx / constraints.maxWidth;
-      final seekSec = delta * 120.0;
+      final seekSec = delta * _seekSwipeSec;
       final targetMs = (_dragStartPos.inMilliseconds + seekSec * 1000)
           .clamp(0, _duration.inMilliseconds.toDouble());
       _seekBarDelta = targetMs / (_duration.inMilliseconds > 0 ? _duration.inMilliseconds : 1);
@@ -937,9 +1011,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     Widget build(BuildContext context) {
       return Scaffold(
         backgroundColor: Colors.black,
-        body: _SwipeToMinimize(
-          onDismiss: () => Navigator.of(context).pop(),
-          child: LayoutBuilder(
+        body: LayoutBuilder(
           builder: (context, constraints) {
             return Stack(
               children: [
@@ -1174,7 +1246,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             );
           },
         ),
-        ),  // _SwipeToMinimize closes
       );
     }
 
@@ -1265,13 +1336,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         children: [
           // Top gradient
           Positioned(
-            top: 0, left: 0, right: 0, height: 140,
+            top: 0, left: 0, right: 0, height: 80,
             child: Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Color(0xDD000000), Colors.transparent],
+                  colors: [Color(0xBB000000), Colors.transparent],
                 ),
               ),
             ),
@@ -1279,13 +1350,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
           // Bottom gradient
           Positioned(
-            bottom: 0, left: 0, right: 0, height: 180,
+            bottom: 0, left: 0, right: 0, height: 100,
             child: Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
-                  colors: [Color(0xDD000000), Colors.transparent],
+                  colors: [Color(0xBB000000), Colors.transparent],
                 ),
               ),
             ),
@@ -1368,11 +1439,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               onTap: () => _player.seek(Duration.zero),
             ),
 
-            // Zoom / fit
+            // Rotate / orientation cycle
             _RaddIconBtn(
-              icon: Icons.fit_screen_rounded,
+              icon: _orientIcon,
               size: 20,
-              onTap: _openZoomPanel,
+              onTap: _cycleOrientation,
             ),
 
             // Lock
@@ -1414,16 +1485,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             _scheduleHide();
           },
           child: Container(
-            width: 72, height: 72,
+            width: 56, height: 56,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.15),
-              border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+              color: Colors.white.withOpacity(0.12),
+              border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.5),
             ),
             child: Icon(
               _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
               color: Colors.white,
-              size: 40,
+              size: 32,
             ),
           ),
         ),
@@ -1905,7 +1976,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _player.setAudioTrack(track);
         },
         onSyncChanged: (delta) => _adjustAudioSync(delta),
-        onSWDecoderChanged: (v) => setState(() => _useSWDecoder = v),
+        onSWDecoderChanged: (v) {
+          if (!_playing && !_player.state.playing &&
+              _player.state.duration == Duration.zero) {
+            try { _np.setProperty('hwdec', v ? 'no' : 'auto-safe'); } catch (_) {}
+          }
+          setState(() => _useSWDecoder = v);
+        },
         onClose: () => Navigator.of(context).pop(),
       ));
     }
@@ -1973,6 +2050,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         abA: _abA,
         abB: _abB,
         abActive: _abActive,
+        isRotateLocked: _orientMode != 0,
+        onRotate: () { Navigator.of(context).pop(); _cycleOrientation(); },
         onLockToggle: () { Navigator.of(context).pop(); setState(() => _isLocked = true); },
         onMuteToggle: () { Navigator.of(context).pop(); _toggleMute(); },
         onLoopToggle: () { Navigator.of(context).pop(); _toggleLoop(); },
@@ -2010,6 +2089,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           if (v) WakelockPlus.enable(); else WakelockPlus.disable();
         },
         onSkipIntervalChanged: (v) => setState(() => _skipInterval = v),
+        seekSwipeSec: _seekSwipeSec,
+        onSeekSwipeSpeedChanged: (v) => setState(() => _seekSwipeSec = v),
         onClose: () => Navigator.of(context).pop(),
       ));
     }
@@ -2924,18 +3005,11 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                   ),
                 ),
 
-                // Reverb
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                  child: Row(
-                    children: [
-                      const Text('Reverb', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                      const Spacer(),
-                      const Text('None', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                      const Icon(Icons.chevron_right, color: Colors.white38, size: 18),
-                    ],
-                  ),
-                ),
+              // Reverb — real selector
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: _ReverbSelector(onChanged: widget.onReverbChanged),
+              ),
               ],
             ),
           ),
@@ -2959,6 +3033,8 @@ class _QuickShortcutsPanel extends StatelessWidget {
   final Duration? abA;
   final Duration? abB;
   final bool abActive;
+  final bool isRotateLocked;
+  final VoidCallback onRotate;
   final VoidCallback onLockToggle;
   final VoidCallback onMuteToggle;
   final VoidCallback onLoopToggle;
@@ -2981,6 +3057,8 @@ class _QuickShortcutsPanel extends StatelessWidget {
     required this.abA,
     required this.abB,
     required this.abActive,
+    required this.isRotateLocked,
+    required this.onRotate,
     required this.onLockToggle,
     required this.onMuteToggle,
     required this.onLoopToggle,
@@ -3042,7 +3120,7 @@ class _QuickShortcutsPanel extends StatelessWidget {
               // Row 1 of shortcuts
               _ShortcutGrid(
                 items: [
-                  _ShortcutItem(Icons.screen_rotation_rounded, 'Rotate', false, () {}),
+                  _ShortcutItem(Icons.screen_rotation_rounded, 'Rotate', isRotateLocked, onRotate),
                   _ShortcutItem(isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded, 'Mute', isMuted, onMuteToggle),
                   _ShortcutItem(Icons.equalizer_rounded, 'Equalizer', false, onAudioEffect),
                   _ShortcutItem(Icons.timer_rounded, sleepLabel, sleepTimerMinutes != null, () {
@@ -3203,6 +3281,8 @@ class _SettingsPanel extends StatefulWidget {
   final void Function(bool) onShowRemainingChanged;
   final void Function(bool) onKeepScreenChanged;
   final void Function(int) onSkipIntervalChanged;
+  final double seekSwipeSec;
+  final void Function(double) onSeekSwipeSpeedChanged;
   final VoidCallback onClose;
 
   const _SettingsPanel({
@@ -3212,6 +3292,8 @@ class _SettingsPanel extends StatefulWidget {
     required this.onShowRemainingChanged,
     required this.onKeepScreenChanged,
     required this.onSkipIntervalChanged,
+    required this.seekSwipeSec,
+    required this.onSeekSwipeSpeedChanged,
     required this.onClose,
   });
 
@@ -3224,6 +3306,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   late bool _showRemaining;
   late bool _keepScreenOn;
   late int _skipInterval;
+  late double _seekSwipeSec;
 
   @override
   void initState() {
@@ -3231,6 +3314,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     _showRemaining = widget.showRemainingTime;
     _keepScreenOn = widget.keepScreenOn;
     _skipInterval = widget.skipInterval;
+    _seekSwipeSec = widget.seekSwipeSec;
   }
 
   @override
@@ -3387,16 +3471,19 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         const SizedBox(height: 8),
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Slider(
-                value: 10,
-                min: 5, max: 60, divisions: 11,
+                value: _seekSwipeSec.clamp(30.0, 300.0),
+                min: 30, max: 300, divisions: 9,
                 activeColor: Colors.white,
                 inactiveColor: Colors.white24,
-                onChanged: null,
+                onChanged: (v) {
+                  setState(() => _seekSwipeSec = v);
+                  widget.onSeekSwipeSpeedChanged(v);
+                },
               ),
             ),
-            const Text('10', style: TextStyle(color: Colors.white, fontSize: 14)),
+            Text('${_seekSwipeSec.round()}s', style: const TextStyle(color: Colors.white, fontSize: 14)),
           ],
         ),
         const SizedBox(height: 8),
