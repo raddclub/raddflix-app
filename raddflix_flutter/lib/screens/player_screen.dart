@@ -3603,3 +3603,110 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
     );
   }
 }
+// ═════════════════════════════════════════════════════════════════════════════
+//  _SwipeToMinimize — drag down to dismiss player (Feature 25)
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _SwipeToMinimize extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onDismiss;
+  const _SwipeToMinimize({required this.child, required this.onDismiss});
+
+  @override
+  State<_SwipeToMinimize> createState() => _SwipeToMinimizeState();
+}
+
+class _SwipeToMinimizeState extends State<_SwipeToMinimize>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  double _offsetY = 0;
+  bool _dismissing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    if (d.delta.dy > 0) {
+      setState(() => _offsetY = (_offsetY + d.delta.dy).clamp(0.0, 300.0));
+    }
+  }
+
+  void _onDragEnd(DragEndDetails d) {
+    final velocity = d.velocity.pixelsPerSecond.dy;
+    if (_offsetY > 120 || velocity > 600) {
+      setState(() => _dismissing = true);
+      widget.onDismiss();
+    } else {
+      // Snap back
+      final start = _offsetY;
+      final anim = Tween<double>(begin: start, end: 0).animate(
+          CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+      anim.addListener(() => setState(() => _offsetY = anim.value));
+      _ctrl.forward(from: 0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_dismissing) return widget.child;
+    return GestureDetector(
+      onVerticalDragUpdate: _onDragUpdate,
+      onVerticalDragEnd: _onDragEnd,
+      child: Transform.translate(
+        offset: Offset(0, _offsetY),
+        child: Opacity(
+          opacity: (1.0 - _offsetY / 300).clamp(0.0, 1.0),
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  _ReverbSelector — reverb room presets (Feature 23)
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _ReverbSelector extends StatefulWidget {
+  final void Function(String?) onChanged;
+  const _ReverbSelector({required this.onChanged});
+
+  @override
+  State<_ReverbSelector> createState() => _ReverbSelectorState();
+}
+
+class _ReverbSelectorState extends State<_ReverbSelector> {
+  String? _selected;
+  static const _presets = ['None', 'Small Room', 'Hall', 'Cathedral', 'Stadium'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Text('Reverb', style: TextStyle(color: Colors.white70, fontSize: 13)),
+        const Spacer(),
+        DropdownButton<String>(
+          value: _selected ?? 'None',
+          dropdownColor: const Color(0xFF2A2A2A),
+          style: const TextStyle(color: Colors.white54, fontSize: 13),
+          underline: const SizedBox.shrink(),
+          icon: const Icon(Icons.chevron_right, color: Colors.white38, size: 18),
+          items: _presets.map((p) => DropdownMenuItem(
+            value: p,
+            child: Text(p, style: const TextStyle(color: Colors.white)),
+          )).toList(),
+          onChanged: (v) {
+            setState(() => _selected = v);
+            widget.onChanged(v == 'None' ? null : v);
+          },
+        ),
+      ],
+    );
+  }
+}
