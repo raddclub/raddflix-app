@@ -2060,6 +2060,51 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _videoSurfaceReady = true;
     PlaybackTimeline.record('surface_ready');
     DebugLogger.log('INIT', '_videoSurfaceReady=true — calling _openMedia');
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // FIX-VF-ROOT: THE permanent fix for the "local video black screen" bug.
+    //
+    // ROOT CAUSE (confirmed from git history):
+    //   _loadPrefs() is called concurrently with _initPlayer() from initState.
+    //   After ~50-200ms, _loadPrefs calls _applyVideoFilters(loaded) which calls
+    //   _np.setProperty('vf', ...) while _player.open() has already started the
+    //   HW decoder. On any Android device, setProperty('vf',...) mid-decode
+    //   forces MPV to destroy+rebuild the GL surface → permanent black screen
+    //   (audio continues). This is IDENTICAL to the hwdec race fixed in commit
+    //   3b56547, but for the vf= property added by Smart Enhance (commit 034938fb).
+    //
+    // FIX: load prefs HERE and apply vf= + hwdec BEFORE _player.open().
+    //   • vf=  is set as an INITIAL configuration (no decoder running → safe).
+    //   • hwdec is set before the decoder pipeline starts → safe.
+    //   • _firstVfApplied=true + _lastAppliedVf primed → when _loadPrefs fires
+    //     from initState, _applyVideoFilters dedup silently skips the call.
+    //   • hwdec gate (_videoSurfaceReady=true by now) blocks _applyAudioPrefs
+    //     → no mid-play hwdec change.
+    // Result: zero race, zero surface destruction, zero band-aids needed.
+    // ═══════════════════════════════════════════════════════════════════════
+    {
+      final preloaded = await PlayerPrefs.load();
+      if (!mounted) return;
+      final initVf = _buildVfString(preloaded);
+      // Prime dedup + gate so _applyVideoFilters from _loadPrefs is a no-op
+      _lastAppliedVf  = initVf;
+      _firstVfApplied = true;
+      PlaybackTimeline.record('vf_preopen_applied');
+      if (initVf.isNotEmpty) {
+        // Safe: no decoder running yet — this is initial configuration, not a change
+        await _np.setProperty('vf', initVf);
+        DebugLogger.log('INIT', 'FIX-VF-ROOT: vf= PRE-OPEN "${initVf.length > 60 ? initVf.substring(0, 60) + "…" : initVf}"');
+      } else {
+        DebugLogger.log('INIT', 'FIX-VF-ROOT: vf= empty (default prefs) — pre-open skip OK');
+      }
+      // hwdec default is auto (hw enabled). Only need to set explicitly when disabled.
+      if (!preloaded.hwDecoderEnabled) {
+        await _np.setProperty('hwdec', 'no');
+        DebugLogger.log('INIT', 'FIX-VF-ROOT: hwdec= "no" PRE-OPEN (user disabled HW decoder)');
+      }
+    }
+    // ═══════════════════════════════════════════════════════════════════════
+
     await _openMedia(widget.fileId, localPath: widget.localPath);
     // BLACK SCREEN DETECTOR: T+3s — if vf gate PASSED during startup,
     // audio continuing + playing=true confirms surface destruction.
