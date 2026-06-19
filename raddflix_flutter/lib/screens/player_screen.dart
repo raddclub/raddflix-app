@@ -2394,6 +2394,67 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     _speed = widget.subSpeed;
   }
 
+
+  // Feature 21: Online subtitle search (stub — wire to opensubtitles.com)
+  Future<void> _fetchOnlineSubtitles(BuildContext ctx) async {
+    if (_onlineLoading) return;
+    setState(() { _onlineLoading = true; _onlineError = ''; _onlineResults = []; });
+    // Full implementation requires OPENSUBTITLES_API_KEY in app constants
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) setState(() {
+      _onlineLoading = false;
+      _onlineError = 'Set OPENSUBTITLES_API_KEY for live search results.';
+    });
+  }
+
+  // Feature 22: Subtitle translation language picker
+  void _showTranslationDialog(BuildContext ctx) {
+    const langs = ['Urdu', 'Hindi', 'Arabic', 'French', 'Spanish', 'German'];
+    showDialog(
+      context: ctx,
+      builder: (c) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Add Translation', style: TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: 220,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: langs.map((lang) => ListTile(
+              dense: true,
+              title: Text(lang, style: const TextStyle(color: Colors.white)),
+              onTap: () => Navigator.of(c).pop(),
+            )).toList(),
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.of(c).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)))],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Header
+        Container(
+          color: const Color(0xFF252525),
+          padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
+                onPressed: widget.onClose,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              const SizedBox(width: 8),
+              const Text('Subtitle',
+                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
         // Tabs
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -2591,141 +2652,6 @@ class _AudioTrackPanel extends StatefulWidget {
   @override
   State<_AudioTrackPanel> createState() => _AudioTrackPanelState();
 }
-
-class _AudioTrackPanelState extends State<_AudioTrackPanel> {
-  late double _sync;
-  late bool _useSW;
-
-  @override
-  void initState() {
-    super.initState();
-    _sync = widget.audioSync;
-    _useSW = widget.useSWDecoder;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Header
-        Container(
-          color: const Color(0xFF252525),
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
-                onPressed: widget.onClose,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-              const SizedBox(width: 8),
-              const Text('Audio Track', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-
-        Expanded(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              // Track list
-              if (widget.tracks.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('No audio tracks found.', style: TextStyle(color: Colors.white54)),
-                ),
-
-              for (int i = 0; i < widget.tracks.length; i++)
-                RadioListTile<AudioTrack>(
-                  value: widget.tracks[i],
-                  groupValue: widget.selectedTrack,
-                  onChanged: (v) => v != null ? widget.onTrackSelected(v) : null,
-                  title: Text(
-                    widget.tracks[i].title ??
-                        widget.tracks[i].language ??
-                        'Audio track ${i + 1}',
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                  ),
-                  activeColor: Colors.white,
-                  controlAffinity: ListTileControlAffinity.trailing,
-                ),
-
-              const Divider(color: Colors.white12),
-
-              // Disable
-              RadioListTile<AudioTrack?>(
-                value: null,
-                groupValue: widget.selectedTrack,
-                onChanged: (_) {},
-                title: const Text('Disable', style: TextStyle(color: Colors.white, fontSize: 14)),
-                activeColor: Colors.white,
-                controlAffinity: ListTileControlAffinity.trailing,
-              ),
-
-              const Divider(color: Colors.white12),
-
-              // SW decoder toggle
-              SwitchListTile(
-                title: const Text('Use SW audio decoder', style: TextStyle(color: Colors.white, fontSize: 14)),
-                value: _useSW,
-                onChanged: (v) {
-                  setState(() => _useSW = v);
-                  widget.onSWDecoderChanged(v);
-                },
-                activeColor: Colors.white,
-              ),
-
-              const Divider(color: Colors.white12),
-
-              // Stereo mode (info only)
-              ListTile(
-                title: const Text('Stereo mode', style: TextStyle(color: Colors.white, fontSize: 14)),
-                trailing: const Text('Stereo', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                onTap: () {},
-              ),
-
-              const Divider(color: Colors.white12),
-
-              // AV Sync
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Synchronization', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _SyncBtn(label: '−', onTap: () {
-                          setState(() => _sync -= 0.1);
-                          widget.onSyncChanged(-0.1);
-                        }),
-                        const SizedBox(width: 16),
-                        Text('${_sync.toStringAsFixed(2)}s',
-                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 16),
-                        _SyncBtn(label: '+', onTap: () {
-                          setState(() => _sync += 0.1);
-                          widget.onSyncChanged(0.1);
-                        }),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  VIDEO ZOOM PANEL
-// ═════════════════════════════════════════════════════════════════════════════
 
 class _VideoZoomPanel extends StatelessWidget {
   final int selectedMode;
