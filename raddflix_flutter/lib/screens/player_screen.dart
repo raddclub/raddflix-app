@@ -937,7 +937,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     Widget build(BuildContext context) {
       return Scaffold(
         backgroundColor: Colors.black,
-        body: LayoutBuilder(
+        body: _SwipeToMinimize(
+          onDismiss: () => Navigator.of(context).pop(),
+          child: LayoutBuilder(
           builder: (context, constraints) {
             return Stack(
               children: [
@@ -1639,15 +1641,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     Widget _buildCenteredVolumeOverlay() {
       final percent = (_volume * 100).round();
-      final barFrac = (_volume / 1.5).clamp(0.0, 1.0);
+      final barFrac = (_volume / 2.5).clamp(0.0, 1.0);
+      // 0-100% = orange, 100-200% = deep orange, 200-250% = red
+      final barColor = _volume > 2.0
+          ? const Color(0xFFFF3B30)
+          : _volume > 1.0
+              ? const Color(0xFFFF6B35)
+              : const Color(0xFFE8950A);
       return _buildCenteredIndicatorPill(
         icon: _isMuted
             ? Icons.volume_off_rounded
-            : percent > 60
+            : _volume > 1.5
                 ? Icons.volume_up_rounded
                 : Icons.volume_down_rounded,
         barValue: barFrac,
-        barColor: const Color(0xFFE8950A),
+        barColor: barColor,
         label: '$percent%',
       );
     }
@@ -1928,6 +1936,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             try { _np.setProperty('af', ''); } catch (_) {}
           } else {
             _applyCustomEq();
+          }
+        },
+        onReverbChanged: (preset) {
+          switch (preset) {
+            case 'Small Room':
+              _np.setProperty('af', 'aecho=0.8:0.9:30:0.4');
+              break;
+            case 'Hall':
+              _np.setProperty('af', 'aecho=0.8:0.88:60:0.4');
+              break;
+            case 'Cathedral':
+              _np.setProperty('af', 'aecho=0.8:0.88:120:0.5');
+              break;
+            case 'Stadium':
+              _np.setProperty('af', 'aecho=0.8:0.9:180:0.6');
+              break;
+            default:
+              _applyCustomEq();
           }
         },
         onClose: () => Navigator.of(context).pop(),
@@ -2366,14 +2392,6 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     _sync = widget.subSync;
     _speed = widget.subSpeed;
   }
-
-  // Feature 21: Online subtitle search via OpenSubtitles REST
-  Future<void> _fetchOnlineSubtitles(BuildContext ctx) async {
-    if (_onlineLoading) return;
-    setState(() { _onlineLoading = true; _onlineError = ''; _onlineResults = []; });
-    try {
-      final title = Uri.encodeComponent(
-          (widget.currentFile ?? 'video').replaceAll(RegExp(r'\.[^.]+
 
         // Tabs
         SingleChildScrollView(
@@ -4866,6 +4884,4 @@ class _ReverbSelectorState extends State<_ReverbSelector> {
       ],
     );
   }
-}
-
 }
