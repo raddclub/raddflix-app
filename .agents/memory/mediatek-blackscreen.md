@@ -71,3 +71,37 @@
   ### Status
   Build #1151. Still WAITING for PlaybackTimeline data from user's device.
   
+
+  ## FIX-VF-ROOT (Build #1153, 2026-06-19) — THE REAL FIX
+
+  ### Confirmed Root Cause (from git history analysis)
+  Smart Enhance feature (commit 034938fb, 2026-06-07) added `_applyVideoFilters(loaded)`
+  to `_loadPrefs()`. Both `_initPlayer()` and `_loadPrefs()` are called from
+  `initState` without await — they run concurrently.
+
+  Timeline of the bug:
+  - T=0ms: _initPlayer starts, creates Player + VideoController, calls _player.open()
+  - T=0ms: _loadPrefs starts, awaits PlayerPrefs.load() (SharedPreferences, ~50-200ms)
+  - T=50-200ms: _loadPrefs completes, calls _applyVideoFilters(loaded)
+  - T=50-260ms: _applyVideoFilters 60ms debounce expires, calls setProperty('vf',...)
+  - RESULT: vf= property changed WHILE HW decoder is active → GL surface destroyed → black screen
+
+  Same race as the hwdec bug fixed in commit 3b56547a, but for vf= property.
+
+  ### The Fix
+  In `_initPlayer()`, BETWEEN VideoController construction and `_player.open()`:
+  1. Await PlayerPrefs.load() directly
+  2. Build initial vf string and prime _firstVfApplied=true + _lastAppliedVf
+  3. Apply vf= now (safe: decoder not started)
+  4. Apply hwdec='no' if disabled (safe: before decoder starts)
+
+  When _loadPrefs fires its _applyVideoFilters call: _firstVfApplied=true → gate skip →
+  dedup: vf unchanged → no setProperty call. Race eliminated at the root.
+
+  ### What NOT to do in future
+  - Do NOT add setProperty('vf',...) or setProperty('hwdec',...) to any function
+    that can fire AFTER _player.open() without a gate checking _videoOpened
+  - Any new player property that affects the decoder pipeline (audio/video filter,
+    codec selection, etc.) should follow this same pattern: apply before open OR
+    use a gate that checks _videoOpened/_player.state.playing
+  
