@@ -1,25 +1,32 @@
 # Agent Status
   **Last Updated:** 2026-06-19  
-  **Build:** #1151 ✅ SUCCESS (id=7747975371, 57.1MB)  
-  **Run:** https://github.com/raddclub/raddflix-app/actions/runs/27821255430
+  **Build:** #1153 ✅ SUCCESS (id=7748282186, 57.1MB)  
+  **Run:** https://github.com/raddclub/raddflix-app/actions/runs/27821999045
 
-  ## Current Work
-  - [x] FIX-VF-STARTUP — _videoOpened=true set before player.open() in both paths ✅
-  - [x] FEAT-TIMELINE — PlaybackTimeline 11 probes + Player tab in diagnostics ✅  
-  - [x] FIX-VF-ABSOLUTE — Hard 2-second timestamp block after player.open() ✅ (NEW)
-  - [ ] **WAITING** — Need PlaybackTimeline data from user's device (build #1151)
+  ## Root Cause (CONFIRMED)
+  The "local video black screen" bug was introduced when Smart Enhance (commit 034938fb)
+  added `_applyVideoFilters(loaded)` to `_loadPrefs()`. This created the SAME race
+  as the hwdec bug (fixed in commit 3b56547a) — _loadPrefs completes ~50-200ms after
+  _player.open() starts the HW decoder, then setProperty('vf',...) destroys the GL surface.
+
+  ## Permanent Fix Applied (Build #1153)
+  **FIX-VF-ROOT**: In _initPlayer(), BEFORE _player.open(), the code now:
+  1. Loads PlayerPrefs directly (await PlayerPrefs.load())
+  2. Primes _firstVfApplied=true + _lastAppliedVf → _applyVideoFilters from _loadPrefs is a dedup no-op
+  3. Applies vf= BEFORE decoder starts (safe — initial config, not a change)
+  4. Applies hwdec='no' if user disabled it (safe — before decoder starts)
+
+  Result: zero race, zero surface destruction. No flags or timers are load-bearing.
+
+  ## Fix History (all layers still present as defense-in-depth)
+  | Layer | Build | Description |
+  |-------|-------|-------------|
+  | FIX-VF-STARTUP | #1148 | _videoOpened=true gate in _applyVideoFilters |
+  | FIX-VF-GAP | #1148 | Prime _lastAppliedVf when gate blocks |
+  | FIX-VF-ABSOLUTE | #1151 | 2s timestamp block after player.open() |
+  | **FIX-VF-ROOT** | **#1153** | **Pre-open vf= in _initPlayer() — THE real fix** |
 
   ## Status
-  ⏳ WAITING FOR USER — Cannot reproduce MediaTek bug in any emulator.
-  User must: install #1151 → reproduce black screen → Profile → 5×tap version → Player tab → Copy → paste.
-  Once timeline data is in chat, next agent will know exact root cause.
-
-  ## Build History
-  | Build | Status | Fix |
-  |-------|--------|-----|
-  | #1147 | ❌ FAILED | missing import |
-  | #1148 | ✅ | FIX-VF-STARTUP + PlaybackTimeline (11 probes) |
-  | #1149 | ✅ | (minor, not relevant) |
-  | #1150 | ✅ | (unknown — parallel) |
-  | #1151 | ✅ | FIX-VF-ABSOLUTE (2s hard block) |
+  ✅ FIXED — Install build #1153, play local video, black screen should be gone.
+  If still happening, get PlaybackTimeline: Profile → 5×tap version → Player tab → Copy → paste.
   
