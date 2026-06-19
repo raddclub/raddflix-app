@@ -906,3 +906,6 @@ The black screen bug entered the code on June 1–3 during a massive feature pus
   - `038a16b` — MX Player UI v3 (3,284 lines)
   - `bf68151` — 8 bugs fixed (3,376 lines)
   
+## Session 2026-06-19 — Player screen 9-fix push
+- player_screen.dart: removed portrait lock; added video-dimension auto-orientation; working rotate button (cycles Auto/Landscape/Portrait/LandscapeReverse); wired Rotate shortcut in Quick Shortcuts panel; removed _SwipeToMinimize wrapper (was conflicting with volume/brightness gestures); wired SW decoder toggle to actual hwdec mpv property; wired Reverb row to real _ReverbSelector; wired Seek Speed slider in Settings>Navigation (was onChanged:null); compacted UI gradients 140→80px top, 180→100px bottom; play button 72→56px; seekSwipeSec replaces hardcoded 120.0 in drag seek.
+- local_folder_screen.dart: fixed _playVideo() to pass full sorted episode list + episode_index so prev/next buttons work for every single-tap in a local folder.
