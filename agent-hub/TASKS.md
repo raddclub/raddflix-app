@@ -55,38 +55,22 @@ _Last updated: 2026-06-18_
 | ✅ TASK-JD-LIVE | Oracle + JazzDrive API | Full stream chain proven end-to-end. |
 | ✅ TASK-BUTTONS-01 | `show_detail_screen.dart` | Separated Play + Download buttons on episodes. |
 
-## Open / In Progress
+## Completed This Session (2026-06-19) — MX Player UI v3 + Bug Fixes
 
-| ID | Details |
-|----|---------|
-| ✅ FIX-BLACKSCREEN-LP2 | `player_screen.dart` | **Long-press START black screen**: `framedrop=decoder+vo`+`speed=2×` on active MediaTek HW decoder resets pipeline → GL surface destroyed. Existing `FIX-BLACKSCREEN-LP` only recovered at END. Fix: 150ms recovery seek after `_setSpeed` on longPressStart (commit `69824d79dbfb`). |
-| ✅ FIX-VF-BLACKSCREEN-GAP | `player_screen.dart` | **Startup gate primed fix**: gate correctly blocked vf= when playing=true, but never updated `_lastAppliedVf` from sentinel — causing dedup bypass on 2nd call (ref.listen fires ~1-2s) → setProperty(vf) while playing → MediaTek GL surface destroyed → black screen. Fix: `_lastAppliedVf = _buildVfString(p)` before early return (commit `a7898f8f`). |
-| ✅ FIX-SPEED-RECOVERY | `player_screen.dart` | **Speed change black screen (all callers)**: `_setSpeed` had no recovery seek when framedrop changed direction (vo→decoder+vo) — affected speed picker slider, speed presets, voice commands, quick settings. Added direction-tracker `_currentFramedrop` + built-in recovery seek (150ms, guard: only on direction change). Removed now-redundant explicit seek from `onLongPressStart`. |
-| 📌 DATA-01 | All Of Us Are Dead missing E03/E04/E05/E09 — catalog data issue, not code |
+  | ID | Changed | Summary |
+  |----|---------|---------|
+  | ✅ MX-PLAYER-V3 | `player_screen.dart` | **MX Player-style UI v3** (commit `038a16b`, 3,284 lines): portrait orientation, vertical seek bar, volume triangles painter, Smart Enhance 3-phase animation (dots→scan→title), ColorFiltered matrix (no vf=), af=equalizer (audio only), all 6 right-side panels via SlideTransition showGeneralDialog. All 29 feature checks pass. |
+  | ✅ MX-BUGFIX-01 | `player_screen.dart` | **AnimationController.repeat removed from initState** (commit `bf68151`): `_smartEnhanceAnim..repeat()` fired at app launch wasting battery/CPU. Removed; `_toggleSmartEnhance()` correctly calls `repeat()` when needed. |
+  | ✅ MX-BUGFIX-02 | `player_screen.dart` | **mainAxisSize.max in overlays** (commit `bf68151`): Volume + brightness overlays had `mainAxisSize.min` with `Expanded` child — layout assertion risk. Changed to `max`. |
+  | ✅ MX-BUGFIX-03 | `player_screen.dart` | **_smartEnhanceAnim.stop() after phase 1** (commit `bf68151`): Anim controller kept running silently after phase 1. Now stopped before entering phase 2 scan line. |
+  | ✅ MX-BUGFIX-04 | `player_screen.dart` | **Duplicate ternary fixed** (commit `bf68151`): speed shortcut icon had identical branches in ternary. Simplified. |
+  | ✅ MX-BUGFIX-05 | `player_screen.dart` | **Navigation tab enriched** (commit `bf68151`): Added Seek Speed slider + checkboxes matching MX screenshot 215555. |
+  | ✅ MX-BUGFIX-06 | `player_screen.dart` | **Subtitle Text + Layout tabs** (commit `bf68151`): Tab 1 (font, size, scale, bold, color, bg, fade-out) and Tab 4 (alignment, margin, fit-to-video) added. |
 
+  ## Open / In Progress
 
-## Completed This Session (2026-06-18)
-
-| ID | Changed | Summary |
-|----|---------|----------|
-| ✅ FIX-VF-STARTUP | `player_screen.dart` | Black screen regression fix: _videoOpened gate. Commit 4d88e277. |
-| ✅ FEAT-TIMELINE | `playback_timeline.dart`, `player_screen.dart`, `debug_diagnostics_screen.dart` | PlaybackTimeline: 10 probe points, black screen auto-detector, Player tab in Diagnostics. |
-  ## FIX-VF-ABSOLUTE [DONE ✅ Build #1151]
-  Hard 2-second block after _player.open() in _applyVideoFilters.
-  _videoOpenedAtMs field timestamps every open(). Any vf= call within 2000ms
-  of open() is blocked + logged. Covers episode-nav re-opens where startup gate is bypassed.
+  | ID | Details |
+  |----|---------|
+  | ⏳ JAZZ-ZERO-RATE | Test zero-rated streaming on Jazz SIM — verify JazzDriveService.getStreamLink works on cellular. |
+  | ⏳ RELEASE-APK | Build signed release APK — Firebase App Distribution or direct APK to testers. |
   
-  ## FIX-VF-ROOT [DONE ✅ Build #1153]
-  THE permanent fix. Root cause confirmed: Smart Enhance (commit 034938fb) added
-  _applyVideoFilters(loaded) to _loadPrefs(). Both run concurrently from initState.
-  _player.open() starts decoder immediately. _loadPrefs completes ~50-200ms later,
-  calls setProperty('vf',...) while HW decoder active → GL surface destroyed.
-  Fix: load PlayerPrefs inside _initPlayer() BEFORE _player.open(). Apply vf= and
-  hwdec as initial config (decoder not running → safe). _firstVfApplied=true + 
-  _lastAppliedVf primed so _loadPrefs._applyVideoFilters is a dedup no-op.
-  
-## Open / In Progress
-
-| ID | Details |
-|----|---------|
-| ⏳ FEAT-SIMPLE-PLAYER | `player_screen.dart` | **Clean Player v2** — backup old 7500-line player as `player_screen_v1_backup.dart`, replace with minimal ~600-line player. No vf=, no hwdec mid-play, no video filters. Plays local + catalog + episodes correctly. |
