@@ -201,8 +201,8 @@ import 'player_screen.dart';
           if (!_selecting) _buildStatsBar(sorted),
           Expanded(child: _buildBody(sorted)),
         ])),
-        // Floating play all button (MX Player style)
-                // play-all removed      );
+        // no FAB — play-all action is accessible from top bar
+        );
     }
 
     Widget _buildTopBar(List<LocalVideo> sorted) {
