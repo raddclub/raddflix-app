@@ -1325,69 +1325,57 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ═══════════════════════════════════════════════════════════════════════════
 
     Widget _buildCenterControls() {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Previous episode
-          if (_hasPrev)
-            _RaddIconBtn(
-              icon: Icons.skip_previous_rounded,
-              size: 28,
-              onTap: () => _playEpisodeAt(_currentEpIdx - 1),
-            ),
-          if (_hasPrev) const SizedBox(width: 8),
-
-          // Skip back
-          _RaddIconBtn(
-            icon: Icons.replay_10_rounded,
-            size: 32,
-            onTap: () => _seekRelative(-_skipInterval),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Previous video — always visible, dimmed when unavailable
+        Opacity(
+          opacity: _hasPrev ? 1.0 : 0.3,
+          child: _RaddIconBtn(
+            icon: Icons.skip_previous_rounded,
+            size: 36,
+            onTap: _hasPrev ? () => _playEpisodeAt(_currentEpIdx - 1) : null,
           ),
+        ),
 
-          const SizedBox(width: 20),
+        const SizedBox(width: 24),
 
-          // Play / Pause — large pill button
-          GestureDetector(
-            onTap: () {
-              _player.playOrPause();
-              _scheduleHide();
-            },
-            child: Container(
-              width: 72, height: 72,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.15),
-                border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
-              ),
-              child: Icon(
-                _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                color: Colors.white,
-                size: 40,
-              ),
+        // Play / Pause — large circle button
+        GestureDetector(
+          onTap: () {
+            _player.playOrPause();
+            _scheduleHide();
+          },
+          child: Container(
+            width: 72, height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(0.15),
+              border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+            ),
+            child: Icon(
+              _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              color: Colors.white,
+              size: 40,
             ),
           ),
+        ),
 
-          const SizedBox(width: 20),
+        const SizedBox(width: 24),
 
-          // Skip forward
-          _RaddIconBtn(
-            icon: Icons.forward_10_rounded,
-            size: 32,
-            onTap: () => _seekRelative(_skipInterval),
+        // Next video — always visible, dimmed when unavailable
+        Opacity(
+          opacity: _hasNext ? 1.0 : 0.3,
+          child: _RaddIconBtn(
+            icon: Icons.skip_next_rounded,
+            size: 36,
+            onTap: _hasNext ? () => _playEpisodeAt(_currentEpIdx + 1) : null,
           ),
-
-          // Next episode
-          if (_hasNext) const SizedBox(width: 8),
-          if (_hasNext)
-            _RaddIconBtn(
-              icon: Icons.skip_next_rounded,
-              size: 28,
-              onTap: () => _playEpisodeAt(_currentEpIdx + 1),
-            ),
-        ],
-      );
-    }
+        ),
+      ],
+    );
+  }
 
     // ═══════════════════════════════════════════════════════════════════════════
     //  Bottom area: seek bar + icon row
