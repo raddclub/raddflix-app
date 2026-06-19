@@ -871,3 +871,38 @@ The black screen bug entered the code on June 1–3 during a massive feature pus
 - Oracle Flask: RUNNING v3.0.0 (not touched)
 - player_screen.dart: ~600 lines (was 7,556)
 - Build: needs trigger after commit
+
+  ---
+
+  ## Session: 2026-06-19 — MX Player UI v3 Verification & Bug Fixes
+
+  **Goal:** Verify complete MX Player-style player_screen.dart implementation against 25 screenshots, fix all bugs found, push clean commit.
+
+  **File:** `raddflix_flutter/lib/screens/player_screen.dart` (3,376 lines after fixes)
+
+  ### Feature Verification (all 29 checks passed)
+  - Portrait orientation (DeviceOrientation.portraitUp) ✅
+  - Vertical seek bar (_buildVerticalSeekBar, _VerticalSeekPainter) ✅
+  - Volume triangles (_buildVolumeTriangles, _VolumeTrianglePainter) ✅
+  - Right icon strip (_buildRightIconStrip) ✅
+  - Smart Enhance 3-phase animation (dots→scan→title, _SmartEnhanceDotsCirclePainter) ✅
+  - ColorFiltered 4×5 matrix for visual enhancement (no vf=, MediaTek safe) ✅
+  - EQ via af=equalizer (audio only, safe), sub-delay, audio-delay ✅
+  - All 6 panels: Audio Track, Subtitle, Video Zoom, Audio Effect, Quick Shortcuts, Settings ✅
+  - showGeneralDialog + SlideTransition from right ✅
+  - _isLocked, _abA, _sleepTimer, VolumeController, ScreenBrightness, WakelockPlus ✅
+  - androidAttachSurfaceAfterVideoParameters: false, _videoOpened=true guard ✅
+
+  ### Bugs Fixed (commit bf68151)
+  1. **AnimationController.repeat removed from initState** — was wasting battery/CPU at launch
+  2. **mainAxisSize.max** in volume + brightness overlays — prevents layout assertion with Expanded child
+  3. **_smartEnhanceAnim.stop()** after phase 1 — stops anim controller cleanly before scan line phase
+  4. **Duplicate ternary icon** in speed shortcut — both branches were identical, simplified
+  5. **Navigation tab enriched** — Seek Speed slider + 3 checkboxes matching MX screenshot 215555
+  6. **Subtitle Text tab content** (tab 1) — font, size, scale, bold, color, bg, fade-out (MX 215601-215615)
+  7. **Subtitle Layout tab content** (tab 4) — alignment, margin, fit-to-video
+
+  ### Commits
+  - `038a16b` — MX Player UI v3 (3,284 lines)
+  - `bf68151` — 8 bugs fixed (3,376 lines)
+  
