@@ -1,41 +1,40 @@
 # Handoff — Next Agent
 
-  ## Current State (as of 2026-06-19)
-  Build #1151 is ready. Three layers of vf= protection now in place:
+  ## Status (2026-06-19): FIX-VF-ROOT deployed in build #1153
 
-  ### Layer 1: FIX-VF-STARTUP (_videoOpened flag)
-  `_videoOpened = true` is set before both `_player.open()` calls.
-  `_applyVideoFilters` startup gate checks this flag → blocks the first call from prefs.
+  ### Confirmed Root Cause
+  The "local video black screen after 1-2s" bug was introduced by Smart Enhance
+  (commit 034938fb) which added `_applyVideoFilters(loaded)` to `_loadPrefs()`.
 
-  ### Layer 2: FIX-VF-GAP (_lastAppliedVf priming)
-  When gate blocks, primes `_lastAppliedVf` so the dedup skips any subsequent call
-  with the same vf string.
+  Both `_initPlayer()` and `_loadPrefs()` are called from `initState` without await.
+  They race. `_player.open()` starts the HW decoder immediately. `_loadPrefs`
+  completes ~50-200ms later and calls `setProperty('vf',...)` while the decoder
+  is active → GL surface destroyed → permanent black screen (audio continues).
 
-  ### Layer 3: FIX-VF-ABSOLUTE (_videoOpenedAtMs timestamp)
-  `_videoOpenedAtMs` records ms of every `player.open()`. Any `vf=` property call
-  within 2000ms of open() is unconditionally blocked, regardless of _firstVfApplied.
-  Covers episode-nav re-opens where startup gate is bypassed.
+  Identical to the hwdec race fixed in commit 3b56547a, but for vf=.
 
-  ## The Unsolved Mystery
-  Bug may STILL be happening. User hasn't confirmed fix worked.
-  PlaybackTimeline (build #1148+) captures what happened.
-  **Need**: User installs #1151, plays local video that goes black, waits 5s,
-  goes back, Profile → 5×tap version → Player tab → Copy → paste here.
+  ### The Permanent Fix (FIX-VF-ROOT, player_screen.dart _initPlayer())
+  In _initPlayer(), AFTER VideoController construction and BEFORE _player.open():
+  1. `await PlayerPrefs.load()` — load prefs synchronously in this context
+  2. Build initVf = _buildVfString(preloaded)
+  3. Prime `_lastAppliedVf = initVf` and `_firstVfApplied = true`
+  4. If initVf non-empty: `await _np.setProperty('vf', initVf)` (safe: no decoder)
+  5. If hwdec disabled: `await _np.setProperty('hwdec', 'no')` (safe: before open)
+  6. Then: `await _openMedia(...)` — decoder starts with correct settings
 
-  ## If Timeline Shows GREEN
-  The vf= fix is working. Different cause for black screen. Possible culprits:
-  - media_kit GL surface recreation on MediaTek (AndroidAttachSurfaceAfterVideoParameters)
-  - MPV hw decoder init destroying surface
-  - Check DebugLogger for any errors in the 0-2s window
+  When _loadPrefs fires from initState:
+  - _applyVideoFilters: _firstVfApplied=true → gate bypassed → dedup: vf unchanged → no-op ✓
+  - _applyAudioPrefs: _videoSurfaceReady=true → hwdec gate blocks → no-op ✓
 
-  ## If Timeline Shows ORANGE/RED  
-  Fix not working. Check which flag was false. _videoOpened should always be true.
+  ### Defense-in-Depth (still present, not load-bearing)
+  - FIX-VF-STARTUP (_videoOpened gate)
+  - FIX-VF-GAP (_lastAppliedVf priming when gate blocks)
+  - FIX-VF-ABSOLUTE (2s timestamp block after open)
 
-  ## Critical Rules (DO NOT VIOLATE)
-  - Never name any local variable `_np` (shadows the field, breaks setProperty calls)
-  - Never add androidAttachSurfaceAfterVideoParameters:true to VideoController config
+  ### Critical Rules (NEVER violate)
+  - Never name any local variable `_np` (shadows the getter)
+  - Never add androidAttachSurfaceAfterVideoParameters:true
   - Never upgrade sqflite_sqlcipher past 3.1.0+1
-  - GitHub pushes: always fetch fresh SHA, always wait ≥1.5s between pushes
-  - Stack: Flutter 3.22.3, media_kit/MPV, SQLCipher 3.1.0+1, Oracle Flask at 92.4.95.252:5000
-  - GitHub repo: raddclub/raddflix-app, token in .replit under GITHUB_TOKEN
+  - GitHub pushes: fetch fresh SHA, wait ≥1.5s between pushes
+  - Stack: Flutter 3.22.3, media_kit/MPV, SQLCipher 3.1.0+1, Oracle Flask 92.4.95.252:5000
   
