@@ -197,7 +197,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _smartEnhanceAnim = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
-    )..repeat();
+    );
     _initPlayer();
     // Init volume/brightness readings
     VolumeController().listener((v) {
@@ -647,6 +647,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _smartEnhanceTimer?.cancel();
     _smartEnhanceTimer = Timer(const Duration(milliseconds: 1600), () {
       if (!mounted) return;
+      _smartEnhanceAnim.stop();
       setState(() {
         _smartEnhancePhase = 2;
         _scanLinePos = 0.0;
@@ -1561,7 +1562,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
           const Icon(Icons.volume_up_rounded, color: Colors.white, size: 18),
           const SizedBox(width: 8),
@@ -1595,7 +1596,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
           const Icon(Icons.wb_sunny_rounded, color: Colors.white, size: 18),
           const SizedBox(width: 8),
@@ -2320,7 +2321,64 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                 ),
               ],
 
-              if (_tab == 0) ...[
+              if (_tab == 1) ...[
+                  const Text('Text', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  const Row(children: [
+                    Expanded(child: Text('Font', style: TextStyle(color: Colors.white, fontSize: 14))),
+                    Text('Sans Serif', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                    Icon(Icons.chevron_right, color: Colors.white38, size: 16),
+                  ]),
+                  const SizedBox(height: 6),
+                  const Row(children: [
+                    Expanded(child: Text('Size', style: TextStyle(color: Colors.white, fontSize: 14))),
+                    Text('22', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                  ]),
+                  const SizedBox(height: 6),
+                  const Row(children: [
+                    Expanded(child: Text('Scale', style: TextStyle(color: Colors.white, fontSize: 14))),
+                    Text('100%', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                  ]),
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    const Expanded(child: Text('Bold', style: TextStyle(color: Colors.white, fontSize: 14))),
+                    const Icon(Icons.check_box_rounded, color: Colors.white70, size: 20),
+                  ]),
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    const Expanded(child: Text('Color', style: TextStyle(color: Colors.white, fontSize: 14))),
+                    Container(width: 20, height: 20, color: Colors.white),
+                  ]),
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    const Expanded(child: Text('Background', style: TextStyle(color: Colors.white, fontSize: 14))),
+                    Container(width: 20, height: 20, color: Colors.black54),
+                  ]),
+                  const SizedBox(height: 6),
+                  const Row(children: [
+                    Expanded(child: Text('Fade out', style: TextStyle(color: Colors.white, fontSize: 14))),
+                    Text('80%', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                  ]),
+                ],
+                if (_tab == 4) ...[
+                  const Text('Layout', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  const Row(children: [
+                    Expanded(child: Text('Alignment', style: TextStyle(color: Colors.white, fontSize: 14))),
+                    Text('Center', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                  ]),
+                  const SizedBox(height: 6),
+                  const Row(children: [
+                    Expanded(child: Text('Bottom margin', style: TextStyle(color: Colors.white, fontSize: 14))),
+                    Text('22', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                  ]),
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    const Expanded(child: Text('Fit subtitles into video size', style: TextStyle(color: Colors.white, fontSize: 14))),
+                    const Icon(Icons.check_box_rounded, color: Colors.white70, size: 20),
+                  ]),
+                ],
+                if (_tab == 0) ...[
                 const Text('Online subtitles', style: TextStyle(color: Color(0xFF4A9EFF), fontSize: 14)),
                 const SizedBox(height: 8),
                 const Text('Tap to search for subtitles online.',
@@ -2900,7 +2958,7 @@ class _QuickShortcutsPanel extends StatelessWidget {
               _ShortcutGrid(
                 items: [
                   _ShortcutItem(
-                      '${speed}×' == '1.0×' ? Icons.speed_rounded : Icons.speed_rounded,
+                      Icons.speed_rounded,
                       '${speed}×',
                       speed != 1.0,
                       () { _showSpeedDialog(context); }),
@@ -3226,6 +3284,23 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        const Text('Seek Speed (sec / swipe)', style: TextStyle(color: Colors.white54, fontSize: 12)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            const Expanded(
+              child: Slider(
+                value: 10,
+                min: 5, max: 60, divisions: 11,
+                activeColor: Colors.white,
+                inactiveColor: Colors.white24,
+                onChanged: null,
+              ),
+            ),
+            const Text('10', style: TextStyle(color: Colors.white, fontSize: 14)),
+          ],
+        ),
+        const SizedBox(height: 8),
         const Text('Move interval (seconds)', style: TextStyle(color: Colors.white54, fontSize: 12)),
         const SizedBox(height: 8),
         Row(
@@ -3248,9 +3323,26 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         const SizedBox(height: 16),
         const Divider(color: Colors.white12),
         const SizedBox(height: 8),
-        const Text('Display the current position while changing position', style: TextStyle(color: Colors.white, fontSize: 14)),
-        const SizedBox(height: 4),
-        const Text('Enabled', style: TextStyle(color: Colors.white54, fontSize: 12)),
+        Row(
+          children: const [
+            Expanded(child: Text('Forward / backward button', style: TextStyle(color: Colors.white, fontSize: 14))),
+            Icon(Icons.check_box_rounded, color: Colors.white70, size: 20),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: const [
+            Expanded(child: Text('Previous / next button', style: TextStyle(color: Colors.white, fontSize: 14))),
+            Icon(Icons.check_box_rounded, color: Colors.white70, size: 20),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: const [
+            Expanded(child: Text('Display position while changing', style: TextStyle(color: Colors.white, fontSize: 14))),
+            Icon(Icons.check_box_rounded, color: Colors.white70, size: 20),
+          ],
+        ),
       ],
     );
   }
