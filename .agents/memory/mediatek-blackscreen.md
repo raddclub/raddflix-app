@@ -52,3 +52,22 @@
   - DO NOT set `androidAttachSurfaceAfterVideoParameters: true`
   - DO NOT upgrade `sqflite_sqlcipher` past 3.1.0+1
   
+
+  ## FIX-VF-ABSOLUTE (Build #1151, 2026-06-19)
+
+  ### Problem discovered
+  Even with FIX-VF-STARTUP + FIX-VF-GAP, episode navigation re-opens
+  _player.open() when _firstVfApplied is already true. The startup gate is
+  bypassed. If any of the 9 _applyVideoFilters callers fire within 2 seconds
+  of the new open(), setProperty('vf',...) executes on a fresh MediaTek
+  GL surface → black screen.
+
+  ### Fix
+  Added `_videoOpenedAtMs` (int) field. Both player.open() call paths set
+  _videoOpenedAtMs = DateTime.now().millisecondsSinceEpoch alongside _videoOpened = true.
+  _applyVideoFilters checks: if (now - _videoOpenedAtMs < 2000) → return (and log).
+  This is an unconditional block, independent of all flag-based gates.
+
+  ### Status
+  Build #1151. Still WAITING for PlaybackTimeline data from user's device.
+  
