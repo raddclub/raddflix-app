@@ -85,3 +85,8 @@ _Last updated: 2026-06-18_
   hwdec as initial config (decoder not running → safe). _firstVfApplied=true + 
   _lastAppliedVf primed so _loadPrefs._applyVideoFilters is a dedup no-op.
   
+## Open / In Progress
+
+| ID | Details |
+|----|---------|
+| ⏳ FEAT-SIMPLE-PLAYER | `player_screen.dart` | **Clean Player v2** — backup old 7500-line player as `player_screen_v1_backup.dart`, replace with minimal ~600-line player. No vf=, no hwdec mid-play, no video filters. Plays local + catalog + episodes correctly. |

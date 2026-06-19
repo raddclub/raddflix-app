@@ -822,3 +822,52 @@ the direction-change guard, dragging from 1× to 2× at 60fps queues 60 recovery
   - Build #1147: triggered via workflow_dispatch
   - No open bugs
   
+---
+
+## Session 2026-06-19 — Clean Player v2 (FEAT-SIMPLE-PLAYER)
+
+### Why
+The black screen bug entered the code on June 1–3 during a massive feature push that added `androidAttachSurfaceAfterVideoParameters: true` and later `vf=` video filter calls. Both destroy the GL surface on MediaTek/Infinix HW decoders. 15+ days of fixes never fully resolved it because every patch addressed symptoms, not the root cause (the entire video filter/enhancement system). The correct fix: remove the system entirely and start clean.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| FEAT-SIMPLE-PLAYER | Replace player_screen.dart with clean minimal player | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| `raddflix_flutter/lib/screens/player_screen_v1_backup.dart` | Backup of old 7500-line player (blob copy, no content change) | TBD |
+| `raddflix_flutter/lib/screens/player_screen.dart` | Replaced with Clean Player v2 (~600 lines) | TBD |
+| `agent-hub/TASKS.md` | Added FEAT-SIMPLE-PLAYER | TBD |
+| `agent-hub/history/TASK_LOG.md` | This entry | TBD |
+
+### What the new player has
+- Play/pause · seek bar · ±10s skip · speed cycle (0.5×–2.0×)
+- Volume swipe (right) · brightness swipe (left) · double-tap seek · long-press 2×
+- Episode list sheet · prev/next episode buttons · auto-advance
+- Watch-position save/restore (SharedPreferences, every 10s)
+- Error overlay with retry · loading spinner
+- Wakelock · landscape lock · immersive mode
+
+### What was intentionally removed (root causes of black screen)
+- Video filters / Smart Enhance (`vf=` → GL surface destruction on MediaTek)
+- `_applyVideoFilters` function (the entire startup-race problem)
+- Audio Lab, EQ, karaoke, surround
+- Bookmarks, AB loop, clip trimmer, sleep timer
+- Ambilight, cinematic, film grain, color blind modes
+- Binge guard, skip intro, voice commands
+- Cast/AirPlay, PiP, screenshot, reaction stamps
+- HUD layout designer, subtitle hunter
+
+### MediaTek safety rules applied
+- `VideoController(androidAttachSurfaceAfterVideoParameters: false)`
+- `_videoOpened = true` set BEFORE every `_player.open()` call
+- ZERO `setProperty('vf', ...)` calls
+- ZERO `hwdec` changes mid-play
+- Long-press 2×: `framedrop=decoder+vo` → `speed=2.0` → 150ms recovery seek at start AND end
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0 (not touched)
+- player_screen.dart: ~600 lines (was 7,556)
+- Build: needs trigger after commit
