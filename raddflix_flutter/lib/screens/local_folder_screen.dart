@@ -84,11 +84,25 @@ import 'player_screen.dart';
     }
 
     void _playVideo(LocalVideo video) {
+      final sorted = _sorted;
+      final idx = sorted.indexWhere((v) => v.filePath == video.filePath);
+      final startIndex = idx < 0 ? 0 : idx;
+      // Build full episode list so prev/next buttons work for every video.
+      // Matches the <String, dynamic> type used by _playAll() and app.dart router.
+      final episodes = sorted.map((v) => <String, dynamic>{
+        'file_id': '',
+        'title': v.title,
+        'label': v.title,
+        'local_path': v.filePath,
+        'episode': sorted.indexOf(v) + 1,
+      }).toList();
       Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
         'file_id': '',
-        'title': video.title,
-        'local_path': video.filePath,
+        'title': sorted[startIndex].title,
+        'local_path': sorted[startIndex].filePath,
         'subtitle_path': video.subtitlePath,
+        'episodes': episodes,
+        'episode_index': startIndex,
         'content_type': 'local',
       });
     }
