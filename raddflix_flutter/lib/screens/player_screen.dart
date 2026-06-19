@@ -865,1199 +865,1209 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   //  Build
   // ═══════════════════════════════════════════════════════════════════════════
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return Stack(
-            children: [
-              // 1. Video surface
-              Positioned.fill(child: _buildVideoSurface()),
 
-              // 2. Lock overlay
-              if (_isLocked) _buildLockOverlay(),
+    // ── extra state for modern UI ────────────────────────────────────────────
+    // (seek preview label during horizontal drag)
+    String _seekPreviewLabel = '';
 
-              // 3. Gesture layer (skip if locked)
-              if (!_isLocked)
-                Positioned.fill(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: _toggleControls,
-                    onDoubleTapDown: (d) {
-                      final isLeft = d.localPosition.dx < constraints.maxWidth / 2;
-                      _seekRelative(isLeft ? -_skipInterval : _skipInterval);
-                    },
-                    onLongPressStart: (_) => _startLongPress(),
-                    onLongPressEnd: (_) => _endLongPress(),
-                    onLongPressCancel: () => _endLongPress(),
-                    onHorizontalDragStart: (d) => _onDragStart(d, constraints),
-                    onHorizontalDragUpdate: (d) => _onDragUpdate(d, constraints),
-                    onHorizontalDragEnd: _onDragEnd,
-                    onVerticalDragStart: (d) => _onDragStart(d, constraints),
-                    onVerticalDragUpdate: (d) => _onDragUpdate(d, constraints),
-                    onVerticalDragEnd: _onDragEnd,
+    @override
+    Widget build(BuildContext context) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            return Stack(
+              children: [
+                // 1. Video surface — full screen
+                Positioned.fill(child: _buildVideoSurface()),
+
+                // 2. Lock overlay
+                if (_isLocked) _buildLockOverlay(),
+
+                // 3. Gesture layer
+                if (!_isLocked)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: _toggleControls,
+                      onDoubleTapDown: (d) {
+                        final isLeft = d.localPosition.dx < constraints.maxWidth / 2;
+                        _seekRelative(isLeft ? -_skipInterval : _skipInterval);
+                      },
+                      onLongPressStart: (_) => _startLongPress(),
+                      onLongPressEnd: (_) => _endLongPress(),
+                      onLongPressCancel: () => _endLongPress(),
+                      onHorizontalDragStart: (d) => _onDragStart(d, constraints),
+                      onHorizontalDragUpdate: (d) => _onDragUpdate(d, constraints),
+                      onHorizontalDragEnd: _onDragEnd,
+                      onVerticalDragStart: (d) => _onDragStart(d, constraints),
+                      onVerticalDragUpdate: (d) => _onDragUpdate(d, constraints),
+                      onVerticalDragEnd: _onDragEnd,
+                    ),
+                  ),
+
+                // 4. Smart Enhance animation
+                if (_smartEnhancePhase > 0)
+                  _buildSmartEnhanceAnimation(constraints),
+
+                // 5. Controls overlay (auto-hides)
+                AnimatedOpacity(
+                  opacity: _showControls && !_isLocked ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 280),
+                  child: IgnorePointer(
+                    ignoring: !_showControls || _isLocked,
+                    child: _buildControlsOverlay(constraints),
                   ),
                 ),
 
-              // 4. Smart Enhance animation (full screen, above video)
-              if (_smartEnhancePhase > 0) _buildSmartEnhanceAnimation(constraints),
+                // 6. Volume/brightness indicator — centered pill
+                if (_showVolumeIndicator || _showBrightnessIndicator)
+                  Positioned(
+                    top: constraints.maxHeight * 0.35,
+                    left: constraints.maxWidth * 0.18,
+                    right: constraints.maxWidth * 0.18,
+                    child: _showVolumeIndicator
+                        ? _buildCenteredVolumeOverlay()
+                        : _buildCenteredBrightnessOverlay(),
+                  ),
 
-              // 5. Controls overlay
-              AnimatedOpacity(
-                opacity: _showControls && !_isLocked ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 250),
-                child: IgnorePointer(
-                  ignoring: !_showControls || _isLocked,
-                  child: _buildControlsOverlay(constraints),
-                ),
-              ),
-
-              // 6. Volume indicator (top center, MX style)
-              if (_showVolumeIndicator)
-                Positioned(
-                  top: 40,
-                  left: constraints.maxWidth * 0.15,
-                  right: constraints.maxWidth * 0.15,
-                  child: _buildVolumeOverlay(),
-                ),
-
-              // 7. Brightness indicator (bottom center, MX style)
-              if (_showBrightnessIndicator)
-                Positioned(
-                  bottom: 60,
-                  left: constraints.maxWidth * 0.15,
-                  right: constraints.maxWidth * 0.15,
-                  child: _buildBrightnessOverlay(),
-                ),
-
-              // 8. Long press 2× badge
-              if (_longPressFast)
-                Positioned(
-                  top: 40,
-                  left: 0, right: 0,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.75),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.fast_forward_rounded, color: Colors.white, size: 18),
-                          SizedBox(width: 6),
-                          Text('2× Speed', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ],
+                // 7. Long-press 2× badge
+                if (_longPressFast)
+                  Positioned(
+                    top: 52, left: 0, right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.fast_forward_rounded, color: Colors.white, size: 16),
+                            SizedBox(width: 6),
+                            Text('2× Speed',
+                                style: TextStyle(color: Colors.white,
+                                    fontWeight: FontWeight.bold, fontSize: 13)),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-              // 9. Seek flash
-              if (_showSeekFlash)
-                Positioned(
-                  left: _seekFlashLeft ? 0 : null,
-                  right: _seekFlashLeft ? null : 0,
-                  top: 0, bottom: 0,
-                  width: constraints.maxWidth / 2,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.black45,
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(_seekFlashLeft ? Icons.replay_10 : Icons.forward_10,
-                              color: Colors.white, size: 34),
-                          Text('${_skipInterval}s', style: const TextStyle(color: Colors.white, fontSize: 11)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-              // 10. Smart Enhance toast
-              if (_showSmartEnhanceToast)
-                Positioned(
-                  top: constraints.maxHeight * 0.42,
-                  left: constraints.maxWidth * 0.2,
-                  right: constraints.maxWidth * 0.05,
-                  child: _buildSmartEnhanceToast(),
-                ),
-
-              // 11. Buffering spinner
-              if (_buffering && !_isLinkLoading && _streamError == null)
-                const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5)),
-
-              // 12. Link loading
-              if (_isLinkLoading)
-                Container(
-                  color: Colors.black87,
-                  child: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: Colors.white),
-                        SizedBox(height: 16),
-                        Text('Loading stream…', style: TextStyle(color: Colors.white70)),
-                      ],
-                    ),
-                  ),
-                ),
-
-              // 13. Error overlay
-              if (_streamError != null)
-                Container(
-                  color: Colors.black87,
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.error_outline_rounded, color: Colors.white, size: 48),
-                          const SizedBox(height: 16),
-                          Text(_streamError!,
-                              style: const TextStyle(color: Colors.white, fontSize: 15),
-                              textAlign: TextAlign.center),
-                          const SizedBox(height: 24),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.white24),
-                                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                                label: const Text('Retry', style: TextStyle(color: Colors.white)),
-                                onPressed: () {
-                                  setState(() => _streamError = null);
-                                  _openMedia(_currentFileId);
-                                },
-                              ),
-                              const SizedBox(width: 16),
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('Go Back', style: TextStyle(color: Colors.white70)),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-              // 14. Auto-advance banner
-              if (_ended && _hasNext)
-                Positioned(
-                  bottom: 80, left: 0, right: 0,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.85),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('Up next in 3s…', style: TextStyle(color: Colors.white)),
-                          const SizedBox(width: 12),
-                          GestureDetector(
-                            onTap: () => _playEpisodeAt(_currentEpIdx + 1),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text('Play Now', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                // 8. Double-tap seek flash (constrained to video bounds)
+                if (_showSeekFlash)
+                  Positioned(
+                    left: _seekFlashLeft ? 0 : null,
+                    right: _seekFlashLeft ? null : 0,
+                    top: 0, bottom: 0,
+                    width: constraints.maxWidth / 2,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.4),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _seekFlashLeft ? Icons.replay_10_rounded : Icons.forward_10_rounded,
+                              color: Colors.white, size: 36,
                             ),
-                          ),
+                            const SizedBox(height: 2),
+                            Text('$_skipInterval s',
+                                style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // 9. Smart Enhance toast — center of screen
+                if (_showSmartEnhanceToast)
+                  Positioned(
+                    top: 0, bottom: 0, left: 0, right: 0,
+                    child: IgnorePointer(
+                      child: Center(
+                        child: _buildSmartEnhanceToast(),
+                      ),
+                    ),
+                  ),
+
+                // 10. Buffering spinner
+                if (_buffering && !_isLinkLoading && _streamError == null)
+                  const Center(
+                    child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 2.5)),
+
+                // 11. Link loading
+                if (_isLinkLoading)
+                  Container(
+                    color: Colors.black87,
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: Colors.white),
+                          SizedBox(height: 16),
+                          Text('Loading stream…',
+                              style: TextStyle(color: Colors.white70, fontSize: 14)),
                         ],
                       ),
                     ),
                   ),
-                ),
-            ],
-          );
-        },
-      ),
-    );
-  }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Video Surface
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  Widget _buildVideoSurface() {
-    Widget video = Video(
-      controller: _videoCtrl,
-      controls: NoVideoControls,
-      fit: _getBoxFit(),
-    );
-
-    if (_smartEnhanceEnabled) {
-      video = ColorFiltered(
-        colorFilter: const ColorFilter.matrix([
-          1.15,  0.0,   0.0,   0.0,  8.0,
-          0.0,   1.08,  0.0,   0.0,  4.0,
-          0.0,   0.0,   0.92,  0.0, -3.0,
-          0.0,   0.0,   0.0,   1.0,  0.0,
-        ]),
-        child: video,
-      );
-    }
-
-    return video;
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Lock overlay
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  Widget _buildLockOverlay() {
-    return Positioned.fill(
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _showControls = true);
-          _scheduleHide();
-        },
-        child: Container(
-          color: Colors.transparent,
-          child: AnimatedOpacity(
-            opacity: _showControls ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 200),
-            child: SafeArea(
-              child: Align(
-                alignment: Alignment.topRight,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: GestureDetector(
-                    onTap: () => setState(() { _isLocked = false; _showControls = true; _scheduleHide(); }),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(8),
+                // 12. Error overlay
+                if (_streamError != null)
+                  Container(
+                    color: Colors.black87,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.error_outline_rounded,
+                                color: Colors.redAccent, size: 52),
+                            const SizedBox(height: 16),
+                            Text(_streamError!,
+                                style: const TextStyle(color: Colors.white, fontSize: 15),
+                                textAlign: TextAlign.center),
+                            const SizedBox(height: 24),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      foregroundColor: Colors.black),
+                                  icon: const Icon(Icons.refresh_rounded),
+                                  label: const Text('Retry'),
+                                  onPressed: () {
+                                    setState(() => _streamError = null);
+                                    _openMedia(_currentFileId);
+                                  },
+                                ),
+                                const SizedBox(width: 16),
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text('Go Back',
+                                      style: TextStyle(color: Colors.white70)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                      child: const Icon(Icons.lock_rounded, color: Colors.white, size: 22),
                     ),
                   ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Controls overlay (MX Player layout)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  Widget _buildControlsOverlay(BoxConstraints constraints) {
-    final currentPos = _seekBarDelta != null
-        ? Duration(milliseconds: (_seekBarDelta! * _duration.inMilliseconds).round())
-        : _position;
-
-    return Stack(
-      children: [
-        // Top gradient
-        Positioned(
-          top: 0, left: 0, right: 0, height: 110,
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xCC000000), Colors.transparent],
-              ),
-            ),
-          ),
-        ),
-
-        // Bottom gradient
-        Positioned(
-          bottom: 0, left: 0, right: 0, height: 100,
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [Color(0xCC000000), Colors.transparent],
-              ),
-            ),
-          ),
-        ),
-
-        // ── TOP BAR ──────────────────────────────────────────────────────────
-        Positioned(
-          top: 0, left: 0, right: 0,
-          child: SafeArea(
-            bottom: false,
-            child: _buildTopBar(),
-          ),
-        ),
-
-        // ── LEFT VERTICAL SEEK BAR ────────────────────────────────────────────
-        Positioned(
-          top: 72,
-          bottom: 56,
-          left: 0,
-          width: 36,
-          child: _buildVerticalSeekBar(constraints, currentPos),
-        ),
-
-        // ── VOLUME TRIANGLES (center-left) ────────────────────────────────────
-        Positioned(
-          left: 48,
-          top: 0, bottom: 0,
-          width: 50,
-          child: Center(
-            child: _buildVolumeTriangles(),
-          ),
-        ),
-
-        // ── CENTER play/pause (appears on tap only) ───────────────────────────
-        Positioned.fill(
-          child: Center(
-            child: GestureDetector(
-              onTap: () {
-                _player.playOrPause();
-                _scheduleHide();
-              },
-              child: AnimatedOpacity(
-                opacity: !_playing ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 200),
-                child: Container(
-                  width: 64, height: 64,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.5),
-                    shape: BoxShape.circle,
+                // 13. Auto-advance banner
+                if (_ended && _hasNext)
+                  Positioned(
+                    bottom: 90, left: 0, right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.88),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('Up next in 3s…',
+                                style: TextStyle(color: Colors.white70, fontSize: 13)),
+                            const SizedBox(width: 14),
+                            GestureDetector(
+                              onTap: () => _playEpisodeAt(_currentEpIdx + 1),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text('Play Now',
+                                    style: TextStyle(
+                                        color: Colors.black,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                  child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 36),
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // ── RIGHT ICON STRIP ─────────────────────────────────────────────────
-        Positioned(
-          top: 60,
-          bottom: 0,
-          right: 0,
-          width: 52,
-          child: _buildRightIconStrip(),
-        ),
-
-        // ── BOTTOM BAR ───────────────────────────────────────────────────────
-        Positioned(
-          bottom: 0, left: 0, right: 0,
-          child: SafeArea(
-            top: false,
-            child: _buildBottomBar(currentPos),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Top Bar (MX Player style)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  Widget _buildTopBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      child: Row(
-        children: [
-          // Current position (top-left)
-          Padding(
-            padding: const EdgeInsets.only(left: 32, top: 4),
-            child: Text(
-              _formatDuration(_position),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-
-          const Spacer(),
-
-          // PiP / minimize icon
-          _MxIconBtn(
-            icon: Icons.picture_in_picture_alt_rounded,
-            size: 21,
-            onTap: () => Navigator.of(context).pop(),
-          ),
-
-          // Replay / undo icon
-          _MxIconBtn(
-            icon: Icons.replay_rounded,
-            size: 21,
-            onTap: () => _player.seek(Duration.zero),
-          ),
-
-          const SizedBox(width: 4),
-
-          // Subtitle settings icon (≡ with lines)
-          _MxIconBtn(
-            icon: Icons.subtitles_rounded,
-            size: 21,
-            onTap: _openSubtitlePanel,
-          ),
-
-          // Back arrow (↑ in portrait = normal back)
-          _MxIconBtn(
-            icon: Icons.arrow_upward_rounded,
-            size: 22,
-            onTap: () => Navigator.of(context).pop(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Vertical Seek Bar (left edge, MX style)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  Widget _buildVerticalSeekBar(BoxConstraints parentConstraints, Duration currentPos) {
-    final progress = _duration.inMilliseconds > 0
-        ? (currentPos.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
-        : 0.0;
-
-    return GestureDetector(
-      onVerticalDragStart: (d) {
-        _dragIntent = 'seekbar';
-        _dragStart = d.localPosition;
-        _dragStartPos = _position;
-      },
-      onVerticalDragUpdate: (d) {
-        if (_dragIntent != 'seekbar') return;
-        // In portrait, dragging DOWN = earlier in video (lower position = bottom = end)
-        // Actually: top of seekbar = beginning, bottom = end
-        // So dragging UP means going earlier
-        final barHeight = parentConstraints.maxHeight - 72 - 56;
-        final relY = d.localPosition.dy.clamp(0.0, barHeight);
-        final frac = relY / barHeight;
-        final targetMs = (frac * _duration.inMilliseconds).round();
-        if (mounted) setState(() => _seekBarDelta = frac);
-      },
-      onVerticalDragEnd: (_) {
-        if (_seekBarDelta != null && _duration.inMilliseconds > 0) {
-          final targetMs = (_seekBarDelta! * _duration.inMilliseconds).round();
-          _player.seek(Duration(milliseconds: targetMs));
-          _seekBarDelta = null;
-        }
-        _dragIntent = null;
-        if (mounted) setState(() {});
-      },
-      child: Padding(
-        padding: const EdgeInsets.only(left: 12),
-        child: LayoutBuilder(
-          builder: (ctx, bc) {
-            return CustomPaint(
-              size: Size(bc.maxWidth, bc.maxHeight),
-              painter: _VerticalSeekPainter(progress: progress),
+              ],
             );
           },
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Volume Triangles (MX Player center-left volume indicator)
-  // ═══════════════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Video Surface — fills Positioned.fill exactly
+    // ═══════════════════════════════════════════════════════════════════════════
 
-  Widget _buildVolumeTriangles() {
-    return CustomPaint(
-      size: const Size(40, 80),
-      painter: _VolumeTrianglePainter(volume: _volume),
-    );
-  }
+    Widget _buildVideoSurface() {
+      Widget video = SizedBox.expand(
+        child: Video(
+          controller: _videoCtrl,
+          controls: NoVideoControls,
+          fit: _getBoxFit(),
+        ),
+      );
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Right Icon Strip (MX Player right-side buttons)
-  // ═══════════════════════════════════════════════════════════════════════════
+      if (_smartEnhanceEnabled) {
+        video = ColorFiltered(
+          colorFilter: const ColorFilter.matrix([
+            1.15,  0.0,   0.0,   0.0,  8.0,
+            0.0,   1.08,  0.0,   0.0,  4.0,
+            0.0,   0.0,   0.92,  0.0, -3.0,
+            0.0,   0.0,   0.0,   1.0,  0.0,
+          ]),
+          child: video,
+        );
+      }
+      return video;
+    }
 
-  Widget _buildRightIconStrip() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        // Title (rotated vertical text, reading bottom→top)
-        Expanded(
-          child: RotatedBox(
-            quarterTurns: -1,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Lock overlay
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    Widget _buildLockOverlay() {
+      return Positioned.fill(
+        child: GestureDetector(
+          onTap: () {
+            setState(() => _showControls = true);
+            _scheduleHide();
+          },
+          child: Container(
+            color: Colors.transparent,
+            child: AnimatedOpacity(
+              opacity: _showControls ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: SafeArea(
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: GestureDetector(
+                      onTap: () => setState(() {
+                        _isLocked = false;
+                        _showControls = true;
+                        _scheduleHide();
+                      }),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.55),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: const Icon(Icons.lock_rounded,
+                            color: Colors.white, size: 22),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Controls overlay — modern clean layout
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    Widget _buildControlsOverlay(BoxConstraints constraints) {
+      final currentPos = _seekBarDelta != null
+          ? Duration(milliseconds: (_seekBarDelta! * _duration.inMilliseconds).round())
+          : _position;
+
+      return Stack(
+        children: [
+          // Top gradient
+          Positioned(
+            top: 0, left: 0, right: 0, height: 140,
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xDD000000), Colors.transparent],
+                ),
+              ),
+            ),
+          ),
+
+          // Bottom gradient
+          Positioned(
+            bottom: 0, left: 0, right: 0, height: 180,
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [Color(0xDD000000), Colors.transparent],
+                ),
+              ),
+            ),
+          ),
+
+          // ── TOP BAR ──────────────────────────────────────────────────────────
+          Positioned(
+            top: 0, left: 0, right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: _buildTopBar(),
+            ),
+          ),
+
+          // ── CENTER PLAYBACK CONTROLS ──────────────────────────────────────────
+          Positioned.fill(
+            child: Center(
+              child: _buildCenterControls(),
+            ),
+          ),
+
+          // ── BOTTOM AREA: seek bar + icon row ──────────────────────────────────
+          Positioned(
+            bottom: 0, left: 0, right: 0,
+            child: SafeArea(
+              top: false,
+              child: _buildBottomArea(constraints, currentPos),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Top Bar
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    Widget _buildTopBar() {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(4, 4, 8, 4),
+        child: Row(
+          children: [
+            // Back/minimize button
+            _RaddIconBtn(
+              icon: Icons.arrow_back_ios_new_rounded,
+              size: 20,
+              onTap: () => Navigator.of(context).pop(),
+            ),
+
+            const SizedBox(width: 4),
+
+            // Title
+            Expanded(
               child: Text(
                 _currentTitle,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w400,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
                 ),
                 maxLines: 1,
-                overflow: TextOverflow.fade,
-                softWrap: false,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-          ),
-        ),
 
-        // Smart Enhance button
-        _MxSideBtn(
-          child: GestureDetector(
-            onTap: _toggleSmartEnhance,
+            const SizedBox(width: 4),
+
+            // Subtitle
+            _RaddIconBtn(
+              icon: Icons.subtitles_rounded,
+              size: 20,
+              onTap: _openSubtitlePanel,
+            ),
+
+            // Replay from start
+            _RaddIconBtn(
+              icon: Icons.replay_rounded,
+              size: 20,
+              onTap: () => _player.seek(Duration.zero),
+            ),
+
+            // Zoom / fit
+            _RaddIconBtn(
+              icon: Icons.fit_screen_rounded,
+              size: 20,
+              onTap: _openZoomPanel,
+            ),
+
+            // Lock
+            _RaddIconBtn(
+              icon: Icons.lock_open_rounded,
+              size: 20,
+              onTap: () => setState(() { _isLocked = true; _showControls = false; }),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Center playback controls (skip + play/pause)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    Widget _buildCenterControls() {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Previous episode
+          if (_hasPrev)
+            _RaddIconBtn(
+              icon: Icons.skip_previous_rounded,
+              size: 28,
+              onTap: () => _playEpisodeAt(_currentEpIdx - 1),
+            ),
+          if (_hasPrev) const SizedBox(width: 8),
+
+          // Skip back
+          _RaddIconBtn(
+            icon: Icons.replay_10_rounded,
+            size: 32,
+            onTap: () => _seekRelative(-_skipInterval),
+          ),
+
+          const SizedBox(width: 20),
+
+          // Play / Pause — large pill button
+          GestureDetector(
+            onTap: () {
+              _player.playOrPause();
+              _scheduleHide();
+            },
             child: Container(
-              width: 36, height: 36,
+              width: 72, height: 72,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                color: _smartEnhanceEnabled
-                    ? Colors.white.withOpacity(0.15)
-                    : Colors.transparent,
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.15),
+                border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Icon(
-                    Icons.tv_rounded,
-                    color: _smartEnhanceEnabled ? Colors.white : Colors.white.withOpacity(0.85),
-                    size: 22,
-                  ),
-                  Positioned(
-                    right: 4, bottom: 4,
-                    child: Icon(
-                      Icons.add,
-                      color: _smartEnhanceEnabled ? Colors.white : Colors.white.withOpacity(0.85),
-                      size: 10,
-                    ),
-                  ),
-                ],
+              child: Icon(
+                _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 40,
               ),
             ),
           ),
-        ),
 
-        // Audio track button
-        _MxSideBtn(
-          child: _MxIconBtn(
-            icon: Icons.headphones_rounded,
-            size: 22,
-            onTap: _openAudioPanel,
+          const SizedBox(width: 20),
+
+          // Skip forward
+          _RaddIconBtn(
+            icon: Icons.forward_10_rounded,
+            size: 32,
+            onTap: () => _seekRelative(_skipInterval),
           ),
-        ),
 
-        // Chapters / episode list button
-        _MxSideBtn(
-          child: _MxIconBtn(
-            icon: Icons.view_list_rounded,
-            size: 22,
-            onTap: _eps.length > 1 ? _showEpisodeSheet : null,
-          ),
-        ),
+          // Next episode
+          if (_hasNext) const SizedBox(width: 8),
+          if (_hasNext)
+            _RaddIconBtn(
+              icon: Icons.skip_next_rounded,
+              size: 28,
+              onTap: () => _playEpisodeAt(_currentEpIdx + 1),
+            ),
+        ],
+      );
+    }
 
-        // HW+ badge
-        GestureDetector(
-          onTap: () => _showInfoSnackbar('Hardware decoder: ${_useSWDecoder ? "SW" : "HW+"}'),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Bottom area: seek bar + icon row
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    Widget _buildBottomArea(BoxConstraints constraints, Duration currentPos) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Seek bar row ────────────────────────────────────────────────────
+            _buildHorizontalSeekBar(constraints, currentPos),
+
+            const SizedBox(height: 4),
+
+            // ── Bottom icon row ──────────────────────────────────────────────────
+            _buildBottomIconRow(),
+          ],
+        ),
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Horizontal Seek Bar
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    Widget _buildHorizontalSeekBar(BoxConstraints parentConstraints, Duration currentPos) {
+      final progress = _duration.inMilliseconds > 0
+          ? (currentPos.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
+          : 0.0;
+
+      return Row(
+        children: [
+          // Current time
+          SizedBox(
+            width: 44,
             child: Text(
-              _useSWDecoder ? 'SW' : 'HW+',
+              _formatDuration(currentPos),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-
-        // More (...) button
-        _MxSideBtn(
-          child: _MxIconBtn(
-            icon: Icons.more_vert_rounded,
-            size: 22,
-            onTap: _openMoreMenu,
-          ),
-        ),
-
-        const SizedBox(height: 16),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Bottom Bar (MX Player style)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  Widget _buildBottomBar(Duration currentPos) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
-      child: Row(
-        children: [
-          // Total / remaining time
-          Padding(
-            padding: const EdgeInsets.only(left: 30, right: 8),
-            child: Text(
-              _showRemainingTime
-                  ? '-${_formatDuration(_duration - currentPos)}'
-                  : _formatDuration(_duration),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ),
 
-          const Spacer(),
-
-          // Video zoom icon
-          _MxIconBtn(
-            icon: Icons.fit_screen_rounded,
-            size: 20,
-            onTap: _openZoomPanel,
-          ),
-
-          const SizedBox(width: 4),
-
-          // Minimize / exit icon
-          _MxIconBtn(
-            icon: Icons.close_fullscreen_rounded,
-            size: 20,
-            onTap: () => Navigator.of(context).pop(),
-          ),
-
-          const SizedBox(width: 6),
-        ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Volume overlay (TOP center, MX style — orange bar)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  Widget _buildVolumeOverlay() {
-    final percent = (_volume * 100).round();
-    final barFrac = (_volume / 1.5).clamp(0.0, 1.0);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.0), // transparent background like MX
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.max,
-        children: [
-          const Icon(Icons.volume_up_rounded, color: Colors.white, size: 18),
-          const SizedBox(width: 8),
+          // Seek slider
           Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(2),
-              child: LinearProgressIndicator(
-                value: barFrac,
-                backgroundColor: Colors.white24,
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFE8950A)),
-                minHeight: 4,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '$percent%',
-            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Brightness overlay (BOTTOM center, MX style — blue bar)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  Widget _buildBrightnessOverlay() {
-    final percent = (_brightness * 100).round();
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      child: Row(
-        mainAxisSize: MainAxisSize.max,
-        children: [
-          const Icon(Icons.wb_sunny_rounded, color: Colors.white, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(2),
-              child: LinearProgressIndicator(
-                value: _brightness,
-                backgroundColor: Colors.white24,
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3A8EF5)),
-                minHeight: 4,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '$percent%',
-            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Smart Enhance Animation (3 phases)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  Widget _buildSmartEnhanceAnimation(BoxConstraints constraints) {
-    if (_smartEnhancePhase == 1) {
-      // Phase 1: dots circle on dark brownish overlay
-      return Positioned.fill(
-        child: Container(
-          color: const Color(0xCC2A1A0A), // dark sepia/brown overlay
-          child: Center(
-            child: AnimatedBuilder(
-              animation: _smartEnhanceAnim,
-              builder: (context, _) {
-                return CustomPaint(
-                  size: Size(constraints.maxWidth * 0.7, constraints.maxWidth * 0.7),
-                  painter: _SmartEnhanceDotsCirclePainter(
-                    progress: _smartEnhanceAnim.value,
-                  ),
-                );
+            child: GestureDetector(
+              onHorizontalDragStart: (d) {
+                _dragIntent = 'seekbar';
+                _dragStart = d.localPosition;
+                _dragStartPos = _position;
               },
+              onHorizontalDragUpdate: (d) {
+                if (_dragIntent != 'seekbar') return;
+                final barWidth = parentConstraints.maxWidth - 44 - 44 - 32;
+                final relX = d.localPosition.dx.clamp(0.0, barWidth);
+                final frac = relX / barWidth;
+                if (mounted) setState(() => _seekBarDelta = frac.clamp(0.0, 1.0));
+              },
+              onHorizontalDragEnd: (_) {
+                if (_seekBarDelta != null && _duration.inMilliseconds > 0) {
+                  _player.seek(Duration(
+                      milliseconds: (_seekBarDelta! * _duration.inMilliseconds).round()));
+                  _seekBarDelta = null;
+                }
+                _dragIntent = null;
+                if (mounted) setState(() {});
+              },
+              onTapDown: (d) {
+                final barWidth = parentConstraints.maxWidth - 44 - 44 - 32;
+                final frac = (d.localPosition.dx / barWidth).clamp(0.0, 1.0);
+                if (_duration.inMilliseconds > 0) {
+                  _player.seek(Duration(
+                      milliseconds: (frac * _duration.inMilliseconds).round()));
+                }
+              },
+              child: LayoutBuilder(
+                builder: (ctx, bc) => CustomPaint(
+                  size: Size(bc.maxWidth, 28),
+                  painter: _HorizontalSeekPainter(progress: progress),
+                ),
+              ),
             ),
           ),
-        ),
+
+          // Duration / remaining
+          GestureDetector(
+            onTap: () => setState(() => _showRemainingTime = !_showRemainingTime),
+            child: SizedBox(
+              width: 44,
+              child: Text(
+                _showRemainingTime
+                    ? '-${_formatDuration(_duration - currentPos)}'
+                    : _formatDuration(_duration),
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                ),
+                textAlign: TextAlign.right,
+              ),
+            ),
+          ),
+        ],
       );
     }
 
-    if (_smartEnhancePhase == 2) {
-      // Phase 2: horizontal scan line sweep
-      return Positioned.fill(
-        child: Container(
-          color: const Color(0xCC1A0A0A), // dark overlay
-          child: Stack(
-            children: [
-              // Scan line
-              Positioned(
-                top: _scanLinePos * constraints.maxHeight - 15,
-                left: 0, right: 0,
-                height: 30,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        const Color(0xFFE8530A).withOpacity(0.8),
-                        Colors.transparent,
-                      ],
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Bottom Icon Row
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    Widget _buildBottomIconRow() {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Smart Enhance
+          _BottomIconBtn(
+            icon: Icons.auto_awesome_rounded,
+            label: 'Enhance',
+            active: _smartEnhanceEnabled,
+            onTap: _toggleSmartEnhance,
+          ),
+
+          // Audio tracks
+          _BottomIconBtn(
+            icon: Icons.headphones_rounded,
+            label: 'Audio',
+            active: false,
+            onTap: _openAudioPanel,
+          ),
+
+          // Episode list
+          _BottomIconBtn(
+            icon: Icons.view_list_rounded,
+            label: 'Episodes',
+            active: false,
+            onTap: _eps.length > 1 ? _showEpisodeSheet : null,
+            opacity: _eps.length > 1 ? 1.0 : 0.3,
+          ),
+
+          // Speed
+          _BottomIconBtn(
+            icon: Icons.speed_rounded,
+            label: '${_speed == 1.0 ? "1×" : "${_speed}×"}',
+            active: _speed != 1.0,
+            onTap: _cycleSpeed,
+          ),
+
+          // HW/SW decoder badge
+          GestureDetector(
+            onTap: () => _showInfoSnackbar(
+                'Decoder: ${_useSWDecoder ? "SW" : "HW+"}'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(color: Colors.white30, width: 0.8),
+                    ),
+                    child: Text(
+                      _useSWDecoder ? 'SW' : 'HW+',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 2),
+                  const Text('Decoder',
+                      style: TextStyle(color: Colors.white54, fontSize: 9)),
+                ],
               ),
-              // Center icon
-              Center(
-                child: _SmartEnhanceIcon(size: 40, color: Colors.white),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_smartEnhancePhase == 3) {
-      // Phase 3: "SMART ENHANCE" title on clear video
-      return Positioned.fill(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _SmartEnhanceIcon(size: 52, color: Colors.white),
-              const SizedBox(height: 16),
-              const Text(
-                'SMART ENHANCE',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Immersive visual experience',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return const SizedBox.shrink();
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Smart Enhance Toast
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  Widget _buildSmartEnhanceToast() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xCC1A1A1A),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        _smartEnhanceEnabled ? 'Smart Enhance enabled.' : 'Smart Enhance disabled.',
-        style: const TextStyle(color: Colors.white, fontSize: 13),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Panels (right-side slide-in)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  void _openRightPanel(Widget content, {double widthFactor = 0.78}) {
-    showGeneralDialog(
-      context: context,
-      barrierColor: Colors.black54,
-      barrierDismissible: true,
-      barrierLabel: 'Dismiss',
-      transitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (ctx, anim, sec) {
-        return Align(
-          alignment: Alignment.centerRight,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              width: MediaQuery.of(ctx).size.width * widthFactor,
-              height: double.infinity,
-              color: const Color(0xFF1C1C1C),
-              child: content,
             ),
           ),
-        );
-      },
-      transitionBuilder: (ctx, anim, sec, child) {
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1.0, 0.0),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-          child: child,
-        );
-      },
-    );
-  }
 
-  // ── Subtitle Panel ─────────────────────────────────────────────────────────
-
-  void _openSubtitlePanel() {
-    _openRightPanel(_SubtitlePanel(
-      subSync: _subSync,
-      subSpeed: _subSpeed,
-      currentFile: _currentSubFile,
-      onSyncChanged: (delta) => _adjustSubSync(delta),
-      onSpeedChanged: (v) => setState(() => _subSpeed = v),
-      onClose: () => Navigator.of(context).pop(),
-    ));
-  }
-
-  // ── Audio Panel ────────────────────────────────────────────────────────────
-
-  void _openAudioPanel() {
-    _openRightPanel(_AudioTrackPanel(
-      tracks: _audioTracks,
-      selectedTrack: _selectedAudio,
-      audioSync: _audioSync,
-      useSWDecoder: _useSWDecoder,
-      onTrackSelected: (track) {
-        setState(() => _selectedAudio = track);
-        _player.setAudioTrack(track);
-      },
-      onSyncChanged: (delta) => _adjustAudioSync(delta),
-      onSWDecoderChanged: (v) => setState(() => _useSWDecoder = v),
-      onClose: () => Navigator.of(context).pop(),
-    ));
-  }
-
-  // ── Video Zoom Panel ───────────────────────────────────────────────────────
-
-  void _openZoomPanel() {
-    _openRightPanel(_VideoZoomPanel(
-      selectedMode: _zoomMode,
-      onModeSelected: (mode) {
-        setState(() => _zoomMode = mode);
-        Navigator.of(context).pop();
-      },
-      onClose: () => Navigator.of(context).pop(),
-    ));
-  }
-
-  // ── Audio Effect Panel ─────────────────────────────────────────────────────
-
-  void _openAudioEffectPanel() {
-    _openRightPanel(_AudioEffectPanel(
-      selectedPreset: _selectedPreset,
-      eqBands: _eqBands,
-      eqEnabled: _eqEnabled,
-      onPresetSelected: _applyPreset,
-      onEqBandChanged: (i, v) {
-        setState(() { _eqBands[i] = v; _selectedPreset = -1; });
-        _applyCustomEq();
-      },
-      onEqEnabledChanged: (v) {
-        setState(() => _eqEnabled = v);
-        if (!v) {
-          try { _np.setProperty('af', ''); } catch (_) {}
-        } else {
-          _applyCustomEq();
-        }
-      },
-      onClose: () => Navigator.of(context).pop(),
-    ));
-  }
-
-  // ── Quick Shortcuts ────────────────────────────────────────────────────────
-
-  void _openMoreMenu() {
-    _openRightPanel(_QuickShortcutsPanel(
-      isLocked: _isLocked,
-      isMuted: _isMuted,
-      loopEnabled: _loopEnabled,
-      smartEnhanceEnabled: _smartEnhanceEnabled,
-      sleepTimerMinutes: _sleepTimerMinutes,
-      sleepTimerEnd: _sleepTimerEnd,
-      speed: _speed,
-      abA: _abA,
-      abB: _abB,
-      abActive: _abActive,
-      onLockToggle: () { Navigator.of(context).pop(); setState(() => _isLocked = true); },
-      onMuteToggle: () { Navigator.of(context).pop(); _toggleMute(); },
-      onLoopToggle: () { Navigator.of(context).pop(); _toggleLoop(); },
-      onSmartEnhanceToggle: () { Navigator.of(context).pop(); _toggleSmartEnhance(); },
-      onSleepTimer: (mins) { Navigator.of(context).pop(); _setSleepTimer(mins); },
-      onSpeedSelected: (s) { Navigator.of(context).pop(); _setSpeed(s); },
-      onAudioEffect: () { Navigator.of(context).pop(); _openAudioEffectPanel(); },
-      onSettingsOpen: () { Navigator.of(context).pop(); _openSettingsPanel(); },
-      onAbSet: () {
-        Navigator.of(context).pop();
-        _handleAbRepeat();
-      },
-      onClose: () => Navigator.of(context).pop(),
-    ));
-  }
-
-  void _handleAbRepeat() {
-    if (_abA == null) {
-      setState(() { _abA = _position; _abActive = false; });
-      _showInfoSnackbar('A point set at ${_formatDuration(_position)}');
-    } else if (_abB == null) {
-      setState(() { _abB = _position; _abActive = true; });
-      _showInfoSnackbar('B point set. A-B repeat active.');
-    } else {
-      setState(() { _abA = null; _abB = null; _abActive = false; });
-      _showInfoSnackbar('A-B repeat cleared.');
+          // More
+          _BottomIconBtn(
+            icon: Icons.more_horiz_rounded,
+            label: 'More',
+            active: false,
+            onTap: _openMoreMenu,
+          ),
+        ],
+      );
     }
-  }
 
-  // ── Settings Panel ─────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Volume indicator — centered glassmorphism pill
+    // ═══════════════════════════════════════════════════════════════════════════
 
-  void _openSettingsPanel() {
-    _openRightPanel(_SettingsPanel(
-      showRemainingTime: _showRemainingTime,
-      keepScreenOn: _keepScreenOn,
-      skipInterval: _skipInterval,
-      onShowRemainingChanged: (v) => setState(() => _showRemainingTime = v),
-      onKeepScreenChanged: (v) {
-        setState(() => _keepScreenOn = v);
-        if (v) WakelockPlus.enable(); else WakelockPlus.disable();
-      },
-      onSkipIntervalChanged: (v) => setState(() => _skipInterval = v),
-      onClose: () => Navigator.of(context).pop(),
-    ));
-  }
+    Widget _buildCenteredVolumeOverlay() {
+      final percent = (_volume * 100).round();
+      final barFrac = (_volume / 1.5).clamp(0.0, 1.0);
+      return _buildCenteredIndicatorPill(
+        icon: _isMuted
+            ? Icons.volume_off_rounded
+            : percent > 60
+                ? Icons.volume_up_rounded
+                : Icons.volume_down_rounded,
+        barValue: barFrac,
+        barColor: const Color(0xFFE8950A),
+        label: '$percent%',
+      );
+    }
 
-  void _showInfoSnackbar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: const TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF333333),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Brightness indicator — centered glassmorphism pill
+    // ═══════════════════════════════════════════════════════════════════════════
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Episode sheet
-  // ═══════════════════════════════════════════════════════════════════════════
+    Widget _buildCenteredBrightnessOverlay() {
+      final percent = (_brightness * 100).round();
+      return _buildCenteredIndicatorPill(
+        icon: _brightness < 0.3
+            ? Icons.brightness_low_rounded
+            : _brightness > 0.7
+                ? Icons.brightness_high_rounded
+                : Icons.brightness_medium_rounded,
+        barValue: _brightness,
+        barColor: const Color(0xFF3A8EF5),
+        label: '$percent%',
+      );
+    }
 
-  void _showEpisodeSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1C1C1C),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) => SizedBox(
-        height: 360,
-        child: Column(
+    Widget _buildCenteredIndicatorPill({
+      required IconData icon,
+      required double barValue,
+      required Color barColor,
+      required String label,
+    }) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.65),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.max,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 14, 16, 6),
-              child: Text('Episodes', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
-            const Divider(color: Colors.white12),
+            Icon(icon, color: Colors.white, size: 18),
+            const SizedBox(width: 10),
             Expanded(
-              child: ListView.builder(
-                itemCount: _eps.length,
-                itemBuilder: (_, i) {
-                  final ep = _eps[i];
-                  final label = ep['label'] as String? ?? ep['title'] as String? ?? 'Episode ${i + 1}';
-                  final isCurrent = i == _currentEpIdx;
-                  return ListTile(
-                    title: Text(label, style: TextStyle(
-                      color: isCurrent ? Colors.white : Colors.white70,
-                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                    )),
-                    trailing: isCurrent ? const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20) : null,
-                    onTap: () { Navigator.of(context).pop(); _playEpisodeAt(i); },
-                  );
-                },
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: barValue,
+                  backgroundColor: Colors.white24,
+                  valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                  minHeight: 4,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 34,
+              child: Text(
+                label,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600),
+                textAlign: TextAlign.right,
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Utility
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  String _formatDuration(Duration d) {
-    if (d.isNegative) d = Duration.zero;
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return h > 0 ? '$h:$m:$s' : '$m:$s';
-  }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  CustomPainters
-// ═════════════════════════════════════════════════════════════════════════════
-
-// Vertical seek bar painter (left edge, MX style)
-class _VerticalSeekPainter extends CustomPainter {
-  final double progress;
-  _VerticalSeekPainter({required this.progress});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final trackPaint = Paint()
-      ..color = Colors.white24
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
-
-    final progressPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
-
-    final cx = size.width / 2;
-
-    // Track
-    canvas.drawLine(Offset(cx, 0), Offset(cx, size.height), trackPaint);
-
-    // Progress (from top)
-    final progY = size.height * progress;
-    if (progY > 0) {
-      canvas.drawLine(Offset(cx, 0), Offset(cx, progY), progressPaint);
+      );
     }
 
-    // Thumb circle
-    final thumbPaint = Paint()..color = Colors.white;
-    canvas.drawCircle(Offset(cx, progY), 7, thumbPaint);
-  }
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Smart Enhance Animation (3 phases)
+    // ═══════════════════════════════════════════════════════════════════════════
 
-  @override
-  bool shouldRepaint(_VerticalSeekPainter old) => old.progress != progress;
-}
+    Widget _buildSmartEnhanceAnimation(BoxConstraints constraints) {
+      if (_smartEnhancePhase == 1) {
+        return Positioned.fill(
+          child: Container(
+            color: const Color(0xCC2A1A0A),
+            child: Center(
+              child: AnimatedBuilder(
+                animation: _smartEnhanceAnim,
+                builder: (context, _) => CustomPaint(
+                  size: Size(constraints.maxWidth * 0.65, constraints.maxWidth * 0.65),
+                  painter: _SmartEnhanceDotsCirclePainter(
+                    progress: _smartEnhanceAnim.value,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
 
-// Volume triangles painter (MX Player center-left volume indicator)
-class _VolumeTrianglePainter extends CustomPainter {
-  final double volume;
-  _VolumeTrianglePainter({required this.volume});
+      if (_smartEnhancePhase == 2) {
+        return Positioned.fill(
+          child: Container(
+            color: const Color(0xCC1A0A0A),
+            child: Stack(
+              children: [
+                Positioned(
+                  top: _scanLinePos * constraints.maxHeight - 15,
+                  left: 0, right: 0, height: 30,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          const Color(0xFFE8530A).withOpacity(0.8),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Center(child: _SmartEnhanceIcon(size: 42, color: Colors.white)),
+              ],
+            ),
+          ),
+        );
+      }
 
-  void _drawTriangle(Canvas canvas, Offset center, double width, double height,
-      bool pointUp, Paint paint) {
-    final path = Path();
-    if (pointUp) {
-      path.moveTo(center.dx, center.dy - height / 2);
-      path.lineTo(center.dx - width / 2, center.dy + height / 2);
-      path.lineTo(center.dx + width / 2, center.dy + height / 2);
-    } else {
-      path.moveTo(center.dx, center.dy + height / 2);
-      path.lineTo(center.dx - width / 2, center.dy - height / 2);
-      path.lineTo(center.dx + width / 2, center.dy - height / 2);
+      if (_smartEnhancePhase == 3) {
+        return Positioned.fill(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _SmartEnhanceIcon(size: 54, color: Colors.white),
+                const SizedBox(height: 18),
+                const Text(
+                  'SMART ENHANCE',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2.5),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Immersive visual experience',
+                  style: TextStyle(color: Colors.white70, fontSize: 13, letterSpacing: 0.5),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      return const SizedBox.shrink();
     }
-    path.close();
-    canvas.drawPath(path, paint);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Smart Enhance Toast
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    Widget _buildSmartEnhanceToast() {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xDD1A1A1A),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _smartEnhanceEnabled
+                  ? Icons.auto_awesome_rounded
+                  : Icons.auto_awesome_outlined,
+              color: _smartEnhanceEnabled
+                  ? const Color(0xFFE8950A)
+                  : Colors.white54,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _smartEnhanceEnabled ? 'Smart Enhance enabled.' : 'Smart Enhance disabled.',
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Panels (right-side slide-in)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
+      showGeneralDialog(
+        context: context,
+        barrierColor: Colors.black54,
+        barrierDismissible: true,
+        barrierLabel: 'Dismiss',
+        transitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (ctx, anim, sec) {
+          return Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: MediaQuery.of(ctx).size.width * widthFactor,
+                height: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.horizontal(left: Radius.circular(16)),
+                ),
+                child: content,
+              ),
+            ),
+          );
+        },
+        transitionBuilder: (ctx, anim, sec, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+            child: child,
+          );
+        },
+      );
+    }
+
+    void _openSubtitlePanel() {
+      _openRightPanel(_SubtitlePanel(
+        subSync: _subSync,
+        subSpeed: _subSpeed,
+        currentFile: _currentSubFile,
+        onSyncChanged: (delta) => _adjustSubSync(delta),
+        onSpeedChanged: (v) => setState(() => _subSpeed = v),
+        onClose: () => Navigator.of(context).pop(),
+      ));
+    }
+
+    void _openAudioPanel() {
+      _openRightPanel(_AudioTrackPanel(
+        tracks: _audioTracks,
+        selectedTrack: _selectedAudio,
+        audioSync: _audioSync,
+        useSWDecoder: _useSWDecoder,
+        onTrackSelected: (track) {
+          setState(() => _selectedAudio = track);
+          _player.setAudioTrack(track);
+        },
+        onSyncChanged: (delta) => _adjustAudioSync(delta),
+        onSWDecoderChanged: (v) => setState(() => _useSWDecoder = v),
+        onClose: () => Navigator.of(context).pop(),
+      ));
+    }
+
+    void _openZoomPanel() {
+      _openRightPanel(_VideoZoomPanel(
+        selectedMode: _zoomMode,
+        onModeSelected: (mode) {
+          setState(() => _zoomMode = mode);
+          Navigator.of(context).pop();
+        },
+        onClose: () => Navigator.of(context).pop(),
+      ));
+    }
+
+    void _openAudioEffectPanel() {
+      _openRightPanel(_AudioEffectPanel(
+        selectedPreset: _selectedPreset,
+        eqBands: _eqBands,
+        eqEnabled: _eqEnabled,
+        onPresetSelected: _applyPreset,
+        onEqBandChanged: (i, v) {
+          setState(() { _eqBands[i] = v; _selectedPreset = -1; });
+          _applyCustomEq();
+        },
+        onEqEnabledChanged: (v) {
+          setState(() => _eqEnabled = v);
+          if (!v) {
+            try { _np.setProperty('af', ''); } catch (_) {}
+          } else {
+            _applyCustomEq();
+          }
+        },
+        onClose: () => Navigator.of(context).pop(),
+      ));
+    }
+
+    void _openMoreMenu() {
+      _openRightPanel(_QuickShortcutsPanel(
+        isLocked: _isLocked,
+        isMuted: _isMuted,
+        loopEnabled: _loopEnabled,
+        smartEnhanceEnabled: _smartEnhanceEnabled,
+        sleepTimerMinutes: _sleepTimerMinutes,
+        sleepTimerEnd: _sleepTimerEnd,
+        speed: _speed,
+        abA: _abA,
+        abB: _abB,
+        abActive: _abActive,
+        onLockToggle: () { Navigator.of(context).pop(); setState(() => _isLocked = true); },
+        onMuteToggle: () { Navigator.of(context).pop(); _toggleMute(); },
+        onLoopToggle: () { Navigator.of(context).pop(); _toggleLoop(); },
+        onSmartEnhanceToggle: () { Navigator.of(context).pop(); _toggleSmartEnhance(); },
+        onSleepTimer: (mins) { Navigator.of(context).pop(); _setSleepTimer(mins); },
+        onSpeedSelected: (s) { Navigator.of(context).pop(); _setSpeed(s); },
+        onAudioEffect: () { Navigator.of(context).pop(); _openAudioEffectPanel(); },
+        onSettingsOpen: () { Navigator.of(context).pop(); _openSettingsPanel(); },
+        onAbSet: () { Navigator.of(context).pop(); _handleAbRepeat(); },
+        onClose: () => Navigator.of(context).pop(),
+      ));
+    }
+
+    void _handleAbRepeat() {
+      if (_abA == null) {
+        setState(() { _abA = _position; _abActive = false; });
+        _showInfoSnackbar('A point set at ${_formatDuration(_position)}');
+      } else if (_abB == null) {
+        setState(() { _abB = _position; _abActive = true; });
+        _showInfoSnackbar('B point set. A-B repeat active.');
+      } else {
+        setState(() { _abA = null; _abB = null; _abActive = false; });
+        _showInfoSnackbar('A-B repeat cleared.');
+      }
+    }
+
+    void _openSettingsPanel() {
+      _openRightPanel(_SettingsPanel(
+        showRemainingTime: _showRemainingTime,
+        keepScreenOn: _keepScreenOn,
+        skipInterval: _skipInterval,
+        onShowRemainingChanged: (v) => setState(() => _showRemainingTime = v),
+        onKeepScreenChanged: (v) {
+          setState(() => _keepScreenOn = v);
+          if (v) WakelockPlus.enable(); else WakelockPlus.disable();
+        },
+        onSkipIntervalChanged: (v) => setState(() => _skipInterval = v),
+        onClose: () => Navigator.of(context).pop(),
+      ));
+    }
+
+    void _showInfoSnackbar(String msg) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg, style: const TextStyle(color: Colors.white)),
+          backgroundColor: const Color(0xFF2A2A2A),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Episode sheet
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    void _showEpisodeSheet() {
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        ),
+        builder: (_) => SizedBox(
+          height: 380,
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 6),
+                width: 36, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 6, 16, 6),
+                child: Text('Episodes',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold)),
+              ),
+              const Divider(color: Colors.white12),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: _eps.length,
+                  itemBuilder: (_, i) {
+                    final ep = _eps[i];
+                    final label = ep['label'] as String? ??
+                        ep['title'] as String? ?? 'Episode ${i + 1}';
+                    final isCurrent = i == _currentEpIdx;
+                    return ListTile(
+                      title: Text(label,
+                          style: TextStyle(
+                            color: isCurrent ? Colors.white : Colors.white70,
+                            fontWeight: isCurrent
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          )),
+                      trailing: isCurrent
+                          ? const Icon(Icons.play_arrow_rounded,
+                              color: Colors.white, size: 20)
+                          : null,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _playEpisodeAt(i);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Utility
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    String _formatDuration(Duration d) {
+      if (d.isNegative) d = Duration.zero;
+      final h = d.inHours;
+      final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+      final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+      return h > 0 ? '$h:$m:$s' : '$m:$s';
+    }
+  }
+  
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  //  Horizontal Seek Bar Painter
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  class _HorizontalSeekPainter extends CustomPainter {
+    final double progress;
+    _HorizontalSeekPainter({required this.progress});
+
+    @override
+    void paint(Canvas canvas, Size size) {
+      final cy = size.height / 2;
+      final trackPaint = Paint()
+        ..color = Colors.white24
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round;
+
+      final progressPaint = Paint()
+        ..color = Colors.white
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round;
+
+      // Track
+      canvas.drawLine(Offset(0, cy), Offset(size.width, cy), trackPaint);
+
+      // Progress
+      final progX = size.width * progress;
+      if (progX > 0) {
+        canvas.drawLine(Offset(0, cy), Offset(progX, cy), progressPaint);
+      }
+
+      // Thumb circle
+      final thumbPaint = Paint()..color = Colors.white;
+      canvas.drawCircle(Offset(progX, cy), 7, thumbPaint);
+    }
+
+    @override
+    bool shouldRepaint(_HorizontalSeekPainter old) => old.progress != progress;
   }
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-
-    // Top triangle (▲, solid white, largest)
-    final paint1 = Paint()..color = Colors.white;
-    _drawTriangle(canvas, Offset(cx, 14), 30, 18, true, paint1);
-
-    // Middle triangle (▼, half-filled based on volume, medium)
-    final fillAmt = (volume / 1.5).clamp(0.0, 1.0);
-    final paint2 = Paint()..color = Colors.white.withOpacity(0.5 + fillAmt * 0.5);
-    _drawTriangle(canvas, Offset(cx, 40), 22, 14, false, paint2);
-
-    // Bottom triangle (▼, smaller, outline style)
-    final paint3 = Paint()
-      ..color = Colors.white.withOpacity(0.4)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    _drawTriangle(canvas, Offset(cx, 62), 16, 10, false, paint3);
-  }
-
-  @override
-  bool shouldRepaint(_VolumeTrianglePainter old) => old.volume != volume;
-}
-
+  
 // Smart Enhance dots circle painter
 class _SmartEnhanceDotsCirclePainter extends CustomPainter {
   final double progress;
@@ -2117,6 +2127,82 @@ class _SmartEnhanceDotsCirclePainter extends CustomPainter {
 //  Helper Widgets
 // ═════════════════════════════════════════════════════════════════════════════
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  //  _RaddIconBtn — modern tap-target icon button with ink splash
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  class _RaddIconBtn extends StatelessWidget {
+    final IconData icon;
+    final double size;
+    final VoidCallback? onTap;
+
+    const _RaddIconBtn({required this.icon, this.size = 22, this.onTap});
+
+    @override
+    Widget build(BuildContext context) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: size + 20,
+          height: size + 20,
+          alignment: Alignment.center,
+          child: Icon(icon, color: Colors.white, size: size,
+              shadows: const [Shadow(blurRadius: 6, color: Colors.black45)]),
+        ),
+      );
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  //  _BottomIconBtn — icon + label used in bottom icon row
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  class _BottomIconBtn extends StatelessWidget {
+    final IconData icon;
+    final String label;
+    final bool active;
+    final VoidCallback? onTap;
+    final double opacity;
+
+    const _BottomIconBtn({
+      required this.icon,
+      required this.label,
+      required this.active,
+      this.onTap,
+      this.opacity = 1.0,
+    });
+
+    @override
+    Widget build(BuildContext context) {
+      final color = active ? const Color(0xFFE8950A) : Colors.white;
+      return Opacity(
+        opacity: opacity,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: color, size: 20,
+                    shadows: const [Shadow(blurRadius: 4, color: Colors.black54)]),
+                const SizedBox(height: 3),
+                Text(label,
+                    style: TextStyle(
+                        color: active ? const Color(0xFFE8950A) : Colors.white70,
+                        fontSize: 9,
+                        fontWeight: active ? FontWeight.w700 : FontWeight.normal),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  
 class _MxIconBtn extends StatelessWidget {
   final IconData icon;
   final double size;

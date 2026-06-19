@@ -202,14 +202,7 @@ import 'player_screen.dart';
           Expanded(child: _buildBody(sorted)),
         ])),
         // Floating play all button (MX Player style)
-        floatingActionButton: (!_selecting && _videos.isNotEmpty)
-            ? FloatingActionButton(
-                backgroundColor: AppColors.primary,
-                onPressed: _playAll,
-                child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
-              )
-            : null,
-      );
+                // play-all removed      );
     }
 
     Widget _buildTopBar(List<LocalVideo> sorted) {
