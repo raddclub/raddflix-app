@@ -76,3 +76,12 @@ _Last updated: 2026-06-18_
   _videoOpenedAtMs field timestamps every open(). Any vf= call within 2000ms
   of open() is blocked + logged. Covers episode-nav re-opens where startup gate is bypassed.
   
+  ## FIX-VF-ROOT [DONE ✅ Build #1153]
+  THE permanent fix. Root cause confirmed: Smart Enhance (commit 034938fb) added
+  _applyVideoFilters(loaded) to _loadPrefs(). Both run concurrently from initState.
+  _player.open() starts decoder immediately. _loadPrefs completes ~50-200ms later,
+  calls setProperty('vf',...) while HW decoder active → GL surface destroyed.
+  Fix: load PlayerPrefs inside _initPlayer() BEFORE _player.open(). Apply vf= and
+  hwdec as initial config (decoder not running → safe). _firstVfApplied=true + 
+  _lastAppliedVf primed so _loadPrefs._applyVideoFilters is a dedup no-op.
+  
