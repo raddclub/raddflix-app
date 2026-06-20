@@ -39,28 +39,39 @@ class MainActivity : FlutterActivity() {
     private var pendingVideoTitle: String? = null
     private var pendingSubtitleUri: String? = null
 
-    // Stored reference used by onPictureInPictureModeChanged and notifReceiver
-    // to send events back to Flutter. Set in configureFlutterEngine().
     private var activeEngine: FlutterEngine? = null
 
-    // Pip channel reference — stored so notifReceiver can invoke methods on it
-    // without creating a new MethodChannel instance (which would not have the handler set).
+    // Stored pip channel reference so both notifReceiver and onPipExited can use it
+    // without creating a second MethodChannel instance.
     private var pipMethodChannel: MethodChannel? = null
 
     // ── Media notification BroadcastReceiver ──────────────────────────────────
-    // Catches button taps from PlaybackService's PendingIntent broadcasts and
+    // Catches button-tap and seek-gesture broadcasts from PlaybackService and
     // forwards them to Flutter as "onNotificationAction" on the pip channel.
+    //
+    //  Action strings sent to Flutter:
+    //    "play_pause"          — toggle play/pause
+    //    "seek_back"           — skip −10 s
+    //    "seek_forward"        — skip +30 s
+    //    "seek_to:<positionMs>"— swipe-to-seek on Android 13+ progress bar
     private val notifReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, intent: Intent?) {
-            val action = when (intent?.action) {
-                PlaybackService.ACTION_PLAY_PAUSE -> "play_pause"
-                PlaybackService.ACTION_SEEK_BACK  -> "seek_back"
-                PlaybackService.ACTION_SEEK_FWD   -> "seek_forward"
-                else -> return
+            val action = intent?.action ?: return
+            // BroadcastReceiver callbacks arrive on the main thread — safe to call invokeMethod.
+            when (action) {
+                PlaybackService.ACTION_PLAY_PAUSE ->
+                    pipMethodChannel?.invokeMethod("onNotificationAction", "play_pause")
+                PlaybackService.ACTION_SEEK_BACK  ->
+                    pipMethodChannel?.invokeMethod("onNotificationAction", "seek_back")
+                PlaybackService.ACTION_SEEK_FWD   ->
+                    pipMethodChannel?.invokeMethod("onNotificationAction", "seek_forward")
+                PlaybackService.ACTION_SEEK_TO    -> {
+                    val pos = intent.getLongExtra(PlaybackService.EXTRA_SEEK_TO_MS, -1L)
+                    if (pos >= 0) {
+                        pipMethodChannel?.invokeMethod("onNotificationAction", "seek_to:$pos")
+                    }
+                }
             }
-            // invokeMethod must be called on the main thread; BroadcastReceiver
-            // callbacks always arrive on the main thread so this is safe.
-            pipMethodChannel?.invokeMethod("onNotificationAction", action)
         }
     }
 
@@ -85,6 +96,7 @@ class MainActivity : FlutterActivity() {
             addAction(PlaybackService.ACTION_PLAY_PAUSE)
             addAction(PlaybackService.ACTION_SEEK_BACK)
             addAction(PlaybackService.ACTION_SEEK_FWD)
+            addAction(PlaybackService.ACTION_SEEK_TO)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(notifReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -146,7 +158,7 @@ class MainActivity : FlutterActivity() {
 
         // ── PiP + Background Playback Channel ────────────────────────────
         val pipCh = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PIP_CHANNEL)
-        pipMethodChannel = pipCh   // store for notifReceiver access
+        pipMethodChannel = pipCh
         pipCh.setMethodCallHandler { call, result ->
             when (call.method) {
 
@@ -163,51 +175,24 @@ class MainActivity : FlutterActivity() {
                 }
 
                 // Start (or restart/update) the foreground media notification service.
-                // Accepts optional isPlaying, positionMs, durationMs in addition to title
-                // so the notification reflects the current playback state immediately.
+                // Accepts full play state — title, isPlaying, positionMs, durationMs.
                 "startBgPlayback" -> {
                     val title     = call.argument<String>("title")      ?: "Playing…"
                     val isPlaying = call.argument<Boolean>("isPlaying") ?: true
                     val posMs     = (call.argument<Int>("positionMs")   ?: 0).toLong()
                     val durMs     = (call.argument<Int>("durationMs")   ?: 0).toLong()
-                    val svcIntent = Intent(this, PlaybackService::class.java).apply {
-                        putExtra(PlaybackService.EXTRA_TITLE,      title)
-                        putExtra(PlaybackService.EXTRA_IS_PLAYING, isPlaying)
-                        putExtra(PlaybackService.EXTRA_POSITION,   posMs)
-                        putExtra(PlaybackService.EXTRA_DURATION,   durMs)
-                    }
-                    try {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            startForegroundService(svcIntent)
-                        } else {
-                            startService(svcIntent)
-                        }
-                        result.success(null)
-                    } catch (e: Exception) {
-                        result.success(null) // best-effort
-                    }
+                    startPlaybackService(title, isPlaying, posMs, durMs)
+                    result.success(null)
                 }
 
-                // Update the notification with new state (play/pause toggle, title change).
-                // Delivers the intent to an already-running service via onStartCommand.
+                // Update the notification with refreshed state (play/pause toggle,
+                // updated position for the progress bar, title change).
                 "updateBgNotification" -> {
                     val title     = call.argument<String>("title")      ?: "Playing…"
                     val isPlaying = call.argument<Boolean>("isPlaying") ?: true
                     val posMs     = (call.argument<Int>("positionMs")   ?: 0).toLong()
                     val durMs     = (call.argument<Int>("durationMs")   ?: 0).toLong()
-                    val svcIntent = Intent(this, PlaybackService::class.java).apply {
-                        putExtra(PlaybackService.EXTRA_TITLE,      title)
-                        putExtra(PlaybackService.EXTRA_IS_PLAYING, isPlaying)
-                        putExtra(PlaybackService.EXTRA_POSITION,   posMs)
-                        putExtra(PlaybackService.EXTRA_DURATION,   durMs)
-                    }
-                    try {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            startForegroundService(svcIntent)
-                        } else {
-                            startService(svcIntent)
-                        }
-                    } catch (_: Exception) {}
+                    startPlaybackService(title, isPlaying, posMs, durMs)
                     result.success(null)
                 }
 
@@ -417,6 +402,28 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    // ── Shared helper: start / update the PlaybackService ────────────────────
+    private fun startPlaybackService(
+        title: String,
+        isPlaying: Boolean,
+        posMs: Long,
+        durMs: Long
+    ) {
+        val svcIntent = Intent(this, PlaybackService::class.java).apply {
+            putExtra(PlaybackService.EXTRA_TITLE,      title)
+            putExtra(PlaybackService.EXTRA_IS_PLAYING, isPlaying)
+            putExtra(PlaybackService.EXTRA_POSITION,   posMs)
+            putExtra(PlaybackService.EXTRA_DURATION,   durMs)
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(svcIntent)
+            } else {
+                startService(svcIntent)
+            }
+        } catch (_: Exception) {}
     }
 
     // ── PiP exit → notify Flutter ─────────────────────────────────────────
