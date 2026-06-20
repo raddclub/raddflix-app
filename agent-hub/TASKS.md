@@ -62,3 +62,28 @@
 - BUG-07: _QuickShortcutsPanel → StatefulWidget with Timer.periodic(30s) — sleep countdown live-ticks while panel open
 - BUG-08: Speed label uses toInt()/toStringAsFixed guard — no more float noise
 - BUG-11: AudioEffectPanel lab state (vocal/dialogue/norm/bass/bassLevel) persists via widget props + initState; onLabStateChanged propagates to parent; initialReverbPreset wires reverb to parent state
+
+### Phase 13 — Sprint 2 All Remaining Features (sha 77e08a1)
+- **player_screen.dart** 5589 → 6529 lines (+940 lines)
+- 8 QSP dead-button panels implemented:
+  - Jump To: time dialog + 6 quick-chips (1m/5m/10m/15m/30m/45m)
+  - Speed Presets: 10-speed grid bottom sheet (0.25x–3.0x)
+  - End Action: 4 modes (play_next/loop/stop/ask) + _onVideoCompleted integration
+  - Silence Skip: toggle + threshold slider + mpv silencedetect af filter
+  - Zoom & Crop: 7 aspect ratio presets via video-aspect-override
+  - Gesture Map: live SwitchListTiles for all 4 gesture groups
+  - Skip Editor: intro start/end + outro timestamps → auto-skip via _checkSkipEditor()
+  - Layout Designer: 3 presets (Default/Cinema/Compact) → affect _showSkipBtns
+  - Watch Party: room code dialog (join/create room)
+  - Screenshot: mpv screenshot-to-file + SaverGallery.saveImage → Pictures/RaddFlix
+- Online subtitle search LIVE (rest.opensubtitles.org REST v0):
+  - Results rendered as tappable download cards with lang/count/rating
+  - Download: GZip decompressed via ZLibDecoder → SRT loaded into player via onSubtitleFilePicked
+  - Translation button now searches OpenSubtitles in chosen language (Urdu/Hindi/Arabic/French/Spanish/German)
+- Settings Controls tab — 5 real toggles (was 3 static text lines)
+  - Double-tap seek, long-press speed, swipe seek, swipe Br/Vol, voice commands
+  - Wired bidirectionally: Settings ↔ parent state ↔ gesture guards
+- 10 new SharedPreferences keys: pref_end_action, pref_silence_skip/thr, pref_layout, pref_gest_*, pref_skip_ed_on
+- Skip editor timestamps persisted per content ID (pref_intro_s_X / pref_intro_e_X / pref_outro_s_X)
+- Gesture guards: onDoubleTapDown + onLongPressStart/End/Cancel gated on bool flags
+- Dead code deleted: player_screen_v1_backup.dart removed from repo
