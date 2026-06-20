@@ -73,6 +73,7 @@ class WatchPartyService {
 
   WatchPartyRoom? get currentRoom => _room;
   bool get isConnected => _connected;
+  String get myId => _myId ?? 'local';
 
   /// Create a new watch party room (host).
   Future<String?> createRoom({
