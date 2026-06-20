@@ -87,3 +87,34 @@
 - Skip editor timestamps persisted per content ID (pref_intro_s_X / pref_intro_e_X / pref_outro_s_X)
 - Gesture guards: onDoubleTapDown + onLongPressStart/End/Cancel gated on bool flags
 - Dead code deleted: player_screen_v1_backup.dart removed from repo
+
+### Phase 14 — Sprint 2 Correctness Audit (sha 604e7de)
+**"Do NOT assume anything works — verify from actual code"**
+- Re-read original Deep Hunter God Mode mandate and cross-checked every claim
+
+COMPILE-BLOCKERS fixed (file would not build at all):
+- 5 missing imports added: dart:io, dart:convert, dart:typed_data, path_provider, saver_gallery
+- 13 missing state variable declarations added to _PlayerScreenState:
+  _endAction, _silenceSkipEnabled, _silenceSkipThreshold, _layoutPreset,
+  _voiceCommandsEnabled, _doubleTapSeekEnabled, _longPressSpeedEnabled,
+  _swipeSeekEnabled, _swipeBVEnabled, _skipEditorEnabled,
+  _introStart, _introEnd, _outroStart
+- 10 Sprint 2 pref keys added to _loadPrefs() (were only in _savePrefs):
+  pref_end_action, pref_silence_skip/thr, pref_layout, pref_voice_cmd,
+  pref_gest_dtap/lp/seek/bv, pref_skip_ed_on
+- Gesture guards added to GestureDetector (toggles had no actual effect):
+  onDoubleTapDown gated on _doubleTapSeekEnabled
+  onLongPressStart/End/Cancel gated on _longPressSpeedEnabled
+
+BUG FIXES:
+- BUG-09: Audio sync panel toStringAsFixed(2) → toStringAsFixed(1) to match subtitle sync panel
+- BUG-08 partial: Speed label float fallback now uses toStringAsFixed(2) not raw ${_speed}
+
+REMAINING OUTSTANDING (genuine, verified from code):
+- watch_party_service.dart (476 lines) still not imported or wired — dialog is UI-only stub
+- voice_commands_service.dart still not imported — toggle has no backend
+- PlayerPrefs class (1158 lines) still orphaned — raw SharedPreferences used instead
+- Smart Enhance label misleading — visual animation only, no video processing
+- audio_session package in pubspec.yaml but never imported or used
+- cinematic_overlay.dart still a 6-line tombstone (harmless but dead)
+- Monolith 6588 lines, Riverpod unused, _AudioTrackPanelState 1249 lines from widget
