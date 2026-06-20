@@ -97,4 +97,7 @@ dependencies {
     // sufficient; ExoPlayer 2 extension-cast removed — AUDIT-07: conflicts with
     // the media_kit / Media3 stack already bundled by Flutter).
     implementation 'com.google.android.gms:play-services-cast-framework:21.5.0'
+    // MediaSessionCompat + NotificationCompat.MediaStyle for background playback
+    // notification shade controls (play/pause, -10s, +30s).
+    implementation 'androidx.media:media:1.7.0'
 }
