@@ -27,6 +27,9 @@
     <!-- Android 13+ (API 33+): show download-complete / playback notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
+    <!-- Voice commands: microphone access for speech_to_text -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
     <!-- WorkManager — background downloads that survive app kill -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
