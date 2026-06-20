@@ -35,6 +35,8 @@ import '../core/api/catalog_api.dart';
 import '../core/constants.dart';
 import '../core/debug/debug_logger.dart';
 import '../widgets/player/seek_bar_painter.dart';
+import '../core/player/watch_party_service.dart';
+import '../core/player/voice_commands_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Widget
@@ -251,6 +253,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Duration? _introEnd;
   Duration? _outroStart;
 
+  // Watch Party state
+  WatchPartyRoom? _watchPartyRoom;
+  StreamSubscription<WatchPartyRoom?>? _watchPartySub;
+
+  // Voice Commands state
+  StreamSubscription<VoiceCommand>? _voiceSub;
+  String _lastVoiceCmd = '';
+  Timer? _voiceCmdTimer;
+
+  // One-handed mode — hand preference
+  bool _oneHandedLeft = false;
+
+  // Silence skip — in merged AF pipeline flag
+  bool _silenceInPipeline = false;
+
+  // Skip editor debounce
+  String? _lastSkipRegion;
+
+  // Zoom/crop — separate aspect ratio index from BoxFit mode
+  int _cropAspectIdx = 0;
+
   // ── Subscriptions ───────────────────────────────────────────────────────────
   final List<StreamSubscription> _subs = [];
 
@@ -427,6 +450,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     const MethodChannel('com.raddflix.app/pip')
         .invokeMethod('stopBgPlayback').catchError((_) {});
     const MethodChannel('com.raddflix.app/pip').setMethodCallHandler(null);
+    _watchPartySub?.cancel();
+    _voiceSub?.cancel();
+    _voiceCmdTimer?.cancel();
+    WatchPartyService.instance.leaveRoom();
+    VoiceCommandsService.instance.stop();
     _player.dispose();
     super.dispose();
   }
@@ -453,8 +481,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     _subs.addAll([
       _player.stream.playing.listen((v) {
-        if (mounted) {
-          setState(() => _playing = v);
+        if (mounted) setState(() => _playing = v);
+        // Watch Party: broadcast play/pause state to guests (host only)
+        if (_watchPartyRoom != null) {
+          final isHost = _watchPartyRoom!.hostId == WatchPartyService.instance.myId;
+          if (isHost) WatchPartyService.instance.sendSync(isPlaying: v, position: _position);
         }
       }),
       _player.stream.position.listen((v) {
@@ -521,6 +552,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     ]);
 
     _posTimer = Timer.periodic(const Duration(seconds: 10), (_) => _saveWatchPos());
+
+    // Silence skip: subscribe to MPV log for silencedetect events
+    try {
+      _np.observeProperty('log-message', (String msg) {
+        if (!_silenceInPipeline || !mounted) return;
+        if (msg.contains('silence_end:')) {
+          final endMatch = RegExp(r'silence_end:\s*([\d.]+)').firstMatch(msg);
+          final durMatch = RegExp(r'silence_duration:\s*([\d.]+)').firstMatch(msg);
+          if (endMatch != null && durMatch != null) {
+            final endSec = double.tryParse(endMatch.group(1)!) ?? 0.0;
+            final durSec = double.tryParse(durMatch.group(1)!) ?? 0.0;
+            if (durSec >= _silenceSkipThreshold && endSec > 0) {
+              final now = _position.inMilliseconds / 1000.0;
+              if ((now - endSec).abs() < 3.0) {
+                _player.seek(Duration(milliseconds: (endSec * 1000).round()));
+                if (mounted) _showInfoSnackbar('Skipped ${durSec.toStringAsFixed(1)}s silence');
+              }
+            }
+          }
+        }
+      });
+    } catch (_) {
+      // observeProperty may not be available on all media_kit versions — fail silently
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _openMedia(_currentFileId, localPath: widget.localPath);
@@ -737,6 +792,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _player.play();
       return;
     }
+    // End action (only applies when loop is off)
+    if (_endAction == 'loop') {
+      _player.seek(Duration.zero);
+      _player.play();
+      return;
+    }
+    if (_endAction == 'stop') return; // stay on last frame
+    if (_endAction == 'ask') {
+      _showEndActionDialog();
+      return;
+    }
+    // 'play_next' — auto-advance countdown
     if (_hasNext) {
       _autoAdvanceCountdown = 3;
       _autoAdvanceTimer?.cancel();
@@ -755,6 +822,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         });
       });
     }
+  }
+
+  void _showEndActionDialog() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Episode Finished', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: const Text('What would you like to do?',
+            style: TextStyle(color: Colors.white70, fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () { Navigator.of(ctx).pop(); _player.seek(Duration.zero); _player.play(); },
+            child: const Text('Replay', style: TextStyle(color: Colors.white54)),
+          ),
+          if (_hasNext)
+            TextButton(
+              onPressed: () { Navigator.of(ctx).pop(); _playEpisodeAt(_currentEpIdx + 1); },
+              child: const Text('Next Episode', style: TextStyle(color: Color(0xFF4A9EFF))),
+            ),
+          TextButton(
+            onPressed: () { Navigator.of(ctx).pop(); Navigator.of(context).pop(); },
+            child: const Text('Close', style: TextStyle(color: Colors.white54)),
+          ),
+        ],
+      ),
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -780,8 +876,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!mounted) return;
     final prefs = await SharedPreferences.getInstance();
     final ms = prefs.getInt(_posKey) ?? 0;
-    if (ms > 30000 && ms < (_duration.inMilliseconds - 10000)) {
-      await _player.seek(Duration(milliseconds: ms));
+    if (ms <= 30000 || ms >= (_duration.inMilliseconds - 10000)) return;
+    // For content watched > 30s in: ask user instead of silently seeking
+    if (!mounted) return;
+    final cont = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Resume Playback', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Text(
+          'Continue from ${_formatDuration(Duration(milliseconds: ms))}?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Start Over', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Resume', style: TextStyle(
+                color: Color(0xFFE8950A), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (cont == true && mounted) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      _player.seek(Duration(milliseconds: ms));
     }
   }
 
@@ -862,11 +985,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ─── Feature 26: Resume position ────────────────────────────────────────
   void _saveCurrentPosition() {
-    if (_position.inSeconds < 5) return; // don't save if near start
-    final _safeId = _currentFileId.length > 80 ? _currentFileId.hashCode.toString() : _currentFileId;
-    SharedPreferences.getInstance().then((prefs) {
-      prefs.setInt('$_kResumePrefix$_safeId', _position.inSeconds);
-    });
+    _saveWatchPos(); // delegated to unified watch-pos system
   }
 
   void _clearSavedPosition(String fileId) {
@@ -911,7 +1030,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _startSavePositionTimer() {
     _savePositionTimer?.cancel();
-    _savePositionTimer = Timer.periodic(const Duration(seconds: 10), (_) => _saveCurrentPosition());
+    _savePositionTimer = Timer.periodic(const Duration(seconds: 10), (_) => _saveWatchPos());
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -960,6 +1079,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _swipeSeekEnabled    = prefs.getBool('pref_gest_seek') ?? true;
       _swipeBVEnabled      = prefs.getBool('pref_gest_bv') ?? true;
       _skipEditorEnabled   = prefs.getBool('pref_skip_ed_on') ?? false;
+      _cropAspectIdx       = prefs.getInt('pref_crop_aspect') ?? 0;
+      _oneHandedLeft       = prefs.getBool('pref_onehanded_left') ?? false;
       // Rebuild reverb AF string from loaded preset
       switch (_reverbPreset) {
         case 'Small Room': _currentReverbAf = 'aecho=0.8:0.9:30:0.4'; break;
@@ -1035,6 +1156,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setBool('pref_gest_seek', _swipeSeekEnabled);
     await prefs.setBool('pref_gest_bv', _swipeBVEnabled);
     await prefs.setBool('pref_skip_ed_on', _skipEditorEnabled);
+    await prefs.setInt('pref_crop_aspect', _cropAspectIdx);
+    await prefs.setBool('pref_onehanded_left', _oneHandedLeft);
     // Skip editor timestamps (per content ID)
     final id = _currentFileId.length > 80 ? _currentFileId.hashCode.toString() : _currentFileId;
     if (_introStart != null) await prefs.setInt('pref_intro_s_$id', _introStart!.inSeconds);
@@ -1258,6 +1381,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_currentLabAf.isNotEmpty) parts.add(_currentLabAf);
     if (_currentChannelModeAf.isNotEmpty) parts.add(_currentChannelModeAf);
     if (_currentBalanceAf.isNotEmpty) parts.add(_currentBalanceAf);
+    // Silence detection — must be last (detection filter, not audio transform)
+    if (_silenceInPipeline) {
+      parts.add('lavfi=[silencedetect=noise=-50dB:d=${_silenceSkipThreshold.toStringAsFixed(1)}]');
+    }
     return parts.join(',');
   }
 
@@ -1426,9 +1553,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final isLeftSide = _dragStart.dx < constraints.maxWidth / 2;
 
     if (_dragIntent == null) {
-      if (dx.abs() > dy.abs() && dx.abs() > 12) {
+      if (dx.abs() > dy.abs() && dx.abs() > 12 && _swipeSeekEnabled) {
         _dragIntent = 'seek';
-      } else if (dy.abs() > 12) {
+      } else if (dy.abs() > 12 && _swipeBVEnabled) {
         _dragIntent = isLeftSide ? 'brightness' : 'volume';
       }
     }
@@ -1523,9 +1650,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final dy = d.localFocalPoint.dy - _dragStart.dy;
     final isLeftSide = _dragStart.dx < constraints.maxWidth / 2;
     if (_dragIntent == null) {
-      if (dx.abs() > dy.abs() && dx.abs() > 12) {
+      if (dx.abs() > dy.abs() && dx.abs() > 12 && _swipeSeekEnabled) {
         _dragIntent = 'seek';
-      } else if (dy.abs() > 12) {
+      } else if (dy.abs() > 12 && _swipeBVEnabled) {
         _dragIntent = isLeftSide ? 'brightness' : 'volume';
       }
     }
@@ -1611,6 +1738,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
                 // 2. Lock overlay
                 if (_isLocked) _buildLockOverlay(),
+
+                // Voice command feedback badge
+                if (_voiceCommandsEnabled && _lastVoiceCmd.isNotEmpty)
+                  Positioned(
+                    top: 80, left: 0, right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.78),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.mic_rounded, color: Colors.white70, size: 14),
+                          const SizedBox(width: 6),
+                          Text(_lastVoiceCmd.replaceAll('🎤 ', ''),
+                              style: const TextStyle(color: Colors.white,
+                                  fontSize: 13, fontWeight: FontWeight.w600)),
+                        ]),
+                      ),
+                    ),
+                  ),
+
+                // Watch Party overlay (participant list + sync badge)
+                if (_watchPartyRoom != null)
+                  WatchPartyOverlay(
+                    room: _watchPartyRoom!,
+                    accentColor: _accentColor,
+                    onLeave: () {
+                      WatchPartyService.instance.leaveRoom();
+                      setState(() => _watchPartyRoom = null);
+                    },
+                  ),
 
                 // 3. Gesture layer
                 if (!_isLocked)
@@ -2112,19 +2273,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
           ),
 
-          // ── TOP BAR ──────────────────────────────────────────────────────────
-          Positioned(
-            top: 0, left: 0, right: 0,
-            child: SafeArea(
-              bottom: false,
-              child: _buildTopBar(),
+          // ── TOP BAR ── hidden in one-handed mode (side strip used instead) ──
+          if (!_oneHandedMode)
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: _buildTopBar(),
+              ),
             ),
-          ),
 
           // ── CENTER PLAYBACK CONTROLS ── P7: shift down in one-handed mode ───────
           if (_oneHandedMode)
             Positioned(
-              bottom: 75, left: 0, right: 0,
+              bottom: 75,
+              left: _oneHandedLeft ? 0 : null,
+              right: _oneHandedLeft ? null : 0,
+              width: MediaQuery.of(context).size.width * 0.88,
               child: _buildCenterControls(),
             )
           else
@@ -2132,6 +2297,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               child: Center(
                 child: _buildCenterControls(),
               ),
+            ),
+
+          // ── ONE-HANDED SIDE STRIP (top bar replacement) ──────────────────────
+          if (_oneHandedMode && _showControls)
+            Positioned(
+              top: MediaQuery.of(context).size.height * 0.22,
+              right: _oneHandedLeft ? null : 12,
+              left: _oneHandedLeft ? 12 : null,
+              child: _buildOneHandedSideStrip(),
             ),
 
           // P9: Seek preview label during drag
@@ -2157,7 +2331,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
           // ── BOTTOM AREA: seek bar + icon row ──────────────────────────────────
           Positioned(
-            bottom: 0, left: 0, right: 0,
+            bottom: 0,
+            left: _oneHandedMode && !_oneHandedLeft ? null : 0,
+            right: _oneHandedMode && _oneHandedLeft ? null : 0,
+            width: _oneHandedMode
+                ? MediaQuery.of(context).size.width * 0.90
+                : null,
             child: SafeArea(
               top: false,
               child: _buildBottomArea(constraints, currentPos),
@@ -2170,6 +2349,60 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ═══════════════════════════════════════════════════════════════════════════
     //  Top Bar
     // ═══════════════════════════════════════════════════════════════════════════
+
+    Widget _buildOneHandedSideStrip() {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.68),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _RaddIconBtn(
+              icon: Icons.arrow_back_ios_new_rounded,
+              size: 20,
+              onTap: () => Navigator.of(context).pop(),
+            ),
+            const SizedBox(height: 6),
+            _RaddIconBtn(
+              icon: _isLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
+              size: 20,
+              onTap: () => setState(() { _isLocked = !_isLocked; _showControls = true; }),
+            ),
+            const SizedBox(height: 6),
+            _RaddIconBtn(
+              icon: Icons.screen_rotation_rounded,
+              size: 20,
+              onTap: _cycleOrientation,
+            ),
+            const SizedBox(height: 6),
+            _RaddIconBtn(
+              icon: Icons.picture_in_picture_rounded,
+              size: 20,
+              onTap: _enterPiP,
+            ),
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: () { setState(() => _oneHandedLeft = !_oneHandedLeft); _savePrefs(); },
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white10,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _oneHandedLeft ? '✋' : '🤚',
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     Widget _buildTopBar() {
       // P1: badge helpers
@@ -2327,7 +2560,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   border: Border.all(color: const Color(0xFF3A8EF5).withOpacity(0.45), width: 0.8),
                 ),
                 child: Text(
-                  '\u{1F4A4} \${_fmtSleepRemaining()}',
+                  '💤 ${_fmtSleepRemaining()}',
                   style: const TextStyle(color: Color(0xFF64B5F6), fontSize: 10, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -2614,7 +2847,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // Smart Enhance
           _BottomIconBtn(
             icon: Icons.auto_awesome_rounded,
-            label: 'Enhance',
+            label: 'Vivid',
             active: _smartEnhanceEnabled,
             onTap: _toggleSmartEnhance,
           ),
@@ -2873,7 +3106,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
             const SizedBox(width: 8),
             Text(
-              _smartEnhanceEnabled ? 'Smart Enhance enabled.' : 'Smart Enhance disabled.',
+              _smartEnhanceEnabled ? 'Vivid Mode enabled — contrast & warmth boost.' : 'Vivid Mode disabled.',
               style: const TextStyle(color: Colors.white, fontSize: 13),
             ),
           ],
@@ -3357,16 +3590,8 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
     }
 
     void _applySilenceSkip() {
-      if (!_silenceSkipEnabled) {
-        try { _np.setProperty('af-remove', 'silencedetect'); } catch (_) {}
-        return;
-      }
-      try {
-        _np.setProperty(
-          'af',
-          'lavfi=[silencedetect=noise=-50dB:d=${_silenceSkipThreshold.toStringAsFixed(1)}]',
-        );
-      } catch (_) {}
+      setState(() => _silenceInPipeline = _silenceSkipEnabled);
+      _applyAllAf();
     }
 
     // ── Zoom & Crop ───────────────────────────────────────────────────────────
@@ -3401,10 +3626,10 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
                 Wrap(
                   spacing: 8, runSpacing: 8,
                   children: List.generate(ratios.length, (i) {
-                    final active = (_zoomMode == i);
+                    final active = (_cropAspectIdx == i);
                     return GestureDetector(
                       onTap: () {
-                        setState(() => _zoomMode = i);
+                        setState(() => _cropAspectIdx = i);
                         setSt(() {});
                         try {
                           _np.setProperty('video-aspect-override', ratios[i].$2.isEmpty ? '-1' : ratios[i].$2);
@@ -3723,73 +3948,75 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
 
     // ── Watch Party ───────────────────────────────────────────────────────────
     void _showWatchPartyDialog(BuildContext ctx) {
-      final codeCtrl = TextEditingController();
-      showDialog(
-        context: ctx,
-        builder: (c) => AlertDialog(
-          backgroundColor: const Color(0xFF1C1C1C),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          title: const Row(children: [
-            Icon(Icons.people_rounded, color: Colors.white70, size: 22),
-            SizedBox(width: 8),
-            Text('Watch Party', style: TextStyle(color: Colors.white)),
-          ]),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Watch together with synced playback.',
-                style: TextStyle(color: Colors.white54, fontSize: 13),
-              ),
-              const SizedBox(height: 14),
-              const Text('Room code', style: TextStyle(color: Colors.white38, fontSize: 12)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: codeCtrl,
-                style: const TextStyle(color: Colors.white, fontSize: 16, letterSpacing: 3),
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  hintText: 'XXXX',
-                  hintStyle: TextStyle(color: Colors.white24),
-                  filled: true,
-                  fillColor: Color(0xFF2A2A2A),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide.none,
-                    borderRadius: BorderRadius.all(Radius.circular(8)),
-                  ),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextButton.icon(
-                onPressed: () {
-                  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-                  final code = List.generate(4, (_) => chars[math.Random().nextInt(chars.length)]).join();
-                  codeCtrl.text = code;
-                },
-                icon: const Icon(Icons.casino_rounded, size: 16, color: Colors.white54),
-                label: const Text('Create room code', style: TextStyle(color: Colors.white54, fontSize: 13)),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(c).pop(),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
-            ),
-            TextButton(
-              onPressed: () {
-                final code = codeCtrl.text.trim().toUpperCase();
-                if (code.length < 4) return;
-                Navigator.of(c).pop();
-                _showInfoSnackbar('Joining Watch Party room $code…');
-              },
-              child: const Text('Join', style: TextStyle(color: Color(0xFF4A9EFF), fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
+      WatchPartySheet.show(
+        ctx,
+        contentId: _currentFileId,
+        accentColor: _accentColor,
+        onJoined: _onWatchPartyJoined,
       );
+    }
+
+    void _onWatchPartyJoined(WatchPartyRoom room) {
+      setState(() => _watchPartyRoom = room);
+      _watchPartySub?.cancel();
+      _watchPartySub = WatchPartyService.instance.roomStream.listen(_onWatchPartyRoomUpdate);
+    }
+
+    void _onWatchPartyRoomUpdate(WatchPartyRoom? room) {
+      if (!mounted) return;
+      setState(() => _watchPartyRoom = room);
+      if (room == null) return;
+      // Guest: respond to host sync commands
+      final isHost = room.hostId == WatchPartyService.instance.myId;
+      if (!isHost) {
+        final hostPosDiff = (_position.inMilliseconds - room.hostPosition.inMilliseconds).abs();
+        if (hostPosDiff > 2000) _player.seek(room.hostPosition);
+        if (room.isPlaying && !_playing) _player.play();
+        if (!room.isPlaying && _playing) _player.pause();
+      }
+    }
+
+    void _onVoiceCommand(VoiceCommand cmd) {
+      if (!mounted) return;
+      String label = '';
+      switch (cmd) {
+        case VoiceCommand.play:
+        case VoiceCommand.togglePlay:
+          _player.playOrPause();
+          label = _playing ? '🎤 Pause' : '🎤 Play';
+        case VoiceCommand.pause:
+          _player.pause();
+          label = '🎤 Pause';
+        case VoiceCommand.mute:
+          _toggleMute();
+          label = '🎤 Mute';
+        case VoiceCommand.screenshot:
+          _takeScreenshot();
+          label = '🎤 Screenshot';
+        case VoiceCommand.nextEpisode:
+          if (_hasNext) { _playEpisodeAt(_currentEpIdx + 1); label = '🎤 Next Episode'; }
+        case VoiceCommand.speedUp:
+          _cycleSpeed();
+          label = '🎤 Speed Up';
+        case VoiceCommand.speedDown:
+          final idx = _speeds.indexOf(_speed);
+          if (idx > 0) { _setSpeed(_speeds[idx - 1]); label = '🎤 Speed: ${_speeds[idx-1]}×'; }
+        case VoiceCommand.forward:
+          _seekRelative(30);
+          label = '🎤 Forward 30s';
+        case VoiceCommand.back:
+          _seekRelative(-30);
+          label = '🎤 Back 30s';
+        default:
+          break;
+      }
+      if (label.isNotEmpty) {
+        _voiceCmdTimer?.cancel();
+        setState(() => _lastVoiceCmd = label);
+        _voiceCmdTimer = Timer(const Duration(seconds: 2), () {
+          if (mounted) setState(() => _lastVoiceCmd = '');
+        });
+      }
     }
 
     void _openSettingsPanel() {
@@ -3838,7 +4065,22 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
         onSwipeSeekChanged: (v) { setState(() => _swipeSeekEnabled = v); _savePrefs(); },
         onSwipeBVChanged: (v) { setState(() => _swipeBVEnabled = v); _savePrefs(); },
         voiceCommandsEnabled: _voiceCommandsEnabled,
-        onVoiceCommandsChanged: (v) { setState(() => _voiceCommandsEnabled = v); _savePrefs(); },
+        onVoiceCommandsChanged: (v) async {
+          if (v) {
+            final granted = await VoiceCommandsService.instance.requestPermission();
+            if (!granted) {
+              _showInfoSnackbar('Microphone permission required for voice commands');
+              return;
+            }
+            VoiceCommandsService.instance.start();
+            _voiceSub = VoiceCommandsService.instance.commandStream.listen(_onVoiceCommand);
+          } else {
+            _voiceSub?.cancel();
+            VoiceCommandsService.instance.stop();
+          }
+          setState(() => _voiceCommandsEnabled = v);
+          _savePrefs();
+        },
       ));
     }
 
@@ -4341,6 +4583,11 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       final resp = await req.close().timeout(const Duration(seconds: 15));
       final body = await resp.transform(const Utf8Decoder()).join();
       client.close();
+      if (resp.statusCode != 200) {
+        if (mounted) setState(() { _onlineLoading = false; _onlineError = 'Search unavailable (${resp.statusCode}).'; });
+        _showInfoSnackbar('Subtitle search unavailable. Try uploading a file directly.');
+        return;
+      }
       if (resp.statusCode == 200) {
         final List<dynamic> data = jsonDecode(body) as List<dynamic>;
         final results = data.take(15).map((e) => e as Map<String, dynamic>).toList();
@@ -5473,18 +5720,18 @@ class _QuickShortcutsPanel extends StatefulWidget {
     required this.abB,
     required this.abActive,
     required this.isRotateLocked,
-    required this.widget.onRotate,
-    required this.widget.onLockToggle,
-    required this.widget.onMuteToggle,
-    required this.widget.onLoopToggle,
-    required this.widget.onSmartEnhanceToggle,
-    required this.widget.onOneHandedToggle,
+    required this.onRotate,
+    required this.onLockToggle,
+    required this.onMuteToggle,
+    required this.onLoopToggle,
+    required this.onSmartEnhanceToggle,
+    required this.onOneHandedToggle,
     required this.onSleepTimer,
     required this.onSpeedSelected,
-    required this.widget.onAudioEffect,
-    required this.widget.onSettingsOpen,
-    required this.widget.onAbSet,
-    required this.widget.onFrameStep,
+    required this.onAudioEffect,
+    required this.onSettingsOpen,
+    required this.onAbSet,
+    required this.onFrameStep,
     required this.onClose,
   });
 
@@ -5498,8 +5745,8 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
   @override
   void initState() {
     super.initState();
-    // Refresh every 30s so sleep-timer countdown ticks live
-    _countdownTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    // Refresh every 10s so sleep-timer countdown ticks live (Rule 19: ≤10s)
+    _countdownTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) setState(() {});
     });
   }
