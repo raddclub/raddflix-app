@@ -942,3 +942,44 @@ The black screen bug entered the code on June 1–3 during a massive feature pus
 - No hwdec mid-play
 - speed via _np.setProperty('speed', ...) not _player.setRate()
 - No local var named _np
+
+
+## Session 2026-06-20 — 8-Phase Deep Audit + Bug Fix Sprint 1
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| AUDIT-01 | Full 8-phase codebase audit (753-line AUDIT_REPORT.md) | ✅ DONE |
+| BUG-CHANNEL-MODE-RESET | Fix _chIdx reset bug in _AudioTrackPanelState | ✅ DONE |
+| BUG-SUB-SPEED-NO-MPV | Wire subtitle speed slider to _np.setProperty('sub-speed') | ✅ DONE |
+| BUG-CLOCK-TIMER-30S | Clock timer interval regressed to 30s — fixed back to 10s | ✅ DONE |
+| BUG-SUB-TRANSLATE-NOP | Subtitle translation silent no-op → SnackBar feedback | ✅ DONE |
+| BUG-ONLINE-SUB-DEV-ERROR | Online subtitle search dev error → user-friendly SnackBar | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| `raddflix_flutter/lib/screens/player_screen.dart` | 5 bug fixes (see above) | f8d75b74 |
+| `AUDIT_REPORT.md` | New file — 8-phase audit report, 753 lines | 68816a5c (local) |
+
+### Audit summary (full report: AUDIT_REPORT.md)
+- **75+ working features** confirmed across player, audio, subtitles, video, UI
+- **10 fake/stub features** identified: online subtitle search, translation, sub-speed, battery toggle, channel mode (bug), customization tab, controls/nav static text
+- **12 confirmed bugs**: 2 Critical (channel mode reset, sub-speed), 4 High (clock timer, dual pos timers, battery toggle, nav settings not persisted), 4 Medium, 2 Low
+- **5 bugs fixed this session** — commit f8d75b74
+- **Remaining open bugs from audit**: dual watch-position timers (lines 420+779), battery toggle hardcoded, nav settings (showSkipBtns etc.) not persisted, subtitle customization tab empty
+
+### Audit findings: key architectural observations
+- player_screen.dart = 5,105-line monolith; ~200+ state vars in single _PlayerScreenState
+- No state management (BLoC/Riverpod/Provider) — all raw setState
+- Two overlapping settings UIs (_SettingsPanel in player_screen vs QuickSettingsPanel)
+- Two watch-position timers running simultaneously (double SharedPreferences writes every 10s)
+- MPV safety rules enforced by convention only (no compile-time guard)
+- Oracle VM is single point of failure for all Pakistani Jazz SIM users
+
+### State at end of session
+- Oracle Flask: RUNNING v3.0.0 (verified at session start)
+- Last APK: build #1148 ✅ (pre-session; these fixes require new build)
+- Commit: f8d75b74 — player_screen.dart
+- Open code bugs: dual pos timers, battery toggle, nav settings persistence
+- Open data task: DATA-01 (All Of Us Are Dead missing episodes — catalog data, not code)
