@@ -198,6 +198,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   double _seekSwipeSec = 120.0;
   // Feature 26 — resume position
   Timer? _savePositionTimer;
+  // Background-playback notification refresh timer (fires every 5 s)
+  Timer? _bgNotifTimer;
+  bool _isInBackground = false;
   static const _kResumePrefix = 'resume_pos_';
 
   // Loop
@@ -306,6 +309,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             _player.seek(t.isNegative ? Duration.zero : t);
           } else if (action == 'seek_forward') {
             _player.seek(_position + const Duration(seconds: 30));
+          } else if (action.startsWith('seek_to:')) {
+            final ms = int.tryParse(action.split(':').last) ?? -1;
+            if (ms >= 0) _player.seek(Duration(milliseconds: ms));
           }
           break;
       }
@@ -330,11 +336,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!_backgroundAudio) {
         _player.pause();
       } else {
-        // Start / refresh the foreground media notification so Android does not
-        // kill the process and the notification shade shows transport controls.
+        _isInBackground = true;
+        // Start the foreground service so Android keeps the process alive.
         _notifyBgState();
+        // Refresh the notification every 5 s so the progress bar stays in sync.
+        _bgNotifTimer?.cancel();
+        _bgNotifTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+          if (_isInBackground) _notifyBgState();
+        });
       }
     } else if (state == AppLifecycleState.resumed) {
+      _isInBackground = false;
+      _bgNotifTimer?.cancel();
+      _bgNotifTimer = null;
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       // Dismiss the media notification now that the app is back in the foreground.
       const MethodChannel('com.raddflix.app/pip')
@@ -350,6 +364,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _hideTimer?.cancel();
     _posTimer?.cancel();
     _savePositionTimer?.cancel();
+    _bgNotifTimer?.cancel();
+    _bgNotifTimer = null;
+    _isInBackground = false;
     _indicatorTimer?.cancel();
     _smartEnhanceTimer?.cancel();
     _sleepTimer?.cancel();
