@@ -4422,6 +4422,52 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             ),
           ],
         ),
+
+        const Divider(color: Colors.white12),
+
+        SwitchListTile(
+          title: const Text('Night mode (eye comfort)', style: TextStyle(color: Colors.white, fontSize: 14)),
+          subtitle: const Text('Warm filter — reduces blue light', style: TextStyle(color: Colors.white38, fontSize: 11)),
+          value: widget.nightModeEnabled,
+          onChanged: widget.onNightModeToggle,
+          activeColor: Colors.orange,
+        ),
+        if (widget.nightModeEnabled) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Warmth', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                Row(children: [
+                  const Icon(Icons.wb_sunny_outlined, color: Colors.white38, size: 16),
+                  Expanded(child: Slider(
+                    value: widget.nightWarmth, min: 0.1, max: 1.0, divisions: 9,
+                    activeColor: Colors.orange, inactiveColor: Colors.white24,
+                    onChanged: widget.onNightWarmthChanged,
+                  )),
+                  const Icon(Icons.wb_sunny_rounded, color: Colors.orange, size: 16),
+                ]),
+              ],
+            ),
+          ),
+        ],
+
+        const Divider(color: Colors.white12),
+
+        ListTile(
+          title: const Text('Rotate video', style: TextStyle(color: Colors.white, fontSize: 14)),
+          subtitle: const Text('Cycles 0° → 90° → 180° → 270°', style: TextStyle(color: Colors.white38, fontSize: 11)),
+          trailing: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white70,
+              side: const BorderSide(color: Colors.white24),
+            ),
+            onPressed: widget.onRotateVideo,
+            child: const Text('Rotate'),
+          ),
+        ),
+
       ],
     );
   }
