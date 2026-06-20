@@ -183,11 +183,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Sleep timer
   int? _sleepTimerMinutes;
   Timer? _sleepTimer;
+  int _autoAdvanceCountdown = 0;
+  Timer? _autoAdvanceTimer;
   DateTime? _sleepTimerEnd;
 
   // Settings
   bool _showRemainingTime = false;
   bool _keepScreenOn = true;
+  bool _showSkipBtns = true;
+  bool _showPrevNextBtns = true;
+  bool _showSeekPositionLabel = true;
+  bool _showSkipBtns = true;
+  bool _showPrevNextBtns = true;
   int _skipInterval = 10;
   double _seekSwipeSec = 120.0;
   // Feature 26 — resume position
@@ -312,6 +319,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _indicatorTimer?.cancel();
     _smartEnhanceTimer?.cancel();
     _sleepTimer?.cancel();
+    _autoAdvanceTimer?.cancel();
     _clockDisplayTimer?.cancel();
     _scanLineTimer?.cancel();
     _autoRetryTimer?.cancel();
@@ -619,8 +627,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     if (_hasNext) {
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted && _ended) _playEpisodeAt(_currentEpIdx + 1);
+      _autoAdvanceCountdown = 3;
+      _autoAdvanceTimer?.cancel();
+      _autoAdvanceTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+        if (!mounted || !_ended) {
+          t.cancel();
+          return;
+        }
+        setState(() {
+          if (_autoAdvanceCountdown > 1) {
+            _autoAdvanceCountdown--;
+          } else {
+            t.cancel();
+            _playEpisodeAt(_currentEpIdx + 1);
+          }
+        });
       });
     }
   }
@@ -1409,8 +1430,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 if (_showVolumeIndicator || _showBrightnessIndicator)
                   Positioned(
                     top: constraints.maxHeight * 0.35,
-                    left: constraints.maxWidth * 0.18,
-                    right: constraints.maxWidth * 0.18,
+                    left: constraints.maxWidth * 0.28,
+                    right: constraints.maxWidth * 0.28,
                     child: _showVolumeIndicator
                         ? _buildCenteredVolumeOverlay()
                         : _buildCenteredBrightnessOverlay(),
@@ -1694,9 +1715,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text('Up next in 3s…',
-                                style: TextStyle(color: Colors.white70, fontSize: 13)),
+                            Text('Up next in ${_autoAdvanceCountdown}s…',
+                                style: const TextStyle(color: Colors.white70, fontSize: 13)),
                             const SizedBox(width: 14),
+                            GestureDetector(
+                              onTap: () {
+                                _autoAdvanceTimer?.cancel();
+                                setState(() => _ended = false);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.white24),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text('Cancel',
+                                    style: TextStyle(color: Colors.white70, fontSize: 13)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
                             GestureDetector(
                               onTap: () => _playEpisodeAt(_currentEpIdx + 1),
                               child: Container(
@@ -2118,6 +2155,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         // Previous video — always visible, dimmed when unavailable
+        if (_showPrevNextBtns)
         Opacity(
           opacity: _hasPrev ? 1.0 : 0.3,
           child: _RaddIconBtn(
@@ -2153,6 +2191,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         const SizedBox(width: 24),
 
         // Next video — always visible, dimmed when unavailable
+        if (_showPrevNextBtns)
         Opacity(
           opacity: _hasNext ? 1.0 : 0.3,
           child: _RaddIconBtn(
@@ -2328,7 +2367,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // Speed
           _BottomIconBtn(
             icon: Icons.speed_rounded,
-            label: '${_speed == 1.0 ? "1×" : "${_speed}×"}',
+            label: '${_speed == _speed.truncateToDouble() ? "${_speed.toInt()}×" : "${_speed}×"}',
             active: _speed != 1.0,
             onTap: _cycleSpeed,
           ),
@@ -2360,9 +2399,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return _buildCenteredIndicatorPill(
         icon: _isMuted
             ? Icons.volume_off_rounded
-            : _volume > 1.5
+            : _volume > 1.0
                 ? Icons.volume_up_rounded
-                : Icons.volume_down_rounded,
+                : _volume > 0.4
+                    ? Icons.volume_down_rounded
+                    : Icons.volume_mute_rounded,
         barValue: barFrac,
         barColor: barColor,
         label: '$percent%',
@@ -2394,7 +2435,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       required String label,
     }) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.65),
           borderRadius: BorderRadius.circular(28),
@@ -2761,6 +2802,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           setState(() { _showClockInTitle = v; _clockStr = _fmtClock(); });
           _savePrefs();
         },
+        initialBrightness: _brightness,
+        onShowSkipBtnsChanged: (v) => setState(() => _showSkipBtns = v),
+        onShowPrevNextBtnsChanged: (v) => setState(() => _showPrevNextBtns = v),
+        onShowSeekPositionChanged: (v) => setState(() => _showSeekPositionLabel = v),
         onRotateVideo: () { Navigator.of(context).pop(); _rotateVideo(); },
         onClose: () => Navigator.of(context).pop(),
       ));
@@ -2771,8 +2816,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // On Android, trigger PiP mode via platform channel
     const pipChannel = MethodChannel('com.raddclub.raddflix/pip');
     pipChannel.invokeMethod('enterPiP').catchError((_) {
-      // PiP not supported on this device/version — minimize instead
-      Navigator.of(context).pop();
+      _showInfoSnackbar('Picture-in-Picture not supported on this device.');
     });
   }
 
@@ -3044,14 +3088,18 @@ class _SmartEnhanceDotsCirclePainter extends CustomPainter {
 
     @override
     Widget build(BuildContext context) {
-      return GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: size + 20,
-          height: size + 20,
-          alignment: Alignment.center,
-          child: Icon(icon, color: Colors.white, size: size,
-              shadows: const [Shadow(blurRadius: 6, color: Colors.black45)]),
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(size + 20),
+          child: Container(
+            width: size + 20,
+            height: size + 20,
+            alignment: Alignment.center,
+            child: Icon(icon, color: Colors.white, size: size,
+                shadows: const [Shadow(blurRadius: 6, color: Colors.black45)]),
+          ),
         ),
       );
     }
@@ -3238,6 +3286,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         behavior: SnackBarBehavior.floating,
       ),
     );
+    if (mounted) setState(() { _onlineLoading = false; });
   }
 
   // Feature 22: Subtitle translation language picker
@@ -3437,7 +3486,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                     Expanded(child: Slider(
                       value: _subScale, min: 0.5, max: 2.0, divisions: 15,
                       activeColor: Colors.white, inactiveColor: Colors.white24,
-                      onChanged: (v) => setState(() => _subScale = v),
+                      onChanged: (v) { setState(() => _subScale = v); widget.onSubPropertyChanged('sub-scale', v.toStringAsFixed(2)); },
                     )),
                     SizedBox(width: 40, child: Text('${(_subScale * 100).round()}%', style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.right)),
                   ]),
@@ -3506,7 +3555,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                     Expanded(child: Slider(
                       value: _subFade, min: 0.0, max: 1.0, divisions: 10,
                       activeColor: Colors.white, inactiveColor: Colors.white24,
-                      onChanged: (v) => setState(() => _subFade = v),
+                      onChanged: (v) { setState(() => _subFade = v); widget.onSubPropertyChanged('sub-ass-fade-in-time', (v * 300).round().toString()); },
                     )),
                     SizedBox(width: 40, child: Text('${(_subFade * 100).round()}%', style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.right)),
                   ]),
@@ -3755,8 +3804,8 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
 
   void _applyLabAf() {
     final parts = <String>[];
-    if (_labVocal) parts.add('pan=stereo|FL=FL-FR|FR=FR-FL');
-    if (_labDialogue) parts.add('equalizer=2000:1.5:0:3:1000');
+    if (_labVocal) parts.add('pan=stereo|c0=c0-c1|c1=c1-c0');
+    if (_labDialogue) parts.add('equalizer=0:0:0:0:0:0:3:4:2:0');
     if (_labNorm) parts.add('dynaudnorm');
     if (_labBass) {
       final db = (_labBassLevel * 12).round();
@@ -3851,10 +3900,10 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: GridView.count(
-                crossAxisCount: 2,
-                childAspectRatio: 2.2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
+                crossAxisCount: 3,
+                childAspectRatio: 1.8,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
                 children: [
                   for (int i = 0; i < _presetNames.length; i++)
                     GestureDetector(
@@ -4243,43 +4292,7 @@ class _QuickShortcutsPanel extends StatelessWidget {
                 ],
               ),
 
-              const SizedBox(height: 16),
-              const Divider(color: Colors.white12),
 
-              // Smart Enhance row
-              ListTile(
-                leading: const Icon(Icons.tv_rounded, color: Colors.white, size: 20),
-                title: const Text('Smart Enhance', style: TextStyle(color: Colors.white, fontSize: 14)),
-                trailing: Switch(
-                  value: smartEnhanceEnabled,
-                  onChanged: (_) => onSmartEnhanceToggle(),
-                  activeColor: Colors.white,
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-              ),
-
-              // P7: One-handed mode
-              ListTile(
-                leading: const Icon(Icons.back_hand_rounded, color: Colors.white, size: 20),
-                title: const Text('One-handed Mode', style: TextStyle(color: Colors.white, fontSize: 14)),
-                subtitle: const Text('Shifts controls to lower half of screen',
-                    style: TextStyle(color: Colors.white38, fontSize: 11)),
-                trailing: Switch(
-                  value: isOneHanded,
-                  onChanged: (_) => onOneHandedToggle(),
-                  activeColor: Colors.white,
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-              ),
-
-              // Settings
-              ListTile(
-                leading: const Icon(Icons.settings_rounded, color: Colors.white, size: 20),
-                title: const Text('Settings', style: TextStyle(color: Colors.white, fontSize: 14)),
-                trailing: const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                onTap: onSettingsOpen,
-              ),
             ],
           ),
         ),
@@ -4410,6 +4423,10 @@ class _SettingsPanel extends StatefulWidget {
   final void Function(double) onNightWarmthChanged;
   final bool showClockInTitle;
   final void Function(bool) onClockToggle;
+  final double initialBrightness;
+  final void Function(bool) onShowSkipBtnsChanged;
+  final void Function(bool) onShowPrevNextBtnsChanged;
+  final void Function(bool) onShowSeekPositionChanged;
   // Video rotate shortcut
   final VoidCallback onRotateVideo;
   final VoidCallback onClose;
@@ -4435,6 +4452,10 @@ class _SettingsPanel extends StatefulWidget {
     required this.onNightWarmthChanged,
     required this.showClockInTitle,
     required this.onClockToggle,
+    required this.initialBrightness,
+    required this.onShowSkipBtnsChanged,
+    required this.onShowPrevNextBtnsChanged,
+    required this.onShowSeekPositionChanged,
     required this.onRotateVideo,
     required this.onClose,
   });
@@ -4469,6 +4490,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     _accentIdx = widget.accentColorIdx;
     _pbStyle = widget.progressBarStyle;
     _backgroundAudio = widget.backgroundAudio;
+    _screenBrightness = widget.initialBrightness;
   }
 
   @override
@@ -4642,13 +4664,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         const SizedBox(height: 8),
         const Text('Status bar in player', style: TextStyle(color: Colors.white70, fontSize: 12)),
         const SizedBox(height: 4),
-        SwitchListTile(
-          title: const Text('Show battery level', style: TextStyle(color: Colors.white, fontSize: 14)),
-          value: true,
-          onChanged: (_) {},
-          activeColor: Colors.white,
-          contentPadding: EdgeInsets.zero,
-        ),
+
         SwitchListTile(
           title: const Text('Show clock / time', style: TextStyle(color: Colors.white, fontSize: 14)),
           value: widget.showClockInTitle,
@@ -4842,7 +4858,10 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           title: const Text('Forward / backward buttons', style: TextStyle(color: Colors.white, fontSize: 14)),
           subtitle: const Text('Show ±skip buttons in center controls', style: TextStyle(color: Colors.white38, fontSize: 11)),
           value: _showSkipBtns,
-          onChanged: (v) => setState(() => _showSkipBtns = v),
+          onChanged: (v) {
+            setState(() => _showSkipBtns = v);
+            widget.onShowSkipBtnsChanged(v);
+          },
           activeColor: Colors.white,
           contentPadding: EdgeInsets.zero,
         ),
@@ -4850,7 +4869,10 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           title: const Text('Previous / next episode buttons', style: TextStyle(color: Colors.white, fontSize: 14)),
           subtitle: const Text('Show episode navigation arrows', style: TextStyle(color: Colors.white38, fontSize: 11)),
           value: _showPrevNextBtns,
-          onChanged: (v) => setState(() => _showPrevNextBtns = v),
+          onChanged: (v) {
+            setState(() => _showPrevNextBtns = v);
+            widget.onShowPrevNextBtnsChanged(v);
+          },
           activeColor: Colors.white,
           contentPadding: EdgeInsets.zero,
         ),
@@ -4858,7 +4880,10 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           title: const Text('Show position label while seeking', style: TextStyle(color: Colors.white, fontSize: 14)),
           subtitle: const Text('Displays timestamp above seek bar during drag', style: TextStyle(color: Colors.white38, fontSize: 11)),
           value: _showSeekPosition,
-          onChanged: (v) => setState(() => _showSeekPosition = v),
+          onChanged: (v) {
+            setState(() => _showSeekPosition = v);
+            widget.onShowSeekPositionChanged(v);
+          },
           activeColor: Colors.white,
           contentPadding: EdgeInsets.zero,
         ),
@@ -4944,13 +4969,13 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
                   groupValue: widget.selectedTrack,
                   onChanged: (v) => v != null ? widget.onTrackSelected(v) : null,
                   title: Text(
-                    widget.tracks[i].title ??
-                        widget.tracks[i].language ??
-                        'Audio track ${i + 1}',
+                    (widget.tracks[i].language != null && widget.tracks[i].title != null)
+                        ? "${widget.tracks[i].language} (${widget.tracks[i].title})"
+                        : widget.tracks[i].language ?? widget.tracks[i].title ?? "Audio track ${i + 1}",
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                   ),
                   activeColor: Colors.white,
-                  controlAffinity: ListTileControlAffinity.trailing,
+                  controlAffinity: ListTileControlAffinity.leading,
                 ),
 
               const Divider(color: Colors.white12),
@@ -4962,7 +4987,7 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
                 onChanged: (_) => widget.onTrackSelected(null),
                 title: const Text('Disable', style: TextStyle(color: Colors.white, fontSize: 14)),
                 activeColor: Colors.white,
-                controlAffinity: ListTileControlAffinity.trailing,
+                controlAffinity: ListTileControlAffinity.leading,
               ),
 
               const Divider(color: Colors.white12),
