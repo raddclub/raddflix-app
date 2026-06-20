@@ -28,3 +28,4 @@
 - Playlist / queue support
 - Cast to Chromecast / AirPlay
 - Download manager (background download, offline play)
+| player-ux-fixes-2 | fix: 22 player UI/UX bugs (V2,V3,V6,V9,V16,U1,U2,U10,B2,B3,B5,B6,G1-G6,G9,G11,D2-D4) | 2d9b2c8 | ✅ DONE | 2026-06-20 |
