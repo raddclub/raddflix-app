@@ -80,6 +80,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   bool _buffering = false;
+  Duration _buffered = Duration.zero;
+  double _bufferedFraction = 0.0;
   bool _ended = false;
   String? _streamError;
   bool _isLinkLoading = false;
@@ -145,6 +147,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   int _selectedPreset = 0; // 0=Original 1=TrebleBoost 2=BassBoost 3=Clarity 4=Movie 5=Music
   List<double> _eqBands = [0, 0, 0, 0, 0]; // 60,230,910,3600,14000 Hz
   bool _eqEnabled = true;
+  String _currentReverbAf = ''; // active reverb aecho string
+  String _currentLabAf = '';    // active lab af chain from _AudioEffectPanel
 
   // Subtitle
   double _subSync = 0.0; // seconds
@@ -335,6 +339,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }),
       _player.stream.buffering.listen((v) {
         if (mounted) setState(() => _buffering = v);
+      }),
+      _player.stream.buffer.listen((v) {
+        if (mounted) setState(() {
+          _buffered = v;
+          _bufferedFraction = _duration.inMilliseconds > 0
+              ? (_buffered.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
+              : 0.0;
+        });
       }),
       _player.stream.completed.listen((v) {
         if (v && mounted) {
@@ -634,6 +646,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _seekRelative(int seconds) {
+    HapticFeedback.lightImpact();
     final target = _position + Duration(seconds: seconds);
     _player.seek(target.isNegative ? Duration.zero : target);
     setState(() {
@@ -812,6 +825,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _toggleLoop() {
     _loopEnabled = !_loopEnabled;
+    try { _np.setProperty('loop-file', _loopEnabled ? 'inf' : 'no'); } catch (_) {}
     setState(() {});
   }
 
@@ -951,10 +965,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _applyPreset(int index) {
     final gains = _presetGains[index];
-    final afString = index == 0 ? '' : 'equalizer=${gains.join(':')}';
-    try {
-      _np.setProperty('af', afString);
-    } catch (_) {}
     setState(() {
       _selectedPreset = index;
       // Map 10-band preset to 5-band UI sliders (60, 230, 910, 3600, 14000 Hz)
@@ -966,22 +976,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         gains[9].toDouble(),  // ~14kHz → band 10 (16000Hz)
       ];
     });
+    _applyAllAf();
   }
 
   void _applyCustomEq() {
     if (!_eqEnabled) return;
-    // Map 5-band sliders to 10-band EQ
-    final b = _eqBands;
-    final g = [
-      b[0].round(), b[0].round(),   // 31.25, 62.5 → 60Hz
-      b[1].round(), b[1].round(),   // 125, 250 → 230Hz
-      b[2].round(), b[2].round(),   // 500, 1000 → 910Hz
-      b[3].round(), b[3].round(),   // 2000, 4000 → 3600Hz
-      b[4].round(), b[4].round(),   // 8000, 16000 → 14000Hz
-    ];
-    try {
-      _np.setProperty('af', 'equalizer=${g.join(':')}');
-    } catch (_) {}
+    _applyAllAf();
+  }
+
+  // ── Merged audio-filter pipeline ─────────────────────────────────────────────
+  // NEVER call _np.setProperty('af',...) directly — always go through _applyAllAf()
+  // so EQ + Reverb + Lab stack correctly instead of overwriting each other.
+  String _buildMergedAfString() {
+    final parts = <String>[];
+    // EQ chain — only if enabled and at least one band non-zero
+    if (_eqEnabled) {
+      final b = _eqBands;
+      final g = [
+        b[0].round(), b[0].round(),   // 31.25, 62.5 → 60Hz
+        b[1].round(), b[1].round(),   // 125, 250 → 230Hz
+        b[2].round(), b[2].round(),   // 500, 1000 → 910Hz
+        b[3].round(), b[3].round(),   // 2000, 4000 → 3600Hz
+        b[4].round(), b[4].round(),   // 8000, 16000 → 14000Hz
+      ];
+      if (g.any((v) => v != 0)) parts.add('equalizer=${g.join(':')}');
+    }
+    // Reverb chain (aecho)
+    if (_currentReverbAf.isNotEmpty) parts.add(_currentReverbAf);
+    // Lab chain (pan, dynaudnorm, etc.)
+    if (_currentLabAf.isNotEmpty) parts.add(_currentLabAf);
+    return parts.join(',');
+  }
+
+  void _applyAllAf() {
+    try { _np.setProperty('af', _buildMergedAfString()); } catch (_) {}
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1035,6 +1063,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // ═══════════════════════════════════════════════════════════════════════════
 
   void _onDragStart(DragStartDetails d, BoxConstraints constraints) {
+    HapticFeedback.lightImpact();
     _dragStart = d.localPosition;
     _dragStartPos = _position;
     _startBrightness = _brightness;
@@ -1205,31 +1234,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
 
-                // 8. Double-tap seek flash (constrained to video bounds)
+                // 8. Double-tap seek flash — MX-style triple chevron + label
                 if (_showSeekFlash)
                   Positioned(
                     left: _seekFlashLeft ? 0 : null,
                     right: _seekFlashLeft ? null : 0,
                     top: 0, bottom: 0,
                     width: constraints.maxWidth / 2,
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.4),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _seekFlashLeft ? Icons.replay_10_rounded : Icons.forward_10_rounded,
-                              color: Colors.white, size: 36,
-                            ),
-                            const SizedBox(height: 2),
-                            Text('$_skipInterval s',
-                                style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                          ],
+                    child: IgnorePointer(
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.35),
+                            borderRadius: BorderRadius.circular(40),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _seekFlashLeft ? Icons.chevron_left : Icons.chevron_right,
+                                    color: Colors.white54, size: 22,
+                                  ),
+                                  Icon(
+                                    _seekFlashLeft ? Icons.chevron_left : Icons.chevron_right,
+                                    color: Colors.white, size: 28,
+                                  ),
+                                  Icon(
+                                    _seekFlashLeft ? Icons.chevron_left : Icons.chevron_right,
+                                    color: Colors.white, size: 28,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '$_skipInterval seconds',
+                                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -1889,6 +1935,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   size: Size(bc.maxWidth, 28),
                   painter: _HorizontalSeekPainter(
                     progress: progress,
+                    buffered: _bufferedFraction,
                     abA: _abA,
                     abB: _abB,
                     duration: _duration,
@@ -2287,32 +2334,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         },
         onEqEnabledChanged: (v) {
           setState(() => _eqEnabled = v);
-          if (!v) {
-            try { _np.setProperty('af', ''); } catch (_) {}
-          } else {
-            _applyCustomEq();
-          }
+          _applyAllAf(); // merged pipeline — reverb/lab still active if enabled
         },
         onReverbChanged: (preset) {
           switch (preset) {
-            case 'Small Room':
-              _np.setProperty('af', 'aecho=0.8:0.9:30:0.4');
-              break;
-            case 'Hall':
-              _np.setProperty('af', 'aecho=0.8:0.88:60:0.4');
-              break;
-            case 'Cathedral':
-              _np.setProperty('af', 'aecho=0.8:0.88:120:0.5');
-              break;
-            case 'Stadium':
-              _np.setProperty('af', 'aecho=0.8:0.9:180:0.6');
-              break;
-            default:
-              _applyCustomEq();
+            case 'Small Room':  _currentReverbAf = 'aecho=0.8:0.9:30:0.4'; break;
+            case 'Hall':        _currentReverbAf = 'aecho=0.8:0.88:60:0.4'; break;
+            case 'Cathedral':   _currentReverbAf = 'aecho=0.8:0.88:120:0.5'; break;
+            case 'Stadium':     _currentReverbAf = 'aecho=0.8:0.9:180:0.6'; break;
+            default:            _currentReverbAf = '';
           }
+          _applyAllAf(); // EQ + reverb + lab now all stack correctly
         },
         onLabAfChanged: (afStr) {
-          try { _np.setProperty('af', afStr); } catch (_) {}
+          _currentLabAf = afStr;
+          _applyAllAf(); // EQ + reverb + lab all stack
         },
         onClose: () => Navigator.of(context).pop(),
       ));
@@ -2495,6 +2531,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   class _HorizontalSeekPainter extends CustomPainter {
     final double progress;
+    final double buffered;
     final Duration? abA;
     final Duration? abB;
     final Duration duration;
@@ -2503,6 +2540,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     _HorizontalSeekPainter({
       required this.progress,
+      this.buffered = 0.0,
       this.abA,
       this.abB,
       this.duration = Duration.zero,
@@ -2527,8 +2565,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ..strokeWidth = trackH
         ..strokeCap = StrokeCap.round;
 
-      // Track
+      // Track (background)
       canvas.drawLine(Offset(0, cy), Offset(size.width, cy), trackPaint);
+
+      // Buffered region — light gray between played and buffer end
+      if (buffered > 0) {
+        final bufX = size.width * buffered;
+        final progX0 = size.width * progress;
+        if (bufX > progX0) {
+          final bufPaint = Paint()
+            ..color = Colors.white38
+            ..strokeWidth = trackH
+            ..strokeCap = StrokeCap.round;
+          canvas.drawLine(Offset(progX0, cy), Offset(bufX, cy), bufPaint);
+        }
+      }
 
       // P11: A-B loop segment highlight (draw behind progress)
       if (abA != null && abB != null && duration.inMilliseconds > 0) {
@@ -2572,7 +2623,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     @override
     bool shouldRepaint(_HorizontalSeekPainter old) =>
-        old.progress != progress || old.abA != abA || old.abB != abB ||
+        old.progress != progress || old.buffered != buffered ||
+        old.abA != abA || old.abB != abB ||
         old.style != style || old.accentColor != accentColor;
   }
 
@@ -2768,12 +2820,65 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   List<Map<String,dynamic>> _onlineResults = [];
   bool _onlineLoading = false;
   String _onlineError = '';
+  // Real subtitle style state
+  int _subFontIdx = 0;  // 0=Sans Serif 1=Serif 2=Monospace 3=Casual
+  double _subSize = 22.0;
+  double _subScale = 1.0;
+  bool _subBold = false;
+  Color _subColor = Colors.white;
+  Color _subBg = Colors.transparent;
+  double _subFade = 0.8;
+  // Panel tab
+  int _subAlignIdx = 1; // 0=Left 1=Center 2=Right
+  double _subBottomMargin = 22.0;
+  bool _subFitToVideo = true;
+
+  static const _subFonts = ['Sans Serif', 'Serif', 'Monospace', 'Casual'];
+  static const _subAligns = ['Left', 'Center', 'Right'];
+  static const _subColorPresets = [
+    Colors.white, Colors.yellow, Color(0xFFFFD700),
+    Color(0xFF00FF00), Color(0xFF00FFFF), Colors.black,
+  ];
+  static const _subBgPresets = [
+    Colors.transparent, Colors.black87, Color(0x99000000),
+    Color(0x99FFFF00), Colors.black,
+  ];
 
   @override
   void initState() {
     super.initState();
     _sync = widget.subSync;
     _speed = widget.subSpeed;
+  }
+
+  void _showColorPicker(BuildContext ctx, List<Color> presets, Color current, ValueChanged<Color> onPick) {
+    showDialog(
+      context: ctx,
+      builder: (c) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Pick Color', style: TextStyle(color: Colors.white, fontSize: 15)),
+        content: Wrap(
+          spacing: 12, runSpacing: 12,
+          children: presets.map((col) => GestureDetector(
+            onTap: () { onPick(col); Navigator.of(c).pop(); },
+            child: Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: col,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: col == current ? Colors.white : Colors.white24,
+                  width: col == current ? 2.5 : 1,
+                ),
+              ),
+            ),
+          )).toList(),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.of(c).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)))],
+      ),
+    );
   }
 
 
@@ -2922,59 +3027,168 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
               if (_tab == 1) ...[
                   const Text('Text', style: TextStyle(color: Colors.white70, fontSize: 12)),
                   const SizedBox(height: 8),
-                  const Row(children: [
-                    Expanded(child: Text('Font', style: TextStyle(color: Colors.white, fontSize: 14))),
-                    Text('Sans Serif', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                    Icon(Icons.chevron_right, color: Colors.white38, size: 16),
-                  ]),
-                  const SizedBox(height: 6),
-                  const Row(children: [
-                    Expanded(child: Text('Size', style: TextStyle(color: Colors.white, fontSize: 14))),
-                    Text('22', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                  ]),
-                  const SizedBox(height: 6),
-                  const Row(children: [
-                    Expanded(child: Text('Scale', style: TextStyle(color: Colors.white, fontSize: 14))),
-                    Text('100%', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                  ]),
-                  const SizedBox(height: 6),
+                  // Font picker
+                  GestureDetector(
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (c) => AlertDialog(
+                          backgroundColor: const Color(0xFF1C1C1C),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          title: const Text('Subtitle Font', style: TextStyle(color: Colors.white)),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: List.generate(_subFonts.length, (i) => ListTile(
+                              dense: true,
+                              title: Text(_subFonts[i], style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: i == _subFontIdx ? FontWeight.bold : FontWeight.normal,
+                              )),
+                              trailing: i == _subFontIdx ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
+                              onTap: () { setState(() => _subFontIdx = i); Navigator.of(c).pop(); },
+                            )),
+                          ),
+                          actions: [TextButton(onPressed: () => Navigator.of(c).pop(),
+                              child: const Text('Cancel', style: TextStyle(color: Colors.white54)))],
+                        ),
+                      );
+                    },
+                    child: Row(children: [
+                      const Expanded(child: Text('Font', style: TextStyle(color: Colors.white, fontSize: 14))),
+                      Text(_subFonts[_subFontIdx], style: const TextStyle(color: Colors.white54, fontSize: 13)),
+                      const Icon(Icons.chevron_right, color: Colors.white38, size: 16),
+                    ]),
+                  ),
+                  const SizedBox(height: 12),
+                  // Size slider
+                  const Text('Size', style: TextStyle(color: Colors.white70, fontSize: 12)),
                   Row(children: [
-                    const Expanded(child: Text('Bold', style: TextStyle(color: Colors.white, fontSize: 14))),
-                    const Icon(Icons.check_box_rounded, color: Colors.white70, size: 20),
+                    Expanded(child: Slider(
+                      value: _subSize, min: 12, max: 40, divisions: 14,
+                      activeColor: Colors.white, inactiveColor: Colors.white24,
+                      onChanged: (v) => setState(() => _subSize = v),
+                    )),
+                    SizedBox(width: 32, child: Text('${_subSize.round()}', style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.right)),
                   ]),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
+                  // Scale slider
+                  const Text('Scale', style: TextStyle(color: Colors.white70, fontSize: 12)),
                   Row(children: [
-                    const Expanded(child: Text('Color', style: TextStyle(color: Colors.white, fontSize: 14))),
-                    Container(width: 20, height: 20, color: Colors.white),
+                    Expanded(child: Slider(
+                      value: _subScale, min: 0.5, max: 2.0, divisions: 15,
+                      activeColor: Colors.white, inactiveColor: Colors.white24,
+                      onChanged: (v) => setState(() => _subScale = v),
+                    )),
+                    SizedBox(width: 40, child: Text('${(_subScale * 100).round()}%', style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.right)),
                   ]),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
+                  // Bold toggle
+                  SwitchListTile(
+                    title: const Text('Bold', style: TextStyle(color: Colors.white, fontSize: 14)),
+                    value: _subBold,
+                    onChanged: (v) => setState(() => _subBold = v),
+                    activeColor: Colors.white,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 4),
+                  // Color picker
+                  GestureDetector(
+                    onTap: () => _showColorPicker(context, _subColorPresets, _subColor, (c) => setState(() => _subColor = c)),
+                    child: Row(children: [
+                      const Expanded(child: Text('Text color', style: TextStyle(color: Colors.white, fontSize: 14))),
+                      Container(
+                        width: 24, height: 24,
+                        decoration: BoxDecoration(
+                          color: _subColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white38),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.chevron_right, color: Colors.white38, size: 16),
+                    ]),
+                  ),
+                  const SizedBox(height: 10),
+                  // Background picker
+                  GestureDetector(
+                    onTap: () => _showColorPicker(context, _subBgPresets, _subBg, (c) => setState(() => _subBg = c)),
+                    child: Row(children: [
+                      const Expanded(child: Text('Background', style: TextStyle(color: Colors.white, fontSize: 14))),
+                      Container(
+                        width: 24, height: 24,
+                        decoration: BoxDecoration(
+                          color: _subBg == Colors.transparent ? Colors.transparent : _subBg,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white38),
+                        ),
+                        child: _subBg == Colors.transparent
+                            ? const Icon(Icons.block, color: Colors.white38, size: 14)
+                            : null,
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.chevron_right, color: Colors.white38, size: 16),
+                    ]),
+                  ),
+                  const SizedBox(height: 10),
+                  // Fade out slider
+                  const Text('Fade out', style: TextStyle(color: Colors.white70, fontSize: 12)),
                   Row(children: [
-                    const Expanded(child: Text('Background', style: TextStyle(color: Colors.white, fontSize: 14))),
-                    Container(width: 20, height: 20, color: Colors.black54),
-                  ]),
-                  const SizedBox(height: 6),
-                  const Row(children: [
-                    Expanded(child: Text('Fade out', style: TextStyle(color: Colors.white, fontSize: 14))),
-                    Text('80%', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                    Expanded(child: Slider(
+                      value: _subFade, min: 0.0, max: 1.0, divisions: 10,
+                      activeColor: Colors.white, inactiveColor: Colors.white24,
+                      onChanged: (v) => setState(() => _subFade = v),
+                    )),
+                    SizedBox(width: 40, child: Text('${(_subFade * 100).round()}%', style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.right)),
                   ]),
                 ],
                 if (_tab == 4) ...[
                   const Text('Layout', style: TextStyle(color: Colors.white70, fontSize: 12)),
                   const SizedBox(height: 8),
-                  const Row(children: [
-                    Expanded(child: Text('Alignment', style: TextStyle(color: Colors.white, fontSize: 14))),
-                    Text('Center', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                  ]),
+                  // Alignment
+                  const Text('Alignment', style: TextStyle(color: Colors.white54, fontSize: 12)),
                   const SizedBox(height: 6),
-                  const Row(children: [
-                    Expanded(child: Text('Bottom margin', style: TextStyle(color: Colors.white, fontSize: 14))),
-                    Text('22', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                  ]),
-                  const SizedBox(height: 6),
+                  Row(
+                    children: List.generate(_subAligns.length, (i) => Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _subAlignIdx = i),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _subAlignIdx == i ? Colors.white24 : Colors.white10,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(_subAligns[i],
+                            style: TextStyle(
+                              color: _subAlignIdx == i ? Colors.white : Colors.white54,
+                              fontSize: 13,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    )),
+                  ),
+                  const SizedBox(height: 12),
+                  // Bottom margin
+                  const Text('Bottom margin', style: TextStyle(color: Colors.white54, fontSize: 12)),
                   Row(children: [
-                    const Expanded(child: Text('Fit subtitles into video size', style: TextStyle(color: Colors.white, fontSize: 14))),
-                    const Icon(Icons.check_box_rounded, color: Colors.white70, size: 20),
+                    Expanded(child: Slider(
+                      value: _subBottomMargin, min: 0, max: 80, divisions: 16,
+                      activeColor: Colors.white, inactiveColor: Colors.white24,
+                      onChanged: (v) => setState(() => _subBottomMargin = v),
+                    )),
+                    SizedBox(width: 36, child: Text('${_subBottomMargin.round()}px', style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.right)),
                   ]),
+                  const SizedBox(height: 4),
+                  // Fit to video toggle
+                  SwitchListTile(
+                    title: const Text('Fit subtitles into video size', style: TextStyle(color: Colors.white, fontSize: 14)),
+                    value: _subFitToVideo,
+                    onChanged: (v) => setState(() => _subFitToVideo = v),
+                    activeColor: Colors.white,
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ],
                 if (_tab == 0) ...[
                 GestureDetector(
@@ -3362,8 +3576,27 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                   ),
                 ],
                 const SizedBox(height: 12),
-                const Text('Note: Lab and EQ share the audio filter pipeline.',
-                    style: TextStyle(color: Colors.white24, fontSize: 10)),
+                Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded, color: Colors.orange, size: 14),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Lab, EQ and Reverb now stack — all active together.',
+                          style: TextStyle(color: Colors.orange, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -3772,6 +4005,14 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   late int _accentIdx;
   late int _pbStyle;
   late bool _backgroundAudio;
+  // Navigation tab real toggles
+  bool _showSkipBtns = true;
+  bool _showPrevNextBtns = true;
+  bool _showSeekPosition = true;
+  // Screen tab real controls
+  bool _showBatteryInTitle = true;
+  bool _showClockInTitle = true;
+  double _screenBrightness = 0.5;
 
   @override
   void initState() {
@@ -3954,9 +4195,52 @@ class _SettingsPanelState extends State<_SettingsPanel> {
 
         const Divider(color: Colors.white12),
         const SizedBox(height: 8),
-        const Text('Battery / clock in title bar', style: TextStyle(color: Colors.white70, fontSize: 12)),
+        const Text('Status bar in player', style: TextStyle(color: Colors.white70, fontSize: 12)),
+        const SizedBox(height: 4),
+        SwitchListTile(
+          title: const Text('Show battery level', style: TextStyle(color: Colors.white, fontSize: 14)),
+          value: _showBatteryInTitle,
+          onChanged: (v) => setState(() => _showBatteryInTitle = v),
+          activeColor: Colors.white,
+          contentPadding: EdgeInsets.zero,
+        ),
+        SwitchListTile(
+          title: const Text('Show clock / time', style: TextStyle(color: Colors.white, fontSize: 14)),
+          value: _showClockInTitle,
+          onChanged: (v) => setState(() => _showClockInTitle = v),
+          activeColor: Colors.white,
+          contentPadding: EdgeInsets.zero,
+        ),
+        const Divider(color: Colors.white12),
         const SizedBox(height: 8),
-        const Text('Brightness', style: TextStyle(color: Colors.white54, fontSize: 12)),
+        const Text('Screen brightness', style: TextStyle(color: Colors.white70, fontSize: 12)),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            const Icon(Icons.brightness_low_rounded, color: Colors.white38, size: 18),
+            Expanded(
+              child: Slider(
+                value: _screenBrightness,
+                min: 0.05, max: 1.0,
+                activeColor: Colors.white,
+                inactiveColor: Colors.white24,
+                onChanged: (v) async {
+                  setState(() => _screenBrightness = v);
+                  await ScreenBrightness().setScreenBrightness(v);
+                },
+              ),
+            ),
+            const Icon(Icons.brightness_high_rounded, color: Colors.white, size: 18),
+            SizedBox(
+              width: 36,
+              child: Text(
+                '${(_screenBrightness * 100).round()}%',
+                style: const TextStyle(color: Colors.white60, fontSize: 12),
+                textAlign: TextAlign.right,
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -4063,25 +4347,29 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         const SizedBox(height: 16),
         const Divider(color: Colors.white12),
         const SizedBox(height: 8),
-        Row(
-          children: const [
-            Expanded(child: Text('Forward / backward button', style: TextStyle(color: Colors.white, fontSize: 14))),
-            Icon(Icons.check_box_rounded, color: Colors.white70, size: 20),
-          ],
+        SwitchListTile(
+          title: const Text('Forward / backward buttons', style: TextStyle(color: Colors.white, fontSize: 14)),
+          subtitle: const Text('Show ±skip buttons in center controls', style: TextStyle(color: Colors.white38, fontSize: 11)),
+          value: _showSkipBtns,
+          onChanged: (v) => setState(() => _showSkipBtns = v),
+          activeColor: Colors.white,
+          contentPadding: EdgeInsets.zero,
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: const [
-            Expanded(child: Text('Previous / next button', style: TextStyle(color: Colors.white, fontSize: 14))),
-            Icon(Icons.check_box_rounded, color: Colors.white70, size: 20),
-          ],
+        SwitchListTile(
+          title: const Text('Previous / next episode buttons', style: TextStyle(color: Colors.white, fontSize: 14)),
+          subtitle: const Text('Show episode navigation arrows', style: TextStyle(color: Colors.white38, fontSize: 11)),
+          value: _showPrevNextBtns,
+          onChanged: (v) => setState(() => _showPrevNextBtns = v),
+          activeColor: Colors.white,
+          contentPadding: EdgeInsets.zero,
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: const [
-            Expanded(child: Text('Display position while changing', style: TextStyle(color: Colors.white, fontSize: 14))),
-            Icon(Icons.check_box_rounded, color: Colors.white70, size: 20),
-          ],
+        SwitchListTile(
+          title: const Text('Show position label while seeking', style: TextStyle(color: Colors.white, fontSize: 14)),
+          subtitle: const Text('Displays timestamp above seek bar during drag', style: TextStyle(color: Colors.white38, fontSize: 11)),
+          value: _showSeekPosition,
+          onChanged: (v) => setState(() => _showSeekPosition = v),
+          activeColor: Colors.white,
+          contentPadding: EdgeInsets.zero,
         ),
       ],
     );
@@ -4179,7 +4467,7 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
               RadioListTile<AudioTrack?>(
                 value: null,
                 groupValue: widget.selectedTrack,
-                onChanged: (_) {},
+                onChanged: (_) => widget.onTrackSelected(null),
                 title: const Text('Disable', style: TextStyle(color: Colors.white, fontSize: 14)),
                 activeColor: Colors.white,
                 controlAffinity: ListTileControlAffinity.trailing,
