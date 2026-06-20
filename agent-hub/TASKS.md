@@ -24,17 +24,25 @@
 - **Video rotation** — _rotateVideo() cycles 0→90→180→270 via video-rotate property; badge in top bar
 - **Video info dialog** — resolution, duration, position, speed, rotation, pinch scale
 
-### Phase 9 — Critical Bug Fixes (player-critical-fixes-1)
-- **R-001** — Removed duplicate `_showSkipBtns` + `_showPrevNextBtns` state variable declarations (Dart compile error)
-- **R-002** — Added skip ±N second buttons (replay/forward icons) flanking prev/next episode buttons in center controls, guarded by `_showSkipBtns` setting
-- **R-003** — `_startSavePositionTimer()` now called after every `_restoreWatchPos()` so position auto-saves every 10s
-- **R-004** — `_BottomIconBtn` now renders its `label` text below the icon (Enhance, Audio, Lab, Episodes, etc. are now visible)
-- **R-006** — Seek preview label now correctly hidden when `_showSeekPositionLabel = false` (setting now takes effect)
-- **R-007** — Volume bar fill fixed: bar reaches 100% at OS volume 100% instead of 40%; boost >100% keeps bar full with orange→red colour signal
-- **R-008** — Background audio toggle now actually pauses the player when toggled off and app is backgrounded
+### Phase 9 — Critical Bug Fixes (sha 8af737f)
+- **R-001** Removed duplicate state variable declarations (compile error fix)
+- **R-002** Added skip +/-N second buttons in center controls
+- **R-003** _startSavePositionTimer() wired after every _restoreWatchPos()
+- **R-004** _BottomIconBtn label text now rendered below icons
+- **R-006** Seek preview label guard fixed (setting now takes effect)
+- **R-007** Volume bar fill fixed — 100% at OS volume 100%
+- **R-008** Background audio pause implemented
+
+### Phase 9 — Medium/High Priority Fixes (sha bef96b2)
+- **R-010** Sleep timer badge in top bar — shows remaining minutes when sleep timer active, updates on 5s clock tick
+- **R-011** Sub bottom margin slider wired to MPV `sub-margin-y` via onChangeEnd; Sub fit toggle wired to `sub-ass-scale-with-window`
+- **R-015** Seek bar touch target expanded to 48dp (SizedBox wrapper around 28dp visual CustomPaint)
+- **R-017** SeekBarPainter wired — import added, _seekBarStyleFromIdx() helper added; styles 0-2 use _HorizontalSeekPainter (preserves A-B markers), styles 3-10 use SeekBarPainter (Gradient/Bold/Waveform/Neon/Filmstrip/Chapters/Dots/Minimal); Settings Style tab shows all 11 options
+- **R-022** RepaintBoundary wrapped around seek bar CustomPaint to prevent unnecessary full-UI repaints
+- **R-023** Zoom panel "Custom" renamed to "Pinch & Zoom"; explicit case 4 in _getBoxFit(); snackbar hint shown on selection
+- **R-024** Clock display timer interval reduced 10s to 5s (faster sleep badge countdown updates)
 
 ## Next Ideas
 - Playlist / queue support
 - Cast to Chromecast / AirPlay
 - Download manager (background download, offline play)
-| player-ux-fixes-2 | fix: 22 player UI/UX bugs (V2,V3,V6,V9,V16,U1,U2,U10,B2,B3,B5,B6,G1-G6,G9,G11,D2-D4) | 2d9b2c8 | ✅ DONE | 2026-06-20 |
