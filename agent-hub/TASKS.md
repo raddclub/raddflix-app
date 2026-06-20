@@ -50,3 +50,15 @@
 - 11 confirmed bugs: BUG-01 subtitle alignment silent no-op, BUG-02 subtitle background no-op, BUG-03 settings init hardcoded, BUG-04 Customization tab entirely fake, BUG-05 audio channel resets, BUG-06 dual-prefs data loss, BUG-07 sleep countdown frozen, BUG-08 speed label float noise, BUG-09 sync precision inconsistency, BUG-10 8 QSP dead buttons, BUG-11 lab state resets
 - Architecture: 5337-line monolith, 3 parallel settings systems, PlayerPrefs class unused
 - Overall score: 6.1/10 — strong engine, weak persistence + UI honesty
+
+### Phase 12 — Sprint 1 Bug Fixes (sha c371876)
+- **11 bugs fixed** in player_screen.dart (5337 → 5590 lines)
+- BUG-01: Subtitle alignment fires sub-align-x to mpv (was silent no-op)
+- BUG-02: Subtitle background color fires sub-back-color to mpv (was silent no-op)
+- BUG-03: Settings panel nav toggles init from parent state — no longer hardcoded true
+- BUG-04: Customization tab fully interactive — Position (sub-align-y), Shadow (sub-shadow-offset/sub-outline-size), Opacity slider, Edge padding (sub-margin-x), Line spacing (sub-spacing)
+- BUG-05: Audio channel mode index tracked in parent (_channelModeIdx), passed as initialChannelModeIdx — persists across panel reopens
+- BUG-06: EQ bands (5 keys) + eq_on + reverb + lab (vocal/dialogue/norm/bass/bassLevel) + channelMode persisted via SharedPreferences (11 new pref keys); AF pipeline rebuilt and deferred _applyAllAf() on player start
+- BUG-07: _QuickShortcutsPanel → StatefulWidget with Timer.periodic(30s) — sleep countdown live-ticks while panel open
+- BUG-08: Speed label uses toInt()/toStringAsFixed guard — no more float noise
+- BUG-11: AudioEffectPanel lab state (vocal/dialogue/norm/bass/bassLevel) persists via widget props + initState; onLabStateChanged propagates to parent; initialReverbPreset wires reverb to parent state
