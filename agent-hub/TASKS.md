@@ -3,44 +3,40 @@
 ## Completed
 
 ### Phase 1-6 — Player Audit v4 (sha d8e4598c31)
-- Audio filter pipeline AF fix
-- Loop/audio disable fixes  
-- Buffered seek bar
-- MX-style triple chevron seek flash
-- Ghost UI replacements
-- Design polish
+- Audio filter pipeline AF fix, Loop/audio disable fixes, Buffered seek bar
+- MX-style triple chevron seek flash, Ghost UI replacements, Design polish
 
 ### Phase 7 — Pinch-to-Zoom
-- ScaleGestureDetector, Transform.scale
-- Zoom indicator pill, reset button
+- ScaleGestureDetector Transform.scale, Zoom indicator pill + reset button
 
 ### Phase 8 — New Player Features (sha 9c447cd68c)
-- Frame step (frame-step MPV command)
-- Channel mode selector (Stereo/Mono/Left/Right via pan= filter)
-- **Night mode** — ColorFilter.matrix warm eye-comfort filter; toggle + warmth slider in Settings > Screen tab
-- **Clock overlay** — HH:mm in top bar, persisted, toggleable in Settings > Screen tab
-- **Audio L/R balance** — pan= filter in AF pipeline; slider + reset in Audio Effect panel Lab tab
-- **Subtitle → MPV** — size/bold/color/font wired to MPV setProperty live
-- **Video rotation** — _rotateVideo() cycles 0→90→180→270 via video-rotate property; badge in top bar
-- **Video info dialog** — resolution, duration, position, speed, rotation, pinch scale
+- Frame step, Channel mode selector (pan= filter)
+- Night mode, Clock overlay, Audio L/R balance, Subtitle to MPV, Video rotation, Video info dialog
 
 ### Phase 9 — Critical Bug Fixes (sha 8af737f)
-- **R-001** Removed duplicate state variable declarations (compile error fix)
-- **R-002** Added skip +/-N second buttons in center controls
-- **R-003** _startSavePositionTimer() wired after every _restoreWatchPos()
-- **R-004** _BottomIconBtn label text now rendered below icons
-- **R-006** Seek preview label guard fixed (setting now takes effect)
-- **R-007** Volume bar fill fixed — 100% at OS volume 100%
-- **R-008** Background audio pause implemented
+- R-001 Compile error fix, R-002 Skip buttons, R-003 Save position timer
+- R-004 Icon labels, R-006 Seek preview guard, R-007 Volume fill, R-008 BG audio pause
 
 ### Phase 9 — Medium/High Priority Fixes (sha bef96b2)
-- **R-010** Sleep timer badge in top bar — shows remaining minutes when sleep timer active, updates on 5s clock tick
-- **R-011** Sub bottom margin slider wired to MPV `sub-margin-y` via onChangeEnd; Sub fit toggle wired to `sub-ass-scale-with-window`
-- **R-015** Seek bar touch target expanded to 48dp (SizedBox wrapper around 28dp visual CustomPaint)
-- **R-017** SeekBarPainter wired — import added, _seekBarStyleFromIdx() helper added; styles 0-2 use _HorizontalSeekPainter (preserves A-B markers), styles 3-10 use SeekBarPainter (Gradient/Bold/Waveform/Neon/Filmstrip/Chapters/Dots/Minimal); Settings Style tab shows all 11 options
-- **R-022** RepaintBoundary wrapped around seek bar CustomPaint to prevent unnecessary full-UI repaints
-- **R-023** Zoom panel "Custom" renamed to "Pinch & Zoom"; explicit case 4 in _getBoxFit(); snackbar hint shown on selection
-- **R-024** Clock display timer interval reduced 10s to 5s (faster sleep badge countdown updates)
+- R-010 Sleep timer badge, R-011 Sub margin MPV wiring, R-015 48dp seek bar
+- R-017 SeekBarPainter 11 styles, R-022 RepaintBoundary, R-023 Pinch & Zoom rename, R-024 5s clock timer
+
+### Phase 10 — Android Media Notification Shade Controls (sha 154f962)
+- **PlaybackService.kt** — Full MediaStyle rewrite with MediaSessionCompat.
+  Notification shade: -10s / Play-Pause / +30s in compact view.
+  Lock screen + Bluetooth + Android Auto transport controls.
+  State updated via onStartCommand extras; button taps sent as local broadcasts.
+- **MainActivity.kt** — BroadcastReceiver (onStart/onStop) catches notification button
+  broadcasts and forwards to Flutter as onNotificationAction on pip channel.
+  Added updateBgNotification handler; startBgPlayback now accepts full play state.
+  Stored pipMethodChannel reference for onPipExited events.
+- **build.gradle** — Added androidx.media:media:1.7.0.
+- **player_screen.dart** —
+  Fixed wrong pip channel name in _enterPiP (raddclub.raddflix -> raddflix.app).
+  _notifyBgState() pushes title/isPlaying/positionMs/durationMs to service.
+  didChangeAppLifecycleState: paused+bgAudio -> start service; resumed -> stop.
+  initState: pip channel handler routes onNotificationAction to play/pause/seek.
+  dispose(): stops bg service and clears method call handler.
 
 ## Next Ideas
 - Playlist / queue support
