@@ -62,3 +62,41 @@
 - V5: Vertical seek bar in portrait mode (deeper layout refactor required)
 - V8: Subtitle and audio panels have large empty space (content redesign needed)
 - V10-V15: Portrait-mode layout polish items
+
+---
+## Session: player-redesign-video-first — 2026-06-20
+**Commit**: fc64e02ef27e0b7b0439053f5c79d642c0767f91
+**File**: raddflix_flutter/lib/screens/player_screen.dart (5151 to 5161 lines)
+**Method**: 4 parallel agents, sequential apply, single push
+
+### Design Goal
+Video is the star. Controls are invisible until needed. Reference: MX-Player-style landscape layout shared by user.
+
+### UI Redesign Changes (8 fixes)
+
+**T001 — Volume/Brightness HUD (Agent A)**
+- Moved from center-blocking pill to thin bottom strip
+- Position: bottom 14% of screen height (was top 35%)
+- Background opacity: 0.35 (was 0.65)
+- Bar height: 3px (was 4px), icon 15px (was 18px), padding 10/5 (was 12/8)
+- Video no longer obscured during gesture adjustments
+
+**T002 — All Panels as Bottom Sheets (Agent B)**
+- _openRightPanel() converted from showGeneralDialog (right-slide) to showModalBottomSheet (bottom-up)
+- Panel height: 52% of screen — video visible in top 48%
+- Drag handle added (38px wide, 4px tall, white24)
+- Affects: Audio Track, Subtitle, Zoom, Audio Effect, More panel
+- Smooth bottom-up animation with enableDrag and isDismissible
+
+**T003 — Bottom Icon Row (Agent C)**
+- Text labels removed from all _BottomIconBtn widgets
+- Icon size increased 20 to 22 for better visibility without labels
+- Padding: horizontal 8, vertical 6 for larger tap targets
+- Row is now minimal icons-only matching reference player aesthetic
+
+### Local Video Bug Fixes (3 bugs)
+
+**T004 — Local Video Recognition (Agent D)**
+- Bug 1: Episode key fallback: now checks local_path / localPath / download_path
+- Bug 2: content:// fileIds handled in _openMediaForEpisode (no more silent stream fallback)
+- Bug 3: Resume position key sanitized for content:// URIs (hashed if >80 chars)
