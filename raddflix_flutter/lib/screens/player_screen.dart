@@ -274,6 +274,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _savePrefs();
     _hideTimer?.cancel();
     _posTimer?.cancel();
+    _savePositionTimer?.cancel();
     _indicatorTimer?.cancel();
     _smartEnhanceTimer?.cancel();
     _sleepTimer?.cancel();
@@ -797,7 +798,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _cancelAutoRetry() {
     _autoRetryTimer?.cancel();
-    setState(() => _autoRetryCountdown = 0);
+    if (mounted) setState(() => _autoRetryCountdown = 0);
   }
 
   void _toggleMute() {
@@ -2389,8 +2390,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Feature 24: Picture-in-Picture
   void _enterPiP() {
     // On Android, trigger PiP mode via platform channel
-    const _pipChannel = MethodChannel('com.raddclub.raddflix/pip');
-    _pipChannel.invokeMethod('enterPiP').catchError((_) {
+    const pipChannel = MethodChannel('com.raddclub.raddflix/pip');
+    pipChannel.invokeMethod('enterPiP').catchError((_) {
       // PiP not supported on this device/version — minimize instead
       Navigator.of(context).pop();
     });
@@ -2711,38 +2712,6 @@ class _SmartEnhanceDotsCirclePainter extends CustomPainter {
   }
 
   
-class _MxIconBtn extends StatelessWidget {
-  final IconData icon;
-  final double size;
-  final VoidCallback? onTap;
-
-  const _MxIconBtn({required this.icon, this.size = 22, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Icon(icon, color: Colors.white, size: size),
-      ),
-    );
-  }
-}
-
-class _MxSideBtn extends StatelessWidget {
-  final Widget child;
-  const _MxSideBtn({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: child,
-    );
-  }
-}
-
 class _SmartEnhanceIcon extends StatelessWidget {
   final double size;
   final Color color;
@@ -2759,14 +2728,7 @@ class _SmartEnhanceIcon extends StatelessWidget {
           Icon(Icons.tv_rounded, color: color, size: size * 0.8),
           Positioned(
             right: 0, bottom: 0,
-            child: Container(
-              width: size * 0.36,
-              height: size * 0.36,
-              decoration: BoxDecoration(
-                color: Colors.transparent,
-              ),
-              child: Icon(Icons.add_rounded, color: color, size: size * 0.36),
-            ),
+            child: Icon(Icons.add_rounded, color: color, size: size * 0.36),
           ),
         ],
       ),
@@ -3035,6 +2997,37 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                             decorationColor: Color(0xFF4A9EFF))),
                   ),
                 ],
+              ],
+              // Customization tab (tab 5)
+              if (_tab == 5) ...[
+                const Text('Subtitle Style', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                const SizedBox(height: 12),
+                const Row(children: [
+                  Expanded(child: Text('Position', style: TextStyle(color: Colors.white, fontSize: 14))),
+                  Text('Bottom', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                  Icon(Icons.chevron_right, color: Colors.white38, size: 16),
+                ]),
+                const SizedBox(height: 6),
+                const Row(children: [
+                  Expanded(child: Text('Shadow', style: TextStyle(color: Colors.white, fontSize: 14))),
+                  Text('Outline', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                  Icon(Icons.chevron_right, color: Colors.white38, size: 16),
+                ]),
+                const SizedBox(height: 6),
+                const Row(children: [
+                  Expanded(child: Text('Opacity', style: TextStyle(color: Colors.white, fontSize: 14))),
+                  Text('100%', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                ]),
+                const SizedBox(height: 6),
+                const Row(children: [
+                  Expanded(child: Text('Edge padding', style: TextStyle(color: Colors.white, fontSize: 14))),
+                  Text('16 px', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                ]),
+                const SizedBox(height: 6),
+                const Row(children: [
+                  Expanded(child: Text('Line spacing', style: TextStyle(color: Colors.white, fontSize: 14))),
+                  Text('1.2×', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                ]),
               ],
             ],
           ),
@@ -4251,72 +4244,6 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
     );
   }
 }
-// ═════════════════════════════════════════════════════════════════════════════
-//  _SwipeToMinimize — drag down to dismiss player (Feature 25)
-// ═════════════════════════════════════════════════════════════════════════════
-
-class _SwipeToMinimize extends StatefulWidget {
-  final Widget child;
-  final VoidCallback onDismiss;
-  const _SwipeToMinimize({required this.child, required this.onDismiss});
-
-  @override
-  State<_SwipeToMinimize> createState() => _SwipeToMinimizeState();
-}
-
-class _SwipeToMinimizeState extends State<_SwipeToMinimize>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  double _offsetY = 0;
-  bool _dismissing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
-  }
-
-  @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
-
-  void _onDragUpdate(DragUpdateDetails d) {
-    if (d.delta.dy > 0) {
-      setState(() => _offsetY = (_offsetY + d.delta.dy).clamp(0.0, 300.0));
-    }
-  }
-
-  void _onDragEnd(DragEndDetails d) {
-    final velocity = d.velocity.pixelsPerSecond.dy;
-    if (_offsetY > 120 || velocity > 600) {
-      setState(() => _dismissing = true);
-      widget.onDismiss();
-    } else {
-      // Snap back
-      final start = _offsetY;
-      final anim = Tween<double>(begin: start, end: 0).animate(
-          CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-      anim.addListener(() => setState(() => _offsetY = anim.value));
-      _ctrl.forward(from: 0);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_dismissing) return widget.child;
-    return GestureDetector(
-      onVerticalDragUpdate: _onDragUpdate,
-      onVerticalDragEnd: _onDragEnd,
-      child: Transform.translate(
-        offset: Offset(0, _offsetY),
-        child: Opacity(
-          opacity: (1.0 - _offsetY / 300).clamp(0.0, 1.0),
-          child: widget.child,
-        ),
-      ),
-    );
-  }
-}
-
 // ═════════════════════════════════════════════════════════════════════════════
 //  _ReverbSelector — reverb room presets (Feature 23)
 // ═════════════════════════════════════════════════════════════════════════════
