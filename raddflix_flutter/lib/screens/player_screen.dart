@@ -3938,7 +3938,6 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
           final bytes = Uint8List.fromList(pngFile.readAsBytesSync());
           final result = await SaverGallery.saveImage(
             bytes,
-            '$baseName.png',
             androidRelativePath: 'Pictures/RaddFlix',
             quality: 95,
           );
@@ -5962,7 +5961,7 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
             for (final s in speeds)
               ListTile(
                 title: Text('${s == s.roundToDouble() ? s.toInt() : s}×', style: const TextStyle(color: Colors.white)),
-                trailing: speed == s ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
+                trailing: widget.speed == s ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
                 onTap: () {
                   Navigator.of(ctx).pop();
                   widget.onSpeedSelected(s);
