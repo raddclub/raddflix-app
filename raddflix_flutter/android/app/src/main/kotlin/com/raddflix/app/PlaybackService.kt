@@ -18,17 +18,20 @@ import androidx.media.app.NotificationCompat as MediaNotificationCompat
  * Foreground service for background audio playback with a MediaStyle notification.
  *
  * Shows play/pause + seek transport controls in the notification shade, lock screen,
- * and any Bluetooth peripherals. A MediaSessionCompat is set up so Android Auto,
+ * and any Bluetooth peripherals.  A MediaSessionCompat is set up so Android Auto,
  * headset hardware buttons, and Google Assistant can control playback.
  *
+ * Features:
+ *   • Three transport actions in compact view: −10 s | ▶︎/⏸ | +30 s
+ *   • Determinate progress bar that reflects the current position inside the episode
+ *   • On Android 13+ the progress bar is also swipe-seekable (ACTION_SEEK_TO via MediaSession)
+ *
  * Life-cycle:
- *   • Started via "startBgPlayback" on the pip MethodChannel when the user leaves the
- *     app with Background Play enabled.
- *   • Updated via "updateBgNotification" whenever play/pause state or position changes.
+ *   • Started / refreshed via "startBgPlayback" or "updateBgNotification" on the pip channel.
  *   • Stopped via "stopBgPlayback" when the app returns to foreground or player closes.
  *
- * Button taps are broadcast locally and caught by MainActivity's BroadcastReceiver,
- * which forwards them to Flutter as "onNotificationAction" on the pip channel.
+ * Button taps and seek gestures are broadcast locally and caught by MainActivity's
+ * BroadcastReceiver, which forwards them to Flutter as "onNotificationAction".
  */
 class PlaybackService : Service() {
 
@@ -36,16 +39,21 @@ class PlaybackService : Service() {
         const val CHANNEL_ID      = "raddflix_playback"
         const val NOTIFICATION_ID = 1001
 
-        // Intent extras for state updates
+        // Intent extras
         const val EXTRA_TITLE      = "media_title"
         const val EXTRA_IS_PLAYING = "is_playing"
         const val EXTRA_POSITION   = "position_ms"
         const val EXTRA_DURATION   = "duration_ms"
 
-        // Local broadcast actions — caught by MainActivity.NotifReceiver
+        // Local broadcasts caught by MainActivity.notifReceiver
         const val ACTION_PLAY_PAUSE = "com.raddflix.app.PLAY_PAUSE"
         const val ACTION_SEEK_BACK  = "com.raddflix.app.SEEK_BACK"
         const val ACTION_SEEK_FWD   = "com.raddflix.app.SEEK_FWD"
+        const val ACTION_SEEK_TO    = "com.raddflix.app.SEEK_TO"
+        const val EXTRA_SEEK_TO_MS  = "seek_to_ms"
+
+        // Resolution of the progress bar (1 000 = 0.1 % granularity)
+        private const val PROGRESS_MAX = 1000
     }
 
     private var mediaSession : MediaSessionCompat? = null
@@ -67,10 +75,19 @@ class PlaybackService : Service() {
         mediaSession = MediaSessionCompat(this, "RaddFlixSession").apply {
             setFlags(MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS)
             setCallback(object : MediaSessionCompat.Callback() {
-                override fun onPlay()           { broadcast(ACTION_PLAY_PAUSE) }
-                override fun onPause()          { broadcast(ACTION_PLAY_PAUSE) }
-                override fun onSkipToPrevious() { broadcast(ACTION_SEEK_BACK)  }
-                override fun onSkipToNext()     { broadcast(ACTION_SEEK_FWD)   }
+                override fun onPlay()             { broadcast(ACTION_PLAY_PAUSE) }
+                override fun onPause()            { broadcast(ACTION_PLAY_PAUSE) }
+                override fun onSkipToPrevious()   { broadcast(ACTION_SEEK_BACK) }
+                override fun onSkipToNext()       { broadcast(ACTION_SEEK_FWD) }
+                // Android 13+ swipe-to-seek on the notification progress bar
+                override fun onSeekTo(pos: Long)  {
+                    sendBroadcast(
+                        Intent(ACTION_SEEK_TO).apply {
+                            setPackage(packageName)
+                            putExtra(EXTRA_SEEK_TO_MS, pos)
+                        }
+                    )
+                }
             })
             isActive = true
         }
@@ -84,11 +101,8 @@ class PlaybackService : Service() {
             if (it.hasExtra(EXTRA_DURATION))   durationMs   = it.getLongExtra(EXTRA_DURATION, 0L)
         }
         updateMediaSession()
-        val notification = buildNotification()
-        // On first call startForeground is already done in onCreate; subsequent calls
-        // just refresh the notification in place via the notification manager.
         getSystemService(NotificationManager::class.java)
-            ?.notify(NOTIFICATION_ID, notification)
+            ?.notify(NOTIFICATION_ID, buildNotification())
         return START_NOT_STICKY
     }
 
@@ -104,7 +118,7 @@ class PlaybackService : Service() {
         }
     }
 
-    // ─── Media session state ──────────────────────────────────────────────────
+    // ─── Media session ────────────────────────────────────────────────────────
 
     private fun updateMediaSession() {
         val stateVal = if (isPlaying) PlaybackStateCompat.STATE_PLAYING
@@ -114,7 +128,8 @@ class PlaybackService : Service() {
                 .setActions(
                     PlaybackStateCompat.ACTION_PLAY_PAUSE       or
                     PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
-                    PlaybackStateCompat.ACTION_SKIP_TO_NEXT
+                    PlaybackStateCompat.ACTION_SKIP_TO_NEXT     or
+                    PlaybackStateCompat.ACTION_SEEK_TO
                 )
                 .setState(stateVal, positionMs, if (isPlaying) 1f else 0f)
                 .build()
@@ -148,6 +163,12 @@ class PlaybackService : Service() {
         else
             android.R.drawable.ic_media_play  to "Play"
 
+        // Determinate progress — indeterminate when duration is unknown
+        val hasDuration  = durationMs > 0
+        val progressVal  = if (hasDuration)
+            ((positionMs.toFloat() / durationMs) * PROGRESS_MAX).toInt().coerceIn(0, PROGRESS_MAX)
+        else 0
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(currentTitle)
             .setContentText(if (isPlaying) "Playing on RaddFlix" else "Paused · RaddFlix")
@@ -158,6 +179,8 @@ class PlaybackService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
+            // Progress bar — determinate when duration is known, indeterminate otherwise
+            .setProgress(PROGRESS_MAX, progressVal, !hasDuration)
             // Three transport actions shown in compact view
             .addAction(android.R.drawable.ic_media_rew,  "−10s",         seekBackPending)
             .addAction(playPauseIcon,                     playPauseLabel, playPausePending)
