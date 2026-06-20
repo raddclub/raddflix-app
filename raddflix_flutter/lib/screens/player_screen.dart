@@ -545,8 +545,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _position = Duration.zero;
     });
     _openMediaForEpisode(ep,
-      localPath: ep['local_path'] as String?,
-      shareUrl: ep['share_url'] as String?,
+      localPath: (ep['local_path'] ?? ep['localPath'] ?? ep['download_path']) as String?,
+      shareUrl: (ep['share_url'] ?? ep['shareUrl']) as String?,
     );
   }
 
@@ -558,6 +558,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) setState(() { _streamError = null; _ended = false; _position = Duration.zero; });
       _videoOpened = true;
       await _player.open(Media(localPath));
+      await _restoreWatchPos();
+      _scheduleHide();
+      return;
+    }
+
+    // Handle content:// or absolute path fileIds as local
+    if (fileId.startsWith('/') || fileId.startsWith('content://')) {
+      if (mounted) setState(() { _streamError = null; _ended = false; _position = Duration.zero; });
+      _videoOpened = true;
+      await _player.open(Media(fileId));
       await _restoreWatchPos();
       _scheduleHide();
       return;
@@ -752,18 +762,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // ─── Feature 26: Resume position ────────────────────────────────────────
   void _saveCurrentPosition() {
     if (_position.inSeconds < 5) return; // don't save if near start
+    final _safeId = _currentFileId.length > 80 ? _currentFileId.hashCode.toString() : _currentFileId;
     SharedPreferences.getInstance().then((prefs) {
-      prefs.setInt('$_kResumePrefix$_currentFileId', _position.inSeconds);
+      prefs.setInt('$_kResumePrefix$_safeId', _position.inSeconds);
     });
   }
 
   void _clearSavedPosition(String fileId) {
-    SharedPreferences.getInstance().then((prefs) => prefs.remove('$_kResumePrefix$fileId'));
+    final _safeId = fileId.length > 80 ? fileId.hashCode.toString() : fileId;
+    SharedPreferences.getInstance().then((prefs) => prefs.remove('$_kResumePrefix$_safeId'));
   }
 
   Future<void> _tryResumePosition(String fileId) async {
     final prefs = await SharedPreferences.getInstance();
-    final savedSec = prefs.getInt('$_kResumePrefix$fileId');
+    final _safeId = fileId.length > 80 ? fileId.hashCode.toString() : fileId;
+    final savedSec = prefs.getInt('$_kResumePrefix$_safeId');
     if (savedSec != null && savedSec > 5 && _duration.inSeconds > savedSec + 10) {
       if (!mounted) return;
       final cont = await showDialog<bool>(
@@ -1426,12 +1439,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
 
-                // 6. Volume/brightness indicator — centered pill
+                // 6. Volume/brightness indicator — bottom strip
                 if (_showVolumeIndicator || _showBrightnessIndicator)
                   Positioned(
-                    top: constraints.maxHeight * 0.35,
-                    left: constraints.maxWidth * 0.28,
-                    right: constraints.maxWidth * 0.28,
+                    bottom: constraints.maxHeight * 0.14,
+                    left: constraints.maxWidth * 0.10,
+                    right: constraints.maxWidth * 0.10,
                     child: _showVolumeIndicator
                         ? _buildCenteredVolumeOverlay()
                         : _buildCenteredBrightnessOverlay(),
@@ -2384,7 +2397,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  Volume indicator — centered glassmorphism pill
+    //  Volume indicator — bottom strip indicator
     // ═══════════════════════════════════════════════════════════════════════════
 
     Widget _buildCenteredVolumeOverlay() {
@@ -2411,7 +2424,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  Brightness indicator — centered glassmorphism pill
+    //  Brightness indicator — bottom strip indicator
     // ═══════════════════════════════════════════════════════════════════════════
 
     Widget _buildCenteredBrightnessOverlay() {
@@ -2435,16 +2448,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       required String label,
     }) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.65),
+          color: Colors.black.withOpacity(0.35),
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: Colors.white12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.max,
           children: [
-            Icon(icon, color: Colors.white, size: 18),
+            Icon(icon, color: Colors.white, size: 15),
             const SizedBox(width: 10),
             Expanded(
               child: ClipRRect(
@@ -2453,7 +2472,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   value: barValue,
                   backgroundColor: Colors.white24,
                   valueColor: AlwaysStoppedAnimation<Color>(barColor),
-                  minHeight: 4,
+                  minHeight: 3,
                 ),
               ),
             ),
@@ -2464,7 +2483,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 label,
                 style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600),
                 textAlign: TextAlign.right,
               ),
@@ -2596,41 +2615,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     //  Panels (right-side slide-in)
     // ═══════════════════════════════════════════════════════════════════════════
 
-    void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
-      showGeneralDialog(
-        context: context,
-        barrierColor: Colors.black54,
-        barrierDismissible: true,
-        barrierLabel: 'Dismiss',
-        transitionDuration: const Duration(milliseconds: 300),
-        pageBuilder: (ctx, anim, sec) {
-          return Align(
-            alignment: Alignment.centerRight,
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                width: MediaQuery.of(ctx).size.width * widthFactor,
-                height: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF1A1A1A),
-                  borderRadius: BorderRadius.horizontal(left: Radius.circular(16)),
-                ),
-                child: content,
+void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    isDismissible: true,
+    enableDrag: true,
+    barrierColor: Colors.black45,
+    builder: (ctx) {
+      final h = MediaQuery.of(ctx).size.height;
+      return Container(
+        height: h * 0.52,
+        decoration: const BoxDecoration(
+          color: Color(0xFF141414),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // Drag handle
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              width: 38, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
-          );
-        },
-        transitionBuilder: (ctx, anim, sec, child) {
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(1.0, 0.0),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-            child: child,
-          );
-        },
+            Expanded(child: content),
+          ],
+        ),
       );
-    }
+    },
+  );
+}
 
     void _openSubtitlePanel() {
       _openRightPanel(_SubtitlePanel(
@@ -3132,20 +3150,12 @@ class _SmartEnhanceDotsCirclePainter extends CustomPainter {
         child: GestureDetector(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, color: color, size: 20,
+                Icon(icon, color: color, size: 22,
                     shadows: const [Shadow(blurRadius: 4, color: Colors.black54)]),
-                const SizedBox(height: 3),
-                Text(label,
-                    style: TextStyle(
-                        color: active ? const Color(0xFFE8950A) : Colors.white70,
-                        fontSize: 9,
-                        fontWeight: active ? FontWeight.w700 : FontWeight.normal),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
