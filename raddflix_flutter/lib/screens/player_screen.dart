@@ -429,6 +429,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _player.stream.position.listen((v) {
         if (mounted) {
           setState(() => _position = v);
+          _checkSkipEditor();
           // A-B repeat check
           if (_abActive && _abA != null && _abB != null && v >= _abB!) {
             _player.seek(_abA!);
@@ -512,6 +513,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       await _player.open(Media(effectivePath));
       await _restoreWatchPos();
       _startSavePositionTimer();
+    _loadSkipEditorPrefs();
       if (mounted) setState(() { _isLinkLoading = false; });
       _scheduleHide();
       return;
@@ -3013,6 +3015,19 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
           try { _np.command(['frame-step']); } catch (_) {}
         },
         onClose: () => Navigator.of(context).pop(),
+        // Extended shortcuts
+        onJumpTo:         () { Navigator.of(context).pop(); _showJumpToDialog(context); },
+        onSpeedPresets:   () { Navigator.of(context).pop(); _showSpeedPresetsSheet(context); },
+        onEndAction:      () { Navigator.of(context).pop(); _showEndActionSheet(context); },
+        onScreenshot:     () { Navigator.of(context).pop(); _takeScreenshot(); },
+        onWatchParty:     () { Navigator.of(context).pop(); _showWatchPartyDialog(context); },
+        onSilenceSkip:    () { Navigator.of(context).pop(); _showSilenceSkipSheet(context); },
+        onZoomCrop:       () { Navigator.of(context).pop(); _showZoomCropSheet(context); },
+        onGestureMap:     () { Navigator.of(context).pop(); _showGestureMapSheet(context); },
+        onSkipEditor:     () { Navigator.of(context).pop(); _showSkipEditorSheet(context); },
+        onLayoutDesigner: () { Navigator.of(context).pop(); _showLayoutDesignerSheet(context); },
+        silenceSkipEnabled: _silenceSkipEnabled,
+        endAction: _endAction,
       ));
     }
 
@@ -3027,6 +3042,695 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
         setState(() { _abA = null; _abB = null; _abActive = false; });
         _showInfoSnackbar('A-B repeat cleared.');
       }
+    }
+
+    // ── Jump To ───────────────────────────────────────────────────────────────
+    void _showJumpToDialog(BuildContext ctx) {
+      final ctrl = TextEditingController();
+      showDialog(
+        context: ctx,
+        builder: (c) => AlertDialog(
+          backgroundColor: const Color(0xFF1C1C1C),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Text('Jump To Position', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Enter time  (mm:ss or hh:mm:ss)', style: TextStyle(color: Colors.white54, fontSize: 12)),
+              const SizedBox(height: 10),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white, fontSize: 20),
+                keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                decoration: const InputDecoration(
+                  hintText: '1:30:00',
+                  hintStyle: TextStyle(color: Colors.white24),
+                  filled: true,
+                  fillColor: Color(0xFF2A2A2A),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide.none,
+                    borderRadius: BorderRadius.all(Radius.circular(8)),
+                  ),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8, runSpacing: 6,
+                children: ['1m', '5m', '10m', '15m', '30m', '45m'].map((label) {
+                  return GestureDetector(
+                    onTap: () {
+                      final m = int.parse(label.replaceAll('m', ''));
+                      ctrl.text = '$m:00';
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white12,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(c).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            ),
+            TextButton(
+              onPressed: () {
+                final t = ctrl.text.trim();
+                final parts = t.split(':').reversed.toList();
+                int total = 0;
+                final mults = [1, 60, 3600];
+                for (int i = 0; i < parts.length && i < 3; i++) {
+                  total += (int.tryParse(parts[i]) ?? 0) * mults[i];
+                }
+                _player.seek(Duration(seconds: total.clamp(0, _duration.inSeconds)));
+                Navigator.of(c).pop();
+              },
+              child: const Text('Go', style: TextStyle(color: Color(0xFF4A9EFF), fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ── Speed Presets ─────────────────────────────────────────────────────────
+    void _showSpeedPresetsSheet(BuildContext ctx) {
+      const speeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
+      showModalBottomSheet(
+        context: ctx,
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        ),
+        builder: (_) => StatefulBuilder(
+          builder: (shCtx, setSt) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Speed Presets', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10, runSpacing: 10,
+                  children: speeds.map((s) {
+                    final active = (s - _speed).abs() < 0.01;
+                    return GestureDetector(
+                      onTap: () {
+                        _setSpeed(s);
+                        setSt(() {});
+                        Navigator.of(ctx).pop();
+                      },
+                      child: Container(
+                        width: 72,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: active ? Colors.white24 : const Color(0xFF2A2A2A),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: active ? Colors.white38 : Colors.transparent),
+                        ),
+                        child: Text(
+                          '${s == s.roundToDouble() ? s.toInt() : s}×',
+                          style: TextStyle(
+                            color: active ? Colors.white : Colors.white70,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ── End Action ────────────────────────────────────────────────────────────
+    void _showEndActionSheet(BuildContext ctx) {
+      showModalBottomSheet(
+        context: ctx,
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        ),
+        builder: (_) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('When video ends…', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              const Text('Applies to every video in this session', style: TextStyle(color: Colors.white38, fontSize: 12)),
+              const SizedBox(height: 12),
+              for (final pair in [
+                ('play_next', Icons.skip_next_rounded,   'Play Next Episode'),
+                ('loop',      Icons.repeat_rounded,       'Loop Current'),
+                ('stop',      Icons.stop_circle_outlined, 'Stop & Stay'),
+                ('ask',       Icons.help_outline_rounded, 'Ask Each Time'),
+              ])
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(pair.$2, color: _endAction == pair.$1 ? Colors.white : Colors.white54),
+                  title: Text(
+                    pair.$3,
+                    style: TextStyle(
+                      color: _endAction == pair.$1 ? Colors.white : Colors.white70,
+                      fontWeight: _endAction == pair.$1 ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  trailing: _endAction == pair.$1
+                      ? const Icon(Icons.check_rounded, color: Colors.white, size: 18)
+                      : null,
+                  onTap: () {
+                    setState(() => _endAction = pair.$1);
+                    _savePrefs();
+                    Navigator.of(ctx).pop();
+                  },
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ── Silence Skip ──────────────────────────────────────────────────────────
+    void _showSilenceSkipSheet(BuildContext ctx) {
+      showModalBottomSheet(
+        context: ctx,
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        ),
+        builder: (_) => StatefulBuilder(
+          builder: (shCtx, setSt) => Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Silence Skip', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                          SizedBox(height: 2),
+                          Text('Auto-skip silent gaps in audio', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _silenceSkipEnabled,
+                      onChanged: (v) {
+                        setState(() => _silenceSkipEnabled = v);
+                        setSt(() {});
+                        _applySilenceSkip();
+                        _savePrefs();
+                      },
+                      activeColor: Colors.white,
+                    ),
+                  ],
+                ),
+                if (_silenceSkipEnabled) ...[
+                  const SizedBox(height: 16),
+                  Row(children: [
+                    const Text('Silence threshold  ', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    Text(
+                      '${_silenceSkipThreshold.toStringAsFixed(1)}s',
+                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                  ]),
+                  Slider(
+                    value: _silenceSkipThreshold,
+                    min: 0.3, max: 5.0, divisions: 47,
+                    activeColor: Colors.white,
+                    inactiveColor: Colors.white24,
+                    onChanged: (v) {
+                      setState(() => _silenceSkipThreshold = v);
+                      setSt(() {});
+                      _applySilenceSkip();
+                      _savePrefs();
+                    },
+                  ),
+                  const Text(
+                    'Detects silent audio sections and jumps past them automatically.',
+                    style: TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    void _applySilenceSkip() {
+      if (!_silenceSkipEnabled) {
+        try { _np.setProperty('af-remove', 'silencedetect'); } catch (_) {}
+        return;
+      }
+      try {
+        _np.setProperty(
+          'af',
+          'lavfi=[silencedetect=noise=-50dB:d=${_silenceSkipThreshold.toStringAsFixed(1)}]',
+        );
+      } catch (_) {}
+    }
+
+    // ── Zoom & Crop ───────────────────────────────────────────────────────────
+    void _showZoomCropSheet(BuildContext ctx) {
+      final ratios = [
+        ('Auto',    ''),
+        ('16:9',    '16:9'),
+        ('4:3',     '4:3'),
+        ('21:9',    '21:9'),
+        ('18:9',    '18:9'),
+        ('1:1',     '1:1'),
+        ('Stretch', '-1'),
+      ];
+      showModalBottomSheet(
+        context: ctx,
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        ),
+        isScrollControlled: true,
+        builder: (_) => StatefulBuilder(
+          builder: (shCtx, setSt) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Zoom & Crop', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                const Text('Aspect ratio override', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8, runSpacing: 8,
+                  children: List.generate(ratios.length, (i) {
+                    final active = (_zoomMode == i);
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() => _zoomMode = i);
+                        setSt(() {});
+                        try {
+                          _np.setProperty('video-aspect-override', ratios[i].$2.isEmpty ? '-1' : ratios[i].$2);
+                        } catch (_) {}
+                        _savePrefs();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: active ? Colors.white24 : const Color(0xFF2A2A2A),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: active ? Colors.white38 : Colors.transparent),
+                        ),
+                        child: Text(
+                          ratios[i].$1,
+                          style: TextStyle(
+                            color: active ? Colors.white : Colors.white70,
+                            fontSize: 14,
+                            fontWeight: active ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 20),
+                const Divider(color: Colors.white12),
+                const SizedBox(height: 10),
+                const Text(
+                  'Pinch on the video to zoom digitally. Double-tap to reset.',
+                  style: TextStyle(color: Colors.white54, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ── Gesture Map ───────────────────────────────────────────────────────────
+    void _showGestureMapSheet(BuildContext ctx) {
+      showModalBottomSheet(
+        context: ctx,
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        ),
+        isScrollControlled: true,
+        builder: (_) => StatefulBuilder(
+          builder: (shCtx, setSt) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Gesture Map', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                const Text('Toggle each gesture on or off', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Double-tap seek', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  subtitle: Text('Double-tap left/right to ±${_skipInterval}s', style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                  value: _doubleTapSeekEnabled,
+                  onChanged: (v) { setState(() => _doubleTapSeekEnabled = v); setSt(() {}); _savePrefs(); },
+                  activeColor: Colors.white,
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Long press speed boost', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  subtitle: const Text('Hold to play at 2× speed', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  value: _longPressSpeedEnabled,
+                  onChanged: (v) { setState(() => _longPressSpeedEnabled = v); setSt(() {}); _savePrefs(); },
+                  activeColor: Colors.white,
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Swipe to seek', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  subtitle: const Text('Horizontal swipe jumps through video', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  value: _swipeSeekEnabled,
+                  onChanged: (v) { setState(() => _swipeSeekEnabled = v); setSt(() {}); _savePrefs(); },
+                  activeColor: Colors.white,
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Swipe brightness / volume', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  subtitle: const Text('Left edge: brightness  •  Right edge: volume', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  value: _swipeBVEnabled,
+                  onChanged: (v) { setState(() => _swipeBVEnabled = v); setSt(() {}); _savePrefs(); },
+                  activeColor: Colors.white,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ── Skip Editor ───────────────────────────────────────────────────────────
+    void _showSkipEditorSheet(BuildContext ctx) {
+      showModalBottomSheet(
+        context: ctx,
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        ),
+        isScrollControlled: true,
+        builder: (_) => StatefulBuilder(
+          builder: (shCtx, setSt) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Skip Editor', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      SizedBox(height: 2),
+                      Text('Auto-skip intro & outro', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                    ],
+                  )),
+                  Switch(
+                    value: _skipEditorEnabled,
+                    onChanged: (v) { setState(() => _skipEditorEnabled = v); setSt(() {}); _savePrefs(); },
+                    activeColor: Colors.white,
+                  ),
+                ]),
+                const SizedBox(height: 16),
+                const Text('INTRO', style: TextStyle(color: Colors.white54, fontSize: 11, letterSpacing: 1)),
+                const SizedBox(height: 6),
+                Row(children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () { setState(() => _introStart = _position); setSt(() {}); _savePrefs(); _showInfoSnackbar('Intro start: ${_formatDuration(_position)}'); },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(8)),
+                        alignment: Alignment.center,
+                        child: Column(children: [
+                          const Text('Start', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                          Text(_introStart != null ? _formatDuration(_introStart!) : '—', style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                        ]),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () { setState(() => _introEnd = _position); setSt(() {}); _savePrefs(); _showInfoSnackbar('Intro end: ${_formatDuration(_position)}'); },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(8)),
+                        alignment: Alignment.center,
+                        child: Column(children: [
+                          const Text('End', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                          Text(_introEnd != null ? _formatDuration(_introEnd!) : '—', style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                        ]),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () { setState(() { _introStart = null; _introEnd = null; }); setSt(() {}); _savePrefs(); },
+                    child: const Icon(Icons.close_rounded, color: Colors.white38, size: 20),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+                const Text('OUTRO', style: TextStyle(color: Colors.white54, fontSize: 11, letterSpacing: 1)),
+                const SizedBox(height: 6),
+                Row(children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () { setState(() => _outroStart = _position); setSt(() {}); _savePrefs(); _showInfoSnackbar('Outro skip from: ${_formatDuration(_position)}'); },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(8)),
+                        alignment: Alignment.center,
+                        child: Column(children: [
+                          const Text('Skip from', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                          Text(_outroStart != null ? _formatDuration(_outroStart!) : '—', style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                        ]),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () { setState(() => _outroStart = null); setSt(() {}); _savePrefs(); },
+                    child: const Icon(Icons.close_rounded, color: Colors.white38, size: 20),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+                const Text(
+                  'Tap a cell to stamp the current playback position. When enabled, playback auto-jumps past marked ranges.',
+                  style: TextStyle(color: Colors.white38, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    void _checkSkipEditor() {
+      if (!_skipEditorEnabled) return;
+      if (_introStart != null && _introEnd != null) {
+        if (_position >= _introStart! && _position < _introEnd!) {
+          _player.seek(_introEnd!);
+          _showInfoSnackbar('Skipped intro');
+          return;
+        }
+      }
+      if (_outroStart != null && _duration > Duration.zero) {
+        if (_position >= _outroStart! && _position < _duration - const Duration(seconds: 2)) {
+          _player.seek(_duration - const Duration(seconds: 1));
+          _showInfoSnackbar('Skipped outro');
+        }
+      }
+    }
+
+    Future<void> _loadSkipEditorPrefs() async {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      final is_ = prefs.getInt('pref_intro_s_$_currentFileId');
+      final ie  = prefs.getInt('pref_intro_e_$_currentFileId');
+      final os_ = prefs.getInt('pref_outro_s_$_currentFileId');
+      setState(() {
+        _introStart = is_ != null ? Duration(seconds: is_) : null;
+        _introEnd   = ie  != null ? Duration(seconds: ie)  : null;
+        _outroStart = os_ != null ? Duration(seconds: os_) : null;
+      });
+    }
+
+    // ── Layout Designer ───────────────────────────────────────────────────────
+    void _showLayoutDesignerSheet(BuildContext ctx) {
+      showModalBottomSheet(
+        context: ctx,
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        ),
+        builder: (_) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Player Layout', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              for (final item in [
+                ('default', Icons.dashboard_rounded,    'Default',  'Full controls, skip buttons, progress overlay'),
+                ('cinema',  Icons.theaters_rounded,      'Cinema',   'Minimal chrome — skip buttons hidden until tap'),
+                ('compact', Icons.fit_screen_rounded,   'Compact',  'Smaller UI, condensed seek bar padding'),
+              ])
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _layoutPreset = item.$1;
+                      if (item.$1 == 'cinema') _showSkipBtns = false;
+                      if (item.$1 == 'default' || item.$1 == 'compact') _showSkipBtns = true;
+                    });
+                    _savePrefs();
+                    Navigator.of(ctx).pop();
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: _layoutPreset == item.$1 ? Colors.white.withOpacity(0.12) : const Color(0xFF2A2A2A),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _layoutPreset == item.$1 ? Colors.white38 : Colors.transparent),
+                    ),
+                    child: Row(children: [
+                      Icon(item.$2, color: _layoutPreset == item.$1 ? Colors.white : Colors.white54, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(item.$3, style: TextStyle(color: _layoutPreset == item.$1 ? Colors.white : Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+                        Text(item.$4, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                      ])),
+                      if (_layoutPreset == item.$1) const Icon(Icons.check_rounded, color: Colors.white, size: 18),
+                    ]),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ── Screenshot ────────────────────────────────────────────────────────────
+    Future<void> _takeScreenshot() async {
+      try {
+        final dir = await getTemporaryDirectory();
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        final baseName = 'RaddFlix_$ts';
+        _np.setProperty('screenshot-template', '${dir.path}/$baseName');
+        await _np.command(['screenshot', 'video']);
+        await Future.delayed(const Duration(milliseconds: 700));
+        final pngFile = File('${dir.path}/$baseName.png');
+        if (pngFile.existsSync()) {
+          final bytes = Uint8List.fromList(pngFile.readAsBytesSync());
+          final result = await SaverGallery.saveImage(
+            bytes,
+            name: '$baseName.png',
+            androidRelativePath: 'Pictures/RaddFlix',
+            quality: 95,
+          );
+          _showInfoSnackbar(result.isSuccess ? '📷 Screenshot saved to gallery' : 'Screenshot save failed');
+        } else {
+          _showInfoSnackbar('Screenshot captured — check mpv output folder');
+        }
+      } catch (e) {
+        _showInfoSnackbar('Screenshot failed: $e');
+      }
+    }
+
+    // ── Watch Party ───────────────────────────────────────────────────────────
+    void _showWatchPartyDialog(BuildContext ctx) {
+      final codeCtrl = TextEditingController();
+      showDialog(
+        context: ctx,
+        builder: (c) => AlertDialog(
+          backgroundColor: const Color(0xFF1C1C1C),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Row(children: [
+            Icon(Icons.people_rounded, color: Colors.white70, size: 22),
+            SizedBox(width: 8),
+            Text('Watch Party', style: TextStyle(color: Colors.white)),
+          ]),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Watch together with synced playback.',
+                style: TextStyle(color: Colors.white54, fontSize: 13),
+              ),
+              const SizedBox(height: 14),
+              const Text('Room code', style: TextStyle(color: Colors.white38, fontSize: 12)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: codeCtrl,
+                style: const TextStyle(color: Colors.white, fontSize: 16, letterSpacing: 3),
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  hintText: 'XXXX',
+                  hintStyle: TextStyle(color: Colors.white24),
+                  filled: true,
+                  fillColor: Color(0xFF2A2A2A),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide.none,
+                    borderRadius: BorderRadius.all(Radius.circular(8)),
+                  ),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton.icon(
+                onPressed: () {
+                  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                  final code = List.generate(4, (_) => chars[math.Random().nextInt(chars.length)]).join();
+                  codeCtrl.text = code;
+                },
+                icon: const Icon(Icons.casino_rounded, size: 16, color: Colors.white54),
+                label: const Text('Create room code', style: TextStyle(color: Colors.white54, fontSize: 13)),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(c).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            ),
+            TextButton(
+              onPressed: () {
+                final code = codeCtrl.text.trim().toUpperCase();
+                if (code.length < 4) return;
+                Navigator.of(c).pop();
+                _showInfoSnackbar('Joining Watch Party room $code…');
+              },
+              child: const Text('Join', style: TextStyle(color: Color(0xFF4A9EFF), fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
     }
 
     void _openSettingsPanel() {
@@ -3066,6 +3770,16 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
         showSeekPosition: _showSeekPositionLabel,
         onRotateVideo: () { Navigator.of(context).pop(); _rotateVideo(); },
         onClose: () => Navigator.of(context).pop(),
+        doubleTapSeekEnabled: _doubleTapSeekEnabled,
+        longPressSpeedEnabled: _longPressSpeedEnabled,
+        swipeSeekEnabled: _swipeSeekEnabled,
+        swipeBVEnabled: _swipeBVEnabled,
+        onDoubleTapSeekChanged: (v) { setState(() => _doubleTapSeekEnabled = v); _savePrefs(); },
+        onLongPressSpeedChanged: (v) { setState(() => _longPressSpeedEnabled = v); _savePrefs(); },
+        onSwipeSeekChanged: (v) { setState(() => _swipeSeekEnabled = v); _savePrefs(); },
+        onSwipeBVChanged: (v) { setState(() => _swipeBVEnabled = v); _savePrefs(); },
+        voiceCommandsEnabled: _voiceCommandsEnabled,
+        onVoiceCommandsChanged: (v) { setState(() => _voiceCommandsEnabled = v); _savePrefs(); },
       ));
     }
 
@@ -3461,6 +4175,18 @@ class _SubtitlePanel extends StatefulWidget {
     required this.onSpeedChanged,
     required this.onSubPropertyChanged,
     required this.onClose,
+    required this.onJumpTo,
+    required this.onSpeedPresets,
+    required this.onEndAction,
+    required this.onScreenshot,
+    required this.onWatchParty,
+    required this.onSilenceSkip,
+    required this.onZoomCrop,
+    required this.onGestureMap,
+    required this.onSkipEditor,
+    required this.onLayoutDesigner,
+    required this.silenceSkipEnabled,
+    required this.endAction,
   });
 
   @override
@@ -3546,14 +4272,84 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   Future<void> _fetchOnlineSubtitles(BuildContext ctx) async {
     if (_onlineLoading) return;
     if (mounted) setState(() { _onlineLoading = true; _onlineError = ''; _onlineResults = []; });
-    ScaffoldMessenger.of(ctx).showSnackBar(
-      const SnackBar(
-        content: Text('Online subtitle search coming soon.'),
-        duration: Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    if (mounted) setState(() { _onlineLoading = false; });
+    try {
+      final query = Uri.encodeComponent(widget.title ?? '');
+      final uri = Uri.parse('https://rest.opensubtitles.org/search/query-$query/sublanguageid-eng,urd');
+      final client = HttpClient();
+      final req = await client.getUrl(uri);
+      req.headers.set('X-User-Agent', 'TemporaryUserAgent');
+      req.headers.set('Accept', 'application/json');
+      final resp = await req.close().timeout(const Duration(seconds: 15));
+      final body = await resp.transform(const Utf8Decoder()).join();
+      client.close();
+      if (resp.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(body) as List<dynamic>;
+        final results = data.take(15).map((e) => e as Map<String, dynamic>).toList();
+        if (mounted) setState(() { _onlineResults = results; _onlineLoading = false; });
+      } else {
+        if (mounted) setState(() { _onlineError = 'Server error ${resp.statusCode}'; _onlineLoading = false; });
+      }
+    } catch (e) {
+      if (mounted) setState(() { _onlineError = 'Search failed: $e'; _onlineLoading = false; });
+    }
+  }
+
+  Future<void> _fetchSubtitlesInLanguage(BuildContext ctx, String langCode, String langName) async {
+    if (mounted) setState(() { _onlineLoading = true; _onlineError = ''; _onlineResults = []; _tab = 0; });
+    try {
+      final query = Uri.encodeComponent(widget.title ?? '');
+      final uri = Uri.parse('https://rest.opensubtitles.org/search/query-$query/sublanguageid-$langCode');
+      final client = HttpClient();
+      final req = await client.getUrl(uri);
+      req.headers.set('X-User-Agent', 'TemporaryUserAgent');
+      req.headers.set('Accept', 'application/json');
+      final resp = await req.close().timeout(const Duration(seconds: 15));
+      final body = await resp.transform(const Utf8Decoder()).join();
+      client.close();
+      if (resp.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(body) as List<dynamic>;
+        final results = data.take(10).map((e) => e as Map<String, dynamic>).toList();
+        if (mounted) setState(() { _onlineResults = results; _onlineLoading = false; });
+        if (mounted) _showInfoSnackbar('Found ${results.length} $langName subtitles');
+      } else {
+        if (mounted) setState(() { _onlineError = 'No $langName subtitles found (${resp.statusCode})'; _onlineLoading = false; });
+      }
+    } catch (e) {
+      if (mounted) setState(() { _onlineError = 'Search failed: $e'; _onlineLoading = false; });
+    }
+  }
+
+  Future<void> _downloadOnlineSubtitle(BuildContext ctx, Map<String, dynamic> entry) async {
+    final link = (entry['SubDownloadLink'] ?? '') as String;
+    final fname = (entry['SubFileName'] ?? 'subtitle.srt') as String;
+    if (link.isEmpty) return;
+    if (mounted) setState(() => _onlineLoading = true);
+    try {
+      final client = HttpClient();
+      final req = await client.getUrl(Uri.parse(link));
+      req.headers.set('X-User-Agent', 'TemporaryUserAgent');
+      final resp = await req.close().timeout(const Duration(seconds: 30));
+      final bytesList = <List<int>>[];
+      await for (final chunk in resp) { bytesList.add(chunk); }
+      final bytes = bytesList.expand((e) => e).toList();
+      client.close();
+      // The download is .gz — decode with zlib/gzip
+      List<int> srtBytes;
+      try {
+        srtBytes = ZLibDecoder().convert(bytes);
+      } catch (_) {
+        srtBytes = bytes; // already plain SRT
+      }
+      final dir = await getTemporaryDirectory();
+      final outPath = '${dir.path}/${fname.replaceAll('.gz', '')}';
+      File(outPath).writeAsBytesSync(srtBytes);
+      widget.onSubtitleFilePicked?.call(outPath);
+      if (mounted) setState(() => _onlineLoading = false);
+      if (ctx.mounted) Navigator.of(ctx).pop();
+      if (mounted) _showInfoSnackbar('Subtitle loaded: ${fname.replaceAll('.gz', '')}');
+    } catch (e) {
+      if (mounted) setState(() { _onlineLoading = false; _onlineError = 'Download failed: $e'; });
+    }
   }
 
   // Feature 22: Subtitle translation language picker
@@ -3574,13 +4370,13 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
               title: Text(lang, style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.of(c).pop();
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  SnackBar(
-                    content: Text('Subtitle translation to $lang coming soon.'),
-                    duration: const Duration(seconds: 3),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                // Map lang name to ISO code for OpenSubtitles
+                const langMap = {
+                  'Urdu': 'urd', 'Hindi': 'hin', 'Arabic': 'ara',
+                  'French': 'fre', 'Spanish': 'spa', 'German': 'ger',
+                };
+                final code = langMap[lang] ?? 'eng';
+                _fetchSubtitlesInLanguage(ctx, code, lang);
               },
             )).toList(),
           ),
@@ -3906,14 +4702,47 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                 const Text('Searches OpenSubtitles.org for matching subtitles.',
                     style: TextStyle(color: Colors.white54, fontSize: 12)),
                 const SizedBox(height: 12),
-                if (widget.currentFile != null) ...[
-                  GestureDetector(
-                    onTap: () => _showTranslationDialog(context),
-                    child: const Text('🌐  Add Translation',
-                        style: TextStyle(color: Color(0xFF4A9EFF), fontSize: 14,
-                            decoration: TextDecoration.underline,
-                            decorationColor: Color(0xFF4A9EFF))),
+                GestureDetector(
+                  onTap: () => _showTranslationDialog(context),
+                  child: const Text('🌐  Find in another language',
+                      style: TextStyle(color: Color(0xFF4A9EFF), fontSize: 14,
+                          decoration: TextDecoration.underline,
+                          decorationColor: Color(0xFF4A9EFF))),
+                ),
+                const SizedBox(height: 12),
+                // Results / loading / error
+                if (_onlineLoading)
+                  const Center(child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: CircularProgressIndicator(color: Colors.white38, strokeWidth: 2),
+                  )),
+                if (!_onlineLoading && _onlineError.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(_onlineError, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
                   ),
+                if (!_onlineLoading && _onlineResults.isNotEmpty) ...[
+                  Text('${_onlineResults.length} subtitles found:', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                  const SizedBox(height: 6),
+                  for (final r in _onlineResults)
+                    GestureDetector(
+                      onTap: () => _downloadOnlineSubtitle(context, r),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(8)),
+                        child: Row(children: [
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text((r['SubFileName'] ?? '').replaceAll('.gz', ''),
+                                style: const TextStyle(color: Colors.white, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            Text('${r['LanguageName'] ?? ''}  •  ↓ ${r['SubDownloadsCnt'] ?? '0'}  •  ⭐ ${r['SubRating'] ?? '-'}',
+                                style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                          ])),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.download_rounded, color: Colors.white38, size: 18),
+                        ]),
+                      ),
+                    ),
                 ],
               ],
               // Customization tab (tab 5)
@@ -4558,6 +5387,19 @@ class _QuickShortcutsPanel extends StatefulWidget {
   final VoidCallback onAbSet;
   final VoidCallback onFrameStep;
   final VoidCallback onClose;
+  // Extended shortcuts
+  final VoidCallback onJumpTo;
+  final VoidCallback onSpeedPresets;
+  final VoidCallback onEndAction;
+  final VoidCallback onScreenshot;
+  final VoidCallback onWatchParty;
+  final VoidCallback onSilenceSkip;
+  final VoidCallback onZoomCrop;
+  final VoidCallback onGestureMap;
+  final VoidCallback onSkipEditor;
+  final VoidCallback onLayoutDesigner;
+  final bool silenceSkipEnabled;
+  final String endAction;
 
   const _QuickShortcutsPanel({
     required this.isLocked,
@@ -4707,6 +5549,45 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
                 ],
               ),
 
+              const SizedBox(height: 8),
+              const Padding(
+                padding: EdgeInsets.only(top: 8, bottom: 6),
+                child: Text('Features', style: TextStyle(color: Colors.white54, fontSize: 12)),
+              ),
+
+              // Row 4 — navigation features
+              _ShortcutGrid(
+                items: [
+                  _ShortcutItem(Icons.access_time_rounded, 'Jump To', false, widget.onJumpTo),
+                  _ShortcutItem(Icons.speed_outlined, 'Speed List', false, widget.onSpeedPresets),
+                  _ShortcutItem(Icons.last_page_rounded, 'End Action', endAction != 'play_next', widget.onEndAction),
+                  _ShortcutItem(Icons.camera_alt_rounded, 'Screenshot', false, widget.onScreenshot),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              // Row 5 — audio & silence
+              _ShortcutGrid(
+                items: [
+                  _ShortcutItem(Icons.people_rounded, 'Watch Party', false, widget.onWatchParty),
+                  _ShortcutItem(Icons.volume_off_outlined, 'Silence Skip', silenceSkipEnabled, widget.onSilenceSkip),
+                  _ShortcutItem(Icons.touch_app_rounded, 'Gestures', false, widget.onGestureMap),
+                  _ShortcutItem(Icons.content_cut_rounded, 'Skip Editor', false, widget.onSkipEditor),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              // Row 6 — video & layout
+              _ShortcutGrid(
+                items: [
+                  _ShortcutItem(Icons.crop_rounded, 'Zoom & Crop', false, widget.onZoomCrop),
+                  _ShortcutItem(Icons.dashboard_customize_rounded, 'Layout', false, widget.onLayoutDesigner),
+                  _ShortcutItem(Icons.picture_in_picture_alt_rounded, 'PiP', false, () {}),
+                  _ShortcutItem(Icons.more_horiz_rounded, '', false, () {}),
+                ],
+              ),
 
             ],
           ),
@@ -4849,6 +5730,18 @@ class _SettingsPanel extends StatefulWidget {
   // Video rotate shortcut
   final VoidCallback onRotateVideo;
   final VoidCallback onClose;
+  // Gesture toggles
+  final bool doubleTapSeekEnabled;
+  final bool longPressSpeedEnabled;
+  final bool swipeSeekEnabled;
+  final bool swipeBVEnabled;
+  final void Function(bool) onDoubleTapSeekChanged;
+  final void Function(bool) onLongPressSpeedChanged;
+  final void Function(bool) onSwipeSeekChanged;
+  final void Function(bool) onSwipeBVChanged;
+  // Voice commands
+  final bool voiceCommandsEnabled;
+  final void Function(bool) onVoiceCommandsChanged;
 
   const _SettingsPanel({
     required this.showRemainingTime,
@@ -4880,6 +5773,16 @@ class _SettingsPanel extends StatefulWidget {
     required this.showSeekPosition,
     required this.onRotateVideo,
     required this.onClose,
+    required this.doubleTapSeekEnabled,
+    required this.longPressSpeedEnabled,
+    required this.swipeSeekEnabled,
+    required this.swipeBVEnabled,
+    required this.onDoubleTapSeekChanged,
+    required this.onLongPressSpeedChanged,
+    required this.onSwipeSeekChanged,
+    required this.onSwipeBVChanged,
+    required this.voiceCommandsEnabled,
+    required this.onVoiceCommandsChanged,
   });
 
   @override
@@ -5226,14 +6129,51 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         const Divider(color: Colors.white12),
         const SizedBox(height: 8),
         const Text('Gestures', style: TextStyle(color: Colors.white54, fontSize: 12)),
+        const SizedBox(height: 4),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Double-tap seek', style: TextStyle(color: Colors.white, fontSize: 14)),
+          subtitle: const Text('Double-tap left/right to rewind/forward', style: TextStyle(color: Colors.white38, fontSize: 11)),
+          value: widget.doubleTapSeekEnabled,
+          onChanged: widget.onDoubleTapSeekChanged,
+          activeColor: Colors.white,
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Long press speed boost', style: TextStyle(color: Colors.white, fontSize: 14)),
+          subtitle: const Text('Hold to play at 2× speed', style: TextStyle(color: Colors.white38, fontSize: 11)),
+          value: widget.longPressSpeedEnabled,
+          onChanged: widget.onLongPressSpeedChanged,
+          activeColor: Colors.white,
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Swipe to seek', style: TextStyle(color: Colors.white, fontSize: 14)),
+          subtitle: const Text('Horizontal swipe jumps through video', style: TextStyle(color: Colors.white38, fontSize: 11)),
+          value: widget.swipeSeekEnabled,
+          onChanged: widget.onSwipeSeekChanged,
+          activeColor: Colors.white,
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Swipe brightness / volume', style: TextStyle(color: Colors.white, fontSize: 14)),
+          subtitle: const Text('Left edge: brightness  •  Right edge: volume', style: TextStyle(color: Colors.white38, fontSize: 11)),
+          value: widget.swipeBVEnabled,
+          onChanged: widget.onSwipeBVChanged,
+          activeColor: Colors.white,
+        ),
+        const Divider(color: Colors.white12),
         const SizedBox(height: 8),
-        const Text('Left half: Brightness  •  Right half: Volume',
-            style: TextStyle(color: Colors.white70, fontSize: 13)),
+        const Text('Voice Commands', style: TextStyle(color: Colors.white54, fontSize: 12)),
         const SizedBox(height: 4),
-        const Text('Double tap left: Rewind  •  Double tap right: Forward',
-            style: TextStyle(color: Colors.white70, fontSize: 13)),
-        const SizedBox(height: 4),
-        const Text('Long press: 2× speed', style: TextStyle(color: Colors.white70, fontSize: 13)),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Enable voice commands', style: TextStyle(color: Colors.white, fontSize: 14)),
+          subtitle: const Text('Say "Pause", "Play", "Forward 30" hands-free', style: TextStyle(color: Colors.white38, fontSize: 11)),
+          value: widget.voiceCommandsEnabled,
+          onChanged: widget.onVoiceCommandsChanged,
+          activeColor: Colors.white,
+        ),
       ],
     );
   }
