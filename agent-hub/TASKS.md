@@ -24,6 +24,15 @@
 - **Video rotation** — _rotateVideo() cycles 0→90→180→270 via video-rotate property; badge in top bar
 - **Video info dialog** — resolution, duration, position, speed, rotation, pinch scale
 
+### Phase 9 — Critical Bug Fixes (player-critical-fixes-1)
+- **R-001** — Removed duplicate `_showSkipBtns` + `_showPrevNextBtns` state variable declarations (Dart compile error)
+- **R-002** — Added skip ±N second buttons (replay/forward icons) flanking prev/next episode buttons in center controls, guarded by `_showSkipBtns` setting
+- **R-003** — `_startSavePositionTimer()` now called after every `_restoreWatchPos()` so position auto-saves every 10s
+- **R-004** — `_BottomIconBtn` now renders its `label` text below the icon (Enhance, Audio, Lab, Episodes, etc. are now visible)
+- **R-006** — Seek preview label now correctly hidden when `_showSeekPositionLabel = false` (setting now takes effect)
+- **R-007** — Volume bar fill fixed: bar reaches 100% at OS volume 100% instead of 40%; boost >100% keeps bar full with orange→red colour signal
+- **R-008** — Background audio toggle now actually pauses the player when toggled off and app is backgrounded
+
 ## Next Ideas
 - Playlist / queue support
 - Cast to Chromecast / AirPlay
