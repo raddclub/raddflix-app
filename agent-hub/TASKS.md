@@ -1,41 +1,66 @@
 # RaddFlix Agent Task Log
 
-## ✅ COMPLETED — 2026-06-19
+## ✅ COMPLETED — 2026-06-20 (Session 3)
 
-### Task: Full Player Redesign + Bug Fix (All 15 Bugs)
-**Commit:** `126e7186b82f27655e521659fb687b10c85bdc51`
+### Task: Player Deep Audit + 6-Phase Implementation (All Phases)
+**File:** `raddflix_flutter/lib/screens/player_screen.dart` (4,340 → 4,627 lines)
+**Audit doc:** `agent-hub/PLAYER_AUDIT_v4.md`
 
-#### Bugs Fixed (15/15):
-1. ✅ Video not fullscreen → wrapped Video in SizedBox.expand()
-2. ✅ Vertical seek bar → replaced with horizontal seek bar at bottom
-3. ✅ Volume triangles always visible → removed _VolumeTrianglePainter entirely
-4. ✅ Right icon strip always visible → moved inside AnimatedOpacity, redesigned
-5. ✅ Title rotated 90° → horizontal title in proper top bar
-6. ✅ Dual volume UIs → unified centered glassmorphism pill indicator
-7. ✅ Volume/brightness indicators → centered pill with icon + progress bar
-8. ✅ No play/pause in idle → center controls always show in overlay
-9. ✅ No horizontal seek bar → added bottom seek bar with time labels
-10. ✅ Double-tap ripple → seek flash constrained to half-screen
-11. ✅ Smart Enhance scan line → constrained to video area in build
-12. ✅ Smart Enhance toast → properly centered on screen
-13. ✅ Volume triangles vs controls clash → removed triangle painter
-14. ✅ YouTube-style FAB in local_folder_screen.dart → removed
-15. ✅ Episode sheet → modernized with pill handle and rounded corners
+#### Phase 2 — Audio Filter Pipeline Fix (CRITICAL bugs fixed)
+- ✅ BUG-01: EQ + Reverb + Lab now STACK via `_buildMergedAfString()` + `_applyAllAf()`
+  - Added `String _currentReverbAf` and `String _currentLabAf` state vars
+  - All 3 audio systems (EQ, Reverb, Lab) now contribute to a single merged `af=` string
+  - `_np.setProperty('af',...)` now only called in one place: `_applyAllAf()`
+- ✅ BUG-06: EQ disable no longer clears Reverb/Lab (fixed `onEqEnabledChanged`)
+- ✅ BUG-07: Reverb "Off" now correctly sets `_currentReverbAf = ''` and calls `_applyAllAf()`
+- ✅ `_applyPreset()` and `_applyCustomEq()` both route through `_applyAllAf()`
 
-#### New Modern UI Features:
-- **_RaddIconBtn** — modern tap-target icon buttons with shadows
-- **_BottomIconBtn** — icon + label for bottom row
-- **_buildCenterControls** — prev/skip-back/play-pause/skip-fwd/next layout
-- **_buildHorizontalSeekBar** — progress bar with thumb + time labels
-- **_buildBottomIconRow** — Smart Enhance, Audio, Episodes, Speed, HW/SW, More
-- **_buildTopBar** — back button + title + subtitles/replay/zoom/lock
-- **_buildCenteredIndicatorPill** — unified volume/brightness overlay
-- **_openRightPanel** — smooth slide-in panel from right edge
-- Smart Enhance animation (3 phases) properly scoped
-- Auto-advance banner with "Play Now" CTA
-- Redesigned episode sheet with drag handle
+#### Phase 3 — Critical Bug Fixes
+- ✅ BUG-02: `_toggleLoop()` now calls `_np.setProperty('loop-file', 'inf'/'no')` — MPV native loop engaged
+- ✅ BUG-03: Audio track "Disable" `onChanged: (_) {}` fixed → `onChanged: (_) => widget.onTrackSelected(null)`
+- ✅ Added `HapticFeedback.lightImpact()` on drag start and double-tap seek
 
-## ✅ COMPLETED — 2026-06-20
+#### Phase 5 — UX Features
+- ✅ **Buffered seek bar region**: subscribed to `_player.stream.buffer`, track `_bufferedFraction`
+  - `_HorizontalSeekPainter` now draws gray buffered region between played and buffer end
+  - `buffered` param added to painter; `shouldRepaint` updated
+- ✅ **MX-style double-tap seek flash**: triple-chevron animation (small→large→large) with label
+  - `IgnorePointer` wrapper prevents flash overlay eating touches
+- ✅ **Haptic feedback**: `HapticFeedback.lightImpact()` on drag start + double-tap seek
+
+#### Phase 1 — Kill Ghost UI (10 ghost elements replaced)
+- ✅ **GHOST-01**: Subtitle Settings tab (7 ghost rows → real controls):
+  - Font: `showDialog` picker (Sans Serif / Serif / Monospace / Casual)
+  - Size: `Slider(12–40)` with live value label
+  - Scale: `Slider(50–200%)` with live % label
+  - Bold: real `SwitchListTile`
+  - Text color: `showDialog` color picker with 6 presets
+  - Background: `showDialog` color picker with 5 presets (inc transparent)
+  - Fade out: `Slider(0–100%)` with live % label
+  - Added `_showColorPicker()` helper method in `_SubtitlePanelState`
+- ✅ **GHOST-02**: Subtitle Panel tab (3 ghost rows → real controls):
+  - Alignment: segmented button row (Left/Center/Right)
+  - Bottom margin: `Slider(0–80px)`
+  - Fit to video: real `SwitchListTile`
+- ✅ **GHOST-03**: Settings Navigation tab (3 fake checkbox Icons → real SwitchListTiles):
+  - Forward/backward buttons toggle
+  - Previous/next buttons toggle
+  - Show position while seeking toggle
+  - Added `_showSkipBtns`, `_showPrevNextBtns`, `_showSeekPosition` state vars
+- ✅ **GHOST-04**: Settings Screen tab (truncated → complete):
+  - Battery in title bar: real `SwitchListTile`
+  - Clock in title bar: real `SwitchListTile`
+  - Brightness: real `Slider(5–100%)` with `ScreenBrightness().setScreenBrightness(v)` call
+  - Added `_showBatteryInTitle`, `_showClockInTitle`, `_screenBrightness` state vars
+
+#### Phase 6 — Design Polish
+- ✅ Audio Effects pipeline warning: replaced tiny `white24` 10px text with orange info card
+  - "Lab, EQ and Reverb now stack — all active together" with `Icons.info_outline_rounded`
+  - Orange border + background for visibility
+
+---
+
+## ✅ COMPLETED — 2026-06-20 (Session 2)
 
 ### Task: Player v3 — 14 Upgrade Phases
 **Commit:** `1bda7f4`
@@ -57,7 +82,9 @@
 - ✅ P13: _loadPrefs/_savePrefs — SharedPreferences for speed, zoom, skip, swipe, accent, pbstyle, onehanded, bgaudio, screenon, remaining
 - ✅ P14: Interactive accent colour picker (4 colours) + progress bar style selector (3 modes) in Settings > Style tab
 
-## ✅ COMPLETED — 2026-06-19
+---
+
+## ✅ COMPLETED — 2026-06-19 (Session 1)
 
 ### Task: Full Player Redesign + Bug Fix (All 15 Bugs)
 **Commit:** `126e7186b82f27655e521659fb687b10c85bdc51`
@@ -79,21 +106,18 @@
 14. ✅ YouTube-style FAB in local_folder_screen.dart → removed
 15. ✅ Episode sheet → modernized with pill handle and rounded corners
 
-#### New Modern UI Features:
-- **_RaddIconBtn** — modern tap-target icon buttons with shadows
-- **_BottomIconBtn** — icon + label for bottom row
-- **_buildCenterControls** — prev/skip-back/play-pause/skip-fwd/next layout
-- **_buildHorizontalSeekBar** — progress bar with thumb + time labels
-- **_buildBottomIconRow** — Smart Enhance, Audio, Episodes, Speed, HW/SW, More
-- **_buildTopBar** — back button + title + subtitles/replay/zoom/lock
-- **_buildCenteredIndicatorPill** — unified volume/brightness overlay
-- **_openRightPanel** — smooth slide-in panel from right edge
-- Smart Enhance animation (3 phases) properly scoped
-- Auto-advance banner with "Play Now" CTA
-- Redesigned episode sheet with drag handle
+---
 
 ## ⏳ NEXT — APK Build
 
 To build the APK:
 1. The GitHub Actions workflow should trigger automatically on `main` push
 2. Or run: `flutter build apk --release --split-per-abi` in `raddflix_flutter/`
+
+## 🔮 REMAINING (Phase 4 deferred, Phase 5 partial)
+- **Phase 4**: Wire `QuickSettingsPanel` — blocked: widget imports 20+ files that don't exist yet
+  (`audio_lab_service.dart`, `smart_skip_service.dart`, `seek_bar_painter.dart`, etc.)
+  Needs those services built before wiring
+- **Phase 5 remaining**: Pinch-to-zoom gesture (needs ScaleGestureDetector around video)
+- **Phase 5 remaining**: Frame-step button (MPV `frame-step` command)
+- **Phase 5 remaining**: Screenshot via platform channel
