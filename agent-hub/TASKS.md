@@ -1,3 +1,4 @@
+
 # RaddFlix Agent Hub — Tasks
 
 ## Completed
@@ -42,3 +43,10 @@
 - Playlist / queue support
 - Cast to Chromecast / AirPlay
 - Download manager (background download, offline play)
+### Phase 11 — Deep Hunter God Mode Player Audit (sha b7b4c69)
+- **PLAYER_AUDIT_REPORT.md** pushed to agent-hub/ (534 lines, 7 phases)
+- 43 real working features catalogued
+- 16 stub/fake/disconnected features exposed (incl. Watch Party + Voice Commands: built but zero user access)
+- 11 confirmed bugs: BUG-01 subtitle alignment silent no-op, BUG-02 subtitle background no-op, BUG-03 settings init hardcoded, BUG-04 Customization tab entirely fake, BUG-05 audio channel resets, BUG-06 dual-prefs data loss, BUG-07 sleep countdown frozen, BUG-08 speed label float noise, BUG-09 sync precision inconsistency, BUG-10 8 QSP dead buttons, BUG-11 lab state resets
+- Architecture: 5337-line monolith, 3 parallel settings systems, PlayerPrefs class unused
+- Overall score: 6.1/10 — strong engine, weak persistence + UI honesty
