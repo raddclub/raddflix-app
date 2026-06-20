@@ -142,6 +142,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Video zoom
   // 0=Fit 1=Stretch 2=Crop 3=100% 4=Custom
   int _zoomMode = 0;
+  // Pinch-to-zoom
+  double _pinchScale = 1.0;
+  double _pinchBaseScale = 1.0;
+  bool _showZoomIndicator = false;
 
   // Audio effect
   int _selectedPreset = 0; // 0=Original 1=TrebleBoost 2=BassBoost 3=Clarity 4=Movie 5=Music
@@ -1143,6 +1147,109 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  //  Scale gesture (single-finger drag + pinch-to-zoom)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  void _onScaleStart(ScaleStartDetails d, BoxConstraints constraints) {
+    if (d.pointerCount >= 2) {
+      _pinchBaseScale = _pinchScale;
+      _dragIntent = 'pinch';
+      HapticFeedback.mediumImpact();
+      return;
+    }
+    HapticFeedback.lightImpact();
+    _dragStart = d.localFocalPoint;
+    _dragStartPos = _position;
+    _startBrightness = _brightness;
+    _startVolume = _volume;
+    _seekBarDelta = null;
+    _dragIntent = null;
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails d, BoxConstraints constraints) {
+    if (d.pointerCount >= 2 || _dragIntent == 'pinch') {
+      _dragIntent = 'pinch';
+      final newScale = (_pinchBaseScale * d.scale).clamp(0.5, 4.0);
+      _indicatorTimer?.cancel();
+      if (mounted) setState(() { _pinchScale = newScale; _showZoomIndicator = true; });
+      return;
+    }
+    // Single-finger drag — replicate _onDragUpdate
+    final dx = d.localFocalPoint.dx - _dragStart.dx;
+    final dy = d.localFocalPoint.dy - _dragStart.dy;
+    final isLeftSide = _dragStart.dx < constraints.maxWidth / 2;
+    if (_dragIntent == null) {
+      if (dx.abs() > dy.abs() && dx.abs() > 12) {
+        _dragIntent = 'seek';
+      } else if (dy.abs() > 12) {
+        _dragIntent = isLeftSide ? 'brightness' : 'volume';
+      }
+    }
+    if (_dragIntent == 'seek') {
+      final delta = dx / constraints.maxWidth;
+      final seekSec = delta * _seekSwipeSec;
+      final targetMs = (_dragStartPos.inMilliseconds + seekSec * 1000)
+          .clamp(0, _duration.inMilliseconds.toDouble());
+      _seekBarDelta = targetMs / (_duration.inMilliseconds > 0 ? _duration.inMilliseconds : 1);
+      final previewPos = Duration(milliseconds: targetMs.round());
+      final diff = previewPos - _dragStartPos;
+      final sign = diff.isNegative ? '-' : '+';
+      _seekPreviewLabel = '${_formatDuration(previewPos)}  ($sign${_formatDuration(diff.abs())})';
+      if (mounted) setState(() {});
+    } else if (_dragIntent == 'brightness') {
+      final newVal = (_startBrightness - dy / constraints.maxHeight * 1.5).clamp(0.0, 1.0);
+      _brightness = newVal;
+      ScreenBrightness().setScreenBrightness(newVal);
+      _showBrightnessIndicator = true;
+      _indicatorTimer?.cancel();
+      if (mounted) setState(() {});
+    } else if (_dragIntent == 'volume') {
+      final newVal = (_startVolume - dy / constraints.maxHeight * 3.0).clamp(0.0, 2.5);
+      _volume = newVal;
+      VolumeController().setVolume(newVal.clamp(0.0, 1.0));
+      if (newVal > 1.0) {
+        _np.setProperty('volume', (newVal * 100).clamp(100, 250).round().toString());
+      } else {
+        _np.setProperty('volume', '100');
+      }
+      _showVolumeIndicator = true;
+      _indicatorTimer?.cancel();
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _onScaleEnd(ScaleEndDetails d) {
+    if (_dragIntent == 'pinch') {
+      // Snap back to 1.0 if within ±8% of natural size
+      if (_pinchScale > 0.92 && _pinchScale < 1.08) {
+        setState(() { _pinchScale = 1.0; _showZoomIndicator = false; });
+      } else {
+        _indicatorTimer = Timer(const Duration(seconds: 2), () {
+          if (mounted) setState(() => _showZoomIndicator = false);
+        });
+      }
+      _dragIntent = null;
+      return;
+    }
+    if (_dragIntent == 'seek' && _seekBarDelta != null) {
+      final targetMs = (_seekBarDelta! * _duration.inMilliseconds).round();
+      _player.seek(Duration(milliseconds: targetMs));
+      _seekBarDelta = null;
+    }
+    if (_dragIntent == 'brightness' || _dragIntent == 'volume') {
+      _indicatorTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted) setState(() {
+          _showBrightnessIndicator = false;
+          _showVolumeIndicator = false;
+        });
+      });
+    }
+    _seekPreviewLabel = '';
+    _dragIntent = null;
+    if (mounted) setState(() {});
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   //  Build
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1174,12 +1281,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       onLongPressStart: (_) => _startLongPress(),
                       onLongPressEnd: (_) => _endLongPress(),
                       onLongPressCancel: () => _endLongPress(),
-                      onHorizontalDragStart: (d) => _onDragStart(d, constraints),
-                      onHorizontalDragUpdate: (d) => _onDragUpdate(d, constraints),
-                      onHorizontalDragEnd: _onDragEnd,
-                      onVerticalDragStart: (d) => _onDragStart(d, constraints),
-                      onVerticalDragUpdate: (d) => _onDragUpdate(d, constraints),
-                      onVerticalDragEnd: _onDragEnd,
+                      onScaleStart: (d) => _onScaleStart(d, constraints),
+                      onScaleUpdate: (d) => _onScaleUpdate(d, constraints),
+                      onScaleEnd: _onScaleEnd,
                     ),
                   ),
 
@@ -1228,6 +1332,61 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             Text('2× Speed',
                                 style: TextStyle(color: Colors.white,
                                     fontWeight: FontWeight.bold, fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // 8a. Pinch-to-zoom indicator pill
+                if (_showZoomIndicator && _pinchScale != 1.0)
+                  IgnorePointer(
+                    child: Positioned(
+                      top: 0, bottom: 0, left: 0, right: 0,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.72),
+                            borderRadius: BorderRadius.circular(40),
+                            border: Border.all(color: Colors.white12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.zoom_in_rounded, color: Colors.white70, size: 16),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${_pinchScale.toStringAsFixed(1)}×',
+                                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // 8b. Reset zoom button (shown when pinch scale != 1.0)
+                if (_pinchScale != 1.0)
+                  Positioned(
+                    top: 14,
+                    right: 60,
+                    child: GestureDetector(
+                      onTap: () => setState(() { _pinchScale = 1.0; _showZoomIndicator = false; }),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.72),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.zoom_out_rounded, color: Colors.orange, size: 14),
+                            SizedBox(width: 4),
+                            Text('Reset zoom', style: TextStyle(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.w500)),
                           ],
                         ),
                       ),
@@ -1485,6 +1644,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ]),
           child: video,
         );
+      }
+      // Pinch-to-zoom: apply scale transform (overflow clipped by Scaffold bounds)
+      if (_pinchScale != 1.0) {
+        video = Transform.scale(scale: _pinchScale, child: video);
       }
       return video;
     }
@@ -2383,6 +2546,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         onAudioEffect: () { Navigator.of(context).pop(); _openAudioEffectPanel(); },
         onSettingsOpen: () { Navigator.of(context).pop(); _openSettingsPanel(); },
         onAbSet: () { Navigator.of(context).pop(); _handleAbRepeat(); },
+        onFrameStep: () {
+          Navigator.of(context).pop();
+          try { _np.command(['frame-step']); } catch (_) {}
+        },
         onClose: () => Navigator.of(context).pop(),
       ));
     }
@@ -3709,6 +3876,7 @@ class _QuickShortcutsPanel extends StatelessWidget {
   final VoidCallback onAudioEffect;
   final VoidCallback onSettingsOpen;
   final VoidCallback onAbSet;
+  final VoidCallback onFrameStep;
   final VoidCallback onClose;
 
   const _QuickShortcutsPanel({
@@ -3735,6 +3903,7 @@ class _QuickShortcutsPanel extends StatelessWidget {
     required this.onAudioEffect,
     required this.onSettingsOpen,
     required this.onAbSet,
+    required this.onFrameStep,
     required this.onClose,
   });
 
@@ -3809,6 +3978,18 @@ class _QuickShortcutsPanel extends StatelessWidget {
                   _ShortcutItem(Icons.loop_rounded, 'Loop', loopEnabled, onLoopToggle),
                   _ShortcutItem(Icons.repeat_one_rounded, abLabel, abActive, onAbSet),
                   _ShortcutItem(Icons.lock_rounded, 'Lock', isLocked, onLockToggle),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              // Row 3 — advanced
+              _ShortcutGrid(
+                items: [
+                  _ShortcutItem(Icons.skip_next_rounded, 'Frame Step', false, onFrameStep),
+                  _ShortcutItem(Icons.smart_display_rounded, 'Smart View', smartEnhanceEnabled, onSmartEnhanceToggle),
+                  _ShortcutItem(Icons.settings_rounded, 'Settings', false, onSettingsOpen),
+                  _ShortcutItem(Icons.pan_tool_alt_rounded, '1-Hand', isOneHanded, onOneHandedToggle),
                 ],
               ),
 
@@ -4488,12 +4669,22 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
 
               const Divider(color: Colors.white12),
 
-              // Stereo mode (info only)
-              ListTile(
-                title: const Text('Stereo mode', style: TextStyle(color: Colors.white, fontSize: 14)),
-                trailing: const Text('Stereo', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                onTap: () {},
-              ),
+              // Audio channel mode
+              Builder(builder: (ctx) {
+                const modes = ['Stereo', 'Mono', 'Left only', 'Right only'];
+                return StatefulBuilder(builder: (ctx, setSt) {
+                  int _chIdx = 0;
+                  return ListTile(
+                    title: const Text('Channel mode', style: TextStyle(color: Colors.white, fontSize: 14)),
+                    trailing: Text(modes[_chIdx], style: const TextStyle(color: Colors.white54, fontSize: 13)),
+                    onTap: () {
+                      setSt(() => _chIdx = (_chIdx + 1) % modes.length);
+                      const filters = ['', 'pan=stereo|c0=0.5*c0+0.5*c1|c1=0.5*c0+0.5*c1', 'pan=stereo|c0=c0|c1=c0', 'pan=stereo|c0=c1|c1=c1'];
+                      widget.onChannelModeChanged(filters[_chIdx]);
+                    },
+                  );
+                });
+              }),
 
               const Divider(color: Colors.white12),
 
