@@ -29,6 +29,7 @@ import '../core/db/local_db.dart';
 import '../core/api/catalog_api.dart';
 import '../core/constants.dart';
 import '../core/debug/debug_logger.dart';
+import '../widgets/player/seek_bar_painter.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Widget
@@ -283,7 +284,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
     _loadPrefs();
     _clockStr = _fmtClock();
-    _clockDisplayTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    _clockDisplayTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted) setState(() => _clockStr = _fmtClock());
     });
   }
@@ -291,6 +292,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   String _fmtClock() {
     final n = DateTime.now();
     return '${n.hour.toString().padLeft(2, '0')}:${n.minute.toString().padLeft(2, '0')}';
+  }
+
+  String _fmtSleepRemaining() {
+    if (_sleepTimerEnd == null) return '';
+    final mins = _sleepTimerEnd!.difference(DateTime.now()).inMinutes;
+    return mins > 0 ? '${mins}m' : '<1m';
   }
 
   @override
@@ -1183,7 +1190,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       case 1: return BoxFit.fill;      // Stretch
       case 2: return BoxFit.cover;     // Crop
       case 3: return BoxFit.none;      // 100%
+      case 4: return BoxFit.contain;   // Pinch & Zoom (pinch gesture sets scale)
       default: return BoxFit.contain;
+    }
+  }
+
+  // Seek bar style mapper: 0-2 → _HorizontalSeekPainter, 3+ → SeekBarPainter
+  SeekBarStyle _seekBarStyleFromIdx(int idx) {
+    switch (idx - 3) {
+      case 0: return SeekBarStyle.gradientGlow;
+      case 1: return SeekBarStyle.materialBold;
+      case 2: return SeekBarStyle.waveform;
+      case 3: return SeekBarStyle.neonRgb;
+      case 4: return SeekBarStyle.filmstrip;
+      case 5: return SeekBarStyle.chapters;
+      case 6: return SeekBarStyle.dots;
+      case 7: return SeekBarStyle.minimal;
+      default: return SeekBarStyle.classic;
     }
   }
 
@@ -2112,6 +2135,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               const SizedBox(width: 6),
             ],
 
+            // Sleep timer badge
+            if (_sleepTimerEnd != null)
+              Container(
+                margin: const EdgeInsets.only(right: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3A8EF5).withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: const Color(0xFF3A8EF5).withOpacity(0.45), width: 0.8),
+                ),
+                child: Text(
+                  '\u{1F4A4} \${_fmtSleepRemaining()}',
+                  style: const TextStyle(color: Color(0xFF64B5F6), fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+
             // Video rotation badge
             if (_videoRotation != 0)
               GestureDetector(
@@ -2325,18 +2364,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 }
               },
               child: LayoutBuilder(
-                builder: (ctx, bc) => CustomPaint(
-                  size: Size(bc.maxWidth, 28),
-                  painter: _HorizontalSeekPainter(
-                    progress: progress,
-                    buffered: _bufferedFraction,
-                    abA: _abA,
-                    abB: _abB,
-                    duration: _duration,
-                    style: _progressBarStyle,
-                    accentColor: _accentColor,
-                  ),
-                ),
+                builder: (ctx, bc) {
+                  // Style 0-2 → built-in painter (preserves A-B markers)
+                  // Style 3+  → SeekBarPainter (10 rich visual styles)
+                  final CustomPainter seekPainter = _progressBarStyle <= 2
+                      ? _HorizontalSeekPainter(
+                          progress: progress,
+                          buffered: _bufferedFraction,
+                          abA: _abA,
+                          abB: _abB,
+                          duration: _duration,
+                          style: _progressBarStyle,
+                          accentColor: _accentColor,
+                        )
+                      : SeekBarPainter(
+                          style: _seekBarStyleFromIdx(_progressBarStyle),
+                          progress: progress,
+                          buffered: _bufferedFraction,
+                          accentColor: _accentColor,
+                        );
+                  return SizedBox(
+                    height: 48,
+                    child: Center(
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          size: Size(bc.maxWidth, 28),
+                          painter: seekPainter,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -2733,6 +2791,9 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
         selectedMode: _zoomMode,
         onModeSelected: (mode) {
           setState(() => _zoomMode = mode);
+          if (mode == 4) {
+            _showInfoSnackbar('Pinch the video to set a custom zoom level');
+          }
           Navigator.of(context).pop();
         },
         onClose: () => Navigator.of(context).pop(),
@@ -3647,6 +3708,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                       value: _subBottomMargin, min: 0, max: 80, divisions: 16,
                       activeColor: Colors.white, inactiveColor: Colors.white24,
                       onChanged: (v) => setState(() => _subBottomMargin = v),
+                      onChangeEnd: (v) => widget.onSubPropertyChanged('sub-margin-y', v.round().toString()),
                     )),
                     SizedBox(width: 36, child: Text('${_subBottomMargin.round()}px', style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.right)),
                   ]),
@@ -3655,7 +3717,10 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                   SwitchListTile(
                     title: const Text('Fit subtitles into video size', style: TextStyle(color: Colors.white, fontSize: 14)),
                     value: _subFitToVideo,
-                    onChanged: (v) => setState(() => _subFitToVideo = v),
+                    onChanged: (v) {
+                      setState(() => _subFitToVideo = v);
+                      widget.onSubPropertyChanged('sub-ass-scale-with-window', v ? 'yes' : 'no');
+                    },
                     activeColor: Colors.white,
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -3765,7 +3830,7 @@ class _VideoZoomPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const modes = ['Fit to screen', 'Stretch', 'Crop', '100%', 'Custom'];
+    const modes = ['Fit to screen', 'Stretch', 'Crop', '100%', 'Pinch & Zoom'];
     return Column(
       children: [
         Container(
@@ -4615,7 +4680,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   Widget _buildStyleTab() {
     const accentColors = [Color(0xFFE8950A), Color(0xFF3A8EF5), Color(0xFF34C759), Color(0xFFFF2D55)];
     const accentNames = ['Orange', 'Blue', 'Green', 'Pink'];
-    const pbStyles = ['Slim', 'Thick', 'Accent colour'];
+    const pbStyles = [
+      'Slim', 'Thick', 'Accent',          // 0-2  classic built-in
+      'Gradient', 'Bold', 'Waveform',      // 3-5  SeekBarPainter
+      'Neon', 'Filmstrip', 'Chapters',     // 6-8
+      'Dots', 'Minimal',                   // 9-10
+    ];
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
