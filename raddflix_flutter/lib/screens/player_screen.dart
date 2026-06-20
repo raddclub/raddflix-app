@@ -3938,6 +3938,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
           final bytes = Uint8List.fromList(pngFile.readAsBytesSync());
           final result = await SaverGallery.saveImage(
             bytes,
+            fileName: '$baseName.png',
             androidRelativePath: 'Pictures/RaddFlix',
             quality: 95,
           );
