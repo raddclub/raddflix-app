@@ -909,3 +909,36 @@ The black screen bug entered the code on June 1–3 during a massive feature pus
 ## Session 2026-06-19 — Player screen 9-fix push
 - player_screen.dart: removed portrait lock; added video-dimension auto-orientation; working rotate button (cycles Auto/Landscape/Portrait/LandscapeReverse); wired Rotate shortcut in Quick Shortcuts panel; removed _SwipeToMinimize wrapper (was conflicting with volume/brightness gestures); wired SW decoder toggle to actual hwdec mpv property; wired Reverb row to real _ReverbSelector; wired Seek Speed slider in Settings>Navigation (was onChanged:null); compacted UI gradients 140→80px top, 180→100px bottom; play button 72→56px; seekSwipeSec replaces hardcoded 120.0 in drag seek.
 - local_folder_screen.dart: fixed _playVideo() to pass full sorted episode list + episode_index so prev/next buttons work for every single-tap in a local folder.
+
+## Session 2026-06-20 — Player v3 — All 14 Upgrade Phases
+- player_screen.dart v3: 14 phases implemented across ~4,400 lines
+- P1: Conditional visibility — audio btn dims when ≤1 track (opacity 0.3), sub btn uses off icon when no tracks, episode counter badge "E{n}/{total}" in title row
+- P2: Top bar — zoom mode badge (Fit/Fill/Crop/1:1/Cust), sub-sync badge, audio-sync badge, PiP button added, audio btn moved to top bar conditional
+- P3: Error overlay — smart icon by category (sim_card_alert=Jazz SIM, timer_off=timeout, error=generic), Jazz SIM 3-step help panel, auto-retry 30s countdown + cancelAutoRetry
+- P4: (SubtitlePanel Tracks tab deferred — widget type safety to be done in next session)
+- P5: Audio panel was already showing tracks; conditional btn in bottom row + top bar
+- P6: A-B segment highlight on seek bar (accentColor fill between A and B markers)
+- P7: One-handed mode — state var + toggle in QuickShortcutsPanel + center controls shift to bottom:75 + persisted in SharedPreferences
+- P8: Audio Lab tab in AudioEffectPanel — Vocal Remover, Dialogue Boost, Normalization, Bass Boost with level slider; _LabToggleRow widget; onLabAfChanged callback wires to MPV af= property
+- P9: Seek preview label — floating pill shows "HH:MM:SS (+/-delta)" during horizontal drag, positioned:bottom:88 above seek bar; cleared in _onDragEnd
+- P10: Immersive mode is always-on (SystemUiMode.immersiveSticky in initState/resume); settings tab already has screen controls
+- P11: _HorizontalSeekPainter upgraded — accepts abA, abB, duration, style, accentColor; draws A (green) + B (red) dots and segment highlight; thumb size varies by style
+- P12: Background audio toggle in Settings > Controls tab; _backgroundAudio state persisted
+- P13: _loadPrefs() + _savePrefs() — SharedPreferences for speed, zoom, skip, swipe, accent, pbstyle, onehanded, bgaudio, screenon, remaining; called in initState/dispose
+- P14: Style tab now shows interactive accent colour picker (4 colours: orange/blue/green/pink) + progress bar style selector (Slim/Thick/Accent colour); wired to _accentColorIdx + _progressBarStyle state
+
+### New/Changed Widgets
+- _HorizontalSeekPainter: abA, abB, duration, style, accentColor params (P11/P14)
+- _AudioEffectPanel: +onLabAfChanged callback, +Lab tab (tab 2)
+- _AudioEffectPanelState: +_labVocal, _labDialogue, _labNorm, _labBass, _labBassLevel, _applyLabAf()
+- _LabToggleRow: new stateless widget for Lab tab rows
+- _QuickShortcutsPanel: +isOneHanded, +onOneHandedToggle, one-handed ListTile
+- _SettingsPanel: +accentColorIdx, +progressBarStyle, +backgroundAudio + callbacks
+- _SettingsPanelState: +_accentIdx, +_pbStyle, +_backgroundAudio; interactive style/controls tabs
+
+### MediaTek Rules Verified (all still honoured)
+- No androidAttachSurfaceAfterVideoParameters: true
+- No vf= mid-play
+- No hwdec mid-play
+- speed via _np.setProperty('speed', ...) not _player.setRate()
+- No local var named _np

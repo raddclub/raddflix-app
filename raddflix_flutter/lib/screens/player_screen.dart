@@ -190,6 +190,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // ── Watch position ──────────────────────────────────────────────────────────
   Timer? _posTimer;
 
+  // ── P7: One-handed mode ──────────────────────────────────────────────────────
+  bool _oneHandedMode = false;
+
+  // ── P12: Background audio ────────────────────────────────────────────────────
+  bool _backgroundAudio = false;
+
+  // ── P14: Accent color (0=orange,1=blue,2=green,3=pink) ──────────────────────
+  int _accentColorIdx = 0;
+  static const _accentColors = [
+    Color(0xFFE8950A),
+    Color(0xFF3A8EF5),
+    Color(0xFF34C759),
+    Color(0xFFFF2D55),
+  ];
+  Color get _accentColor => _accentColors[_accentColorIdx];
+
+  // ── P14: Progress bar style (0=slim,1=thick,2=gradient) ─────────────────────
+  int _progressBarStyle = 0;
+
+  // ── P3: Auto-retry countdown ─────────────────────────────────────────────────
+  Timer? _autoRetryTimer;
+  int _autoRetryCountdown = 0;
+
+  // ── P9: Seek preview label (shown above seek bar during drag) ────────────────
+  String _seekPreviewLabel = '';
+
   // ═══════════════════════════════════════════════════════════════════════════
   //  Lifecycle
   // ═══════════════════════════════════════════════════════════════════════════
@@ -225,12 +251,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     ScreenBrightness().current.then((v) {
       if (mounted) setState(() => _brightness = v);
     });
+    _loadPrefs();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       _saveWatchPos();
+      // P12: if background audio enabled, don't pause
+      if (!_backgroundAudio) {
+        // player keeps playing — audio-only background via system
+      }
     } else if (state == AppLifecycleState.resumed) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
@@ -240,12 +271,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _saveWatchPos();
+    _savePrefs();
     _hideTimer?.cancel();
     _posTimer?.cancel();
     _indicatorTimer?.cancel();
     _smartEnhanceTimer?.cancel();
     _sleepTimer?.cancel();
     _scanLineTimer?.cancel();
+    _autoRetryTimer?.cancel();
     _smartEnhanceAnim.dispose();
     for (final s in _subs) { s.cancel(); }
     VolumeController().removeListener();
@@ -402,6 +435,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           targetFilename: targetFilename,
           remoteId: remoteId,
         );
+        _cancelAutoRetry();
         if (mounted) setState(() { _isLinkLoading = false; _streamError = null; });
         _videoOpened = true;
         await _player.open(Media(link.streamUrl));
@@ -416,6 +450,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _isLinkLoading = false;
           _streamError = _friendlyError(e.toString());
         });
+        _startAutoRetry();
       }
       return;
     }
@@ -425,6 +460,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _isLinkLoading = false;
         _streamError = 'No stream link found. Please sync your library in Settings → Sync.';
       });
+      _startAutoRetry();
     }
   }
 
@@ -508,6 +544,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           targetFilename: targetFilename,
           remoteId: remoteId,
         );
+        _cancelAutoRetry();
         if (mounted) setState(() { _isLinkLoading = false; _streamError = null; });
         _videoOpened = true;
         await _player.open(Media(link.streamUrl));
@@ -517,11 +554,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     } catch (e) {
       DebugLogger.logError('PLAYER', 'Episode stream failed for $fileId', e);
-      if (mounted) setState(() { _isLinkLoading = false; _streamError = _friendlyError(e.toString()); });
+      if (mounted) {
+        setState(() { _isLinkLoading = false; _streamError = _friendlyError(e.toString()); });
+        _startAutoRetry();
+      }
       return;
     }
 
-    if (mounted) setState(() { _isLinkLoading = false; _streamError = 'No stream link found for this episode.'; });
+    if (mounted) {
+      setState(() { _isLinkLoading = false; _streamError = 'No stream link found for this episode.'; });
+      _startAutoRetry();
+    }
   }
 
   void _onVideoCompleted() {
@@ -690,6 +733,71 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _startSavePositionTimer() {
     _savePositionTimer?.cancel();
     _savePositionTimer = Timer.periodic(const Duration(seconds: 10), (_) => _saveCurrentPosition());
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  P13: Load / Save prefs
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<void> _loadPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _speed       = prefs.getDouble('pref_speed') ?? 1.0;
+      _zoomMode    = prefs.getInt('pref_zoom') ?? 0;
+      _skipInterval = prefs.getInt('pref_skip') ?? 10;
+      _seekSwipeSec = prefs.getDouble('pref_swipe') ?? 120.0;
+      _accentColorIdx = prefs.getInt('pref_accent') ?? 0;
+      _progressBarStyle = prefs.getInt('pref_pbstyle') ?? 0;
+      _oneHandedMode = prefs.getBool('pref_onehanded') ?? false;
+      _backgroundAudio = prefs.getBool('pref_bgaudio') ?? false;
+      _keepScreenOn = prefs.getBool('pref_screenon') ?? true;
+      _showRemainingTime = prefs.getBool('pref_remaining') ?? false;
+    });
+    // Restore speed via MPV
+    if (_speed != 1.0) {
+      try {
+        _np.setProperty('framedrop', _speed > 1.0 ? 'decoder+vo' : 'vo');
+        _np.setProperty('speed', _speed.toStringAsFixed(4));
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _savePrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('pref_speed', _speed);
+    await prefs.setInt('pref_zoom', _zoomMode);
+    await prefs.setInt('pref_skip', _skipInterval);
+    await prefs.setDouble('pref_swipe', _seekSwipeSec);
+    await prefs.setInt('pref_accent', _accentColorIdx);
+    await prefs.setInt('pref_pbstyle', _progressBarStyle);
+    await prefs.setBool('pref_onehanded', _oneHandedMode);
+    await prefs.setBool('pref_bgaudio', _backgroundAudio);
+    await prefs.setBool('pref_screenon', _keepScreenOn);
+    await prefs.setBool('pref_remaining', _showRemainingTime);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  P3: Auto-retry
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  void _startAutoRetry() {
+    _autoRetryTimer?.cancel();
+    setState(() => _autoRetryCountdown = 30);
+    _autoRetryTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) { t.cancel(); return; }
+      setState(() => _autoRetryCountdown--);
+      if (_autoRetryCountdown <= 0) {
+        t.cancel();
+        setState(() => _streamError = null);
+        _openMedia(_currentFileId);
+      }
+    });
+  }
+
+  void _cancelAutoRetry() {
+    _autoRetryTimer?.cancel();
+    setState(() => _autoRetryCountdown = 0);
   }
 
   void _toggleMute() {
@@ -954,6 +1062,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final targetMs = (_dragStartPos.inMilliseconds + seekSec * 1000)
           .clamp(0, _duration.inMilliseconds.toDouble());
       _seekBarDelta = targetMs / (_duration.inMilliseconds > 0 ? _duration.inMilliseconds : 1);
+      // P9: Update seek preview label
+      final previewPos = Duration(milliseconds: targetMs.round());
+      final diff = previewPos - _dragStartPos;
+      final sign = diff.isNegative ? '-' : '+';
+      _seekPreviewLabel = '${_formatDuration(previewPos)}  ($sign${_formatDuration(diff.abs())})';
       if (mounted) setState(() {});
     } else if (_dragIntent == 'brightness') {
       final newVal = (_startBrightness - dy / constraints.maxHeight * 1.5).clamp(0.0, 1.0);
@@ -994,6 +1107,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         });
       });
     }
+    _seekPreviewLabel = '';
     _dragIntent = null;
     if (mounted) setState(() {});
   }
@@ -1002,10 +1116,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   //  Build
   // ═══════════════════════════════════════════════════════════════════════════
 
-
-    // ── extra state for modern UI ────────────────────────────────────────────
-    // (seek preview label during horizontal drag)
-    String _seekPreviewLabel = '';
 
     @override
     Widget build(BuildContext context) {
@@ -1158,23 +1268,78 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
 
-                // 12. Error overlay
+                // 12. Error overlay — P3 upgrade (smart categories + auto-retry)
                 if (_streamError != null)
                   Container(
                     color: Colors.black87,
                     child: Center(
                       child: Padding(
-                        padding: const EdgeInsets.all(32),
+                        padding: const EdgeInsets.fromLTRB(28, 28, 28, 36),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.error_outline_rounded,
-                                color: Colors.redAccent, size: 52),
-                            const SizedBox(height: 16),
+                            // Smart icon by error type
+                            Icon(
+                              _streamError!.contains('Jazz') || _streamError!.contains('SIM')
+                                  ? Icons.sim_card_alert_rounded
+                                  : _streamError!.contains('timed out') || _streamError!.contains('timeout')
+                                      ? Icons.timer_off_rounded
+                                      : Icons.error_outline_rounded,
+                              color: _streamError!.contains('Jazz') || _streamError!.contains('SIM')
+                                  ? Colors.orangeAccent
+                                  : Colors.redAccent,
+                              size: 56,
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              _streamError!.contains('Jazz') || _streamError!.contains('SIM')
+                                  ? 'Jazz SIM Required'
+                                  : _streamError!.contains('timed out') || _streamError!.contains('timeout')
+                                      ? 'Connection Timed Out'
+                                      : 'Stream Error',
+                              style: const TextStyle(color: Colors.white,
+                                  fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
                             Text(_streamError!,
-                                style: const TextStyle(color: Colors.white, fontSize: 15),
+                                style: const TextStyle(color: Colors.white60, fontSize: 13),
                                 textAlign: TextAlign.center),
-                            const SizedBox(height: 24),
+                            // Jazz SIM specific help steps
+                            if (_streamError!.contains('Jazz') || _streamError!.contains('SIM')) ...[
+                              const SizedBox(height: 14),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                                ),
+                                child: const Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('• Disconnect WiFi, use Jazz mobile data',
+                                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                    SizedBox(height: 4),
+                                    Text('• Ensure Jazz SIM is active in slot 1',
+                                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                    SizedBox(height: 4),
+                                    Text('• Toggle airplane mode off/on, then retry',
+                                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 20),
+                            // Auto-retry countdown
+                            if (_autoRetryCountdown > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Text(
+                                  'Auto-retry in ${_autoRetryCountdown}s…',
+                                  style: TextStyle(
+                                      color: Colors.white.withOpacity(0.5), fontSize: 12),
+                                ),
+                              ),
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -1183,13 +1348,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                       backgroundColor: Colors.white,
                                       foregroundColor: Colors.black),
                                   icon: const Icon(Icons.refresh_rounded),
-                                  label: const Text('Retry'),
+                                  label: const Text('Retry Now'),
                                   onPressed: () {
+                                    _cancelAutoRetry();
                                     setState(() => _streamError = null);
                                     _openMedia(_currentFileId);
                                   },
                                 ),
-                                const SizedBox(width: 16),
+                                const SizedBox(width: 12),
                                 TextButton(
                                   onPressed: () => Navigator.of(context).pop(),
                                   child: const Text('Go Back',
@@ -1371,12 +1537,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
           ),
 
-          // ── CENTER PLAYBACK CONTROLS ──────────────────────────────────────────
-          Positioned.fill(
-            child: Center(
+          // ── CENTER PLAYBACK CONTROLS ── P7: shift down in one-handed mode ───────
+          if (_oneHandedMode)
+            Positioned(
+              bottom: 75, left: 0, right: 0,
               child: _buildCenterControls(),
+            )
+          else
+            Positioned.fill(
+              child: Center(
+                child: _buildCenterControls(),
+              ),
             ),
-          ),
+
+          // P9: Seek preview label during drag
+          if (_dragIntent == 'seek' && _seekPreviewLabel.isNotEmpty)
+            Positioned(
+              bottom: 88, left: 0, right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.82),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Text(
+                    _seekPreviewLabel,
+                    style: const TextStyle(color: Colors.white, fontSize: 14,
+                        fontWeight: FontWeight.w700, letterSpacing: 0.3),
+                  ),
+                ),
+              ),
+            ),
 
           // ── BOTTOM AREA: seek bar + icon row ──────────────────────────────────
           Positioned(
@@ -1395,6 +1588,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ═══════════════════════════════════════════════════════════════════════════
 
     Widget _buildTopBar() {
+      // P1: badge helpers
+      final hasAudio = _audioTracks.length > 1;
+      final hasSubs  = _subtitleTracks.isNotEmpty;
+      final isEpSeries = _eps.length > 1;
+      final zoomLabels = ['Fit', 'Fill', 'Crop', '1:1', 'Cust'];
+
       return Padding(
         padding: const EdgeInsets.fromLTRB(4, 4, 8, 4),
         child: Row(
@@ -1408,35 +1607,127 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
             const SizedBox(width: 4),
 
-            // Title
+            // Title + episode counter badge
             Expanded(
-              child: Text(
-                _currentTitle,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      _currentTitle,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // P1: Episode counter badge
+                  if (isEpSeries) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Text(
+                        'E${_currentEpIdx + 1}/${_eps.length}',
+                        style: const TextStyle(color: Colors.white70, fontSize: 10,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
 
             const SizedBox(width: 4),
 
-            // Subtitle
-            _RaddIconBtn(
-              icon: Icons.subtitles_rounded,
-              size: 20,
-              onTap: _openSubtitlePanel,
+            // P2: Zoom badge
+            if (_zoomMode != 0)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _accentColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: _accentColor.withOpacity(0.5), width: 0.8),
+                  ),
+                  child: Text(
+                    zoomLabels[_zoomMode],
+                    style: TextStyle(color: _accentColor, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+
+            // P2: Sub sync badge
+            if (_subSync.abs() > 0.05)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    'S${_subSync >= 0 ? '+' : ''}${_subSync.toStringAsFixed(1)}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 10),
+                  ),
+                ),
+              ),
+
+            // P2: Audio sync badge
+            if (_audioSync.abs() > 0.05)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    'A${_audioSync >= 0 ? '+' : ''}${_audioSync.toStringAsFixed(1)}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 10),
+                  ),
+                ),
+              ),
+
+            // P1: Subtitle button — dim when no tracks
+            Opacity(
+              opacity: hasSubs ? 1.0 : 0.38,
+              child: _RaddIconBtn(
+                icon: hasSubs ? Icons.subtitles_rounded : Icons.subtitles_off_rounded,
+                size: 20,
+                onTap: _openSubtitlePanel,
+              ),
             ),
+
+            // P1: Audio button — only visible when >1 track
+            if (hasAudio)
+              _RaddIconBtn(
+                icon: Icons.headphones_rounded,
+                size: 20,
+                onTap: _openAudioPanel,
+              ),
 
             // Replay from start
             _RaddIconBtn(
               icon: Icons.replay_rounded,
               size: 20,
               onTap: () => _player.seek(Duration.zero),
+            ),
+
+            // P2: PiP button
+            _RaddIconBtn(
+              icon: Icons.picture_in_picture_alt_rounded,
+              size: 20,
+              onTap: _enterPiP,
             ),
 
             // Rotate / orientation cycle
@@ -1595,7 +1886,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               child: LayoutBuilder(
                 builder: (ctx, bc) => CustomPaint(
                   size: Size(bc.maxWidth, 28),
-                  painter: _HorizontalSeekPainter(progress: progress),
+                  painter: _HorizontalSeekPainter(
+                    progress: progress,
+                    abA: _abA,
+                    abB: _abB,
+                    duration: _duration,
+                    style: _progressBarStyle,
+                    accentColor: _accentColor,
+                  ),
                 ),
               ),
             ),
@@ -1628,6 +1926,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ═══════════════════════════════════════════════════════════════════════════
 
     Widget _buildBottomIconRow() {
+      final hasAudio = _audioTracks.length > 1;
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -1639,12 +1938,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             onTap: _toggleSmartEnhance,
           ),
 
-          // Audio tracks
+          // P1: Audio tracks — dim when ≤1 track
           _BottomIconBtn(
             icon: Icons.headphones_rounded,
             label: 'Audio',
             active: false,
-            onTap: _openAudioPanel,
+            onTap: hasAudio ? _openAudioPanel : null,
+            opacity: hasAudio ? 1.0 : 0.3,
+          ),
+
+          // P8: Audio Lab (unified EQ + Lab + Reverb)
+          _BottomIconBtn(
+            icon: Icons.biotech_rounded,
+            label: 'Lab',
+            active: false,
+            onTap: _openAudioEffectPanel,
           ),
 
           // Episode list
@@ -1662,38 +1970,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             label: '${_speed == 1.0 ? "1×" : "${_speed}×"}',
             active: _speed != 1.0,
             onTap: _cycleSpeed,
-          ),
-
-          // HW/SW decoder badge
-          GestureDetector(
-            onTap: () => _showInfoSnackbar(
-                'Decoder: ${_useSWDecoder ? "SW" : "HW+"}'),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(5),
-                      border: Border.all(color: Colors.white30, width: 0.8),
-                    ),
-                    child: Text(
-                      _useSWDecoder ? 'SW' : 'HW+',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  const Text('Decoder',
-                      style: TextStyle(color: Colors.white54, fontSize: 9)),
-                ],
-              ),
-            ),
           ),
 
           // More
@@ -2034,6 +2310,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               _applyCustomEq();
           }
         },
+        onLabAfChanged: (afStr) {
+          try { _np.setProperty('af', afStr); } catch (_) {}
+        },
         onClose: () => Navigator.of(context).pop(),
       ));
     }
@@ -2044,6 +2323,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         isMuted: _isMuted,
         loopEnabled: _loopEnabled,
         smartEnhanceEnabled: _smartEnhanceEnabled,
+        isOneHanded: _oneHandedMode,
         sleepTimerMinutes: _sleepTimerMinutes,
         sleepTimerEnd: _sleepTimerEnd,
         speed: _speed,
@@ -2056,6 +2336,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         onMuteToggle: () { Navigator.of(context).pop(); _toggleMute(); },
         onLoopToggle: () { Navigator.of(context).pop(); _toggleLoop(); },
         onSmartEnhanceToggle: () { Navigator.of(context).pop(); _toggleSmartEnhance(); },
+        onOneHandedToggle: () {
+          Navigator.of(context).pop();
+          setState(() => _oneHandedMode = !_oneHandedMode);
+          _savePrefs();
+        },
         onSleepTimer: (mins) { Navigator.of(context).pop(); _setSleepTimer(mins); },
         onSpeedSelected: (s) { Navigator.of(context).pop(); _setSpeed(s); },
         onAudioEffect: () { Navigator.of(context).pop(); _openAudioEffectPanel(); },
@@ -2091,6 +2376,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         onSkipIntervalChanged: (v) => setState(() => _skipInterval = v),
         seekSwipeSec: _seekSwipeSec,
         onSeekSwipeSpeedChanged: (v) => setState(() => _seekSwipeSec = v),
+        accentColorIdx: _accentColorIdx,
+        progressBarStyle: _progressBarStyle,
+        onAccentColorChanged: (i) { setState(() => _accentColorIdx = i); _savePrefs(); },
+        onProgressBarStyleChanged: (s) { setState(() => _progressBarStyle = s); _savePrefs(); },
+        backgroundAudio: _backgroundAudio,
+        onBackgroundAudioChanged: (v) { setState(() => _backgroundAudio = v); _savePrefs(); },
         onClose: () => Navigator.of(context).pop(),
       ));
     }
@@ -2203,23 +2494,51 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   class _HorizontalSeekPainter extends CustomPainter {
     final double progress;
-    _HorizontalSeekPainter({required this.progress});
+    final Duration? abA;
+    final Duration? abB;
+    final Duration duration;
+    final int style;
+    final Color accentColor;
+
+    _HorizontalSeekPainter({
+      required this.progress,
+      this.abA,
+      this.abB,
+      this.duration = Duration.zero,
+      this.style = 0,
+      this.accentColor = const Color(0xFFE8950A),
+    });
 
     @override
     void paint(Canvas canvas, Size size) {
       final cy = size.height / 2;
+      // P14: progress bar style — 0=slim(3px), 1=thick(5px), 2=gradient(3px accent)
+      final trackH = style == 1 ? 5.0 : 3.0;
+      final progressColor = style == 2 ? accentColor : Colors.white;
+
       final trackPaint = Paint()
         ..color = Colors.white24
-        ..strokeWidth = 3
+        ..strokeWidth = trackH
         ..strokeCap = StrokeCap.round;
 
       final progressPaint = Paint()
-        ..color = Colors.white
-        ..strokeWidth = 3
+        ..color = progressColor
+        ..strokeWidth = trackH
         ..strokeCap = StrokeCap.round;
 
       // Track
       canvas.drawLine(Offset(0, cy), Offset(size.width, cy), trackPaint);
+
+      // P11: A-B loop segment highlight (draw behind progress)
+      if (abA != null && abB != null && duration.inMilliseconds > 0) {
+        final ax = size.width * (abA!.inMilliseconds / duration.inMilliseconds);
+        final bx = size.width * (abB!.inMilliseconds / duration.inMilliseconds);
+        final segPaint = Paint()
+          ..color = accentColor.withOpacity(0.30)
+          ..strokeWidth = trackH + 2
+          ..strokeCap = StrokeCap.round;
+        canvas.drawLine(Offset(ax, cy), Offset(bx, cy), segPaint);
+      }
 
       // Progress
       final progX = size.width * progress;
@@ -2228,12 +2547,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
 
       // Thumb circle
+      final thumbR = style == 1 ? 9.0 : 7.0;
       final thumbPaint = Paint()..color = Colors.white;
-      canvas.drawCircle(Offset(progX, cy), 7, thumbPaint);
+      canvas.drawCircle(Offset(progX, cy), thumbR, thumbPaint);
+
+      // P11: A marker (green dot)
+      if (abA != null && duration.inMilliseconds > 0) {
+        final ax = size.width * (abA!.inMilliseconds / duration.inMilliseconds);
+        final aPaint = Paint()..color = const Color(0xFF34C759);
+        canvas.drawCircle(Offset(ax, cy), 5, aPaint);
+        // 'A' label
+        final aPaintBorder = Paint()..color = Colors.black.withOpacity(0.5);
+        canvas.drawCircle(Offset(ax, cy), 5, aPaintBorder..style = PaintingStyle.stroke..strokeWidth = 1);
+      }
+
+      // P11: B marker (red dot)
+      if (abB != null && duration.inMilliseconds > 0) {
+        final bx = size.width * (abB!.inMilliseconds / duration.inMilliseconds);
+        final bPaint = Paint()..color = const Color(0xFFFF3B30);
+        canvas.drawCircle(Offset(bx, cy), 5, bPaint);
+      }
     }
 
     @override
-    bool shouldRepaint(_HorizontalSeekPainter old) => old.progress != progress;
+    bool shouldRepaint(_HorizontalSeekPainter old) =>
+        old.progress != progress || old.abA != abA || old.abB != abB ||
+        old.style != style || old.accentColor != accentColor;
   }
 
   
@@ -2800,6 +3139,7 @@ class _AudioEffectPanel extends StatefulWidget {
   final void Function(int, double) onEqBandChanged;
   final void Function(bool) onEqEnabledChanged;
   final void Function(String?) onReverbChanged;
+  final void Function(String) onLabAfChanged;
   final VoidCallback onClose;
 
   const _AudioEffectPanel({
@@ -2810,6 +3150,7 @@ class _AudioEffectPanel extends StatefulWidget {
     required this.onEqBandChanged,
     required this.onEqEnabledChanged,
     required this.onReverbChanged,
+    required this.onLabAfChanged,
     required this.onClose,
   });
 
@@ -2818,10 +3159,28 @@ class _AudioEffectPanel extends StatefulWidget {
 }
 
 class _AudioEffectPanelState extends State<_AudioEffectPanel> {
-  int _tab = 0; // 0=Presets 1=Equalizer
+  int _tab = 0; // 0=Presets 1=Equalizer 2=Lab
   late List<double> _bands;
   late int _preset;
   late bool _eqEnabled;
+  // P8: Lab state
+  bool _labVocal = false;
+  bool _labDialogue = false;
+  bool _labNorm = false;
+  bool _labBass = false;
+  double _labBassLevel = 0.5;
+
+  void _applyLabAf() {
+    final parts = <String>[];
+    if (_labVocal) parts.add('pan=stereo|FL=FL-FR|FR=FR-FL');
+    if (_labDialogue) parts.add('equalizer=2000:1.5:0:3:1000');
+    if (_labNorm) parts.add('dynaudnorm');
+    if (_labBass) {
+      final db = (_labBassLevel * 12).round();
+      parts.add('equalizer=60:1.0:0:$db:60');
+    }
+    widget.onLabAfChanged(parts.isEmpty ? '' : parts.join(','));
+  }
 
   static const _presetNames = ['Original', 'Treble Boost', 'Bass Boost', 'Clarity', 'Movie', 'Music'];
   static const _presetIcons = [
@@ -2884,6 +3243,19 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                       )),
                 ),
               ),
+              // P8: Lab tab
+              GestureDetector(
+                onTap: () => setState(() => _tab = 2),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text('Lab',
+                      style: TextStyle(
+                        color: _tab == 2 ? Colors.white : Colors.white54,
+                        fontSize: 13,
+                        fontWeight: _tab == 2 ? FontWeight.bold : FontWeight.normal,
+                      )),
+                ),
+              ),
               const SizedBox(width: 4),
             ],
           ),
@@ -2935,6 +3307,71 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                     ),
                 ],
               ),
+            ),
+          ),
+
+        // P8: Lab tab content
+        if (_tab == 2)
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              children: [
+                const Text('Audio Lab', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 10),
+                _LabToggleRow(
+                  icon: Icons.mic_off_rounded,
+                  title: 'Vocal Remover',
+                  subtitle: 'Phase-cancel centre-channel vocals',
+                  enabled: _labVocal,
+                  onChanged: (v) { setState(() => _labVocal = v); _applyLabAf(); },
+                ),
+                _LabToggleRow(
+                  icon: Icons.record_voice_over_rounded,
+                  title: 'Dialogue Boost',
+                  subtitle: 'Boosts 2–5 kHz speech clarity',
+                  enabled: _labDialogue,
+                  onChanged: (v) { setState(() => _labDialogue = v); _applyLabAf(); },
+                ),
+                _LabToggleRow(
+                  icon: Icons.graphic_eq_rounded,
+                  title: 'Audio Normalization',
+                  subtitle: 'Dynamic normalize — evens loud/quiet scenes',
+                  enabled: _labNorm,
+                  onChanged: (v) { setState(() => _labNorm = v); _applyLabAf(); },
+                ),
+                _LabToggleRow(
+                  icon: Icons.speaker_rounded,
+                  title: 'Bass Boost',
+                  subtitle: 'Enhances low-frequency response',
+                  enabled: _labBass,
+                  onChanged: (v) { setState(() => _labBass = v); _applyLabAf(); },
+                ),
+                if (_labBass) ...[
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 52),
+                    child: Row(children: [
+                      const Icon(Icons.volume_down_rounded, color: Colors.white38, size: 16),
+                      Expanded(child: Slider(
+                        value: _labBassLevel,
+                        min: 0, max: 1, divisions: 10,
+                        activeColor: const Color(0xFFE8950A),
+                        inactiveColor: Colors.white12,
+                        onChanged: (v) { setState(() => _labBassLevel = v); _applyLabAf(); },
+                      )),
+                      const Icon(Icons.volume_up_rounded, color: Colors.white70, size: 16),
+                      SizedBox(width: 36, child: Text(
+                        '${(_labBassLevel * 100).toInt()}%',
+                        style: const TextStyle(color: Colors.white60, fontSize: 11),
+                        textAlign: TextAlign.right,
+                      )),
+                    ]),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                const Text('Note: Lab and EQ share the audio filter pipeline.',
+                    style: TextStyle(color: Colors.white24, fontSize: 10)),
+              ],
             ),
           ),
 
@@ -3027,6 +3464,7 @@ class _QuickShortcutsPanel extends StatelessWidget {
   final bool isMuted;
   final bool loopEnabled;
   final bool smartEnhanceEnabled;
+  final bool isOneHanded;
   final int? sleepTimerMinutes;
   final DateTime? sleepTimerEnd;
   final double speed;
@@ -3039,6 +3477,7 @@ class _QuickShortcutsPanel extends StatelessWidget {
   final VoidCallback onMuteToggle;
   final VoidCallback onLoopToggle;
   final VoidCallback onSmartEnhanceToggle;
+  final VoidCallback onOneHandedToggle;
   final void Function(int?) onSleepTimer;
   final void Function(double) onSpeedSelected;
   final VoidCallback onAudioEffect;
@@ -3051,6 +3490,7 @@ class _QuickShortcutsPanel extends StatelessWidget {
     required this.isMuted,
     required this.loopEnabled,
     required this.smartEnhanceEnabled,
+    required this.isOneHanded,
     required this.sleepTimerMinutes,
     required this.sleepTimerEnd,
     required this.speed,
@@ -3063,6 +3503,7 @@ class _QuickShortcutsPanel extends StatelessWidget {
     required this.onMuteToggle,
     required this.onLoopToggle,
     required this.onSmartEnhanceToggle,
+    required this.onOneHandedToggle,
     required this.onSleepTimer,
     required this.onSpeedSelected,
     required this.onAudioEffect,
@@ -3155,6 +3596,20 @@ class _QuickShortcutsPanel extends StatelessWidget {
                 trailing: Switch(
                   value: smartEnhanceEnabled,
                   onChanged: (_) => onSmartEnhanceToggle(),
+                  activeColor: Colors.white,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+              ),
+
+              // P7: One-handed mode
+              ListTile(
+                leading: const Icon(Icons.back_hand_rounded, color: Colors.white, size: 20),
+                title: const Text('One-handed Mode', style: TextStyle(color: Colors.white, fontSize: 14)),
+                subtitle: const Text('Shifts controls to lower half of screen',
+                    style: TextStyle(color: Colors.white38, fontSize: 11)),
+                trailing: Switch(
+                  value: isOneHanded,
+                  onChanged: (_) => onOneHandedToggle(),
                   activeColor: Colors.white,
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 4),
@@ -3283,6 +3738,14 @@ class _SettingsPanel extends StatefulWidget {
   final void Function(int) onSkipIntervalChanged;
   final double seekSwipeSec;
   final void Function(double) onSeekSwipeSpeedChanged;
+  // P14: accent color + progress bar style
+  final int accentColorIdx;
+  final int progressBarStyle;
+  final void Function(int) onAccentColorChanged;
+  final void Function(int) onProgressBarStyleChanged;
+  // P12: background audio
+  final bool backgroundAudio;
+  final void Function(bool) onBackgroundAudioChanged;
   final VoidCallback onClose;
 
   const _SettingsPanel({
@@ -3294,6 +3757,12 @@ class _SettingsPanel extends StatefulWidget {
     required this.onSkipIntervalChanged,
     required this.seekSwipeSec,
     required this.onSeekSwipeSpeedChanged,
+    required this.accentColorIdx,
+    required this.progressBarStyle,
+    required this.onAccentColorChanged,
+    required this.onProgressBarStyleChanged,
+    required this.backgroundAudio,
+    required this.onBackgroundAudioChanged,
     required this.onClose,
   });
 
@@ -3307,6 +3776,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   late bool _keepScreenOn;
   late int _skipInterval;
   late double _seekSwipeSec;
+  late int _accentIdx;
+  late int _pbStyle;
+  late bool _backgroundAudio;
 
   @override
   void initState() {
@@ -3315,6 +3787,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     _keepScreenOn = widget.keepScreenOn;
     _skipInterval = widget.skipInterval;
     _seekSwipeSec = widget.seekSwipeSec;
+    _accentIdx = widget.accentColorIdx;
+    _pbStyle = widget.progressBarStyle;
+    _backgroundAudio = widget.backgroundAudio;
   }
 
   @override
@@ -3386,16 +3861,71 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   }
 
   Widget _buildStyleTab() {
+    const accentColors = [Color(0xFFE8950A), Color(0xFF3A8EF5), Color(0xFF34C759), Color(0xFFFF2D55)];
+    const accentNames = ['Orange', 'Blue', 'Green', 'Pink'];
+    const pbStyles = ['Slim', 'Thick', 'Accent colour'];
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: const [
-        Text('Preset', style: TextStyle(color: Colors.white70, fontSize: 12)),
-        SizedBox(height: 8),
-        Text('Default', style: TextStyle(color: Colors.white, fontSize: 14)),
-        SizedBox(height: 16),
-        Text('Progress bar style', style: TextStyle(color: Colors.white70, fontSize: 12)),
-        SizedBox(height: 8),
-        Text('Slim', style: TextStyle(color: Colors.white, fontSize: 14)),
+      children: [
+        // P14: Accent colour picker
+        const Text('Accent colour', style: TextStyle(color: Colors.white70, fontSize: 12)),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            for (int i = 0; i < accentColors.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() => _accentIdx = i);
+                    widget.onAccentColorChanged(i);
+                  },
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          color: accentColors[i],
+                          shape: BoxShape.circle,
+                          border: _accentIdx == i
+                              ? Border.all(color: Colors.white, width: 2)
+                              : null,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(accentNames[i],
+                          style: TextStyle(
+                              color: _accentIdx == i ? Colors.white : Colors.white38,
+                              fontSize: 10)),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        // P14: Progress bar style
+        const Text('Progress bar style', style: TextStyle(color: Colors.white70, fontSize: 12)),
+        const SizedBox(height: 8),
+        for (int i = 0; i < pbStyles.length; i++)
+          GestureDetector(
+            onTap: () {
+              setState(() => _pbStyle = i);
+              widget.onProgressBarStyleChanged(i);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(children: [
+                Icon(
+                  _pbStyle == i ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded,
+                  color: _pbStyle == i ? Colors.white : Colors.white38, size: 18),
+                const SizedBox(width: 8),
+                Text(pbStyles[i], style: TextStyle(
+                    color: _pbStyle == i ? Colors.white : Colors.white60, fontSize: 14)),
+              ]),
+            ),
+          ),
       ],
     );
   }
@@ -3441,24 +3971,55 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   Widget _buildControlsTab() {
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: const [
-        Text('Touch action', style: TextStyle(color: Colors.white54, fontSize: 12)),
-        SizedBox(height: 8),
-        Text('Pause / resume', style: TextStyle(color: Colors.white, fontSize: 14)),
-        SizedBox(height: 16),
-        Text('Lock mode', style: TextStyle(color: Colors.white54, fontSize: 12)),
-        SizedBox(height: 8),
-        Text('Auto lock controls when video plays', style: TextStyle(color: Colors.white, fontSize: 14)),
-        SizedBox(height: 16),
-        Divider(color: Colors.white12),
-        SizedBox(height: 8),
-        Text('Gestures', style: TextStyle(color: Colors.white54, fontSize: 12)),
-        SizedBox(height: 8),
-        Text('Left half: Brightness  •  Right half: Volume', style: TextStyle(color: Colors.white70, fontSize: 13)),
-        SizedBox(height: 4),
-        Text('Double tap left: Rewind  •  Double tap right: Forward', style: TextStyle(color: Colors.white70, fontSize: 13)),
-        SizedBox(height: 4),
-        Text('Long press: 2× speed', style: TextStyle(color: Colors.white70, fontSize: 13)),
+      children: [
+        const Text('Touch action', style: TextStyle(color: Colors.white54, fontSize: 12)),
+        const SizedBox(height: 8),
+        const Text('Pause / resume', style: TextStyle(color: Colors.white, fontSize: 14)),
+        const SizedBox(height: 16),
+        const Text('Lock mode', style: TextStyle(color: Colors.white54, fontSize: 12)),
+        const SizedBox(height: 8),
+        const Text('Auto lock controls when video plays', style: TextStyle(color: Colors.white, fontSize: 14)),
+        const SizedBox(height: 16),
+        const Divider(color: Colors.white12),
+        const SizedBox(height: 8),
+        // P12: Background audio
+        const Text('Background audio', style: TextStyle(color: Colors.white54, fontSize: 12)),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Continue audio in background',
+                      style: TextStyle(color: Colors.white, fontSize: 14)),
+                  Text('Audio plays when app is backgrounded',
+                      style: TextStyle(color: Colors.white38, fontSize: 11)),
+                ],
+              ),
+            ),
+            Switch(
+              value: _backgroundAudio,
+              onChanged: (v) {
+                setState(() => _backgroundAudio = v);
+                widget.onBackgroundAudioChanged(v);
+              },
+              activeColor: Colors.white,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        const Divider(color: Colors.white12),
+        const SizedBox(height: 8),
+        const Text('Gestures', style: TextStyle(color: Colors.white54, fontSize: 12)),
+        const SizedBox(height: 8),
+        const Text('Left half: Brightness  •  Right half: Volume',
+            style: TextStyle(color: Colors.white70, fontSize: 13)),
+        const SizedBox(height: 4),
+        const Text('Double tap left: Rewind  •  Double tap right: Forward',
+            style: TextStyle(color: Colors.white70, fontSize: 13)),
+        const SizedBox(height: 4),
+        const Text('Long press: 2× speed', style: TextStyle(color: Colors.white70, fontSize: 13)),
       ],
     );
   }
@@ -3766,6 +4327,58 @@ class _ReverbSelector extends StatefulWidget {
 
   @override
   State<_ReverbSelector> createState() => _ReverbSelectorState();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  P8: _LabToggleRow — simple toggle row for Audio Lab tab
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _LabToggleRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  const _LabToggleRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: enabled ? Colors.white.withOpacity(0.14) : Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: enabled ? Colors.white : Colors.white38, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(
+                    color: enabled ? Colors.white : Colors.white70,
+                    fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+              ],
+            ),
+          ),
+          Switch(value: enabled, onChanged: onChanged, activeColor: Colors.white),
+        ],
+      ),
+    );
+  }
 }
 
 class _ReverbSelectorState extends State<_ReverbSelector> {
