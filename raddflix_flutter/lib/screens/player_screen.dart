@@ -287,6 +287,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _clockDisplayTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted) setState(() => _clockStr = _fmtClock());
     });
+
+    // Media notification shade controls — receive button taps from Android
+    const MethodChannel('com.raddflix.app/pip').setMethodCallHandler((call) async {
+      if (!mounted) return;
+      switch (call.method) {
+        case 'onPipExited':
+          if (mounted) setState(() {});
+          break;
+        case 'onNotificationAction':
+          final action = call.arguments as String? ?? '';
+          if (action == 'play_pause') {
+            if (_player.state.playing) { _player.pause(); } else { _player.play(); }
+            // Push updated state back to the notification after a short delay
+            Future.delayed(const Duration(milliseconds: 150), _notifyBgState);
+          } else if (action == 'seek_back') {
+            final t = _position - const Duration(seconds: 10);
+            _player.seek(t.isNegative ? Duration.zero : t);
+          } else if (action == 'seek_forward') {
+            _player.seek(_position + const Duration(seconds: 30));
+          }
+          break;
+      }
+    });
   }
 
   String _fmtClock() {
@@ -304,12 +327,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       _saveWatchPos();
-      // P12: if background audio enabled keep playing; otherwise pause
       if (!_backgroundAudio) {
         _player.pause();
+      } else {
+        // Start / refresh the foreground media notification so Android does not
+        // kill the process and the notification shade shows transport controls.
+        _notifyBgState();
       }
     } else if (state == AppLifecycleState.resumed) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      // Dismiss the media notification now that the app is back in the foreground.
+      const MethodChannel('com.raddflix.app/pip')
+          .invokeMethod('stopBgPlayback').catchError((_) {});
     }
   }
 
@@ -338,6 +367,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       DeviceOrientation.landscapeRight,
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    // Dismiss media notification when player screen closes
+    const MethodChannel('com.raddflix.app/pip')
+        .invokeMethod('stopBgPlayback').catchError((_) {});
+    const MethodChannel('com.raddflix.app/pip').setMethodCallHandler(null);
     _player.dispose();
     super.dispose();
   }
@@ -1162,6 +1195,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _applyAllAf() {
     try { _np.setProperty('af', _buildMergedAfString()); } catch (_) {}
+  }
+
+  // Push current playback state to the Android media notification service.
+  // Called when going to background, when play/pause changes via notification,
+  // and periodically from the bg-play timer.
+  void _notifyBgState() {
+    if (!_backgroundAudio) return;
+    const MethodChannel('com.raddflix.app/pip').invokeMethod('startBgPlayback', {
+      'title':      widget.title,
+      'isPlaying':  _player.state.playing,
+      'positionMs': _position.inMilliseconds,
+      'durationMs': _duration.inMilliseconds,
+    }).catchError((_) {});
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2924,8 +2970,9 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
     // Feature 24: Picture-in-Picture
   void _enterPiP() {
     // On Android, trigger PiP mode via platform channel
-    const pipChannel = MethodChannel('com.raddclub.raddflix/pip');
-    pipChannel.invokeMethod('enterPiP').catchError((_) {
+    const MethodChannel('com.raddflix.app/pip')
+        .invokeMethod('enterPiP')
+        .catchError((_) {
       _showInfoSnackbar('Picture-in-Picture not supported on this device.');
     });
   }
