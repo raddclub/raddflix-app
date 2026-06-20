@@ -90,6 +90,12 @@ Filter chips: CRASH → ERR → VIDEO/AUDIO → NAV → TAP → LC
 
 _Add new bugs below this line as they are found._
 
+| BUG-CHANNEL-MODE-RESET | `player_screen.dart` | `_chIdx` declared inside `StatefulBuilder.builder` — reset to 0 on every rebuild. Channel mode appeared to cycle but always snapped back to Stereo; `filters[0]=''` always sent to `onChannelModeChanged`. Fix: moved `_chIdx` to `_AudioTrackPanelState` field, replaced Builder/StatefulBuilder with direct `setState`. | 2026-06-20 ✅ |
+| BUG-SUB-SPEED-NO-MPV | `player_screen.dart` | Subtitle speed slider `onSpeedChanged` callback only called `setState(() => _subSpeed = v)` — never called `_np.setProperty('sub-speed', v)`. Slider appeared responsive but had zero effect on MPV playback. Fix: added `try { _np.setProperty('sub-speed', v.toString()); } catch (_) {}` alongside setState. | 2026-06-20 ✅ |
+| BUG-CLOCK-TIMER-30S | `player_screen.dart` | `_clockDisplayTimer` interval was `Duration(seconds: 30)` — clock overlay could be up to 30s stale. TASK_LOG documented fix to 10s but code had regressed. Fix: changed to `Duration(seconds: 10)`. | 2026-06-20 ✅ |
+| BUG-SUB-TRANSLATE-NOP | `player_screen.dart` | Subtitle translation language picker `onTap` called only `Navigator.of(c).pop()` with no feedback and no action. Users selected a language and received silent no-op. Fix: added SnackBar "Subtitle translation to $lang coming soon." | 2026-06-20 ✅ |
+| BUG-ONLINE-SUB-DEV-ERROR | `player_screen.dart` | `_fetchOnlineSubtitles` awaited 800ms then threw "Set OPENSUBTITLES_API_KEY env variable" — a developer error message shown directly to end users. Fix: removed fake delay, replaced with friendly SnackBar "Online subtitle search coming soon." | 2026-06-20 ✅ |
+
 | BUG-VF-BLACKSCREEN | `player_screen.dart` | `_applyVideoFilters` called from `_loadPrefs` with 60ms debounce — fires after local video is playing → `vf=` on active HW decoder destroys GL surface → black screen. Fix: startup gate (`_firstVfApplied`) + dedup (`_lastAppliedVf`) + seek-after for user changes. | 2026-06-18 |
 
 | BUG-ICON-COMPAT | `player_screen.dart` | `Icons.replay_15_rounded` / `forward_15_rounded` do not exist in Flutter 3.22.3. `replay_15` / `forward_15` also do not exist. Use `replay_10` / `forward_10`. Always verify icons against Flutter 3.22.3 source before using numbered variants. | 2026-06-18 |
