@@ -3940,6 +3940,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
             bytes,
             fileName: '$baseName.png',
             androidRelativePath: 'Pictures/RaddFlix',
+            skipIfExists: false,
             quality: 95,
           );
           _showInfoSnackbar(result.isSuccess ? '📷 Screenshot saved to gallery' : 'Screenshot save failed');
