@@ -159,6 +159,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Audio L/R balance
   double _audioBalance = 0.0;
   String _currentBalanceAf = '';
+  String _currentChannelModeAf = '';
 
   // Video rotation (0/90/180/270)
   int _videoRotation = 0;
@@ -1044,6 +1045,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_currentReverbAf.isNotEmpty) parts.add(_currentReverbAf);
     // Lab chain (pan, dynaudnorm, etc.)
     if (_currentLabAf.isNotEmpty) parts.add(_currentLabAf);
+    if (_currentChannelModeAf.isNotEmpty) parts.add(_currentChannelModeAf);
     if (_currentBalanceAf.isNotEmpty) parts.add(_currentBalanceAf);
     return parts.join(',');
   }
@@ -2614,7 +2616,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         useSWDecoder: _useSWDecoder,
         onTrackSelected: (track) {
           setState(() => _selectedAudio = track);
-          _player.setAudioTrack(track);
+          if (track != null) {
+            _player.setAudioTrack(track);
+          } else {
+            try { _np.setProperty('aid', 'no'); } catch (_) {}
+          }
         },
         onSyncChanged: (delta) => _adjustAudioSync(delta),
         onSWDecoderChanged: (v) {
@@ -2623,6 +2629,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             try { _np.setProperty('hwdec', v ? 'no' : 'auto-safe'); } catch (_) {}
           }
           setState(() => _useSWDecoder = v);
+        },
+        onChannelModeChanged: (filterStr) {
+          setState(() => _currentChannelModeAf = filterStr);
+          _applyAllAf();
         },
         onClose: () => Navigator.of(context).pop(),
       ));
@@ -3620,9 +3630,10 @@ class _AudioTrackPanel extends StatefulWidget {
   final AudioTrack? selectedTrack;
   final double audioSync;
   final bool useSWDecoder;
-  final void Function(AudioTrack) onTrackSelected;
+  final void Function(AudioTrack?) onTrackSelected;
   final void Function(double) onSyncChanged;
   final void Function(bool) onSWDecoderChanged;
+  final void Function(String) onChannelModeChanged;
   final VoidCallback onClose;
 
   const _AudioTrackPanel({
@@ -3633,6 +3644,7 @@ class _AudioTrackPanel extends StatefulWidget {
     required this.onTrackSelected,
     required this.onSyncChanged,
     required this.onSWDecoderChanged,
+    required this.onChannelModeChanged,
     required this.onClose,
   });
 
