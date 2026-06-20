@@ -71,7 +71,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen>
-    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+    with WidgetsBindingObserver {
 
   // ── MPV player ──────────────────────────────────────────────────────────────
   late final Player _player;
@@ -140,12 +140,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // Smart Enhance
   bool _smartEnhanceEnabled = false;
-  int _smartEnhancePhase = 0; // 0=off 1=dots 2=scan 3=title
-  bool _showSmartEnhanceToast = false;
   Timer? _smartEnhanceTimer;
-  late AnimationController _smartEnhanceAnim;
-  double _scanLinePos = 0.0; // 0..1 sweep position
-  Timer? _scanLineTimer;
 
   // Video zoom
   // 0=Fit 1=Stretch 2=Crop 3=100% 4=Custom
@@ -312,6 +307,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // ── P9: Seek preview label (shown above seek bar during drag) ────────────────
   String _seekPreviewLabel = '';
 
+  // ── Perf: throttle position setState to max 2×/sec ──────────────────
+  int _lastPositionMs = -1;
+
   // ═══════════════════════════════════════════════════════════════════════════
   //  Lifecycle
   // ═══════════════════════════════════════════════════════════════════════════
@@ -332,10 +330,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _currentEpIdx = widget.episodeIndex;
     _currentFileId = widget.fileId;
     _currentTitle = widget.title;
-    _smartEnhanceAnim = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
     _initPlayer();
     // Init volume/brightness readings
     VolumeController().listener((v) {
@@ -434,9 +428,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _sleepTimer?.cancel();
     _autoAdvanceTimer?.cancel();
     _clockDisplayTimer?.cancel();
-    _scanLineTimer?.cancel();
     _autoRetryTimer?.cancel();
-    _smartEnhanceAnim.dispose();
     for (final s in _subs) { s.cancel(); }
     VolumeController().removeListener();
     WakelockPlus.disable();
@@ -489,13 +481,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         }
       }),
       _player.stream.position.listen((v) {
-        if (mounted) {
-          setState(() => _position = v);
-          _checkSkipEditor();
-          // A-B repeat check
-          if (_abActive && _abA != null && _abB != null && v >= _abB!) {
-            _player.seek(_abA!);
-          }
+        if (!mounted) return;
+        _position = v;
+        _checkSkipEditor();
+        if (_abActive && _abA != null && _abB != null && v >= _abB!) {
+          _player.seek(_abA!);
+        }
+        // Throttle UI rebuild to 2×/sec — seek bar stays smooth
+        final ms = v.inMilliseconds;
+        if ((ms - _lastPositionMs).abs() >= 500) {
+          _lastPositionMs = ms;
+          setState(() {});
         }
       }),
       _player.stream.duration.listen((v) {
@@ -1256,67 +1252,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // ═══════════════════════════════════════════════════════════════════════════
 
   void _toggleSmartEnhance() {
-    if (_smartEnhancePhase > 0) return; // animation in progress
-    if (_smartEnhanceEnabled) {
-      // Turn off
-      setState(() {
-        _smartEnhanceEnabled = false;
-        _smartEnhancePhase = 0;
-      });
-      _showToast('Smart Enhance disabled.');
-      return;
-    }
-    // Phase 1: dots circle
-    setState(() => _smartEnhancePhase = 1);
-    _smartEnhanceAnim.repeat();
-
-    // Phase 2: scan line after 1.6s
-    _smartEnhanceTimer?.cancel();
-    _smartEnhanceTimer = Timer(const Duration(milliseconds: 1600), () {
-      if (!mounted) return;
-      _smartEnhanceAnim.stop();
-      setState(() {
-        _smartEnhancePhase = 2;
-        _scanLinePos = 0.0;
-      });
-      // Animate scan line
-      const scanDuration = 900; // ms
-      const steps = 60;
-      int step = 0;
-      _scanLineTimer?.cancel();
-      _scanLineTimer = Timer.periodic(
-        Duration(milliseconds: scanDuration ~/ steps),
-        (t) {
-          step++;
-          if (!mounted || step >= steps) {
-            t.cancel();
-            if (!mounted) return;
-            // Phase 3: title
-            setState(() {
-              _smartEnhancePhase = 3;
-              _smartEnhanceEnabled = true;
-            });
-            // Fade out title after 1.8s
-            _smartEnhanceTimer = Timer(const Duration(milliseconds: 1800), () {
-              if (!mounted) return;
-              setState(() => _smartEnhancePhase = 0);
-              _showToast('Smart Enhance enabled.');
-            });
-            return;
-          }
-          if (mounted) setState(() => _scanLinePos = step / steps);
-        },
-      );
-    });
-  }
-
-  void _showToast(String message) {
-    setState(() {
-      _showSmartEnhanceToast = true;
-    });
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _showSmartEnhanceToast = false);
-    });
+    setState(() => _smartEnhanceEnabled = !_smartEnhanceEnabled);
+    _showInfoSnackbar(_smartEnhanceEnabled ? 'Vivid Mode on' : 'Vivid Mode off');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1734,7 +1671,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             return Stack(
               children: [
                 // 1. Video surface — full screen
-                Positioned.fill(child: _buildVideoSurface()),
+                Positioned.fill(
+                  child: RepaintBoundary(child: _buildVideoSurface()),
+                ),
 
                 // 2. Lock overlay
                 if (_isLocked) _buildLockOverlay(),
@@ -1793,11 +1732,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
 
-                // 4. Smart Enhance animation
-                if (_smartEnhancePhase > 0)
-                  _buildSmartEnhanceAnimation(constraints),
-
-                // 5. Controls overlay (auto-hides)
+                // 4. Controls overlay (auto-hides)
                 AnimatedOpacity(
                   opacity: _showControls && !_isLocked ? 1.0 : 0.0,
                   duration: const Duration(milliseconds: 280),
@@ -1946,18 +1881,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
 
-                // 9. Smart Enhance toast — center of screen
-                if (_showSmartEnhanceToast)
-                  Positioned(
-                    top: 0, bottom: 0, left: 0, right: 0,
-                    child: IgnorePointer(
-                      child: Center(
-                        child: _buildSmartEnhanceToast(),
-                      ),
-                    ),
-                  ),
-
-                // 10. Buffering spinner
+                // 9. Buffering spinner
                 if (_buffering && !_isLinkLoading && _streamError == null)
                   const Center(
                     child: CircularProgressIndicator(
@@ -2990,124 +2914,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     fontWeight: FontWeight.w600),
                 textAlign: TextAlign.right,
               ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    //  Smart Enhance Animation (3 phases)
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    Widget _buildSmartEnhanceAnimation(BoxConstraints constraints) {
-      if (_smartEnhancePhase == 1) {
-        return Positioned.fill(
-          child: Container(
-            color: const Color(0xCC2A1A0A),
-            child: Center(
-              child: AnimatedBuilder(
-                animation: _smartEnhanceAnim,
-                builder: (context, _) => CustomPaint(
-                  size: Size(constraints.maxWidth * 0.65, constraints.maxWidth * 0.65),
-                  painter: _SmartEnhanceDotsCirclePainter(
-                    progress: _smartEnhanceAnim.value,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      }
-
-      if (_smartEnhancePhase == 2) {
-        return Positioned.fill(
-          child: Container(
-            color: const Color(0xCC1A0A0A),
-            child: Stack(
-              children: [
-                Positioned(
-                  top: _scanLinePos * constraints.maxHeight - 15,
-                  left: 0, right: 0, height: 30,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          const Color(0xFFE8530A).withOpacity(0.8),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Center(child: _SmartEnhanceIcon(size: 42, color: Colors.white)),
-              ],
-            ),
-          ),
-        );
-      }
-
-      if (_smartEnhancePhase == 3) {
-        return Positioned.fill(
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _SmartEnhanceIcon(size: 54, color: Colors.white),
-                const SizedBox(height: 18),
-                const Text(
-                  'SMART ENHANCE',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2.5),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Immersive visual experience',
-                  style: TextStyle(color: Colors.white70, fontSize: 13, letterSpacing: 0.5),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-
-      return const SizedBox.shrink();
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    //  Smart Enhance Toast
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    Widget _buildSmartEnhanceToast() {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xDD1A1A1A),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _smartEnhanceEnabled
-                  ? Icons.auto_awesome_rounded
-                  : Icons.auto_awesome_outlined,
-              color: _smartEnhanceEnabled
-                  ? const Color(0xFFE8950A)
-                  : Colors.white54,
-              size: 16,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _smartEnhanceEnabled ? 'Vivid Mode enabled — contrast & warmth boost.' : 'Vivid Mode disabled.',
-              style: const TextStyle(color: Colors.white, fontSize: 13),
             ),
           ],
         ),
@@ -4295,62 +4101,6 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
         old.style != style || old.accentColor != accentColor;
   }
 
-  
-// Smart Enhance dots circle painter
-class _SmartEnhanceDotsCirclePainter extends CustomPainter {
-  final double progress;
-  _SmartEnhanceDotsCirclePainter({required this.progress});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final maxR = size.width / 2;
-    final paint = Paint()..color = Colors.white;
-
-    // Draw 2 rings of dots rotating
-    for (int ring = 0; ring < 2; ring++) {
-      final r = maxR * (0.55 + ring * 0.3);
-      final dotCount = 28 + ring * 12;
-      final angleOffset = progress * 2 * math.pi * (ring % 2 == 0 ? 1 : -1);
-
-      for (int i = 0; i < dotCount; i++) {
-        final angle = (i / dotCount) * 2 * math.pi + angleOffset;
-        final x = center.dx + r * math.cos(angle);
-        final y = center.dy + r * math.sin(angle);
-        // Vary dot size by position for visual effect
-        final sizeFactor = (math.sin(angle * 3 + progress * math.pi) + 1) / 2;
-        final dotR = 2.0 + sizeFactor * 3.0;
-        final alpha = (0.3 + sizeFactor * 0.7).clamp(0.0, 1.0);
-        canvas.drawCircle(Offset(x, y), dotR, paint..color = Colors.white.withOpacity(alpha));
-      }
-    }
-
-    // Center icon (just a square with triangle inside — simplified ⊡+ icon)
-    final iconPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    const iconSize = 32.0;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: center, width: iconSize, height: iconSize),
-        const Radius.circular(4),
-      ),
-      iconPaint,
-    );
-    // Down-pointing triangle inside box
-    final triPath = Path();
-    triPath.moveTo(center.dx - 8, center.dy - 5);
-    triPath.lineTo(center.dx + 8, center.dy - 5);
-    triPath.lineTo(center.dx, center.dy + 6);
-    triPath.close();
-    canvas.drawPath(triPath, iconPaint);
-  }
-
-  @override
-  bool shouldRepaint(_SmartEnhanceDotsCirclePainter old) => old.progress != progress;
-}
-
 // ═════════════════════════════════════════════════════════════════════════════
 //  Helper Widgets
 // ═════════════════════════════════════════════════════════════════════════════
@@ -4435,31 +4185,6 @@ class _SmartEnhanceDotsCirclePainter extends CustomPainter {
       );
     }
   }
-
-  
-class _SmartEnhanceIcon extends StatelessWidget {
-  final double size;
-  final Color color;
-  const _SmartEnhanceIcon({required this.size, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Icon(Icons.tv_rounded, color: color, size: size * 0.8),
-          Positioned(
-            right: 0, bottom: 0,
-            child: Icon(Icons.add_rounded, color: color, size: size * 0.36),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  SUBTITLE PANEL
