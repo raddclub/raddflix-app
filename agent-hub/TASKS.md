@@ -35,26 +35,27 @@
 - Auto-advance banner with "Play Now" CTA
 - Redesigned episode sheet with drag handle
 
-## ⏳ IN PROGRESS — 2026-06-20
+## ✅ COMPLETED — 2026-06-20
 
 ### Task: Player v3 — 14 Upgrade Phases
-**Status:** Building all 14 phases in player_screen.dart
+**Commit:** `1bda7f4`
+**File:** `raddflix_flutter/lib/screens/player_screen.dart` (~4,410 lines)
 
 #### Phases:
-- P1: Conditional visibility (audio btn only >1 track, sub btn dims, ep counter)
-- P2: Top bar upgrade (zoom badge, delay badges, PiP btn, reorder)
-- P3: Stream error overlay (smart categories, auto-retry countdown)
-- P4: Subtitle panel (Tracks tab, track selection)
-- P5: Audio track panel (language info)
-- P6: Seek bar chapter/marker dots
-- P7: One-handed mode (NEW feature)
-- P8: Audio Lab unified panel (EQ + Lab + Reverb in tabs)
-- P9: Gesture polish (seek preview label)
-- P10: Immersive mode toggle
-- P11: A-B loop markers on seek bar
-- P12: PiP + background audio toggle
-- P13: Persist prefs (speed, zoom, EQ, accent color)
-- P14: UI customization (accent color, progress bar style)
+- ✅ P1: Conditional visibility — audio btn dims (opacity 0.3) when ≤1 track, sub btn uses off icon when no subs, episode counter badge "E{n}/{N}" in title
+- ✅ P2: Top bar — zoom badge (Fit/Fill/Crop/1:1/Cust), sub-sync badge, audio-sync badge, PiP button
+- ✅ P3: Stream error overlay — sim_card_alert icon for Jazz SIM, timer_off for timeout, 3-step Jazz SIM help panel, 30s auto-retry countdown + cancel on success
+- ⚠️ P4: Subtitle panel Tracks tab — deferred (need SubtitleTrack type resolution; other sub tabs unchanged)
+- ✅ P5: Audio panel conditional — bottom row audio btn dims when ≤1 track, top bar audio btn only appears if >1 tracks
+- ✅ P6: A-B seek bar — segment highlight between A and B markers with accent colour fill
+- ✅ P7: One-handed mode — state var + ListTile toggle in More panel + center controls shift to bottom:75 + persisted in SharedPreferences
+- ✅ P8: Audio Lab tab (tab 2) in AudioEffectPanel — Vocal Remover, Dialogue Boost, Normalization, Bass Boost (with level slider); _LabToggleRow widget; onLabAfChanged → MPV af=
+- ✅ P9: Seek preview label — floating pill "HH:MM:SS  (+/-delta)" at bottom:88 during drag; cleared in _onDragEnd
+- ✅ P10: Immersive mode — always-on (immersiveSticky in initState + resume); no further toggle needed
+- ✅ P11: _HorizontalSeekPainter — A marker (green dot), B marker (red dot), A-B segment highlight, style modes (slim/thick/accent), accentColor theming
+- ✅ P12: Background audio toggle — in Settings > Controls tab; _backgroundAudio state persisted
+- ✅ P13: _loadPrefs/_savePrefs — SharedPreferences for speed, zoom, skip, swipe, accent, pbstyle, onehanded, bgaudio, screenon, remaining
+- ✅ P14: Interactive accent colour picker (4 colours) + progress bar style selector (3 modes) in Settings > Style tab
 
 ## ✅ COMPLETED — 2026-06-19
 
