@@ -277,7 +277,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     });
     _loadPrefs();
     _clockStr = _fmtClock();
-    _clockDisplayTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _clockDisplayTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) setState(() => _clockStr = _fmtClock());
     });
   }
@@ -2596,7 +2596,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         subSpeed: _subSpeed,
         currentFile: _currentSubFile,
         onSyncChanged: (delta) => _adjustSubSync(delta),
-        onSpeedChanged: (v) => setState(() => _subSpeed = v),
+        onSpeedChanged: (v) {
+          setState(() => _subSpeed = v);
+          try { _np.setProperty('sub-speed', v.toString()); } catch (_) {}
+        },
         onSubPropertyChanged: (prop, val) {
           try { _np.setProperty(prop, val); } catch (_) {}
         },
@@ -3218,13 +3221,14 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   // Feature 21: Online subtitle search (stub — wire to opensubtitles.com)
   Future<void> _fetchOnlineSubtitles(BuildContext ctx) async {
     if (_onlineLoading) return;
-    setState(() { _onlineLoading = true; _onlineError = ''; _onlineResults = []; });
-    // Full implementation requires OPENSUBTITLES_API_KEY in app constants
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (mounted) setState(() {
-      _onlineLoading = false;
-      _onlineError = 'Set OPENSUBTITLES_API_KEY for live search results.';
-    });
+    if (mounted) setState(() { _onlineLoading = false; _onlineError = ''; _onlineResults = []; });
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      const SnackBar(
+        content: Text('Online subtitle search coming soon.'),
+        duration: Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   // Feature 22: Subtitle translation language picker
@@ -3243,7 +3247,16 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
             children: langs.map((lang) => ListTile(
               dense: true,
               title: Text(lang, style: const TextStyle(color: Colors.white)),
-              onTap: () => Navigator.of(c).pop(),
+              onTap: () {
+                Navigator.of(c).pop();
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    content: Text('Subtitle translation to $lang coming soon.'),
+                    duration: const Duration(seconds: 3),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
             )).toList(),
           ),
         ),
@@ -4872,6 +4885,7 @@ class _SyncBtn extends StatelessWidget {
 class _AudioTrackPanelState extends State<_AudioTrackPanel> {
   late double _sync;
   late bool _useSW;
+  int _chIdx = 0;
 
   @override
   void initState() {
@@ -4956,21 +4970,18 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
               const Divider(color: Colors.white12),
 
               // Audio channel mode
-              Builder(builder: (ctx) {
-                const modes = ['Stereo', 'Mono', 'Left only', 'Right only'];
-                return StatefulBuilder(builder: (ctx, setSt) {
-                  int _chIdx = 0;
-                  return ListTile(
-                    title: const Text('Channel mode', style: TextStyle(color: Colors.white, fontSize: 14)),
-                    trailing: Text(modes[_chIdx], style: const TextStyle(color: Colors.white54, fontSize: 13)),
-                    onTap: () {
-                      setSt(() => _chIdx = (_chIdx + 1) % modes.length);
-                      const filters = ['', 'pan=stereo|c0=0.5*c0+0.5*c1|c1=0.5*c0+0.5*c1', 'pan=stereo|c0=c0|c1=c0', 'pan=stereo|c0=c1|c1=c1'];
-                      widget.onChannelModeChanged(filters[_chIdx]);
-                    },
-                  );
-                });
-              }),
+              ListTile(
+                title: const Text('Channel mode', style: TextStyle(color: Colors.white, fontSize: 14)),
+                trailing: Text(
+                  const ['Stereo', 'Mono', 'Left only', 'Right only'][_chIdx],
+                  style: const TextStyle(color: Colors.white54, fontSize: 13),
+                ),
+                onTap: () {
+                  const filters = ['', 'pan=stereo|c0=0.5*c0+0.5*c1|c1=0.5*c0+0.5*c1', 'pan=stereo|c0=c0|c1=c0', 'pan=stereo|c0=c1|c1=c1'];
+                  setState(() => _chIdx = (_chIdx + 1) % 4);
+                  widget.onChannelModeChanged(filters[_chIdx]);
+                },
+              ),
 
               const Divider(color: Colors.white12),
 
