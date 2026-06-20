@@ -14,12 +14,17 @@
 // Audio sync = MPV audio-delay — 100% safe
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:saver_gallery/saver_gallery.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 import 'package:volume_controller/volume_controller.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -219,6 +224,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Duration? _abA;
   Duration? _abB;
   bool _abActive = false;
+
+  // ── Sprint 2 — new state vars ────────────────────────────────────────────────
+  // End action (what happens when video finishes)
+  String _endAction = 'play_next'; // play_next | loop | stop | ask
+
+  // Silence skip
+  bool _silenceSkipEnabled = false;
+  double _silenceSkipThreshold = 1.5; // seconds
+
+  // Layout preset
+  String _layoutPreset = 'default'; // default | cinema | compact
+
+  // Voice commands
+  bool _voiceCommandsEnabled = false;
+
+  // Gesture toggles
+  bool _doubleTapSeekEnabled = true;
+  bool _longPressSpeedEnabled = true;
+  bool _swipeSeekEnabled = true;
+  bool _swipeBVEnabled = true;
+
+  // Skip editor
+  bool _skipEditorEnabled = false;
+  Duration? _introStart;
+  Duration? _introEnd;
+  Duration? _outroStart;
 
   // ── Subscriptions ───────────────────────────────────────────────────────────
   final List<StreamSubscription> _subs = [];
@@ -918,6 +949,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _labBass = prefs.getBool('pref_lab_bass') ?? false;
       _labBassLevel = prefs.getDouble('pref_lab_bass_level') ?? 0.5;
       _channelModeIdx = prefs.getInt('pref_ch_mode') ?? 0;
+      // Sprint 2 keys
+      _endAction           = prefs.getString('pref_end_action') ?? 'play_next';
+      _silenceSkipEnabled  = prefs.getBool('pref_silence_skip') ?? false;
+      _silenceSkipThreshold= prefs.getDouble('pref_silence_thr') ?? 1.5;
+      _layoutPreset        = prefs.getString('pref_layout') ?? 'default';
+      _voiceCommandsEnabled= prefs.getBool('pref_voice_cmd') ?? false;
+      _doubleTapSeekEnabled= prefs.getBool('pref_gest_dtap') ?? true;
+      _longPressSpeedEnabled=prefs.getBool('pref_gest_lp') ?? true;
+      _swipeSeekEnabled    = prefs.getBool('pref_gest_seek') ?? true;
+      _swipeBVEnabled      = prefs.getBool('pref_gest_bv') ?? true;
+      _skipEditorEnabled   = prefs.getBool('pref_skip_ed_on') ?? false;
       // Rebuild reverb AF string from loaded preset
       switch (_reverbPreset) {
         case 'Small Room': _currentReverbAf = 'aecho=0.8:0.9:30:0.4'; break;
@@ -982,6 +1024,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setBool('pref_lab_bass', _labBass);
     await prefs.setDouble('pref_lab_bass_level', _labBassLevel);
     await prefs.setInt('pref_ch_mode', _channelModeIdx);
+    // Sprint 2 keys
+    await prefs.setString('pref_end_action', _endAction);
+    await prefs.setBool('pref_silence_skip', _silenceSkipEnabled);
+    await prefs.setDouble('pref_silence_thr', _silenceSkipThreshold);
+    await prefs.setString('pref_layout', _layoutPreset);
+    await prefs.setBool('pref_voice_cmd', _voiceCommandsEnabled);
+    await prefs.setBool('pref_gest_dtap', _doubleTapSeekEnabled);
+    await prefs.setBool('pref_gest_lp', _longPressSpeedEnabled);
+    await prefs.setBool('pref_gest_seek', _swipeSeekEnabled);
+    await prefs.setBool('pref_gest_bv', _swipeBVEnabled);
+    await prefs.setBool('pref_skip_ed_on', _skipEditorEnabled);
+    // Skip editor timestamps (per content ID)
+    final id = _currentFileId.length > 80 ? _currentFileId.hashCode.toString() : _currentFileId;
+    if (_introStart != null) await prefs.setInt('pref_intro_s_$id', _introStart!.inSeconds);
+    if (_introEnd != null)   await prefs.setInt('pref_intro_e_$id', _introEnd!.inSeconds);
+    if (_outroStart != null) await prefs.setInt('pref_outro_s_$id', _outroStart!.inSeconds);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1561,12 +1619,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       behavior: HitTestBehavior.translucent,
                       onTap: _toggleControls,
                       onDoubleTapDown: (d) {
+                        if (!_doubleTapSeekEnabled) return;
                         final isLeft = d.localPosition.dx < constraints.maxWidth / 2;
                         _seekRelative(isLeft ? -_skipInterval : _skipInterval);
                       },
-                      onLongPressStart: (_) => _startLongPress(),
-                      onLongPressEnd: (_) => _endLongPress(),
-                      onLongPressCancel: () => _endLongPress(),
+                      onLongPressStart: (_) { if (_longPressSpeedEnabled) _startLongPress(); },
+                      onLongPressEnd: (_) { if (_longPressSpeedEnabled) _endLongPress(); },
+                      onLongPressCancel: () { if (_longPressSpeedEnabled) _endLongPress(); },
                       onScaleStart: (d) => _onScaleStart(d, constraints),
                       onScaleUpdate: (d) => _onScaleUpdate(d, constraints),
                       onScaleEnd: _onScaleEnd,
@@ -2589,7 +2648,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           // Speed
           _BottomIconBtn(
             icon: Icons.speed_rounded,
-            label: '${_speed == _speed.truncateToDouble() ? "${_speed.toInt()}×" : "${_speed}×"}',
+            label: '${_speed == _speed.truncateToDouble() ? "${_speed.toInt()}×" : "${_speed.toStringAsFixed(2)}×"}',
             active: _speed != 1.0,
             onTap: _cycleSpeed,
           ),
@@ -6408,7 +6467,7 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
                           widget.onSyncChanged(-0.1);
                         }),
                         const SizedBox(width: 16),
-                        Text('${_sync.toStringAsFixed(2)}s',
+                        Text('${_sync.toStringAsFixed(1)}s',
                             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                         const SizedBox(width: 16),
                         _SyncBtn(label: '+', onTap: () {
