@@ -118,3 +118,15 @@ REMAINING OUTSTANDING (genuine, verified from code):
 - audio_session package in pubspec.yaml but never imported or used
 - cinematic_overlay.dart still a 6-line tombstone (harmless but dead)
 - Monolith 6588 lines, Riverpod unused, _AudioTrackPanelState 1249 lines from widget
+
+### Phase 15-19 Compile Fix (sha 83395b5)
+- **15 compile errors fixed** across player_screen.dart + watch_party_service.dart
+- _SubtitlePanel: removed spurious extended-shortcut params from ctor; added `title` + `onSubtitleFilePicked` fields
+- _QuickShortcutsPanel: added 12 missing extended-shortcut params to constructor
+- _QuickShortcutsPanelState: added `widget.` prefix to onClose/endAction/silenceSkipEnabled/onSleepTimer/onSpeedSelected
+- _VideoZoomPanel (StatelessWidget): fixed `widget.onClose` → `onClose`
+- WatchPartyService: added `String get myId` getter
+- _SubtitlePanelState: added `_showInfoSnackbar` method
+- observeProperty callback: added `async` to fix Future<void> return type error
+- SaverGallery.saveImage: `name:` → positional arg
+- _ReverbSelectorState: fixed `String?` nullable assignment
