@@ -351,9 +351,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _subs.addAll([
       _player.stream.playing.listen((v) {
         if (mounted) {
-        setState(() => _playing = v);
-        if (v) _startSavePositionTimer();
-      }
+          setState(() => _playing = v);
+        }
       }),
       _player.stream.position.listen((v) {
         if (mounted) {
@@ -722,8 +721,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _endLongPress() {
     if (!_longPressFast) return;
     _longPressFast = false;
-    _np.setProperty('speed', '1.0');
-    _np.setProperty('framedrop', 'vo');
+    _np.setProperty('speed', _speed.toStringAsFixed(4));
+    _np.setProperty('framedrop', _speed > 1.0 ? 'decoder+vo' : 'vo');
     _np.setProperty('hr-seek', 'yes');
     if (mounted) setState(() {});
   }
@@ -3221,7 +3220,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   // Feature 21: Online subtitle search (stub — wire to opensubtitles.com)
   Future<void> _fetchOnlineSubtitles(BuildContext ctx) async {
     if (_onlineLoading) return;
-    if (mounted) setState(() { _onlineLoading = false; _onlineError = ''; _onlineResults = []; });
+    if (mounted) setState(() { _onlineLoading = true; _onlineError = ''; _onlineResults = []; });
     ScaffoldMessenger.of(ctx).showSnackBar(
       const SnackBar(
         content: Text('Online subtitle search coming soon.'),
