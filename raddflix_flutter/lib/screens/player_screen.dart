@@ -161,6 +161,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   double _audioBalance = 0.0;
   String _currentBalanceAf = '';
   String _currentChannelModeAf = '';
+  int _channelModeIdx = 0; // 0=Stereo 1=Mono 2=Left only 3=Right only
 
   // Video rotation (0/90/180/270)
   int _videoRotation = 0;
@@ -171,6 +172,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _eqEnabled = true;
   String _currentReverbAf = ''; // active reverb aecho string
   String _currentLabAf = '';    // active lab af chain from _AudioEffectPanel
+  // Lab state (persisted so panel reopens restore state)
+  bool _labVocal = false;
+  bool _labDialogue = false;
+  bool _labNorm = false;
+  bool _labBass = false;
+  double _labBassLevel = 0.5;
+  String _reverbPreset = 'None';
 
   // Subtitle
   double _subSync = 0.0; // seconds
@@ -896,8 +904,45 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _backgroundAudio = prefs.getBool('pref_bgaudio') ?? false;
       _keepScreenOn = prefs.getBool('pref_screenon') ?? true;
       _showRemainingTime = prefs.getBool('pref_remaining') ?? false;
+      // EQ + Lab + Reverb + Channel
+      for (int i = 0; i < _eqBands.length; i++) {
+        _eqBands[i] = prefs.getDouble('pref_eq_${i}') ?? 0.0;
+      }
+      _eqEnabled = prefs.getBool('pref_eq_on') ?? true;
+      _reverbPreset = prefs.getString('pref_reverb') ?? 'None';
+      _labVocal = prefs.getBool('pref_lab_vocal') ?? false;
+      _labDialogue = prefs.getBool('pref_lab_dialogue') ?? false;
+      _labNorm = prefs.getBool('pref_lab_norm') ?? false;
+      _labBass = prefs.getBool('pref_lab_bass') ?? false;
+      _labBassLevel = prefs.getDouble('pref_lab_bass_level') ?? 0.5;
+      _channelModeIdx = prefs.getInt('pref_ch_mode') ?? 0;
+      // Rebuild reverb AF string from loaded preset
+      switch (_reverbPreset) {
+        case 'Small Room': _currentReverbAf = 'aecho=0.8:0.9:30:0.4'; break;
+        case 'Hall':       _currentReverbAf = 'aecho=0.8:0.88:60:0.4'; break;
+        case 'Cathedral':  _currentReverbAf = 'aecho=0.8:0.88:120:0.5'; break;
+        case 'Stadium':    _currentReverbAf = 'aecho=0.8:0.9:180:0.6'; break;
+        default:           _currentReverbAf = '';
+      }
+      // Rebuild lab AF string from loaded lab state
+      final labParts = <String>[];
+      if (_labVocal)    labParts.add('pan=stereo|c0=c0-c1|c1=c1-c0');
+      if (_labDialogue) labParts.add('equalizer=0:0:0:0:0:0:3:4:2:0');
+      if (_labNorm)     labParts.add('dynaudnorm');
+      if (_labBass) {
+        final db = (_labBassLevel * 12).round();
+        labParts.add('equalizer=60:1.0:0:$db:60');
+      }
+      _currentLabAf = labParts.isEmpty ? '' : labParts.join(',');
+      // Rebuild channel mode AF from loaded index
+      const chFilters = ['', 'pan=stereo|c0=0.5*c0+0.5*c1|c1=0.5*c0+0.5*c1', 'pan=stereo|c0=c0|c1=c0', 'pan=stereo|c0=c1|c1=c1'];
+      _currentChannelModeAf = chFilters[_channelModeIdx.clamp(0, 3)];
     });
     // Restore speed via MPV
+    // Deferred AF restore — applied once player is ready
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) _applyAllAf();
+    });
     if (_speed != 1.0) {
       try {
         _np.setProperty('framedrop', _speed > 1.0 ? 'decoder+vo' : 'vo');
@@ -923,6 +968,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setBool('pref_clock', _showClockInTitle);
     await prefs.setInt('pref_vrotate', _videoRotation);
     await prefs.setDouble('pref_balance', _audioBalance);
+    // EQ + Lab + Reverb + Channel
+    for (int i = 0; i < _eqBands.length; i++) {
+      await prefs.setDouble('pref_eq_${i}', _eqBands[i]);
+    }
+    await prefs.setBool('pref_eq_on', _eqEnabled);
+    await prefs.setString('pref_reverb', _reverbPreset);
+    await prefs.setBool('pref_lab_vocal', _labVocal);
+    await prefs.setBool('pref_lab_dialogue', _labDialogue);
+    await prefs.setBool('pref_lab_norm', _labNorm);
+    await prefs.setBool('pref_lab_bass', _labBass);
+    await prefs.setDouble('pref_lab_bass_level', _labBassLevel);
+    await prefs.setInt('pref_ch_mode', _channelModeIdx);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2842,9 +2899,14 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
           setState(() => _useSWDecoder = v);
         },
         onChannelModeChanged: (filterStr) {
-          setState(() => _currentChannelModeAf = filterStr);
+          setState(() {
+            _currentChannelModeAf = filterStr;
+            _channelModeIdx = (_channelModeIdx + 1) % 4;
+          });
           _applyAllAf();
+          _savePrefs();
         },
+        initialChannelModeIdx: _channelModeIdx,
         onClose: () => Navigator.of(context).pop(),
       ));
     }
@@ -2872,12 +2934,15 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
         onEqBandChanged: (i, v) {
           setState(() { _eqBands[i] = v; _selectedPreset = -1; });
           _applyCustomEq();
+          _savePrefs();
         },
         onEqEnabledChanged: (v) {
           setState(() => _eqEnabled = v);
           _applyAllAf(); // merged pipeline — reverb/lab still active if enabled
+          _savePrefs();
         },
         onReverbChanged: (preset) {
+          setState(() => _reverbPreset = preset ?? 'None');
           switch (preset) {
             case 'Small Room':  _currentReverbAf = 'aecho=0.8:0.9:30:0.4'; break;
             case 'Hall':        _currentReverbAf = 'aecho=0.8:0.88:60:0.4'; break;
@@ -2886,11 +2951,28 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
             default:            _currentReverbAf = '';
           }
           _applyAllAf(); // EQ + reverb + lab now all stack correctly
+          _savePrefs();
         },
         onLabAfChanged: (afStr) {
           _currentLabAf = afStr;
           _applyAllAf(); // EQ + reverb + lab all stack
         },
+        onLabStateChanged: (vocal, dialogue, norm, bass, bassLevel) {
+          setState(() {
+            _labVocal = vocal;
+            _labDialogue = dialogue;
+            _labNorm = norm;
+            _labBass = bass;
+            _labBassLevel = bassLevel;
+          });
+          _savePrefs();
+        },
+        labVocal: _labVocal,
+        labDialogue: _labDialogue,
+        labNorm: _labNorm,
+        labBass: _labBass,
+        labBassLevel: _labBassLevel,
+        initialReverbPreset: _reverbPreset,
         audioBalance: _audioBalance,
         onBalanceChanged: _applyBalance,
         onClose: () => Navigator.of(context).pop(),
@@ -2979,6 +3061,9 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
         onShowSkipBtnsChanged: (v) => setState(() => _showSkipBtns = v),
         onShowPrevNextBtnsChanged: (v) => setState(() => _showPrevNextBtns = v),
         onShowSeekPositionChanged: (v) => setState(() => _showSeekPositionLabel = v),
+        showSkipBtns: _showSkipBtns,
+        showPrevNextBtns: _showPrevNextBtns,
+        showSeekPosition: _showSeekPositionLabel,
         onRotateVideo: () { Navigator.of(context).pop(); _rotateVideo(); },
         onClose: () => Navigator.of(context).pop(),
       ));
@@ -3401,6 +3486,12 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   int _subAlignIdx = 1; // 0=Left 1=Center 2=Right
   double _subBottomMargin = 22.0;
   bool _subFitToVideo = true;
+  // Customization tab state
+  int _subPositionIdx = 2;    // 0=Top 1=Center 2=Bottom  → sub-align-y
+  int _subShadowIdx = 1;      // 0=None 1=Outline 2=Shadow 3=Box
+  double _subOpacity = 1.0;   // 0.0–1.0 → sub-ass-style alpha
+  double _subEdgePadding = 16.0; // sub-margin-x
+  double _subLineSpacing = 1.2;  // sub-spacing
 
   static const _subFonts = ['Sans Serif', 'Serif', 'Monospace', 'Casual'];
   static const _subAligns = ['Left', 'Center', 'Right'];
@@ -3706,7 +3797,17 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                   const SizedBox(height: 10),
                   // Background picker
                   GestureDetector(
-                    onTap: () => _showColorPicker(context, _subBgPresets, _subBg, (c) => setState(() => _subBg = c)),
+                    onTap: () => _showColorPicker(context, _subBgPresets, _subBg, (col) {
+                      setState(() => _subBg = col);
+                      if (col == Colors.transparent) {
+                        widget.onSubPropertyChanged('sub-back-color', '#00000000');
+                      } else {
+                        final hex = col.red.toRadixString(16).padLeft(2, '0')
+                            + col.green.toRadixString(16).padLeft(2, '0')
+                            + col.blue.toRadixString(16).padLeft(2, '0');
+                        widget.onSubPropertyChanged('sub-back-color', '#ff$hex');
+                      }
+                    }),
                     child: Row(children: [
                       const Expanded(child: Text('Background', style: TextStyle(color: Colors.white, fontSize: 14))),
                       Container(
@@ -3745,7 +3846,11 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                   Row(
                     children: List.generate(_subAligns.length, (i) => Expanded(
                       child: GestureDetector(
-                        onTap: () => setState(() => _subAlignIdx = i),
+                        onTap: () {
+                          setState(() => _subAlignIdx = i);
+                          const _mpvAligns = ['left', 'center', 'right'];
+                          widget.onSubPropertyChanged('sub-align-x', _mpvAligns[i]);
+                        },
                         child: Container(
                           margin: const EdgeInsets.only(right: 6),
                           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -3815,31 +3920,104 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
               if (_tab == 5) ...[
                 const Text('Subtitle Style', style: TextStyle(color: Colors.white70, fontSize: 12)),
                 const SizedBox(height: 12),
-                const Row(children: [
-                  Expanded(child: Text('Position', style: TextStyle(color: Colors.white, fontSize: 14))),
-                  Text('Bottom', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                  Icon(Icons.chevron_right, color: Colors.white38, size: 16),
+                // Position (top / center / bottom)
+                const Text('Position', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    for (int i = 0; i < 3; i++) Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() => _subPositionIdx = i);
+                          const mpvY = ['top', 'center', 'bottom'];
+                          widget.onSubPropertyChanged('sub-align-y', mpvY[i]);
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _subPositionIdx == i ? Colors.white24 : Colors.white10,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(const ['Top','Center','Bottom'][i],
+                            style: TextStyle(color: _subPositionIdx == i ? Colors.white : Colors.white54, fontSize: 13),
+                            textAlign: TextAlign.center),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Shadow style
+                const Text('Shadow', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    for (int i = 0; i < 4; i++) Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() => _subShadowIdx = i);
+                          const depths = ['0', '0', '3', '0'];
+                          const outlines = ['0', '1.5', '0', '0'];
+                          widget.onSubPropertyChanged('sub-shadow-offset', depths[i]);
+                          widget.onSubPropertyChanged('sub-outline-size', outlines[i]);
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 4),
+                          padding: const EdgeInsets.symmetric(vertical: 7),
+                          decoration: BoxDecoration(
+                            color: _subShadowIdx == i ? Colors.white24 : Colors.white10,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(const ['None','Outline','Shadow','Box'][i],
+                            style: TextStyle(color: _subShadowIdx == i ? Colors.white : Colors.white54, fontSize: 11),
+                            textAlign: TextAlign.center, maxLines: 1),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Opacity
+                const Text('Opacity', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                Row(children: [
+                  Expanded(child: Slider(
+                    value: _subOpacity, min: 0.1, max: 1.0, divisions: 9,
+                    activeColor: Colors.white, inactiveColor: Colors.white24,
+                    onChanged: (v) => setState(() => _subOpacity = v),
+                    onChangeEnd: (v) {
+                      final alpha = (v * 255).round().toRadixString(16).padLeft(2,'0');
+                      widget.onSubPropertyChanged('sub-color', '#${alpha}ffffff');
+                    },
+                  )),
+                  SizedBox(width: 40, child: Text('${(_subOpacity * 100).round()}%',
+                      style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.right)),
                 ]),
                 const SizedBox(height: 6),
-                const Row(children: [
-                  Expanded(child: Text('Shadow', style: TextStyle(color: Colors.white, fontSize: 14))),
-                  Text('Outline', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                  Icon(Icons.chevron_right, color: Colors.white38, size: 16),
+                // Edge padding
+                const Text('Edge padding', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                Row(children: [
+                  Expanded(child: Slider(
+                    value: _subEdgePadding, min: 0, max: 60, divisions: 12,
+                    activeColor: Colors.white, inactiveColor: Colors.white24,
+                    onChanged: (v) => setState(() => _subEdgePadding = v),
+                    onChangeEnd: (v) => widget.onSubPropertyChanged('sub-margin-x', v.round().toString()),
+                  )),
+                  SizedBox(width: 40, child: Text('${_subEdgePadding.round()} px',
+                      style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.right)),
                 ]),
                 const SizedBox(height: 6),
-                const Row(children: [
-                  Expanded(child: Text('Opacity', style: TextStyle(color: Colors.white, fontSize: 14))),
-                  Text('100%', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                ]),
-                const SizedBox(height: 6),
-                const Row(children: [
-                  Expanded(child: Text('Edge padding', style: TextStyle(color: Colors.white, fontSize: 14))),
-                  Text('16 px', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                ]),
-                const SizedBox(height: 6),
-                const Row(children: [
-                  Expanded(child: Text('Line spacing', style: TextStyle(color: Colors.white, fontSize: 14))),
-                  Text('1.2×', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                // Line spacing
+                const Text('Line spacing', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                Row(children: [
+                  Expanded(child: Slider(
+                    value: _subLineSpacing, min: 0.8, max: 2.5, divisions: 17,
+                    activeColor: Colors.white, inactiveColor: Colors.white24,
+                    onChanged: (v) => setState(() => _subLineSpacing = v),
+                    onChangeEnd: (v) => widget.onSubPropertyChanged('sub-spacing', v.toStringAsFixed(1)),
+                  )),
+                  SizedBox(width: 40, child: Text('${_subLineSpacing.toStringAsFixed(1)}×',
+                      style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.right)),
                 ]),
               ],
             ],
@@ -3863,6 +4041,7 @@ class _AudioTrackPanel extends StatefulWidget {
   final void Function(double) onSyncChanged;
   final void Function(bool) onSWDecoderChanged;
   final void Function(String) onChannelModeChanged;
+  final int initialChannelModeIdx;
   final VoidCallback onClose;
 
   const _AudioTrackPanel({
@@ -3874,6 +4053,7 @@ class _AudioTrackPanel extends StatefulWidget {
     required this.onSyncChanged,
     required this.onSWDecoderChanged,
     required this.onChannelModeChanged,
+    this.initialChannelModeIdx = 0,
     required this.onClose,
   });
 
@@ -3904,7 +4084,7 @@ class _VideoZoomPanel extends StatelessWidget {
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
-                onPressed: onClose,
+                onPressed: widget.onClose,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),
@@ -3948,8 +4128,16 @@ class _AudioEffectPanel extends StatefulWidget {
   final void Function(bool) onEqEnabledChanged;
   final void Function(String?) onReverbChanged;
   final void Function(String) onLabAfChanged;
+  final void Function(bool vocal, bool dialogue, bool norm, bool bass, double bassLevel) onLabStateChanged;
   final double audioBalance;
   final void Function(double) onBalanceChanged;
+  // Lab initial state (persisted across panel reopens)
+  final bool labVocal;
+  final bool labDialogue;
+  final bool labNorm;
+  final bool labBass;
+  final double labBassLevel;
+  final String initialReverbPreset;
   final VoidCallback onClose;
 
   const _AudioEffectPanel({
@@ -3961,8 +4149,15 @@ class _AudioEffectPanel extends StatefulWidget {
     required this.onEqEnabledChanged,
     required this.onReverbChanged,
     required this.onLabAfChanged,
+    required this.onLabStateChanged,
     required this.audioBalance,
     required this.onBalanceChanged,
+    this.labVocal = false,
+    this.labDialogue = false,
+    this.labNorm = false,
+    this.labBass = false,
+    this.labBassLevel = 0.5,
+    this.initialReverbPreset = 'None',
     required this.onClose,
   });
 
@@ -3975,12 +4170,12 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
   late List<double> _bands;
   late int _preset;
   late bool _eqEnabled;
-  // P8: Lab state
-  bool _labVocal = false;
-  bool _labDialogue = false;
-  bool _labNorm = false;
-  bool _labBass = false;
-  double _labBassLevel = 0.5;
+  // P8: Lab state (initialized from widget props in initState)
+  late bool _labVocal;
+  late bool _labDialogue;
+  late bool _labNorm;
+  late bool _labBass;
+  late double _labBassLevel;
 
   void _applyLabAf() {
     final parts = <String>[];
@@ -3992,6 +4187,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
       parts.add('equalizer=60:1.0:0:$db:60');
     }
     widget.onLabAfChanged(parts.isEmpty ? '' : parts.join(','));
+    widget.onLabStateChanged(_labVocal, _labDialogue, _labNorm, _labBass, _labBassLevel);
   }
 
   static const _presetNames = ['Original', 'Treble Boost', 'Bass Boost', 'Clarity', 'Movie', 'Music'];
@@ -4010,6 +4206,11 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
     _bands = List.from(widget.eqBands);
     _preset = widget.selectedPreset;
     _eqEnabled = widget.eqEnabled;
+    _labVocal = widget.labVocal;
+    _labDialogue = widget.labDialogue;
+    _labNorm = widget.labNorm;
+    _labBass = widget.labBass;
+    _labBassLevel = widget.labBassLevel;
   }
 
   @override
@@ -4317,7 +4518,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
               // Reverb — real selector
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                child: _ReverbSelector(onChanged: widget.onReverbChanged),
+                child: _ReverbSelector(onChanged: widget.onReverbChanged, initialPreset: widget.initialReverbPreset),
               ),
               ],
             ),
@@ -4331,7 +4532,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
 //  QUICK SHORTCUTS PANEL
 // ═════════════════════════════════════════════════════════════════════════════
 
-class _QuickShortcutsPanel extends StatelessWidget {
+class _QuickShortcutsPanel extends StatefulWidget {
   final bool isLocked;
   final bool isMuted;
   final bool loopEnabled;
@@ -4371,30 +4572,64 @@ class _QuickShortcutsPanel extends StatelessWidget {
     required this.abB,
     required this.abActive,
     required this.isRotateLocked,
-    required this.onRotate,
-    required this.onLockToggle,
-    required this.onMuteToggle,
-    required this.onLoopToggle,
-    required this.onSmartEnhanceToggle,
-    required this.onOneHandedToggle,
+    required this.widget.onRotate,
+    required this.widget.onLockToggle,
+    required this.widget.onMuteToggle,
+    required this.widget.onLoopToggle,
+    required this.widget.onSmartEnhanceToggle,
+    required this.widget.onOneHandedToggle,
     required this.onSleepTimer,
     required this.onSpeedSelected,
-    required this.onAudioEffect,
-    required this.onSettingsOpen,
-    required this.onAbSet,
-    required this.onFrameStep,
+    required this.widget.onAudioEffect,
+    required this.widget.onSettingsOpen,
+    required this.widget.onAbSet,
+    required this.widget.onFrameStep,
     required this.onClose,
   });
 
   @override
+  State<_QuickShortcutsPanel> createState() => _QuickShortcutsPanelState();
+}
+
+class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
+  Timer? _countdownTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Refresh every 30s so sleep-timer countdown ticks live
+    _countdownTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final abA = widget.abA; final abB = widget.abB;
+    final abActive = widget.abActive;
+    final sleepTimerEnd = widget.sleepTimerEnd;
+    final speed = widget.speed;
+    final isLocked = widget.isLocked;
+    final isMuted = widget.isMuted;
+    final loopEnabled = widget.loopEnabled;
+    final isRotateLocked = widget.isRotateLocked;
+    final sleepTimerMinutes = widget.sleepTimerMinutes;
+    final smartEnhanceEnabled = widget.smartEnhanceEnabled;
+    final isOneHanded = widget.isOneHanded;
+
     String abLabel = 'A-B';
     if (abA != null && abB == null) abLabel = 'A-B (A set)';
     if (abActive) abLabel = 'A-B ●';
 
     String sleepLabel = 'Sleep';
     if (sleepTimerEnd != null) {
-      final remaining = sleepTimerEnd!.difference(DateTime.now());
+      final remaining = sleepTimerEnd.difference(DateTime.now());
       if (remaining.isNegative) {
         sleepLabel = 'Sleep';
       } else {
@@ -4435,9 +4670,9 @@ class _QuickShortcutsPanel extends StatelessWidget {
               // Row 1 of shortcuts
               _ShortcutGrid(
                 items: [
-                  _ShortcutItem(Icons.screen_rotation_rounded, 'Rotate', isRotateLocked, onRotate),
-                  _ShortcutItem(isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded, 'Mute', isMuted, onMuteToggle),
-                  _ShortcutItem(Icons.equalizer_rounded, 'Equalizer', false, onAudioEffect),
+                  _ShortcutItem(Icons.screen_rotation_rounded, 'Rotate', isRotateLocked, widget.onRotate),
+                  _ShortcutItem(isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded, 'Mute', isMuted, widget.onMuteToggle),
+                  _ShortcutItem(Icons.equalizer_rounded, 'Equalizer', false, widget.onAudioEffect),
                   _ShortcutItem(Icons.timer_rounded, sleepLabel, sleepTimerMinutes != null, () {
                     _showSleepTimerDialog(context);
                   }),
@@ -4451,12 +4686,12 @@ class _QuickShortcutsPanel extends StatelessWidget {
                 items: [
                   _ShortcutItem(
                       Icons.speed_rounded,
-                      '${speed}×',
+                      '${speed == speed.roundToDouble() ? speed.toInt() : speed.toStringAsFixed(2)}×',
                       speed != 1.0,
                       () { _showSpeedDialog(context); }),
-                  _ShortcutItem(Icons.loop_rounded, 'Loop', loopEnabled, onLoopToggle),
-                  _ShortcutItem(Icons.repeat_one_rounded, abLabel, abActive, onAbSet),
-                  _ShortcutItem(Icons.lock_rounded, 'Lock', isLocked, onLockToggle),
+                  _ShortcutItem(Icons.loop_rounded, 'Loop', loopEnabled, widget.onLoopToggle),
+                  _ShortcutItem(Icons.repeat_one_rounded, abLabel, abActive, widget.onAbSet),
+                  _ShortcutItem(Icons.lock_rounded, 'Lock', isLocked, widget.onLockToggle),
                 ],
               ),
 
@@ -4465,10 +4700,10 @@ class _QuickShortcutsPanel extends StatelessWidget {
               // Row 3 — advanced
               _ShortcutGrid(
                 items: [
-                  _ShortcutItem(Icons.skip_next_rounded, 'Frame Step', false, onFrameStep),
-                  _ShortcutItem(Icons.smart_display_rounded, 'Smart View', smartEnhanceEnabled, onSmartEnhanceToggle),
-                  _ShortcutItem(Icons.settings_rounded, 'Settings', false, onSettingsOpen),
-                  _ShortcutItem(Icons.pan_tool_alt_rounded, '1-Hand', isOneHanded, onOneHandedToggle),
+                  _ShortcutItem(Icons.skip_next_rounded, 'Frame Step', false, widget.onFrameStep),
+                  _ShortcutItem(Icons.smart_display_rounded, 'Smart View', smartEnhanceEnabled, widget.onSmartEnhanceToggle),
+                  _ShortcutItem(Icons.settings_rounded, 'Settings', false, widget.onSettingsOpen),
+                  _ShortcutItem(Icons.pan_tool_alt_rounded, '1-Hand', isOneHanded, widget.onOneHandedToggle),
                 ],
               ),
 
@@ -4495,7 +4730,7 @@ class _QuickShortcutsPanel extends StatelessWidget {
                   mins == null ? 'Disable' : '$mins minutes',
                   style: const TextStyle(color: Colors.white),
                 ),
-                trailing: sleepTimerMinutes == mins
+                trailing: widget.sleepTimerMinutes == mins
                     ? const Icon(Icons.check, color: Colors.white, size: 18)
                     : null,
                 onTap: () {
@@ -4521,7 +4756,7 @@ class _QuickShortcutsPanel extends StatelessWidget {
           children: [
             for (final s in speeds)
               ListTile(
-                title: Text('${s}×', style: const TextStyle(color: Colors.white)),
+                title: Text('${s == s.roundToDouble() ? s.toInt() : s}×', style: const TextStyle(color: Colors.white)),
                 trailing: speed == s ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
                 onTap: () {
                   Navigator.of(ctx).pop();
@@ -4607,6 +4842,10 @@ class _SettingsPanel extends StatefulWidget {
   final void Function(bool) onShowSkipBtnsChanged;
   final void Function(bool) onShowPrevNextBtnsChanged;
   final void Function(bool) onShowSeekPositionChanged;
+  // Initial values for navigation toggles
+  final bool showSkipBtns;
+  final bool showPrevNextBtns;
+  final bool showSeekPosition;
   // Video rotate shortcut
   final VoidCallback onRotateVideo;
   final VoidCallback onClose;
@@ -4636,6 +4875,9 @@ class _SettingsPanel extends StatefulWidget {
     required this.onShowSkipBtnsChanged,
     required this.onShowPrevNextBtnsChanged,
     required this.onShowSeekPositionChanged,
+    required this.showSkipBtns,
+    required this.showPrevNextBtns,
+    required this.showSeekPosition,
     required this.onRotateVideo,
     required this.onClose,
   });
@@ -4653,10 +4895,10 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   late int _accentIdx;
   late int _pbStyle;
   late bool _backgroundAudio;
-  // Navigation tab real toggles
-  bool _showSkipBtns = true;
-  bool _showPrevNextBtns = true;
-  bool _showSeekPosition = true;
+  // Navigation tab real toggles (initialized from widget props in initState)
+  late bool _showSkipBtns;
+  late bool _showPrevNextBtns;
+  late bool _showSeekPosition;
   // Screen tab brightness
   double _screenBrightness = 0.5;
 
@@ -4671,6 +4913,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     _pbStyle = widget.progressBarStyle;
     _backgroundAudio = widget.backgroundAudio;
     _screenBrightness = widget.initialBrightness;
+    _showSkipBtns = widget.showSkipBtns;
+    _showPrevNextBtns = widget.showPrevNextBtns;
+    _showSeekPosition = widget.showSeekPosition;
   }
 
   @override
@@ -5106,13 +5351,14 @@ class _SyncBtn extends StatelessWidget {
 class _AudioTrackPanelState extends State<_AudioTrackPanel> {
   late double _sync;
   late bool _useSW;
-  int _chIdx = 0;
+  late int _chIdx;
 
   @override
   void initState() {
     super.initState();
     _sync = widget.audioSync;
     _useSW = widget.useSWDecoder;
+    _chIdx = widget.initialChannelModeIdx;
   }
 
   @override
@@ -5247,7 +5493,8 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
 
 class _ReverbSelector extends StatefulWidget {
   final void Function(String?) onChanged;
-  const _ReverbSelector({required this.onChanged});
+  final String initialPreset;
+  const _ReverbSelector({required this.onChanged, this.initialPreset = 'None'});
 
   @override
   State<_ReverbSelector> createState() => _ReverbSelectorState();
@@ -5306,8 +5553,14 @@ class _LabToggleRow extends StatelessWidget {
 }
 
 class _ReverbSelectorState extends State<_ReverbSelector> {
-  String? _selected;
+  late String _selected;
   static const _presets = ['None', 'Small Room', 'Hall', 'Cathedral', 'Stadium'];
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.initialPreset;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -5316,7 +5569,7 @@ class _ReverbSelectorState extends State<_ReverbSelector> {
         const Text('Reverb', style: TextStyle(color: Colors.white70, fontSize: 13)),
         const Spacer(),
         DropdownButton<String>(
-          value: _selected ?? 'None',
+          value: _selected,
           dropdownColor: const Color(0xFF2A2A2A),
           style: const TextStyle(color: Colors.white54, fontSize: 13),
           underline: const SizedBox.shrink(),
