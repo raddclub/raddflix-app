@@ -147,6 +147,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   double _pinchBaseScale = 1.0;
   bool _showZoomIndicator = false;
 
+  // Night mode eye-comfort filter
+  bool _nightModeEnabled = false;
+  double _nightWarmth = 0.4;
+
+  // Clock overlay in title bar
+  bool _showClockInTitle = true;
+  String _clockStr = '';
+  Timer? _clockDisplayTimer;
+
+  // Audio L/R balance
+  double _audioBalance = 0.0;
+  String _currentBalanceAf = '';
+
+  // Video rotation (0/90/180/270)
+  int _videoRotation = 0;
+
   // Audio effect
   int _selectedPreset = 0; // 0=Original 1=TrebleBoost 2=BassBoost 3=Clarity 4=Movie 5=Music
   List<double> _eqBands = [0, 0, 0, 0, 0]; // 60,230,910,3600,14000 Hz
@@ -260,6 +276,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) setState(() => _brightness = v);
     });
     _loadPrefs();
+    _clockStr = _fmtClock();
+    _clockDisplayTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() => _clockStr = _fmtClock());
+    });
+  }
+
+  String _fmtClock() {
+    final n = DateTime.now();
+    return '${n.hour.toString().padLeft(2, '0')}:${n.minute.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -286,6 +311,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _indicatorTimer?.cancel();
     _smartEnhanceTimer?.cancel();
     _sleepTimer?.cancel();
+    _clockDisplayTimer?.cancel();
     _scanLineTimer?.cancel();
     _autoRetryTimer?.cancel();
     _smartEnhanceAnim.dispose();
@@ -764,6 +790,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _speed       = prefs.getDouble('pref_speed') ?? 1.0;
       _zoomMode    = prefs.getInt('pref_zoom') ?? 0;
       _skipInterval = prefs.getInt('pref_skip') ?? 10;
+      _nightModeEnabled = prefs.getBool('pref_night') ?? false;
+      _nightWarmth = prefs.getDouble('pref_warmth') ?? 0.4;
+      _showClockInTitle = prefs.getBool('pref_clock') ?? true;
+      _videoRotation = prefs.getInt('pref_vrotate') ?? 0;
+      _audioBalance = prefs.getDouble('pref_balance') ?? 0.0;
       _seekSwipeSec = prefs.getDouble('pref_swipe') ?? 120.0;
       _accentColorIdx = prefs.getInt('pref_accent') ?? 0;
       _progressBarStyle = prefs.getInt('pref_pbstyle') ?? 0;
@@ -793,6 +824,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setBool('pref_bgaudio', _backgroundAudio);
     await prefs.setBool('pref_screenon', _keepScreenOn);
     await prefs.setBool('pref_remaining', _showRemainingTime);
+    await prefs.setBool('pref_night', _nightModeEnabled);
+    await prefs.setDouble('pref_warmth', _nightWarmth);
+    await prefs.setBool('pref_clock', _showClockInTitle);
+    await prefs.setInt('pref_vrotate', _videoRotation);
+    await prefs.setDouble('pref_balance', _audioBalance);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1009,8 +1045,75 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_currentReverbAf.isNotEmpty) parts.add(_currentReverbAf);
     // Lab chain (pan, dynaudnorm, etc.)
     if (_currentLabAf.isNotEmpty) parts.add(_currentLabAf);
+    if (_currentBalanceAf.isNotEmpty) parts.add(_currentBalanceAf);
     return parts.join(',');
   }
+
+  void _applyBalance(double balance) {
+    setState(() {
+      _audioBalance = balance.clamp(-1.0, 1.0);
+      if (_audioBalance.abs() < 0.02) {
+        _currentBalanceAf = '';
+      } else {
+        final l = _audioBalance <= 0 ? 1.0 : (1.0 - _audioBalance);
+        final r = _audioBalance >= 0 ? 1.0 : (1.0 + _audioBalance);
+        _currentBalanceAf =
+            'pan=stereo|c0=${l.toStringAsFixed(3)}*c0|c1=${r.toStringAsFixed(3)}*c1';
+      }
+      _applyAllAf();
+    });
+    _savePrefs();
+  }
+
+  void _rotateVideo() {
+    setState(() => _videoRotation = (_videoRotation + 90) % 360);
+    try { _np.setProperty('video-rotate', _videoRotation.toString()); } catch (_) {}
+    _savePrefs();
+  }
+
+  void _showVideoInfoDialog() {
+    final w = _player.state.width ?? 0;
+    final h = _player.state.height ?? 0;
+    final res = w > 0 ? '${w}x${h}' : 'Unknown';
+    final quality = h >= 2160 ? '4K' : h >= 1080 ? 'Full HD' : h >= 720 ? 'HD' : h > 0 ? 'SD' : '-';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Video Info', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: DefaultTextStyle(
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _infoRow('Resolution', '$res ($quality)'),
+              _infoRow('Duration', _formatDuration(_duration)),
+              _infoRow('Position', _formatDuration(_position)),
+              _infoRow('Speed', '${_speed}x'),
+              if (_videoRotation != 0) _infoRow('Rotation', '${_videoRotation}deg'),
+              if (_pinchScale != 1.0) _infoRow('Pinch Scale', '${_pinchScale.toStringAsFixed(1)}x'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(children: [
+      SizedBox(width: 90, child: Text(label, style: const TextStyle(color: Colors.white54))),
+      Flexible(child: Text(value, style: const TextStyle(color: Colors.white))),
+    ]),
+  );
 
   void _applyAllAf() {
     try { _np.setProperty('af', _buildMergedAfString()); } catch (_) {}
@@ -1645,6 +1748,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           child: video,
         );
       }
+      // Night mode eye-comfort warm filter
+      if (_nightModeEnabled) {
+        final w = _nightWarmth.clamp(0.0, 1.0);
+        video = ColorFiltered(
+          colorFilter: ColorFilter.matrix([
+            1.0 + w * 0.25, 0.0, 0.0, 0.0,  w * 12.0,
+            0.0, 1.0 - w * 0.05, 0.0, 0.0,  0.0,
+            0.0, 0.0, 1.0 - w * 0.55, 0.0, -w * 25.0,
+            0.0, 0.0, 0.0, 1.0, 0.0,
+          ]),
+          child: video,
+        );
+      }
       // Pinch-to-zoom: apply scale transform (overflow clipped by Scaffold bounds)
       if (_pinchScale != 1.0) {
         video = Transform.scale(scale: _pinchScale, child: video);
@@ -1931,6 +2047,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               icon: Icons.replay_rounded,
               size: 20,
               onTap: () => _player.seek(Duration.zero),
+            ),
+
+            // Clock overlay
+            if (_showClockInTitle) ...[
+              Text(
+                _clockStr,
+                style: const TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(width: 6),
+            ],
+
+            // Video rotation badge
+            if (_videoRotation != 0)
+              GestureDetector(
+                onTap: _rotateVideo,
+                child: Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(color: Colors.orange.withOpacity(0.6), width: 0.8),
+                  ),
+                  child: Text('${_videoRotation}deg',
+                      style: const TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
+              ),
+
+            // Video info button
+            _RaddIconBtn(
+              icon: Icons.info_outline_rounded,
+              size: 19,
+              onTap: _showVideoInfoDialog,
             ),
 
             // P2: PiP button
@@ -2448,6 +2597,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         currentFile: _currentSubFile,
         onSyncChanged: (delta) => _adjustSubSync(delta),
         onSpeedChanged: (v) => setState(() => _subSpeed = v),
+        onSubPropertyChanged: (prop, val) {
+          try { _np.setProperty(prop, val); } catch (_) {}
+        },
         onClose: () => Navigator.of(context).pop(),
       ));
     }
@@ -2513,6 +2665,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _currentLabAf = afStr;
           _applyAllAf(); // EQ + reverb + lab all stack
         },
+        audioBalance: _audioBalance,
+        onBalanceChanged: _applyBalance,
         onClose: () => Navigator.of(context).pop(),
       ));
     }
@@ -2586,6 +2740,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         onProgressBarStyleChanged: (s) { setState(() => _progressBarStyle = s); _savePrefs(); },
         backgroundAudio: _backgroundAudio,
         onBackgroundAudioChanged: (v) { setState(() => _backgroundAudio = v); _savePrefs(); },
+        nightModeEnabled: _nightModeEnabled,
+        nightWarmth: _nightWarmth,
+        onNightModeToggle: (v) { setState(() => _nightModeEnabled = v); _savePrefs(); },
+        onNightWarmthChanged: (v) { setState(() => _nightWarmth = v); _savePrefs(); },
+        showClockInTitle: _showClockInTitle,
+        onClockToggle: (v) {
+          setState(() { _showClockInTitle = v; _clockStr = _fmtClock(); });
+          _savePrefs();
+        },
+        onRotateVideo: () { Navigator.of(context).pop(); _rotateVideo(); },
         onClose: () => Navigator.of(context).pop(),
       ));
     }
@@ -2965,6 +3129,7 @@ class _SubtitlePanel extends StatefulWidget {
   final String? currentFile;
   final void Function(double) onSyncChanged;
   final void Function(double) onSpeedChanged;
+  final void Function(String prop, String val) onSubPropertyChanged;
   final VoidCallback onClose;
 
   const _SubtitlePanel({
@@ -2973,6 +3138,7 @@ class _SubtitlePanel extends StatefulWidget {
     required this.currentFile,
     required this.onSyncChanged,
     required this.onSpeedChanged,
+    required this.onSubPropertyChanged,
     required this.onClose,
   });
 
@@ -3212,7 +3378,12 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                                 fontWeight: i == _subFontIdx ? FontWeight.bold : FontWeight.normal,
                               )),
                               trailing: i == _subFontIdx ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
-                              onTap: () { setState(() => _subFontIdx = i); Navigator.of(c).pop(); },
+                              onTap: () {
+                                setState(() => _subFontIdx = i);
+                                const mpvFonts = ['sans-serif', 'serif', 'monospace', 'sans-serif'];
+                                widget.onSubPropertyChanged('sub-font', mpvFonts[i]);
+                                Navigator.of(c).pop();
+                              },
                             )),
                           ),
                           actions: [TextButton(onPressed: () => Navigator.of(c).pop(),
@@ -3233,7 +3404,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                     Expanded(child: Slider(
                       value: _subSize, min: 12, max: 40, divisions: 14,
                       activeColor: Colors.white, inactiveColor: Colors.white24,
-                      onChanged: (v) => setState(() => _subSize = v),
+                      onChanged: (v) { setState(() => _subSize = v); widget.onSubPropertyChanged('sub-font-size', v.round().toString()); },
                     )),
                     SizedBox(width: 32, child: Text('${_subSize.round()}', style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.right)),
                   ]),
@@ -3253,14 +3424,24 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                   SwitchListTile(
                     title: const Text('Bold', style: TextStyle(color: Colors.white, fontSize: 14)),
                     value: _subBold,
-                    onChanged: (v) => setState(() => _subBold = v),
+                    onChanged: (v) {
+                      setState(() => _subBold = v);
+                      widget.onSubPropertyChanged('sub-bold', v ? 'yes' : 'no');
+                    },
                     activeColor: Colors.white,
                     contentPadding: EdgeInsets.zero,
                   ),
                   const SizedBox(height: 4),
                   // Color picker
                   GestureDetector(
-                    onTap: () => _showColorPicker(context, _subColorPresets, _subColor, (c) => setState(() => _subColor = c)),
+                    onTap: () => _showColorPicker(context, _subColorPresets, _subColor, (col) {
+                      setState(() => _subColor = col);
+                      final hex = '#'
+                          + col.red.toRadixString(16).padLeft(2, '0')
+                          + col.green.toRadixString(16).padLeft(2, '0')
+                          + col.blue.toRadixString(16).padLeft(2, '0');
+                      widget.onSubPropertyChanged('sub-color', hex);
+                    }),
                     child: Row(children: [
                       const Expanded(child: Text('Text color', style: TextStyle(color: Colors.white, fontSize: 14))),
                       Container(
@@ -3514,6 +3695,8 @@ class _AudioEffectPanel extends StatefulWidget {
   final void Function(bool) onEqEnabledChanged;
   final void Function(String?) onReverbChanged;
   final void Function(String) onLabAfChanged;
+  final double audioBalance;
+  final void Function(double) onBalanceChanged;
   final VoidCallback onClose;
 
   const _AudioEffectPanel({
@@ -3525,6 +3708,8 @@ class _AudioEffectPanel extends StatefulWidget {
     required this.onEqEnabledChanged,
     required this.onReverbChanged,
     required this.onLabAfChanged,
+    required this.audioBalance,
+    required this.onBalanceChanged,
     required this.onClose,
   });
 
@@ -3763,6 +3948,47 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                       ),
                     ],
                   ),
+                ),
+
+                const SizedBox(height: 12),
+                const Divider(color: Colors.white12),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 4, left: 2),
+                  child: Text('L / R Balance',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                ),
+                Row(children: [
+                  const Text('L', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  Expanded(child: Slider(
+                    value: widget.audioBalance,
+                    min: -1.0, max: 1.0, divisions: 20,
+                    activeColor: Colors.white, inactiveColor: Colors.white24,
+                    onChanged: widget.onBalanceChanged,
+                  )),
+                  const Text('R', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                ]),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const SizedBox(width: 16),
+                    Text(
+                      widget.audioBalance.abs() < 0.02
+                          ? 'Center'
+                          : widget.audioBalance < 0
+                              ? 'Left ${(-widget.audioBalance * 100).round()}%'
+                              : 'Right ${(widget.audioBalance * 100).round()}%',
+                      style: const TextStyle(color: Colors.white60, fontSize: 12),
+                    ),
+                    TextButton(
+                      onPressed: () => widget.onBalanceChanged(0.0),
+                      style: TextButton.styleFrom(
+                          foregroundColor: Colors.white38,
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                      child: const Text('Reset', style: TextStyle(fontSize: 11)),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -4153,6 +4379,15 @@ class _SettingsPanel extends StatefulWidget {
   // P12: background audio
   final bool backgroundAudio;
   final void Function(bool) onBackgroundAudioChanged;
+  // Night mode + clock
+  final bool nightModeEnabled;
+  final double nightWarmth;
+  final void Function(bool) onNightModeToggle;
+  final void Function(double) onNightWarmthChanged;
+  final bool showClockInTitle;
+  final void Function(bool) onClockToggle;
+  // Video rotate shortcut
+  final VoidCallback onRotateVideo;
   final VoidCallback onClose;
 
   const _SettingsPanel({
@@ -4170,6 +4405,13 @@ class _SettingsPanel extends StatefulWidget {
     required this.onProgressBarStyleChanged,
     required this.backgroundAudio,
     required this.onBackgroundAudioChanged,
+    required this.nightModeEnabled,
+    required this.nightWarmth,
+    required this.onNightModeToggle,
+    required this.onNightWarmthChanged,
+    required this.showClockInTitle,
+    required this.onClockToggle,
+    required this.onRotateVideo,
     required this.onClose,
   });
 
@@ -4190,9 +4432,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   bool _showSkipBtns = true;
   bool _showPrevNextBtns = true;
   bool _showSeekPosition = true;
-  // Screen tab real controls
-  bool _showBatteryInTitle = true;
-  bool _showClockInTitle = true;
+  // Screen tab brightness
   double _screenBrightness = 0.5;
 
   @override
@@ -4380,15 +4620,15 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         const SizedBox(height: 4),
         SwitchListTile(
           title: const Text('Show battery level', style: TextStyle(color: Colors.white, fontSize: 14)),
-          value: _showBatteryInTitle,
-          onChanged: (v) => setState(() => _showBatteryInTitle = v),
+          value: true,
+          onChanged: (_) {},
           activeColor: Colors.white,
           contentPadding: EdgeInsets.zero,
         ),
         SwitchListTile(
           title: const Text('Show clock / time', style: TextStyle(color: Colors.white, fontSize: 14)),
-          value: _showClockInTitle,
-          onChanged: (v) => setState(() => _showClockInTitle = v),
+          value: widget.showClockInTitle,
+          onChanged: widget.onClockToggle,
           activeColor: Colors.white,
           contentPadding: EdgeInsets.zero,
         ),
