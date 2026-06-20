@@ -193,8 +193,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _showSkipBtns = true;
   bool _showPrevNextBtns = true;
   bool _showSeekPositionLabel = true;
-  bool _showSkipBtns = true;
-  bool _showPrevNextBtns = true;
   int _skipInterval = 10;
   double _seekSwipeSec = 120.0;
   // Feature 26 — resume position
@@ -299,9 +297,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       _saveWatchPos();
-      // P12: if background audio enabled, don't pause
+      // P12: if background audio enabled keep playing; otherwise pause
       if (!_backgroundAudio) {
-        // player keeps playing — audio-only background via system
+        _player.pause();
       }
     } else if (state == AppLifecycleState.resumed) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -448,6 +446,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _videoOpened = true;
       await _player.open(Media(effectivePath));
       await _restoreWatchPos();
+      _startSavePositionTimer();
       if (mounted) setState(() { _isLinkLoading = false; });
       _scheduleHide();
       return;
@@ -491,6 +490,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _videoOpened = true;
         await _player.open(Media(link.streamUrl));
         await _restoreWatchPos();
+      _startSavePositionTimer();
         _scheduleHide();
         return;
       }
@@ -559,6 +559,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _videoOpened = true;
       await _player.open(Media(localPath));
       await _restoreWatchPos();
+      _startSavePositionTimer();
       _scheduleHide();
       return;
     }
@@ -569,6 +570,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _videoOpened = true;
       await _player.open(Media(fileId));
       await _restoreWatchPos();
+      _startSavePositionTimer();
       _scheduleHide();
       return;
     }
@@ -610,6 +612,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _videoOpened = true;
         await _player.open(Media(link.streamUrl));
         await _restoreWatchPos();
+      _startSavePositionTimer();
         _scheduleHide();
         return;
       }
@@ -1928,7 +1931,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
 
           // P9: Seek preview label during drag
-          if (_dragIntent == 'seek' && _seekPreviewLabel.isNotEmpty)
+          if (_dragIntent == 'seek' && _seekPreviewLabel.isNotEmpty && _showSeekPositionLabel)
             Positioned(
               bottom: 88, left: 0, right: 0,
               child: Center(
@@ -2167,6 +2170,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        // Skip backward — flanks episode prev/next
+        if (_showSkipBtns) ...[
+          Opacity(
+            opacity: 0.85,
+            child: _RaddIconBtn(
+              icon: Icons.replay_rounded,
+              size: 28,
+              onTap: () => _seekRelative(-_skipInterval),
+            ),
+          ),
+          const SizedBox(width: 10),
+        ],
+
         // Previous video — always visible, dimmed when unavailable
         if (_showPrevNextBtns)
         Opacity(
@@ -2213,6 +2229,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             onTap: _hasNext ? () => _playEpisodeAt(_currentEpIdx + 1) : null,
           ),
         ),
+
+        // Skip forward — flanks episode prev/next
+        if (_showSkipBtns) ...[
+          const SizedBox(width: 10),
+          Opacity(
+            opacity: 0.85,
+            child: _RaddIconBtn(
+              icon: Icons.forward_rounded,
+              size: 28,
+              onTap: () => _seekRelative(_skipInterval),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -2402,7 +2431,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     Widget _buildCenteredVolumeOverlay() {
       final percent = (_volume * 100).round();
-      final barFrac = (_volume / 2.5).clamp(0.0, 1.0);
+      // Bar fills 0→100% for OS volume 0→100%; boost >100% keeps bar full
+      // (orange→red colour already signals the boost level)
+      final barFrac = _volume.clamp(0.0, 1.0);
       // 0-100% = orange, 100-200% = deep orange, 200-250% = red
       final barColor = _volume > 2.0
           ? const Color(0xFFFF3B30)
@@ -3154,8 +3185,18 @@ class _SmartEnhanceDotsCirclePainter extends CustomPainter {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, color: color, size: 22,
+                Icon(icon, color: color, size: 20,
                     shadows: const [Shadow(blurRadius: 4, color: Colors.black54)]),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w500,
+                    shadows: const [Shadow(blurRadius: 4, color: Colors.black54)],
+                  ),
+                ),
               ],
             ),
           ),
