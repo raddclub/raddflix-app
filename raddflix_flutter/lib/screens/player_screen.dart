@@ -555,7 +555,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // Silence skip: subscribe to MPV log for silencedetect events
     try {
-      _np.observeProperty('log-message', (String msg) {
+      _np.observeProperty('log-message', (String msg) async {
         if (!_silenceInPipeline || !mounted) return;
         if (msg.contains('silence_end:')) {
           final endMatch = RegExp(r'silence_end:\s*([\d.]+)').firstMatch(msg);
@@ -3167,6 +3167,11 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
           try { _np.setProperty(prop, val); } catch (_) {}
         },
         onClose: () => Navigator.of(context).pop(),
+        title: _currentTitle,
+        onSubtitleFilePicked: (path) {
+          setState(() => _currentSubFile = path);
+          try { _np.setProperty('sub-file', path); } catch (_) {}
+        },
       ));
     }
 
@@ -3933,7 +3938,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
           final bytes = Uint8List.fromList(pngFile.readAsBytesSync());
           final result = await SaverGallery.saveImage(
             bytes,
-            name: '$baseName.png',
+            '$baseName.png',
             androidRelativePath: 'Pictures/RaddFlix',
             quality: 95,
           );
@@ -4467,6 +4472,8 @@ class _SubtitlePanel extends StatefulWidget {
   final void Function(double) onSpeedChanged;
   final void Function(String prop, String val) onSubPropertyChanged;
   final VoidCallback onClose;
+  final String? title;
+  final void Function(String)? onSubtitleFilePicked;
 
   const _SubtitlePanel({
     required this.subSync,
@@ -4476,18 +4483,8 @@ class _SubtitlePanel extends StatefulWidget {
     required this.onSpeedChanged,
     required this.onSubPropertyChanged,
     required this.onClose,
-    required this.onJumpTo,
-    required this.onSpeedPresets,
-    required this.onEndAction,
-    required this.onScreenshot,
-    required this.onWatchParty,
-    required this.onSilenceSkip,
-    required this.onZoomCrop,
-    required this.onGestureMap,
-    required this.onSkipEditor,
-    required this.onLayoutDesigner,
-    required this.silenceSkipEnabled,
-    required this.endAction,
+    this.title,
+    this.onSubtitleFilePicked,
   });
 
   @override
@@ -4530,6 +4527,15 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     Colors.transparent, Colors.black87, Color(0x99000000),
     Color(0x99FFFF00), Colors.black,
   ];
+
+  void _showInfoSnackbar(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: Colors.black87,
+      duration: const Duration(seconds: 2),
+    ));
+  }
 
   @override
   void initState() {
@@ -5219,7 +5225,7 @@ class _VideoZoomPanel extends StatelessWidget {
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
-                onPressed: widget.onClose,
+                onPressed: onClose,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),
@@ -5733,6 +5739,18 @@ class _QuickShortcutsPanel extends StatefulWidget {
     required this.onAbSet,
     required this.onFrameStep,
     required this.onClose,
+    required this.onJumpTo,
+    required this.onSpeedPresets,
+    required this.onEndAction,
+    required this.onScreenshot,
+    required this.onWatchParty,
+    required this.onSilenceSkip,
+    required this.onZoomCrop,
+    required this.onGestureMap,
+    required this.onSkipEditor,
+    required this.onLayoutDesigner,
+    required this.silenceSkipEnabled,
+    required this.endAction,
   });
 
   @override
@@ -5794,7 +5812,7 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
-                onPressed: onClose,
+                onPressed: widget.onClose,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),
@@ -5866,7 +5884,7 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
                 items: [
                   _ShortcutItem(Icons.access_time_rounded, 'Jump To', false, widget.onJumpTo),
                   _ShortcutItem(Icons.speed_outlined, 'Speed List', false, widget.onSpeedPresets),
-                  _ShortcutItem(Icons.last_page_rounded, 'End Action', endAction != 'play_next', widget.onEndAction),
+                  _ShortcutItem(Icons.last_page_rounded, 'End Action', widget.endAction != 'play_next', widget.onEndAction),
                   _ShortcutItem(Icons.camera_alt_rounded, 'Screenshot', false, widget.onScreenshot),
                 ],
               ),
@@ -5877,7 +5895,7 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
               _ShortcutGrid(
                 items: [
                   _ShortcutItem(Icons.people_rounded, 'Watch Party', false, widget.onWatchParty),
-                  _ShortcutItem(Icons.volume_off_outlined, 'Silence Skip', silenceSkipEnabled, widget.onSilenceSkip),
+                  _ShortcutItem(Icons.volume_off_outlined, 'Silence Skip', widget.silenceSkipEnabled, widget.onSilenceSkip),
                   _ShortcutItem(Icons.touch_app_rounded, 'Gestures', false, widget.onGestureMap),
                   _ShortcutItem(Icons.content_cut_rounded, 'Skip Editor', false, widget.onSkipEditor),
                 ],
@@ -5922,7 +5940,7 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
                     : null,
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  onSleepTimer(mins);
+                  widget.onSleepTimer(mins);
                 },
               ),
           ],
@@ -5947,7 +5965,7 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
                 trailing: speed == s ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  onSpeedSelected(s);
+                  widget.onSpeedSelected(s);
                 },
               ),
           ],
@@ -6825,7 +6843,7 @@ class _ReverbSelectorState extends State<_ReverbSelector> {
             child: Text(p, style: const TextStyle(color: Colors.white)),
           )).toList(),
           onChanged: (v) {
-            setState(() => _selected = v);
+            setState(() => _selected = v ?? _selected);
             widget.onChanged(v == 'None' ? null : v);
           },
         ),
