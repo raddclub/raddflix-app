@@ -2,8 +2,11 @@ package com.raddflix.app
 
 import android.app.Activity
 import android.app.PictureInPictureParams
+import android.content.BroadcastReceiver
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.media.MediaScannerConnection
 import android.net.Uri
@@ -36,10 +39,30 @@ class MainActivity : FlutterActivity() {
     private var pendingVideoTitle: String? = null
     private var pendingSubtitleUri: String? = null
 
-    // Stored reference used by onPictureInPictureModeChanged to send events back to Flutter.
-    // configureFlutterEngine() runs before any lifecycle callbacks, so this is always set
-    // by the time PiP exit can be triggered.
+    // Stored reference used by onPictureInPictureModeChanged and notifReceiver
+    // to send events back to Flutter. Set in configureFlutterEngine().
     private var activeEngine: FlutterEngine? = null
+
+    // Pip channel reference — stored so notifReceiver can invoke methods on it
+    // without creating a new MethodChannel instance (which would not have the handler set).
+    private var pipMethodChannel: MethodChannel? = null
+
+    // ── Media notification BroadcastReceiver ──────────────────────────────────
+    // Catches button taps from PlaybackService's PendingIntent broadcasts and
+    // forwards them to Flutter as "onNotificationAction" on the pip channel.
+    private val notifReceiver = object : BroadcastReceiver() {
+        override fun onReceive(ctx: Context?, intent: Intent?) {
+            val action = when (intent?.action) {
+                PlaybackService.ACTION_PLAY_PAUSE -> "play_pause"
+                PlaybackService.ACTION_SEEK_BACK  -> "seek_back"
+                PlaybackService.ACTION_SEEK_FWD   -> "seek_forward"
+                else -> return
+            }
+            // invokeMethod must be called on the main thread; BroadcastReceiver
+            // callbacks always arrive on the main thread so this is safe.
+            pipMethodChannel?.invokeMethod("onNotificationAction", action)
+        }
+    }
 
     companion object {
         private val SUBTITLE_EXTS = setOf("srt", "ass", "ssa", "vtt", "sub")
@@ -53,6 +76,29 @@ class MainActivity : FlutterActivity() {
     private var castContext: CastContext? = null
     private var castSession: CastSession? = null
     private var castSessionListener: SessionManagerListener<CastSession>? = null
+
+    // ── Register / unregister notification receiver ───────────────────────────
+
+    override fun onStart() {
+        super.onStart()
+        val filter = IntentFilter().apply {
+            addAction(PlaybackService.ACTION_PLAY_PAUSE)
+            addAction(PlaybackService.ACTION_SEEK_BACK)
+            addAction(PlaybackService.ACTION_SEEK_FWD)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(notifReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(notifReceiver, filter)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        try { unregisterReceiver(notifReceiver) } catch (_: Exception) {}
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -99,53 +145,82 @@ class MainActivity : FlutterActivity() {
         extractVideoUri(intent)
 
         // ── PiP + Background Playback Channel ────────────────────────────
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PIP_CHANNEL)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
+        val pipCh = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PIP_CHANNEL)
+        pipMethodChannel = pipCh   // store for notifReceiver access
+        pipCh.setMethodCallHandler { call, result ->
+            when (call.method) {
 
-                    "enterPiP" -> {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            val params = PictureInPictureParams.Builder()
-                                .setAspectRatio(Rational(16, 9))
-                                .build()
-                            enterPictureInPictureMode(params)
-                            result.success(true)
-                        } else {
-                            result.success(false)
-                        }
+                "enterPiP" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        val params = PictureInPictureParams.Builder()
+                            .setAspectRatio(Rational(16, 9))
+                            .build()
+                        enterPictureInPictureMode(params)
+                        result.success(true)
+                    } else {
+                        result.success(false)
                     }
-
-                    // FIX-BGPLAY: start a foreground service so Android doesn't kill
-                    // the process after ~1 minute of background audio playback.
-                    "startBgPlayback" -> {
-                        val title = call.argument<String>("title") ?: "Playing…"
-                        val svcIntent = Intent(this, PlaybackService::class.java).apply {
-                            putExtra(PlaybackService.EXTRA_TITLE, title)
-                        }
-                        try {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                startForegroundService(svcIntent)
-                            } else {
-                                startService(svcIntent)
-                            }
-                            result.success(null)
-                        } catch (e: Exception) {
-                            result.success(null) // best-effort — don't crash Flutter
-                        }
-                    }
-
-                    // FIX-BGPLAY: stop the foreground service when app comes back
-                    // to foreground or the player is closed.
-                    "stopBgPlayback" -> {
-                        try {
-                            stopService(Intent(this, PlaybackService::class.java))
-                        } catch (_: Exception) {}
-                        result.success(null)
-                    }
-
-                    else -> result.notImplemented()
                 }
+
+                // Start (or restart/update) the foreground media notification service.
+                // Accepts optional isPlaying, positionMs, durationMs in addition to title
+                // so the notification reflects the current playback state immediately.
+                "startBgPlayback" -> {
+                    val title     = call.argument<String>("title")      ?: "Playing…"
+                    val isPlaying = call.argument<Boolean>("isPlaying") ?: true
+                    val posMs     = (call.argument<Int>("positionMs")   ?: 0).toLong()
+                    val durMs     = (call.argument<Int>("durationMs")   ?: 0).toLong()
+                    val svcIntent = Intent(this, PlaybackService::class.java).apply {
+                        putExtra(PlaybackService.EXTRA_TITLE,      title)
+                        putExtra(PlaybackService.EXTRA_IS_PLAYING, isPlaying)
+                        putExtra(PlaybackService.EXTRA_POSITION,   posMs)
+                        putExtra(PlaybackService.EXTRA_DURATION,   durMs)
+                    }
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(svcIntent)
+                        } else {
+                            startService(svcIntent)
+                        }
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.success(null) // best-effort
+                    }
+                }
+
+                // Update the notification with new state (play/pause toggle, title change).
+                // Delivers the intent to an already-running service via onStartCommand.
+                "updateBgNotification" -> {
+                    val title     = call.argument<String>("title")      ?: "Playing…"
+                    val isPlaying = call.argument<Boolean>("isPlaying") ?: true
+                    val posMs     = (call.argument<Int>("positionMs")   ?: 0).toLong()
+                    val durMs     = (call.argument<Int>("durationMs")   ?: 0).toLong()
+                    val svcIntent = Intent(this, PlaybackService::class.java).apply {
+                        putExtra(PlaybackService.EXTRA_TITLE,      title)
+                        putExtra(PlaybackService.EXTRA_IS_PLAYING, isPlaying)
+                        putExtra(PlaybackService.EXTRA_POSITION,   posMs)
+                        putExtra(PlaybackService.EXTRA_DURATION,   durMs)
+                    }
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(svcIntent)
+                        } else {
+                            startService(svcIntent)
+                        }
+                    } catch (_: Exception) {}
+                    result.success(null)
+                }
+
+                "stopBgPlayback" -> {
+                    try {
+                        stopService(Intent(this, PlaybackService::class.java))
+                    } catch (_: Exception) {}
+                    result.success(null)
+                }
+
+                else -> result.notImplemented()
             }
+        }
 
         // ── Media Channel (scanFile + deleteMediaFiles for vault) ─────────
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL)
@@ -345,18 +420,13 @@ class MainActivity : FlutterActivity() {
     }
 
     // ── PiP exit → notify Flutter ─────────────────────────────────────────
-    // Called by Android when the activity enters or exits picture-in-picture mode.
-    // When isInPictureInPictureMode=false (exiting), we send "onPipExited" to Flutter
-    // so player_screen.dart can reset _inPiP=false and show controls again.
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
         newConfig: android.content.res.Configuration?
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (!isInPictureInPictureMode) {
-            activeEngine?.dartExecutor?.binaryMessenger?.let { messenger ->
-                MethodChannel(messenger, PIP_CHANNEL).invokeMethod("onPipExited", null)
-            }
+            pipMethodChannel?.invokeMethod("onPipExited", null)
         }
     }
 
