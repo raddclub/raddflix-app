@@ -98,7 +98,6 @@ dependencies:
   saver_gallery: ^3.0.6
   flutter_colorpicker: ^1.1.0
   audio_session: ^0.1.21
-  speech_to_text: ^7.4.0
 
   # IDEA-01: Universal Subtitle Hunter — ZIP archive extraction
   archive: ^3.4.0
