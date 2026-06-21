@@ -7,6 +7,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.media.MediaScannerConnection
 import android.net.Uri
@@ -327,6 +328,31 @@ class MainActivity : FlutterActivity() {
                         result.success(suPaths.any { java.io.File(it).exists() })
                     }
                     else -> result.notImplemented()
+                }
+            }
+
+        // ── Orientation Channel ──────────────────────────────────────────────
+        // Allows Flutter to set requestedOrientation via native API.
+        // This works even when system auto-rotate is OFF — unlike
+        // SystemChrome.setPreferredOrientations which respects that setting.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.raddflix.app/orient")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "setOrientation") {
+                    val mode = call.argument<String>("mode") ?: "sensor"
+                    requestedOrientation = when (mode) {
+                        "sensor"           -> ActivityInfo.SCREEN_ORIENTATION_SENSOR
+                        "sensor_landscape" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                        "sensor_portrait"  -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                        "landscape_right"  -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                        "landscape_left"   -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+                        "portrait"         -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                        "portrait_reverse" -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
+                        "unspecified"      -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                        else               -> ActivityInfo.SCREEN_ORIENTATION_SENSOR
+                    }
+                    result.success(null)
+                } else {
+                    result.notImplemented()
                 }
             }
 
