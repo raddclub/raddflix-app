@@ -130,3 +130,15 @@ REMAINING OUTSTANDING (genuine, verified from code):
 - observeProperty callback: added `async` to fix Future<void> return type error
 - SaverGallery.saveImage: `name:` → positional arg
 - _ReverbSelectorState: fixed `String?` nullable assignment
+
+### Phase 20 — Player Panel UI Fixes (sha 2b477ac)
+- **Bug 1 fixed**: All panels now slide from the RIGHT side (45% width) instead of full-screen bottom sheets
+  - `_openRightPanel` rewritten: `showModalBottomSheet` → `showGeneralDialog` with right-side `SlideTransition`
+  - Panel is 45% screen width, 60% dark transparent (`Colors.black.withOpacity(0.60)`)
+  - Tap on left 55% (video) dismisses the panel — user can see live video behind panel
+  - All panels route through: subtitle, audio, audio effect, zoom, more menu, settings
+- **Bug 2 fixed**: `_showEpisodeSheet` converted from bottom sheet → `_openRightPanel` (side panel)
+- **Bug 3 fixed**: All QSP sub-sheets also converted to side panels:
+  Speed Presets, End Action, Silence Skip, Zoom & Crop, Gesture Map, Skip Editor, Layout Designer
+- **Subtitle fix**: Default `_subBottomMargin` changed from 22px → 100px so subtitles always render above bottom controls/seek bar (no more hidden-under-controls bug)
+- `showModalBottomSheet` calls in player_screen.dart: **0 remaining**
