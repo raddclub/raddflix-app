@@ -6859,6 +6859,8 @@ class _ReverbSelectorState extends State<_ReverbSelector> {
     );
   }
 
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 //  SIDEBAR CUSTOMIZER PANEL
 //  Lets the user reorder shortcuts and toggle which ones appear in the sidebar.
@@ -7065,5 +7067,4 @@ class _SidebarCustomizerPanelState extends State<_SidebarCustomizerPanel> {
       ],
     );
   }
-}
 }
