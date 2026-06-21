@@ -2924,36 +2924,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     //  Panels (right-side slide-in)
     // ═══════════════════════════════════════════════════════════════════════════
 
-void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
-  showModalBottomSheet(
+void _openRightPanel(Widget content, {double widthFactor = 0.45}) {
+  showGeneralDialog(
     context: context,
-    backgroundColor: Colors.transparent,
-    isScrollControlled: true,
-    isDismissible: true,
-    enableDrag: true,
-    barrierColor: Colors.black45,
-    builder: (ctx) {
-      final h = MediaQuery.of(ctx).size.height;
-      return Container(
-        height: h * 0.52,
-        decoration: const BoxDecoration(
-          color: Color(0xFF141414),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            // Drag handle
-            Container(
-              margin: const EdgeInsets.only(top: 10, bottom: 6),
-              width: 38, height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
+    barrierDismissible: true,
+    barrierLabel: 'Close',
+    barrierColor: Colors.transparent,
+    transitionDuration: const Duration(milliseconds: 220),
+    pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+    transitionBuilder: (ctx, anim, _, __) {
+      final w = MediaQuery.of(ctx).size.width;
+      final slide = Tween<Offset>(
+        begin: const Offset(1.0, 0.0),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut));
+      return Stack(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.of(ctx).pop(),
+            child: Container(color: Colors.black.withOpacity(0.38 * anim.value)),
+          ),
+          Positioned(
+            right: 0, top: 0, bottom: 0,
+            width: w * widthFactor,
+            child: SlideTransition(
+              position: slide,
+              child: Material(
+                color: Colors.black.withOpacity(0.60),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    border: Border(left: BorderSide(color: Colors.white12, width: 0.8)),
+                  ),
+                  child: SafeArea(child: content),
+                ),
               ),
             ),
-            Expanded(child: content),
-          ],
-        ),
+          ),
+        ],
       );
     },
   );
@@ -3228,13 +3235,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
     // ── Speed Presets ─────────────────────────────────────────────────────────
     void _showSpeedPresetsSheet(BuildContext ctx) {
       const speeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
-      showModalBottomSheet(
-        context: ctx,
-        backgroundColor: const Color(0xFF1C1C1C),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-        ),
-        builder: (_) => StatefulBuilder(
+      _openRightPanel(StatefulBuilder(
           builder: (shCtx, setSt) => Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             child: Column(
@@ -3276,19 +3277,12 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
               ],
             ),
           ),
-        ),
-      );
+        ),);;
     }
 
     // ── End Action ────────────────────────────────────────────────────────────
     void _showEndActionSheet(BuildContext ctx) {
-      showModalBottomSheet(
-        context: ctx,
-        backgroundColor: const Color(0xFF1C1C1C),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-        ),
-        builder: (_) => Padding(
+      _openRightPanel(Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -3325,19 +3319,12 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
                 ),
             ],
           ),
-        ),
-      );
+        ),);;
     }
 
     // ── Silence Skip ──────────────────────────────────────────────────────────
     void _showSilenceSkipSheet(BuildContext ctx) {
-      showModalBottomSheet(
-        context: ctx,
-        backgroundColor: const Color(0xFF1C1C1C),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-        ),
-        builder: (_) => StatefulBuilder(
+      _openRightPanel(StatefulBuilder(
           builder: (shCtx, setSt) => Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
             child: Column(
@@ -3396,8 +3383,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
               ],
             ),
           ),
-        ),
-      );
+        ),);;
     }
 
     void _applySilenceSkip() {
@@ -3416,14 +3402,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
         ('1:1',     '1:1'),
         ('Stretch', '-1'),
       ];
-      showModalBottomSheet(
-        context: ctx,
-        backgroundColor: const Color(0xFF1C1C1C),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-        ),
-        isScrollControlled: true,
-        builder: (_) => StatefulBuilder(
+      _openRightPanel(StatefulBuilder(
           builder: (shCtx, setSt) => Padding(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
             child: Column(
@@ -3476,20 +3455,12 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
               ],
             ),
           ),
-        ),
-      );
+        ),);;
     }
 
     // ── Gesture Map ───────────────────────────────────────────────────────────
     void _showGestureMapSheet(BuildContext ctx) {
-      showModalBottomSheet(
-        context: ctx,
-        backgroundColor: const Color(0xFF1C1C1C),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-        ),
-        isScrollControlled: true,
-        builder: (_) => StatefulBuilder(
+      _openRightPanel(StatefulBuilder(
           builder: (shCtx, setSt) => Padding(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
             child: Column(
@@ -3534,20 +3505,12 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
               ],
             ),
           ),
-        ),
-      );
+        ),);;
     }
 
     // ── Skip Editor ───────────────────────────────────────────────────────────
     void _showSkipEditorSheet(BuildContext ctx) {
-      showModalBottomSheet(
-        context: ctx,
-        backgroundColor: const Color(0xFF1C1C1C),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-        ),
-        isScrollControlled: true,
-        builder: (_) => StatefulBuilder(
+      _openRightPanel(StatefulBuilder(
           builder: (shCtx, setSt) => Padding(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
             child: Column(
@@ -3640,8 +3603,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
               ],
             ),
           ),
-        ),
-      );
+        ),);;
     }
 
     void _checkSkipEditor() {
@@ -3676,13 +3638,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
 
     // ── Layout Designer ───────────────────────────────────────────────────────
     void _showLayoutDesignerSheet(BuildContext ctx) {
-      showModalBottomSheet(
-        context: ctx,
-        backgroundColor: const Color(0xFF1C1C1C),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-        ),
-        builder: (_) => Padding(
+      _openRightPanel(Padding(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -3726,8 +3682,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
                 ),
             ],
           ),
-        ),
-      );
+        ),);;
     }
 
     // ── Screenshot ────────────────────────────────────────────────────────────
@@ -3923,65 +3878,50 @@ void _openRightPanel(Widget content, {double widthFactor = 0.82}) {
     // ═══════════════════════════════════════════════════════════════════════════
 
     void _showEpisodeSheet() {
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: const Color(0xFF1C1C1C),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-        ),
-        builder: (_) => SizedBox(
-          height: 380,
-          child: Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 10, bottom: 6),
-                width: 36, height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+      _openRightPanel(Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
+            child: Row(children: [
+              const Expanded(child: Text('Episodes',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                onPressed: () => Navigator.of(context).pop(),
               ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 6, 16, 6),
-                child: Text('Episodes',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold)),
-              ),
-              const Divider(color: Colors.white12),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _eps.length,
-                  itemBuilder: (_, i) {
-                    final ep = _eps[i];
-                    final label = ep['label'] as String? ??
-                        ep['title'] as String? ?? 'Episode ${i + 1}';
-                    final isCurrent = i == _currentEpIdx;
-                    return ListTile(
-                      title: Text(label,
-                          style: TextStyle(
-                            color: isCurrent ? Colors.white : Colors.white70,
-                            fontWeight: isCurrent
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          )),
-                      trailing: isCurrent
-                          ? const Icon(Icons.play_arrow_rounded,
-                              color: Colors.white, size: 20)
-                          : null,
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        _playEpisodeAt(i);
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
+            ]),
           ),
-        ),
-      );
+          const Divider(color: Colors.white12, height: 1),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _eps.length,
+              itemBuilder: (_, i) {
+                final ep = _eps[i];
+                final label = ep['label'] as String? ??
+                    ep['title'] as String? ?? 'Episode ${i + 1}';
+                final isCurrent = i == _currentEpIdx;
+                return ListTile(
+                  dense: true,
+                  title: Text(label,
+                      style: TextStyle(
+                        color: isCurrent ? Colors.white : Colors.white70,
+                        fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                        fontSize: 13,
+                      )),
+                  trailing: isCurrent
+                      ? const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 18)
+                      : null,
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _playEpisodeAt(i);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -4234,7 +4174,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   double _subFade = 0.8;
   // Panel tab
   int _subAlignIdx = 1; // 0=Left 1=Center 2=Right
-  double _subBottomMargin = 22.0;
+  double _subBottomMargin = 100.0;
   bool _subFitToVideo = true;
   // Customization tab state
   int _subPositionIdx = 2;    // 0=Top 1=Center 2=Bottom  → sub-align-y
