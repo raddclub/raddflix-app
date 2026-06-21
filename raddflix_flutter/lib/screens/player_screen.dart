@@ -1742,15 +1742,50 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
 
-                // 6. Volume/brightness indicator — bottom strip
-                if (_showVolumeIndicator || _showBrightnessIndicator)
+                // 6a. Brightness indicator — LEFT side (MX Player style vertical pill)
+                if (_showBrightnessIndicator)
                   Positioned(
-                    bottom: constraints.maxHeight * 0.14,
-                    left: constraints.maxWidth * 0.10,
-                    right: constraints.maxWidth * 0.10,
-                    child: _showVolumeIndicator
-                        ? _buildCenteredVolumeOverlay()
-                        : _buildCenteredBrightnessOverlay(),
+                    left: 20,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: _buildSideIndicator(
+                        icon: _brightness < 0.3
+                            ? Icons.brightness_low_rounded
+                            : _brightness > 0.7
+                                ? Icons.brightness_high_rounded
+                                : Icons.brightness_medium_rounded,
+                        barValue: _brightness,
+                        barColor: const Color(0xFFFFD60A),
+                        label: '${(_brightness * 100).round()}%',
+                      ),
+                    ),
+                  ),
+
+                // 6b. Volume indicator — RIGHT side (MX Player style vertical pill)
+                if (_showVolumeIndicator)
+                  Positioned(
+                    right: 20,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: _buildSideIndicator(
+                        icon: _isMuted
+                            ? Icons.volume_off_rounded
+                            : _volume > 1.0
+                                ? Icons.volume_up_rounded
+                                : _volume > 0.4
+                                    ? Icons.volume_down_rounded
+                                    : Icons.volume_mute_rounded,
+                        barValue: _volume.clamp(0.0, 1.0),
+                        barColor: _volume > 2.0
+                            ? const Color(0xFFFF3B30)
+                            : _volume > 1.0
+                                ? const Color(0xFFFF6B35)
+                                : Colors.white,
+                        label: '${(_volume * 100).round()}%',
+                      ),
+                    ),
                   ),
 
                 // 7. Long-press 2× badge
@@ -2822,99 +2857,67 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  Volume indicator — bottom strip indicator
+    //  MX Player-style side indicator (vertical pill)
+    //  Brightness → LEFT side (amber bar)
+    //  Volume     → RIGHT side (white/orange bar)
     // ═══════════════════════════════════════════════════════════════════════════
 
-    Widget _buildCenteredVolumeOverlay() {
-      final percent = (_volume * 100).round();
-      // Bar fills 0→100% for OS volume 0→100%; boost >100% keeps bar full
-      // (orange→red colour already signals the boost level)
-      final barFrac = _volume.clamp(0.0, 1.0);
-      // 0-100% = orange, 100-200% = deep orange, 200-250% = red
-      final barColor = _volume > 2.0
-          ? const Color(0xFFFF3B30)
-          : _volume > 1.0
-              ? const Color(0xFFFF6B35)
-              : const Color(0xFFE8950A);
-      return _buildCenteredIndicatorPill(
-        icon: _isMuted
-            ? Icons.volume_off_rounded
-            : _volume > 1.0
-                ? Icons.volume_up_rounded
-                : _volume > 0.4
-                    ? Icons.volume_down_rounded
-                    : Icons.volume_mute_rounded,
-        barValue: barFrac,
-        barColor: barColor,
-        label: '$percent%',
-      );
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    //  Brightness indicator — bottom strip indicator
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    Widget _buildCenteredBrightnessOverlay() {
-      final percent = (_brightness * 100).round();
-      return _buildCenteredIndicatorPill(
-        icon: _brightness < 0.3
-            ? Icons.brightness_low_rounded
-            : _brightness > 0.7
-                ? Icons.brightness_high_rounded
-                : Icons.brightness_medium_rounded,
-        barValue: _brightness,
-        barColor: const Color(0xFF3A8EF5),
-        label: '$percent%',
-      );
-    }
-
-    Widget _buildCenteredIndicatorPill({
+    Widget _buildSideIndicator({
       required IconData icon,
       required double barValue,
       required Color barColor,
       required String label,
     }) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        width: 44,
+        height: 176,
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.35),
-          borderRadius: BorderRadius.circular(28),
+          color: Colors.black.withOpacity(0.58),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white.withOpacity(0.12), width: 0.8),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 10,
+              color: Colors.black.withOpacity(0.30),
+              blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.max,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.white, size: 15),
-            const SizedBox(width: 10),
+            const SizedBox(height: 10),
+            Icon(icon, color: Colors.white, size: 18),
+            const SizedBox(height: 8),
+            // Vertical bar — fills bottom-to-top like MX Player
             Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: LinearProgressIndicator(
-                  value: barValue,
-                  backgroundColor: Colors.white24,
-                  valueColor: AlwaysStoppedAnimation<Color>(barColor),
-                  minHeight: 3,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: RotatedBox(
+                    quarterTurns: 3, // rotate so bar fills bottom→top
+                    child: LinearProgressIndicator(
+                      value: barValue.clamp(0.0, 1.0),
+                      backgroundColor: Colors.white.withOpacity(0.18),
+                      valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                      minHeight: 6,
+                    ),
+                  ),
                 ),
               ),
             ),
-            const SizedBox(width: 10),
-            SizedBox(
-              width: 34,
-              child: Text(
-                label,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600),
-                textAlign: TextAlign.right,
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
               ),
             ),
+            const SizedBox(height: 10),
           ],
         ),
       );
