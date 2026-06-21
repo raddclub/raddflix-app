@@ -1,32 +1,44 @@
 # Agent Status
-  **Last Updated:** 2026-06-19  
-  **Build:** #1153 ✅ SUCCESS (id=7748282186, 57.1MB)  
-  **Run:** https://github.com/raddclub/raddflix-app/actions/runs/27821999045
+**Last Updated:** 2026-06-21
+**Build:** #1218 ✅ SUCCESS (run id=27904238382, ~6 min)
+**Run:** https://github.com/raddclub/raddflix-app/actions/runs/27904238382
 
-  ## Root Cause (CONFIRMED)
-  The "local video black screen" bug was introduced when Smart Enhance (commit 034938fb)
-  added `_applyVideoFilters(loaded)` to `_loadPrefs()`. This created the SAME race
-  as the hwdec bug (fixed in commit 3b56547a) — _loadPrefs completes ~50-200ms after
-  _player.open() starts the HW decoder, then setProperty('vf',...) destroys the GL surface.
+---
 
-  ## Permanent Fix Applied (Build #1153)
-  **FIX-VF-ROOT**: In _initPlayer(), BEFORE _player.open(), the code now:
-  1. Loads PlayerPrefs directly (await PlayerPrefs.load())
-  2. Primes _firstVfApplied=true + _lastAppliedVf → _applyVideoFilters from _loadPrefs is a dedup no-op
-  3. Applies vf= BEFORE decoder starts (safe — initial config, not a change)
-  4. Applies hwdec='no' if user disabled it (safe — before decoder starts)
+## Latest Session — Player UI Overhaul (2026-06-21)
 
-  Result: zero race, zero surface destruction. No flags or timers are load-bearing.
+### Work Completed
+| Task | Commit | Status |
+|------|--------|--------|
+| Right-slide panels (all 10 showModalBottomSheet → showGeneralDialog, 45% width, 60% dark bg) | 2b477ac | ✅ |
+| MX Player-style brightness (LEFT, amber) + volume (RIGHT, white/orange) vertical pill indicators | 42388f1 | ✅ |
+| Auto-rotation via native Android sensor (SCREEN_ORIENTATION_SENSOR, ignores system toggle) | fd9f8c3 | ✅ |
+| Customizable persistent shortcut sidebar (toggle, scroll, all 19 shortcuts, drag reorder, add/remove) | 9e8a1bf | ✅ |
+| Brace fix: _SidebarCustomizerPanel class was nested inside _ReverbSelectorState | d70ca1f | ✅ |
+| QSP dead slots fixed: PiP button wired, empty slot → Sidebar shortcut | 9e8a1bf | ✅ |
 
-  ## Fix History (all layers still present as defense-in-depth)
-  | Layer | Build | Description |
-  |-------|-------|-------------|
-  | FIX-VF-STARTUP | #1148 | _videoOpened=true gate in _applyVideoFilters |
-  | FIX-VF-GAP | #1148 | Prime _lastAppliedVf when gate blocks |
-  | FIX-VF-ABSOLUTE | #1151 | 2s timestamp block after player.open() |
-  | **FIX-VF-ROOT** | **#1153** | **Pre-open vf= in _initPlayer() — THE real fix** |
+### Current Player File
+- **raddflix_flutter/lib/screens/player_screen.dart** — 7071 lines, 21 widget classes
+- **Build:** #1218 ✅ clean compile, no errors
 
-  ## Status
-  ✅ FIXED — Install build #1153, play local video, black screen should be gone.
-  If still happening, get PlaybackTimeline: Profile → 5×tap version → Player tab → Copy → paste.
-  
+---
+
+## Critical Rules (Never Break)
+| Rule | Detail |
+|------|--------|
+| NO `vf=` property | Destroys GL surface on MediaTek → permanent black screen |
+| NO `hwdec` mid-play | Only in initial player config before open() |
+| NO `androidAttachSurfaceAfterVideoParameters: true` | Same black screen bug |
+| db.setting(k) | NOT db.get_setting(k) |
+| NO local var named `_np` | Reserved for the mpv player instance |
+| Channel names | pip, media, cast, intent, security, orient (all under com.raddflix.app/) |
+
+---
+
+## Build History (Recent)
+| Build | Date | Result | Notes |
+|-------|------|--------|-------|
+| #1218 | 2026-06-21 | ✅ SUCCESS | Sidebar + rotation fixes |
+| #1217 | 2026-06-21 | ❌ FAILED | _SidebarCustomizerPanel inside _ReverbSelectorState |
+| #1216 | 2026-06-21 | ❌ FAILED | Wrong closing brace insertion |
+| #1153 | 2026-06-19 | ✅ SUCCESS | FIX-VF-ROOT black screen fix |
