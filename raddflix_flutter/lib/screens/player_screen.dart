@@ -263,6 +263,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Silence skip — in merged AF pipeline flag
   bool _silenceInPipeline = false;
 
+  // ── Customizable sidebar ──────────────────────────────────────────────────
+  bool _sidebarExpanded = true;
+  // Ordered list of shortcut IDs shown in the sidebar (persisted)
+  List<String> _sidebarOrder = [
+    'cc','audio','eq','speed','loop','rotate','lock','pip',
+  ];
+  static const _allSidebarIds = [
+    'cc','audio','eq','speed','loop','rotate','lock','pip',
+    'screenshot','sleep','ab','episodes','settings','vivid',
+    'mute','frame','onehanded','zoom','silence',
+  ];
+
   // Skip editor debounce
   String? _lastSkipRegion;
 
@@ -1084,6 +1096,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _skipEditorEnabled   = prefs.getBool('pref_skip_ed_on') ?? false;
       _cropAspectIdx       = prefs.getInt('pref_crop_aspect') ?? 0;
       _oneHandedLeft       = prefs.getBool('pref_onehanded_left') ?? false;
+      // Sidebar
+      _sidebarExpanded = prefs.getBool('pref_sidebar_exp') ?? true;
+      final sbJson = prefs.getString('pref_sidebar_order');
+      if (sbJson != null) {
+        try {
+          _sidebarOrder = (jsonDecode(sbJson) as List).cast<String>();
+          // Ensure at least one valid item exists
+          if (_sidebarOrder.isEmpty) _sidebarOrder = ['cc','audio','speed','loop','rotate','lock'];
+        } catch (_) {}
+      }
       // Rebuild reverb AF string from loaded preset
       switch (_reverbPreset) {
         case 'Small Room': _currentReverbAf = 'aecho=0.8:0.9:30:0.4'; break;
@@ -1161,6 +1183,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setBool('pref_skip_ed_on', _skipEditorEnabled);
     await prefs.setInt('pref_crop_aspect', _cropAspectIdx);
     await prefs.setBool('pref_onehanded_left', _oneHandedLeft);
+    await prefs.setBool('pref_sidebar_exp', _sidebarExpanded);
+    await prefs.setString('pref_sidebar_order', jsonEncode(_sidebarOrder));
     // Skip editor timestamps (per content ID)
     final id = _currentFileId.length > 80 ? _currentFileId.hashCode.toString() : _currentFileId;
     if (_introStart != null) await prefs.setInt('pref_intro_s_$id', _introStart!.inSeconds);
@@ -1746,6 +1770,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     child: _buildControlsOverlay(constraints),
                   ),
                 ),
+
+                // 5. Customizable shortcut sidebar (right edge, toggleable, scrollable)
+                if (!_isLocked)
+                  Positioned(
+                    right: 0, top: 0, bottom: 0,
+                    child: AnimatedOpacity(
+                      opacity: _showControls ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 280),
+                      child: IgnorePointer(
+                        ignoring: !_showControls,
+                        child: _buildSidebar(constraints),
+                      ),
+                    ),
+                  ),
 
                 // 6a. Brightness indicator — LEFT side (MX Player style vertical pill)
                 if (_showBrightnessIndicator)
@@ -2862,6 +2900,284 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    //  Customizable Shortcut Sidebar
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    Widget _buildSidebar(BoxConstraints constraints) {
+      // Build shortcut definitions from current live state
+      final defs = <String, ({IconData icon, String label, bool active, bool available, VoidCallback? onTap})>{
+        'cc': (
+          icon: _subtitleTracks.isNotEmpty ? Icons.subtitles_rounded : Icons.subtitles_off_rounded,
+          label: 'CC',
+          active: _subtitleTracks.isNotEmpty,
+          available: true,
+          onTap: _openSubtitlePanel,
+        ),
+        'audio': (
+          icon: Icons.headphones_rounded,
+          label: 'Audio',
+          active: _audioTracks.length > 1,
+          available: _audioTracks.length > 1,
+          onTap: _openAudioPanel,
+        ),
+        'eq': (
+          icon: Icons.equalizer_rounded,
+          label: 'EQ',
+          active: _eqEnabled,
+          available: true,
+          onTap: _openAudioEffectPanel,
+        ),
+        'speed': (
+          icon: Icons.speed_rounded,
+          label: _speed == 1.0 ? '1×' : '${_speed.toStringAsFixed(2)}×',
+          active: _speed != 1.0,
+          available: true,
+          onTap: _cycleSpeed,
+        ),
+        'loop': (
+          icon: Icons.loop_rounded,
+          label: 'Loop',
+          active: _loopEnabled,
+          available: true,
+          onTap: _toggleLoop,
+        ),
+        'rotate': (
+          icon: _orientIcon,
+          label: 'Rotate',
+          active: _orientMode != 0,
+          available: true,
+          onTap: _cycleOrientation,
+        ),
+        'lock': (
+          icon: Icons.lock_outline_rounded,
+          label: 'Lock',
+          active: false,
+          available: true,
+          onTap: () => setState(() { _isLocked = true; _showControls = false; }),
+        ),
+        'pip': (
+          icon: Icons.picture_in_picture_alt_rounded,
+          label: 'PiP',
+          active: false,
+          available: true,
+          onTap: _enterPiP,
+        ),
+        'screenshot': (
+          icon: Icons.camera_alt_rounded,
+          label: 'Shot',
+          active: false,
+          available: true,
+          onTap: _takeScreenshot,
+        ),
+        'sleep': (
+          icon: Icons.bedtime_rounded,
+          label: _sleepTimerEnd != null ? '💤${_fmtSleepRemaining()}' : 'Sleep',
+          active: _sleepTimerEnd != null,
+          available: true,
+          onTap: () { Navigator.of(context).pop(); },
+        ),
+        'ab': (
+          icon: Icons.repeat_one_rounded,
+          label: _abActive ? 'A-B●' : 'A-B',
+          active: _abActive,
+          available: true,
+          onTap: _handleAbRepeat,
+        ),
+        'episodes': (
+          icon: Icons.view_list_rounded,
+          label: 'Eps',
+          active: false,
+          available: _eps.length > 1,
+          onTap: _showEpisodeSheet,
+        ),
+        'settings': (
+          icon: Icons.settings_rounded,
+          label: 'Config',
+          active: false,
+          available: true,
+          onTap: _openSettingsPanel,
+        ),
+        'vivid': (
+          icon: Icons.auto_awesome_rounded,
+          label: 'Vivid',
+          active: _smartEnhanceEnabled,
+          available: true,
+          onTap: _toggleSmartEnhance,
+        ),
+        'mute': (
+          icon: _isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+          label: _isMuted ? 'Unmute' : 'Mute',
+          active: _isMuted,
+          available: true,
+          onTap: _toggleMute,
+        ),
+        'frame': (
+          icon: Icons.skip_next_rounded,
+          label: 'Frame',
+          active: false,
+          available: true,
+          onTap: () { try { _np.command(['frame-step']); } catch (_) {} },
+        ),
+        'onehanded': (
+          icon: Icons.pan_tool_alt_rounded,
+          label: '1-Hand',
+          active: _oneHandedMode,
+          available: true,
+          onTap: () { setState(() => _oneHandedMode = !_oneHandedMode); _savePrefs(); },
+        ),
+        'zoom': (
+          icon: Icons.zoom_in_rounded,
+          label: 'Zoom',
+          active: _zoomMode != 0,
+          available: true,
+          onTap: _openZoomPanel,
+        ),
+        'silence': (
+          icon: Icons.volume_off_outlined,
+          label: 'Silence',
+          active: _silenceSkipEnabled,
+          available: true,
+          onTap: () => _showSilenceSkipSheet(context),
+        ),
+      };
+
+      final visibleItems = _sidebarOrder
+          .where((id) => defs.containsKey(id))
+          .toList();
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // ── Toggle chevron ──────────────────────────────────────────────
+          GestureDetector(
+            onTap: () {
+              setState(() => _sidebarExpanded = !_sidebarExpanded);
+              _savePrefs();
+            },
+            child: Container(
+              width: 22, height: 48,
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.55),
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
+                border: Border(
+                  left: BorderSide(color: Colors.white.withOpacity(0.12), width: 0.8),
+                  top: BorderSide(color: Colors.white.withOpacity(0.08), width: 0.5),
+                  bottom: BorderSide(color: Colors.white.withOpacity(0.08), width: 0.5),
+                ),
+              ),
+              child: Icon(
+                _sidebarExpanded ? Icons.chevron_right : Icons.chevron_left,
+                color: Colors.white60, size: 16,
+              ),
+            ),
+          ),
+
+          // ── Sidebar body ────────────────────────────────────────────────
+          if (_sidebarExpanded) ...[
+            const SizedBox(height: 4),
+            Flexible(
+              child: Container(
+                width: 54,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.55),
+                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+                  border: Border(
+                    left: BorderSide(color: Colors.white.withOpacity(0.12), width: 0.8),
+                    top: BorderSide(color: Colors.white.withOpacity(0.08), width: 0.5),
+                    bottom: BorderSide(color: Colors.white.withOpacity(0.08), width: 0.5),
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Counter badge
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 4, top: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.10),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${visibleItems.length}',
+                          style: const TextStyle(color: Colors.white54, fontSize: 9, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      // Shortcut items
+                      for (final id in visibleItems) ...[
+                        if (defs[id] != null)
+                          GestureDetector(
+                            onTap: (defs[id]!.available) ? defs[id]!.onTap : null,
+                            child: Opacity(
+                              opacity: defs[id]!.available ? 1.0 : 0.35,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                width: 54,
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: defs[id]!.active
+                                      ? _accentColor.withOpacity(0.18)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      defs[id]!.icon,
+                                      color: defs[id]!.active ? _accentColor : Colors.white70,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      defs[id]!.label,
+                                      style: TextStyle(
+                                        color: defs[id]!.active ? _accentColor : Colors.white54,
+                                        fontSize: 9,
+                                        fontWeight: defs[id]!.active ? FontWeight.bold : FontWeight.normal,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                      // ── Customize / Edit button ──────────────────────────
+                      const SizedBox(height: 4),
+                      Container(height: 0.5, margin: const EdgeInsets.symmetric(horizontal: 8), color: Colors.white12),
+                      GestureDetector(
+                        onTap: _openSidebarCustomizer,
+                        child: Container(
+                          width: 54,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.tune_rounded, color: Colors.white38, size: 16),
+                              SizedBox(height: 2),
+                              Text('Edit', style: TextStyle(color: Colors.white30, fontSize: 8)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     //  MX Player-style side indicator (vertical pill)
     //  Brightness → LEFT side (amber bar)
     //  Volume     → RIGHT side (white/orange bar)
@@ -3146,6 +3462,8 @@ void _openRightPanel(Widget content, {double widthFactor = 0.45}) {
         onLayoutDesigner: () { Navigator.of(context).pop(); _showLayoutDesignerSheet(context); },
         silenceSkipEnabled: _silenceSkipEnabled,
         endAction: _endAction,
+        onPiP: () { Navigator.of(context).pop(); _enterPiP(); },
+        onSidebarEdit: () { Navigator.of(context).pop(); _openSidebarCustomizer(); },
       ));
     }
 
@@ -3792,6 +4110,18 @@ void _openRightPanel(Widget content, {double widthFactor = 0.45}) {
           if (mounted) setState(() => _lastVoiceCmd = '');
         });
       }
+    }
+
+    void _openSidebarCustomizer() {
+      _openRightPanel(_SidebarCustomizerPanel(
+        currentOrder: List<String>.from(_sidebarOrder),
+        allIds: List<String>.from(_allSidebarIds),
+        onOrderChanged: (newOrder) {
+          setState(() => _sidebarOrder = newOrder);
+          _savePrefs();
+        },
+        onClose: () => Navigator.of(context).pop(),
+      ));
     }
 
     void _openSettingsPanel() {
@@ -5386,6 +5716,8 @@ class _QuickShortcutsPanel extends StatefulWidget {
   final VoidCallback onLayoutDesigner;
   final bool silenceSkipEnabled;
   final String endAction;
+  final VoidCallback onPiP;
+  final VoidCallback onSidebarEdit;
 
   const _QuickShortcutsPanel({
     required this.isLocked,
@@ -5425,6 +5757,8 @@ class _QuickShortcutsPanel extends StatefulWidget {
     required this.onLayoutDesigner,
     required this.silenceSkipEnabled,
     required this.endAction,
+    required this.onPiP,
+    required this.onSidebarEdit,
   });
 
   @override
@@ -5582,8 +5916,8 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
                 items: [
                   _ShortcutItem(Icons.crop_rounded, 'Zoom & Crop', false, widget.onZoomCrop),
                   _ShortcutItem(Icons.dashboard_customize_rounded, 'Layout', false, widget.onLayoutDesigner),
-                  _ShortcutItem(Icons.picture_in_picture_alt_rounded, 'PiP', false, () {}),
-                  _ShortcutItem(Icons.more_horiz_rounded, '', false, () {}),
+                  _ShortcutItem(Icons.picture_in_picture_alt_rounded, 'PiP', false, widget.onPiP),
+                  _ShortcutItem(Icons.tune_rounded, 'Sidebar', false, widget.onSidebarEdit),
                 ],
               ),
 
@@ -6524,4 +6858,212 @@ class _ReverbSelectorState extends State<_ReverbSelector> {
       ],
     );
   }
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  SIDEBAR CUSTOMIZER PANEL
+//  Lets the user reorder shortcuts and toggle which ones appear in the sidebar.
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _SidebarCustomizerPanel extends StatefulWidget {
+  final List<String> currentOrder;
+  final List<String> allIds;
+  final void Function(List<String>) onOrderChanged;
+  final VoidCallback onClose;
+
+  const _SidebarCustomizerPanel({
+    required this.currentOrder,
+    required this.allIds,
+    required this.onOrderChanged,
+    required this.onClose,
+  });
+
+  @override
+  State<_SidebarCustomizerPanel> createState() => _SidebarCustomizerPanelState();
+}
+
+class _SidebarCustomizerPanelState extends State<_SidebarCustomizerPanel> {
+  late List<String> _order;
+
+  // Human-readable labels and icons for each shortcut ID
+  static const _labels = <String, String>{
+    'cc': 'Subtitles (CC)',  'audio': 'Audio Track',    'eq': 'Equalizer / EQ',
+    'speed': 'Speed',        'loop': 'Loop',            'rotate': 'Rotate',
+    'lock': 'Lock Screen',   'pip': 'Picture-in-Picture','screenshot': 'Screenshot',
+    'sleep': 'Sleep Timer',  'ab': 'A-B Repeat',        'episodes': 'Episodes',
+    'settings': 'Settings',  'vivid': 'Vivid / Smart',  'mute': 'Mute',
+    'frame': 'Frame Step',   'onehanded': 'One-Handed', 'zoom': 'Zoom & Crop',
+    'silence': 'Silence Skip',
+  };
+
+  static const _icons = <String, IconData>{
+    'cc': Icons.subtitles_rounded,            'audio': Icons.headphones_rounded,
+    'eq': Icons.equalizer_rounded,            'speed': Icons.speed_rounded,
+    'loop': Icons.loop_rounded,               'rotate': Icons.screen_rotation_rounded,
+    'lock': Icons.lock_outline_rounded,       'pip': Icons.picture_in_picture_alt_rounded,
+    'screenshot': Icons.camera_alt_rounded,   'sleep': Icons.bedtime_rounded,
+    'ab': Icons.repeat_one_rounded,           'episodes': Icons.view_list_rounded,
+    'settings': Icons.settings_rounded,       'vivid': Icons.auto_awesome_rounded,
+    'mute': Icons.volume_off_rounded,         'frame': Icons.skip_next_rounded,
+    'onehanded': Icons.pan_tool_alt_rounded,  'zoom': Icons.zoom_in_rounded,
+    'silence': Icons.volume_off_outlined,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _order = List<String>.from(widget.currentOrder);
+  }
+
+  List<String> get _hidden =>
+      widget.allIds.where((id) => !_order.contains(id)).toList();
+
+  void _remove(String id) {
+    setState(() => _order.remove(id));
+    widget.onOrderChanged(List.from(_order));
+  }
+
+  void _add(String id) {
+    setState(() => _order.add(id));
+    widget.onOrderChanged(List.from(_order));
+  }
+
+  void _reorder(int oldIdx, int newIdx) {
+    if (newIdx > oldIdx) newIdx--;
+    final item = _order.removeAt(oldIdx);
+    _order.insert(newIdx, item);
+    widget.onOrderChanged(List.from(_order));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Container(
+          color: const Color(0xFF252525),
+          padding: const EdgeInsets.fromLTRB(12, 14, 8, 10),
+          child: Row(children: [
+            IconButton(
+              icon: const Icon(Icons.chevron_left, color: Colors.white, size: 24),
+              onPressed: widget.onClose,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+            const SizedBox(width: 6),
+            const Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Sidebar Shortcuts',
+                    style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                Text('Drag to reorder • tap × to hide',
+                    style: TextStyle(color: Colors.white38, fontSize: 10)),
+              ]),
+            ),
+            // Count badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '${_order.length} shown',
+                style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ]),
+        ),
+        const Divider(color: Colors.white12, height: 1),
+
+        // Reorderable visible list
+        Expanded(
+          child: Column(children: [
+            Expanded(
+              child: ReorderableListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                itemCount: _order.length,
+                onReorder: _reorder,
+                itemBuilder: (ctx, i) {
+                  final id = _order[i];
+                  return ListTile(
+                    key: ValueKey(id),
+                    dense: true,
+                    leading: Icon(_icons[id] ?? Icons.star_rounded,
+                        color: Colors.white70, size: 20),
+                    title: Text(_labels[id] ?? id,
+                        style: const TextStyle(color: Colors.white, fontSize: 13)),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      // Remove button
+                      GestureDetector(
+                        onTap: () => _remove(id),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          child: const Icon(Icons.close_rounded,
+                              color: Colors.white38, size: 16),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      // Drag handle
+                      ReorderableDragStartListener(
+                        index: i,
+                        child: const Icon(Icons.drag_handle_rounded,
+                            color: Colors.white38, size: 20),
+                      ),
+                    ]),
+                  );
+                },
+              ),
+            ),
+
+            // ── Hidden shortcuts — tap to add back ───────────────────────
+            if (_hidden.isNotEmpty) ...[
+              const Divider(color: Colors.white12, height: 1),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                child: Row(children: [
+                  const Text('Hidden shortcuts',
+                      style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  const Spacer(),
+                  Text('tap + to show',
+                      style: const TextStyle(color: Colors.white24, fontSize: 10)),
+                ]),
+              ),
+              SizedBox(
+                height: 140,
+                child: ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  itemCount: _hidden.length,
+                  itemBuilder: (ctx, i) {
+                    final id = _hidden[i];
+                    return ListTile(
+                      dense: true,
+                      leading: Opacity(
+                        opacity: 0.45,
+                        child: Icon(_icons[id] ?? Icons.star_rounded,
+                            color: Colors.white, size: 18),
+                      ),
+                      title: Opacity(
+                        opacity: 0.45,
+                        child: Text(_labels[id] ?? id,
+                            style: const TextStyle(color: Colors.white, fontSize: 12)),
+                      ),
+                      trailing: GestureDetector(
+                        onTap: () => _add(id),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          child: const Icon(Icons.add_circle_outline_rounded,
+                              color: Colors.white60, size: 20),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ]),
+        ),
+      ],
+    );
+  }
+}
 }
