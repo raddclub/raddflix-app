@@ -95,3 +95,30 @@ APK build#1210 reported 3 bugs:
 ### State at end of session
 - showModalBottomSheet calls: 0
 - Commit: 42388f138634c87095d7ffc747d152cc5e5542f2
+
+## Session 2026-06-21 — Auto-Rotation Fix
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| ORI-01 | Fix _applyAutoOrientation: was locking to video dimensions, now uses physical sensor | ✅ DONE |
+| ORI-02 | Add native Android orientation channel (com.raddflix.app/orient) | ✅ DONE |
+| ORI-03 | _setNativeOrientation helper wired to initState, _cycleOrientation, dispose | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| raddflix_flutter/lib/screens/player_screen.dart | _setNativeOrientation helper; fixed _applyAutoOrientation + _cycleOrientation + initState + dispose | fd9f8c33 |
+| raddflix_flutter/android/app/src/main/kotlin/com/raddflix/app/MainActivity.kt | Added com.raddflix.app/orient channel with SCREEN_ORIENTATION_SENSOR support | 51e66362 |
+
+### Root cause
+`_applyAutoOrientation()` was LOCKING orientation to landscape or portrait based on VIDEO dimensions — not the physical sensor. So if a landscape video plays, the app locked to landscape-only and physically flipping to portrait did nothing. Additionally, `SystemChrome.setPreferredOrientations` respects the system auto-rotate toggle — if the user had it OFF, the app would never rotate regardless.
+
+### Fix
+- **Native Android API**: `Activity.setRequestedOrientation(SCREEN_ORIENTATION_SENSOR)` forces sensor-based rotation regardless of system auto-rotate setting
+- **No new packages needed** — pure platform channel
+- Mode 0 (auto) → `SCREEN_ORIENTATION_SENSOR` (physical sensor, ignores system toggle)
+- Mode 1 (lock landscape) → `SCREEN_ORIENTATION_SENSOR_LANDSCAPE`  
+- Mode 2 (lock portrait) → `SCREEN_ORIENTATION_SENSOR_PORTRAIT`
+- Mode 3 (lock one side) → `SCREEN_ORIENTATION_LANDSCAPE`
+- dispose() → `SCREEN_ORIENTATION_UNSPECIFIED` (lets home screen control its own orientation)
