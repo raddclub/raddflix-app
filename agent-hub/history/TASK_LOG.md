@@ -63,3 +63,35 @@ APK build#1210 reported 3 bugs:
 - showModalBottomSheet calls in player_screen.dart: 0
 - Commit: 2b477ac034cc6a9ab5bfd08d07426d98bc8e9b1f
 - APK build needed: YES (trigger new build to verify)
+
+## Session 2026-06-21 — MX Player-style Indicators + Full Audit
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| UI-05 | Audit entire panel/gesture/indicator system for correctness | ✅ DONE |
+| UI-06 | Replace centered horizontal pill with MX Player vertical side indicators | ✅ DONE |
+| UI-07 | Brightness indicator → LEFT side, Volume indicator → RIGHT side | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| raddflix_flutter/lib/screens/player_screen.dart | MX Player-style vertical side indicators; both old centered pill methods removed | 42388f1 |
+
+### Indicator design (now matches MX Player exactly)
+- Swipe UP/DOWN on LEFT half → brightness → **amber vertical pill on LEFT edge**
+- Swipe UP/DOWN on RIGHT half → volume → **white/orange vertical pill on RIGHT edge**
+- Pill: 44×176px, rounded corners, 58% dark bg, bottom-to-top RotatedBox fill
+- Both can show simultaneously (independent Positioned widgets)
+- Auto-hide after 2s via _indicatorTimer
+
+### Gesture code verified correct (no changes needed)
+- `isLeftSide = _dragStart.dx < constraints.maxWidth / 2` ✅
+- Swipe up (negative dy) → `_startX - dy * multiplier` → increases value ✅
+- Brightness sensitivity: 1.5× (full swipe = 150% range, practical 0→100%) ✅
+- Volume sensitivity: 3.0× (full swipe = 300%, covers 0→250% boost range) ✅
+- `_swipeBVEnabled` toggle gates entire gesture ✅
+
+### State at end of session
+- showModalBottomSheet calls: 0
+- Commit: 42388f138634c87095d7ffc747d152cc5e5542f2
