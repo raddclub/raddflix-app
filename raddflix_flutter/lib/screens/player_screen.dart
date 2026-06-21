@@ -320,12 +320,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     // Allow all orientations — video dimension auto-detects the right one
+    // Allow all 4 orientations so Flutter layout responds to any rotation.
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
+    // Force sensor-based rotation via the native Android API — works even
+    // when the user's system auto-rotate toggle is disabled.
+    _setNativeOrientation('sensor');
     WakelockPlus.enable();
     _currentEpIdx = widget.episodeIndex;
     _currentFileId = widget.fileId;
@@ -432,6 +436,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     for (final s in _subs) { s.cancel(); }
     VolumeController().removeListener();
     WakelockPlus.disable();
+    // Reset orientation to unspecified so the app reverts to its default
+    // after the player closes (home screen = portrait only, etc.).
+    _setNativeOrientation('unspecified');
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.landscapeLeft,
@@ -1200,40 +1207,38 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   // ── Orientation control ─────────────────────────────────────────────────────
+
+  // Calls the native Android channel to set requestedOrientation.
+  // This works even when the user has system auto-rotate OFF —
+  // unlike SystemChrome.setPreferredOrientations which respects that setting.
+  void _setNativeOrientation(String mode) {
+    const MethodChannel('com.raddflix.app/orient')
+        .invokeMethod('setOrientation', {'mode': mode})
+        .catchError((_) {});
+  }
+
   void _applyAutoOrientation() {
     if (_orientMode != 0) return;
-    if (_videoWidth <= 0 || _videoHeight <= 0) return;
-    if (_videoWidth > _videoHeight) {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-    } else {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-      ]);
-    }
+    // Auto mode = full sensor: rotates with the physical device regardless of
+    // whether the user's system auto-rotate toggle is on or off.
+    _setNativeOrientation('sensor');
   }
 
   void _cycleOrientation() {
     final next = (_orientMode + 1) % 4;
     setState(() => _orientMode = next);
     switch (next) {
-      case 0:
-        _applyAutoOrientation();
+      case 0: // Auto — physical sensor controls rotation (ignores system toggle)
+        _setNativeOrientation('sensor');
         break;
-      case 1:
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ]);
+      case 1: // Lock landscape (both sides, sensor-based)
+        _setNativeOrientation('sensor_landscape');
         break;
-      case 2:
-        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+      case 2: // Lock portrait (both sides, sensor-based)
+        _setNativeOrientation('sensor_portrait');
         break;
-      case 3:
-        SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeRight]);
+      case 3: // Lock landscape right only
+        _setNativeOrientation('landscape_right');
         break;
     }
   }
