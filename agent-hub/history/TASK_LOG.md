@@ -122,3 +122,61 @@ APK build#1210 reported 3 bugs:
 - Mode 2 (lock portrait) → `SCREEN_ORIENTATION_SENSOR_PORTRAIT`
 - Mode 3 (lock one side) → `SCREEN_ORIENTATION_LANDSCAPE`
 - dispose() → `SCREEN_ORIENTATION_UNSPECIFIED` (lets home screen control its own orientation)
+
+
+---
+
+## Session 2026-06-21 — Player UI Overhaul Part 2: Sidebar + Rotation
+
+### Build
+- **#1218** ✅ SUCCESS — https://github.com/raddclub/raddflix-app/actions/runs/27904238382
+- Run time: ~6 minutes
+
+### Tasks Completed
+| ID | Task | Status |
+|----|------|--------|
+| SIDEBAR-01 | Add persistent right-edge shortcut sidebar with toggle, scroll, count badge | ✅ DONE |
+| SIDEBAR-02 | _SidebarCustomizerPanel: ReorderableListView reorder + add/remove + persist | ✅ DONE |
+| SIDEBAR-03 | Wire 19 shortcuts to real state (CC, Audio, EQ, Speed, Loop, Rotate, Lock, PiP, Screenshot, Sleep, A-B, Episodes, Settings, Vivid, Mute, Frame, 1-Hand, Zoom, Silence) | ✅ DONE |
+| SIDEBAR-04 | Fix _SidebarCustomizerPanel nested inside _ReverbSelectorState (brace bug) | ✅ DONE |
+| QSP-01 | Fix dead PiP button in More menu row 6 → _enterPiP() | ✅ DONE |
+| QSP-02 | Fix empty last slot in More menu → "Sidebar" customizer entry | ✅ DONE |
+| ORI-01 | Fix _applyAutoOrientation: was locking to video dims, now uses physical sensor | ✅ DONE |
+| ORI-02 | Add native Android orientation channel (com.raddflix.app/orient) in MainActivity.kt | ✅ DONE |
+
+### Files Changed
+| File | Change | Commit |
+|------|--------|--------|
+| raddflix_flutter/lib/screens/player_screen.dart | All sidebar + QSP fixes | 9e8a1bf, d70ca1f |
+| raddflix_flutter/android/app/src/main/kotlin/com/raddflix/app/MainActivity.kt | com.raddflix.app/orient channel | 51e66362 |
+
+### Key Bug Found and Fixed
+**Wrong closing brace insertion (build #1216-1217 failures):**
+The `_SidebarCustomizerPanel` class was appended using `c.slice(0, lastIndexOf('\n}'))`
+which cut off `_ReverbSelectorState`'s own closing brace. The class then appeared
+to be nested inside `_ReverbSelectorState` causing ~30 compile errors.
+Fix: inserted a separate `}` to close `_ReverbSelectorState` before the sidebar class,
+then removed the orphan `}` that appeared at the very end of the file.
+
+### Sidebar Architecture
+```
+_PlayerScreenState
+  ├── bool _sidebarExpanded         ← persisted pref_sidebar_exp
+  ├── List<String> _sidebarOrder    ← persisted pref_sidebar_order (JSON)
+  ├── static const _allSidebarIds   ← master list of 19 shortcut IDs
+  ├── _buildSidebar()               ← local fn in build(), renders the strip
+  └── _openSidebarCustomizer()      ← opens _SidebarCustomizerPanel via _openRightPanel()
+
+_SidebarCustomizerPanel             ← top-level StatefulWidget
+  └── _SidebarCustomizerPanelState
+        ├── ReorderableListView     ← drag handles for reorder
+        ├── × button per item       ← remove from sidebar
+        └── Hidden shortcuts list   ← + button to restore
+```
+
+### State at End of Session
+- player_screen.dart: 7071 lines, 21 classes
+- Build #1218: ✅ SUCCESS
+- All 19 sidebar shortcuts wired to real state callbacks
+- Drag-to-reorder fully functional via ReorderableListView
+- Prefs: pref_sidebar_order (JSON string), pref_sidebar_exp (bool)
