@@ -1,30 +1,23 @@
 # Agent Status — RaddFlix Player
 
-## Phase 18 COMPLETE (2026-06-22)
+## Phase 19 COMPLETE (2026-06-22)
 
-### Sidebar Redesign — Done
-- Width: 54px -> 64px (better touch targets, roomier labels)
-- Chevron tab: 22x48 -> 20x60, AnimatedContainer — accent-color left border + icon when expanded, subtle white when collapsed
-- Counter badge: removed (was ugly, wasted space)
-- Item separators: thin 0.4px dividers between each shortcut button
-- Active state: left accent border (2.5px) + subtle fill — cleaner than fill-only
-- Icon size: 20px -> 22px
-- Label size: 9px -> 10px, FontWeight.w400/w600
-- Container opacity: 0.55 -> 0.74 (more premium, less transparent)
-- Sleep onTap fix: was calling Navigator.of(context).pop() -> now cancels timer if active, opens More panel if not
-- _buildSidebarBtn helper method: extracted from inline for-loop
+### A-B Repeat Seek Bar Pins
+- _AbPinsOverlay widget: green A pin + red-orange B pin, draggable flags above the track
+- 22x22px bubble + 8px stem, Stack Clip.none so pins overflow upward
+- Loop region band: semi-transparent accent fill between A and B
+- Drag updates fraction via delta accumulation (smooth, frame-accurate)
+- Double-tap pin to clear that point
+- Works across all seek bar styles (0-2 painter + 3+ SeekBarPainter)
 
-### Phase 17 (previous)
-- Empty center (cinematic)
-- Transport row below seek bar
-- 5 top-bar buttons removed (CC/Audio/PiP/Rotate/Lock)
-- Panel width 55%
-- _panelOpen auto-hides sidebar when panel open
-- Both indicators on left
-- sub-opacity fix
+## Phase 18 COMPLETE
+- Sidebar 54->64px, accent chevron, left-border active, thin separators, fix sleep onTap
 
-## Current Player SHA
-b203d0dba33aacf4931f1bedfc7c6a4009b3d9b8
+## Phase 17 COMPLETE
+- Empty center, transport row, 5 top-bar buttons removed, panel 55%, indicators left
 
-## Build Status
-Build #1219 SUCCESS — APK uploaded to GitHub Actions artifacts
+## Current SHA
+0c05b6ce2daa869dad17558d7ebd2f7f258ae927
+
+## Build
+Phase 19 queued for next build trigger.
