@@ -101,6 +101,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── Controls visibility ─────────────────────────────────────────────────────
   bool _showControls = true;
+  bool _panelOpen = false;
   Timer? _hideTimer;
 
   // ── Speed ───────────────────────────────────────────────────────────────────
@@ -1771,15 +1772,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
 
-                // 5. Customizable shortcut sidebar (right edge, toggleable, scrollable)
+                // 5. Customizable shortcut sidebar — hidden while any panel is open
                 if (!_isLocked)
                   Positioned(
                     right: 0, top: 0, bottom: 0,
                     child: AnimatedOpacity(
-                      opacity: _showControls ? 1.0 : 0.0,
+                      opacity: _showControls && !_panelOpen ? 1.0 : 0.0,
                       duration: const Duration(milliseconds: 280),
                       child: IgnorePointer(
-                        ignoring: !_showControls,
+                        ignoring: !_showControls || _panelOpen,
                         child: _buildSidebar(constraints),
                       ),
                     ),
@@ -1805,10 +1806,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
 
-                // 6b. Volume indicator — RIGHT side (MX Player style vertical pill)
+                // 6b. Volume indicator — LEFT side (sidebar on right; both indicators on left)
                 if (_showVolumeIndicator)
                   Positioned(
-                    right: 20,
+                    left: 20,
                     top: 0,
                     bottom: 0,
                     child: Center(
@@ -2517,24 +2518,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 ),
               ),
 
-            // P1: Subtitle button — dim when no tracks
-            Opacity(
-              opacity: hasSubs ? 1.0 : 0.38,
-              child: _RaddIconBtn(
-                icon: hasSubs ? Icons.subtitles_rounded : Icons.subtitles_off_rounded,
-                size: 20,
-                onTap: _openSubtitlePanel,
-              ),
-            ),
-
-            // P1: Audio button — only visible when >1 track
-            if (hasAudio)
-              _RaddIconBtn(
-                icon: Icons.headphones_rounded,
-                size: 20,
-                onTap: _openAudioPanel,
-              ),
-
             // Replay from start
             _RaddIconBtn(
               icon: Icons.replay_rounded,
@@ -2591,26 +2574,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               onTap: _showVideoInfoDialog,
             ),
 
-            // P2: PiP button
-            _RaddIconBtn(
-              icon: Icons.picture_in_picture_alt_rounded,
-              size: 20,
-              onTap: _enterPiP,
-            ),
-
-            // Rotate / orientation cycle
-            _RaddIconBtn(
-              icon: _orientIcon,
-              size: 20,
-              onTap: _cycleOrientation,
-            ),
-
-            // Lock
-            _RaddIconBtn(
-              icon: Icons.lock_open_rounded,
-              size: 20,
-              onTap: () => setState(() { _isLocked = true; _showControls = false; }),
-            ),
           ],
         ),
       );
@@ -2621,85 +2584,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ═══════════════════════════════════════════════════════════════════════════
 
     Widget _buildCenterControls() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Skip backward — flanks episode prev/next
-        if (_showSkipBtns) ...[
-          Opacity(
-            opacity: 0.85,
-            child: _RaddIconBtn(
-              icon: Icons.replay_rounded,
-              size: 28,
-              onTap: () => _seekRelative(-_skipInterval),
-            ),
-          ),
-          const SizedBox(width: 10),
-        ],
-
-        // Previous video — always visible, dimmed when unavailable
-        if (_showPrevNextBtns)
-        Opacity(
-          opacity: _hasPrev ? 1.0 : 0.3,
-          child: _RaddIconBtn(
-            icon: Icons.skip_previous_rounded,
-            size: 36,
-            onTap: _hasPrev ? () => _playEpisodeAt(_currentEpIdx - 1) : null,
-          ),
-        ),
-
-        const SizedBox(width: 24),
-
-        // Play / Pause — large circle button
-        GestureDetector(
-          onTap: () {
-            _player.playOrPause();
-            _scheduleHide();
-          },
-          child: Container(
-            width: 56, height: 56,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.12),
-              border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.5),
-            ),
-            child: Icon(
-              _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-        ),
-
-        const SizedBox(width: 24),
-
-        // Next video — always visible, dimmed when unavailable
-        if (_showPrevNextBtns)
-        Opacity(
-          opacity: _hasNext ? 1.0 : 0.3,
-          child: _RaddIconBtn(
-            icon: Icons.skip_next_rounded,
-            size: 36,
-            onTap: _hasNext ? () => _playEpisodeAt(_currentEpIdx + 1) : null,
-          ),
-        ),
-
-        // Skip forward — flanks episode prev/next
-        if (_showSkipBtns) ...[
-          const SizedBox(width: 10),
-          Opacity(
-            opacity: 0.85,
-            child: _RaddIconBtn(
-              icon: Icons.forward_rounded,
-              size: 28,
-              onTap: () => _seekRelative(_skipInterval),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
+      return const SizedBox.shrink();
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     //  Bottom area: seek bar + icon row
@@ -2714,12 +2600,88 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             // ── Seek bar row ────────────────────────────────────────────────────
             _buildHorizontalSeekBar(constraints, currentPos),
 
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
+
+            // ── Transport controls: prev · skip· play/pause · skip · next ────────
+            _buildTransportRow(),
+
+            const SizedBox(height: 2),
 
             // ── Bottom icon row ──────────────────────────────────────────────────
             _buildBottomIconRow(),
           ],
         ),
+      );
+    }
+
+    Widget _buildTransportRow() {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Skip backward
+          if (_showSkipBtns) ...[
+            _RaddIconBtn(
+              icon: Icons.replay_rounded,
+              size: 22,
+              onTap: () => _seekRelative(-_skipInterval),
+            ),
+            const SizedBox(width: 4),
+          ],
+
+          // Previous episode
+          if (_showPrevNextBtns) ...[
+            Opacity(
+              opacity: _hasPrev ? 1.0 : 0.25,
+              child: _RaddIconBtn(
+                icon: Icons.skip_previous_rounded,
+                size: 28,
+                onTap: _hasPrev ? () => _playEpisodeAt(_currentEpIdx - 1) : null,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+
+          // Play / Pause — compact circle
+          GestureDetector(
+            onTap: () { _player.playOrPause(); _scheduleHide(); },
+            child: Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.12),
+                border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.2),
+              ),
+              child: Icon(
+                _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ),
+
+          // Next episode
+          if (_showPrevNextBtns) ...[
+            const SizedBox(width: 8),
+            Opacity(
+              opacity: _hasNext ? 1.0 : 0.25,
+              child: _RaddIconBtn(
+                icon: Icons.skip_next_rounded,
+                size: 28,
+                onTap: _hasNext ? () => _playEpisodeAt(_currentEpIdx + 1) : null,
+              ),
+            ),
+          ],
+
+          // Skip forward
+          if (_showSkipBtns) ...[
+            const SizedBox(width: 4),
+            _RaddIconBtn(
+              icon: Icons.forward_rounded,
+              size: 22,
+              onTap: () => _seekRelative(_skipInterval),
+            ),
+          ],
+        ],
       );
     }
 
@@ -3248,7 +3210,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     //  Panels (right-side slide-in)
     // ═══════════════════════════════════════════════════════════════════════════
 
-void _openRightPanel(Widget content, {double widthFactor = 0.45}) {
+void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
+  setState(() => _panelOpen = true);
   showGeneralDialog(
     context: context,
     barrierDismissible: true,
@@ -3287,7 +3250,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.45}) {
         ],
       );
     },
-  );
+  ).then((_) { if (mounted) setState(() => _panelOpen = false); });
 }
 
     void _openSubtitlePanel() {
@@ -4944,7 +4907,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                     Expanded(child: Slider(
                       value: _subFade, min: 0.0, max: 1.0, divisions: 10,
                       activeColor: Colors.white, inactiveColor: Colors.white24,
-                      onChanged: (v) { setState(() => _subFade = v); widget.onSubPropertyChanged('sub-ass-fade-in-time', (v * 300).round().toString()); },
+                      onChanged: (v) { setState(() => _subFade = v); widget.onSubPropertyChanged('sub-opacity', v.toStringAsFixed(2)); },
                     )),
                     SizedBox(width: 40, child: Text('${(_subFade * 100).round()}%', style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.right)),
                   ]),
@@ -4986,7 +4949,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                   const Text('Bottom margin', style: TextStyle(color: Colors.white54, fontSize: 12)),
                   Row(children: [
                     Expanded(child: Slider(
-                      value: _subBottomMargin, min: 0, max: 80, divisions: 16,
+                      value: _subBottomMargin, min: 0, max: 200, divisions: 40,
                       activeColor: Colors.white, inactiveColor: Colors.white24,
                       onChanged: (v) => setState(() => _subBottomMargin = v),
                       onChangeEnd: (v) => widget.onSubPropertyChanged('sub-margin-y', v.round().toString()),
