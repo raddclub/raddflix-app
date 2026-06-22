@@ -1,6 +1,6 @@
 # RaddFlix Task Tracker
 
-## All Phase 17 & 18 Tasks Complete
+## All Phases 17-19 Complete
 
 | Task | Phase | Status |
 |------|-------|--------|
@@ -18,7 +18,11 @@
 | Left-border active state | 18 | DONE |
 | Icon 20->22px, label 9->10px | 18 | DONE |
 | Fix sleep shortcut onTap | 18 | DONE |
-| _buildSidebarBtn helper extracted | 18 | DONE |
+| A pin (green draggable flag on seek bar) | 19 | DONE |
+| B pin (red draggable flag on seek bar) | 19 | DONE |
+| Loop region band between A and B | 19 | DONE |
+| Drag to adjust A/B without opening menu | 19 | DONE |
+| Double-tap to clear pin | 19 | DONE |
 
 ## Open Tasks
 None — awaiting user review.
