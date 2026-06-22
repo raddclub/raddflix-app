@@ -169,6 +169,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Video rotation (0/90/180/270)
   int _videoRotation = 0;
 
+  // Subtitle bottom margin — promoted to main state so controls-hide can shift it
+  double _subBottomMarginMain = 100.0;
+
   // Audio effect
   int _selectedPreset = 0; // 0=Original 1=TrebleBoost 2=BassBoost 3=Clarity 4=Movie 5=Music
   List<double> _eqBands = [0, 0, 0, 0, 0]; // 60,230,910,3600,14000 Hz
@@ -931,18 +934,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _scheduleHide() {
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted && _playing) setState(() => _showControls = false);
+      if (mounted && _playing) {
+        setState(() => _showControls = false);
+        _applySubtitleMargin(controlsVisible: false);
+      }
     });
+  }
+
+  // Dynamically shift subtitles above the controls area so they are never
+  // covered. Called whenever controls show or hide.
+  // Controls bottom area is ~90px (seek bar ~32px + transport row ~48px + padding).
+  void _applySubtitleMargin({required bool controlsVisible}) {
+    // When controls are visible, push subs 90px above bottom controls so they
+    // are never hidden behind the seek bar or transport row.
+    final base = _subBottomMarginMain;
+    final marginY = controlsVisible ? (base + 90).round() : base.round();
+    try { _np.setProperty('sub-margin-y', marginY.toString()); } catch (_) {}
   }
 
   void _toggleControls() {
     if (_isLocked) {
       // Show briefly when locked
       setState(() => _showControls = true);
+      _applySubtitleMargin(controlsVisible: true);
       _scheduleHide();
       return;
     }
     setState(() => _showControls = !_showControls);
+    _applySubtitleMargin(controlsVisible: _showControls);
     if (_showControls) _scheduleHide();
   }
 
@@ -1044,6 +1063,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
       _eqEnabled = prefs.getBool('pref_eq_on') ?? true;
       _reverbPreset = prefs.getString('pref_reverb') ?? 'None';
+      _subBottomMarginMain = prefs.getDouble('pref_sub_margin') ?? 100.0;
       _labVocal = prefs.getBool('pref_lab_vocal') ?? false;
       _labDialogue = prefs.getBool('pref_lab_dialogue') ?? false;
       _labNorm = prefs.getBool('pref_lab_norm') ?? false;
@@ -1087,8 +1107,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (_labDialogue) labParts.add('equalizer=0:0:0:0:0:0:3:4:2:0');
       if (_labNorm)     labParts.add('dynaudnorm');
       if (_labBass) {
-        final db = (_labBassLevel * 12).round();
-        labParts.add('equalizer=60:1.0:0:$db:60');
+        final db = (_labBassLevel * 12).round().clamp(1, 12);
+        labParts.add('equalizer=$db:$db:0:0:0:0:0:0:0:0');
       }
       _currentLabAf = labParts.isEmpty ? '' : labParts.join(',');
       // Rebuild channel mode AF from loaded index
@@ -1125,6 +1145,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setBool('pref_clock', _showClockInTitle);
     await prefs.setInt('pref_vrotate', _videoRotation);
     await prefs.setDouble('pref_balance', _audioBalance);
+    await prefs.setDouble('pref_sub_margin', _subBottomMarginMain);
     // EQ + Lab + Reverb + Channel
     for (int i = 0; i < _eqBands.length; i++) {
       await prefs.setDouble('pref_eq_${i}', _eqBands[i]);
@@ -1210,9 +1231,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _applyAutoOrientation() {
     if (_orientMode != 0) return;
-    // Auto mode = full sensor: rotates with the physical device regardless of
-    // whether the user's system auto-rotate toggle is on or off.
-    _setNativeOrientation('sensor');
+    // Smart orientation: read actual video pixel dimensions and silently force
+    // the right orientation — no user action needed, works like MX Player.
+    // Falls back to sensor if dimensions not yet known.
+    if (_videoWidth > 0 && _videoHeight > 0) {
+      if (_videoWidth >= _videoHeight) {
+        // Landscape video (movies, episodes) → force landscape
+        _setNativeOrientation('sensor_landscape');
+      } else {
+        // Portrait video (shorts, reels, vertical clips) → force portrait
+        _setNativeOrientation('sensor_portrait');
+      }
+    } else {
+      // Dimensions not yet available → allow sensor freely
+      _setNativeOrientation('sensor');
+    }
   }
 
   void _cycleOrientation() {
@@ -2550,26 +2583,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ═══════════════════════════════════════════════════════════════════════════
 
     Widget _buildCenterControls() {
-      return GestureDetector(
-        onTap: () {
-          _player.playOrPause();
-          _scheduleHide();
-        },
-        child: Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.black.withOpacity(0.45),
-            border: Border.all(color: Colors.white24, width: 1.5),
-          ),
-          child: Icon(
-            _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            color: Colors.white,
-            size: 36,
-          ),
-        ),
-      );
+      // Cinematic mode — no buttons in the center of the video.
+      // All playback controls live under the seek bar only.
+      return const SizedBox.shrink();
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -3253,7 +3269,14 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
           try { _np.setProperty('sub-speed', v.toString()); } catch (_) {}
         },
         onSubPropertyChanged: (prop, val) {
-          try { _np.setProperty(prop, val); } catch (_) {}
+          if (prop == '_sub_margin_main') {
+            // Internal signal — update main state so _applySubtitleMargin
+            // uses the user's latest base value.
+            setState(() => _subBottomMarginMain = double.tryParse(val) ?? _subBottomMarginMain);
+            _savePrefs();
+          } else {
+            try { _np.setProperty(prop, val); } catch (_) {}
+          }
         },
         onClose: () => Navigator.of(context).pop(),
         title: _currentTitle,
@@ -5104,7 +5127,11 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                       value: _subBottomMargin, min: 0, max: 200, divisions: 40,
                       activeColor: Colors.white, inactiveColor: Colors.white24,
                       onChanged: (v) => setState(() => _subBottomMargin = v),
-                      onChangeEnd: (v) => widget.onSubPropertyChanged('sub-margin-y', v.round().toString()),
+                      onChangeEnd: (v) {
+                        // Notify main state so _applySubtitleMargin has current base
+                        widget.onSubPropertyChanged('sub-margin-y', v.round().toString());
+                        widget.onSubPropertyChanged('_sub_margin_main', v.toStringAsFixed(1));
+                      },
                     )),
                     SizedBox(width: 36, child: Text('${_subBottomMargin.round()}px', style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.right)),
                   ]),
@@ -5428,12 +5455,19 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
 
   void _applyLabAf() {
     final parts = <String>[];
+    // Vocal remover: phase-cancel center channel (works on stereo content)
     if (_labVocal) parts.add('pan=stereo|c0=c0-c1|c1=c1-c0');
+    // Dialogue boost: 10-band equalizer boosting speech-clarity range 2-5kHz
+    // MPV equalizer filter syntax: gain values for each of 10 bands
     if (_labDialogue) parts.add('equalizer=0:0:0:0:0:0:3:4:2:0');
-    if (_labNorm) parts.add('dynaudnorm');
+    // Audio normalization: dynamic audio normalizer
+    if (_labNorm) parts.add('dynaudnorm=f=150:g=15');
+    // Bass boost: lavfi low-shelf filter (correct MPV af syntax)
     if (_labBass) {
-      final db = (_labBassLevel * 12).round();
-      parts.add('equalizer=60:1.0:0:$db:60');
+      final db = (_labBassLevel * 12).round().clamp(1, 12);
+      // lavfi aecho for bass: use low-shelf equalizer — 10-band equalizer
+      // boosting the low bands (31Hz, 62Hz) by db amount
+      parts.add('equalizer=$db:$db:0:0:0:0:0:0:0:0');
     }
     widget.onLabAfChanged(parts.isEmpty ? '' : parts.join(','));
     widget.onLabStateChanged(_labVocal, _labDialogue, _labNorm, _labBass, _labBassLevel);
