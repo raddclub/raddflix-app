@@ -1,44 +1,50 @@
-# Agent Status
-**Last Updated:** 2026-06-21
-**Build:** #1218 ✅ SUCCESS (run id=27904238382, ~6 min)
-**Run:** https://github.com/raddclub/raddflix-app/actions/runs/27904238382
+# RaddFlix Agent Status
+**Last updated:** 2026-06-22  
+**Build:** #1219 — `0748417f` — `in_progress` ⏳  
+**File:** `raddflix_flutter/lib/screens/player_screen.dart` — 7033 lines
 
 ---
 
-## Latest Session — Player UI Overhaul (2026-06-21)
+## Latest Session Summary
 
-### Work Completed
-| Task | Commit | Status |
-|------|--------|--------|
-| Right-slide panels (all 10 showModalBottomSheet → showGeneralDialog, 45% width, 60% dark bg) | 2b477ac | ✅ |
-| MX Player-style brightness (LEFT, amber) + volume (RIGHT, white/orange) vertical pill indicators | 42388f1 | ✅ |
-| Auto-rotation via native Android sensor (SCREEN_ORIENTATION_SENSOR, ignores system toggle) | fd9f8c3 | ✅ |
-| Customizable persistent shortcut sidebar (toggle, scroll, all 19 shortcuts, drag reorder, add/remove) | 9e8a1bf | ✅ |
-| Brace fix: _SidebarCustomizerPanel class was nested inside _ReverbSelectorState | d70ca1f | ✅ |
-| QSP dead slots fixed: PiP button wired, empty slot → Sidebar shortcut | 9e8a1bf | ✅ |
-
-### Current Player File
-- **raddflix_flutter/lib/screens/player_screen.dart** — 7071 lines, 21 widget classes
-- **Build:** #1218 ✅ clean compile, no errors
-
----
-
-## Critical Rules (Never Break)
-| Rule | Detail |
+### Changes in Build #1219 (`0748417f`)
+| Area | Change |
 |------|--------|
-| NO `vf=` property | Destroys GL surface on MediaTek → permanent black screen |
-| NO `hwdec` mid-play | Only in initial player config before open() |
-| NO `androidAttachSurfaceAfterVideoParameters: true` | Same black screen bug |
-| db.setting(k) | NOT db.get_setting(k) |
-| NO local var named `_np` | Reserved for the mpv player instance |
-| Channel names | pip, media, cast, intent, security, orient (all under com.raddflix.app/) |
+| Center controls | **All removed** — zero buttons in center, cinematic clean screen |
+| Transport row | **New row below seek bar** — skip·prev·play/pause·next·skip |
+| Top bar | **5 buttons removed** — CC, Audio, PiP, Rotate, Lock (all now sidebar-only) |
+| Panel width | **45% → 55%** (all 18 panels wider automatically) |
+| Sidebar | **Auto-hides when any panel opens**, restores when panel closes; respects manual close state |
+| Volume indicator | **Moved LEFT** (was right: 20, now left: 20) — sidebar on right was blocking it |
+| Subtitle `sub-opacity` | Fixed: was calling fake `sub-ass-fade-in-time`, now `sub-opacity` (valid MPV property) |
+| Subtitle margin | Fixed: max was 80px, now 200px with 40 divisions |
+
+### Previous Build #1218 (`a031b005`)
+- Sidebar: right-edge strip, chevron toggle, 19 shortcuts, drag-reorder, accent-color states, persisted prefs
+- Orientation: auto-rotation via native SCREEN_ORIENTATION_SENSOR channel
+- Brightness: LEFT amber pill | Volume: RIGHT (now moved LEFT in #1219)
 
 ---
 
-## Build History (Recent)
-| Build | Date | Result | Notes |
-|-------|------|--------|-------|
-| #1218 | 2026-06-21 | ✅ SUCCESS | Sidebar + rotation fixes |
-| #1217 | 2026-06-21 | ❌ FAILED | _SidebarCustomizerPanel inside _ReverbSelectorState |
-| #1216 | 2026-06-21 | ❌ FAILED | Wrong closing brace insertion |
-| #1153 | 2026-06-19 | ✅ SUCCESS | FIX-VF-ROOT black screen fix |
+## Critical Rules (NEVER violate)
+| Rule | Reason |
+|------|--------|
+| NO `vf=` property | Crashes HW decoder |
+| NO `hwdec` mid-play | Only safe when paused and duration==0 |
+| NO `_np` local var | Use `_np` field only, never shadow it |
+| db.setting(k) not db.get_setting(k) | API naming |
+| NO androidAttachSurfaceAfterVideoParameters:true | Causes black screen |
+| sub-opacity range 0.0–1.0 | Pass as toStringAsFixed(2) |
+
+---
+
+## Key State Variables
+| Variable | Purpose |
+|----------|---------|
+| `_sidebarExpanded` | User's manual sidebar toggle state |
+| `_panelOpen` | True while any right-panel is open → sidebar hides |
+| `_showControls` | Controls overlay visibility (auto-hides) |
+| `_panelOpen` resets via `.then()` on `showGeneralDialog` | |
+
+## Sidebar Shortcut IDs (persistent prefs)
+`cc, audio, eq, speed, loop, rotate, lock, pip, screenshot, sleep, ab, episodes, settings, vivid, mute, zoom, info, replay, onehanded`
