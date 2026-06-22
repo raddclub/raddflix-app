@@ -1,73 +1,62 @@
 # Handoff — Next Agent
-_Updated: 2026-06-21 | Build #1218 ✅ SUCCESS_
+
+> Date: 2026-06-22 | Build: #1219 (in progress) | Commit: `0748417f`
 
 ---
 
 ## Current State
 
-The video player (`raddflix_flutter/lib/screens/player_screen.dart`) is in a stable,
-clean state. Build #1218 succeeded. The file is **7071 lines, 21 widget classes**.
+**player_screen.dart** — 7033 lines, 21 classes  
+GitHub: `raddclub/raddflix-app` → `raddflix_flutter/lib/screens/player_screen.dart`
 
-### Recently Completed (this session)
-1. **Right-side panels** — all 10 showModalBottomSheet → showGeneralDialog, 45% width, 60% dark bg
-2. **MX-style indicators** — brightness LEFT (amber), volume RIGHT (white/orange), vertical pills
-3. **Auto-rotation** — native Android SCREEN_ORIENTATION_SENSOR via com.raddflix.app/orient channel
-4. **Customizable sidebar** — persistent right-edge strip, toggle, scroll, 19 shortcuts, drag reorder, add/remove, persisted prefs
-
-### Files Modified
-| File | State |
-|------|-------|
-| raddflix_flutter/lib/screens/player_screen.dart | 7071 lines — stable ✅ |
-| raddflix_flutter/android/app/src/main/kotlin/com/raddflix/app/MainActivity.kt | orient channel added ✅ |
+### What was just done (Phase 17)
+- Center of video is now **completely empty** (cinematic experience)
+- All playback controls (skip/prev/play/next/skip) moved to **compact row below seek bar**
+- Top bar stripped of 5 redundant buttons (all in sidebar)  
+- All right-side panels are now **55% width** (was 45%)
+- Sidebar **auto-hides** when any panel is open, respects manual close state
+- Both brightness + volume indicators on **LEFT side** (sidebar is on right)
+- Subtitle `sub-opacity` property fix (was calling fake `sub-ass-fade-in-time`)
+- Subtitle bottom margin range extended to 200px
 
 ---
 
-## Critical Rules — NEVER BREAK
+## Environment Quick-Reference
+```bash
+# Fetch latest player_screen.dart
+mkdir -p /tmp/raddflix && node -e "
+const https=require('https'),fs=require('fs'),T=process.env.GITHUB_TOKEN;
+function api(p){return new Promise((r,j)=>{const o={hostname:'api.github.com',path:p,method:'GET',headers:{'Authorization':'Bearer '+T,'Accept':'application/vnd.github.v3+json','User-Agent':'RaddFlix-Agent'}};const q=https.request(o,x=>{let b='';x.on('data',d=>b+=d);x.on('end',()=>{try{r(JSON.parse(b));}catch{r(b);}});});q.on('error',j);q.end();});}
+api('/repos/raddclub/raddflix-app/contents/raddflix_flutter/lib/screens/player_screen.dart').then(r=>{
+  fs.writeFileSync('/tmp/raddflix/player_screen.dart',Buffer.from(r.content,'base64').toString('utf8'));
+  console.log('✅ sha:',r.sha.slice(0,8));
+}).catch(e=>console.error('❌',e.message));
+"
 
-1. **NO `vf=` property** — destroys GL surface on MediaTek → 15-day black screen bug
-2. **NO `hwdec` mid-play** — only in initial player config before open()
-3. **NO `androidAttachSurfaceAfterVideoParameters: true`** — same black screen bug
-4. **NO local var named `_np`** — reserved for the mpv player instance (using `_np` is fine, creating a local with that name shadows it and breaks everything)
-5. **db.setting(k)** NOT db.get_setting(k)
-6. **GitHub push via Contents API** (`/tmp/push.js`) — Replit sandbox blocks git shell commits
-7. **Always fetch fresh SHA** before PUT (the push script does this automatically)
+# Push via /tmp/push.js (already written by previous agent — re-create if /tmp wiped)
+node /tmp/push.js
 
-### Existing Platform Channel Names (DO NOT REUSE)
-- `com.raddflix.app/pip` — PiP + notification controls
-- `com.raddflix.app/media` — media session
-- `com.raddflix.app/cast` — cast
-- `com.raddflix.app/intent` — deep links
-- `com.raddflix.app/security` — screen security
-- `com.raddflix.app/orient` — rotation control (NEW)
-
----
-
-## Environment / Tools
-
-```
-GITHUB_TOKEN: in Replit env vars
-Working copy: /tmp/raddflix/player_screen.dart
-Push script:  node /tmp/push.js   (fetches SHA, pushes player_screen.dart)
-Push orient:  node /tmp/push_orient.js (multi-file push)
-Trigger build: POST /repos/raddclub/raddflix-app/actions/workflows/282572869/dispatches
-Monitor: node /tmp/poll_run.js
+# Check build status
+curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+  https://api.github.com/repos/raddclub/raddflix-app/actions/runs?per_page=1 \
+  | python3 -c "import sys,json; r=json.load(sys.stdin)['workflow_runs'][0]; print(r['status'],r['conclusion'],r['head_sha'][:8])"
 ```
 
 ---
 
-## Priority Next Tasks
+## Critical Rules (MUST follow)
+| Rule | |
+|------|-|
+| NO `vf=` property | Crashes HW decoder |
+| NO `hwdec` change mid-play | Only when paused + duration==0 |
+| NO local `_np` variable | Always use the field `_np` |
+| Use `db.setting(k)` | NOT `db.get_setting(k)` |
+| NO `androidAttachSurfaceAfterVideoParameters:true` | Black screen |
+| `_panelOpen` must reset via `.then()` on showGeneralDialog | Never forget this |
 
-### HIGH
-- **BUG-01 Subtitle alignment** — sub-margin-y not applied correctly in MPV
-- **BUG-02 Subtitle background style** — no-op, needs MPV sub-back-color property
-- **Top bar overflow** — 12+ icons on small screens, needs overflow menu or reorganization
+---
 
-### MEDIUM
-- **Watch Party** — built but no visible UI entry point on main player screen
-- **Voice Commands** — mic button missing from main UI, only accessible in settings
-- **Sleep timer countdown** — badge in top bar exists but no full-screen countdown widget
-
-### LOW
-- Long-press sidebar shortcut → inline quick-swap picker
-- A-B repeat indicator on seek bar timeline
-- Download manager
+## Priority Bugs for Next Agent
+1. **Subtitle background color** — verify `#ffRRGGBB` format works on device; MPV might need `&Halpha_BB_GG_RR`
+2. **One-handed mode center area** — now empty like normal mode; confirm user is OK with this
+3. **Transport row in one-handed mode** — confirm the bottom area still renders correctly when `_oneHandedMode=true`
