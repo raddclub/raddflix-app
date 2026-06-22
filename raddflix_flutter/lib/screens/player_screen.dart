@@ -2933,10 +2933,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ),
         'sleep': (
           icon: Icons.bedtime_rounded,
-          label: _sleepTimerEnd != null ? '💤${_fmtSleepRemaining()}' : 'Sleep',
+          label: _sleepTimerEnd != null ? '💤 ${_fmtSleepRemaining()}' : 'Sleep',
           active: _sleepTimerEnd != null,
           available: true,
-          onTap: () { Navigator.of(context).pop(); },
+          onTap: _sleepTimerEnd != null
+              ? () { _setSleepTimer(null); }
+              : () { _openMoreMenu(); },
         ),
         'ab': (
           icon: Icons.repeat_one_rounded,
@@ -3011,26 +3013,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // ── Toggle chevron ──────────────────────────────────────────────
+          // ── Toggle chevron tab ──────────────────────────────────────────────
           GestureDetector(
             onTap: () {
               setState(() => _sidebarExpanded = !_sidebarExpanded);
               _savePrefs();
             },
-            child: Container(
-              width: 22, height: 48,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 20, height: 60,
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.55),
-                borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
+                color: Colors.black.withOpacity(0.72),
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(10)),
                 border: Border(
-                  left: BorderSide(color: Colors.white.withOpacity(0.12), width: 0.8),
-                  top: BorderSide(color: Colors.white.withOpacity(0.08), width: 0.5),
-                  bottom: BorderSide(color: Colors.white.withOpacity(0.08), width: 0.5),
+                  left: BorderSide(
+                    color: _sidebarExpanded
+                        ? _accentColor.withOpacity(0.60)
+                        : Colors.white.withOpacity(0.14),
+                    width: 1.5,
+                  ),
+                  top: BorderSide(color: Colors.white.withOpacity(0.06), width: 0.5),
+                  bottom: BorderSide(color: Colors.white.withOpacity(0.06), width: 0.5),
                 ),
               ),
               child: Icon(
                 _sidebarExpanded ? Icons.chevron_right : Icons.chevron_left,
-                color: Colors.white60, size: 16,
+                color: _sidebarExpanded
+                    ? _accentColor.withOpacity(0.90)
+                    : Colors.white.withOpacity(0.40),
+                size: 13,
               ),
             ),
           ),
@@ -3040,14 +3051,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             const SizedBox(height: 4),
             Flexible(
               child: Container(
-                width: 54,
+                width: 64,
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.55),
-                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+                  color: Colors.black.withOpacity(0.74),
+                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(14)),
                   border: Border(
-                    left: BorderSide(color: Colors.white.withOpacity(0.12), width: 0.8),
-                    top: BorderSide(color: Colors.white.withOpacity(0.08), width: 0.5),
-                    bottom: BorderSide(color: Colors.white.withOpacity(0.08), width: 0.5),
+                    left: BorderSide(color: Colors.white.withOpacity(0.09), width: 0.8),
+                    top: BorderSide(color: Colors.white.withOpacity(0.05), width: 0.5),
+                    bottom: BorderSide(color: Colors.white.withOpacity(0.05), width: 0.5),
                   ),
                 ),
                 child: SingleChildScrollView(
@@ -3055,76 +3066,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Counter badge
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 4, top: 2),
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.10),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          '${visibleItems.length}',
-                          style: const TextStyle(color: Colors.white54, fontSize: 9, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      // Shortcut items
-                      for (final id in visibleItems) ...[
-                        if (defs[id] != null)
-                          GestureDetector(
-                            onTap: (defs[id]!.available) ? defs[id]!.onTap : null,
-                            child: Opacity(
-                              opacity: defs[id]!.available ? 1.0 : 0.35,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                width: 54,
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: defs[id]!.active
-                                      ? _accentColor.withOpacity(0.18)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      defs[id]!.icon,
-                                      color: defs[id]!.active ? _accentColor : Colors.white70,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      defs[id]!.label,
-                                      style: TextStyle(
-                                        color: defs[id]!.active ? _accentColor : Colors.white54,
-                                        fontSize: 9,
-                                        fontWeight: defs[id]!.active ? FontWeight.bold : FontWeight.normal,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
+                      // ── Shortcut buttons ────────────────────────────────
+                      for (int _si = 0; _si < visibleItems.length; _si++) ...[
+                        if (defs[visibleItems[_si]] != null) ...[
+                          if (_si > 0)
+                            Container(
+                              height: 0.4,
+                              margin: const EdgeInsets.symmetric(horizontal: 10),
+                              color: Colors.white.withOpacity(0.07),
                             ),
-                          ),
+                          _buildSidebarBtn(defs[visibleItems[_si]]!),
+                        ],
                       ],
-                      // ── Customize / Edit button ──────────────────────────
-                      const SizedBox(height: 4),
-                      Container(height: 0.5, margin: const EdgeInsets.symmetric(horizontal: 8), color: Colors.white12),
+                      // ── Edit / Customize ─────────────────────────────────
+                      Container(
+                        height: 0.5,
+                        margin: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+                        color: Colors.white.withOpacity(0.13),
+                      ),
                       GestureDetector(
                         onTap: _openSidebarCustomizer,
                         child: Container(
-                          width: 54,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          width: 64,
+                          padding: const EdgeInsets.symmetric(vertical: 9),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(Icons.tune_rounded, color: Colors.white38, size: 16),
-                              SizedBox(height: 2),
-                              Text('Edit', style: TextStyle(color: Colors.white30, fontSize: 8)),
+                            children: [
+                              Icon(Icons.tune_rounded,
+                                  color: Colors.white.withOpacity(0.30), size: 17),
+                              const SizedBox(height: 3),
+                              Text(
+                                'Edit',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.24),
+                                  fontSize: 9,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -3136,6 +3114,54 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
           ],
         ],
+      );
+    }
+
+    // ── Sidebar shortcut button (icon + label, active = accent left border) ──
+    Widget _buildSidebarBtn(({IconData icon, String label, bool active, bool available, VoidCallback? onTap}) def) {
+      return GestureDetector(
+        onTap: def.available ? def.onTap : null,
+        child: Opacity(
+          opacity: def.available ? 1.0 : 0.28,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: 64,
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            decoration: BoxDecoration(
+              color: def.active ? _accentColor.withOpacity(0.12) : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: def.active
+                  ? Border(left: BorderSide(color: _accentColor, width: 2.5))
+                  : const Border(),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  def.icon,
+                  color: def.active ? _accentColor : Colors.white.withOpacity(0.70),
+                  size: 22,
+                ),
+                const SizedBox(height: 3),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    def.label,
+                    style: TextStyle(
+                      color: def.active ? _accentColor : Colors.white.withOpacity(0.46),
+                      fontSize: 10,
+                      fontWeight: def.active ? FontWeight.w600 : FontWeight.w400,
+                      letterSpacing: 0.1,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
