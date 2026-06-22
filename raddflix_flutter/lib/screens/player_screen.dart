@@ -2763,13 +2763,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         );
                   return SizedBox(
                     height: 48,
-                    child: Center(
-                      child: RepaintBoundary(
-                        child: CustomPaint(
-                          size: Size(bc.maxWidth, 28),
-                          painter: seekPainter,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Center(
+                          child: RepaintBoundary(
+                            child: CustomPaint(
+                              size: Size(bc.maxWidth, 28),
+                              painter: seekPainter,
+                            ),
+                          ),
                         ),
-                      ),
+                        // ── A-B repeat pins overlay ──────────────────────
+                        if (_duration.inMilliseconds > 0 &&
+                            (_abA != null || _abB != null))
+                          _AbPinsOverlay(
+                            barWidth: bc.maxWidth,
+                            duration: _duration,
+                            abA: _abA,
+                            abB: _abB,
+                            accentColor: _accentColor,
+                            onAChanged: (d) {
+                              if (_abB == null || d < _abB!) {
+                                setState(() => _abA = d);
+                              }
+                            },
+                            onBChanged: (d) {
+                              if (_abA == null || d > _abA!) {
+                                setState(() {
+                                  _abB = d;
+                                  _abActive = _abA != null;
+                                });
+                              }
+                            },
+                            onAClear: () => setState(() {
+                              _abA = null;
+                              if (_abB == null) _abActive = false;
+                            }),
+                            onBClear: () => setState(() {
+                              _abB = null;
+                              _abActive = false;
+                            }),
+                          ),
+                      ],
                     ),
                   );
                 },
@@ -4371,6 +4407,169 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
 // ═════════════════════════════════════════════════════════════════════════════
 //  Helper Widgets
 // ═════════════════════════════════════════════════════════════════════════════
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  //  _AbPinsOverlay — draggable A/B repeat pins on the seek bar
+  //  Track center is at y=24 inside a 48px SizedBox (CustomPaint 28px centered).
+  //  Pins hang ABOVE the track; Stack uses Clip.none so they overflow upward.
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  class _AbPinsOverlay extends StatelessWidget {
+    final double barWidth;
+    final Duration duration;
+    final Duration? abA;
+    final Duration? abB;
+    final Color accentColor;
+    final ValueChanged<Duration> onAChanged;
+    final ValueChanged<Duration> onBChanged;
+    final VoidCallback onAClear;
+    final VoidCallback onBClear;
+
+    const _AbPinsOverlay({
+      required this.barWidth,
+      required this.duration,
+      required this.abA,
+      required this.abB,
+      required this.accentColor,
+      required this.onAChanged,
+      required this.onBChanged,
+      required this.onAClear,
+      required this.onBClear,
+    });
+
+    @override
+    Widget build(BuildContext context) {
+      final durMs = duration.inMilliseconds.toDouble();
+      final aFrac = abA != null ? (abA!.inMilliseconds / durMs).clamp(0.0, 1.0) : null;
+      final bFrac = abB != null ? (abB!.inMilliseconds / durMs).clamp(0.0, 1.0) : null;
+      final aX = aFrac != null ? aFrac * barWidth : null;
+      final bX = bFrac != null ? bFrac * barWidth : null;
+
+      return SizedBox(
+        width: barWidth,
+        height: 48,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // ── Loop region band between A and B ──────────────────────
+            if (aX != null && bX != null)
+              Positioned(
+                left: aX,
+                top: 18,
+                width: (bX - aX).abs(),
+                height: 12,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.22),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+            // ── A pin (green) ─────────────────────────────────────────
+            if (aX != null)
+              _pin(
+                xPos: aX,
+                label: 'A',
+                color: const Color(0xFF34C759),
+                fraction: aFrac!,
+                onChanged: onAChanged,
+                onClear: onAClear,
+              ),
+            // ── B pin (red-orange) ────────────────────────────────────
+            if (bX != null)
+              _pin(
+                xPos: bX,
+                label: 'B',
+                color: const Color(0xFFFF453A),
+                fraction: bFrac!,
+                onChanged: onBChanged,
+                onClear: onBClear,
+              ),
+          ],
+        ),
+      );
+    }
+
+    Widget _pin({
+      required double xPos,
+      required String label,
+      required Color color,
+      required double fraction,
+      required ValueChanged<Duration> onChanged,
+      required VoidCallback onClear,
+    }) {
+      const w = 30.0;   // touch width
+      const bubbleH = 22.0;
+      const stemH = 8.0;
+      // Track center is at y=24. Pin (bubble+stem) hangs above it.
+      // Total pin height = bubbleH + stemH = 30. So top = 24 - 30 = -6 (overflows).
+      const top = 24.0 - bubbleH - stemH;
+
+      return Positioned(
+        left: xPos - w / 2,
+        top: top,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragUpdate: (d) {
+            final newFrac = (fraction + d.delta.dx / barWidth).clamp(0.0, 1.0);
+            onChanged(Duration(
+                milliseconds: (newFrac * duration.inMilliseconds).round()));
+          },
+          onDoubleTap: onClear,
+          child: SizedBox(
+            width: w,
+            height: bubbleH + stemH,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Label bubble
+                Container(
+                  width: bubbleH,
+                  height: bubbleH,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.55),
+                        blurRadius: 7,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+                // Stem
+                Container(
+                  width: 2,
+                  height: stemH,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(1),
+                      bottomRight: Radius.circular(1),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+  }
 
   // ─────────────────────────────────────────────────────────────────────────────
   //  _RaddIconBtn — modern tap-target icon button with ink splash
