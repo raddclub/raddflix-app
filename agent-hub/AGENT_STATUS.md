@@ -1,50 +1,30 @@
-# RaddFlix Agent Status
-**Last updated:** 2026-06-22  
-**Build:** #1219 — `0748417f` — `in_progress` ⏳  
-**File:** `raddflix_flutter/lib/screens/player_screen.dart` — 7033 lines
+# Agent Status — RaddFlix Player
 
----
+## Phase 18 COMPLETE (2026-06-22)
 
-## Latest Session Summary
+### Sidebar Redesign — Done
+- Width: 54px -> 64px (better touch targets, roomier labels)
+- Chevron tab: 22x48 -> 20x60, AnimatedContainer — accent-color left border + icon when expanded, subtle white when collapsed
+- Counter badge: removed (was ugly, wasted space)
+- Item separators: thin 0.4px dividers between each shortcut button
+- Active state: left accent border (2.5px) + subtle fill — cleaner than fill-only
+- Icon size: 20px -> 22px
+- Label size: 9px -> 10px, FontWeight.w400/w600
+- Container opacity: 0.55 -> 0.74 (more premium, less transparent)
+- Sleep onTap fix: was calling Navigator.of(context).pop() -> now cancels timer if active, opens More panel if not
+- _buildSidebarBtn helper method: extracted from inline for-loop
 
-### Changes in Build #1219 (`0748417f`)
-| Area | Change |
-|------|--------|
-| Center controls | **All removed** — zero buttons in center, cinematic clean screen |
-| Transport row | **New row below seek bar** — skip·prev·play/pause·next·skip |
-| Top bar | **5 buttons removed** — CC, Audio, PiP, Rotate, Lock (all now sidebar-only) |
-| Panel width | **45% → 55%** (all 18 panels wider automatically) |
-| Sidebar | **Auto-hides when any panel opens**, restores when panel closes; respects manual close state |
-| Volume indicator | **Moved LEFT** (was right: 20, now left: 20) — sidebar on right was blocking it |
-| Subtitle `sub-opacity` | Fixed: was calling fake `sub-ass-fade-in-time`, now `sub-opacity` (valid MPV property) |
-| Subtitle margin | Fixed: max was 80px, now 200px with 40 divisions |
+### Phase 17 (previous)
+- Empty center (cinematic)
+- Transport row below seek bar
+- 5 top-bar buttons removed (CC/Audio/PiP/Rotate/Lock)
+- Panel width 55%
+- _panelOpen auto-hides sidebar when panel open
+- Both indicators on left
+- sub-opacity fix
 
-### Previous Build #1218 (`a031b005`)
-- Sidebar: right-edge strip, chevron toggle, 19 shortcuts, drag-reorder, accent-color states, persisted prefs
-- Orientation: auto-rotation via native SCREEN_ORIENTATION_SENSOR channel
-- Brightness: LEFT amber pill | Volume: RIGHT (now moved LEFT in #1219)
+## Current Player SHA
+b203d0dba33aacf4931f1bedfc7c6a4009b3d9b8
 
----
-
-## Critical Rules (NEVER violate)
-| Rule | Reason |
-|------|--------|
-| NO `vf=` property | Crashes HW decoder |
-| NO `hwdec` mid-play | Only safe when paused and duration==0 |
-| NO `_np` local var | Use `_np` field only, never shadow it |
-| db.setting(k) not db.get_setting(k) | API naming |
-| NO androidAttachSurfaceAfterVideoParameters:true | Causes black screen |
-| sub-opacity range 0.0–1.0 | Pass as toStringAsFixed(2) |
-
----
-
-## Key State Variables
-| Variable | Purpose |
-|----------|---------|
-| `_sidebarExpanded` | User's manual sidebar toggle state |
-| `_panelOpen` | True while any right-panel is open → sidebar hides |
-| `_showControls` | Controls overlay visibility (auto-hides) |
-| `_panelOpen` resets via `.then()` on `showGeneralDialog` | |
-
-## Sidebar Shortcut IDs (persistent prefs)
-`cc, audio, eq, speed, loop, rotate, lock, pip, screenshot, sleep, ab, episodes, settings, vivid, mute, zoom, info, replay, onehanded`
+## Build Status
+Build #1219 SUCCESS — APK uploaded to GitHub Actions artifacts
