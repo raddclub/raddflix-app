@@ -268,12 +268,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _sidebarExpanded = true;
   // Ordered list of shortcut IDs shown in the sidebar (persisted)
   List<String> _sidebarOrder = [
-    'cc','audio','eq','speed','loop','rotate','lock','pip',
+    'cc','audio','eq','vivid','episodes','speed','loop','pip',
   ];
   static const _allSidebarIds = [
     'cc','audio','eq','speed','loop','rotate','lock','pip',
     'screenshot','sleep','ab','episodes','settings','vivid',
-    'mute','frame','onehanded','zoom','silence',
+    'mute','frame','onehanded','zoom','silence','more',
   ];
 
   // Skip editor debounce
@@ -1009,40 +1009,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     SharedPreferences.getInstance().then((prefs) => prefs.remove('$_kResumePrefix$_safeId'));
   }
 
-  Future<void> _tryResumePosition(String fileId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final _safeId = fileId.length > 80 ? fileId.hashCode.toString() : fileId;
-    final savedSec = prefs.getInt('$_kResumePrefix$_safeId');
-    if (savedSec != null && savedSec > 5 && _duration.inSeconds > savedSec + 10) {
-      if (!mounted) return;
-      final cont = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF1C1C1C),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          title: const Text('Resume Playback', style: TextStyle(color: Colors.white, fontSize: 16)),
-          content: Text(
-            'Continue from ${_formatDuration(Duration(seconds: savedSec))}?',
-            style: const TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Start Over', style: TextStyle(color: Colors.white54)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Resume', style: TextStyle(color: Color(0xFFE8950A), fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      );
-      if (cont == true && mounted) {
-        await Future.delayed(const Duration(milliseconds: 300));
-        _player.seek(Duration(seconds: savedSec));
-      }
-    }
-  }
 
   void _startSavePositionTimer() {
     _savePositionTimer?.cancel();
@@ -1104,7 +1070,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         try {
           _sidebarOrder = (jsonDecode(sbJson) as List).cast<String>();
           // Ensure at least one valid item exists
-          if (_sidebarOrder.isEmpty) _sidebarOrder = ['cc','audio','speed','loop','rotate','lock'];
+          if (_sidebarOrder.isEmpty) _sidebarOrder = ['cc','audio','eq','vivid','episodes','speed','loop','pip'];
         } catch (_) {}
       }
       // Rebuild reverb AF string from loaded preset
@@ -1777,10 +1743,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   Positioned(
                     right: 0, top: 0, bottom: 0,
                     child: AnimatedOpacity(
-                      opacity: _showControls && !_panelOpen ? 1.0 : 0.0,
+                      opacity: _panelOpen ? 0.0 : (_showControls ? 1.0 : 0.4),
                       duration: const Duration(milliseconds: 280),
                       child: IgnorePointer(
-                        ignoring: !_showControls || _panelOpen,
+                        ignoring: _panelOpen,
                         child: _buildSidebar(constraints),
                       ),
                     ),
@@ -2584,7 +2550,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ═══════════════════════════════════════════════════════════════════════════
 
     Widget _buildCenterControls() {
-      return const SizedBox.shrink();
+      return GestureDetector(
+        onTap: () {
+          _player.playOrPause();
+          _scheduleHide();
+        },
+        child: Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.black.withOpacity(0.45),
+            border: Border.all(color: Colors.white24, width: 1.5),
+          ),
+          child: Icon(
+            _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            color: Colors.white,
+            size: 36,
+          ),
+        ),
+      );
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -2605,10 +2590,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             // ── Transport controls: prev · skip· play/pause · skip · next ────────
             _buildTransportRow(),
 
-            const SizedBox(height: 2),
-
-            // ── Bottom icon row ──────────────────────────────────────────────────
-            _buildBottomIconRow(),
           ],
         ),
       );
@@ -2835,67 +2816,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       );
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    //  Bottom Icon Row
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    Widget _buildBottomIconRow() {
-      final hasAudio = _audioTracks.length > 1;
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Smart Enhance
-          _BottomIconBtn(
-            icon: Icons.auto_awesome_rounded,
-            label: 'Vivid',
-            active: _smartEnhanceEnabled,
-            onTap: _toggleSmartEnhance,
-          ),
-
-          // P1: Audio tracks — dim when ≤1 track
-          _BottomIconBtn(
-            icon: Icons.headphones_rounded,
-            label: 'Audio',
-            active: false,
-            onTap: hasAudio ? _openAudioPanel : null,
-            opacity: hasAudio ? 1.0 : 0.3,
-          ),
-
-          // P8: Audio Lab (unified EQ + Lab + Reverb)
-          _BottomIconBtn(
-            icon: Icons.biotech_rounded,
-            label: 'Lab',
-            active: false,
-            onTap: _openAudioEffectPanel,
-          ),
-
-          // Episode list
-          _BottomIconBtn(
-            icon: Icons.view_list_rounded,
-            label: 'Episodes',
-            active: false,
-            onTap: _eps.length > 1 ? _showEpisodeSheet : null,
-            opacity: _eps.length > 1 ? 1.0 : 0.3,
-          ),
-
-          // Speed
-          _BottomIconBtn(
-            icon: Icons.speed_rounded,
-            label: '${_speed == _speed.truncateToDouble() ? "${_speed.toInt()}×" : "${_speed.toStringAsFixed(2)}×"}',
-            active: _speed != 1.0,
-            onTap: _cycleSpeed,
-          ),
-
-          // More
-          _BottomIconBtn(
-            icon: Icons.more_horiz_rounded,
-            label: 'More',
-            active: false,
-            onTap: _openMoreMenu,
-          ),
-        ],
-      );
-    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     //  Customizable Shortcut Sidebar
@@ -3038,6 +2958,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           active: _silenceSkipEnabled,
           available: true,
           onTap: () => _showSilenceSkipSheet(context),
+        ),
+        'more': (
+          icon: Icons.more_horiz_rounded,
+          label: 'More',
+          active: false,
+          available: true,
+          onTap: _openMoreMenu,
         ),
       };
 
@@ -5196,17 +5123,6 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                 ],
                 if (_tab == 0) ...[
                 GestureDetector(
-                  onTap: () => _fetchOnlineSubtitles(context),
-                  child: const Text('🔍  Search online subtitles',
-                      style: TextStyle(color: Color(0xFF4A9EFF), fontSize: 14,
-                          decoration: TextDecoration.underline,
-                          decorationColor: Color(0xFF4A9EFF))),
-                ),
-                const SizedBox(height: 8),
-                const Text('Searches OpenSubtitles.org for matching subtitles.',
-                    style: TextStyle(color: Colors.white54, fontSize: 12)),
-                const SizedBox(height: 12),
-                GestureDetector(
                   onTap: () => _showTranslationDialog(context),
                   child: const Text('🌐  Find in another language',
                       style: TextStyle(color: Color(0xFF4A9EFF), fontSize: 14,
@@ -6609,14 +6525,6 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('Touch action', style: TextStyle(color: Colors.white54, fontSize: 12)),
-        const SizedBox(height: 8),
-        const Text('Pause / resume', style: TextStyle(color: Colors.white, fontSize: 14)),
-        const SizedBox(height: 16),
-        const Text('Lock mode', style: TextStyle(color: Colors.white54, fontSize: 12)),
-        const SizedBox(height: 8),
-        const Text('Auto lock controls when video plays', style: TextStyle(color: Colors.white, fontSize: 14)),
-        const SizedBox(height: 16),
         const Divider(color: Colors.white12),
         const SizedBox(height: 8),
         // P12: Background audio
@@ -7083,6 +6991,7 @@ class _SidebarCustomizerPanelState extends State<_SidebarCustomizerPanel> {
     'settings': 'Settings',  'vivid': 'Vivid / Smart',  'mute': 'Mute',
     'frame': 'Frame Step',   'onehanded': 'One-Handed', 'zoom': 'Zoom & Crop',
     'silence': 'Silence Skip',
+    'more': 'More (Quick Shortcuts)',
   };
 
   static const _icons = <String, IconData>{
@@ -7096,6 +7005,7 @@ class _SidebarCustomizerPanelState extends State<_SidebarCustomizerPanel> {
     'mute': Icons.volume_off_rounded,         'frame': Icons.skip_next_rounded,
     'onehanded': Icons.pan_tool_alt_rounded,  'zoom': Icons.zoom_in_rounded,
     'silence': Icons.volume_off_outlined,
+    'more': Icons.more_horiz_rounded,
   };
 
   @override
