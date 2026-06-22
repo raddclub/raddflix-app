@@ -1,184 +1,146 @@
-# RaddFlix Video Player — Agent Reference Guide
-_Last updated: 2026-06-21 | Build #1218 ✅_
+# Player Screen Architecture Guide
+> player_screen.dart — 7033 lines | Updated: 2026-06-22
 
 ---
 
-## TL;DR for Agents
-
-| Question | Answer |
-|----------|--------|
-| Which file do I edit? | `raddflix_flutter/lib/screens/player_screen.dart` (7071 lines, 21 classes) |
-| Can I use `vf=` property? | **NEVER.** Destroys GL surface on MediaTek. 15-day black screen bug. |
-| Can I use `hwdec` mid-play? | **NEVER.** Only in initial player config before open(). |
-| Can I use video filters? | Only `ColorFiltered` Flutter widget. No MPV `vf=` ever. |
-| Can I use audio filters? | Yes — `af=equalizer` is safe (audio filter, not video). |
-| How do I push changes? | `node /tmp/push.js` — fetches fresh SHA, pushes to GitHub |
-| How do I trigger a build? | POST to /actions/workflows/282572869/dispatches |
-| How do I open a panel? | `_openRightPanel(Widget)` — slides from right at 45% width |
-| Local var named _np? | NEVER. Shadows the mpv player instance. |
-
----
-
-## File Structure
+## Overlay Stack (build order, bottom to top)
 
 ```
-player_screen.dart (7071 lines)
-  ├── _PlayerScreenState          ← master state: all modes, prefs, position, panels
-  │   ├── State variables (lines 75–320)
-  │   ├── _initPlayer()           ← pre-loads prefs + sets vf BEFORE open()
-  │   ├── _loadPrefs()            ← SharedPreferences load
-  │   ├── _savePrefs()            ← SharedPreferences save
-  │   ├── build() + _build*()     ← local widget builders
-  │   │   ├── _buildVideoSurface()
-  │   │   ├── _buildLockOverlay()
-  │   │   ├── _buildControlsOverlay(constraints)
-  │   │   ├── _buildTopBar()
-  │   │   ├── _buildCenterControls()
-  │   │   ├── _buildBottomArea(constraints, pos)
-  │   │   ├── _buildBottomIconRow()
-  │   │   ├── _buildSidebar(constraints)  ← NEW: persistent shortcut sidebar
-  │   │   └── _buildSideIndicator(...)    ← MX-style brightness/volume pill
-  │   └── Action methods (_cycleSpeed, _toggleLoop, _enterPiP, etc.)
-  ├── _QuickShortcutsPanel        ← "More" right-side panel (6×4 grid)
-  ├── _SettingsPanel              ← Settings right-side panel (4 tabs)
-  ├── _SidebarCustomizerPanel     ← NEW: drag-reorder sidebar editor
-  ├── _SidebarCustomizerPanelState
-  ├── _ShortcutItem / _ShortcutGrid
-  ├── _RaddIconBtn / _BottomIconBtn
-  ├── _LabToggleRow, _ReverbSelector, _ReverbSelectorState
-  └── WatchPartyOverlay (separate file)
+1. Video surface (NativePlayer texture)
+2. Seek flash animation (double-tap ripple)
+3. Gesture layer (GestureDetector — tap/drag/scale/double-tap/long-press)
+4. Controls overlay (AnimatedOpacity — auto-hides) ← _buildControlsOverlay()
+5. Sidebar strip (right edge, _sidebarExpanded, hidden when _panelOpen=true)
+6a. Brightness indicator pill (LEFT, amber, _showBrightnessIndicator)
+6b. Volume indicator pill (LEFT, white/orange/red, _showVolumeIndicator)
+7. Long-press 2× badge
+8a. Pinch-zoom indicator pill
+8b. Reset zoom button
+9. Lock overlay (when _isLocked)
+10. Seek preview label (during drag)
 ```
 
 ---
 
-## Overlay Stack Order (inside LayoutBuilder Stack)
-
-| Layer | Widget | Condition |
-|-------|--------|-----------|
-| 1 | Video surface (RepaintBoundary) | always |
-| 2 | Lock overlay | _isLocked |
-| 3 | Voice cmd badge | _voiceCommandsEnabled && _lastVoiceCmd.isNotEmpty |
-| 4 | WatchParty overlay | _watchPartyRoom != null |
-| 5 | Gesture layer (GestureDetector) | !_isLocked |
-| 6 | Controls overlay (AnimatedOpacity) | auto-hides |
-| **7** | **Sidebar (AnimatedOpacity, right edge)** | **!_isLocked, new** |
-| 8 | Brightness indicator (left pill) | _showBrightnessIndicator |
-| 9 | Volume indicator (right pill) | _showVolumeIndicator |
-| 10 | Long-press 2× badge | _longPressingSpeed |
-| 11 | Zoom indicator pill | _zoomMode != 0 |
-| 12 | Reset zoom button | _zoomMode != 0 |
+## Controls Overlay Sub-Stack (_buildControlsOverlay)
+```
+Top gradient (0xBB000000 → transparent, height 80)
+Bottom gradient (transparent → 0xBB000000, height 100)
+├── TOP BAR (_buildTopBar) — Positioned top:0
+│   Back | Title | EpBadge | ZoomBadge | SubSyncBadge | AudioSyncBadge |
+│   Replay | Clock | SleepBadge | RotationBadge | Info
+│   (CC/Audio/PiP/Rotate/Lock removed — all in sidebar now)
+│
+├── CENTER — EMPTY (SizedBox.shrink() — cinematic, zero buttons)
+│
+└── BOTTOM AREA (_buildBottomArea) — Positioned bottom:0
+    ├── Seek bar row (_buildHorizontalSeekBar)
+    ├── Transport row (_buildTransportRow)  ← NEW in Phase 17
+    │   ⏪skip · ⏮prev · ▶/⏸play/pause · ⏭next · skip⏩
+    └── Icon row (_buildBottomIconRow)
+        Vivid | Audio | Lab | Episodes | Speed | More
+```
 
 ---
 
 ## Panel System
+**Function:** `_openRightPanel(Widget content, {double widthFactor = 0.55})`  
+**Mechanism:** `showGeneralDialog` with slide-from-right animation  
+**Width:** 55% of screen (was 45%)  
+**Background:** `Colors.black.withOpacity(0.60)`  
+**Border:** left `Colors.white12` 0.8px  
+**Sidebar hide:** Sets `_panelOpen=true` before dialog, resets via `.then()` on dialog future  
 
-All panels open via `_openRightPanel(Widget child)`:
-- Slides in from right (300ms)
-- Width: 45% of screen
-- Background: black at 60% opacity
-- Close: swipe right or tap backdrop
-
-**Current panels:**
-| Panel opener | Panel widget |
-|---|---|
-| _openMoreMenu() | _QuickShortcutsPanel |
-| _openSettingsPanel() | _SettingsPanel |
-| _openSubtitlePanel() | subtitle ListView |
-| _openAudioPanel() | audio track ListView |
-| _openAudioEffectPanel() | EQ panel |
-| _openSidebarCustomizer() | _SidebarCustomizerPanel (NEW) |
-| _showEpisodeSheet() | episode list |
+### Panels (all via _openRightPanel):
+`_SubtitlePanel` | `_AudioTrackPanel` | `_VideoZoomPanel` | `_AudioEffectPanel` |  
+`_QuickShortcutsPanel` | Speed | Loop | More | Screenshot | Sleep | A-B |  
+`_SidebarCustomizerPanel` | `_SettingsPanel` | Episodes
 
 ---
 
-## Sidebar System (NEW — Phase 16)
+## Sidebar Architecture
+**Class:** rendered in `_buildSidebar(BoxConstraints)`  
+**Position:** `Positioned(right:0, top:0, bottom:0)`  
+**Visibility:** `_showControls && !_panelOpen`  
+**Toggle state:** `_sidebarExpanded` (bool, persisted as `pref_sidebar_exp`)  
+**Order:** `_sidebarOrder` (List<String>, persisted as `pref_sidebar_order`)  
 
-### State Variables
+**19 shortcut IDs:**
+`cc, audio, eq, speed, loop, rotate, lock, pip, screenshot, sleep, ab, episodes, settings, vivid, mute, zoom, info, replay, onehanded`
+
+**Sidebar hide logic:**
 ```dart
-bool _sidebarExpanded = true;       // pref: pref_sidebar_exp
-List<String> _sidebarOrder = [...]; // pref: pref_sidebar_order (JSON)
-static const _allSidebarIds = [     // master list
-  'cc','audio','eq','speed','loop','rotate','lock','pip',
-  'screenshot','sleep','ab','episodes','settings','vivid',
-  'mute','frame','onehanded','zoom','silence',
-];
+// Panel opens:
+setState(() => _panelOpen = true);
+showGeneralDialog(...).then((_) {
+  if (mounted) setState(() => _panelOpen = false);
+});
+
+// Sidebar AnimatedOpacity:
+opacity: _showControls && !_panelOpen ? 1.0 : 0.0
+
+// Sidebar IgnorePointer:
+ignoring: !_showControls || _panelOpen
+// NOTE: _sidebarExpanded is checked inside _buildSidebar itself
+// so manual close is always respected
 ```
 
-### Shortcut ID → State Mapping
-| ID | Icon | Active when | onTap |
-|---|---|---|---|
-| cc | subtitles | _subtitleTracks.isNotEmpty | _openSubtitlePanel |
-| audio | headphones | _audioTracks.length > 1 | _openAudioPanel |
-| eq | equalizer | _eqEnabled | _openAudioEffectPanel |
-| speed | speed | _speed != 1.0 | _cycleSpeed |
-| loop | loop | _loopEnabled | _toggleLoop |
-| rotate | screen_rotation | _orientMode != 0 | _cycleOrientation |
-| lock | lock_outline | never | sets _isLocked = true |
-| pip | pip | never | _enterPiP |
-| screenshot | camera_alt | never | _takeScreenshot |
-| sleep | bedtime | _sleepTimerEnd != null | (sleep timer) |
-| ab | repeat_one | _abActive | _handleAbRepeat |
-| episodes | view_list | available if _eps.length > 1 | _showEpisodeSheet |
-| settings | settings | never | _openSettingsPanel |
-| vivid | auto_awesome | _smartEnhanceEnabled | _toggleSmartEnhance |
-| mute | volume_off | _isMuted | _toggleMute |
-| frame | skip_next | never | _np.command(['frame-step']) |
-| onehanded | pan_tool_alt | _oneHandedMode | toggles _oneHandedMode |
-| zoom | zoom_in | _zoomMode != 0 | _openZoomPanel |
-| silence | volume_off_outlined | _silenceSkipEnabled | _showSilenceSkipSheet |
+---
+
+## Gesture System
+| Gesture | Handler | Action |
+|---------|---------|--------|
+| Tap | `onTap` | Toggle controls |
+| Double-tap left | `onDoubleTapDown` | Seek back `_skipInterval`s |
+| Double-tap right | `onDoubleTapDown` | Seek forward `_skipInterval`s |
+| Long press | `onLongPressStart/End` | 2× speed (if enabled) |
+| Drag horizontal | `_onDragUpdate` intent='seek' | Seek through video |
+| Drag vertical LEFT | `_onDragUpdate` intent='brightness' | Adjust brightness |
+| Drag vertical RIGHT | `_onDragUpdate` intent='volume' | Adjust volume |
+| Pinch | `_onScaleUpdate` (2 fingers) | Pinch-to-zoom |
+
+**Drag intent** is decided in `_onDragStart` / first 12px threshold:
+- `dx.abs() > dy.abs() && dx.abs() > 12` → 'seek' (if `_swipeSeekEnabled`)
+- left half → 'brightness', right half → 'volume'
 
 ---
 
-## Orientation System (NEW — Phase 15)
+## Indicators
+Both on **LEFT side** (`left: 20`), centered vertically.  
+Never show simultaneously (brightness = left drag, volume = right drag).
 
-Auto-rotation via native Android API (ignores system auto-rotate toggle):
-```dart
-void _setNativeOrientation(String mode) async {
-  // Calls com.raddflix.app/orient channel
-  // mode: 'auto' | 'landscape' | 'portrait' | 'landscape_one' | 'default'
-}
-```
-
-| _orientMode | _setNativeOrientation call | Android constant |
-|---|---|---|
-| 0 (auto) | 'auto' | SCREEN_ORIENTATION_SENSOR |
-| 1 (landscape) | 'landscape' | SCREEN_ORIENTATION_SENSOR_LANDSCAPE |
-| 2 (portrait) | 'portrait' | SCREEN_ORIENTATION_SENSOR_PORTRAIT |
-| 3 (one side) | 'landscape_one' | SCREEN_ORIENTATION_LANDSCAPE |
-| dispose | 'default' | SCREEN_ORIENTATION_UNSPECIFIED |
+**Brightness:** amber `0xFFFFD60A`, `sub-brightness`-style pill  
+**Volume:** white / orange (>1.0) / red (>2.0), `left: 20`  
 
 ---
 
-## Key Prefs Keys
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| pref_sidebar_order | String (JSON) | 8-item default list | Ordered shortcut IDs |
-| pref_sidebar_exp | bool | true | Sidebar expanded/collapsed |
-| pref_onehanded | bool | false | One-handed mode |
-| pref_onehanded_left | bool | false | Left-hand preference |
-| pref_speed | double | 1.0 | Playback speed |
-| pref_loop | bool | false | Loop enabled |
-| pref_eq_enabled | bool | false | EQ enabled |
-| pref_smart_enhance | bool | false | Vivid/Smart Enhance |
-| pref_muted | bool | false | Muted |
-| pref_orient | int | 0 | Orientation mode |
-| pref_sub_margin | double | 100 | Subtitle bottom margin px |
-| pref_sleep_minutes | int? | null | Sleep timer |
+## Subtitle Properties (MPV)
+| Setting | MPV Property | Notes |
+|---------|-------------|-------|
+| Font | `sub-font` | 'sans-serif','serif','monospace' |
+| Size | `sub-font-size` | Integer string |
+| Scale | `sub-scale` | Float e.g. "1.50" |
+| Bold | `sub-bold` | 'yes'/'no' |
+| Color | `sub-color` | `#RRGGBB` format |
+| Background | `sub-back-color` | `#00000000` transparent, `#ffRRGGBB` |
+| Opacity | `sub-opacity` | Float 0.0–1.0 (fixed: was sub-ass-fade-in-time) |
+| Align X | `sub-align-x` | 'left'/'center'/'right' |
+| Align Y | `sub-align-y` | 0=top 1=center 2=bottom |
+| Margin Y | `sub-margin-y` | 0–200px |
+| Margin X | `sub-margin-x` | 0–60px |
+| Shadow offset | `sub-shadow-offset` | '0','3' |
+| Outline size | `sub-outline-size` | '0','1.5' |
+| Line spacing | `sub-spacing` | Float |
+| Speed | `sub-speed` | Float |
+| Sync | `sub-delay` | Float seconds |
 
 ---
 
-## DO NOT Do These Things
-
-```dart
-// ❌ NEVER — black screen on MediaTek
-await _np.setProperty('vf', 'eq=...');
-// ❌ NEVER — GL surface destroyed
-await _np.setProperty('hwdec', 'auto');  // mid-play
-// ❌ NEVER — shadows mpv instance
-final _np = SomethingElse();
-// ❌ NEVER — wrong DB method
-db.get_setting('key');
-// ❌ NEVER — adds to AndroidManifest wrong surface
-androidAttachSurfaceAfterVideoParameters: true
-```
+## DO NOT List
+- ❌ `vf=` — crashes HW decoder
+- ❌ Change `hwdec` while playing — only safe when paused + `_player.state.duration == Duration.zero`
+- ❌ Local variable named `_np` — shadows the field
+- ❌ `db.get_setting(k)` — use `db.setting(k)`
+- ❌ `androidAttachSurfaceAfterVideoParameters: true` — black screen
+- ❌ `sub-ass-fade-in-time` — fake property, use `sub-opacity`
+- ❌ Panel width < 0.55 — user confirmed 55% minimum
