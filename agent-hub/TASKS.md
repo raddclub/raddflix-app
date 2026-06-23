@@ -32,5 +32,22 @@
 | FAB Resume Last Video in Local Media screen | 20 | DONE |
 | Series auto-grouping in Local Folder (collapse/expand) | 20 | DONE |
 
+
+| isAudio/isVideo detection in LocalVideo model | 21 | DONE |
+| LocalFolder.folderType (audio/mixed/video) | 21 | DONE |
+| Audio folder icon (🎵) in folder list | 21 | DONE |
+| Mixed folder icon in folder list | 21 | DONE |
+| Audio track count label in folder tiles | 21 | DONE |
+| MUSIC badge on grid cards | 21 | DONE |
+| MX-style Sort sheet in LocalMediaScreen | 21 | DONE |
+| Sort by: Name, Date, Size, Count, Duration | 21 | DONE |
+| A→Z / Z→A direction toggle in sort sheet | 21 | DONE |
+| List/Grid layout toggle in LocalMediaScreen | 21 | DONE |
+| MX-style Sort sheet in LocalFolderScreen | 21 | DONE |
+| Sort by: Name, Date, Size, Duration, Resolution, Type | 21 | DONE |
+| Type filter: All / Videos / Audio | 21 | DONE |
+| AUDIO badge + music icon for audio files in folder | 21 | DONE |
+| Type filter pills in stats bar (mixed folders) | 21 | DONE |
+
 ## Open Tasks
 None — awaiting user review.
