@@ -375,7 +375,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
             textAlign: TextAlign.center),
         const SizedBox(height: 28),
         GestureDetector(
-          onTap: () => const MethodChannel('com.raddflix.app/media_store').invokeMethod('openAppSettings'),
+          onTap: () => MethodChannel('com.raddflix.app/media_store').invokeMethod('openAppSettings'),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
             decoration: BoxDecoration(
