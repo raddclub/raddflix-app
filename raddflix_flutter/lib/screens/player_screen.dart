@@ -181,6 +181,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _eqEnabled = true;
   String _currentReverbAf = ''; // active reverb aecho string
   String _currentLabAf = '';    // active lab af chain from _AudioEffectPanel
+  bool _isLocal = false;        // true when current media is a local file (not a stream)
   // Lab state (persisted so panel reopens restore state)
   bool _labVocal = false;
   bool _labDialogue = false;
@@ -613,6 +614,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     final isLocal = (localPath != null && localPath.isNotEmpty) ||
         (fileId.startsWith('/') || fileId.startsWith('content://'));
+    _isLocal = isLocal;
     final effectivePath = localPath ?? (isLocal ? fileId : null);
 
     if (effectivePath != null) {
@@ -964,10 +966,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // covered. Called whenever controls show or hide.
   // Controls bottom area is ~90px (seek bar ~32px + transport row ~48px + padding).
   void _applySubtitleMargin({required bool controlsVisible}) {
-    // When controls are visible, push subs 90px above bottom controls so they
-    // are never hidden behind the seek bar or transport row.
+    // When controls are visible, push subs 140px above bottom controls so they
+    // clear the seek bar AND transport row.
     final base = _subBottomMarginMain;
-    final marginY = controlsVisible ? (base + 90).round() : base.round();
+    final marginY = controlsVisible ? (base + 140).round() : base.round();
     try { _np.setProperty('sub-margin-y', marginY.toString()); } catch (_) {}
   }
 
@@ -1848,10 +1850,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   Positioned(
                     right: 0, top: 0, bottom: 0,
                     child: AnimatedOpacity(
-                      opacity: _panelOpen ? 0.0 : (_showControls ? 1.0 : 0.4),
+                      opacity: _panelOpen ? 0.0 : (_showControls ? 1.0 : 0.0),
                       duration: const Duration(milliseconds: 280),
                       child: IgnorePointer(
-                        ignoring: _panelOpen,
+                        ignoring: _panelOpen || !_showControls,
                         child: _buildSidebar(constraints),
                       ),
                     ),
@@ -2724,73 +2726,103 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     Widget _buildTransportRow() {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Skip backward
-          if (_showSkipBtns) ...[
-            _RaddIconBtn(
-              icon: Icons.replay_rounded,
-              size: 22,
-              onTap: () => _seekRelative(-_skipInterval),
+      return SizedBox(
+        height: 48,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // ── Centered: skip · prev · play/pause · next · skip ──────────
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_showSkipBtns) ...[
+                  _RaddIconBtn(
+                    icon: Icons.replay_rounded,
+                    size: 22,
+                    onTap: () => _seekRelative(-_skipInterval),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                if (_showPrevNextBtns) ...[
+                  Opacity(
+                    opacity: _hasPrev ? 1.0 : 0.25,
+                    child: _RaddIconBtn(
+                      icon: Icons.skip_previous_rounded,
+                      size: 28,
+                      onTap: _hasPrev ? () => _playEpisodeAt(_currentEpIdx - 1) : null,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                GestureDetector(
+                  onTap: () { _player.playOrPause(); _scheduleHide(); },
+                  child: Container(
+                    width: 42, height: 42,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.12),
+                      border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.2),
+                    ),
+                    child: Icon(
+                      _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
+                if (_showPrevNextBtns) ...[
+                  const SizedBox(width: 8),
+                  Opacity(
+                    opacity: _hasNext ? 1.0 : 0.25,
+                    child: _RaddIconBtn(
+                      icon: Icons.skip_next_rounded,
+                      size: 28,
+                      onTap: _hasNext ? () => _playEpisodeAt(_currentEpIdx + 1) : null,
+                    ),
+                  ),
+                ],
+                if (_showSkipBtns) ...[
+                  const SizedBox(width: 4),
+                  _RaddIconBtn(
+                    icon: Icons.forward_rounded,
+                    size: 22,
+                    onTap: () => _seekRelative(_skipInterval),
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(width: 4),
-          ],
-
-          // Previous episode
-          if (_showPrevNextBtns) ...[
-            Opacity(
-              opacity: _hasPrev ? 1.0 : 0.25,
-              child: _RaddIconBtn(
-                icon: Icons.skip_previous_rounded,
-                size: 28,
-                onTap: _hasPrev ? () => _playEpisodeAt(_currentEpIdx - 1) : null,
+            // ── Right-side quick actions: Lock · Immersive · Settings ──────
+            Positioned(
+              right: 0,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _RaddIconBtn(
+                    icon: Icons.lock_outline_rounded,
+                    size: 20,
+                    onTap: () => setState(() {
+                      _isLocked = true;
+                      _showControls = false;
+                      _applySubtitleMargin(controlsVisible: false);
+                    }),
+                  ),
+                  const SizedBox(width: 2),
+                  _RaddIconBtn(
+                    icon: _isImmersive ? Icons.theaters_rounded : Icons.theaters_outlined,
+                    size: 20,
+                    onTap: _isImmersive ? _exitImmersive : _enterImmersive,
+                  ),
+                  const SizedBox(width: 2),
+                  _RaddIconBtn(
+                    icon: Icons.settings_rounded,
+                    size: 20,
+                    onTap: _openSettingsPanel,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 8),
           ],
-
-          // Play / Pause — compact circle
-          GestureDetector(
-            onTap: () { _player.playOrPause(); _scheduleHide(); },
-            child: Container(
-              width: 42, height: 42,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.12),
-                border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.2),
-              ),
-              child: Icon(
-                _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-          ),
-
-          // Next episode
-          if (_showPrevNextBtns) ...[
-            const SizedBox(width: 8),
-            Opacity(
-              opacity: _hasNext ? 1.0 : 0.25,
-              child: _RaddIconBtn(
-                icon: Icons.skip_next_rounded,
-                size: 28,
-                onTap: _hasNext ? () => _playEpisodeAt(_currentEpIdx + 1) : null,
-              ),
-            ),
-          ],
-
-          // Skip forward
-          if (_showSkipBtns) ...[
-            const SizedBox(width: 4),
-            _RaddIconBtn(
-              icon: Icons.forward_rounded,
-              size: 22,
-              onTap: () => _seekRelative(_skipInterval),
-            ),
-          ],
-        ],
+        ),
       );
     }
 
@@ -3379,6 +3411,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
 
     void _openSubtitlePanel() {
       _openRightPanel(_SubtitlePanel(
+        isLocal: _isLocal,
         subSync: _subSync,
         subSpeed: _subSpeed,
         currentFile: _currentSubFile,
@@ -3394,7 +3427,13 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
             setState(() => _subBottomMarginMain = double.tryParse(val) ?? _subBottomMarginMain);
             _savePrefs();
           } else {
-            try { _np.setProperty(prop, val); } catch (_) {}
+            try {
+              _np.setProperty(prop, val);
+              // Force ASS style override so font/size/color changes apply to styled subs
+              if (prop == 'sub-font-size' || prop == 'sub-font' || prop == 'sub-bold' || prop == 'sub-color') {
+                _np.setProperty('sub-ass-override', 'force');
+              }
+            } catch (_) {}
           }
         },
         onClose: () => Navigator.of(context).pop(),
@@ -4726,6 +4765,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 class _SubtitlePanel extends StatefulWidget {
+  final bool isLocal;
   final double subSync;
   final double subSpeed;
   final String? currentFile;
@@ -5268,7 +5308,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                   ),
                 ],
                 if (_tab == 0) ...[
-                GestureDetector(
+                if (!widget.isLocal) GestureDetector(
                   onTap: () => _showTranslationDialog(context),
                   child: const Text('🌐  Find in another language',
                       style: TextStyle(color: Color(0xFF4A9EFF), fontSize: 14,
