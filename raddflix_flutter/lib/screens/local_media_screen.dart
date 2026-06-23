@@ -7,7 +7,8 @@ import 'dart:typed_data';
   import '../models/local_video.dart';
   import '../services/local_media_service.dart';
   import 'local_folder_screen.dart';
-  import '../widgets/bottom_nav.dart';
+  import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/bottom_nav.dart';
 import '../core/theme/radd_theme.dart';
 
   class LocalMediaScreen extends StatefulWidget {
@@ -37,10 +38,15 @@ import '../core/theme/radd_theme.dart';
     // Thumbnails cache: folderPath → Uint8List
     final Map<String, Uint8List?> _thumbCache = {};
 
+    // Resume last local video
+    String? _resumePath;
+    String? _resumeTitle;
+
     @override
     void initState() {
       super.initState();
       _load();
+      _loadResume();
     }
 
     @override
@@ -48,6 +54,18 @@ import '../core/theme/radd_theme.dart';
       _searchCtrl.dispose();
       _searchFocus.dispose();
       super.dispose();
+    }
+
+    Future<void> _loadResume() async {
+      final prefs = await SharedPreferences.getInstance();
+      final path  = prefs.getString('resume_local_path');
+      final title = prefs.getString('resume_title');
+      if (path != null && path.isNotEmpty && mounted) {
+        setState(() {
+          _resumePath  = path;
+          _resumeTitle = title ?? path.split('/').last;
+        });
+      }
     }
 
     Future<void> _load({bool refresh = false}) async {
@@ -130,6 +148,26 @@ import '../core/theme/radd_theme.dart';
       super.build(context);
       return Scaffold(
         backgroundColor: t.bg,
+        floatingActionButton: _resumePath != null
+            ? FloatingActionButton.extended(
+                onPressed: _resumeLastVideo,
+                backgroundColor: AppColors.primary,
+                icon: const Icon(Icons.play_circle_filled_rounded, color: Colors.white, size: 22),
+                label: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Resume', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600, height: 1.1)),
+                    Text(
+                      _resumeTitle ?? '',
+                      style: const TextStyle(color: Colors.white70, fontSize: 11, height: 1.1),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              )
+            : null,
         body: SafeArea(
           child: Column(children: [
             _buildTopBar(),
@@ -294,6 +332,18 @@ import '../core/theme/radd_theme.dart';
           ).animate(delay: (i * 20).ms).fadeIn(duration: 200.ms),
         ),
       );
+    }
+
+    void _resumeLastVideo() {
+      final path = _resumePath;
+      if (path == null) return;
+      final title = _resumeTitle ?? path.split('/').last;
+      Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
+        'file_id': '',
+        'title': title,
+        'local_path': path,
+        'content_type': 'local',
+      });
     }
 
     void _openFolder(LocalFolder folder) async {
