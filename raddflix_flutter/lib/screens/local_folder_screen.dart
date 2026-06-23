@@ -32,6 +32,8 @@ import 'player_screen.dart';
     final FocusNode _searchFocus = FocusNode();
     final Map<String, Uint8List?> _thumbCache = {};
     bool _loadingThumbs = true;
+    bool _groupingEnabled = true;
+    final Map<String, bool> _groupExpanded = {};
 
     @override
     void initState() {
@@ -299,6 +301,7 @@ import 'player_screen.dart';
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
             onSelected: (v) {
               if (v == 'select') setState(() => _selecting = true);
+              else if (v == 'group') setState(() => _groupingEnabled = !_groupingEnabled);
               else setState(() => _sort = _VideoSortMode.values
                   .firstWhere((m) => m.name == v, orElse: () => _sort));
             },
@@ -310,6 +313,7 @@ import 'player_screen.dart';
               _menuItem('duration', Icons.timer_outlined,        'Longest First', _sort.name == 'duration'),
               _menuDivider('Actions'),
               _menuItem('select', Icons.check_box_outlined,      'Select Files',  false),
+              _menuItem('group', Icons.collections_bookmark_rounded, _groupingEnabled ? 'Ungroup Series' : 'Group by Series', _groupingEnabled),
             ],
           ),
         ]),
@@ -396,6 +400,7 @@ import 'player_screen.dart';
         ]));
       }
 
+      // Grid view — no grouping applied
       if (_view == _VideoViewMode.grid) {
         return GridView.builder(
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 100),
@@ -418,26 +423,168 @@ import 'player_screen.dart';
         );
       }
 
-      return ListView.builder(
+      // Plain list view — grouping disabled
+      if (!_groupingEnabled) {
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
+          itemCount: sorted.length,
+          itemBuilder: (_, i) => _VideoListTile(
+            video: sorted[i],
+            thumb: _thumbCache[sorted[i].filePath],
+            selected: _selected.contains(sorted[i].filePath),
+            selecting: _selecting,
+            onTap: () => _selecting
+                ? _toggleSelect(sorted[i].filePath)
+                : _playVideo(sorted[i]),
+            onLongPress: () {
+              setState(() { _selecting = true; _selected.add(sorted[i].filePath); });
+            },
+          ).animate(delay: (i * 15).ms).fadeIn(duration: 200.ms),
+        );
+      }
+
+      // Grouped list view — series auto-detected and collapsed/expanded
+      final groups = _groupVideosBySeries(sorted);
+      final List<Widget> items = [];
+      int animIdx = 0;
+
+      for (final group in groups) {
+        final isSeries = group.episodes.length > 1;
+        final gKey = group.seriesName;
+        final expanded = _groupExpanded[gKey] ?? true;
+
+        if (isSeries) {
+          // Series header
+          final epCount = group.episodes.length;
+          items.add(
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => setState(() => _groupExpanded[gKey] = !expanded),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 12, 6),
+                  child: Row(children: [
+                    Icon(Icons.tv_rounded, size: 16, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(
+                      group.seriesName.isEmpty ? 'Series' : group.seriesName,
+                      style: TextStyle(color: t.textPrimary,
+                          fontSize: 13, fontWeight: FontWeight.w700),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                    )),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text('$epCount eps',
+                          style: TextStyle(color: AppColors.primary,
+                              fontSize: 10, fontWeight: FontWeight.w700)),
+                    ),
+                    const SizedBox(width: 6),
+                    AnimatedRotation(
+                      duration: const Duration(milliseconds: 200),
+                      turns: expanded ? 0.25 : 0,
+                      child: Icon(Icons.chevron_right_rounded,
+                          color: t.textMuted, size: 18),
+                    ),
+                  ]),
+                ),
+              ),
+            ).animate(delay: Duration(milliseconds: animIdx * 15)).fadeIn(duration: const Duration(milliseconds: 200)),
+          );
+          animIdx++;
+
+          if (expanded) {
+            for (final vid in group.episodes) {
+              items.add(
+                Padding(
+                  padding: const EdgeInsets.only(left: 24),
+                  child: _VideoListTile(
+                    video: vid,
+                    thumb: _thumbCache[vid.filePath],
+                    selected: _selected.contains(vid.filePath),
+                    selecting: _selecting,
+                    onTap: () => _selecting
+                        ? _toggleSelect(vid.filePath)
+                        : _playVideo(vid),
+                    onLongPress: () {
+                      setState(() { _selecting = true; _selected.add(vid.filePath); });
+                    },
+                  ).animate(delay: Duration(milliseconds: animIdx * 15)).fadeIn(duration: const Duration(milliseconds: 200)),
+                ),
+              );
+              animIdx++;
+            }
+          }
+        } else {
+          // Single video — no header
+          final vid = group.episodes.first;
+          items.add(
+            _VideoListTile(
+              video: vid,
+              thumb: _thumbCache[vid.filePath],
+              selected: _selected.contains(vid.filePath),
+              selecting: _selecting,
+              onTap: () => _selecting
+                  ? _toggleSelect(vid.filePath)
+                  : _playVideo(vid),
+              onLongPress: () {
+                setState(() { _selecting = true; _selected.add(vid.filePath); });
+              },
+            ).animate(delay: Duration(milliseconds: animIdx * 15)).fadeIn(duration: const Duration(milliseconds: 200)),
+          );
+          animIdx++;
+        }
+      }
+
+      return ListView(
         padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
-        itemCount: sorted.length,
-        itemBuilder: (_, i) => _VideoListTile(
-          video: sorted[i],
-          thumb: _thumbCache[sorted[i].filePath],
-          selected: _selected.contains(sorted[i].filePath),
-          selecting: _selecting,
-          onTap: () => _selecting
-              ? _toggleSelect(sorted[i].filePath)
-              : _playVideo(sorted[i]),
-          onLongPress: () {
-            setState(() { _selecting = true; _selected.add(sorted[i].filePath); });
-          },
-        ).animate(delay: (i * 15).ms).fadeIn(duration: 200.ms),
+        children: items,
       );
     }
   }
 
-  // ── Video list tile (MX Player style) ─────────────────────────────────────────
+  
+// ── Series auto-grouping helpers ─────────────────────────────────────────────
+class _SeriesGroup {
+  final String seriesName;
+  final List<LocalVideo> episodes;
+  bool expanded;
+  _SeriesGroup({required this.seriesName, required this.episodes, this.expanded = true});
+}
+
+/// Strips episode number from a title to get the series name.
+String _seriesNameFrom(String title) {
+  return title
+      .replaceAll(RegExp(r'(?i)S\d+\s*E\d+'), '')
+      .replaceAll(RegExp(r'(?i)Episode\s*\d+'), '')
+      .replaceAll(RegExp(r'(?i)Ep\.?\s*\d+'), '')
+      .replaceAll(RegExp(r'\d+x\d+'), '')
+      .replaceAll(RegExp(r'\s{2,}'), ' ')
+      .trim();
+}
+
+/// Groups videos by series when 2+ share the same base name.
+List<_SeriesGroup> _groupVideosBySeries(List<LocalVideo> videos) {
+  final Map<String, List<LocalVideo>> byName = {};
+  for (final v in videos) {
+    final key = _seriesNameFrom(v.title);
+    (byName[key] ??= []).add(v);
+  }
+  final List<_SeriesGroup> groups = [];
+  for (final entry in byName.entries) {
+    groups.add(_SeriesGroup(seriesName: entry.key, episodes: entry.value));
+  }
+  groups.sort((a, b) {
+    if (a.episodes.length == b.episodes.length) return 0;
+    return b.episodes.length.compareTo(a.episodes.length);
+  });
+  return groups;
+}
+
+// ── Video list tile (MX Player style) ─────────────────────────────────────────
   class _VideoListTile extends StatelessWidget {
     final LocalVideo video;
     final Uint8List? thumb;
