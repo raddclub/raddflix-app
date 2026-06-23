@@ -180,3 +180,25 @@ _SidebarCustomizerPanel             ← top-level StatefulWidget
 - All 19 sidebar shortcuts wired to real state callbacks
 - Drag-to-reorder fully functional via ReorderableListView
 - Prefs: pref_sidebar_order (JSON string), pref_sidebar_exp (bool)
+
+---
+
+## Session 2026-06-23 — Fix build: const MethodChannel compile error
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| BUILD-FIX-01 | Remove `const` from `MethodChannel(...)` in local_media_screen.dart:378 | ✅ DONE |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| raddflix_flutter/lib/screens/local_media_screen.dart | Removed `const` before `MethodChannel(` (no const constructor) | 310016f |
+
+### Root cause
+Runs #1237–#1239 all failed on the same error: `Couldn't find constructor 'MethodChannel'` at local_media_screen.dart:378. `MethodChannel` has no `const` constructor so using `const MethodChannel(...)` is invalid Dart. Fix: removed the `const` keyword.
+
+### State at end of session
+- Oracle Flask: RUNNING
+- Build: triggered after fix — monitoring
+- Open tasks: none
