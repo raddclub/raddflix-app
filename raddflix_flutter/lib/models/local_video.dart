@@ -33,9 +33,25 @@ import 'dart:typed_data';
       this.subtitlePath,
     });
 
+    // ── Audio detection ────────────────────────────────────────────────────────
+    static const _audioExts = {
+      'mp3', 'm4a', 'aac', 'flac', 'wav', 'ogg', 'opus', 'wma',
+      'aiff', 'aif', 'mid', 'midi', 'ape', 'dsd', 'alac', 'amr',
+    };
+
+    bool get isAudio {
+      final mt = mimeType ?? '';
+      if (mt.startsWith('audio/')) return true;
+      final ext = filePath.split('.').last.toLowerCase();
+      return _audioExts.contains(ext);
+    }
+
+    bool get isVideo => !isAudio;
+
     bool get hasSrt => subtitlePath != null;
 
-  String get formattedDuration {
+    // ── Formatters ──────────────────────────────────────────────────────────────
+    String get formattedDuration {
       final total = durationMs ~/ 1000;
       final h = total ~/ 3600;
       final m = (total % 3600) ~/ 60;
@@ -65,6 +81,7 @@ import 'dart:typed_data';
     bool get isHighRes => (width < height ? width : height) >= 1080;
   }
 
+  // ── LocalFolder ────────────────────────────────────────────────────────────────
   class LocalFolder {
     final String name;
     final String path;
@@ -78,7 +95,18 @@ import 'dart:typed_data';
       this.newCount = 0,
     });
 
-    int get totalSizeBytes => videos.fold(0, (sum, v) => sum + v.sizeBytes);
+    int get totalSizeBytes   => videos.fold(0, (sum, v) => sum + v.sizeBytes);
+    int get audioCount       => videos.where((v) => v.isAudio).length;
+    int get videoCount       => videos.where((v) => v.isVideo).length;
+    bool get isAudioFolder   => audioCount > 0 && audioCount >= videos.length / 2;
+    bool get isMixedFolder   => audioCount > 0 && videoCount > 0;
+
+    /// 'audio' | 'mixed' | 'video'
+    String get folderType {
+      if (isAudioFolder && videoCount == 0) return 'audio';
+      if (isMixedFolder) return 'mixed';
+      return 'video';
+    }
 
     String get formattedTotalSize {
       final bytes = totalSizeBytes;
@@ -88,4 +116,3 @@ import 'dart:typed_data';
 
     LocalVideo? get firstVideo => videos.isNotEmpty ? videos.first : null;
   }
-  
