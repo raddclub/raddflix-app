@@ -17,6 +17,7 @@ import '../widgets/notification_banner.dart';
 import '../core/services/notification_service.dart';
 import '../widgets/simosa_card.dart';
 import '../core/debug/debug_logger.dart';
+import '../widgets/resume_fab.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -89,6 +90,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ? _buildShimmer()
             : _buildContent(catalog),
       ),
+      floatingActionButton: const ResumeFab(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: RaddFlixBottomNav(
         currentIndex: _navIndex,
         onTap: (i) {
