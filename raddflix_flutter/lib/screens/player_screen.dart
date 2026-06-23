@@ -4777,6 +4777,7 @@ class _SubtitlePanel extends StatefulWidget {
   final void Function(String)? onSubtitleFilePicked;
 
   const _SubtitlePanel({
+    required this.isLocal,
     required this.subSync,
     required this.subSpeed,
     required this.currentFile,
