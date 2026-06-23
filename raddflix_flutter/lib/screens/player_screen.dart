@@ -137,6 +137,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── MX Layout State ──────────────────────────────────────────────────────────
   bool _isLocked = false;
+  bool _isImmersive = false;        // Immersive / cinema mode
+  bool _immersiveExitVisible = false; // tiny exit button visible after tap
+  Timer? _immersiveExitTimer;       // auto-hides exit button after 3s
   BoxFit _videoFit = BoxFit.contain;
 
   // Smart Enhance
@@ -968,6 +971,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try { _np.setProperty('sub-margin-y', marginY.toString()); } catch (_) {}
   }
 
+  // ── Immersive mode ────────────────────────────────────────────────────────
+  void _enterImmersive() {
+    setState(() {
+      _isImmersive = true;
+      _showControls = false;
+      _immersiveExitVisible = false;
+    });
+    _applySubtitleMargin(controlsVisible: false);
+  }
+
+  void _exitImmersive() {
+    _immersiveExitTimer?.cancel();
+    setState(() {
+      _isImmersive = false;
+      _immersiveExitVisible = false;
+      _showControls = true;
+    });
+    _applySubtitleMargin(controlsVisible: true);
+    _scheduleHide();
+  }
+
+  /// Called when user taps video surface while in immersive mode.
+  /// Single tap = pause/resume. Also briefly shows the exit button.
+  void _onImmersiveTap() {
+    // Toggle playback
+    if (_player.state.playing) {
+      _player.pause();
+    } else {
+      _player.play();
+    }
+    // Show the exit corner button briefly
+    _immersiveExitTimer?.cancel();
+    setState(() => _immersiveExitVisible = true);
+    _immersiveExitTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _immersiveExitVisible = false);
+    });
+  }
+
   void _toggleControls() {
     if (_isLocked) {
       // Show briefly when locked
@@ -1046,6 +1087,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
 
   void _startSavePositionTimer() {
+    _immersiveExitTimer?.cancel();
     _savePositionTimer?.cancel();
     _savePositionTimer = Timer.periodic(const Duration(seconds: 10), (_) => _saveWatchPos());
   }
@@ -1758,7 +1800,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
 
                 // 3. Gesture layer
-                if (!_isLocked)
+                // Immersive mode: tap = pause/resume, all swipe gestures still work,
+                // but no controls, no indicators, no title — pure cinema experience.
+                if (_isImmersive)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: _onImmersiveTap,
+                      onScaleStart: (d) => _onScaleStart(d, constraints),
+                      onScaleUpdate: (d) => _onScaleUpdate(d, constraints),
+                      onScaleEnd: _onScaleEnd,
+                    ),
+                  ),
+
+                if (!_isLocked && !_isImmersive)
                   Positioned.fill(
                     child: GestureDetector(
                       behavior: HitTestBehavior.translucent,
@@ -1777,18 +1832,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
 
-                // 4. Controls overlay (auto-hides)
-                AnimatedOpacity(
-                  opacity: _showControls && !_isLocked ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 280),
-                  child: IgnorePointer(
-                    ignoring: !_showControls || _isLocked,
-                    child: _buildControlsOverlay(constraints),
+                // 4. Controls overlay (auto-hides) — hidden in immersive mode
+                if (!_isImmersive)
+                  AnimatedOpacity(
+                    opacity: _showControls && !_isLocked ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 280),
+                    child: IgnorePointer(
+                      ignoring: !_showControls || _isLocked,
+                      child: _buildControlsOverlay(constraints),
+                    ),
                   ),
-                ),
 
-                // 5. Customizable shortcut sidebar — hidden while any panel is open
-                if (!_isLocked)
+                // 5. Customizable shortcut sidebar — hidden in immersive and lock mode
+                if (!_isLocked && !_isImmersive)
                   Positioned(
                     right: 0, top: 0, bottom: 0,
                     child: AnimatedOpacity(
@@ -1801,8 +1857,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
 
+                // 5b. Immersive exit button — tiny semi-transparent, top-right corner.
+                // Appears for 3s after a tap, then auto-hides.
+                if (_isImmersive)
+                  Positioned(
+                    top: 18, right: 18,
+                    child: AnimatedOpacity(
+                      opacity: _immersiveExitVisible ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 220),
+                      child: IgnorePointer(
+                        ignoring: !_immersiveExitVisible,
+                        child: GestureDetector(
+                          onTap: _exitImmersive,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.52),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(Icons.fullscreen_exit_rounded,
+                                    color: Colors.white70, size: 16),
+                                SizedBox(width: 5),
+                                Text('Exit',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    )),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
                 // 6a. Brightness indicator — LEFT side (MX Player style vertical pill)
-                if (_showBrightnessIndicator)
+                // Hidden in immersive mode for a completely clean experience.
+                if (_showBrightnessIndicator && !_isImmersive)
                   Positioned(
                     left: 20,
                     top: 0,
@@ -1822,7 +1918,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
 
                 // 6b. Volume indicator — LEFT side (sidebar on right; both indicators on left)
-                if (_showVolumeIndicator)
+                if (_showVolumeIndicator && !_isImmersive)
                   Positioned(
                     left: 20,
                     top: 0,
@@ -2904,6 +3000,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           active: false,
           available: true,
           onTap: () => setState(() { _isLocked = true; _showControls = false; }),
+        ),
+        'immersive': (
+          icon: Icons.theaters_rounded,
+          label: 'Immersive',
+          active: _isImmersive,
+          available: true,
+          onTap: _isImmersive ? _exitImmersive : _enterImmersive,
         ),
         'pip': (
           icon: Icons.picture_in_picture_alt_rounded,
@@ -7037,6 +7140,7 @@ class _SidebarCustomizerPanelState extends State<_SidebarCustomizerPanel> {
     'cc': 'Subtitles (CC)',  'audio': 'Audio Track',    'eq': 'Equalizer / EQ',
     'speed': 'Speed',        'loop': 'Loop',            'rotate': 'Rotate',
     'lock': 'Lock Screen',   'pip': 'Picture-in-Picture','screenshot': 'Screenshot',
+    'immersive': 'Immersive Mode',
     'sleep': 'Sleep Timer',  'ab': 'A-B Repeat',        'episodes': 'Episodes',
     'settings': 'Settings',  'vivid': 'Vivid / Smart',  'mute': 'Mute',
     'frame': 'Frame Step',   'onehanded': 'One-Handed', 'zoom': 'Zoom & Crop',
@@ -7049,6 +7153,7 @@ class _SidebarCustomizerPanelState extends State<_SidebarCustomizerPanel> {
     'eq': Icons.equalizer_rounded,            'speed': Icons.speed_rounded,
     'loop': Icons.loop_rounded,               'rotate': Icons.screen_rotation_rounded,
     'lock': Icons.lock_outline_rounded,       'pip': Icons.picture_in_picture_alt_rounded,
+    'immersive': Icons.theaters_rounded,
     'screenshot': Icons.camera_alt_rounded,   'sleep': Icons.bedtime_rounded,
     'ab': Icons.repeat_one_rounded,           'episodes': Icons.view_list_rounded,
     'settings': Icons.settings_rounded,       'vivid': Icons.auto_awesome_rounded,
