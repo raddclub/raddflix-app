@@ -1,6 +1,6 @@
 # RaddFlix Task Tracker
 
-## All Phases 17-19 Complete
+## All Phases 17-20 Complete
 
 | Task | Phase | Status |
 |------|-------|--------|
@@ -23,6 +23,14 @@
 | Loop region band between A and B | 19 | DONE |
 | Drag to adjust A/B without opening menu | 19 | DONE |
 | Double-tap to clear pin | 19 | DONE |
+| Subtitle margin 90→140px (clears transport row) | 20 | DONE |
+| ASS subtitle font/color live update (sub-ass-override=force) | 20 | DONE |
+| _isLocal class field (tracks local vs streaming) | 20 | DONE |
+| Sidebar fully hides with controls (opacity 0.4→0.0) | 20 | DONE |
+| Lock / Immersive / Settings in transport row | 20 | DONE |
+| Guard Find-in-Another-Language for local files | 20 | DONE |
+| FAB Resume Last Video in Local Media screen | 20 | DONE |
+| Series auto-grouping in Local Folder (collapse/expand) | 20 | DONE |
 
 ## Open Tasks
 None — awaiting user review.
