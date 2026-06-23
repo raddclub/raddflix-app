@@ -888,6 +888,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (ms < 5000) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_posKey, ms);
+    // ── Resume FAB data ───────────────────────────────────────────────────
+    // Save enough context for ResumeFab on the home screen to reconstruct
+    // the player route and show a meaningful card (title + progress).
+    final routeArgs = ModalRoute.of(context)?.settings.arguments as Map?;
+    await prefs.setString('resume_title',       _currentTitle);
+    await prefs.setString('resume_file_id',     _currentFileId);
+    await prefs.setInt   ('resume_pos_ms',      ms);
+    await prefs.setInt   ('resume_dur_ms',      _duration.inMilliseconds);
+    await prefs.setString('resume_content_type', widget.contentType);
+    final streamUrl  = routeArgs?['stream_url'] as String?;
+    final localPath  = routeArgs?['local_path']  as String?;
+    final posterUrl  = routeArgs?['poster_url']  as String?
+                    ?? routeArgs?['poster']      as String?;
+    if (streamUrl  != null) await prefs.setString('resume_stream_url', streamUrl);
+    if (localPath  != null) await prefs.setString('resume_local_path', localPath);
+    if (posterUrl  != null) await prefs.setString('resume_poster_url', posterUrl);
   }
 
   Future<void> _restoreWatchPos() async {
