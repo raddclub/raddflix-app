@@ -51,3 +51,6 @@
 
 ## Open Tasks
 None — awaiting user review.
+
+## Open Tasks
+| BUILD-FIX-01 | Fix const MethodChannel compile error in local_media_screen.dart:378 | ✅ DONE (310016f) |
