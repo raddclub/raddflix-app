@@ -11,6 +11,7 @@ import '../core/debug/debug_logger.dart';
 import '../widgets/bottom_nav.dart';
 import '../services/thumb_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../services/vault_service.dart';
 
 enum _SortMode { name, size, date }
 enum _FilterMode { all, completed, downloading, failed }
@@ -173,6 +174,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           TextButton(
             onPressed: () => setState(() => _selected.addAll(state.downloads.map((d) => _id(d)))),
             child: const Text('All'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.lock_outline_rounded, color: AppColors.primary),
+            tooltip: 'Add to Vault',
+            onPressed: _selected.isEmpty ? null : _addSelectedToVault,
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
@@ -599,6 +605,51 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       ],
     ));
     if (ok == true) ref.read(downloadsProvider.notifier).deleteDownload(id);
+  }
+
+  Future<void> _addSelectedToVault() async {
+    final state = ref.read(downloadsProvider);
+    final completed = state.downloads
+        .where((d) => _selected.contains(_id(d)) && _isComplete(d))
+        .toList();
+    if (completed.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Select completed downloads to add to vault'),
+        backgroundColor: t.surface));
+      return;
+    }
+    final hasPin = await VaultService.hasPin();
+    if (!hasPin) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Set up your vault PIN first (Profile → Vault)'),
+        backgroundColor: t.surface));
+      return;
+    }
+    if (!VaultService.isUnlocked) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Unlock your vault first (Profile → Vault → Unlock)'),
+        backgroundColor: t.surface));
+      return;
+    }
+    int count = 0;
+    for (final d in completed) {
+      final path = _path(d);
+      if (path.isNotEmpty && File(path).existsSync()) {
+        try {
+          await VaultService.moveFileToVault(path);
+          count++;
+        } catch (_) {}
+      }
+    }
+    if (mounted) {
+      setState(() { _selecting = false; _selected.clear(); });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(count > 0
+            ? '$count video${count != 1 ? "s" : ""} moved to vault'
+            : 'No accessible files to move'),
+        backgroundColor: t.surface));
+      if (count > 0) ref.read(downloadsProvider.notifier).loadDownloads();
+    }
   }
 
   Future<void> _bulkDelete() async {
