@@ -7,6 +7,7 @@ import '../core/constants.dart';
 import '../core/theme/radd_theme.dart';
 import '../models/local_video.dart';
 import '../services/local_media_service.dart';
+import '../services/vault_service.dart';
 import '../core/db/local_db.dart';
 import 'player_screen.dart';
 
@@ -1046,6 +1047,10 @@ class _VideoListTile extends StatelessWidget {
           Navigator.pop(context);
           _showFileInfo(context);
         }),
+        _menuTile(context, Icons.lock_rounded, 'Add to Vault', () async {
+          Navigator.pop(context);
+          await _addToVault(context);
+        }),
         _menuTile(context, Icons.share_rounded, 'Share', () { Navigator.pop(context); }),
         _menuTile(context, Icons.delete_outline_rounded, 'Delete',
             () { Navigator.pop(context); }, isDestructive: true),
@@ -1064,6 +1069,34 @@ class _VideoListTile extends StatelessWidget {
       onTap: onPressed,
       dense: true,
     );
+  }
+
+  Future<void> _addToVault(BuildContext context) async {
+    final t = RaddTheme.of(context);
+    try {
+      final hasPin = await VaultService.hasPin();
+      if (!hasPin) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Set up your vault PIN first (Profile → Vault)'),
+          backgroundColor: t.surface,
+        ));
+        return;
+      }
+      await VaultService.moveFileToVault(video.filePath);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('"${video.title}" moved to Vault'),
+          backgroundColor: t.surface,
+        ));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Could not add to vault: $e'),
+          backgroundColor: AppColors.error,
+        ));
+      }
+    }
   }
 
   void _showFileInfo(BuildContext context) {
