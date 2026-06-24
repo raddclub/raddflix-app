@@ -316,3 +316,46 @@ remaining gaps and complete them.
 - Oracle Flask: RUNNING (v3.0.0)
 - Build: triggered after fixes
 - Open tasks: none
+
+
+---
+
+## Session 2026-06-24 — Phase 24: Oracle Backend Fix (from previous agent's incomplete task)
+
+### Context
+Previous agent session ran out of quota while fixing the JazzDrive auto-upload pipeline.
+The agent had pushed Python fixes to GitHub but:
+1. Never pulled them to the Oracle server
+2. Left `hub/_legacy/scanner.py` with 3 git merge conflict markers → SyntaxError
+3. Oracle Flask was in a crash-loop (schema-check spam in logs every 2s)
+
+### Root cause of crash-loop
+`hub/_legacy/scanner.py` had git conflict markers at lines 699, 1227, 1263 from a failed
+`git stash pop`. Import chain: `hub.app` → `hub.routes.scan` → `hub.scanner` →
+`hub._legacy.scanner` → **SyntaxError** → supervisord restart every 2s.
+
+### What was already completed by previous agent
+- `uploader.py` watcher_loop: `_release_stuck_uploads()` correctly moved before both
+  JAZZDRIVE_ENABLED and UPLOAD_ENABLED toggle checks (working tree on server was already fixed)
+- `upload.html`: stuck-banner, reset-incl-failed checkbox, 4s auto-poll for jobs table,
+  split pending stats (queued vs uploading) — all in server's working tree
+
+### Tasks completed this session
+| ID | Task | Status |
+|----|------|--------|
+| ORA-24-01 | Resolve 3 conflict markers in _legacy/scanner.py (take stashed: DB device_id, cleaner Accept header) | DONE (dde7498) |
+| ORA-24-02 | Push corrected uploader.py from Oracle server to GitHub | DONE (7974e8e) |
+| ORA-24-03 | Push corrected upload.html from Oracle server to GitHub | DONE (39b532a) |
+| ORA-24-04 | Restart Oracle Flask — verified {"ok":true,"version":"3.0.0"} | DONE |
+
+### Files changed
+| File | Change |
+|------|--------|
+| hub/_legacy/scanner.py | Resolved 3 conflict markers (stashed version: DB device_id/name, Accept: application/json) |
+| hub/uploader.py | _release_stuck_uploads() before both toggle gates — pushed server's working version |
+| hub/templates/upload.html | Stuck-banner + reset-failed checkbox + 4s poll — pushed server's working version |
+
+### State at end of session
+- Oracle Flask: RUNNING pid 780429, {"ok":true,"version":"3.0.0"}
+- APK build: triggered (monitoring)
+- Open tasks: none
