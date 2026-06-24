@@ -75,3 +75,12 @@ None — awaiting user review.
 | BUG-23-02 | Add to Vault from Downloads screen (selection toolbar vault button) | ✅ DONE |
 | BUG-23-03 | Add to Vault from Local Media screen (folder long-press menu) | ✅ DONE |
 | BUG-23-04 | LinearProgressIndicator on folder cards in LocalMediaScreen | ✅ DONE |
+
+## Phase 24 — Oracle Backend Fixes (2026-06-24)
+
+| ID | Task | Status |
+|----|------|--------|
+| ORA-24-01 | Fix _legacy/scanner.py git conflict markers (SyntaxError crash-loop) | ✅ DONE (dde7498) |
+| ORA-24-02 | Fix uploader.py: _release_stuck_uploads() before JAZZDRIVE+UPLOAD toggle gates | ✅ DONE (7974e8e) |
+| ORA-24-03 | Admin upload.html: stuck-banner + reset-failed checkbox + 4s auto-poll + split stats | ✅ DONE (39b532a) |
+| ORA-24-04 | Restart Oracle Flask + verify healthz {"ok":true,"version":"3.0.0"} | ✅ DONE |
