@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:local_auth/auth_strings.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -152,11 +153,21 @@ class VaultService {
 
     try {
       final ok = await _auth.authenticate(
-        localizedReason: 'Unlock your private vault',
+        localizedReason: 'Touch the fingerprint sensor to unlock your vault',
         options: const AuthenticationOptions(
           biometricOnly: false,  // FIX-VAULT-01: biometricOnly:true throws PlatformException on Infinix/MediaTek (no Class 3); swallowed by catch(_){return false}
           stickyAuth: true,
+          useErrorDialogs: true,
         ),
+        authMessages: const <AuthMessages>[
+          AndroidAuthMessages(
+            signInTitle: 'Private Vault',
+            cancelButton: 'Use PIN instead',
+            biometricHint: 'Touch sensor to unlock',
+            biometricNotRecognized: 'Fingerprint not recognised. Try again.',
+            biometricRequiredTitle: 'Fingerprint required',
+          ),
+        ],
       );
       if (ok) {
         _unlocked = true;
@@ -187,6 +198,18 @@ class VaultService {
   static void lock() {
     _unlocked = false;
     _unlockedAt = null;
+  }
+
+  /// Called when app goes to background (paused lifecycle state).
+  /// Only locks immediately if auto-lock is set to 0 (instant).
+  /// For all other settings the existing isUnlocked time-check handles it.
+  static void onAppPaused() {
+    final secs = _autoLockSecondsSync();
+    if (secs == 0) {
+      // Instant lock — lock immediately as before
+      lock();
+    }
+    // For secs > 0: do nothing. isUnlocked() will check elapsed time on resume.
   }
 
   static void refreshUnlockTime() {
@@ -257,9 +280,13 @@ class VaultService {
 
   static Future<bool> isBiometricAvailable() async {
     try {
-      if (await _auth.canCheckBiometrics) return true;
-      // Fallback for Infinix / MediaTek where canCheckBiometrics returns false
-      // even with enrolled fingerprints
+      // FIX-BIOMETRIC-01: Use getAvailableBiometrics() which directly lists
+      // enrolled biometrics. Works for Class 2 (Weak) sensors on Infinix /
+      // MediaTek (Helio G25) where canCheckBiometrics returns false but the
+      // fingerprint sensor works fine.
+      final available = await _auth.getAvailableBiometrics();
+      if (available.isNotEmpty) return true;
+      // Secondary check: device has at least a PIN/pattern (allows device-cred fallback)
       return await _auth.isDeviceSupported();
     } catch (_) {
       return false;
