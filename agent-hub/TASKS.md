@@ -50,10 +50,7 @@
 | Type filter pills in stats bar (mixed folders) | 21 | DONE |
 
 ## Open Tasks
-None — awaiting user review.
-
-## Open Tasks
-| BUILD-FIX-01 | Fix const MethodChannel compile error in local_media_screen.dart:378 | ✅ DONE (310016f) |
+None — all phases 17–25 complete. Awaiting next task.
 
 ## Phase 22 — Bug Fixes (2026-06-24)
 
