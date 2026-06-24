@@ -625,9 +625,9 @@ class _SeriesGroup {
 
 String _seriesNameFrom(String title) {
   return title
-      .replaceAll(RegExp(r'(?i)S\d+\s*E\d+'), '')
-      .replaceAll(RegExp(r'(?i)Episode\s*\d+'), '')
-      .replaceAll(RegExp(r'(?i)Ep\.?\s*\d+'), '')
+      .replaceAll(RegExp(r'S\d+\s*E\d+', caseSensitive: false), '')
+      .replaceAll(RegExp(r'Episode\s*\d+', caseSensitive: false), '')
+      .replaceAll(RegExp(r'Ep\.?\s*\d+', caseSensitive: false), '')
       .replaceAll(RegExp(r'\d+x\d+'), '')
       .replaceAll(RegExp(r'\s{2,}'), ' ')
       .trim();
