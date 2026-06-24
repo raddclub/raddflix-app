@@ -98,18 +98,7 @@ class _NavButton extends StatelessWidget {
               ),
               child: Text(item.label),
             ),
-            // Active indicator dot
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOutCubic,
-              margin: const EdgeInsets.only(top: 3),
-              width: isActive ? 4 : 0,
-              height: isActive ? 4 : 0,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                shape: BoxShape.circle,
-              ),
-            ),
+
           ]),
         ),
       ),
