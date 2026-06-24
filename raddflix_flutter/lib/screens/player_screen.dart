@@ -37,6 +37,7 @@ import '../core/debug/debug_logger.dart';
 import '../widgets/player/seek_bar_painter.dart';
 import '../core/player/watch_party_service.dart';
 import '../core/player/voice_commands_service.dart';
+import '../core/services/usage_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Widget
@@ -181,7 +182,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _eqEnabled = true;
   String _currentReverbAf = ''; // active reverb aecho string
   String _currentLabAf = '';    // active lab af chain from _AudioEffectPanel
-  bool _isLocal = false;        // true when current media is a local file (not a stream)
+  bool _isLocal    = false;  // true when current media is a local file (not a stream)
+  bool _isFree     = false;  // true when playing free (is_free=1) content — no quota deduction
+  bool _trackUsage = false;  // true only for non-local, non-free streaming
+  Timer? _usageTimer;        // 30-second heartbeat to log streamed bytes
   // Lab state (persisted so panel reopens restore state)
   bool _labVocal = false;
   bool _labDialogue = false;
@@ -474,8 +478,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _voiceCmdTimer?.cancel();
     WatchPartyService.instance.leaveRoom();
     VoiceCommandsService.instance.stop();
+    _stopUsageTimer();
     _player.dispose();
     super.dispose();
+  }
+
+  // ── Usage tracking helpers ───────────────────────────────────────────────────
+  /// Starts a 30-second periodic timer that reports streamed bytes to UsageService.
+  /// Only active when _trackUsage = true (non-local, non-free streaming).
+  void _startUsageTimer() {
+    _usageTimer?.cancel();
+    _usageTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (_trackUsage && _playing && mounted) {
+        // Estimate quality from video height; default to 720p
+        final h = _player.state.width ?? 0;
+        final quality = h >= 1920 ? '1080p' : h >= 1280 ? '720p' : h >= 854 ? '480p' : '360p';
+        UsageService.addWatchSession(seconds: 30, quality: quality).ignore();
+      }
+    });
+  }
+
+  void _stopUsageTimer() {
+    _usageTimer?.cancel();
+    _usageTimer = null;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -501,6 +526,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _subs.addAll([
       _player.stream.playing.listen((v) {
         if (mounted) setState(() => _playing = v);
+        // Usage tracking: start/stop 30-second heartbeat when play state changes
+        if (_trackUsage) {
+          if (v) _startUsageTimer();
+          else   _stopUsageTimer();
+        }
         // Watch Party: broadcast play/pause state to guests (host only)
         if (_watchPartyRoom != null) {
           final isHost = _watchPartyRoom!.hostId == WatchPartyService.instance.myId;
@@ -615,6 +645,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final isLocal = (localPath != null && localPath.isNotEmpty) ||
         (fileId.startsWith('/') || fileId.startsWith('content://'));
     _isLocal = isLocal;
+
+    // ── Usage tracking setup ─────────────────────────────────────────────────
+    // Read is_free flag passed by show_detail_screen in route args.
+    // Local files (downloaded or user's own) never count toward quota.
+    if (!isLocal) {
+      final routeArgsFree = ModalRoute.of(context)?.settings.arguments as Map?;
+      final isFreeArg     = routeArgsFree?['is_free'];
+      _isFree     = isFreeArg == true || isFreeArg == 1;
+      _trackUsage = !_isFree;
+    } else {
+      _isFree     = false;
+      _trackUsage = false;
+    }
+    _stopUsageTimer(); // cancel any leftover timer from previous file
+
+    // Quota gate — block play if monthly limit reached (streaming non-free only)
+    if (_trackUsage && mounted) {
+      final quota = await UsageService.getCachedQuota();
+      if (quota['allowed'] == false || quota['is_exceeded'] == true) {
+        if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.quotaFull);
+        return;
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     final effectivePath = localPath ?? (isLocal ? fileId : null);
 
     if (effectivePath != null) {
