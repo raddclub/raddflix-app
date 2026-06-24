@@ -10,9 +10,9 @@ class SubscriptionState {
   final bool tidSubmitted;
 
   const SubscriptionState({
-    this.plans = const [],
+    this.plans       = const [],
     this.status,
-    this.loading = false,
+    this.loading     = false,
     this.error,
     this.tidSubmitted = false,
   });
@@ -23,12 +23,13 @@ class SubscriptionState {
     bool? loading,
     String? error,
     bool? tidSubmitted,
+    bool clearError = false,
   }) {
     return SubscriptionState(
-      plans: plans ?? this.plans,
-      status: status ?? this.status,
-      loading: loading ?? this.loading,
-      error: error,
+      plans:        plans        ?? this.plans,
+      status:       status       ?? this.status,
+      loading:      loading      ?? this.loading,
+      error:        clearError ? null : (error ?? this.error),
       tidSubmitted: tidSubmitted ?? this.tidSubmitted,
     );
   }
@@ -38,7 +39,7 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
   SubscriptionNotifier() : super(const SubscriptionState());
 
   Future<void> loadPlans() async {
-    state = state.copyWith(loading: true, error: null);
+    state = state.copyWith(loading: true, clearError: true);
     try {
       final plans = await SubscriptionApi.getPlans();
       state = state.copyWith(plans: plans, loading: false);
@@ -48,23 +49,44 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
   }
 
   Future<void> loadStatus() async {
-    // M-11: empty catch swallowed all errors, leaving status silently null.
-    // Now exposes the error so the subscription screen can show a retry prompt.
     try {
       final status = await SubscriptionApi.getStatus();
-      state = state.copyWith(status: status);
+      state = state.copyWith(status: status, clearError: true);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
   }
 
+  /// Re-fetch just the live GB quota and merge into status.
+  /// Call this after flushing usage, or when user pulls to refresh.
+  Future<void> refreshQuota() async {
+    try {
+      final quota = await SubscriptionApi.getQuota();
+      if (quota == null) return;
+      final current = state.status;
+      if (current == null) return;
+      // Merge fresh quota data into existing status
+      final merged = SubscriptionStatus.fromJson({
+        'subscription': {
+          'plan':       current.plan,
+          'plan_name':  current.planName,
+          'is_active':  current.isActive ? 1 : 0,
+          'expires_at': current.expiresAt,
+        },
+        'quota': quota,
+      });
+      state = state.copyWith(status: merged);
+    } catch (_) {}
+  }
+
+  /// Submit TID. Works for new subscriptions, renewals, and upgrades.
   Future<bool> submitTid({
     required String phone,
     required String tid,
     required String plan,
     required String paymentMethod,
   }) async {
-    state = state.copyWith(loading: true, error: null, tidSubmitted: false);
+    state = state.copyWith(loading: true, clearError: true, tidSubmitted: false);
     try {
       await SubscriptionApi.submitTid(
         phone: phone,
@@ -78,6 +100,10 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
       state = state.copyWith(loading: false, error: e.toString());
       return false;
     }
+  }
+
+  void resetTidSubmitted() {
+    state = state.copyWith(tidSubmitted: false);
   }
 }
 
