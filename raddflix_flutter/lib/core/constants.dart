@@ -301,6 +301,8 @@ class ApiPaths {
   static const String logout            = '/api/auth/logout';
   static const String me                = '/api/auth/me';
   static const String bindDevice        = '/api/auth/device';
+  static const String updateProfile     = '/api/auth/profile';
+  static const String changePassword    = '/api/auth/change-password';
 
   // ── OTP Device Switch (future — wire when otpDeviceSwitchEnabled = true) ──
   // POST body: { phone } → server sends OTP to the phone

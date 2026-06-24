@@ -26,6 +26,10 @@ class AppUser {
   final String? createdAt;
   final String? lastLoginAt;
   final UserSubscription? subscription;
+  final String? displayName;
+  final String? email;
+  final String avatarColor;
+  final String avatarEmoji;
 
   const AppUser({
     required this.id,
@@ -37,10 +41,14 @@ class AppUser {
     this.createdAt,
     this.lastLoginAt,
     this.subscription,
+    this.displayName,
+    this.email,
+    this.avatarColor = '#8B002D',
+    this.avatarEmoji = '',
   });
 
   factory AppUser.guest() {
-    return const AppUser(id: 0, phone: 'guest', isGuest: true);
+    return const AppUser(id: 0, phone: 'guest', isGuest: true, avatarColor: '#8B002D', avatarEmoji: '');
   }
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
@@ -60,6 +68,13 @@ class AppUser {
       createdAt: userData['created_at']?.toString(),
       lastLoginAt: userData['last_login_at']?.toString(),
       subscription: subData != null ? UserSubscription.fromJson(subData) : null,
+      displayName: (userData['display_name'] as String?)?.trim().isEmpty == true
+          ? null : userData['display_name'] as String?,
+      email: (userData['email'] as String?)?.trim().isEmpty == true
+          ? null : userData['email'] as String?,
+      avatarColor: (userData['avatar_color'] as String?)?.isNotEmpty == true
+          ? userData['avatar_color'] as String : '#8B002D',
+      avatarEmoji: userData['avatar_emoji'] as String? ?? '',
     );
   }
 
@@ -69,6 +84,20 @@ class AppUser {
   }
 
   String get planName => subscription?.plan ?? 'free';
+
+  /// Display label: uses displayName if set, otherwise formats the phone number.
+  String get displayLabel {
+    if (isGuest) return 'Guest';
+    if (displayName != null && displayName!.isNotEmpty) return displayName!;
+    return phone;
+  }
+
+  /// The single character shown inside the avatar circle.
+  String get avatarInitial {
+    if (isGuest) return 'G';
+    if (displayName != null && displayName!.isNotEmpty) return displayName![0].toUpperCase();
+    return phone.isNotEmpty ? phone[0].toUpperCase() : 'U';
+  }
 }
 
 class UserSubscription {

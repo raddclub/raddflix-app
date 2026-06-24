@@ -109,6 +109,32 @@ class AuthApi {
     );
   }
 
+  /// Update the logged-in user's display name, email, and/or avatar.
+  static Future<void> updateProfile({
+    String? displayName,
+    String? email,
+    String? avatarColor,
+    String? avatarEmoji,
+  }) async {
+    final body = <String, dynamic>{};
+    if (displayName != null) body['display_name'] = displayName;
+    if (email != null) body['email'] = email;
+    if (avatarColor != null) body['avatar_color'] = avatarColor;
+    if (avatarEmoji != null) body['avatar_emoji'] = avatarEmoji;
+    await _client.put(ApiPaths.updateProfile, data: body);
+  }
+
+  /// Change the logged-in user's password.
+  static Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _client.post(ApiPaths.changePassword, data: {
+      'current_password': currentPassword,
+      'new_password': newPassword,
+    });
+  }
+
   /// Verify the OTP and bind the current device to the account.
   /// [phone] — the account's registered phone number.
   /// [otpCode] — the 6-digit code the user received via SMS.

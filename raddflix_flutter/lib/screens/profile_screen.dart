@@ -20,6 +20,7 @@ import '../core/player/player_prefs.dart';          // BUG-A21
 import '../core/db/local_db.dart';                  // BUG-A22
 import '../widgets/bottom_nav.dart';
 import 'debug_diagnostics_screen.dart';
+import 'edit_profile_screen.dart';
 import '../core/debug/debug_logger.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -96,6 +97,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.dispose();
   }
 
+  Color _avatarColor(AppUser? user) {
+    final hex = (user?.avatarColor ?? '#8B002D').replaceAll('#', '');
+    try { return Color(int.parse('FF$hex', radix: 16)); }
+    catch (_) { return AppColors.primary; }
+  }
+
   Future<void> _logout() async {
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
       title: const Text('Sign Out'),
@@ -120,7 +127,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final t = RaddTheme.of(context);
     final user  = ref.watch(authProvider).user;
     final theme = ref.watch(themeProvider);
-    final initial = user?.phone.isNotEmpty == true ? user!.phone[0].toUpperCase() : 'U';
+    final initial = user?.avatarInitial ?? 'U';
 
     return LoadingOverlay(
       loading: _loggingOut,
@@ -165,34 +172,61 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
                 child: Column(children: [
                   // Avatar with glow ring
-                  Stack(alignment: Alignment.center, children: [
-                    // Outer glow ring
-                    Container(
-                      width: 106, height: 106,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.primary.withOpacity(0.2), width: 1.5),
+                  GestureDetector(
+                    onTap: user?.isGuest == true ? null : () async {
+                      final changed = await Navigator.of(context).push<bool>(
+                        MaterialPageRoute(builder: (_) => const EditProfileScreen()));
+                      if (changed == true && mounted) setState(() {});
+                    },
+                    child: Stack(alignment: Alignment.bottomRight, children: [
+                      // Glow ring
+                      Container(
+                        width: 108, height: 108,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _avatarColor(user).withOpacity(0.3), width: 2),
+                        ),
                       ),
-                    ),
-                    Container(
-                      width: 96, height: 96,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: AppColors.primaryGradient,
-                        boxShadow: [
-                          BoxShadow(color: AppColors.primary.withOpacity(0.45), blurRadius: 28, spreadRadius: 2),
-                        ],
+                      Container(
+                        width: 96, height: 96,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [_avatarColor(user), _avatarColor(user).withOpacity(0.7)],
+                            begin: Alignment.topLeft, end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(color: _avatarColor(user).withOpacity(0.45),
+                                blurRadius: 28, spreadRadius: 2),
+                          ],
+                        ),
+                        child: Center(child: Text(initial, style: const TextStyle(
+                            color: Colors.white, fontSize: 40, fontWeight: FontWeight.w900))),
                       ),
-                      child: Center(child: Text(initial, style: TextStyle(
-                          color: Colors.white, fontSize: 40, fontWeight: FontWeight.w900))),
-                    ),
-                  ]).animate().scale(begin: const Offset(0.6, 0.6), end: const Offset(1, 1),
+                      if (user?.isGuest != true)
+                        Container(
+                          width: 28, height: 28,
+                          decoration: BoxDecoration(
+                            color: t.surface,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: t.border, width: 1.5),
+                          ),
+                          child: Icon(Icons.edit_rounded, size: 14, color: t.textMuted),
+                        ),
+                    ]),
+                  ).animate().scale(begin: const Offset(0.6, 0.6), end: const Offset(1, 1),
                       duration: 400.ms, curve: AppCurves.enter),
-                  SizedBox(height: 14),
-                  Text(user == null || user.isGuest || user.phone == 'guest' ? 'Guest' : user.phone, style: TextStyle(
+                  const SizedBox(height: 14),
+                  Text(user?.displayLabel ?? 'Guest', style: TextStyle(
                       color: t.textPrimary, fontSize: 20, fontWeight: FontWeight.w700,
                       letterSpacing: -0.3))
                       .animate(delay: 100.ms).fadeIn(duration: 300.ms),
+                  if (user?.isGuest != true && user?.displayName != null && user!.displayName!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(user.phone, style: TextStyle(color: t.textMuted, fontSize: 13))
+                        .animate(delay: 120.ms).fadeIn(),
+                  ],
                   const SizedBox(height: 8),
                   Builder(builder: (ctx) {
                     final plan = (_remotePlan ?? user?.planName ?? 'FREE').toUpperCase();

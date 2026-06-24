@@ -304,6 +304,21 @@ _DDL = [
     "CREATE INDEX IF NOT EXISTS idx_rate_limit_ts   ON rate_limit_log(ts)",
     "CREATE INDEX IF NOT EXISTS idx_rate_limit_user ON rate_limit_log(user_jid, ts)",
 
+    # ---- stream_links — time-limited playable download URLs (expires every 4-6 h)
+    """CREATE TABLE IF NOT EXISTS stream_links (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_id         INTEGER NOT NULL,
+        download_url    TEXT NOT NULL,
+        generated_at    INTEGER NOT NULL,
+        expires_at      INTEGER NOT NULL,    -- epoch; regenerate before this
+        is_valid        INTEGER DEFAULT 1,   -- 0 = manually invalidated
+        account_id      INTEGER,             -- which JazzDrive account generated it
+        request_count   INTEGER DEFAULT 0,   -- times served to users
+        bytes_served    INTEGER DEFAULT 0,   -- bytes served through this link
+        last_served_at  INTEGER,
+        FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_stream_file    ON stream_links(file_id, is_valid, expires_at)",
 
     # ---- plans — subscription tiers (monthly/daily limits)
     """CREATE TABLE IF NOT EXISTS plans (
@@ -353,7 +368,11 @@ _DDL = [
         device_bound_at INTEGER,
         is_active       INTEGER DEFAULT 1,
         created_at      INTEGER DEFAULT (strftime('%s','now')),
-        last_login_at   INTEGER
+        last_login_at   INTEGER,
+        display_name    TEXT,
+        email           TEXT,
+        avatar_color    TEXT DEFAULT '#8B002D',
+        avatar_emoji    TEXT DEFAULT ''
     )""",
     "CREATE INDEX IF NOT EXISTS idx_app_users_phone ON app_users(phone)",
 
@@ -546,6 +565,11 @@ def init_db() -> None:
             "ALTER TABLE plans ADD COLUMN color TEXT",
             "ALTER TABLE plans ADD COLUMN features_json TEXT",
             "INSERT INTO titles_fts(titles_fts) VALUES('rebuild')",
+            # app_users profile fields
+            "ALTER TABLE app_users ADD COLUMN display_name TEXT",
+            "ALTER TABLE app_users ADD COLUMN email TEXT",
+            "ALTER TABLE app_users ADD COLUMN avatar_color TEXT DEFAULT '#8B002D'",
+            "ALTER TABLE app_users ADD COLUMN avatar_emoji TEXT DEFAULT ''",
             # P3.5 cleanup — drop legacy/duplicate columns from titles.
             # Order matters: drop triggers first so SQLite allows DROP COLUMN;
             # then recreate FTS5 table + triggers without cast_names.
@@ -592,6 +616,7 @@ _CRITICAL_SCHEMA = {
     "app_users": [
         "id", "phone", "is_active", "created_at",
         "device_id", "device_name", "last_login_at",
+        "display_name", "email", "avatar_color", "avatar_emoji",
     ],
     "titles": [
         "is_published", "updated_at", "media_type",
@@ -1186,7 +1211,7 @@ def append_scan_log(account_id: int, kind: str, message: str) -> None:
                   (account_id, kind, message, int(time.time())))
 
 
-def get_scan_log(account_id: int, after: int = 0, limit: int = 500) -> list:
+def get_scan_log(account_id: int, after: int = 0, limit: int = 200) -> list:
     with _conn() as c:
         rows = c.execute("SELECT * FROM scan_log WHERE account_id=? AND id>? "
                          "ORDER BY id LIMIT ?",
@@ -1194,13 +1219,12 @@ def get_scan_log(account_id: int, after: int = 0, limit: int = 500) -> list:
     return [dict(r) for r in rows]
 
 
-def cleanup_old_scan_logs(days: int = 7) -> int:
-    """Delete scan_log entries older than `days` days. Returns count deleted."""
-    cutoff = int(time.time()) - (days * 86400)
-    with _lock, _conn() as c:
-        n = c.execute("DELETE FROM scan_log WHERE ts<?", (cutoff,)).rowcount
-        return n
 
+def clear_scan_log(account_id: int) -> int:
+    """Delete all scan log rows for an account. Returns number of rows deleted."""
+    with conn() as c:
+        cur = c.execute("DELETE FROM scan_log WHERE account_id=?", (account_id,))
+        return cur.rowcount
 
 def find_duplicates(limit: int = 500) -> list:
     """Return files that share the same title_id, appearing more than once.
@@ -1385,6 +1409,54 @@ def migrate_from_v2() -> dict:
 
 # --------------------------------------------------------------------------- #
 # Stream links — time-limited playable URLs                                   #
+# --------------------------------------------------------------------------- #
+
+def get_stream_link(file_id: int) -> Optional[dict]:
+    """Return the most recent valid, unexpired stream link for a file, or None."""
+    now = int(time.time())
+    with _conn() as c:
+        row = c.execute(
+            "SELECT * FROM stream_links WHERE file_id=? AND is_valid=1 AND expires_at>? "
+            "ORDER BY generated_at DESC LIMIT 1",
+            (file_id, now)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def save_stream_link(file_id: int, download_url: str, *,
+                     expires_in: int = 18000, account_id: Optional[int] = None) -> int:
+    """Save a new stream link for a file. Invalidates previous links for same file."""
+    now = int(time.time())
+    with _lock, _conn() as c:
+        # Invalidate old links
+        c.execute("UPDATE stream_links SET is_valid=0 WHERE file_id=?", (file_id,))
+        cur = c.execute(
+            "INSERT INTO stream_links(file_id, download_url, generated_at, expires_at, "
+            "is_valid, account_id) VALUES(?,?,?,?,1,?)",
+            (file_id, download_url, now, now + expires_in, account_id)
+        )
+    return cur.lastrowid
+
+
+def invalidate_stream_links(file_id: int) -> None:
+    """Mark all stream links for a file as invalid."""
+    with _lock, _conn() as c:
+        c.execute("UPDATE stream_links SET is_valid=0 WHERE file_id=?", (file_id,))
+
+
+def log_stream_serve(link_id: int, bytes_served: int = 0) -> None:
+    """Increment request count and bytes served for a stream link."""
+    now = int(time.time())
+    with _lock, _conn() as c:
+        c.execute(
+            "UPDATE stream_links SET request_count=request_count+1, "
+            "bytes_served=bytes_served+?, last_served_at=? WHERE id=?",
+            (bytes_served, now, link_id)
+        )
+
+
+# --------------------------------------------------------------------------- #
+# Plans & subscriptions                                                        #
 # --------------------------------------------------------------------------- #
 
 def list_plans(active_only: bool = True) -> list:
