@@ -147,8 +147,9 @@ def get_log_entries(since_seq: int = 0) -> list:
     with _LOG_RING_LOCK:
         return [e for e in _LOG_RING if e["seq"] > since_seq]
 
+
 def clear_log_entries() -> int:
-    """Clear all entries from the in-memory log ring buffer. Returns count cleared."""
+    """Clear the in-memory log ring buffer. Returns number of entries deleted."""
     with _LOG_RING_LOCK:
         n = len(_LOG_RING)
         _LOG_RING.clear()
@@ -379,15 +380,20 @@ def _streaming_multipart(file_path: Path, mime: str, parent_id: int,
 
 def _auth_headers(vk: str, jsid: str, account_id: Optional[int] = None) -> dict:
     msisdn = None
+    raw_accesstoken = None
     if account_id:
         try:
             with db.conn() as c:
-                row = c.execute("SELECT msisdn FROM accounts WHERE id=?", (account_id,)).fetchone()
+                row = c.execute(
+                    "SELECT msisdn, raw_accesstoken FROM accounts WHERE id=?",
+                    (account_id,)
+                ).fetchone()
                 if row:
-                    msisdn = row["msisdn"]
+                    msisdn          = row["msisdn"]
+                    raw_accesstoken = row["raw_accesstoken"]
         except Exception:
             pass
-    return jazzdrive.get_auth_headers(vk, jsid, msisdn=msisdn)
+    return jazzdrive.get_auth_headers(vk, jsid, msisdn=msisdn, raw_accesstoken=raw_accesstoken)
 
 
 def _auth_qs(vk: str) -> str:
@@ -685,6 +691,65 @@ def _get_or_create_folder(sess, vk: str, jsid: str,
 # Upload
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _pre_upload_save_metadata(vk: str, jsid: str, name: str, mime: str, size: int,
+                               parent_id: int, media_type: str = "video",
+                               account_id=None):
+    """Pre-upload save-metadata: registers file on JazzDrive, returns server-assigned GUID.
+
+    Matches Android app upload flow:
+      InterfaceC33222a.mo107994a(item) -> POST /sapi/upload/{mediaType}?action=save-metadata
+      Response: UploadSaveMetadataResponse -> id (String) = the file GUID
+
+    Body: form-encoded  data=<url-encoded JSON UploadSaveMetadataRequest>
+    Response JSON: {"data": {"id": "<guid>", "status": "...", "success": "..."}}
+
+    Returns the file GUID as int, or None on any failure (binary upload will proceed anyway).
+    """
+    import json as _j
+    import urllib.parse as _up
+    now_ms = str(int(time.time() * 1000))
+    payload = {"data": {
+        "name": name,
+        "creationdate": now_ms,
+        "modificationdate": now_ms,
+        "contenttype": mime,
+        "size": size,
+        "folderid": parent_id,
+        "favorite": False,
+        "id": None,
+        "clientproperties": [],
+    }}
+    encoded_body = "data=" + _up.quote(_j.dumps(payload))
+    try:
+        resp = jazzdrive.sapi_request(
+            endpoint=f"/upload/{media_type}",
+            action="save-metadata",
+            method="POST",
+            data=encoded_body,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            # When account_id is provided let sapi_request load the full
+            # token set (incl. raw_accesstoken for Authorization header).
+            tokens=None if account_id else {"validationkey": vk, "jsessionid": jsid},
+            account_id=account_id,
+            timeout=30,
+        )
+        if resp.get("error"):
+            log.debug("_pre_upload_save_metadata: server error %s", resp["error"])
+            return None
+        d = resp.get("data") or resp
+        if isinstance(d, dict):
+            guid_str = d.get("id") or d.get("guid") or d.get("fileId")
+            if guid_str:
+                try:
+                    return int(guid_str)
+                except (ValueError, TypeError):
+                    return None
+        return None
+    except Exception as e:
+        log.debug("_pre_upload_save_metadata failed (non-fatal): %s", e)
+        return None
+
+
 def _upload_file(sess, vk: str, jsid: str,
                  file_path: Path, parent_id: int = 0,
                  max_bps: float = 0,
@@ -702,6 +767,10 @@ def _upload_file(sess, vk: str, jsid: str,
     forced_proxy: if provided, uses this proxy dict instead of resolve_proxies().
     Used by the retry loop to inject a fresh proxy from get_proxy_chain() on each attempt.
     """
+    # ── Master kill switch — hard-block before any bytes leave Oracle ────────
+    from . import jazzdrive as _jd
+    _jd.require_jd_active()
+
     size = file_path.stat().st_size
     ext  = file_path.suffix.lower()
     mime = {"mkv": "video/x-matroska", "avi": "video/x-msvideo",
@@ -710,6 +779,16 @@ def _upload_file(sess, vk: str, jsid: str,
     target_name = override_name or file_path.name
     log.info("JD upload: %s (%.1f MB) → folder %d", target_name,
              size / 1_048_576, parent_id)
+
+    # Pre-upload: register file metadata with JazzDrive to get the GUID.
+    # Matches Android flow: mo107994a(item) -> UploadSaveMetadataResponse.id.
+    # If successful, we have the real file ID before the binary upload starts.
+    _pre_guid = _pre_upload_save_metadata(
+        vk, jsid, target_name, mime, size, parent_id,
+        account_id=account_id,
+    )
+    if _pre_guid:
+        log.info("JD upload: pre-upload save-metadata assigned GUID=%d", _pre_guid)
 
     body_gen, ct_header, content_length = _streaming_multipart(
         file_path, mime, parent_id,
@@ -732,18 +811,24 @@ def _upload_file(sess, vk: str, jsid: str,
         f"?action=save"
         f"&validationkey={vk_q}"
         f"&acceptasynchronous=true"
+        f"&responsetime=true"
     )
     msisdn = None
+    raw_accesstoken = None
     if account_id:
         try:
             with db.conn() as _c:
-                _row = _c.execute("SELECT msisdn FROM accounts WHERE id=?", (account_id,)).fetchone()
+                _row = _c.execute(
+                    "SELECT msisdn, raw_accesstoken FROM accounts WHERE id=?",
+                    (account_id,)
+                ).fetchone()
                 if _row:
-                    msisdn = _row["msisdn"]
+                    msisdn          = _row["msisdn"]
+                    raw_accesstoken = _row["raw_accesstoken"]
         except Exception:
             pass
 
-    hdrs = jazzdrive.get_auth_headers(vk, jsid, msisdn=msisdn)
+    hdrs = jazzdrive.get_auth_headers(vk, jsid, msisdn=msisdn, raw_accesstoken=raw_accesstoken)
     hdrs.update({
         "Content-Type":   ct_header,
         "Content-Length": str(content_length),
@@ -786,19 +871,6 @@ def _upload_file(sess, vk: str, jsid: str,
         raise RuntimeError(f"JD upload HTTP 407: proxy error ({_proxy_url_used})")
     if raw_resp.status_code == 401:
         log.warning("JD upload: 401 — session expired during upload")
-        try:
-            from . import self_heal as _sh, db as _db2
-            import time as _t2
-            _alert_key = "upload_401_last_alert"
-            _last = float(_db2.setting(_alert_key) or "0")
-            if _t2.time() - _last >= 3600:
-                _sh._notify_admins(
-                    "Session expired - upload paused. "
-                    "Open admin panel Upload tab and paste new cookies to resume."
-                )
-                _db2.set_setting(_alert_key, str(int(_t2.time())))
-        except Exception:
-            pass
         raise RuntimeError("JD upload HTTP 401: session expired")
     if raw_resp.status_code >= 400:
         raise RuntimeError(f"JD upload HTTP {raw_resp.status_code}: {raw_resp.text[:200]}")
@@ -833,9 +905,24 @@ def _upload_file(sess, vk: str, jsid: str,
                 return {"id": int(fid), "name": file_path.name,
                         "parent_id": int(pid) if pid else parent_id, "raw": rec}
 
-        # JazzDrive upload endpoint sometimes returns empty body on success (HTTP 200).
-        if data.get("ok"):
-            log.info("JD upload: empty-body 200 — listing parent folder to confirm file id")
+            # UploadResponse never contains an id field (Android gets it from
+            # pre-upload save-metadata; binary upload response only has status/etag/lastupdate).
+            # If we got the GUID via pre-upload registration, use it now.
+            if _pre_guid:
+                log.info("JD upload: using pre-upload GUID=%d (no id in upload response)", _pre_guid)
+                return {"id": _pre_guid, "name": file_path.name,
+                        "parent_id": parent_id, "raw": rec or {}}
+
+        # Fallback: list parent folder to find file by name.
+        # Triggers on any HTTP 200 (UploadResponse has no id field).
+        _rec_status = (rec.get("status") or "") if isinstance(rec, dict) else ""
+        _upload_ok = (
+            data.get("ok")                                 # empty-body 200
+            or _rec_status in ("U", "C", "A", "V", "I")  # upload success statuses
+            or raw_resp.status_code == 200                 # any HTTP 200
+        )
+        if _upload_ok:
+            log.info("JD upload: no id in response (status=%r) — listing parent folder for id", _rec_status)
             try:
                 media_resp = jazzdrive.sapi_request(
                     endpoint="/media/video", action="get",
@@ -1141,6 +1228,54 @@ def queue_manual_upload(file_path: str, parent_id: int = 0,
     def _run():
         with _jobs_lock:
             if job_id in _manual_jobs:
+                _manual_jobs[job_id]["state"] = "checking"
+        # ── Pre-flight: verify session before starting upload ─────────────────
+        # Fail fast with a clear message so the UI shows the real reason
+        # instead of staying "queued" forever with 0 bytes uploaded.
+        try:
+            _pre_acct = get_active_account() if not account_id else None
+            if account_id:
+                with db.conn() as _pc:
+                    _pr = _pc.execute("SELECT * FROM accounts WHERE id=? AND is_active=1",
+                                      (account_id,)).fetchone()
+                    _pre_acct = dict(_pr) if _pr else None
+            if not _pre_acct:
+                raise RuntimeError(
+                    "No active JazzDrive account — go to Settings and link an account."
+                )
+            _pre_vk   = (_pre_acct.get("validation_key") or "").strip()
+            _pre_jsid = (_pre_acct.get("jsessionid") or "").strip()
+            if not _pre_vk or not _pre_jsid:
+                raise RuntimeError(
+                    "JazzDrive not logged in — go to Scan page, tap Send OTP, enter the code."
+                )
+            if not verify_jd_session(_pre_vk, _pre_jsid, account_id=_pre_acct["id"]):
+                # Session dead — try one silent refresh before giving up
+                _refreshed = False
+                try:
+                    from . import jazzdrive as _jd_pre
+                    _res_pre = _jd_pre.refresh_session(account_id=_pre_acct["id"])
+                    _refreshed = _res_pre.get("ok", False)
+                except Exception:
+                    pass
+                if not _refreshed:
+                    raise RuntimeError(
+                        "JazzDrive session expired — please re-login: "
+                        "go to Scan page → Send OTP → enter code. "
+                        "Your file is safe and can be re-uploaded after login."
+                    )
+        except RuntimeError as _pre_err:
+            with _jobs_lock:
+                if job_id in _manual_jobs:
+                    _manual_jobs[job_id]["state"] = "session_dead"
+                    _manual_jobs[job_id]["error"] = str(_pre_err)
+            return
+        except Exception as _pre_exc:
+            log.warning("queue_manual_upload pre-flight error: %s", _pre_exc)
+            # Don't block upload on unexpected pre-flight errors — let upload_to_jazzdrive handle it
+
+        with _jobs_lock:
+            if job_id in _manual_jobs:
                 _manual_jobs[job_id]["state"] = "uploading"
         try:
             result = upload_to_jazzdrive(
@@ -1390,15 +1525,22 @@ def upload_to_jazzdrive(
                     except Exception as _sl_err:
                         log.debug("duplicate-guard share link failed: %s", _sl_err)
                     try:
+                        _dup_rows = 0
                         if _claimed_file_id:
                             with db.conn() as _dc:
-                                _dc.execute(
+                                _dup_rows = _dc.execute(
                                     "UPDATE files SET is_ready=1, remote_id=?, share_url=?,"
                                     " remote_folder_id=?, fingerprint=?, uploaded_at=? WHERE id=?",
                                     (str(_exist_id), _exist_share or "", folder_id,
                                      "scan:" + str(_exist_id), int(time.time()), _claimed_file_id),
+                                ).rowcount
+                        if not _claimed_file_id or _dup_rows == 0:
+                            if _dup_rows == 0 and _claimed_file_id:
+                                log.warning(
+                                    "duplicate-guard: UPDATE hit 0 rows for file_id=%s"
+                                    " (row deleted by restart?) — falling back to upsert",
+                                    _claimed_file_id,
                                 )
-                        else:
                             db.upsert_file({
                                 "fingerprint":      "scan:" + str(_exist_id),
                                 "source":           "upload",
@@ -1413,7 +1555,7 @@ def upload_to_jazzdrive(
                                 "is_ready":         1,
                             })
                     except Exception as _db_err:
-                        log.debug("duplicate-guard DB update failed: %s", _db_err)
+                        log.warning("duplicate-guard DB update failed: %s", _db_err)
                     _unclaim()
                     return {
                         "ok": True,
@@ -1893,15 +2035,37 @@ def _upload_pending() -> None:
                         except Exception as _dup_sl_err:
                             log.debug("upload_pending dup-guard share link failed: %s", _dup_sl_err)
                         try:
-                            with db.conn() as _dup_dc:
-                                _dup_dc.execute(
-                                    "UPDATE files SET is_ready=1, remote_id=?, share_url=?,"
-                                    " remote_folder_id=?, fingerprint=?, uploaded_at=? WHERE id=?",
-                                    (str(_dup_exist_id), _dup_share or "", folder_id,
-                                     "scan:" + str(_dup_exist_id), int(time.time()), file_id),
-                                )
+                            _dup_rows = 0
+                            if file_id:
+                                with db.conn() as _dup_dc:
+                                    _dup_rows = _dup_dc.execute(
+                                        "UPDATE files SET is_ready=1, remote_id=?, share_url=?,"
+                                        " remote_folder_id=?, fingerprint=?, uploaded_at=? WHERE id=?",
+                                        (str(_dup_exist_id), _dup_share or "", folder_id,
+                                         "scan:" + str(_dup_exist_id), int(time.time()), file_id),
+                                    ).rowcount
+                            if not file_id or _dup_rows == 0:
+                                if _dup_rows == 0 and file_id:
+                                    log.warning(
+                                        "upload_pending dup-guard: UPDATE hit 0 rows for"
+                                        " file_id=%s (row missing after restart?) — falling back to upsert",
+                                        file_id,
+                                    )
+                                db.upsert_file({
+                                    "fingerprint":      "scan:" + str(_dup_exist_id),
+                                    "source":           "upload",
+                                    "account_id":       acct["id"],
+                                    "filename":         plan.filename,
+                                    "season":           plan.season,
+                                    "episode":          plan.episode,
+                                    "remote_id":        str(_dup_exist_id),
+                                    "remote_folder_id": folder_id,
+                                    "share_url":        _dup_share or "",
+                                    "uploaded_at":      int(time.time()),
+                                    "is_ready":         1,
+                                })
                         except Exception as _dup_db_err:
-                            log.debug("upload_pending dup-guard DB update failed: %s", _dup_db_err)
+                            log.warning("upload_pending dup-guard DB update failed: %s", _dup_db_err)
                         clear_live_stat(file_id)
                         return  # already on JazzDrive — no local delete, no upload
             except Exception as _jd_dup_err:
@@ -2056,17 +2220,32 @@ def watcher_loop(stop_event: threading.Event, interval_s: int = 30) -> None:
     except Exception as _se:
         log.warning("watcher_loop: startup recovery failed: %s", _se)
 
+    _paused_ticks = 0
     while not stop_event.wait(interval_s):
-        # Respect the UPLOAD_ENABLED toggle — pause all file processing when
-        # the upload service is disabled so we don't hammer JazzDrive while
-        # the admin has intentionally paused uploads (e.g. between daily runs).
-        if db.setting("UPLOAD_ENABLED", "1") != "1":
-            log.debug("watcher_loop: UPLOAD_ENABLED=0, skipping tick")
-            continue
+        # ── Maintenance: always release stuck files regardless of service state ──
+        # Runs even when uploads are paused/disabled so files never get permanently
+        # stuck at is_ready=-2 if the service was toggled off mid-upload.
         try:
             _release_stuck_uploads()
         except Exception as e:
             log.warning("watcher stuck-release: %s", e)
+        # ── Master kill switch — highest priority check ───────────────────────
+        if db.setting("JAZZDRIVE_ENABLED", "1") != "1":
+            _paused_ticks += 1
+            if _paused_ticks == 1 or _paused_ticks % 10 == 0:
+                log.info("Upload Watcher BLOCKED — JazzDrive master switch is OFF")
+            continue
+        # Respect the UPLOAD_ENABLED toggle — pause all file processing when
+        # the upload service is disabled so we don't hammer JazzDrive while
+        # the admin has intentionally paused uploads (e.g. between daily runs).
+        if db.setting("UPLOAD_ENABLED", "1") != "1":
+            _paused_ticks += 1
+            if _paused_ticks == 1 or _paused_ticks % 10 == 0:  # first + every ~5 min
+                log.info("Upload Watcher is PAUSED (disabled from Services page)")
+            continue
+        if _paused_ticks > 0:
+            log.info("Upload Watcher RESUMED")
+            _paused_ticks = 0
         try:
             _scan_once()
         except Exception as e:
