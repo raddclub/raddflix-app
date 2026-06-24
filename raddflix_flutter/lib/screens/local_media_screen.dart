@@ -10,6 +10,7 @@ import '../services/local_media_service.dart';
 import 'local_folder_screen.dart';
 import '../widgets/bottom_nav.dart';
 import '../core/theme/radd_theme.dart';
+import '../core/db/local_db.dart';
 
 class LocalMediaScreen extends StatefulWidget {
   const LocalMediaScreen({super.key});
@@ -19,6 +20,7 @@ class LocalMediaScreen extends StatefulWidget {
 
 enum _SortBy { name, date, size, count, duration }
 enum _LayoutMode { list, grid }
+enum _WatchFilter { all, inProgress, watched }
 
 class _LocalMediaScreenState extends State<LocalMediaScreen>
     with AutomaticKeepAliveClientMixin {
@@ -41,11 +43,32 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
   String? _resumePath;
   String? _resumeTitle;
 
+  // Watch progress filter & position map
+  _WatchFilter _watchFilter = _WatchFilter.all;
+  Map<String, int> _posMap = {};
+  Map<String, int> _durMap = {};
+
   @override
   void initState() {
     super.initState();
     _load();
     _loadResume();
+    _loadWatchPositions();
+  }
+
+  Future<void> _loadWatchPositions() async {
+    try {
+      final rows = await LocalDb.getWatchPositions();
+      final pos = <String, int>{};
+      final dur = <String, int>{};
+      for (final r in rows) {
+        final id = r['file_id'] as String? ?? '';
+        if (id.isEmpty) continue;
+        pos[id] = (r['position_ms'] as int? ?? 0);
+        dur[id] = (r['duration_ms'] as int? ?? 0);
+      }
+      if (mounted) setState(() { _posMap = pos; _durMap = dur; });
+    } catch (_) {}
   }
 
   @override
@@ -150,6 +173,100 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
   }
 
   int get _totalFiles => _folders.fold(0, (s, f) => s + f.videos.length);
+
+  double _folderProgress(LocalFolder folder) {
+    if (_posMap.isEmpty) return 0.0;
+    double total = 0; int count = 0;
+    for (final v in folder.videos) {
+      final pos = _posMap[v.filePath] ?? 0;
+      final dur = _durMap[v.filePath] ?? v.durationMs;
+      if (dur > 0 && pos > 5000) {
+        total += (pos / dur).clamp(0.0, 1.0);
+        count++;
+      }
+    }
+    return count > 0 ? (total / count) : 0.0;
+  }
+
+  bool _folderWatched(LocalFolder folder) {
+    final vids = folder.videos.where((v) => v.isVideo).toList();
+    if (vids.isEmpty) return false;
+    for (final v in vids) {
+      final pos = _posMap[v.filePath] ?? 0;
+      final dur = _durMap[v.filePath] ?? v.durationMs;
+      if (dur <= 0 || (pos / dur) < 0.9) return false;
+    }
+    return true;
+  }
+
+  bool _folderInProgress(LocalFolder folder) {
+    for (final v in folder.videos) {
+      final pos = _posMap[v.filePath] ?? 0;
+      final dur = _durMap[v.filePath] ?? v.durationMs;
+      if (pos > 5000 && dur > 0 && (pos / dur) < 0.9) return true;
+    }
+    return false;
+  }
+
+  List<LocalFolder> get _filtered {
+    final s = _sorted;
+    switch (_watchFilter) {
+      case _WatchFilter.all: return s;
+      case _WatchFilter.inProgress: return s.where((f) => _folderInProgress(f)).toList();
+      case _WatchFilter.watched: return s.where((f) => _folderWatched(f)).toList();
+    }
+  }
+
+  Widget _buildFilterChips() {
+    final t = RaddTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Row(children: [
+        _filterChip(t, _WatchFilter.all,        'All',      Icons.folder_rounded),
+        const SizedBox(width: 8),
+        _filterChip(t, _WatchFilter.inProgress, 'Watching', Icons.play_circle_outline_rounded),
+        const SizedBox(width: 8),
+        _filterChip(t, _WatchFilter.watched,    'Watched',  Icons.check_circle_outline_rounded),
+      ]),
+    );
+  }
+
+  Widget _filterChip(RaddTheme t, _WatchFilter filter, String label, IconData icon) {
+    final active = _watchFilter == filter;
+    return GestureDetector(
+      onTap: () => setState(() => _watchFilter = filter),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? AppColors.primary.withOpacity(0.15) : t.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: active ? AppColors.primary : t.border, width: active ? 1.5 : 1),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 13, color: active ? AppColors.primary : t.textMuted),
+          const SizedBox(width: 5),
+          Text(label, style: TextStyle(fontSize: 12,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+              color: active ? AppColors.primary : t.textMuted)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildFilterEmpty() {
+    final t = RaddTheme.of(context);
+    final msg = _watchFilter == _WatchFilter.inProgress
+        ? 'No folders being watched right now'
+        : 'No fully watched folders yet';
+    return Center(
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(Icons.filter_list_off_rounded, size: 48, color: t.border),
+        const SizedBox(height: 12),
+        Text(msg, style: TextStyle(color: t.textSecondary, fontSize: 15)),
+      ]).animate().fadeIn(duration: 300.ms),
+    );
+  }
 
   // ── Sort bottom sheet ──────────────────────────────────────────────────────
   void _showSortSheet() {
@@ -332,38 +449,54 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
     final t = RaddTheme.of(context);
     if (_loading) return _buildShimmer();
     if (_permissionDenied) return _buildPermissionError();
-    final sorted = _sorted;
-    if (sorted.isEmpty) return _buildEmpty();
+    if (_sorted.isEmpty) return _buildEmpty();
+    final folders = _filtered;
 
     if (_layout == _LayoutMode.grid) {
-      return GridView.builder(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 100),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2, childAspectRatio: 1.4,
-            crossAxisSpacing: 10, mainAxisSpacing: 10),
-        itemCount: sorted.length,
-        itemBuilder: (_, i) => _FolderGridCard(
-          folder: sorted[i],
-          thumb: _thumbCache[sorted[i].path],
-          onTap: () => _openFolder(sorted[i]),
-        ).animate(delay: (i * 25).ms).fadeIn(duration: 200.ms),
-      );
+      return Column(children: [
+        _buildFilterChips(),
+        Expanded(child: folders.isEmpty
+          ? _buildFilterEmpty()
+          : GridView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 100),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2, childAspectRatio: 1.4,
+                crossAxisSpacing: 10, mainAxisSpacing: 10),
+            itemCount: folders.length,
+            itemBuilder: (_, i) => _FolderGridCard(
+              folder: folders[i],
+              thumb: _thumbCache[folders[i].path],
+              progress: _folderProgress(folders[i]),
+              isWatched: _folderWatched(folders[i]),
+              isInProgress: _folderInProgress(folders[i]),
+              onTap: () => _openFolder(folders[i]),
+            ).animate(delay: (i * 25).ms).fadeIn(duration: 200.ms),
+          )),
+      ]);
     }
 
-    return RefreshIndicator(
-      color: AppColors.primary,
-      backgroundColor: t.surface,
-      onRefresh: () => _load(refresh: true),
-      child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(0, 4, 0, 100),
-        itemCount: sorted.length,
-        itemBuilder: (_, i) => _FolderListTile(
-          folder: sorted[i],
-          thumb: _thumbCache[sorted[i].path],
-          onTap: () => _openFolder(sorted[i]),
-        ).animate(delay: (i * 20).ms).fadeIn(duration: 200.ms),
-      ),
-    );
+    return Column(children: [
+      _buildFilterChips(),
+      Expanded(child: folders.isEmpty
+        ? _buildFilterEmpty()
+        : RefreshIndicator(
+          color: AppColors.primary,
+          backgroundColor: t.surface,
+          onRefresh: () => _load(refresh: true),
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(0, 4, 0, 100),
+            itemCount: folders.length,
+            itemBuilder: (_, i) => _FolderListTile(
+              folder: folders[i],
+              thumb: _thumbCache[folders[i].path],
+              progress: _folderProgress(folders[i]),
+              isWatched: _folderWatched(folders[i]),
+              isInProgress: _folderInProgress(folders[i]),
+              onTap: () => _openFolder(folders[i]),
+            ).animate(delay: (i * 20).ms).fadeIn(duration: 200.ms),
+          ),
+        )),
+    ]);
   }
 
   Widget _buildPermissionError() {
@@ -634,7 +767,23 @@ class _FolderListTile extends StatelessWidget {
   final LocalFolder folder;
   final Uint8List? thumb;
   final VoidCallback onTap;
-  const _FolderListTile({required this.folder, required this.thumb, required this.onTap});
+  final double progress;
+  final bool isWatched;
+  final bool isInProgress;
+  const _FolderListTile({required this.folder, required this.thumb, required this.onTap,
+      this.progress = 0.0, this.isWatched = false, this.isInProgress = false});
+
+  Widget _statusBadge(RaddTheme t) {
+    if (isWatched) return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(color: const Color(0xFF22C55E).withOpacity(0.9), borderRadius: BorderRadius.circular(4)),
+      child: const Text('WATCHED', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.3)));
+    if (isInProgress && progress > 0) return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(color: const Color(0xFFF97316).withOpacity(0.9), borderRadius: BorderRadius.circular(4)),
+      child: Text('${(progress * 100).toInt()}%', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)));
+    return const SizedBox.shrink();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -739,7 +888,23 @@ class _FolderGridCard extends StatelessWidget {
   final LocalFolder folder;
   final Uint8List? thumb;
   final VoidCallback onTap;
-  const _FolderGridCard({required this.folder, required this.thumb, required this.onTap});
+  final double progress;
+  final bool isWatched;
+  final bool isInProgress;
+  const _FolderGridCard({required this.folder, required this.thumb, required this.onTap,
+      this.progress = 0.0, this.isWatched = false, this.isInProgress = false});
+
+  Widget _statusBadge() {
+    if (isWatched) return Positioned(top: 4, left: 4, child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(color: const Color(0xFF22C55E).withOpacity(0.9), borderRadius: BorderRadius.circular(4)),
+      child: const Text('✓ WATCHED', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800))));
+    if (isInProgress && progress > 0) return Positioned(top: 4, left: 4, child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(color: const Color(0xFFF97316).withOpacity(0.9), borderRadius: BorderRadius.circular(4)),
+      child: Text('${(progress * 100).toInt()}%', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800))));
+    return const SizedBox.shrink();
+  }
 
   @override
   Widget build(BuildContext context) {
