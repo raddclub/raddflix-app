@@ -11,6 +11,7 @@ import 'local_folder_screen.dart';
 import '../widgets/bottom_nav.dart';
 import '../core/theme/radd_theme.dart';
 import '../core/db/local_db.dart';
+import '../services/vault_service.dart';
 
 class LocalMediaScreen extends StatefulWidget {
   const LocalMediaScreen({super.key});
@@ -301,6 +302,78 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
     });
   }
 
+  void _showFolderMenu(LocalFolder folder) {
+    final t = RaddTheme.of(context);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: t.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 36, height: 4, margin: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(color: t.border, borderRadius: BorderRadius.circular(2))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(folder.name, style: TextStyle(color: t.textPrimary,
+                  fontSize: 16, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.lock_outline_rounded, color: AppColors.primary),
+            title: const Text('Add to Vault'),
+            subtitle: const Text('Import all videos from this folder'),
+            onTap: () { Navigator.pop(context); _addFolderToVault(folder); },
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _addFolderToVault(LocalFolder folder) async {
+    final hasPin = await VaultService.hasPin();
+    if (!hasPin) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Set up your vault PIN first (Profile → Vault)'),
+        backgroundColor: RaddTheme.of(context).surface));
+      return;
+    }
+    if (!VaultService.isUnlocked) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Unlock your vault first (Profile → Vault → Unlock)'),
+        backgroundColor: RaddTheme.of(context).surface));
+      return;
+    }
+    final videos = folder.videos.where((v) => v.isVideo).toList();
+    if (videos.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('No video files in this folder'),
+        backgroundColor: RaddTheme.of(context).surface));
+      return;
+    }
+    int count = 0;
+    for (final v in videos) {
+      try {
+        await VaultService.moveFileToVault(v.filePath);
+        count++;
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(count > 0
+          ? '$count video${count != 1 ? "s" : ""} moved to vault'
+          : 'No accessible files to move'),
+      backgroundColor: RaddTheme.of(context).surface,
+      duration: const Duration(seconds: 3)));
+    if (count > 0) _load(refresh: true);
+  }
+
   void _openFolder(LocalFolder folder) async {
     await LocalMediaService.markSeen(folder.videos.map((v) => v.filePath).toList());
     if (!mounted) return;
@@ -470,6 +543,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
               isWatched: _folderWatched(folders[i]),
               isInProgress: _folderInProgress(folders[i]),
               onTap: () => _openFolder(folders[i]),
+              onLongPress: () => _showFolderMenu(folders[i]),
             ).animate(delay: (i * 25).ms).fadeIn(duration: 200.ms),
           )),
       ]);
@@ -493,6 +567,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
               isWatched: _folderWatched(folders[i]),
               isInProgress: _folderInProgress(folders[i]),
               onTap: () => _openFolder(folders[i]),
+              onLongPress: () => _showFolderMenu(folders[i]),
             ).animate(delay: (i * 20).ms).fadeIn(duration: 200.ms),
           ),
         )),
@@ -770,8 +845,9 @@ class _FolderListTile extends StatelessWidget {
   final double progress;
   final bool isWatched;
   final bool isInProgress;
+  final VoidCallback? onLongPress;
   const _FolderListTile({required this.folder, required this.thumb, required this.onTap,
-      this.progress = 0.0, this.isWatched = false, this.isInProgress = false});
+      this.progress = 0.0, this.isWatched = false, this.isInProgress = false, this.onLongPress});
 
   Widget _statusBadge(RaddTheme t) {
     if (isWatched) return Container(
@@ -793,6 +869,7 @@ class _FolderListTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(AppRadius.md),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -806,16 +883,31 @@ class _FolderListTile extends StatelessWidget {
                 border: Border.all(color: t.border, width: 0.5),
               ),
               clipBehavior: Clip.antiAlias,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppRadius.sm - 0.5),
-                child: thumb != null
-                    ? Image.memory(thumb!, fit: BoxFit.cover)
-                    : Center(child: Icon(
-                        type == 'audio' ? Icons.music_note_rounded
-                            : type == 'mixed' ? Icons.perm_media_rounded
-                            : Icons.folder_rounded,
-                        color: type == 'audio' ? AppColors.primary : t.textMuted,
-                        size: 28)),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.sm - 0.5),
+                    child: thumb != null
+                        ? Image.memory(thumb!, fit: BoxFit.cover)
+                        : Center(child: Icon(
+                            type == 'audio' ? Icons.music_note_rounded
+                                : type == 'mixed' ? Icons.perm_media_rounded
+                                : Icons.folder_rounded,
+                            color: type == 'audio' ? AppColors.primary : t.textMuted,
+                            size: 28)),
+                  ),
+                  if (isInProgress && progress > 0 && !isWatched)
+                    Positioned(
+                      bottom: 0, left: 0, right: 0,
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        backgroundColor: Colors.black45,
+                        color: const Color(0xFFF97316),
+                        minHeight: 3,
+                      ),
+                    ),
+                ],
               ),
             ),
             const SizedBox(width: 14),
@@ -891,8 +983,9 @@ class _FolderGridCard extends StatelessWidget {
   final double progress;
   final bool isWatched;
   final bool isInProgress;
+  final VoidCallback? onLongPress;
   const _FolderGridCard({required this.folder, required this.thumb, required this.onTap,
-      this.progress = 0.0, this.isWatched = false, this.isInProgress = false});
+      this.progress = 0.0, this.isWatched = false, this.isInProgress = false, this.onLongPress});
 
   Widget _statusBadge() {
     if (isWatched) return Positioned(top: 4, left: 4, child: Container(
@@ -912,6 +1005,7 @@ class _FolderGridCard extends StatelessWidget {
     final type = folder.folderType;
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadius.md),
         child: Stack(fit: StackFit.expand, children: [
@@ -969,6 +1063,19 @@ class _FolderGridCard extends StatelessWidget {
                 child: const Text('MUSIC', style: TextStyle(color: Colors.white,
                     fontSize: 8, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
               )),
+          // WATCHED / WATCHING badge (top-left)
+          _statusBadge(),
+          // Watch progress bar (bottom edge)
+          if (isInProgress && progress > 0 && !isWatched)
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: Colors.black45,
+                color: const Color(0xFFF97316),
+                minHeight: 3,
+              ),
+            ),
         ]),
       ),
     );
