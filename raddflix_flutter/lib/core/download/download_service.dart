@@ -6,6 +6,7 @@ import '../services/jazzdrive_service.dart';
 import '../debug/debug_logger.dart';
 import '../constants.dart';
 import '../api/api_client.dart';
+import '../services/usage_service.dart';
 
 class DownloadService {
   static final Dio _dio = Dio();
@@ -143,6 +144,9 @@ class DownloadService {
         throw Exception('Download incomplete: file too small (${fileSize} bytes)');
       }
       await LocalDb.updateDownloadStatus(fileId, 'completed', 1.0, fileSize);
+      // Count actual downloaded bytes toward monthly quota (exact size, counted once at completion).
+      // Playback of this file later uses _isLocal=true → zero additional quota deduction.
+      UsageService.addDownloadBytes(bytes: fileSize).ignore();
       onProgress(1.0);
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
