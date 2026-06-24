@@ -39,6 +39,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _subExpiring = false;
   int _versionTapCount = 0;
   String? _remotePlan;
+  double _remoteUsedGb  = 0.0;
+  double _remoteLimitGb = 0.0;
   late final _connectivitySub = Connectivity().onConnectivityChanged.listen(_onConnectivityChange);
 
   @override
@@ -74,7 +76,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     try {
       final status = await SubscriptionApi.getStatus();
       if (!mounted) return;
-      setState(() { _remotePlan = status.plan; });
+      setState(() {
+        _remotePlan    = status.plan;
+        _remoteUsedGb  = status.monthlyUsedGb;
+        _remoteLimitGb = status.monthlyLimitGb;
+      });
       final expiresAt = status.expiresAt;
       if (expiresAt != null && status.isActive) {
         final dt = DateTime.tryParse(expiresAt);
@@ -270,34 +276,66 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       border: Border.all(color: AppColors.primary.withOpacity(0.3)),
                       boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.07), blurRadius: 20)],
                     ),
-                    child: Row(children: [
-                      Icon(Icons.star_rounded, color: AppColors.primary, size: 24),
-                      SizedBox(width: 12),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Active Subscription', style: TextStyle(
-                            color: t.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
-                        if (user!.subscription!.expiresAt != null)
-                          Text('Expires ${_fmt(user.subscription!.expiresAt!)}',
-                              style: TextStyle(color: t.textMuted, fontSize: 12)),
-                        if (_daysLeft != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            _subExpiring
-                                ? '⚠ ${_daysLeft}d remaining — renew soon'
-                                : '${_daysLeft}d remaining',
-                            style: TextStyle(
-                              color: _subExpiring
-                                  ? const Color(0xFFFFB300)
-                                  : const Color(0xFF00C853),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Icon(Icons.star_rounded, color: AppColors.primary, size: 24),
+                        SizedBox(width: 12),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('Active Subscription', style: TextStyle(
+                              color: t.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
+                          if (user!.subscription!.expiresAt != null)
+                            Text('Expires ${_fmt(user.subscription!.expiresAt!)}',
+                                style: TextStyle(color: t.textMuted, fontSize: 12)),
+                          if (_daysLeft != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              _subExpiring
+                                  ? '⚠ ${_daysLeft}d remaining — renew soon'
+                                  : '${_daysLeft}d remaining',
+                              style: TextStyle(
+                                color: _subExpiring
+                                    ? const Color(0xFFFFB300)
+                                    : const Color(0xFF00C853),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                        ],
-                      ])),
-                      TextButton(
-                        onPressed: () { DebugLogger.logTap('Profile', 'subscription'); Navigator.of(context).pushNamed(AppRoutes.subscription); },
-                        child: Text('Manage', style: TextStyle(fontSize: 12))),
+                          ],
+                        ])),
+                        TextButton(
+                          onPressed: () { DebugLogger.logTap('Profile', 'subscription'); Navigator.of(context).pushNamed(AppRoutes.subscription); },
+                          child: Text('Manage', style: TextStyle(fontSize: 12))),
+                      ]),
+                      // GB usage progress bar
+                      if (_remoteLimitGb > 0) ...[
+                        const SizedBox(height: 14),
+                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                          Text('${_remoteUsedGb.toStringAsFixed(1)} GB used',
+                              style: TextStyle(color: t.textMuted, fontSize: 11,
+                                  fontWeight: FontWeight.w600)),
+                          Text('of ${_remoteLimitGb.toInt()} GB',
+                              style: TextStyle(color: t.textMuted, fontSize: 11)),
+                        ]),
+                        const SizedBox(height: 6),
+                        Builder(builder: (_) {
+                          final pct = _remoteLimitGb > 0
+                              ? (_remoteUsedGb / _remoteLimitGb).clamp(0.0, 1.0)
+                              : 0.0;
+                          final barColor = pct >= 0.9
+                              ? AppColors.error
+                              : pct >= 0.7
+                                  ? AppColors.warning
+                                  : AppColors.primary;
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: pct, minHeight: 7,
+                              backgroundColor: AppColors.primary.withOpacity(0.12),
+                              valueColor: AlwaysStoppedAnimation(barColor),
+                            ),
+                          );
+                        }),
+                      ],
                     ]),
                   ),
                 ).animate(delay: 200.ms).fadeIn(duration: 350.ms)
