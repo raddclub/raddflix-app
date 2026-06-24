@@ -46,7 +46,13 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      VaultService.lock();
+      // FIX-VAULT-AUTOLOCK: Only lock immediately when auto-lock = 0 (instant).
+      // For any other setting, just record pause time — isUnlocked already
+      // checks elapsed time and locks if the threshold has passed.
+      // Previously we called VaultService.lock() unconditionally which caused
+      // the vault to ask for PIN every time notifications were swiped or a
+      // call arrived (any pause > 0ms triggered a full re-lock).
+      VaultService.onAppPaused();
     } else if (state == AppLifecycleState.resumed) {
       if (!VaultService.isUnlocked) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.vaultLock);
@@ -453,76 +459,72 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Import files into the vault.
-  ///
-  /// FIX-VAULT-01: After copying each file to private vault storage we collect
-  /// the content URIs ([PlatformFile.identifier]) and call
-  /// [VaultService.deleteFromMediaStore] once for the whole batch.
-  ///
-  /// Android 10 and below: ContentResolver deletes the entry directly and
-  /// MediaScannerConnection removes it from the gallery index.
-  ///
-  /// Android 11+ (API 30+): the system shows a one-time dialog:
-  /// "Allow RaddFlix to delete N item(s)?" — user taps Allow and the
-  /// originals vanish from the gallery and all media players.
-  Future<void> _importFiles(FileType type) async {
+  // _importFiles removed — replaced by _importVideoFiles / _importVideoFolder (videos only)
+
+  Future<void> _importVideoFiles() async {
     Navigator.pop(context);
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: type,
-        allowMultiple: true,
-        withData: false,
-        withReadStream: false,
-      );
+        type: FileType.video, allowMultiple: true, withData: false, withReadStream: false);
       if (result == null || result.files.isEmpty) return;
+      await _processPickedFiles(result.files);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Could not import: $e'), backgroundColor: AppColors.error));
+    }
+  }
 
-      int imported = 0;
-      bool hadBytesOnlyImport = false;
-      // Collect content URIs for batch MediaStore deletion (Android 11+)
-      final contentUris = <String>[];
-
-      for (final file in result.files) {
-        final src = file.path;
-        final folder = widget.folderPath != null
-            ? widget.folderPath!.split('/').last
-            : null;
-
-        if (src != null) {
-          await VaultService.moveFileToVault(src, folder: folder);
-          // identifier = content URI on Android (e.g. content://media/external/video/media/42)
-          // null on desktop/iOS — safe to ignore when null
-          final uri = file.identifier;
-          if (uri != null && uri.isNotEmpty) contentUris.add(uri);
-          imported++;
-        } else {
-          hadBytesOnlyImport = true;
-        }
+  Future<void> _importVideoFolder() async {
+    Navigator.pop(context);
+    try {
+      final dir = await FilePicker.platform.getDirectoryPath();
+      if (dir == null) return;
+      const videoExts = ['mp4','mkv','avi','mov','ts','m2ts','wmv','flv','webm','3gp','m4v'];
+      final videoFiles = Directory(dir).listSync(recursive: false)
+          .whereType<File>()
+          .where((f) => videoExts.contains(f.path.split('.').last.toLowerCase()))
+          .toList();
+      if (videoFiles.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('No video files found in that folder'), backgroundColor: t.surface));
+        return;
       }
-
-      // Remove originals from MediaStore so they vanish from gallery/file managers.
-      // On Android 11+ this triggers a one-time system permission dialog.
-      if (contentUris.isNotEmpty) {
-        await VaultService.deleteFromMediaStore(contentUris);
-      }
-
-      if (mounted && imported > 0) {
-        final msg = hadBytesOnlyImport
-            ? '$imported file${imported > 1 ? "s" : ""} added. Some originals may still appear in gallery — delete them manually.'
-            : '$imported file${imported > 1 ? "s" : ""} added to vault';
+      final folder = widget.folderPath != null ? widget.folderPath!.split('/').last : null;
+      for (final f in videoFiles) await VaultService.moveFileToVault(f.path, folder: folder);
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(msg),
-          backgroundColor: t.surface,
-          duration: Duration(seconds: hadBytesOnlyImport ? 5 : 3),
-        ));
+          content: Text('${videoFiles.length} video${videoFiles.length > 1 ? "s" : ""} imported'),
+          backgroundColor: t.surface));
         await _load();
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Could not import file: $e'),
-          backgroundColor: AppColors.error,
-        ));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Could not import folder: $e'), backgroundColor: AppColors.error));
+    }
+  }
+
+  Future<void> _processPickedFiles(List<PlatformFile> files) async {
+    int imported = 0; bool hadBytesOnly = false;
+    final contentUris = <String>[];
+    final folder = widget.folderPath != null ? widget.folderPath!.split('/').last : null;
+    for (final file in files) {
+      final src = file.path;
+      if (src != null) {
+        await VaultService.moveFileToVault(src, folder: folder);
+        final uri = file.identifier;
+        if (uri != null && uri.isNotEmpty) contentUris.add(uri);
+        imported++;
+      } else { hadBytesOnly = true; }
+    }
+    if (contentUris.isNotEmpty) await VaultService.deleteFromMediaStore(contentUris);
+    if (mounted && imported > 0) {
+      final msg = hadBytesOnly
+          ? '$imported file${imported > 1 ? "s" : ""} added. Some originals may still appear in gallery.'
+          : '$imported video${imported > 1 ? "s" : ""} added to vault';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(msg), backgroundColor: t.surface,
+        duration: Duration(seconds: hadBytesOnly ? 5 : 3)));
+      await _load();
     }
   }
 
@@ -546,10 +548,12 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
           ),
           _SheetTile(icon: Icons.create_new_folder_rounded, label: 'New Folder',
               onTap: () { Navigator.pop(context); _createFolder(); }),
-          _SheetTile(icon: Icons.photo_library_rounded, label: 'From Gallery',
-              onTap: () => _importFiles(FileType.media)),
-          _SheetTile(icon: Icons.insert_drive_file_rounded, label: 'From Files',
-              onTap: () => _importFiles(FileType.any)),
+          _SheetTile(icon: Icons.video_library_rounded, label: 'Add Video Files',
+              subtitle: 'Pick individual video files',
+              onTap: () => _importVideoFiles()),
+          _SheetTile(icon: Icons.folder_open_rounded, label: 'Add Folder',
+              subtitle: 'Import all videos from a folder',
+              onTap: () => _importVideoFolder()),
           const SizedBox(height: 8),
         ]),
       ),
@@ -647,15 +651,19 @@ class _FileListTileState extends State<_FileListTile> {
 class _SheetTile extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? subtitle;
   final VoidCallback onTap;
   final Color? color;
-  const _SheetTile({required this.icon, required this.label, required this.onTap, this.color});
+  const _SheetTile({required this.icon, required this.label, required this.onTap, this.subtitle, this.color});
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
     return ListTile(
       leading: Icon(icon, color: color ?? t.textPrimary),
       title: Text(label, style: TextStyle(color: color ?? t.textPrimary)),
+      subtitle: subtitle != null
+          ? Text(subtitle!, style: TextStyle(color: t.textMuted, fontSize: 12))
+          : null,
       onTap: onTap,
     );
   }
