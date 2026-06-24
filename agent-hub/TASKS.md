@@ -66,3 +66,12 @@ None — awaiting user review.
 | BUG-22-05 | Add bottom nav to ProfileScreen | ✅ DONE (f938e67) |
 | BUG-22-06 | Player sidebar default collapsed instead of expanded | ✅ DONE (493d842) |
 | BUG-22-07 | Fix build: vault_service.dart imports local_auth/auth_strings.dart (removed in 2.x) | ✅ DONE |
+
+## Phase 23 — Completing Task from Previous Session (2026-06-24)
+
+| ID | Task | Status |
+|----|------|--------|
+| BUG-23-01 | Fix authenticateBiometric: use getAvailableBiometrics() (Infinix/MediaTek Class 2 fix) | ✅ DONE |
+| BUG-23-02 | Add to Vault from Downloads screen (selection toolbar vault button) | ✅ DONE |
+| BUG-23-03 | Add to Vault from Local Media screen (folder long-press menu) | ✅ DONE |
+| BUG-23-04 | LinearProgressIndicator on folder cards in LocalMediaScreen | ✅ DONE |
