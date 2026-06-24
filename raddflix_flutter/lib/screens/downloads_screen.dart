@@ -8,6 +8,7 @@ import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../providers/downloads_provider.dart';
 import '../core/debug/debug_logger.dart';
+import '../widgets/bottom_nav.dart';
 import '../services/thumb_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -120,6 +121,15 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     return Scaffold(
       backgroundColor: null,
       appBar: _buildAppBar(state),
+      bottomNavigationBar: RaddFlixBottomNav(
+        currentIndex: 2,
+        onTap: (i) {
+          if (i == 2) return;
+          Navigator.of(context).popUntil((r) => r.isFirst);
+          if (i == 1) Navigator.of(context).pushNamed(AppRoutes.localMedia);
+          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.profile);
+        },
+      ),
       body: Column(children: [
         _buildStorageBar(state),
         _buildFilterRow(),
