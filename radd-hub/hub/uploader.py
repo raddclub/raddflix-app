@@ -2222,6 +2222,13 @@ def watcher_loop(stop_event: threading.Event, interval_s: int = 30) -> None:
 
     _paused_ticks = 0
     while not stop_event.wait(interval_s):
+        # ── Maintenance: always release stuck files regardless of service state ──
+        # Runs even when uploads are paused/disabled so files never get permanently
+        # stuck at is_ready=-2 if the service was toggled off mid-upload.
+        try:
+            _release_stuck_uploads()
+        except Exception as e:
+            log.warning("watcher stuck-release: %s", e)
         # ── Master kill switch — highest priority check ───────────────────────
         if db.setting("JAZZDRIVE_ENABLED", "1") != "1":
             _paused_ticks += 1
@@ -2239,10 +2246,6 @@ def watcher_loop(stop_event: threading.Event, interval_s: int = 30) -> None:
         if _paused_ticks > 0:
             log.info("Upload Watcher RESUMED")
             _paused_ticks = 0
-        try:
-            _release_stuck_uploads()
-        except Exception as e:
-            log.warning("watcher stuck-release: %s", e)
         try:
             _scan_once()
         except Exception as e:
