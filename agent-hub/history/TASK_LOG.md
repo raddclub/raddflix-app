@@ -359,3 +359,35 @@ The agent had pushed Python fixes to GitHub but:
 - Oracle Flask: RUNNING pid 780429, {"ok":true,"version":"3.0.0"}
 - APK build: triggered (monitoring)
 - Open tasks: none
+
+
+---
+
+## Session 2026-06-24 — Phase 25: Full Profile Edit Feature
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| PRO-25-01 | AppUser model — displayName, email, avatarColor, avatarEmoji + display getters | DONE |
+| PRO-25-02 | AuthApi — updateProfile() PUT + changePassword() POST | DONE |
+| PRO-25-03 | ApiPaths — /api/auth/profile, /api/auth/change-password | DONE |
+| PRO-25-04 | EditProfileScreen — avatar color picker, name/email fields, change-password sheet | DONE |
+| PRO-25-05 | ProfileScreen — colored avatar ring, displayName, edit pencil overlay | DONE |
+| PRO-25-06 | Oracle db.py — display_name/email/avatar_color/avatar_emoji columns + safe migrations | DONE |
+| PRO-25-07 | Oracle mobile_api.py — PUT /profile + POST /change-password + /me extended | DONE |
+
+### Files changed
+| File | Change |
+|------|--------|
+| raddflix_flutter/lib/models/user.dart | +displayName, email, avatarColor, avatarEmoji, displayLabel, avatarInitial |
+| raddflix_flutter/lib/core/api/auth_api.dart | +updateProfile(), +changePassword() |
+| raddflix_flutter/lib/core/constants.dart | +ApiPaths.updateProfile, .changePassword |
+| raddflix_flutter/lib/screens/edit_profile_screen.dart | NEW — full profile editor |
+| raddflix_flutter/lib/screens/profile_screen.dart | Avatar uses color/name, edit pencil button |
+| hub/routes/mobile_api.py | PUT /api/auth/profile, POST /api/auth/change-password, /me extended |
+| hub/db.py | 4 new app_users columns + safe ALTER TABLE migrations |
+
+### State at end of session
+- Oracle Flask: restarted with new endpoints
+- APK build: triggered
+- Open tasks: none
