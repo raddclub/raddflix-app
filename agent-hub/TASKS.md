@@ -49,8 +49,24 @@
 | AUDIO badge + music icon for audio files in folder | 21 | DONE |
 | Type filter pills in stats bar (mixed folders) | 21 | DONE |
 
+## Phase 26 — GB Subscription System (2026-06-24)
+
+| ID | Task | Status |
+|----|------|--------|
+| SUB-26-01 | subscription.dart: replace downloadsPerDay/hdAccess → GB fields (dataGb, usagePercent, daysUntilExpiry) | ✅ DONE |
+| SUB-26-02 | subscription_api.dart: add getQuota(), resubscribe/upgrade support | ✅ DONE |
+| SUB-26-03 | subscription_provider.dart: add refreshQuota(), resetTidSubmitted(), clearError flag | ✅ DONE |
+| SUB-26-04 | usage_service.dart: add addDownloadBytes(); document free/local skip rules | ✅ DONE |
+| SUB-26-05 | download_service.dart: count actual fileSize bytes toward quota at download completion | ✅ DONE |
+| SUB-26-06 | player_screen.dart: _isFree + _trackUsage flags; quota gate in _openMedia; 30s usage timer; _startUsageTimer/_stopUsageTimer | ✅ DONE |
+| SUB-26-07 | show_detail_screen.dart: pass 'is_free' in player route args for both episode and movie | ✅ DONE |
+| SUB-26-08 | subscription_screen.dart: GB-based plan cards (big GB number + approx hours + Jazz savings), active plan progress bar, resubscribe/upgrade UI, catchy messaging | ✅ DONE |
+| SUB-26-09 | quota_full_screen.dart: GB used/limit bar, reset date, catchy "You've Hit Your Data Limit" messaging, SIMOSA correctly labeled | ✅ DONE |
+| SUB-26-10 | profile_screen.dart: live GB usage progress bar in subscription card | ✅ DONE |
+| SUB-26-11 | mobile_api.py: 4 new seed plans (10GB/150, 30GB/250, 60GB/400, 100GB/700); _compute_app_quota enriched with is_exceeded + resets_at in all response paths | ✅ DONE |
+
 ## Open Tasks
-None — all phases 17–25 complete. Awaiting next task.
+None — all phases 17–26 complete. Awaiting next task.
 
 ## Phase 22 — Bug Fixes (2026-06-24)
 
