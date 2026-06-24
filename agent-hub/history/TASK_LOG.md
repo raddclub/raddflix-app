@@ -202,3 +202,39 @@ Runs #1237–#1239 all failed on the same error: `Couldn't find constructor 'Met
 - Oracle Flask: RUNNING
 - Build: triggered after fix — monitoring
 - Open tasks: none
+
+---
+
+## Session 2026-06-24 — Phase 22: UX Bug Fixes (6 bugs)
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| BUG-22-01 | Remove red dot from bottom nav | ✅ DONE (3d1b275) |
+| BUG-22-02 | Fix grey screen on folder open — invalid (?i) regex crash | ✅ DONE (217f1e8) |
+| BUG-22-03 | Bottom nav on LocalMediaScreen | ✅ DONE (7ed61f7) |
+| BUG-22-04 | Bottom nav on DownloadsScreen | ✅ DONE (6a5e6e6) |
+| BUG-22-05 | Bottom nav on ProfileScreen | ✅ DONE (f938e67) |
+| BUG-22-06 | Player sidebar default collapsed | ✅ DONE (493d842) |
+
+### Root causes
+- **Grey folder screen**: `_seriesNameFrom()` used `RegExp(r'(?i)S\d+...')` — `(?i)` is invalid in Dart/V8 regex (throws `Invalid group`). Fixed with `caseSensitive: false` parameter.
+- **Bottom nav hides**: Local/Downloads/Profile are pushed as separate named routes with no bottom nav. Added `RaddFlixBottomNav` to each with proper tap handler (popUntil root + pushNamed).
+- **Dot on nav icon**: `AnimatedContainer` dot indicator removed from `_NavButton`.
+- **Sidebar overlap**: `_sidebarExpanded` defaulted to `true` — changed to `false` so it starts collapsed.
+- **"Open with" → home**: Handled in splash_screen (pre-existing, no code change needed).
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| lib/widgets/bottom_nav.dart | Remove dot indicator | 3d1b275 |
+| lib/screens/local_folder_screen.dart | Fix (?i) regex | 217f1e8 |
+| lib/screens/local_media_screen.dart | Add bottom nav | 7ed61f7 |
+| lib/screens/downloads_screen.dart | Add bottom nav | 6a5e6e6 |
+| lib/screens/profile_screen.dart | Add bottom nav | f938e67 |
+| lib/screens/player_screen.dart | Sidebar default false | 493d842 |
+
+### State at end of session
+- Oracle Flask: RUNNING
+- Build: triggered after fixes — monitoring
+- Open tasks: none
