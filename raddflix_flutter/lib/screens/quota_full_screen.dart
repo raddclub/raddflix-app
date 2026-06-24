@@ -3,146 +3,201 @@ import '../core/theme/radd_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/constants.dart';
 
+/// Shown when the user's monthly GB quota is exhausted.
+/// Accepts optional [usedGb], [limitGb], [planName], [resetsAt] so the screen
+/// can show exactly how much was used and when data resets.
 class QuotaFullScreen extends StatelessWidget {
-  const QuotaFullScreen({super.key});
+  final double? usedGb;
+  final double? limitGb;
+  final String? planName;
+  final String? resetsAt; // ISO date string or null
+
+  const QuotaFullScreen({
+    super.key,
+    this.usedGb,
+    this.limitGb,
+    this.planName,
+    this.resetsAt,
+  });
+
+  String _resetsLabel() {
+    if (resetsAt == null) return '';
+    try {
+      final dt = DateTime.parse(resetsAt!);
+      const m = ['Jan','Feb','Mar','Apr','May','Jun',
+                  'Jul','Aug','Sep','Oct','Nov','Dec'];
+      return '${m[dt.month - 1]} ${dt.day}, ${dt.year}';
+    } catch (_) { return ''; }
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
+    final used  = usedGb ?? 0.0;
+    final limit = limitGb ?? 0.0;
+    final pct   = limit > 0 ? (used / limit).clamp(0.0, 1.0) : 1.0;
+    final resetLabel = _resetsLabel();
+
     return PopScope(
       canPop: true,
       child: Scaffold(
         backgroundColor: t.bg,
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                // RaddFlix wordmark
                 RichText(
                   text: TextSpan(
-                    style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5),
+                    style: const TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5),
                     children: [
-                      TextSpan(
-                          text: 'Radd',
-                          style: TextStyle(color: t.textPrimary)),
-                      TextSpan(
-                          text: 'Flix',
+                      TextSpan(text: 'Radd', style: TextStyle(color: t.textPrimary)),
+                      const TextSpan(text: 'Flix',
                           style: TextStyle(color: AppColors.primary)),
                     ],
                   ),
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 40),
+
+                // Icon
                 Container(
-                  width: 100,
-                  height: 100,
+                  width: 100, height: 100,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppColors.primary.withOpacity(0.08),
+                    color: AppColors.error.withOpacity(0.07),
                     border: Border.all(
-                        color: AppColors.primary.withOpacity(0.25), width: 2),
+                        color: AppColors.error.withOpacity(0.2), width: 2)),
+                  child: const Icon(Icons.data_usage_rounded,
+                      color: AppColors.error, size: 46),
+                ),
+                const SizedBox(height: 28),
+
+                // Title
+                Text(
+                  "You've Hit Your\nData Limit 🚫",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: t.textPrimary, fontSize: 26,
+                      fontWeight: FontWeight.w900, height: 1.15, letterSpacing: -0.5),
+                ),
+                const SizedBox(height: 12),
+
+                // Subtitle
+                Text(
+                  limit > 0
+                      ? 'You streamed ${used.toStringAsFixed(1)} GB out of your ${limit.toInt()} GB ${planName ?? ""} plan. '
+                        'No worries — renew or upgrade to keep watching!'
+                      : 'Your monthly streaming limit is reached. '
+                        'Upgrade to a bigger plan and keep the binge going!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: t.textSecondary, fontSize: 14, height: 1.6),
+                ),
+                const SizedBox(height: 24),
+
+                // GB usage bar (if we know the values)
+                if (limit > 0) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: t.card,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: t.cardBorder)),
+                    child: Column(children: [
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('${used.toStringAsFixed(1)} GB used',
+                            style: TextStyle(color: t.textMuted,
+                                fontSize: 12, fontWeight: FontWeight.w600)),
+                        Text('${limit.toInt()} GB plan',
+                            style: TextStyle(color: t.textMuted,
+                                fontSize: 12, fontWeight: FontWeight.w600)),
+                      ]),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(5),
+                        child: LinearProgressIndicator(
+                          value: pct, minHeight: 10,
+                          backgroundColor: t.border,
+                          valueColor: const AlwaysStoppedAnimation(AppColors.error),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (resetLabel.isNotEmpty)
+                        Text('🔄 Resets on $resetLabel',
+                            style: TextStyle(color: t.textMuted, fontSize: 12)),
+                    ]),
                   ),
-                  child: Icon(Icons.data_usage_rounded,
-                      color: AppColors.primary, size: 46),
-                ),
-                SizedBox(height: 32),
-                Text(
-                  'Daily Limit Reached',
-                  style: TextStyle(
-                      color: t.textPrimary,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 14),
-                Text(
-                  "You've used your daily data quota. Upgrade your plan for more streaming, or get 100 MB free today via SIMOSA.",
-                  style: TextStyle(
-                      color: t.textSecondary,
-                      fontSize: 14,
-                      height: 1.6),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 48),
+                  const SizedBox(height: 24),
+                ],
+
+                // Primary CTA — Upgrade / Renew
                 GestureDetector(
                   onTap: () => Navigator.of(context)
                       .pushReplacementNamed(AppRoutes.subscription),
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 17),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [AppColors.primary, AppColors.primaryLight],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      ),
-                      borderRadius: BorderRadius.circular(14),
+                        begin: Alignment.centerLeft, end: Alignment.centerRight),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                       boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withOpacity(0.4),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
-                        )
-                      ],
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.workspace_premium_rounded,
-                            color: Colors.white, size: 20),
-                        SizedBox(width: 10),
-                        Text('Upgrade Plan',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 16)),
-                      ],
-                    ),
+                        BoxShadow(color: AppColors.primary.withOpacity(0.4),
+                            blurRadius: 20, offset: const Offset(0, 8)),
+                      ]),
+                    child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 20),
+                      SizedBox(width: 10),
+                      Text('Renew or Upgrade Plan',
+                          style: TextStyle(color: Colors.white,
+                              fontWeight: FontWeight.w800, fontSize: 16)),
+                    ]),
                   ),
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
+
+                // SIMOSA promo (Jazz's earn-free-MB app — external only)
                 GestureDetector(
                   onTap: () async {
-                    final uri =
-                        Uri.tryParse(AppConstants.simosaPlayStoreUrl);
+                    final uri = Uri.tryParse(AppConstants.simosaPlayStoreUrl);
                     if (uri != null) {
-                      await launchUrl(uri,
-                          mode: LaunchMode.externalApplication);
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
                     }
                   },
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
                     decoration: BoxDecoration(
                       color: t.card,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: t.cardBorder),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('🔥', style: TextStyle(fontSize: 18)),
-                        SizedBox(width: 8),
-                        Text('Get 100 MB Free via SIMOSA',
-                            style: TextStyle(
-                                color: t.textPrimary,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15)),
-                      ],
-                    ),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: t.cardBorder)),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      const Text('🔥', style: TextStyle(fontSize: 17)),
+                      const SizedBox(width: 8),
+                      Text('Earn Free MB on Jazz via SIMOSA',
+                          style: TextStyle(color: t.textPrimary,
+                              fontWeight: FontWeight.w700, fontSize: 14)),
+                    ]),
                   ),
                 ),
-                SizedBox(height: 20),
+
+                const SizedBox(height: 6),
+                Text('SIMOSA is Jazz\'s own app for earning bonus MBs. '
+                    'It\'s separate from RaddFlix.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: t.textMuted, fontSize: 10)),
+
+                const SizedBox(height: 20),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
                   child: Text('Go Back',
-                      style: TextStyle(
-                          color: t.textMuted, fontSize: 14)),
+                      style: TextStyle(color: t.textMuted, fontSize: 14)),
                 ),
+                const SizedBox(height: 16),
               ],
             ),
           ),
