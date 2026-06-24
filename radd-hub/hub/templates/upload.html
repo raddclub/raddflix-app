@@ -118,6 +118,20 @@
   </div>
 </div>
 
+{# ── Stuck uploads banner ── #}
+<div id="stuck-banner" style="display:none;background:rgba(244,160,0,.1);border:1px solid rgba(244,160,0,.5);border-radius:8px;padding:10px 16px;margin-bottom:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+  <div>
+    <span style="font-weight:700;color:#f5a623">&#9203; <span id="stuck-count">0</span> file(s) stuck uploading</span>
+    <span class="muted" style="font-size:12px;margin-left:8px">Uploading &gt;10 min with no speed &mdash; auto-releases at 10 min, or click Reset now.</span>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer">
+      <input type="checkbox" id="stuck-incl-failed"> Also reset failed
+    </label>
+    <button onclick="resetStuck()" style="background:#f5a623;color:#000;border:none;font-size:12px;padding:4px 12px;border-radius:5px;cursor:pointer">Reset stuck</button>
+  </div>
+</div>
+
 {# ── Dashboard stats ── #}
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
   <div class="card" style="padding:14px;text-align:center">
@@ -140,9 +154,12 @@
   </div>
 
   <div class="card" style="padding:14px;text-align:center">
-    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Pending</div>
+    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Queue</div>
     <div id="stat-pending" style="font-size:1.35rem;font-weight:700">—</div>
-    <div class="muted" style="font-size:11px;margin-top:3px">queued files</div>
+    <div style="display:flex;justify-content:center;gap:10px;margin-top:4px">
+      <span class="muted" style="font-size:10px"><span id="stat-queued" style="font-weight:600">0</span> queued</span>
+      <span class="muted" style="font-size:10px"><span id="stat-uploading" style="font-weight:600;color:#6366f1">0</span> uploading</span>
+    </div>
   </div>
 </div>
 
@@ -177,7 +194,10 @@
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <h3 style="margin:0">Active &amp; Recent Uploads</h3>
-      <div style="display:flex;gap:6px">
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;color:#888" title="Also re-queue failed/skipped files">
+          <input type="checkbox" id="reset-incl-failed" style="cursor:pointer"> incl. failed
+        </label>
         <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="resetStuck()">Reset stuck</button>
         <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="loadJobs()">Refresh</button>
       </div>
@@ -596,10 +616,16 @@ async function scanNow() {
 }
 
 async function resetStuck() {
-  const incl = confirm('Also reset "not found" skipped files?');
+  const cb1 = document.getElementById('reset-incl-failed');
+  const cb2 = document.getElementById('stuck-incl-failed');
+  const incl = (cb1 && cb1.checked) || (cb2 && cb2.checked);
   try {
     const r = await api('/upload/api/reset-stuck', {method:'POST', body:{include_skipped: incl}});
-    toast('Reset completed');
+    const n2 = r.reset_inprogress || 0;
+    const n1 = r.reset_skipped   || 0;
+    toast('Reset: ' + n2 + ' stuck' + (incl && n1 ? ', ' + n1 + ' failed' : '') + ' → re-queued');
+    const banner = document.getElementById('stuck-banner');
+    if (banner) banner.style.display = 'none';
     loadJobs();
   } catch(e) { toast('Error: ' + e.message); }
 }
@@ -777,7 +803,33 @@ async function loadJobs() {
           + '</tr>';
       }).join('');
     }
-    document.getElementById('stat-pending').textContent = rows.filter(j => j.state === 'queued' || j.state === 'uploading' || j.state === 'checking').length;
+    const queuedCount    = rows.filter(j => j.state === 'queued').length;
+    const uploadingCount = rows.filter(j => j.state === 'uploading').length;
+    const totalPending   = queuedCount + uploadingCount + rows.filter(j => j.state === 'checking').length;
+    const pendEl = document.getElementById('stat-pending');
+    if (pendEl) pendEl.textContent = totalPending || 0;
+    const qEl = document.getElementById('stat-queued');
+    const uEl = document.getElementById('stat-uploading');
+    if (qEl) qEl.textContent = queuedCount;
+    if (uEl) uEl.textContent = uploadingCount;
+
+    // Stuck detection: uploading >10 min with no speed
+    const nowSec = Math.floor(Date.now() / 1000);
+    const stuckJobs = rows.filter(j =>
+      j.state === 'uploading' &&
+      j.started_at && (nowSec - j.started_at) > 600 &&
+      (!j.speed_bps || j.speed_bps === 0)
+    );
+    const stuckBanner  = document.getElementById('stuck-banner');
+    const stuckCountEl = document.getElementById('stuck-count');
+    if (stuckBanner) {
+      if (stuckJobs.length > 0) {
+        stuckBanner.style.display = 'flex';
+        if (stuckCountEl) stuckCountEl.textContent = stuckJobs.length;
+      } else {
+        stuckBanner.style.display = 'none';
+      }
+    }
   } catch {}
 }
 
