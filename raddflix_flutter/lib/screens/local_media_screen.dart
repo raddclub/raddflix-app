@@ -219,6 +219,15 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
               ),
             )
           : null,
+      bottomNavigationBar: RaddFlixBottomNav(
+        currentIndex: 1,
+        onTap: (i) {
+          if (i == 1) return;
+          Navigator.of(context).popUntil((r) => r.isFirst);
+          if (i == 2) Navigator.of(context).pushNamed(AppRoutes.downloads);
+          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.profile);
+        },
+      ),
       body: SafeArea(
         child: Column(children: [
           _buildTopBar(),
