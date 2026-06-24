@@ -238,3 +238,33 @@ Runs #1237–#1239 all failed on the same error: `Couldn't find constructor 'Met
 - Oracle Flask: RUNNING
 - Build: triggered after fixes — monitoring
 - Open tasks: none
+
+
+---
+
+## Session 2026-06-24 — Build Fix: vault_service.dart local_auth 2.x API removal
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| BUG-22-07 | Fix build: remove local_auth/auth_strings.dart import + AuthMessages usage (removed in local_auth 2.x) | ✅ DONE |
+
+### Root cause
+Builds #1250-#1254 all failed with:
+- vault_service.dart:7: import 'package:local_auth/auth_strings.dart' — file does not exist in local_auth 2.x
+- 'AuthMessages' is not a type
+- Method not found: 'AndroidAuthMessages'
+
+In local_auth 2.x, auth_strings.dart was removed. AuthMessages and AndroidAuthMessages no longer exist,
+and the authMessages parameter was removed from authenticate(). Fix: removed the import and the
+authMessages block from authenticateBiometric().
+
+### Files changed
+| File | Change |
+|------|--------|
+| raddflix_flutter/lib/services/vault_service.dart | Removed auth_strings.dart import + authMessages block |
+
+### State at end of session
+- Oracle Flask: RUNNING (v3.0.0)
+- Build: triggered after fix
+- Open tasks: none
