@@ -737,24 +737,29 @@ def plans():
             "color":           p.get("color") or "#E8002D",
             "jazz_savings_msg": savings_msg,
         })
-    # Seed default plans if none exist
+    # Seed default plans if none exist in DB
     if not out:
         out = [
-            {"id": "basic",    "name": "Basic",    "price_monthly": 149,
-             "data_gb": 30,  "max_devices": 1, "duration_days": 30,
-             "features": ["Zero-data streaming", "SD 480p quality", "Free content"],
+            {"id": "starter",  "name": "Starter",  "price_monthly": 150,
+             "data_gb": 10,  "max_devices": 1, "duration_days": 30,
+             "features": ["Zero-data streaming", "HD quality", "All content"],
              "is_active": True, "color": "#E8002D",
-             "jazz_savings_msg": ""},
-            {"id": "standard", "name": "Standard", "price_monthly": 249,
-             "data_gb": 50,  "max_devices": 1, "duration_days": 30,
+             "jazz_savings_msg": "67% cheaper than Jazz data"},
+            {"id": "basic",    "name": "Basic",    "price_monthly": 250,
+             "data_gb": 30,  "max_devices": 1, "duration_days": 30,
              "features": ["Zero-data streaming", "HD 720p quality", "All content"],
              "is_active": True, "color": "#7C5CFF",
-             "jazz_savings_msg": ""},
-            {"id": "premium",  "name": "Premium",  "price_monthly": 399,
+             "jazz_savings_msg": "44% cheaper than Jazz data"},
+            {"id": "standard", "name": "Standard", "price_monthly": 400,
+             "data_gb": 60,  "max_devices": 1, "duration_days": 30,
+             "features": ["Zero-data streaming", "Full HD 1080p", "All content"],
+             "is_active": True, "color": "#2563EB",
+             "jazz_savings_msg": "56% cheaper than Jazz data"},
+            {"id": "premium",  "name": "Premium",  "price_monthly": 700,
              "data_gb": 100, "max_devices": 2, "duration_days": 30,
              "features": ["Zero-data streaming", "Full HD 1080p", "All content", "2 devices"],
              "is_active": True, "color": "#22C55E",
-             "jazz_savings_msg": ""},
+             "jazz_savings_msg": "53% cheaper than Jazz data"},
         ]
     return jsonify({"ok": True, "plans": out})
 
@@ -859,6 +864,8 @@ def _compute_app_quota(user_id: int) -> dict:
             "monthly_limit_gb": 0,
             "daily_used_gb":    round(today_gb, 3),
             "monthly_used_gb":  round(month_gb, 3),
+            "is_exceeded":      False,
+            "resets_at":        None,
             "sub_plan":         "free",
             "sub_expires_at":   None,
         }
@@ -873,19 +880,26 @@ def _compute_app_quota(user_id: int) -> dict:
             "plan_name":        plan_name,
             "daily_limit_gb":   daily_limit,
             "daily_used_gb":    round(today_gb, 3),
+            "monthly_limit_gb": monthly_limit,
+            "monthly_used_gb":  round(month_gb, 3),
+            "is_exceeded":      True,
+            "resets_at":        sub_expires,
             "sub_plan":         sub_plan,
             "sub_expires_at":   sub_expires,
         }
 
     if monthly_limit > 0 and month_gb >= monthly_limit:
         return {
-            "allowed":            False,
-            "reason":             "monthly_limit_reached",
-            "plan_name":          plan_name,
-            "monthly_limit_gb":   monthly_limit,
-            "monthly_used_gb":    round(month_gb, 3),
-            "sub_plan":           sub_plan,
-            "sub_expires_at":     sub_expires,
+            "allowed":              False,
+            "reason":               "monthly_limit_reached",
+            "plan_name":            plan_name,
+            "monthly_limit_gb":     monthly_limit,
+            "monthly_used_gb":      round(month_gb, 3),
+            "monthly_remaining_gb": 0.0,
+            "is_exceeded":          True,
+            "resets_at":            sub_expires,
+            "sub_plan":             sub_plan,
+            "sub_expires_at":       sub_expires,
         }
 
     return {
@@ -897,6 +911,8 @@ def _compute_app_quota(user_id: int) -> dict:
         "monthly_used_gb":      round(month_gb, 3),
         "daily_remaining_gb":   round(max(0.0, daily_limit  - today_gb),  3) if daily_limit   else None,
         "monthly_remaining_gb": round(max(0.0, monthly_limit - month_gb), 3) if monthly_limit else None,
+        "is_exceeded":          False,
+        "resets_at":            sub_expires,
         "sub_plan":             sub_plan,
         "sub_expires_at":       sub_expires,
     }
