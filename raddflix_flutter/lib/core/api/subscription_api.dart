@@ -5,7 +5,7 @@ import '../../models/subscription.dart';
 class SubscriptionApi {
   static final _client = ApiClient.instance;
 
-  /// List all available subscription plans with prices.
+  /// List all available subscription plans with GB limits and prices.
   static Future<List<SubscriptionPlan>> getPlans() async {
     final response = await _client.get(ApiPaths.plans);
     final data = response.data as Map<String, dynamic>;
@@ -15,15 +15,31 @@ class SubscriptionApi {
         .toList();
   }
 
-  /// Get the current user's subscription status.
+  /// Get the current user's subscription status + live GB quota.
   static Future<SubscriptionStatus> getStatus() async {
     final response = await _client.get(ApiPaths.subscriptionStatus);
     return SubscriptionStatus.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// Fetch live GB quota from server (enriched with used/remaining/resets_at).
+  static Future<Map<String, dynamic>?> getQuota() async {
+    try {
+      final response = await _client.get(ApiPaths.quota);
+      final data = response.data as Map<String, dynamic>? ?? {};
+      return data['quota'] as Map<String, dynamic>?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Submit a TID (Transaction ID) for payment verification.
-  /// User pays on Jazz app, gets TID, submits it here.
-  /// Admin verifies in Radd Hub → subscription is activated.
+  ///
+  /// Works for all cases:
+  ///  - New subscriber: pick plan + submit TID
+  ///  - Renew same plan: submit same plan TID again
+  ///  - Upgrade: pick higher plan + submit TID
+  ///
+  /// Admin verifies in radd-hub → subscription is activated/extended.
   static Future<Map<String, dynamic>> submitTid({
     required String phone,
     required String tid,
@@ -42,7 +58,7 @@ class SubscriptionApi {
     return response.data as Map<String, dynamic>;
   }
 
-  /// Check status of a submitted TID payment.
+  /// Check status of all submitted TID payments for this user.
   static Future<Map<String, dynamic>> getTidStatus() async {
     final response = await _client.get(ApiPaths.tidStatus);
     return response.data as Map<String, dynamic>;
