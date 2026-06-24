@@ -18,6 +18,7 @@ import '../widgets/loading_overlay.dart';
 import '../core/player/scene_bookmark_store.dart';  // BUG-A23
 import '../core/player/player_prefs.dart';          // BUG-A21
 import '../core/db/local_db.dart';                  // BUG-A22
+import '../widgets/bottom_nav.dart';
 import 'debug_diagnostics_screen.dart';
 import '../core/debug/debug_logger.dart';
 
@@ -125,6 +126,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       loading: _loggingOut,
       child: Scaffold(
         backgroundColor: null,
+        bottomNavigationBar: RaddFlixBottomNav(
+          currentIndex: 3,
+          onTap: (i) {
+            if (i == 3) return;
+            Navigator.of(context).popUntil((r) => r.isFirst);
+            if (i == 1) Navigator.of(context).pushNamed(AppRoutes.localMedia);
+            else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.downloads);
+          },
+        ),
         body: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
