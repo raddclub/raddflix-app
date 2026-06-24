@@ -65,3 +65,4 @@ None — awaiting user review.
 | BUG-22-04 | Add bottom nav to DownloadsScreen | ✅ DONE (6a5e6e6) |
 | BUG-22-05 | Add bottom nav to ProfileScreen | ✅ DONE (f938e67) |
 | BUG-22-06 | Player sidebar default collapsed instead of expanded | ✅ DONE (493d842) |
+| BUG-22-07 | Fix build: vault_service.dart imports local_auth/auth_strings.dart (removed in 2.x) | ✅ DONE |
