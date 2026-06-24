@@ -84,3 +84,15 @@ None — awaiting user review.
 | ORA-24-02 | Fix uploader.py: _release_stuck_uploads() before JAZZDRIVE+UPLOAD toggle gates | ✅ DONE (7974e8e) |
 | ORA-24-03 | Admin upload.html: stuck-banner + reset-failed checkbox + 4s auto-poll + split stats | ✅ DONE (39b532a) |
 | ORA-24-04 | Restart Oracle Flask + verify healthz {"ok":true,"version":"3.0.0"} | ✅ DONE |
+
+## Phase 25 — Full Profile Edit Feature (2026-06-24)
+
+| ID | Task | Status |
+|----|------|--------|
+| PRO-25-01 | AppUser model: displayName, email, avatarColor, avatarEmoji + displayLabel/avatarInitial getters | ✅ DONE (dc335f7) |
+| PRO-25-02 | AuthApi: updateProfile() + changePassword() | ✅ DONE (dc335f7) |
+| PRO-25-03 | ApiPaths: /api/auth/profile + /api/auth/change-password | ✅ DONE (dc335f7) |
+| PRO-25-04 | EditProfileScreen: avatar color picker (8 colors), name/email fields, change-password bottom sheet | ✅ DONE (dc335f7) |
+| PRO-25-05 | ProfileScreen: colored avatar, displayName label, edit pencil button | ✅ DONE (dc335f7) |
+| PRO-25-06 | Oracle db.py: 4 new columns + additive migrations | ✅ DONE (dc335f7) |
+| PRO-25-07 | Oracle mobile_api.py: PUT /profile + POST /change-password + /me returns new fields | ✅ DONE (dc335f7) |
