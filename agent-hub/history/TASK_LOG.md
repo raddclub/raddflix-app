@@ -268,3 +268,51 @@ authMessages block from authenticateBiometric().
 - Oracle Flask: RUNNING (v3.0.0)
 - Build: triggered after fix
 - Open tasks: none
+
+
+---
+
+## Session 2026-06-24 — Phase 23: Complete previous session's unfinished task
+
+### Context
+Previous agent session ran out of quota mid-task after pushing 5 files but leaving a build error
+(auth_strings.dart). This session fixed that error, then audited all 9 confirmed changes to find
+remaining gaps and complete them.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| BUG-22-07 | Fix build: vault_service.dart auth_strings.dart (removed in local_auth 2.x) | DONE (3f08da0) |
+| BUG-23-01 | Fix authenticateBiometric: use getAvailableBiometrics() — real Infinix/MediaTek fix | DONE |
+| BUG-23-02 | Add to Vault from Downloads screen (vault icon in selection toolbar) | DONE |
+| BUG-23-03 | Add to Vault from Local Media screen (long-press folder → Add to Vault menu) | DONE |
+| BUG-23-04 | LinearProgressIndicator on folder cards (list + grid) in LocalMediaScreen | DONE |
+
+### What the previous session had already completed
+- Videos-only import in vault (FileType.video)
+- Add Folder option in vault (importVideoFolder)
+- getAvailableBiometrics() in isBiometricAvailable()
+- onAppPaused() auto-lock fix (only locks on secs==0)
+- Filter chips All/Watching/Watched in local_media_screen
+- WATCHED + WATCHING % badges on folder cards
+- Add to Vault in local_folder_screen (long-press)
+
+### Root causes fixed this session
+- authenticateBiometric still used canCheckBiometrics (only works for Class 3/Strong sensors).
+  MediaTek Helio G25 (Infinix Hot 9 Play) is Class 2 so canCheckBiometrics returns false even
+  with enrolled fingerprints. Fix: use getAvailableBiometrics() which works on all sensor classes.
+- Downloads and LocalMedia screens had no vault integration — added in this session.
+- _FolderGridCard had _statusBadge() defined but never called in the Stack. Fixed + added
+  LinearProgressIndicator to both list tile and grid card.
+
+### Files changed
+| File | Change |
+|------|--------|
+| raddflix_flutter/lib/services/vault_service.dart | authenticateBiometric: getAvailableBiometrics() |
+| raddflix_flutter/lib/screens/downloads_screen.dart | vault import + toolbar vault button + _addSelectedToVault() |
+| raddflix_flutter/lib/screens/local_media_screen.dart | vault import + folder long-press menu + progress bar |
+
+### State at end of session
+- Oracle Flask: RUNNING (v3.0.0)
+- Build: triggered after fixes
+- Open tasks: none
