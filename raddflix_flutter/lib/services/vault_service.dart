@@ -145,10 +145,12 @@ class VaultService {
     final enabled = await isBiometricEnabled();
     if (!enabled) return false;
 
-    // Use same dual-check as isBiometricAvailable — handles MediaTek quirk
-    final canCheck = await _auth.canCheckBiometrics;
-    final supported = await _auth.isDeviceSupported();
-    if (!canCheck && !supported) return false;
+    // FIX-BIOMETRIC-02: Use getAvailableBiometrics() directly — works on Infinix/MediaTek
+    // Class 2 (Helio G25) where canCheckBiometrics incorrectly returns false.
+    // canCheckBiometrics only returns true for Class 3 (Strong) sensors; MediaTek Helio G25
+    // ships Class 2 which causes canCheckBiometrics to return false even with enrolled fingerprints.
+    final available = await _auth.getAvailableBiometrics();
+    if (available.isEmpty && !await _auth.isDeviceSupported()) return false;
 
     try {
       final ok = await _auth.authenticate(
