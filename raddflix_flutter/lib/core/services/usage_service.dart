@@ -7,19 +7,27 @@ import '../debug/debug_logger.dart';
 
 /// Phase 6 — Data Usage Tracking Service.
 ///
-/// Tracks bytes watched locally (SQLite), then flushes to the server
+/// Tracks bytes consumed locally (SQLite), then flushes to the server
 /// when internet is available. Uses optimistic flushing — if the server
 /// call fails, the data stays in local DB for the next attempt.
 ///
-/// Usage (from player or app startup):
+/// Rules:
+///   - Streaming non-free content → addWatchSession()
+///   - Downloading a file        → addDownloadBytes()
+///   - Playing a local/downloaded file → SKIP (already counted or not our content)
+///   - Watching free content     → SKIP (free means free)
+///   - Guest user                → SKIP (no account to track against)
+///
+/// Usage (from player or download service):
 ///   UsageService.addWatchSession(seconds: 120, quality: '720p');
-///   UsageService.flushPending();  // called on app resume / sync
+///   UsageService.addDownloadBytes(bytes: 524288000);
+///   UsageService.flushPending();  // called on app resume / sync / player close
 class UsageService {
   UsageService._();
 
   static bool _flushing = false; // M-18: prevent concurrent flush calls
 
-  // Quality → estimated bytes per second
+  // Quality → estimated bits per second
   static const Map<String, int> _bpsEstimate = {
     '1080p': 2200000,
     '720p':  1100000,
@@ -32,9 +40,11 @@ class UsageService {
     return (seconds * bps) ~/ 8; // bits → bytes
   }
 
-  /// Called when a watch session ends (player closes / next episode).
-  /// [seconds] = seconds actually played (not total duration).
+  /// Called when a streaming watch session ends (player closes / next episode).
+  /// [seconds] = wall-clock seconds player was running (not content position).
   /// [quality] = '720p', '1080p', etc.
+  ///
+  /// ONLY call this when _trackUsage = true in the player (non-local, non-free).
   static Future<void> addWatchSession({
     required int seconds,
     String quality = '720p',
@@ -43,16 +53,26 @@ class UsageService {
     if (seconds <= 0) return;
     final bytes = _estimateBytes(seconds: seconds, quality: quality);
     await LocalDb.addPendingUsage(bytes: bytes);
-    DebugLogger.log('USAGE', 'Watch session: ${seconds}s @ $quality → ${(bytes / 1024 / 1024).toStringAsFixed(1)} MB');
-    // Try to flush immediately (fire-and-forget)
+    DebugLogger.log('USAGE',
+        'Watch session: ${seconds}s @ $quality → ${(bytes / 1024 / 1024).toStringAsFixed(1)} MB');
+    flushPending().ignore();
+  }
+
+  /// Called when a download completes successfully.
+  /// Uses the actual file size (exact, not estimated).
+  ///
+  /// ONLY call after a completed RaddFlix download — not for user's own local files.
+  static Future<void> addDownloadBytes({required int bytes}) async {
+    if (bytes <= 0) return;
+    await LocalDb.addPendingUsage(bytes: bytes);
+    DebugLogger.log('USAGE',
+        'Download counted: ${(bytes / 1024 / 1024).toStringAsFixed(1)} MB');
     flushPending().ignore();
   }
 
   /// Flush all pending usage bytes to the server.
-  /// Safe to call multiple times — idempotent.
+  /// Safe to call multiple times — idempotent, re-entrancy guarded.
   static Future<void> flushPending() async {
-    // M-18: re-entrancy guard — connectivity change + background timer can
-    // both call flushPending() concurrently, sending the same bytes twice.
     if (_flushing) return;
     _flushing = true;
     try {
@@ -73,16 +93,14 @@ class UsageService {
       final data = resp.data as Map<String, dynamic>? ?? {};
       if (data['ok'] == true) {
         await LocalDb.clearPendingUsage();
-        DebugLogger.log('USAGE', 'Flushed ${(pending / 1024 / 1024).toStringAsFixed(1)} MB to server');
-
-        // Update local quota cache from server response
+        DebugLogger.log('USAGE',
+            'Flushed ${(pending / 1024 / 1024).toStringAsFixed(1)} MB to server');
         final quota = data['quota'] as Map<String, dynamic>?;
         if (quota != null) {
           await LocalDb.cacheQuota(quota);
         }
       }
     } on DioException catch (e) {
-      // Network error — keep pending bytes for next flush attempt
       DebugLogger.logWarn('USAGE', 'Flush failed (will retry): ${e.type}');
     } catch (e) {
       DebugLogger.logWarn('USAGE', 'Flush error: $e');
@@ -94,7 +112,7 @@ class UsageService {
     return LocalDb.getCachedQuota();
   }
 
-  /// Fetch fresh quota from server (requires internet).
+  /// Fetch fresh quota from server and update local cache.
   static Future<Map<String, dynamic>?> fetchQuota() async {
     try {
       final resp = await ApiClient.instance.get(ApiPaths.quota);
