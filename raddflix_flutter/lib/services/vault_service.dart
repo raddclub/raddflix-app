@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:local_auth/auth_strings.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -159,15 +158,7 @@ class VaultService {
           stickyAuth: true,
           useErrorDialogs: true,
         ),
-        authMessages: const <AuthMessages>[
-          AndroidAuthMessages(
-            signInTitle: 'Private Vault',
-            cancelButton: 'Use PIN instead',
-            biometricHint: 'Touch sensor to unlock',
-            biometricNotRecognized: 'Fingerprint not recognised. Try again.',
-            biometricRequiredTitle: 'Fingerprint required',
-          ),
-        ],
+
       );
       if (ok) {
         _unlocked = true;
