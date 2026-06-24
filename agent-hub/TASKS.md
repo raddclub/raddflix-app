@@ -54,3 +54,14 @@ None — awaiting user review.
 
 ## Open Tasks
 | BUILD-FIX-01 | Fix const MethodChannel compile error in local_media_screen.dart:378 | ✅ DONE (310016f) |
+
+## Phase 22 — Bug Fixes (2026-06-24)
+
+| ID | Task | Status |
+|----|------|--------|
+| BUG-22-01 | Remove red dot indicator from bottom nav | ✅ DONE (3d1b275) |
+| BUG-22-02 | Fix grey screen opening local folder (invalid (?i) regex → crash) | ✅ DONE (217f1e8) |
+| BUG-22-03 | Add bottom nav to LocalMediaScreen | ✅ DONE (7ed61f7) |
+| BUG-22-04 | Add bottom nav to DownloadsScreen | ✅ DONE (6a5e6e6) |
+| BUG-22-05 | Add bottom nav to ProfileScreen | ✅ DONE (f938e67) |
+| BUG-22-06 | Player sidebar default collapsed instead of expanded | ✅ DONE (493d842) |
