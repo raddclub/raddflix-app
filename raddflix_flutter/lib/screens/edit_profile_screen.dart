@@ -113,13 +113,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final color = _hex(_avatarColor);
 
     return Scaffold(
-      backgroundColor: t.background,
+      backgroundColor: t.bg,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
           // ── App bar ──────────────────────────────────────────────────────
           SliverAppBar(
-            backgroundColor: t.background,
+            backgroundColor: t.bg,
             surfaceTintColor: Colors.transparent,
             pinned: true,
             elevation: 0,
@@ -635,7 +635,7 @@ class _PwField extends StatelessWidget {
     final t = RaddTheme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: t.background,
+        color: t.bg,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: t.border),
       ),

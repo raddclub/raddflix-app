@@ -11,6 +11,7 @@ import '../services/vault_service.dart';
 import '../core/security/device_id.dart';
 import '../core/theme/theme_provider.dart';
 import '../providers/auth_provider.dart';
+import '../models/user.dart';
 import '../providers/watchlist_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../core/api/subscription_api.dart';
