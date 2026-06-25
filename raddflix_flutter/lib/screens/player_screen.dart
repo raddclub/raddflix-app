@@ -683,7 +683,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_trackUsage && mounted) {
       final quota = await UsageService.getCachedQuota();
       if (quota['allowed'] == false || quota['is_exceeded'] == true) {
-        if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.quotaFull);
+        // BUG-H01 fix: pass real quota numbers so the screen can show a filled progress bar
+        if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.quotaFull, arguments: {
+          'used_gb':   quota['used_gb'],
+          'limit_gb':  quota['limit_gb'],
+          'plan_name': quota['plan_name'],
+          'resets_at': quota['resets_at'],
+        });
         return;
       }
     }
@@ -841,7 +847,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_trackUsage && mounted) {
       final quota = await UsageService.getCachedQuota();
       if (quota['allowed'] == false || quota['is_exceeded'] == true) {
-        if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.quotaFull);
+        // BUG-H01 fix: pass real quota numbers to QuotaFullScreen
+        if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.quotaFull, arguments: {
+          'used_gb':   quota['used_gb'],
+          'limit_gb':  quota['limit_gb'],
+          'plan_name': quota['plan_name'],
+          'resets_at': quota['resets_at'],
+        });
         return;
       }
     }
