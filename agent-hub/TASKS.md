@@ -65,8 +65,16 @@
 | SUB-26-10 | profile_screen.dart: live GB usage progress bar in subscription card | ✅ DONE |
 | SUB-26-11 | mobile_api.py: 4 new seed plans (10GB/150, 30GB/250, 60GB/400, 100GB/700); _compute_app_quota enriched with is_exceeded + resets_at in all response paths | ✅ DONE |
 
+## Phase 26 Bug Fixes — Audit Pass (2026-06-24)
+
+| ID | Bug | Root Cause | Fix | Status |
+|----|-----|-----------|-----|--------|
+| BUG-26-A | GB usage bar always showed 0% in profile screen | `/status` backend response only returned plan limits, not usage data. `status.monthlyUsedGb` was always 0 | (1) `mobile_api.py` `/status` now includes full `quota` dict in response. (2) `profile_screen.dart` also calls `getQuota()` for guaranteed fresh data, with offline fallback | ✅ FIXED |
+| BUG-26-B | Wrong variable name in `_startUsageTimer()` | `final h = _player.state.width ?? 0` — used `.width` but named it `h` (height) causing confusing quality detection logic | Renamed to `w` and updated comment to correctly say "from video width" | ✅ FIXED |
+| BUG-26-C | `/status` guest response missing quota fields | Guest `_user_id==0` early-return didn't include quota — could cause null errors in `SubscriptionStatus.fromJson` | Added minimal quota dict to the guest early-return path | ✅ FIXED |
+
 ## Open Tasks
-None — all phases 17–26 complete. Awaiting next task.
+None — all phases 17–26 complete (including audit pass). Awaiting next task.
 
 ## Phase 22 — Bug Fixes (2026-06-24)
 
