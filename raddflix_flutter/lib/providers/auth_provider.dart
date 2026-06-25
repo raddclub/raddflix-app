@@ -262,12 +262,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final plan      = prefs.getString(StorageKeys.cachedUserPlan)    ?? 'free';
     final expiresAt = prefs.getString(StorageKeys.cachedSubExpiry);
     final hasSub    = plan != 'free' && plan.isNotEmpty;
+    // BUG-C03 fix: reuse UserSubscription.fromJson which checks expiresAt against
+    // DateTime.now() — previously isActive was hardcoded true so expired subscriptions
+    // still appeared active on every app restart until the /me network call completed.
     return AppUser(
       id:    id,
       phone: phone,
       isActive: true,
       subscription: hasSub
-          ? UserSubscription(plan: plan, isActive: true, expiresAt: expiresAt)
+          ? UserSubscription.fromJson({
+              'plan':       plan,
+              'is_active':  1,
+              'expires_at': expiresAt,
+            })
           : null,
     );
   }
