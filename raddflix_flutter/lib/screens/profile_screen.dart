@@ -76,10 +76,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     try {
       final status = await SubscriptionApi.getStatus();
       if (!mounted) return;
+      // status.monthlyUsedGb is populated from the quota embedded in the
+      // /status response (BUG-A fix: backend now includes quota in status).
+      // We additionally fetch fresh quota to guarantee up-to-date usage.
+      double usedGb  = status.monthlyUsedGb;
+      double limitGb = status.monthlyLimitGb;
+      try {
+        final quota = await SubscriptionApi.getQuota();
+        if (quota != null) {
+          usedGb  = (quota['monthly_used_gb']  as num?)?.toDouble() ?? usedGb;
+          limitGb = (quota['monthly_limit_gb'] as num?)?.toDouble() ?? limitGb;
+        }
+      } catch (_) { /* offline — use values from status */ }
       setState(() {
         _remotePlan    = status.plan;
-        _remoteUsedGb  = status.monthlyUsedGb;
-        _remoteLimitGb = status.monthlyLimitGb;
+        _remoteUsedGb  = usedGb;
+        _remoteLimitGb = limitGb;
       });
       final expiresAt = status.expiresAt;
       if (expiresAt != null && status.isActive) {
