@@ -599,7 +599,8 @@ def me(_user_id, _phone):
                         "plan": "free", "subscription": {"is_active": 0}})
     with db.conn() as c:
         user = c.execute(
-            "SELECT id, phone, device_name, is_active, created_at, last_login_at "
+            "SELECT id, phone, device_name, is_active, created_at, last_login_at, "
+            "display_name, email, avatar_color, avatar_emoji "
             "FROM app_users WHERE id=?", (_user_id,)
         ).fetchone()
     if not user:
@@ -607,15 +608,75 @@ def me(_user_id, _phone):
     user = dict(user)
     sub  = _get_subscription_status(_user_id)
     return jsonify({
-        "ok":          True,
-        "id":          user["id"],
-        "phone":       user["phone"],
-        "plan":        sub.get("plan", "free"),
-        "device_name": user.get("device_name"),
-        "subscription": sub,
-        "is_active":   1 if user.get("is_active", 1) else 0,
+        "ok":           True,
+        "id":           user["id"],
+        "phone":        user["phone"],
+        "plan":         sub.get("plan", "free"),
+        "device_name":  user.get("device_name"),
+        "subscription":  sub,
+        "is_active":    1 if user.get("is_active", 1) else 0,
+        "display_name": user.get("display_name") or "",
+        "email":        user.get("email") or "",
+        "avatar_color": user.get("avatar_color") or "#8B002D",
+        "avatar_emoji": user.get("avatar_emoji") or "",
     })
 
+
+
+
+@bp_auth.route("/profile", methods=["PUT"])
+@_require_auth
+def update_profile(_user_id, _phone):
+    """Update display name, email, and/or avatar for the logged-in user."""
+    if _user_id == 0:
+        return jsonify({"error": "guests cannot update profile"}), 403
+    data = request.get_json(silent=True) or {}
+    fields, values = [], []
+    if "display_name" in data:
+        name = str(data["display_name"]).strip()[:60]
+        fields.append("display_name=?"); values.append(name or None)
+    if "email" in data:
+        email = str(data["email"]).strip()[:120]
+        fields.append("email=?"); values.append(email or None)
+    if "avatar_color" in data:
+        color = str(data["avatar_color"]).strip()[:20]
+        fields.append("avatar_color=?"); values.append(color)
+    if "avatar_emoji" in data:
+        emoji = str(data["avatar_emoji"]).strip()[:10]
+        fields.append("avatar_emoji=?"); values.append(emoji)
+    if not fields:
+        return jsonify({"error": "no fields to update"}), 400
+    values.append(_user_id)
+    with db.conn() as conn:
+        conn.execute(f"UPDATE app_users SET {', '.join(fields)} WHERE id=?", values)
+    log.info("profile_updated user_id=%s fields=%s", _user_id, [f.split('=')[0] for f in fields])
+    return jsonify({"ok": True})
+
+
+@bp_auth.route("/change-password", methods=["POST"])
+@_require_auth
+def change_password(_user_id, _phone):
+    """Change the logged-in user's password after verifying the current one."""
+    if _user_id == 0:
+        return jsonify({"error": "guests do not have a password"}), 403
+    data = request.get_json(silent=True) or {}
+    current_pw = (data.get("current_password") or "").strip()
+    new_pw     = (data.get("new_password")     or "").strip()
+    if not current_pw or not new_pw:
+        return jsonify({"error": "current_password and new_password required"}), 400
+    if len(new_pw) < 6:
+        return jsonify({"error": "new password must be at least 6 characters"}), 400
+    with db.conn() as conn:
+        row = conn.execute("SELECT password_hash FROM app_users WHERE id=?", (_user_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "user not found"}), 404
+    if not _verify_user_password(current_pw, row["password_hash"]):
+        return jsonify({"error": "current password is incorrect"}), 401
+    new_hash = _hash_user_password(new_pw)
+    with db.conn() as conn:
+        conn.execute("UPDATE app_users SET password_hash=? WHERE id=?", (new_hash, _user_id))
+    log.info("password_changed user_id=%s", _user_id)
+    return jsonify({"ok": True})
 
 @bp_auth.route("/device", methods=["POST"])
 @_require_auth
@@ -676,24 +737,29 @@ def plans():
             "color":           p.get("color") or "#E8002D",
             "jazz_savings_msg": savings_msg,
         })
-    # Seed default plans if none exist
+    # Seed default plans if none exist in DB
     if not out:
         out = [
-            {"id": "basic",    "name": "Basic",    "price_monthly": 149,
-             "data_gb": 30,  "max_devices": 1, "duration_days": 30,
-             "features": ["Zero-data streaming", "SD 480p quality", "Free content"],
+            {"id": "starter",  "name": "Starter",  "price_monthly": 150,
+             "data_gb": 10,  "max_devices": 1, "duration_days": 30,
+             "features": ["Zero-data streaming", "HD quality", "All content"],
              "is_active": True, "color": "#E8002D",
-             "jazz_savings_msg": ""},
-            {"id": "standard", "name": "Standard", "price_monthly": 249,
-             "data_gb": 50,  "max_devices": 1, "duration_days": 30,
+             "jazz_savings_msg": "67% cheaper than Jazz data"},
+            {"id": "basic",    "name": "Basic",    "price_monthly": 250,
+             "data_gb": 30,  "max_devices": 1, "duration_days": 30,
              "features": ["Zero-data streaming", "HD 720p quality", "All content"],
              "is_active": True, "color": "#7C5CFF",
-             "jazz_savings_msg": ""},
-            {"id": "premium",  "name": "Premium",  "price_monthly": 399,
+             "jazz_savings_msg": "44% cheaper than Jazz data"},
+            {"id": "standard", "name": "Standard", "price_monthly": 400,
+             "data_gb": 60,  "max_devices": 1, "duration_days": 30,
+             "features": ["Zero-data streaming", "Full HD 1080p", "All content"],
+             "is_active": True, "color": "#2563EB",
+             "jazz_savings_msg": "56% cheaper than Jazz data"},
+            {"id": "premium",  "name": "Premium",  "price_monthly": 700,
              "data_gb": 100, "max_devices": 2, "duration_days": 30,
              "features": ["Zero-data streaming", "Full HD 1080p", "All content", "2 devices"],
              "is_active": True, "color": "#22C55E",
-             "jazz_savings_msg": ""},
+             "jazz_savings_msg": "53% cheaper than Jazz data"},
         ]
     return jsonify({"ok": True, "plans": out})
 
@@ -702,9 +768,13 @@ def plans():
 @_require_auth
 def subscription_status(_user_id, _phone):
     if _user_id == 0:
-        return jsonify({"ok": True, "is_active": 0, "plan": "free"})
-    sub = _get_subscription_status(_user_id)
-    return jsonify({"ok": True, **sub})
+        return jsonify({"ok": True, "is_active": 0, "plan": "free",
+                        "quota": {"allowed": True, "plan_name": "guest",
+                                  "is_exceeded": False, "monthly_limit_gb": 0,
+                                  "monthly_used_gb": 0, "resets_at": None}})
+    sub   = _get_subscription_status(_user_id)
+    quota = _compute_app_quota(_user_id)
+    return jsonify({"ok": True, **sub, "quota": quota})
 
 
 @bp_sub.route("/tid/submit", methods=["POST"])
@@ -798,6 +868,8 @@ def _compute_app_quota(user_id: int) -> dict:
             "monthly_limit_gb": 0,
             "daily_used_gb":    round(today_gb, 3),
             "monthly_used_gb":  round(month_gb, 3),
+            "is_exceeded":      False,
+            "resets_at":        None,
             "sub_plan":         "free",
             "sub_expires_at":   None,
         }
@@ -812,19 +884,26 @@ def _compute_app_quota(user_id: int) -> dict:
             "plan_name":        plan_name,
             "daily_limit_gb":   daily_limit,
             "daily_used_gb":    round(today_gb, 3),
+            "monthly_limit_gb": monthly_limit,
+            "monthly_used_gb":  round(month_gb, 3),
+            "is_exceeded":      True,
+            "resets_at":        sub_expires,
             "sub_plan":         sub_plan,
             "sub_expires_at":   sub_expires,
         }
 
     if monthly_limit > 0 and month_gb >= monthly_limit:
         return {
-            "allowed":            False,
-            "reason":             "monthly_limit_reached",
-            "plan_name":          plan_name,
-            "monthly_limit_gb":   monthly_limit,
-            "monthly_used_gb":    round(month_gb, 3),
-            "sub_plan":           sub_plan,
-            "sub_expires_at":     sub_expires,
+            "allowed":              False,
+            "reason":               "monthly_limit_reached",
+            "plan_name":            plan_name,
+            "monthly_limit_gb":     monthly_limit,
+            "monthly_used_gb":      round(month_gb, 3),
+            "monthly_remaining_gb": 0.0,
+            "is_exceeded":          True,
+            "resets_at":            sub_expires,
+            "sub_plan":             sub_plan,
+            "sub_expires_at":       sub_expires,
         }
 
     return {
@@ -836,6 +915,8 @@ def _compute_app_quota(user_id: int) -> dict:
         "monthly_used_gb":      round(month_gb, 3),
         "daily_remaining_gb":   round(max(0.0, daily_limit  - today_gb),  3) if daily_limit   else None,
         "monthly_remaining_gb": round(max(0.0, monthly_limit - month_gb), 3) if monthly_limit else None,
+        "is_exceeded":          False,
+        "resets_at":            sub_expires,
         "sub_plan":             sub_plan,
         "sub_expires_at":       sub_expires,
     }
@@ -1247,3 +1328,73 @@ def _epoch_to_iso(ts) -> Optional[str]:
         return datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
     except Exception:
         return None
+
+
+# ── Catalog Share URL — subscription-gated (Layer 3 server security) ────────
+# GET /api/catalog/share_url?file_id=<id>
+#
+# This endpoint is the server-side fallback used by CatalogApi.getShareUrl()
+# when the local SQLite DB does not have the share_url for a file (e.g. after
+# a fresh install).  It is the ONLY network gate that can stop a determined
+# user who has bypassed the Flutter UI and player gates.
+#
+# Security contract:
+#   • Free  content → accessible to ALL authenticated users (guests included).
+#   • Paid  content → 403 Forbidden for guests (user_id==0) and users with no
+#                     active subscription.
+#
+# NOTE: Register bp_catalog_secure in app.py with url_prefix="/api" so that
+# this route is served at GET /api/catalog/share_url.
+bp_catalog_secure = Blueprint("mobile_catalog_secure", __name__)
+
+
+@bp_catalog_secure.route("/catalog/share_url", methods=["GET"])
+@_require_auth
+def get_catalog_share_url(_user_id, _phone):
+    """GET /api/catalog/share_url?file_id=<id>
+    Returns the JazzDrive share_url for the requested file with subscription gate.
+    """
+    file_id = request.args.get("file_id", "").strip()
+    if not file_id:
+        return jsonify({"error": "file_id required"}), 400
+
+    row = None
+    try:
+        with db.conn() as c:
+            # Try each possible catalog table name; break on first hit.
+            for tbl in ("catalog_episodes", "episodes", "catalog_files", "files"):
+                try:
+                    row = c.execute(
+                        f"SELECT share_url, is_free FROM {tbl} "
+                        f"WHERE file_id=? LIMIT 1",
+                        (file_id,)
+                    ).fetchone()
+                    if row:
+                        break
+                except Exception:
+                    continue
+    except Exception as e:
+        log.warning("share_url DB lookup failed for file_id=%s: %s", file_id, e)
+        return jsonify({"error": "server error"}), 500
+
+    if not row:
+        return jsonify({"error": "not found"}), 404
+
+    is_free = bool(row["is_free"])
+
+    # Subscription gate — paid content is blocked for guests and free users.
+    if not is_free:
+        if _user_id == 0:
+            # Guest token — always denied for paid content.
+            return jsonify({
+                "error":   "subscription_required",
+                "message": "Subscribe to access paid content",
+            }), 403
+        sub = _get_subscription_status(_user_id)
+        if not sub.get("is_active"):
+            return jsonify({
+                "error":   "subscription_required",
+                "message": "Subscribe to access paid content",
+            }), 403
+
+    return jsonify({"ok": True, "share_url": row["share_url"]})
