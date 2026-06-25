@@ -80,12 +80,18 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
   void dispose() { _tidCtrl.dispose(); super.dispose(); }
 
   Future<void> _submitTid() async {
+    // BUG-H02 fix: guests must not submit TIDs — their phone field is 'guest'
+    // which would create a ghost pending record on the server tied to no real account.
+    final user = ref.read(authProvider).user;
+    if (user == null || user.isGuest) {
+      setState(() => _tidError = 'Please log in with your phone number to submit a payment.');
+      return;
+    }
     final tid = _tidCtrl.text.trim();
     if (tid.length < 6) { setState(() => _tidError = 'Enter a valid Transaction ID'); return; }
     if (_selectedPlanId == null) { setState(() => _tidError = 'Select a plan first'); return; }
     setState(() { _submitting = true; _tidError = null; });
     try {
-      final user = ref.read(authProvider).user;
       final success = await ref.read(subscriptionProvider.notifier).submitTid(
         phone: user?.phone ?? '',
         tid: tid,
