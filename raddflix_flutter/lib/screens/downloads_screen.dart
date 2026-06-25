@@ -565,8 +565,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 Navigator.of(context).pushNamed(AppRoutes.planExpired);
                 return;
               }
+              // BUG-7 fix: include content_type so player doesn't default all downloads to 'series'.
               Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
-                'file_id': id, 'title': _title(d), 'local_path': _path(d)});
+                'file_id': id, 'title': _title(d), 'local_path': _path(d),
+                'content_type': d['content_type'] as String? ?? 'movie'});
             }
           },
           onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
@@ -606,8 +608,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 Navigator.of(context).pushNamed(AppRoutes.planExpired);
                 return;
               }
+              // BUG-7 fix: include content_type so player doesn't default all downloads to 'series'.
               Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
-                'file_id': id, 'title': _title(d), 'local_path': _path(d)});
+                'file_id': id, 'title': _title(d), 'local_path': _path(d),
+                'content_type': d['content_type'] as String? ?? 'movie'});
             }
           },
           onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
