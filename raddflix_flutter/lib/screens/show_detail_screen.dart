@@ -180,9 +180,26 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   }
 
   Future<void> _playEpisode(int episodeIndex) async {
-    final allEps = _currentEpisodes;
+    // BUG-M02+M06 fix: build a single ascending list across ALL seasons for the player.
+    // Previously allEps = _currentEpisodes which:
+    //   (M02) could be descending when user toggled sort → player Next/Prev reversed
+    //   (M06) only contained the current season → player could not navigate across seasons
+    // The UI sort (_sortAscending) only affects the episode-list display, never the player.
+    final allEps = _currentEpisodes; // still used for bounds-check against current season
     if (episodeIndex >= allEps.length) return;
     final ep = allEps[episodeIndex];
+    // All-seasons list, always ascending (season → episode number)
+    final allSeasonsEps = _episodes
+        .where((e) => (e['file_id']?.toString() ?? '').isNotEmpty)
+        .toList()
+      ..sort((a, b) {
+        final sc = (a['season'] as int? ?? 1).compareTo(b['season'] as int? ?? 1);
+        return sc != 0 ? sc : (a['episode'] as int? ?? 0).compareTo(b['episode'] as int? ?? 0);
+      });
+    final playerIdx = allSeasonsEps
+        .indexWhere((e) => e['file_id']?.toString() == ep['file_id']?.toString());
+    // fallback: if file_id not found, use position within current season
+    final resolvedPlayerIdx = playerIdx >= 0 ? playerIdx : episodeIndex;
     final fileId = ep['file_id']?.toString();
     // getEpisodes() returns raw SQLite rows — share_url is XOR-encoded; decode it.
     final rawEpShareUrl = ep['share_url'] as String?;
@@ -227,8 +244,8 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         'title': ep['label'] ?? '${widget.item.title} S${_selectedSeason.toString().padLeft(2, '0')}E${(ep['episode'] as int? ?? 0).toString().padLeft(2, '0')}',
         'local_path': localPath,
         'stream_url': localPath != null ? null : epShareUrl,
-        'episodes': allEps,
-        'episode_index': episodeIndex,
+        'episodes': allSeasonsEps,       // all seasons, ascending
+        'episode_index': resolvedPlayerIdx, // index within allSeasonsEps
         'show_title': widget.item.title,
         'content_type': widget.item.mediaType,
         'is_free': (ep['is_free'] as int? ?? 0) == 1,
