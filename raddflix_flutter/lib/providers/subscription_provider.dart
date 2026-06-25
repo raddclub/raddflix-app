@@ -49,11 +49,13 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
   }
 
   Future<void> loadStatus() async {
+    // BUG-M04 fix: set loading:true so UI can show a spinner while status is being fetched
+    state = state.copyWith(loading: true, clearError: true);
     try {
       final status = await SubscriptionApi.getStatus();
-      state = state.copyWith(status: status, clearError: true);
+      state = state.copyWith(status: status, loading: false);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: e.toString(), loading: false);
     }
   }
 
@@ -76,7 +78,10 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
         'quota': quota,
       });
       state = state.copyWith(status: merged);
-    } catch (_) {}
+    } catch (e) {
+      // BUG-M03 fix: surface error in state so UI can react (e.g. show retry button)
+      state = state.copyWith(error: e.toString());
+    }
   }
 
   /// Submit TID. Works for new subscriptions, renewals, and upgrades.
