@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
+import '../providers/subscription_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/theme/radd_colors.dart';
@@ -106,8 +107,17 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
     // Downloaded content (local_path non-empty) bypasses this check — users
     // keep offline access to files they downloaded while subscribed.
     if (d.localPath == null || d.localPath!.isEmpty) {
-      final auth = ProviderScope.containerOf(context).read(authProvider);
-      if (auth.isGuest || !(auth.user?.isSubscribed ?? false)) {
+      final auth    = ProviderScope.containerOf(context).read(authProvider);
+      final subState = ProviderScope.containerOf(context).read(subscriptionProvider);
+      // BUG-1 fix: auth.isGuest and auth.user?.isSubscribed don't exist on their types.
+      // Use auth.user?.isGuest and auth.user?.hasActiveSubscription instead.
+      // Also prefer subscriptionProvider.status for freshest active state.
+      final isSubscribed = auth.user != null &&
+          !(auth.user!.isGuest) &&
+          (subState.status != null
+              ? subState.status!.isActive
+              : auth.user!.hasActiveSubscription);
+      if (!isSubscribed) {
         _dismiss();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Active subscription required to continue watching.')),
