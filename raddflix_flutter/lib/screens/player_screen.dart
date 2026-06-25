@@ -490,9 +490,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _usageTimer?.cancel();
     _usageTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (_trackUsage && _playing && mounted) {
-        // Estimate quality from video height; default to 720p
-        final h = _player.state.width ?? 0;
-        final quality = h >= 1920 ? '1080p' : h >= 1280 ? '720p' : h >= 854 ? '480p' : '360p';
+        // Estimate quality from video width (1920→1080p, 1280→720p, 854→480p, else→360p)
+        final w = _player.state.width ?? 0;
+        final quality = w >= 1920 ? '1080p' : w >= 1280 ? '720p' : w >= 854 ? '480p' : '360p';
         UsageService.addWatchSession(seconds: 30, quality: quality).ignore();
       }
     });
