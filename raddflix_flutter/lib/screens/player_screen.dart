@@ -805,6 +805,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       {String? localPath, String? shareUrl}) async {
     final fileId = ep['file_id'] as String? ?? '';
 
+    // ── BUG-C02 fix: update _isFree/_trackUsage per episode ─────────────────
+    // Previously these were only set in _openMedia() on first load and never
+    // updated during in-player episode navigation, causing wrong quota tracking:
+    //   ep1=free  → ep2=paid : _isFree stuck true  → ep2 never counted (revenue leak)
+    //   ep1=paid  → ep2=free : _isFree stuck false → ep2 wrongly counted (user penalised)
+    final _isLocalEp = (localPath != null && localPath.isNotEmpty) ||
+        fileId.startsWith('/') || fileId.startsWith('content://');
+    if (!_isLocalEp) {
+      final isFreeArg = ep['is_free'];
+      _isFree     = isFreeArg == true || isFreeArg == 1;
+      _trackUsage = !_isFree;
+    } else {
+      _isFree     = false;
+      _trackUsage = false;
+    }
+    _stopUsageTimer(); // cancel previous episode's heartbeat before any gate check
+
+    // ── BUG-C01 fix: subscription + quota gates for in-player episode nav ────
+    // _openMedia() has these gates for the initial load. _openMediaForEpisode()
+    // had none — pressing Next Episode bypassed ALL access control entirely.
+    if (_trackUsage && mounted) {
+      final authState = ref.read(authProvider);
+      final isSubscribed = authState.user != null &&
+          !(authState.user!.isGuest) &&
+          (authState.user!.subscription?.isActive == true);
+      if (!isSubscribed) {
+        if (mounted) {
+          setState(() { _isLinkLoading = false; });
+          Navigator.of(context).pushReplacementNamed(AppRoutes.subscription);
+        }
+        return;
+      }
+    }
+    if (_trackUsage && mounted) {
+      final quota = await UsageService.getCachedQuota();
+      if (quota['allowed'] == false || quota['is_exceeded'] == true) {
+        if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.quotaFull);
+        return;
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     if (localPath != null && localPath.isNotEmpty) {
       if (mounted) setState(() { _streamError = null; _ended = false; _position = Duration.zero; });
       _videoOpened = true;
