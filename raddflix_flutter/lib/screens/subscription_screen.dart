@@ -141,7 +141,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
 
   Widget _buildBody(SubscriptionState state) {
     final status  = state.status;
-    final isGuest = ref.read(authProvider).user?.isGuest == true;
+    // BUG-4 fix: ref.read in build() doesn't react to auth changes (e.g. guest → logged-in).
+    // Use ref.watch so the body rebuilds when authProvider state changes.
+    final isGuest = ref.watch(authProvider).user?.isGuest == true;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
