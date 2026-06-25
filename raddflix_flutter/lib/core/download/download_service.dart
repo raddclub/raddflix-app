@@ -213,9 +213,11 @@ class DownloadQuotaException implements Exception {
   final String reason;
   const DownloadQuotaException(this.reason);
 
+  // BUG-8 fix: system moved to monthly GB-based limits; 'daily_limit_reached' no longer
+  // meaningful and the old "Resets at midnight" message was wrong and confusing.
   String get userMessage {
     switch (reason) {
-      case 'daily_limit_reached':   return 'Daily data limit reached. Resets at midnight.';
+      case 'daily_limit_reached':   return 'Monthly streaming quota reached. Upgrade your plan for more data.';
       case 'monthly_limit_reached': return 'Monthly data limit reached. Upgrade your plan.';
       case 'no_subscription':       return 'Active subscription required to download.';
       default:                      return 'Download quota exceeded. Try again later.';
