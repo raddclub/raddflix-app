@@ -107,7 +107,7 @@ class PlanExpiredScreen extends StatelessWidget {
                 ),
                 SizedBox(height: 20),
                 TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.home, (_) => false),
                   child: Text('Go Back',
                       style: TextStyle(
                           color: t.textMuted, fontSize: 14)),
