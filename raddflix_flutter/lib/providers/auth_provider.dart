@@ -265,10 +265,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
     // BUG-C03 fix: reuse UserSubscription.fromJson which checks expiresAt against
     // DateTime.now() — previously isActive was hardcoded true so expired subscriptions
     // still appeared active on every app restart until the /me network call completed.
+    // BUG-5 fix: restore cached avatar fields so UI doesn't flash defaults on cold start.
     return AppUser(
-      id:    id,
-      phone: phone,
-      isActive: true,
+      id:          id,
+      phone:       phone,
+      isActive:    true,
+      displayName: prefs.getString('jm_cached_display_name'),
+      avatarColor: prefs.getString('jm_cached_avatar_color') ?? '#8B002D',
+      avatarEmoji: prefs.getString('jm_cached_avatar_emoji') ?? '',
       subscription: hasSub
           ? UserSubscription.fromJson({
               'plan':       plan,
@@ -280,9 +284,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> _saveUserCache(AppUser user, SharedPreferences prefs) async {
-    await prefs.setString(StorageKeys.cachedUserId,  user.id.toString());
+    await prefs.setString(StorageKeys.cachedUserId,   user.id.toString());
     await prefs.setString(StorageKeys.cachedUserPhone, user.phone);
     await prefs.setString(StorageKeys.cachedUserPlan,  user.planName);
+    // BUG-5 fix: persist avatar fields so _loadCachedUser can restore them.
+    if (user.displayName != null) await prefs.setString('jm_cached_display_name', user.displayName!);
+    await prefs.setString('jm_cached_avatar_color', user.avatarColor);
+    await prefs.setString('jm_cached_avatar_emoji', user.avatarEmoji);
     final exp = user.subscription?.expiresAt;
     if (exp != null) await prefs.setString(StorageKeys.cachedSubExpiry, exp);
   }
@@ -292,6 +300,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await prefs.remove(StorageKeys.cachedUserPhone);
     await prefs.remove(StorageKeys.cachedUserPlan);
     await prefs.remove(StorageKeys.cachedSubExpiry);
+    await prefs.remove('jm_cached_display_name');
+    await prefs.remove('jm_cached_avatar_color');
+    await prefs.remove('jm_cached_avatar_emoji');
   }
 }
 
