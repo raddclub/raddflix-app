@@ -103,7 +103,18 @@ class RaddFlixApp extends ConsumerWidget {
         AppRoutes.search:       (_) => const SearchScreen(),
         AppRoutes.vault:         (_) => const VaultScreen(),
         AppRoutes.adminQueue:    (_) => const AdminQueueScreen(),
-        AppRoutes.quotaFull:     (_) => const QuotaFullScreen(),
+        // BUG-H01 fix: extract quota args from route settings so the screen
+        // can display real numbers (used GB, limit, plan name, reset date).
+        // Player pushes: {used_gb, limit_gb, plan_name, resets_at} as arguments.
+        AppRoutes.quotaFull: (s) {
+          final a = (s.settings.arguments as Map<String, dynamic>?) ?? {};
+          return QuotaFullScreen(
+            usedGb:   (a['used_gb']   as num?)?.toDouble(),
+            limitGb:  (a['limit_gb']  as num?)?.toDouble(),
+            planName: a['plan_name']  as String?,
+            resetsAt: a['resets_at']  as String?,
+          );
+        },
         AppRoutes.planExpired:   (_) => const PlanExpiredScreen(),
         AppRoutes.watchlist:     (_) => const WatchlistScreen(),
         AppRoutes.history:       (_) => const HistoryScreen(),
