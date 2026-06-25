@@ -117,3 +117,23 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 | PRO-25-05 | ProfileScreen: colored avatar, displayName label, edit pencil button | ✅ DONE (dc335f7) |
 | PRO-25-06 | Oracle db.py: 4 new columns + additive migrations | ✅ DONE (dc335f7) |
 | PRO-25-07 | Oracle mobile_api.py: PUT /profile + POST /change-password + /me returns new fields | ✅ DONE (dc335f7) |
+
+## Phase 27 — Bug Audit Fixes (2026-06-25)
+
+| ID | Task | Status |
+|----|------|--------|
+| BUG-C01 | player_screen: add sub+quota gate in _openMediaForEpisode | ⏳ IN PROGRESS |
+| BUG-C02 | player_screen: update _isFree/_trackUsage in _openMediaForEpisode | ⏳ IN PROGRESS |
+| BUG-C03 | auth_provider: fix _loadCachedUser hardcoded isActive:true | ⏳ IN PROGRESS |
+| BUG-C04 | downloads_screen: add plan expiry check before playing downloaded content | ⏳ IN PROGRESS |
+| BUG-H01 | quota_full_screen: read quota from provider instead of blank constructor | ⏳ IN PROGRESS |
+| BUG-H02 | subscription_screen: block guest TID submission | ⏳ IN PROGRESS |
+| BUG-H03 | show_detail: fix _downloadCurrentSeason to allow free episode batch-download | ⏳ IN PROGRESS |
+| BUG-H04 | show_detail+player: gates check subscriptionProvider.status not stale auth | ⏳ IN PROGRESS |
+| BUG-H05 | splash_screen: call loadStatus() after auth confirmed | ⏳ IN PROGRESS |
+| BUG-M01 | home_screen: use user.avatarInitial not phone[0] | ⏳ IN PROGRESS |
+| BUG-M02 | show_detail: pass episodes in ascending order to player regardless of sort | ⏳ IN PROGRESS |
+| BUG-M03 | subscription_provider: set error state in refreshQuota() | ⏳ IN PROGRESS |
+| BUG-M04 | subscription_provider: add loading flag to loadStatus() | ⏳ IN PROGRESS |
+| BUG-M05 | player_screen: re-read is_free from episode map not stale route args | ⏳ IN PROGRESS |
+| BUG-M06 | show_detail: pass all seasons episodes to player not just current season | ⏳ IN PROGRESS |
