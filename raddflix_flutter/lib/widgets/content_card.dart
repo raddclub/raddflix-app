@@ -406,10 +406,17 @@ class _DetailSheet extends StatelessWidget {
                         Navigator.of(context).pushNamed(
                             AppRoutes.showDetail, arguments: item);
                       } else if (item.fileId != null) {
+                        // BUG-10 fix: pass is_free, stream_url, content_type so the
+                        // player's _isFree/_trackUsage flags are set correctly.
+                        // Without is_free, free movies were treated as paid and the
+                        // subscription gate blocked guests and free users.
                         Navigator.of(context).pushNamed(AppRoutes.player,
                             arguments: {
-                              'file_id': item.fileId!,
-                              'title': item.title,
+                              'file_id':      item.fileId!,
+                              'title':        item.title,
+                              'stream_url':   item.shareUrl,
+                              'is_free':      item.isFree,
+                              'content_type': item.mediaType,
                             });
                       }
                     },
