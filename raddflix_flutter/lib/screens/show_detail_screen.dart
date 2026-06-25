@@ -14,6 +14,7 @@ import '../core/download/download_service.dart';
 import '../providers/downloads_provider.dart';
 import '../providers/watchlist_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/subscription_provider.dart';
 import 'subscription_screen.dart';
 import '../widgets/cast_rail.dart';
 import '../core/debug/debug_logger.dart';
@@ -298,9 +299,15 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
 
   /// True when the current user has an active paid subscription.
   /// Guests (isGuest=true) and free-plan users (subscription==null) return false.
+  // BUG-H04 fix: prefer subscriptionProvider.status which is refreshed at
+  // startup (H05 fix) and after every TID submission. authProvider.user.subscription
+  // can lag: e.g. a just-renewed plan won't appear in auth cache until next /me call.
   bool get _isSubscribed {
     final user = ref.read(authProvider).user;
-    return user != null && !user.isGuest && (user.subscription?.isActive == true);
+    if (user == null || user.isGuest) return false;
+    final subStatus = ref.read(subscriptionProvider).status;
+    if (subStatus != null) return subStatus.isActive;
+    return user.subscription?.isActive == true; // fallback if provider hasn't loaded yet
   }
 
   /// Shows a paywall snack-bar with a Subscribe action button.
@@ -324,8 +331,11 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   // ── Download all available episodes in the current season ──────────────
   Future<void> _downloadCurrentSeason() async {
     if (_isDownloadingAll) return;
-    // Access gate — downloads require an active subscription.
-    if (!_isSubscribed) { _requireSub(context); return; }
+    // BUG-H03 fix: only require a subscription when the season contains paid episodes.
+    // Previously ALL batch-downloads required a subscription, blocking free-episode
+    // seasons for unsubscribed / free-plan users (unfair and incorrect UX).
+    final hasPaidEps = _currentEpisodes.any((ep) => (ep['is_free'] as int? ?? 0) != 1);
+    if (hasPaidEps && !_isSubscribed) { _requireSub(context); return; }
     final dlState = ref.read(downloadsProvider);
     // Only queue episodes that have a fileId and are not already downloaded/queued
     final toQueue = _currentEpisodes.where((ep) {
