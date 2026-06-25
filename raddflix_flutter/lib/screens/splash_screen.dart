@@ -8,6 +8,7 @@ import '../app.dart' show pendingVideoUri, pendingVideoTitle, pendingSubtitleUri
 import '../core/remote_config.dart';
 import '../core/theme/brand_theme_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/subscription_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -59,6 +60,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     if (!mounted) return;
     // Trigger auth check — listener below routes to home or login.
     await ref.read(authProvider.notifier).checkAuth();
+    // BUG-H05 fix: load subscription status immediately after auth so subscription
+    // gates (show_detail, player) have current quota/plan data from the first frame.
+    // Without this call, subscriptionProvider.status was always null on cold start
+    // and all gates fell back to the stale authProvider cache.
+    if (mounted) {
+      final auth = ref.read(authProvider);
+      if (auth.status == AuthStatus.authenticated &&
+          auth.user != null && !auth.user!.isGuest) {
+        ref.read(subscriptionProvider.notifier).loadStatus().ignore();
+      }
+    }
   }
 
   @override
