@@ -150,7 +150,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   boxShadow: AppShadows.primary,
                 ),
                 child: Center(child: Text(
-                  user.phone.isNotEmpty ? user.phone[0].toUpperCase() : 'U',
+                  user.avatarInitial, // BUG-M01 fix: use model getter, not inline phone[0]
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14))),
               ),
             ),
