@@ -29,7 +29,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     // P28-04: Skip server sync for guest sessions — guests have no server history.
     // mergeServerHistory() would fire a 401 API call that is silently swallowed,
     // wasting bandwidth and polluting logs.
-    if (ref.read(authProvider).isGuest) return;
+    // BUG-9 fix: AuthState has no .isGuest getter — must use .user?.isGuest.
+    if (ref.read(authProvider).user?.isGuest == true) return;
     await HistoryApi.mergeServerHistory();
     if (mounted) {
       await ref.read(catalogProvider.notifier).reloadRecentlyWatched();
