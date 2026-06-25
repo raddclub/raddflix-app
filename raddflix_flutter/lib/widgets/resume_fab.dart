@@ -29,13 +29,15 @@ class ResumeFab extends StatefulWidget {
   static const String kPositionMs  = 'resume_pos_ms';
   static const String kDurationMs  = 'resume_dur_ms';
   static const String kContentType = 'resume_content_type';
+  // BUG-11 fix: track is_free so free-content resume doesn't hit subscription gate.
+  static const String kIsFree      = 'resume_is_free';
 
   /// Wipe all resume data.  Call when the user explicitly dismisses the FAB
   /// or when you want to suppress it.
   static Future<void> clear() async {
     final p = await SharedPreferences.getInstance();
     for (final k in [kTitle, kFileId, kStreamUrl, kLocalPath, kPosterUrl,
-                     kPositionMs, kDurationMs, kContentType]) {
+                     kPositionMs, kDurationMs, kContentType, kIsFree]) {
       await p.remove(k);
     }
   }
@@ -74,6 +76,8 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
     final posMs    = p.getInt(ResumeFab.kPositionMs) ?? 0;
     final durMs    = p.getInt(ResumeFab.kDurationMs) ?? 0;
     final ctype    = p.getString(ResumeFab.kContentType) ?? 'movie';
+    // BUG-11 fix: read is_free so free content skips the subscription gate in _play().
+    final isFree   = p.getBool(ResumeFab.kIsFree) ?? false;
 
     // Only show if we have a title and meaningful progress
     if (title == null || title.isEmpty || posMs < 10000) return;
@@ -88,6 +92,7 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
         positionMs: posMs,
         durationMs: durMs,
         contentType: ctype,
+        isFree: isFree,
       );
     });
     _anim.forward();
@@ -106,12 +111,13 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
     // P28-02: Gate streaming content for guests and inactive subscribers.
     // Downloaded content (local_path non-empty) bypasses this check — users
     // keep offline access to files they downloaded while subscribed.
-    if (d.localPath == null || d.localPath!.isEmpty) {
+    // Gate paid streaming content only — free content (is_free=true) is open to all.
+    // Local downloaded files always bypass (no network needed, no sub check).
+    // BUG-11 fix: previously no is_free tracking, so guests were blocked from
+    // resuming free-content streams even though they can watch them without sub.
+    if (!d.isFree && (d.localPath == null || d.localPath!.isEmpty)) {
       final auth    = ProviderScope.containerOf(context).read(authProvider);
       final subState = ProviderScope.containerOf(context).read(subscriptionProvider);
-      // BUG-1 fix: auth.isGuest and auth.user?.isSubscribed don't exist on their types.
-      // Use auth.user?.isGuest and auth.user?.hasActiveSubscription instead.
-      // Also prefer subscriptionProvider.status for freshest active state.
       final isSubscribed = auth.user != null &&
           !(auth.user!.isGuest) &&
           (subState.status != null
@@ -136,6 +142,7 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
         'episodes':      <Map<String, dynamic>>[],
         'episode_index': 0,
         'content_type':  d.contentType,
+        'is_free':       d.isFree,  // BUG-11 fix: pass to player so _isFree/_trackUsage set correctly
       },
     );
   }
@@ -305,6 +312,8 @@ class _ResumeData {
   final int positionMs;
   final int durationMs;
   final String contentType;
+  // BUG-11 fix: track whether the content was free so _play() can skip sub gate.
+  final bool isFree;
 
   const _ResumeData({
     required this.title,
@@ -315,5 +324,6 @@ class _ResumeData {
     required this.positionMs,
     required this.durationMs,
     required this.contentType,
+    this.isFree = false,
   });
 }
