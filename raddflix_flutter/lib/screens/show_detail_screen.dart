@@ -13,6 +13,7 @@ import '../providers/catalog_provider.dart';
 import '../core/download/download_service.dart';
 import '../providers/downloads_provider.dart';
 import '../providers/watchlist_provider.dart';
+import '../providers/auth_provider.dart';
 import 'subscription_screen.dart';
 import '../widgets/cast_rail.dart';
 import '../core/debug/debug_logger.dart';
@@ -206,6 +207,13 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
       return;
     }
 
+    // Access gate — free episodes play for everyone; paid episodes require subscription.
+    final isFreeEp = (ep['is_free'] as int? ?? 0) == 1;
+    if (!isFreeEp && !_isSubscribed) {
+      _requireSub(context);
+      return;
+    }
+
     // Mark this episode as "now playing" so the tile shows the indicator;
     // clear it when the player route pops (user exits or PiP closes).
     DebugLogger.logFeature('PlayEpisode', 'id=${widget.item.id} title="${widget.item.title}" epIdx=$episodeIndex S$_selectedSeason fileId=${fileId ?? "null"} local=${localPath != null}');
@@ -242,6 +250,12 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
       );
       return;
     }
+    // Access gate — paid movies require an active subscription.
+    if (!widget.item.isFree && !_isSubscribed) {
+      _requireSub(context);
+      return;
+    }
+
     // Prefer locally-downloaded file: plays offline, no JazzDrive needed.
     final dlState = ref.read(downloadsProvider);
     final localPath = (fileId != null && fileId.isNotEmpty)
@@ -280,9 +294,38 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     ));
   }
 
+  // ── Subscription access helpers ──────────────────────────────────────────
+
+  /// True when the current user has an active paid subscription.
+  /// Guests (isGuest=true) and free-plan users (subscription==null) return false.
+  bool get _isSubscribed {
+    final user = ref.read(authProvider).user;
+    return user != null && !user.isGuest && (user.subscription?.isActive == true);
+  }
+
+  /// Shows a paywall snack-bar with a Subscribe action button.
+  /// Tapping Subscribe navigates to the subscription screen.
+  void _requireSub(BuildContext ctx) {
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      SnackBar(
+        content: const Text('Subscribe to access paid content'),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'Subscribe',
+          textColor: Colors.white,
+          onPressed: () => Navigator.of(ctx).pushNamed(AppRoutes.subscription),
+        ),
+      ),
+    );
+  }
+
   // ── Download all available episodes in the current season ──────────────
   Future<void> _downloadCurrentSeason() async {
     if (_isDownloadingAll) return;
+    // Access gate — downloads require an active subscription.
+    if (!_isSubscribed) { _requireSub(context); return; }
     final dlState = ref.read(downloadsProvider);
     // Only queue episodes that have a fileId and are not already downloaded/queued
     final toQueue = _currentEpisodes.where((ep) {
@@ -569,6 +612,11 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                             final isDownloaded  = dlState2.isDownloaded(widget.item.fileId!);
                             return ElevatedButton.icon(
                               onPressed: isDownloading || isDownloaded ? null : () async {
+                                // Access gate — paid movie downloads require subscription.
+                                if (!widget.item.isFree && !_isSubscribed) {
+                                  _requireSub(context);
+                                  return;
+                                }
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text('Downloading ${widget.item.title}…'),
@@ -934,6 +982,11 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                               isDownloading: isDownloading,
                               isDownloaded: isDownloaded,
                               onDownload: fileId.isEmpty || isDownloaded ? null : () async {
+                                // Access gate — paid episode downloads require subscription.
+                                if (!isFree && !_isSubscribed) {
+                                  _requireSub(context);
+                                  return;
+                                }
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(content: Text('Downloading $label…'),
                                     duration: const Duration(seconds: 2)),
