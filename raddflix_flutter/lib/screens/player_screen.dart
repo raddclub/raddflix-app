@@ -1045,11 +1045,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // Save enough context for ResumeFab on the home screen to reconstruct
     // the player route and show a meaningful card (title + progress).
     final routeArgs = ModalRoute.of(context)?.settings.arguments as Map?;
-    await prefs.setString('resume_title',       _currentTitle);
-    await prefs.setString('resume_file_id',     _currentFileId);
-    await prefs.setInt   ('resume_pos_ms',      ms);
-    await prefs.setInt   ('resume_dur_ms',      _duration.inMilliseconds);
+    await prefs.setString('resume_title',        _currentTitle);
+    await prefs.setString('resume_file_id',      _currentFileId);
+    await prefs.setInt   ('resume_pos_ms',       ms);
+    await prefs.setInt   ('resume_dur_ms',       _duration.inMilliseconds);
     await prefs.setString('resume_content_type', widget.contentType);
+    // BUG-11 fix: persist is_free so ResumeFab can skip sub gate for free content.
+    await prefs.setBool  ('resume_is_free',      _isFree);
     final streamUrl  = routeArgs?['stream_url'] as String?;
     final localPath  = routeArgs?['local_path']  as String?;
     final posterUrl  = routeArgs?['poster_url']  as String?
