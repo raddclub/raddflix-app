@@ -768,9 +768,13 @@ def plans():
 @_require_auth
 def subscription_status(_user_id, _phone):
     if _user_id == 0:
-        return jsonify({"ok": True, "is_active": 0, "plan": "free"})
-    sub = _get_subscription_status(_user_id)
-    return jsonify({"ok": True, **sub})
+        return jsonify({"ok": True, "is_active": 0, "plan": "free",
+                        "quota": {"allowed": True, "plan_name": "guest",
+                                  "is_exceeded": False, "monthly_limit_gb": 0,
+                                  "monthly_used_gb": 0, "resets_at": None}})
+    sub   = _get_subscription_status(_user_id)
+    quota = _compute_app_quota(_user_id)
+    return jsonify({"ok": True, **sub, "quota": quota})
 
 
 @bp_sub.route("/tid/submit", methods=["POST"])
