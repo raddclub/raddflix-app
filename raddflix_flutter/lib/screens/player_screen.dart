@@ -39,6 +39,7 @@ import '../core/player/watch_party_service.dart';
 import '../core/player/voice_commands_service.dart';
 import '../core/services/usage_service.dart';
 import '../providers/auth_provider.dart';
+import '../providers/subscription_provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Widget
@@ -674,11 +675,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ── Subscription gate (Layer 2 — defense in depth) ──────────────────────
     // Blocks non-free streams for users who have no active subscription.
     // Layer 1 is show_detail_screen; this catches any deep-link or code bypass.
+    // BUG-2 fix: prefer subscriptionProvider.status (fresh) over stale authProvider
+    // cache; fall back to cache only when subscriptionProvider hasn't loaded yet.
     if (_trackUsage && mounted) {
       final authState = ref.read(authProvider);
+      final subStatus = ref.read(subscriptionProvider).status;
       final isSubscribed = authState.user != null &&
           !(authState.user!.isGuest) &&
-          (authState.user!.subscription?.isActive == true);
+          (subStatus != null ? subStatus.isActive : authState.user!.subscription?.isActive == true);
       if (!isSubscribed) {
         if (mounted) {
           setState(() { _isLinkLoading = false; });
@@ -694,9 +698,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final quota = await UsageService.getCachedQuota();
       if (quota['allowed'] == false || quota['is_exceeded'] == true) {
         // BUG-H01 fix: pass real quota numbers so the screen can show a filled progress bar
+        // BUG-3 fix: server quota dict uses monthly_used_gb / monthly_limit_gb keys,
+        // not used_gb / limit_gb — previously QuotaFullScreen always showed 0%.
         if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.quotaFull, arguments: {
-          'used_gb':   quota['used_gb'],
-          'limit_gb':  quota['limit_gb'],
+          'used_gb':   quota['monthly_used_gb'],
+          'limit_gb':  quota['monthly_limit_gb'],
           'plan_name': quota['plan_name'],
           'resets_at': quota['resets_at'],
         });
@@ -841,11 +847,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ── BUG-C01 fix: subscription + quota gates for in-player episode nav ────
     // _openMedia() has these gates for the initial load. _openMediaForEpisode()
     // had none — pressing Next Episode bypassed ALL access control entirely.
+    // BUG-2 fix: prefer subscriptionProvider.status (fresh) over stale authProvider
+    // cache; fall back to cache only when subscriptionProvider hasn't loaded yet.
     if (_trackUsage && mounted) {
       final authState = ref.read(authProvider);
+      final subStatus = ref.read(subscriptionProvider).status;
       final isSubscribed = authState.user != null &&
           !(authState.user!.isGuest) &&
-          (authState.user!.subscription?.isActive == true);
+          (subStatus != null ? subStatus.isActive : authState.user!.subscription?.isActive == true);
       if (!isSubscribed) {
         if (mounted) {
           setState(() { _isLinkLoading = false; });
@@ -858,9 +867,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final quota = await UsageService.getCachedQuota();
       if (quota['allowed'] == false || quota['is_exceeded'] == true) {
         // BUG-H01 fix: pass real quota numbers to QuotaFullScreen
+        // BUG-3 fix: server quota dict uses monthly_used_gb / monthly_limit_gb keys.
         if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.quotaFull, arguments: {
-          'used_gb':   quota['used_gb'],
-          'limit_gb':  quota['limit_gb'],
+          'used_gb':   quota['monthly_used_gb'],
+          'limit_gb':  quota['monthly_limit_gb'],
           'plan_name': quota['plan_name'],
           'resets_at': quota['resets_at'],
         });
