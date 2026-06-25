@@ -650,11 +650,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ── Usage tracking setup ─────────────────────────────────────────────────
     // Read is_free flag passed by show_detail_screen in route args.
     // Local files (downloaded or user's own) never count toward quota.
+    // BUG-M05 fix: only re-read is_free from route args on the very first open.
+    // On retries (_videoOpened == true), _isFree is already correctly set:
+    //   • initial episode: set from route args on first open (below)
+    //   • navigated episode: set by _openMediaForEpisode (C02 fix)
+    // Re-reading route args on retry would revert to the INITIAL episode's is_free,
+    // wrongly treating a navigated paid episode as free (or vice-versa).
     if (!isLocal) {
-      final routeArgsFree = ModalRoute.of(context)?.settings.arguments as Map?;
-      final isFreeArg     = routeArgsFree?['is_free'];
-      _isFree     = isFreeArg == true || isFreeArg == 1;
-      _trackUsage = !_isFree;
+      if (!_videoOpened) {
+        // First open — trust route args which show_detail sets correctly
+        final routeArgsFree = ModalRoute.of(context)?.settings.arguments as Map?;
+        final isFreeArg     = routeArgsFree?['is_free'];
+        _isFree     = isFreeArg == true || isFreeArg == 1;
+        _trackUsage = !_isFree;
+      }
+      // else: retry or re-open — keep _isFree/_trackUsage as already set
     } else {
       _isFree     = false;
       _trackUsage = false;
