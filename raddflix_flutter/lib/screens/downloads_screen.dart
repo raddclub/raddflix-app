@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../providers/downloads_provider.dart';
+import '../providers/auth_provider.dart';
 import '../core/debug/debug_logger.dart';
 import '../widgets/bottom_nav.dart';
 import '../services/thumb_service.dart';
@@ -51,6 +52,16 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   double _progress(Map m) => (m['progress']  as num?)?.toDouble() ?? 0.0;
   int    _size(Map m)     => m['file_size']  as int? ?? 0;
   int    _date(Map m)     => m['downloaded_at'] as int? ?? 0;
+
+  // BUG-C04 fix: check if subscription has expired before playing downloaded content.
+  // If user had a subscription and it's now expired, redirect to PlanExpiredScreen.
+  // Free users (subscription==null) and guests can still play their downloads.
+  bool _isSubExpired() {
+    final user = ref.read(authProvider).user;
+    if (user == null || user.isGuest) return false;
+    if (user.subscription == null) return false; // free user — no sub ever
+    return !user.subscription!.isActive; // has sub record but it expired
+  }
 
   bool _isComplete(Map m)    => _status(m) == 'completed';
   bool _isDownloading(Map m) => _status(m) == 'downloading' || _status(m) == 'pending';
@@ -491,6 +502,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 _selected.contains(id) ? _selected.remove(id) : _selected.add(id);
               });
             } else if (_isComplete(d)) {
+              // BUG-C04 fix: block playback if subscription has expired
+              if (_isSubExpired()) {
+                Navigator.of(context).pushNamed(AppRoutes.planExpired);
+                return;
+              }
               final doneEps = eps.where(_isComplete).toList();
               final epIdx   = doneEps.indexOf(d as Map<String, dynamic>);
               final epList  = doneEps.asMap().entries.map((e) => <String, dynamic>{
@@ -544,6 +560,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             if (_selecting) {
               setState(() { _selected.contains(id) ? _selected.remove(id) : _selected.add(id); });
             } else if (_isComplete(d)) {
+              // BUG-C04 fix: block playback if subscription has expired
+              if (_isSubExpired()) {
+                Navigator.of(context).pushNamed(AppRoutes.planExpired);
+                return;
+              }
               Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
                 'file_id': id, 'title': _title(d), 'local_path': _path(d)});
             }
@@ -580,6 +601,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             if (_selecting) {
               setState(() { _selected.contains(id) ? _selected.remove(id) : _selected.add(id); });
             } else if (_isComplete(d)) {
+              // BUG-C04 fix: block playback if subscription has expired
+              if (_isSubExpired()) {
+                Navigator.of(context).pushNamed(AppRoutes.planExpired);
+                return;
+              }
               Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
                 'file_id': id, 'title': _title(d), 'local_path': _path(d)});
             }
