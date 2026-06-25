@@ -6,6 +6,7 @@ import '../core/api/history_api.dart';
 import '../core/constants.dart';
 import '../models/catalog_item.dart';
 import '../providers/catalog_provider.dart';
+import '../providers/auth_provider.dart';
 import '../widgets/content_card.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
@@ -25,6 +26,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   Future<void> _mergeServerHistory() async {
+    // P28-04: Skip server sync for guest sessions — guests have no server history.
+    // mergeServerHistory() would fire a 401 API call that is silently swallowed,
+    // wasting bandwidth and polluting logs.
+    if (ref.read(authProvider).isGuest) return;
     await HistoryApi.mergeServerHistory();
     if (mounted) {
       await ref.read(catalogProvider.notifier).reloadRecentlyWatched();
