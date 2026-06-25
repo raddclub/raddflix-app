@@ -38,6 +38,7 @@ import '../widgets/player/seek_bar_painter.dart';
 import '../core/player/watch_party_service.dart';
 import '../core/player/voice_commands_service.dart';
 import '../core/services/usage_service.dart';
+import '../providers/auth_provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Widget
@@ -659,6 +660,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _trackUsage = false;
     }
     _stopUsageTimer(); // cancel any leftover timer from previous file
+
+    // ── Subscription gate (Layer 2 — defense in depth) ──────────────────────
+    // Blocks non-free streams for users who have no active subscription.
+    // Layer 1 is show_detail_screen; this catches any deep-link or code bypass.
+    if (_trackUsage && mounted) {
+      final authState = ref.read(authProvider);
+      final isSubscribed = authState.user != null &&
+          !(authState.user!.isGuest) &&
+          (authState.user!.subscription?.isActive == true);
+      if (!isSubscribed) {
+        if (mounted) {
+          setState(() { _isLinkLoading = false; });
+          Navigator.of(context).pushReplacementNamed(AppRoutes.subscription);
+        }
+        return;
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     // Quota gate — block play if monthly limit reached (streaming non-free only)
     if (_trackUsage && mounted) {
