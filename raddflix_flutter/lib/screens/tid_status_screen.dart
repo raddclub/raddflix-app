@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import '../core/constants.dart';
 import '../core/api/api_client.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/subscription_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// TID Payment Status Polling Screen.
@@ -418,8 +420,14 @@ class _TidStatusScreenState extends State<TidStatusScreen>
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: () {
-          Navigator.of(context).popUntil((route) => route.isFirst);
+        onPressed: () async {
+          // P28-03: Refresh subscription state so home screen immediately
+          // reflects the newly approved plan without a cold restart.
+          final container = ProviderScope.containerOf(context);
+          await container.read(subscriptionProvider.notifier).loadStatus();
+          if (mounted) {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
         },
         icon: const Icon(Icons.play_circle_filled_rounded),
         label: const Text('Start Watching', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
