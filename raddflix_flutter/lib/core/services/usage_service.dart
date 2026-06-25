@@ -124,7 +124,7 @@ class UsageService {
           return quota;
         }
       }
-    } catch (_) {}
+    } catch (e) { DebugLogger.logWarn('USAGE', 'fetchQuota error: $e'); }
     return null;
   }
 }
