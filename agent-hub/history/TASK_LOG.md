@@ -233,3 +233,31 @@ Fix: replaced with `ModalRoute.of(s)?.settings.arguments` which is the correct A
 - Oracle Flask: RUNNING (v3.0.0)
 - Build: triggered (run#1311 in progress)
 - Open tasks: see TASKS.md
+
+---
+
+## Session 2026-06-26B — Oracle downloader.py ZIP fix sync to GitHub
+
+### Context
+Previous agent applied ZIP extraction fix to Oracle live server but never pushed to GitHub.
+Two bugs were fixed on Oracle but were missing from GitHub:
+1. ZIP files were renamed by derive_media_plan before extraction (treated as movie).
+   If extraction failed the code fell through to split_large_file, uploader rejected it.
+   Fix: skip rename for .zip files.
+2. extract_zip returns the original zip path on failure. Now skips upload with error log.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| BUG-28-02 | Push Oracle live downloader.py (with ZIP fix) to GitHub | DONE (40fcbdc) |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| hub/downloader.py | ZIP extraction bugs fixed — pulled from Oracle live server | 40fcbdc |
+
+### State at end of session
+- Oracle Flask: RUNNING (v3.0.0)
+- downloader.py: in sync between Oracle and GitHub
+- APK build run#1311/1312: in progress on 1354ae5
+- Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
