@@ -448,11 +448,11 @@ def queue_loop(stop_event: threading.Event) -> None:
                 del active_threads[jid]
             _unregister_job(jid)
 
-        if len(active_threads) >= _max_parallel():
+        if db.setting("DOWNLOAD_ENABLED", "1") != "1":
+            log.debug("queue_loop: DOWNLOAD_ENABLED=0, skipping job dispatch")
             continue
 
-        # Skip dispatching new jobs when download service is disabled
-        if db.setting("DOWNLOAD_ENABLED", "1") != "1":
+        if len(active_threads) >= _max_parallel():
             continue
 
         try:
@@ -717,18 +717,27 @@ def _process_job(job_row: dict) -> None:
                         try:
                             dl_resolved = dl_path.resolve()
                             if staging in dl_resolved.parents or dl_resolved.parent == staging:
-                                from . import media_naming as _mn
-                                _plan = _mn.derive_media_plan(dl_path.name)
-                                target_name = _plan.filename
-                                
+                                # BUG-FIX: Don't rename ZIP files before extraction.
+                                # derive_media_plan treats a season ZIP as a movie and renames
+                                # it with a clean .zip name. If extraction then fails, the code
+                                # fell through to split_large_file → uploader which rejected it
+                                # as "Non-media file". Keep the original ZIP name so extraction
+                                # errors are obvious from the filename.
+                                if dl_path.suffix.lower() == ".zip":
+                                    target_name = dl_path.name  # keep original ZIP name
+                                else:
+                                    from . import media_naming as _mn
+                                    _plan = _mn.derive_media_plan(dl_path.name)
+                                    target_name = _plan.filename
+
                                 dest = config.MEDIA_DIR / target_name
                                 dest.parent.mkdir(parents=True, exist_ok=True)
-                                
+
                                 if dest.exists() and dest != dl_path:
                                     dest = config.MEDIA_DIR / (Path(target_name).stem + f"_{p_idx}" + Path(target_name).suffix)
-                                
+
                                 shutil.move(str(dl_path), str(dest))
-                                log_fn(f"Moved to media folder with clean name: {dest.name}")
+                                log_fn(f"Moved to media folder: {dest.name}")
                                 dl_path = dest
                         except Exception as _mv_err:
                             log_fn(f"Warning: could not move from staging: {_mv_err}")
@@ -740,6 +749,16 @@ def _process_job(job_row: dict) -> None:
                         if dl_path.suffix.lower() == ".zip":
                             _stage(f"Extracting season ZIP ({p_idx+1}/{len(path_list)})…")
                             dl_path = extract_zip(dl_path, log_fn)
+                            # BUG-FIX: extract_zip returns the original zip path on failure.
+                            # If extraction failed (dl_path is still a .zip file, not a dir),
+                            # skip immediately — never try to upload a ZIP as a media file.
+                            if not dl_path.is_dir() and dl_path.suffix.lower() == ".zip":
+                                log_fn(
+                                    f"ERROR: ZIP extraction failed for {dl_path.name} — "
+                                    f"file is corrupt, password-protected, or not a valid ZIP. "
+                                    f"Skipping upload (not a media file)."
+                                )
+                                continue
 
                         if dl_path.is_dir():
                             is_season = True
