@@ -207,3 +207,29 @@ Confirmed all phases 17–25 done, latest APK build run#1267 successful on commi
 - Oracle Flask: RUNNING (v3.0.0)
 - APK build: ✅ run#1267 success (e20a8df)
 - Open tasks: none
+
+---
+
+## Session 2026-06-26 — Build Fix: ModalRoute args in app.dart
+
+### Context
+Last 5 APK builds (run#1306–1310) were all failing with a single Dart compile error:
+  lib/app.dart:110:24: Error: The getter 'settings' isn't defined for the class 'BuildContext'.
+The BUG-H01 fix in a previous session added a quotaFull route builder that used `s.settings.arguments`
+where `s` is a `BuildContext` (Flutter `routes` map WidgetBuilders only receive BuildContext).
+Fix: replaced with `ModalRoute.of(s)?.settings.arguments` which is the correct API.
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| BUG-28-01 | app.dart: ModalRoute.of(s) fix for quotaFull route args | DONE (1354ae5) |
+
+### Files changed
+| File | Change | Commit |
+|------|--------|--------|
+| raddflix_flutter/lib/app.dart | QuotaFull route: s.settings → ModalRoute.of(s)?.settings | 1354ae5 |
+
+### State at end of session
+- Oracle Flask: RUNNING (v3.0.0)
+- Build: triggered (run#1311 in progress)
+- Open tasks: see TASKS.md
