@@ -1150,6 +1150,7 @@ def list_remote_media(vk: str, jsid: str, media_type: str = "", parent_id: int =
 
 _jobs_lock = threading.Lock()
 _manual_jobs: dict = {}  # job_id → job dict
+_ACTIVE_CANCEL_EVENTS: dict = {}  # job_id → threading.Event (for cancellation)
 
 # ── Live stats for DB-queue uploads (keyed by file_id) ──
 _LIVE_STATS: dict = {}
@@ -1189,6 +1190,25 @@ def clear_live_stat(file_id: int):
     with _LIVE_STATS_LOCK:
         _LIVE_STATS.pop(file_id, None)
 
+
+def register_cancel_event(job_id: str, event) -> None:
+    with _jobs_lock:
+        _ACTIVE_CANCEL_EVENTS[job_id] = event
+
+def cancel_job(job_id: str) -> bool:
+    """Signal a running upload to cancel. Returns True if the event was found and set."""
+    with _jobs_lock:
+        ev = _ACTIVE_CANCEL_EVENTS.get(job_id)
+        if ev:
+            ev.set()
+        job = _manual_jobs.get(job_id)
+        if job and job.get('state') not in ('done', 'failed', 'cancelled'):
+            job['state'] = 'cancelling'
+    return ev is not None
+
+def clear_cancel_event(job_id: str) -> None:
+    with _jobs_lock:
+        _ACTIVE_CANCEL_EVENTS.pop(job_id, None)
 
 def update_manual_job(job_id: str, **fields) -> None:
     with _jobs_lock:
@@ -1274,6 +1294,8 @@ def queue_manual_upload(file_path: str, parent_id: int = 0,
             log.warning("queue_manual_upload pre-flight error: %s", _pre_exc)
             # Don't block upload on unexpected pre-flight errors — let upload_to_jazzdrive handle it
 
+        _cancel_ev = threading.Event()
+        register_cancel_event(job_id, _cancel_ev)
         with _jobs_lock:
             if job_id in _manual_jobs:
                 _manual_jobs[job_id]["state"] = "uploading"
@@ -1284,9 +1306,14 @@ def queue_manual_upload(file_path: str, parent_id: int = 0,
                 job_id=job_id,
                 auto_delete=False,
                 log_fn=lambda msg: update_manual_job(job_id, detail=msg),
+                cancel_event=_cancel_ev,
             )
+            clear_cancel_event(job_id)
             with _jobs_lock:
                 if job_id in _manual_jobs:
+                    if _cancel_ev.is_set():
+                        _manual_jobs[job_id]["state"] = "cancelled"
+                        return
                     if result.get("ok"):
                         _manual_jobs[job_id]["state"]     = "done"
                         _manual_jobs[job_id]["percent"]   = 100
@@ -1296,10 +1323,14 @@ def queue_manual_upload(file_path: str, parent_id: int = 0,
                         _manual_jobs[job_id]["state"] = "failed"
                         _manual_jobs[job_id]["error"] = result.get("error", "unknown")
         except Exception as e:
+            clear_cancel_event(job_id)
             with _jobs_lock:
                 if job_id in _manual_jobs:
-                    _manual_jobs[job_id]["state"] = "failed"
-                    _manual_jobs[job_id]["error"] = str(e)[:200]
+                    if _cancel_ev.is_set():
+                        _manual_jobs[job_id]["state"] = "cancelled"
+                    else:
+                        _manual_jobs[job_id]["state"] = "failed"
+                        _manual_jobs[job_id]["error"] = str(e)[:200]
 
     t = threading.Thread(target=_run, daemon=True, name=f"manual-upload-{job_id}")
     t.start()
@@ -1325,6 +1356,7 @@ def upload_to_jazzdrive(
     job_id: Optional[str] = None,
     log_fn=None,
     auto_delete: bool = True,
+    cancel_event: Optional[threading.Event] = None,
 ) -> dict:
     """
     Full pipeline: validate session → upload → share → DB record → local delete.
@@ -1334,6 +1366,9 @@ def upload_to_jazzdrive(
         log.info("[uploader] %s", msg)
         if log_fn:
             log_fn(msg)
+
+    if cancel_event and cancel_event.is_set():
+        return {"ok": False, "error": "Upload cancelled before start"}
 
     if not _REQUESTS_OK:
         return {"ok": False, "error": "requests library not available"}
@@ -1621,7 +1656,8 @@ def upload_to_jazzdrive(
             up = _upload_file(sess, vk, jsid, file_path, parent_id=folder_id,
                               max_bps=max_bps, account_id=aid,
                               override_name=target_filename,
-                              forced_proxy=_forced_px)
+                              forced_proxy=_forced_px,
+                              cancel_event=cancel_event)
             if attempt > 1:
                 _log(f"Upload succeeded on attempt {attempt}/{max_retries} "
                      f"via proxy {_px_label}")
@@ -2079,7 +2115,8 @@ def _upload_pending() -> None:
         def _prog_cb(sent, total):
             _update_live_stat(file_id, sent, total, _active_proxy)
         resp = _upload_file(sess, vk, jsid, file_path, parent_id=folder_id, account_id=acct["id"],
-                              override_name=plan.filename, progress_cb=_prog_cb)
+                              override_name=plan.filename, progress_cb=_prog_cb,
+                              cancel_event=cancel_event)
         remote_id = resp.get("id")
 
         if remote_id is None:
