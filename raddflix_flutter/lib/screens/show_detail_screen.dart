@@ -226,7 +226,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     }
 
     // Access gate — free episodes play for everyone; paid episodes require subscription.
-    final isFreeEp = (ep['is_free'] as int? ?? 0) == 1;
+    final isFreeEp = _parseFree(ep['is_free']);
     if (!isFreeEp && !_isSubscribed) {
       _requireSub(context);
       return;
@@ -248,7 +248,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         'episode_index': resolvedPlayerIdx, // index within allSeasonsEps
         'show_title': widget.item.title,
         'content_type': widget.item.mediaType,
-        'is_free': (ep['is_free'] as int? ?? 0) == 1,
+        'is_free': _parseFree(ep['is_free']),
       },
     );
     if (mounted) setState(() => _nowPlayingIdx = null);
@@ -314,6 +314,11 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
 
   // ── Subscription access helpers ──────────────────────────────────────────
 
+  /// Safely parse is_free from server response.
+  /// Server returns JSON bool (true/false) but legacy code expected int (1/0).
+  /// This helper handles both to avoid TypeError crashes.
+  static bool _parseFree(dynamic v) => v == true || v == 1;
+
   /// True when the current user has an active paid subscription.
   /// Guests (isGuest=true) and free-plan users (subscription==null) return false.
   // BUG-H04 fix: prefer subscriptionProvider.status which is refreshed at
@@ -351,7 +356,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     // BUG-H03 fix: only require a subscription when the season contains paid episodes.
     // Previously ALL batch-downloads required a subscription, blocking free-episode
     // seasons for unsubscribed / free-plan users (unfair and incorrect UX).
-    final hasPaidEps = _currentEpisodes.any((ep) => (ep['is_free'] as int? ?? 0) != 1);
+    final hasPaidEps = _currentEpisodes.any((ep) => !_parseFree(ep['is_free']));
     if (hasPaidEps && !_isSubscribed) { _requireSub(context); return; }
     final dlState = ref.read(downloadsProvider);
     // Only queue episodes that have a fileId and are not already downloaded/queued
@@ -992,7 +997,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                             final realIdx = ep['_realIndex'] as int;
                             final fileId = ep['file_id']?.toString() ?? '';
                             final progress = _watchProgress[fileId] ?? 0.0;
-                            final isFree   = (ep['is_free'] as int? ?? 0) == 1;
+                            final isFree   = _parseFree(ep['is_free']);
                             final quality  = ep['quality'] as String?;
                             final epShareUrl = ep['share_url'] as String? ?? '';
                             final dlState = ref.watch(downloadsProvider);
