@@ -151,6 +151,12 @@
     <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Storage</div>
     <div id="stat-storage" style="font-size:1.35rem;font-weight:700">—</div>
     <div id="stat-storage-sub" class="muted" style="font-size:11px;margin-top:3px"></div>
+    <div id="stat-storage-bar-wrap" style="display:none;margin-top:8px">
+      <div style="height:5px;background:var(--surface2,#1a1a2e);border-radius:3px;overflow:hidden">
+        <div id="stat-storage-bar" style="height:100%;background:var(--accent);border-radius:3px;transition:width .6s;width:0%"></div>
+      </div>
+      <div id="stat-storage-pct" class="muted" style="font-size:10px;margin-top:3px"></div>
+    </div>
   </div>
 
   <div class="card" style="padding:14px;text-align:center">
@@ -160,6 +166,7 @@
       <span class="muted" style="font-size:10px"><span id="stat-queued" style="font-weight:600">0</span> queued</span>
       <span class="muted" style="font-size:10px"><span id="stat-uploading" style="font-weight:600;color:#6366f1">0</span> uploading</span>
     </div>
+    <div id="stat-queue-speed" class="muted" style="font-size:10px;margin-top:5px;min-height:14px"></div>
   </div>
 </div>
 
@@ -168,6 +175,7 @@
   <button class="tab-btn active" onclick="switchTab('upload', this)"   style="background:transparent;border:none;border-bottom:2px solid var(--accent);padding:9px 16px;color:var(--text);font-weight:500;border-radius:0;cursor:pointer">Uploads</button>
   <button class="tab-btn"        onclick="switchTab('flixcfg', this)"  style="background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 16px;color:var(--muted);font-weight:500;border-radius:0;cursor:pointer">Settings</button>
   <button class="tab-btn"        onclick="switchTab('logs', this)"     style="background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 16px;color:var(--muted);font-weight:500;border-radius:0;cursor:pointer">Logs</button>
+  <button class="tab-btn"        onclick="switchTab('mediafolder', this)" style="background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 16px;color:var(--muted);font-weight:500;border-radius:0;cursor:pointer">📁 Media Folder</button>
 </div>
 
 {# ══ TAB: Upload ══ #}
@@ -199,7 +207,10 @@
           <input type="checkbox" id="reset-incl-failed" style="cursor:pointer"> incl. failed
         </label>
         <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="resetStuck()">Reset stuck</button>
-        <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="loadJobs()">Refresh</button>
+        <button id="btn-cancel-all" class="ghost" style="font-size:12px;padding:4px 10px;display:none" onclick="cancelAllUploading()">Stop all</button>
+        <button id="btn-clear-done" class="ghost" style="font-size:12px;padding:4px 10px" onclick="clearDoneJobs()">Clear done</button>
+        <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="loadJobs()">↻ Refresh</button>
+        <button id="btn-upload-toggle" class="ghost" style="font-size:12px;padding:4px 10px" onclick="toggleUploadService()">⏸ Pause</button>
       </div>
     </div>
     <div class="table-wrap">
@@ -207,9 +218,9 @@
       <thead><tr>
         <th style="width:120px">When</th><th>File</th>
         <th style="width:100px">State</th><th style="width:220px">Progress</th>
-        <th>Share</th>
+        <th>Share</th><th style="width:80px">Action</th>
       </tr></thead>
-      <tbody><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+      <tbody><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
     </table>
     </div>
   </div>
@@ -226,6 +237,7 @@
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <span class="muted" style="font-size:12px"><span id="mf-count">—</span> file(s)</span>
+        <button class="ghost" style="font-size:12px;padding:4px 10px;color:var(--accent)" onclick="queueAllUnqueued()">▲ Queue all unqueued</button>
         <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="loadMediaFolder()">↻ Refresh</button>
       </div>
     </div>
@@ -558,6 +570,16 @@ async function loadStatus() {
         if (stor.used_bytes || stor.total_bytes) {
           sStat.textContent = fmtBytes(stor.used_bytes);
           if (sSub) sSub.textContent = stor.total_bytes ? 'of ' + fmtBytes(stor.total_bytes) : '';
+          const bw = document.getElementById('stat-storage-bar-wrap');
+          const bb = document.getElementById('stat-storage-bar');
+          const bp = document.getElementById('stat-storage-pct');
+          if (stor.total_bytes > 0 && bw && bb) {
+            const pct = Math.min(100, Math.round(stor.used_bytes / stor.total_bytes * 100));
+            bb.style.width = pct + '%';
+            bb.style.background = pct > 85 ? '#ef4444' : pct > 65 ? '#f59e0b' : 'var(--accent)';
+            if (bp) bp.textContent = pct + '% used';
+            bw.style.display = 'block';
+          }
         } else {
           sStat.textContent = sess.logged_in ? '—' : 'login first';
         }
@@ -593,8 +615,13 @@ function startAutoRefresh() {
   loadPendingCount();
   loadAccountsList();
   startLogStream();
+  updateUploadToggleBtn({{ 'true' if upload_enabled else 'false' }});
   setInterval(() => { loadStatus(); loadPendingCount(); }, 20000);
   setInterval(() => { loadJobs(); loadAccountsList(); }, 4000);
+  setInterval(() => {
+    const at = document.querySelector('.tab-content.active');
+    if (at && at.dataset.tab === 'mediafolder') loadMediaFolder();
+  }, 15000);
 }
 
 /* ── drag-and-drop ── */
@@ -779,12 +806,13 @@ async function pasteTokens() {
 async function loadJobs() {
   try {
     const r = await api('/upload/api/jobs');
-    const rows = r.jobs || [];
+    let rows = r.jobs || [];
+    if (typeof _hideDone !== 'undefined' && _hideDone) rows = rows.filter(j => !['done','cancelled'].includes(j.state));
     const tbl = document.querySelector('#upload-table tbody');
     if (!tbl) return;
 
     if (!rows.length) {
-      tbl.innerHTML = '<tr><td colspan="5" class="empty">No jobs yet.</td></tr>';
+      tbl.innerHTML = '<tr><td colspan="6" class="empty">No jobs yet.</td></tr>';
     } else {
       tbl.innerHTML = rows.map(j => {
         const pct  = j.percent || 0;
@@ -843,6 +871,21 @@ async function loadJobs() {
     const uEl = document.getElementById('stat-uploading');
     if (qEl) qEl.textContent = queuedCount;
     if (uEl) uEl.textContent = uploadingCount;
+    const cancelAllBtn = document.getElementById('btn-cancel-all');
+    if (cancelAllBtn) cancelAllBtn.style.display = uploadingCount > 0 ? '' : 'none';
+    const speedEl = document.getElementById('stat-queue-speed');
+    if (speedEl) {
+      const uploading = rows.filter(j => j.state === 'uploading');
+      const totalBps  = uploading.reduce((s, j) => s + (j.speed_bps || 0), 0);
+      if (totalBps > 0) {
+        const mbps = (totalBps / 1048576).toFixed(2);
+        const minEta = uploading.reduce((mn, j) => (j.eta_s != null && j.eta_s > 0) ? Math.min(mn, j.eta_s) : mn, Infinity);
+        const etaTxt = isFinite(minEta) ? ' | ETA ' + (minEta > 60 ? Math.floor(minEta/60) + 'm' : minEta + 's') : '';
+        speedEl.innerHTML = '<span style="color:var(--accent)">&uarr; ' + mbps + ' MB/s</span>' + etaTxt;
+      } else {
+        speedEl.textContent = uploadingCount > 0 ? 'connecting...' : '';
+      }
+    }
 
     // Stuck detection: uploading >10 min with no speed
     const nowSec = Math.floor(Date.now() / 1000);
@@ -1368,5 +1411,57 @@ async function deleteLocalFile(filename) {
     if (r.ok) { toast('Deleted.'); loadMediaFolder(); }
     else toast('Error: ' + (r.error || 'unknown'));
   } catch(e) { toast('Error: ' + e.message); }
+}
+
+// -- Clear done jobs (toggle filter) --
+let _hideDone = false;
+function clearDoneJobs() {
+  _hideDone = !_hideDone;
+  const btn = document.getElementById("btn-clear-done");
+  if (btn) btn.textContent = _hideDone ? "Show all" : "Clear done";
+  loadJobs();
+}
+
+// -- Cancel all active uploads --
+async function cancelAllUploading() {
+  if (!confirm("Stop all active uploads?")) return;
+  try {
+    const r = await api("/upload/api/jobs");
+    const active = (r.jobs || []).filter(j =>
+      ["uploading","queued","checking","cancelling"].includes(j.state)
+      && j.id && !j.id.startsWith("db:"));
+    if (!active.length) { toast("No active jobs"); return; }
+    let n = 0;
+    for (const j of active) {
+      try {
+        const res = await api("/upload/api/cancel-job", {method:"POST",
+          body: JSON.stringify({job_id: j.id})});
+        if (res.ok && res.cancelled) n++;
+      } catch(e) {}
+    }
+    toast(n + " job(s) cancelled");
+    setTimeout(() => loadJobs(), 800);
+  } catch(e) { toast("Error: " + e.message); }
+}
+
+// -- Queue all unqueued local files --
+async function queueAllUnqueued() {
+  try {
+    const r = await api("/upload/api/local-files");
+    const toQ = (r.files || []).filter(f => f.status === "local" || f.status === "failed");
+    if (!toQ.length) { toast("No unqueued files found"); return; }
+    if (!confirm("Queue " + toQ.length + " file(s)?")) return;
+    let ok = 0, fail = 0;
+    for (const f of toQ) {
+      try {
+        const res = await api("/upload/api/manual-upload",
+          {method:"POST", body: JSON.stringify({path: f.path})});
+        if (res.ok) ok++; else fail++;
+      } catch(e) { fail++; }
+      await new Promise(r2 => setTimeout(r2, 120));
+    }
+    toast(ok + " file(s) queued" + (fail ? ", " + fail + " failed" : ""));
+    setTimeout(() => { loadJobs(); loadMediaFolder(); }, 700);
+  } catch(e) { toast("Error: " + e.message); }
 }
 </script>{% endblock %}
