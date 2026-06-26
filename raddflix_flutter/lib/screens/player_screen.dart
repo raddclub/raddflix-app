@@ -2876,96 +2876,112 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     Widget _buildTransportRow() {
+      // ── 3-zone layout: [left nav] [center play] [right nav + utils] ──────────
+      // Using a Row with a fixed-width left balancer ensures the play/pause button
+      // is always truly centered and NEVER overlaps the utility buttons. The old
+      // Stack + Positioned(right:0) caused overlap/overflow on small screens.
+      const double utilWidth = 108.0; // lock(36) + immersive(36) + settings(36)
+
       return SizedBox(
-        height: 48,
-        child: Stack(
-          alignment: Alignment.center,
+        height: 52,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // ── Centered: skip · prev · play/pause · next · skip ──────────
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_showSkipBtns) ...[
-                  _RaddIconBtn(
-                    icon: Icons.replay_rounded,
-                    size: 22,
-                    onTap: () => _seekRelative(-_skipInterval),
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                if (_showPrevNextBtns) ...[
-                  Opacity(
-                    opacity: _hasPrev ? 1.0 : 0.25,
-                    child: _RaddIconBtn(
-                      icon: Icons.skip_previous_rounded,
-                      size: 28,
-                      onTap: _hasPrev ? () => _playEpisodeAt(_currentEpIdx - 1) : null,
+            // ── Left zone: backward nav (mirrors right width so center is exact) ──
+            SizedBox(
+              width: utilWidth,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_showSkipBtns)
+                    _RaddIconBtn(
+                      icon: Icons.replay_rounded,
+                      size: 22,
+                      onTap: () => _seekRelative(-_skipInterval),
                     ),
-                  ),
-                  const SizedBox(width: 8),
+                  if (_showSkipBtns && _showPrevNextBtns)
+                    const SizedBox(width: 2),
+                  if (_showPrevNextBtns)
+                    Opacity(
+                      opacity: _hasPrev ? 1.0 : 0.25,
+                      child: _RaddIconBtn(
+                        icon: Icons.skip_previous_rounded,
+                        size: 26,
+                        onTap: _hasPrev ? () => _playEpisodeAt(_currentEpIdx - 1) : null,
+                      ),
+                    ),
                 ],
-                GestureDetector(
+              ),
+            ),
+
+            // ── Center zone: play/pause (always centered) ─────────────────────
+            Expanded(
+              child: Center(
+                child: GestureDetector(
                   onTap: () { _player.playOrPause(); _scheduleHide(); },
                   child: Container(
-                    width: 42, height: 42,
+                    width: 44, height: 44,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white.withOpacity(0.12),
-                      border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.2),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.35), width: 1.2),
                     ),
                     child: Icon(
                       _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                       color: Colors.white,
-                      size: 22,
+                      size: 24,
                     ),
                   ),
                 ),
-                if (_showPrevNextBtns) ...[
-                  const SizedBox(width: 8),
-                  Opacity(
-                    opacity: _hasNext ? 1.0 : 0.25,
-                    child: _RaddIconBtn(
-                      icon: Icons.skip_next_rounded,
-                      size: 28,
-                      onTap: _hasNext ? () => _playEpisodeAt(_currentEpIdx + 1) : null,
-                    ),
-                  ),
-                ],
-                if (_showSkipBtns) ...[
-                  const SizedBox(width: 4),
-                  _RaddIconBtn(
-                    icon: Icons.forward_rounded,
-                    size: 22,
-                    onTap: () => _seekRelative(_skipInterval),
-                  ),
-                ],
-              ],
+              ),
             ),
-            // ── Right-side quick actions: Lock · Immersive · Settings ──────
-            Positioned(
-              right: 0,
+
+            // ── Right zone: forward nav + utility buttons ──────────────────────
+            SizedBox(
+              width: utilWidth,
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (_showPrevNextBtns)
+                    Opacity(
+                      opacity: _hasNext ? 1.0 : 0.25,
+                      child: _RaddIconBtn(
+                        icon: Icons.skip_next_rounded,
+                        size: 26,
+                        onTap: _hasNext ? () => _playEpisodeAt(_currentEpIdx + 1) : null,
+                      ),
+                    ),
+                  if (_showPrevNextBtns && _showSkipBtns)
+                    const SizedBox(width: 2),
+                  if (_showSkipBtns)
+                    _RaddIconBtn(
+                      icon: Icons.forward_rounded,
+                      size: 22,
+                      onTap: () => _seekRelative(_skipInterval),
+                    ),
+                  const Spacer(),
                   _RaddIconBtn(
                     icon: Icons.lock_outline_rounded,
-                    size: 20,
+                    size: 19,
                     onTap: () => setState(() {
                       _isLocked = true;
                       _showControls = false;
                       _applySubtitleMargin(controlsVisible: false);
                     }),
                   ),
-                  const SizedBox(width: 2),
                   _RaddIconBtn(
-                    icon: _isImmersive ? Icons.theaters_rounded : Icons.theaters_outlined,
-                    size: 20,
+                    icon: _isImmersive
+                        ? Icons.theaters_rounded
+                        : Icons.theaters_outlined,
+                    size: 19,
                     onTap: _isImmersive ? _exitImmersive : _enterImmersive,
                   ),
-                  const SizedBox(width: 2),
                   _RaddIconBtn(
                     icon: Icons.settings_rounded,
-                    size: 20,
+                    size: 19,
                     onTap: _openSettingsPanel,
                   ),
                 ],
