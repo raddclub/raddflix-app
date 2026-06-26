@@ -216,6 +216,34 @@
 
 </div>
 
+{# ══ TAB: Media Folder ══ #}
+<div class="tab-content" data-tab="mediafolder">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div>
+        <h3 style="margin:0">Oracle Media Folder</h3>
+        <div class="muted" style="font-size:12px;margin-top:3px" id="mf-dir-label">Files in the local upload queue on the server</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span class="muted" style="font-size:12px"><span id="mf-count">—</span> file(s)</span>
+        <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="loadMediaFolder()">↻ Refresh</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+    <table id="mf-table" style="min-width:580px">
+      <thead><tr>
+        <th>Filename</th>
+        <th style="width:90px">Size</th>
+        <th style="width:110px">Modified</th>
+        <th style="width:100px">Status</th>
+        <th style="width:160px">Actions</th>
+      </tr></thead>
+      <tbody><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
 {# ══ TAB: Settings ══ #}
 <div class="tab-content" data-tab="flixcfg">
   <div class="card" id="flix-acct-card">
@@ -423,6 +451,8 @@ function fmtTsShort(ts) {
 function badgeState(state) {
   if (state === 'done')         return '<span class="badge b-ok">done</span>';
   if (state === 'failed')       return '<span class="badge b-err">failed</span>';
+  if (state === 'cancelled')    return '<span class="badge b-mut" style="background:#6b7280">cancelled</span>';
+  if (state === 'cancelling')   return '<span class="badge b-warn" style="background:#f97316">cancelling…</span>';
   if (state === 'session_dead') return '<span class="badge b-err" style="background:#2d0808">⚡ session dead</span>';
   if (state === 'uploading')    return '<span class="badge b-warn" style="animation:pulse 1.5s infinite">uploading…</span>';
   if (state === 'checking')     return '<span class="badge b-warn">checking session…</span>';
@@ -457,6 +487,7 @@ function switchTab(tab, btn) {
   if (target) target.classList.add('active');
 
   if (tab === 'upload')    loadJobs();
+  if (tab === 'mediafolder') loadMediaFolder();
   if (tab === 'flixcfg')   { loadConfig(); loadAccountsList(); }
   if (tab === 'logs')      startLogStream();
 }
@@ -1243,4 +1274,99 @@ async function modalSaveFromJson() {
 
 /* ── boot ── */
 startAutoRefresh();
+
+// ── Cancel a running upload job ───────────────────────────────────────────
+async function cancelJob(jobId) {
+  if (!confirm('Cancel this upload?')) return;
+  try {
+    const r = await api('/upload/api/cancel-job', {method:'POST', body: JSON.stringify({job_id: jobId})});
+    toast(r.cancelled ? 'Cancelling upload…' : 'Job not found — may have already finished');
+    setTimeout(() => loadJobs(), 800);
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+// ── Retry a failed/cancelled upload job ───────────────────────────────────
+async function retryJob(jobId) {
+  try {
+    const r = await api('/upload/api/retry-job', {method:'POST', body: JSON.stringify({job_id: jobId})});
+    if (r.ok) { toast('Job re-queued!'); setTimeout(() => loadJobs(), 600); }
+    else toast('Error: ' + (r.error || 'unknown'));
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+// ── Quick Enable/Disable toggle for upload service ────────────────────────
+async function toggleUploadService() {
+  const btn = document.getElementById('btn-upload-toggle');
+  try {
+    const r = await api('/upload/api/upload-toggle', {method:'POST'});
+    updateUploadToggleBtn(r.enabled);
+    toast(r.enabled ? '▶ Upload service resumed' : '⏸ Upload service paused');
+  } catch(e) { toast('Error: ' + e.message); }
+}
+function updateUploadToggleBtn(enabled) {
+  const btn = document.getElementById('btn-upload-toggle');
+  if (!btn) return;
+  btn.textContent = enabled ? '⏸ Pause' : '▶ Resume';
+  btn.style.color = enabled ? '' : 'var(--accent)';
+}
+
+// ── Media Folder browser ──────────────────────────────────────────────────
+async function loadMediaFolder() {
+  const tbl = document.querySelector('#mf-table tbody');
+  const cntEl = document.getElementById('mf-count');
+  const dirEl = document.getElementById('mf-dir-label');
+  if (tbl) tbl.innerHTML = '<tr><td colspan="5" class="empty">Loading…</td></tr>';
+  try {
+    const r = await api('/upload/api/local-files');
+    const files = r.files || [];
+    if (cntEl) cntEl.textContent = files.length;
+    if (dirEl && r.media_dir) dirEl.textContent = r.media_dir;
+    if (!tbl) return;
+    if (!files.length) {
+      tbl.innerHTML = '<tr><td colspan="5" class="empty">No files in media folder.</td></tr>';
+      return;
+    }
+    tbl.innerHTML = files.map(f => {
+      const statusColors = {done:'#22c55e', queued:'#6366f1', uploading:'#f59e0b', failed:'#ef4444', local:'#6b7280'};
+      const statusLabels = {done:'✓ done', queued:'queued', uploading:'uploading…', failed:'failed', local:'not queued'};
+      const st = f.status || 'local';
+      const color = statusColors[st] || '#6b7280';
+      const label = statusLabels[st] || st;
+      const badge = `<span class="badge" style="background:${color};color:#fff">${label}</span>`;
+      const shareBtn = f.share_url
+        ? `<a href="${f.share_url}" target="_blank" style="font-size:11px;margin-right:4px">open</a>`
+        : '';
+      const queueBtn = (st === 'local' || st === 'failed')
+        ? `<button class="ghost" style="font-size:11px;padding:2px 7px" onclick="queueLocalFile('${f.path.replace(/'/g,"\\'")}')"  title="Queue for upload">▲ Queue</button> `
+        : '';
+      const delBtn = `<button class="danger" style="font-size:11px;padding:2px 7px" onclick="deleteLocalFile('${f.name.replace(/'/g,"\\'")}')" title="Delete from server">✕</button>`;
+      return '<tr>'
+        + '<td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + f.path + '">' + f.name + '</td>'
+        + '<td class="muted" style="font-size:11px">' + fmtBytes(f.size) + '</td>'
+        + '<td class="muted" style="font-size:11px">' + fmtTs(f.modified) + '</td>'
+        + '<td>' + badge + '</td>'
+        + '<td>' + shareBtn + queueBtn + delBtn + '</td>'
+        + '</tr>';
+    }).join('');
+  } catch(e) {
+    if (tbl) tbl.innerHTML = '<tr><td colspan="5" class="empty" style="color:var(--err)">Error: ' + e.message + '</td></tr>';
+  }
+}
+
+async function queueLocalFile(path) {
+  try {
+    const r = await api('/upload/api/manual-upload', {method:'POST', body: JSON.stringify({path})});
+    if (r.ok) { toast('Queued!'); setTimeout(() => { loadJobs(); loadMediaFolder(); }, 700); }
+    else toast('Error: ' + (r.error || 'unknown'));
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function deleteLocalFile(filename) {
+  if (!confirm('Delete "' + filename + '" from the server media folder?')) return;
+  try {
+    const r = await api('/upload/api/local-file', {method:'DELETE', body: JSON.stringify({filename})});
+    if (r.ok) { toast('Deleted.'); loadMediaFolder(); }
+    else toast('Error: ' + (r.error || 'unknown'));
+  } catch(e) { toast('Error: ' + e.message); }
+}
 </script>{% endblock %}
