@@ -137,3 +137,9 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 | BUG-M04 | subscription_provider: add loading flag to loadStatus() | ✅ DONE |
 | BUG-M05 | player_screen: re-read is_free from episode map not stale route args | ✅ DONE |
 | BUG-M06 | show_detail: pass all seasons episodes to player not just current season | ✅ DONE |
+
+## Phase 28 — Build Fix (2026-06-26)
+
+| ID | Task | Status |
+|----|------|--------|
+| BUG-28-01 | Fix app.dart: QuotaFull route used s.settings on BuildContext — must use ModalRoute.of(s) | ✅ DONE (1354ae5) |
