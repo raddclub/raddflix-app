@@ -143,3 +143,9 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 | ID | Task | Status |
 |----|------|--------|
 | BUG-28-01 | Fix app.dart: QuotaFull route used s.settings on BuildContext — must use ModalRoute.of(s) | ✅ DONE (1354ae5) |
+
+## Phase 28B — Oracle Sync: downloader.py ZIP fix (2026-06-26)
+
+| ID | Task | Status |
+|----|------|--------|
+| BUG-28-02 | Sync Oracle downloader.py ZIP extraction fix to GitHub (was live on server, not in repo) | ✅ DONE (40fcbdc) |
