@@ -107,7 +107,7 @@ class RaddFlixApp extends ConsumerWidget {
         // can display real numbers (used GB, limit, plan name, reset date).
         // Player pushes: {used_gb, limit_gb, plan_name, resets_at} as arguments.
         AppRoutes.quotaFull: (s) {
-          final a = (s.settings.arguments as Map<String, dynamic>?) ?? {};
+          final a = (ModalRoute.of(s)?.settings.arguments as Map<String, dynamic>?) ?? {};
           return QuotaFullScreen(
             usedGb:   (a['used_gb']   as num?)?.toDouble(),
             limitGb:  (a['limit_gb']  as num?)?.toDouble(),
