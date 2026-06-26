@@ -87,17 +87,18 @@ def jd_stats():
     if keepalive_dead:
         token_ok = False
 
-    # logged_in: JSESSIONID present and token genuinely fresh (validation_key optional)
-    logged_in = bool(jsid and token_ok)
+    # logged_in: requires JSESSIONID + validation_key + fresh token.
+    # VK is mandatory — without it every SAPI call returns 401 regardless of JSESSIONID.
+    # A JSESSIONID with no VK means the OTP was accepted but SAPI activation never completed.
+    logged_in = bool(jsid and vk and token_ok)
     # needs_otp: session fully dead and no silent recovery path
     needs_otp = bool(
-        jsid
-        and not token_ok
+        not token_ok
         and (not has_rt and not has_at or refresh_broken)
     )
 
     storage = {}
-    if token_ok and jsid:
+    if token_ok and jsid and vk:
         storage = uploader.get_storage_info(vk, jsid)
 
     remaining_m = max(0, int((exp - _time.time()) / 60)) if exp else 0
@@ -105,14 +106,13 @@ def jd_stats():
     return jsonify({
         "ok": True,
         "session": {
-            "id":            acct.get("id"),
-            "logged_in":     logged_in,
-            "needs_otp":     needs_otp,
-            "msisdn":        acct.get("msisdn") or db.setting("JAZZDRIVE_MSISDN", ""),
-            "remaining_m":   remaining_m,
-            "expires_in_days": max(0, int((exp - _time.time()) / 86400)) if exp else 0,
-            "token_expires_at": exp,
+            "id":          acct.get("id"),
+            "logged_in":   logged_in,
+            "needs_otp":   needs_otp,
+            "msisdn":      acct.get("msisdn") or db.setting("JAZZDRIVE_MSISDN", ""),
+            "remaining_m": remaining_m,
             "has_refresh_token": has_rt,
+            "has_vk":      bool(vk),
         },
         "storage":       storage,
         "library_count": lib.get("files", 0),
@@ -443,6 +443,8 @@ def upload_sapi_activate_url():
             return jsonify({"ok": False, "error": "No access token stored — send OTP first"}), 400
         at_json  = _json.dumps({"data": {"accesstoken": raw_at}})
         at_b64e  = _up.quote(_b64.b64encode(at_json.encode()).decode(), safe="")
+        # platform=Android — must match APK (Android-Nested key format).
+        # platform=web with Android-Nested key content causes 401 (format mismatch).
         sapi_url = (f"{CLOUD_BASE}/sapi/login/oauth"
                     f"?action=login&platform=Android&keytype=accesstoken&key={at_b64e}")
         return jsonify({"ok": True, "sapi_url": sapi_url,
@@ -557,17 +559,48 @@ def api_paste_tokens():
     if not acct:
         return jsonify({"ok": False, "error": "No JazzDrive account found — send OTP first"}), 404
 
-    aid = acct["id"]
-    exp = int(_time.time()) + 86400 * 30  # treat as valid for 30 days
+    aid  = acct["id"]
+    exp  = int(_time.time()) + 86400 * 30  # treat as valid for 30 days
+    raw_at = (data.get("raw_accesstoken") or data.get("access_token") or "").strip()
 
     try:
         with db.conn() as c:
-            c.execute(
-                "UPDATE accounts SET validation_key=?, jsessionid=?, "
-                "token_expires_at=?, is_active=1 WHERE id=?",
-                (vk, jid, exp, aid),
-            )
-        return jsonify({"ok": True, "message": "Tokens saved — session active", "account_id": aid})
+            if raw_at:
+                c.execute(
+                    "UPDATE accounts SET validation_key=?, jsessionid=?, "
+                    "raw_accesstoken=?, token_expires_at=?, last_scan_at=?, is_active=1 WHERE id=?",
+                    (vk, jid, raw_at, exp, int(_time.time()), aid),
+                )
+            else:
+                c.execute(
+                    "UPDATE accounts SET validation_key=?, jsessionid=?, "
+                    "token_expires_at=?, last_scan_at=?, is_active=1 WHERE id=?",
+                    (vk, jid, exp, int(_time.time()), aid),
+                )
+
+        # Mirror scan page: verify session is alive + resume uploads immediately.
+        try:
+            from .. import keepalive as _ka
+            _ka.trigger_heartbeat(aid)
+        except Exception as _hb_err:
+            import logging
+            logging.getLogger("hub.upload").debug("trigger_heartbeat failed: %s", _hb_err)
+        try:
+            from .. import jazzdrive as _jd
+            _jd.clear_sapi_backoff(aid)
+        except Exception:
+            pass
+        try:
+            from .. import uploader as _up
+            _up.clear_refresh_backoff(aid)
+        except Exception:
+            pass
+
+        return jsonify({
+            "ok":        True,
+            "message":   "Tokens saved — session verification triggered in background",
+            "account_id": aid,
+        })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -630,6 +663,14 @@ def api_log_entries():
     entries = uploader.get_log_entries(since_seq=since)
     return jsonify({"ok": True, "entries": entries,
                     "count": len(entries)})
+
+
+@bp.route("/api/log-clear", methods=["POST"])
+@auth.login_required
+def api_log_clear():
+    """Delete all in-memory upload log entries."""
+    n = uploader.clear_log_entries()
+    return jsonify({"ok": True, "deleted": n})
 
 
 # ---------------------------------------------------------------------------
@@ -704,14 +745,154 @@ def api_reset_stuck():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
+# ---------------------------------------------------------------------------
+# Cancel a running upload job
+# ---------------------------------------------------------------------------
 
-@bp.route('/api/clear-logs', methods=['POST'])
+@bp.route("/api/cancel-job", methods=["POST"])
 @auth.login_required
-def api_clear_logs():
-    """Clear all entries from the in-memory upload log ring buffer."""
+def api_cancel_job():
+    """Cancel a running or queued manual upload job.
+    Body: {job_id: str}
+    """
+    data   = request.get_json(force=True, silent=True) or {}
+    job_id = (data.get("job_id") or "").strip()
+    if not job_id:
+        return jsonify({"ok": False, "error": "job_id required"}), 400
+    found = uploader.cancel_job(job_id)
+    return jsonify({"ok": True, "cancelled": found, "job_id": job_id})
+
+
+# ---------------------------------------------------------------------------
+# Retry a single failed / cancelled job
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/retry-job", methods=["POST"])
+@auth.login_required
+def api_retry_job():
+    """Re-queue a failed or cancelled manual job by its job_id.
+    Body: {job_id: str}
+    """
+    data   = request.get_json(force=True, silent=True) or {}
+    job_id = (data.get("job_id") or "").strip()
+    if not job_id:
+        return jsonify({"ok": False, "error": "job_id required"}), 400
+
+    jobs = uploader.get_manual_jobs(limit=200)
+    job  = next((j for j in jobs if j["id"] == job_id), None)
+    if not job:
+        return jsonify({"ok": False, "error": "Job not found"}), 404
+    if job.get("state") not in ("failed", "cancelled", "session_dead"):
+        return jsonify({"ok": False, "error": f"Job state is '{job.get('state')}' — only failed/cancelled jobs can be retried"}), 400
+
+    file_path = job.get("path", "")
+    from pathlib import Path as _Path
+    if not _Path(file_path).exists():
+        return jsonify({"ok": False, "error": f"File no longer exists: {file_path}"}), 404
+
+    result = uploader.queue_manual_upload(file_path)
+    return jsonify({"ok": True, "new_job_id": result.get("job_id"), "old_job_id": job_id})
+
+
+# ---------------------------------------------------------------------------
+# Local media folder browser
+# ---------------------------------------------------------------------------
+
+@bp.route("/api/local-files")
+@auth.login_required
+def api_local_files():
+    """List all files in the Oracle MEDIA_DIR with size, mtime, and DB upload status."""
+    import os as _os, time as _t
+    media_dir = config.MEDIA_DIR
+    files = []
+    if media_dir.exists():
+        for entry in sorted(media_dir.iterdir(), key=lambda e: e.stat().st_mtime, reverse=True):
+            if not entry.is_file():
+                continue
+            st = entry.stat()
+            files.append({
+                "name":     entry.name,
+                "path":     str(entry),
+                "size":     st.st_size,
+                "modified": int(st.st_mtime),
+            })
+
+    # Enrich with DB status
+    names = [f["name"] for f in files]
+    db_status = {}
+    if names:
+        try:
+            placeholders = ",".join("?" * len(names))
+            with db.conn() as c:
+                rows = c.execute(
+                    f"SELECT filename, is_ready, share_url FROM files "
+                    f"WHERE filename IN ({placeholders})",
+                    names
+                ).fetchall()
+            for r in rows:
+                is_ready = r["is_ready"]
+                if is_ready == 1:    st = "done"
+                elif is_ready == -2: st = "uploading"
+                elif is_ready == -1: st = "failed"
+                elif is_ready == 0:  st = "queued"
+                else:                st = "unknown"
+                db_status[r["filename"]] = {"status": st, "share_url": r["share_url"] or ""}
+        except Exception:
+            pass
+
+    for f in files:
+        info = db_status.get(f["name"], {})
+        f["status"]    = info.get("status", "local")   # local = in folder but not in DB yet
+        f["share_url"] = info.get("share_url", "")
+
+    return jsonify({"ok": True, "files": files, "count": len(files),
+                    "media_dir": str(media_dir)})
+
+
+@bp.route("/api/local-file", methods=["DELETE"])
+@auth.login_required
+def api_local_file_delete():
+    """Delete a file from MEDIA_DIR by filename.
+    Body: {filename: str}
+    """
+    from pathlib import Path as _Path
+    from werkzeug.utils import secure_filename as _sec
+    data     = request.get_json(force=True, silent=True) or {}
+    filename = (data.get("filename") or "").strip()
+    if not filename:
+        return jsonify({"ok": False, "error": "filename required"}), 400
+
+    # Security: only allow files inside MEDIA_DIR — no path traversal
+    safe_name = _sec(filename)
+    target = config.MEDIA_DIR / safe_name
+    if not target.exists():
+        return jsonify({"ok": False, "error": f"File not found: {safe_name}"}), 404
     try:
-        from .. import uploader
-        n = uploader.clear_log_entries()
-        return __import__('flask').jsonify({'ok': True, 'cleared': n})
+        target.unlink()
+        # Also remove from DB if present (mark as failed so it doesn't re-queue)
+        try:
+            with db.conn() as c:
+                c.execute("DELETE FROM files WHERE filename=? AND is_ready IN (0,-1,-2)",
+                          (safe_name,))
+        except Exception:
+            pass
+        return jsonify({"ok": True, "deleted": safe_name})
     except Exception as e:
-        return __import__('flask').jsonify({'ok': False, 'error': str(e)}), 500
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@bp.route("/api/upload-toggle", methods=["POST"])
+@auth.login_required
+def api_upload_toggle():
+    """Quick-toggle the upload service on/off without going to Settings.
+    Body: {enabled: bool}  OR  no body to toggle current state.
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    if "enabled" in data:
+        new_val = "1" if data["enabled"] else "0"
+    else:
+        cur = db.setting("UPLOAD_ENABLED", "1")
+        new_val = "0" if cur == "1" else "1"
+    db.set_setting("UPLOAD_ENABLED", new_val)
+    return jsonify({"ok": True, "enabled": new_val == "1"})
+
