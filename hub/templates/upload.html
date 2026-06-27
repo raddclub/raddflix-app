@@ -35,7 +35,11 @@
   </div>
 </div>
 <style>
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes fadein  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+@keyframes fadeout { from{opacity:1} to{opacity:0;transform:translateY(-6px)} }
+@keyframes rowpop  { 0%{background:rgba(124,92,255,.28)} 100%{background:transparent} }
+@keyframes stripe-slide{from{background-position:0 0}to{background-position:40px 0}}
 /* ── upload panel enhancements ── */
 .u-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap}
 .u-tab{background:transparent;border:none;border-radius:8px 8px 0 0;padding:9px 16px;color:var(--muted);font-weight:500;cursor:pointer;font-size:13px;transition:color .15s,background .15s}
@@ -65,6 +69,29 @@ input.row-ck{width:14px;height:14px;cursor:pointer;accent-color:var(--accent)}
 th.ck-col,td.ck-col{width:32px!important;padding:8px 4px 8px 12px!important}
 .u-dropzone{border:2px dashed var(--border);border-radius:12px;padding:28px 20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}
 .u-dropzone:hover,.u-dropzone.over{border-color:var(--accent);background:rgba(124,92,255,.04)}
+.u-filter{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.u-filter input[type=text]{flex:1;min-width:130px;max-width:260px;padding:5px 10px;font-size:12px;
+  background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px}
+.u-filter input[type=text]:focus{outline:none;border-color:var(--accent)}
+.u-filter select{padding:5px 8px;font-size:12px;background:var(--panel2);
+  border:1px solid var(--border);color:var(--text);border-radius:6px;width:auto}
+#u-toast-stack{position:fixed;bottom:22px;right:22px;z-index:9999;
+  display:flex;flex-direction:column-reverse;gap:7px;pointer-events:none}
+.u-toast{pointer-events:auto;min-width:200px;max-width:340px;padding:10px 14px;
+  border-radius:9px;font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.5);
+  display:flex;align-items:center;gap:8px;animation:fadein .18s ease;cursor:pointer}
+.u-toast.u-out{animation:fadeout .22s ease forwards}
+.u-t-ok  {background:#1c3a24;border:1px solid #2a5535;color:var(--ok)}
+.u-t-err {background:#3a1c22;border:1px solid #5a2a32;color:#ff6b6b}
+.u-t-info{background:#1c2640;border:1px solid #2a3a60;color:#7ba7ff}
+.u-t-warn{background:#3d3220;border:1px solid #5a4828;color:#f59e0b}
+.u-summary{display:flex;gap:16px;flex-wrap:wrap;padding:9px 14px;
+  background:var(--panel2);border-radius:0 0 10px 10px;
+  border-top:1px solid var(--border);font-size:11px;color:var(--muted)}
+.u-summary b{color:var(--text)}
+.fn-ep  {font-weight:600;font-size:12px;color:var(--text);display:block}
+.fn-show{font-size:11px;color:var(--muted);display:block;margin-top:1px}
+tr.row-new{animation:rowpop 1.6s ease}
 </style>
 
 {# ── OTP quick-login banner ── #}
@@ -237,6 +264,18 @@ th.ck-col,td.ck-col{width:32px!important;padding:8px 4px 8px 12px!important}
         <button id="btn-upload-toggle" class="ghost" onclick="toggleUploadService()">⏸ Pause</button>
       </div>
     </div>
+    <div class="u-filter">
+      <input type="text" id="job-search" placeholder="🔍 search filename…" oninput="_filterJobs()" autocomplete="off">
+      <select id="job-sf" onchange="_filterJobs()">
+        <option value="">All states</option>
+        <option value="uploading">↑ Uploading</option>
+        <option value="queued">· Queued</option>
+        <option value="failed">✗ Failed</option>
+        <option value="done">✓ Done</option>
+        <option value="cancelled">⊘ Cancelled</option>
+      </select>
+      <button class="ghost" id="btn-retry-failed" style="display:none;color:#f59e0b;font-size:12px;padding:4px 10px" onclick="retryAllFailed()">↻ Retry all failed</button>
+    </div>
     <div id="bulk-bar-jobs" class="bulk-bar">
       <span class="bulk-bar-ct"><span id="jobs-sel-ct">0</span> selected</span>
       <button class="ghost" onclick="bulkCancelJobs()">✕ Cancel</button>
@@ -254,6 +293,14 @@ th.ck-col,td.ck-col{width:32px!important;padding:8px 4px 8px 12px!important}
       </tr></thead>
       <tbody id="jobs-tbody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
     </table>
+    </div>
+    <div id="jobs-summary" class="u-summary" style="display:none">
+      <span><b id="sum-uploading">0</b> uploading</span>
+      <span><b id="sum-queued">0</b> queued</span>
+      <span><b id="sum-done">0</b> done</span>
+      <span><b id="sum-failed">0</b> failed</span>
+      <span id="sum-bytes-wrap" style="display:none"><b id="sum-bytes">—</b> transferred</span>
+      <span id="sum-eta-wrap" style="display:none">ETA <b id="sum-eta">—</b></span>
     </div>
   </div>
 
@@ -500,15 +547,20 @@ function fmtTsShort(ts) {
   } catch { return ts; }
 }
 function badgeState(state) {
-  if (state === 'done')         return '<span class="badge b-ok">done</span>';
-  if (state === 'failed')       return '<span class="badge b-err">failed</span>';
-  if (state === 'cancelled')    return '<span class="badge b-mut" style="background:#6b7280">cancelled</span>';
-  if (state === 'cancelling')   return '<span class="badge b-warn" style="background:#f97316">cancelling…</span>';
-  if (state === 'session_dead') return '<span class="badge b-err" style="background:#2d0808">⚡ session dead</span>';
-  if (state === 'uploading')    return '<span class="badge b-warn" style="animation:pulse 1.5s infinite">uploading…</span>';
-  if (state === 'checking')     return '<span class="badge b-warn">checking session…</span>';
-  if (state === 'queued')       return '<span class="badge b-mut">queued</span>';
-  return '<span class="badge b-mut">' + (state || '?') + '</span>';
+  const _bm = {
+    done:        ['b-ok',  '✓ done'],
+    failed:      ['b-err', '✗ failed'],
+    error:       ['b-err', '✗ error'],
+    cancelled:   ['b-mut', '⊘ cancelled'],
+    cancelling:  ['b-warn','⊘ stopping…'],
+    session_dead:['b-err', '⚡ session dead'],
+    uploading:   ['b-warn','↑ uploading'],
+    checking:    ['b-mut', '⟳ checking'],
+    queued:      ['b-mut', '· queued'],
+    skipped:     ['b-mut', '— skipped'],
+  };
+  const [cls, lbl] = _bm[state] || ['b-mut', state||'—'];
+  return '<span class="badge '+cls+'"'+(state==='uploading'?' style="animation:pulse 1.4s infinite"':'')+'>'+lbl+'</span>';
 }
 
 
@@ -887,32 +939,59 @@ async function loadJobs() {
           + fmtBytes(j.uploaded) + ' / ' + fmtBytes(j.total) + '</span>'
           + speedHtml + etaHtml
           + '</div>'
-          + '<div style="height:5px;background:var(--surface2);border-radius:3px;margin-top:4px;overflow:hidden">'
-          + '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';transition:width .5s"></div></div>'
+          + '<div style="height:6px;background:var(--surface2,#1a1a2e);border-radius:3px;margin-top:4px;overflow:hidden">'
+          + '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';transition:width .5s' + (j.state==='uploading' ? ';background-image:repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(255,255,255,.14) 8px,rgba(255,255,255,.14) 16px);animation:stripe-slide .9s linear infinite' : '') + '"></div></div>'
           + sparkSvg
           + proxyHtml;
         const _isSel = _selJobs.has(j.id);
-        const _canCancel = ['uploading','queued','checking'].includes(j.state);
-        const _canRetry  = ['failed','cancelled','error'].includes(j.state);
-        const _actHtml = _canCancel
-          ? '<button class="ghost" style="font-size:11px;padding:2px 7px" onclick="cancelJob('' + j.id + '')">✕ Cancel</button>'
-          : _canRetry
-          ? '<button class="ghost" style="font-size:11px;padding:2px 7px" onclick="retryJob('' + j.id + '')">↻ Retry</button>'
-          : '<span class="muted" style="font-size:11px">—</span>';
-        return '<tr class="' + (_isSel ? 'u-sel' : '') + '" data-job-id="' + j.id + '">'
+        const _cC = ['uploading','queued','checking'].includes(j.state);
+        const _cR = ['failed','cancelled','error'].includes(j.state);
+        const _act = _cC
+          ? '<button class="ghost" style="font-size:11px;padding:2px 7px" onclick="cancelJob('' + j.id + '')">✕</button>'
+          : _cR
+          ? '<button class="ghost" style="font-size:11px;padding:2px 7px" onclick="retryJob('' + j.id + '')">↻</button>'
+          : '<span class="muted">—</span>';
+        const _ep = _parseEp(name);
+        const _fn = _ep
+          ? '<span class="fn-ep">' + _ep.show + ' <span style="color:var(--accent);font-size:11px">' + _ep.ep + '</span></span>'
+          : '<span style="font-size:12px">' + name + '</span>';
+        const _errDiv = j.error
+          ? '<div style="font-size:10px;margin-top:2px;max-width:160px;overflow:hidden;text-overflow:ellipsis;cursor:pointer;color:var(--muted)" title="' + (j.error||'').replace(/"/g,"'") + '" onclick="alert(this.title)">⚠ ' + (j.error||'').slice(0,50) + '</div>'
+          : '';
+        return '<tr class="' + (_isSel ? 'u-sel' : '') + '" data-job-id="' + j.id + '" data-state="' + j.state + '" data-name="' + name.toLowerCase().replace(/"/g,"'") + '">'
           + '<td class="ck-col"><input type="checkbox" class="row-ck" data-id="' + j.id + '" onchange="toggleJobCk(this)" ' + (_isSel ? 'checked' : '') + '></td>'
-          + '<td class="muted" style="font-size:11px">' + fmtTs(j.started_at) + '</td>'
-          + '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (j.path||'') + '">' + name + '</td>'
-          + '<td>' + badgeState(j.state) + (j.error ? '<div class="muted" style="font-size:10px;margin-top:2px;max-width:150px;overflow:hidden;text-overflow:ellipsis" title="' + (j.error||'').replace(/"/g,"'") + '">' + (j.error||'').slice(0,55) + '</div>' : '') + '</td>'
+          + '<td class="muted" style="font-size:11px;white-space:nowrap">' + fmtTs(j.started_at) + '</td>'
+          + '<td style="max-width:200px" title="' + (j.path||'').replace(/"/g,"'") + '">' + _fn + '</td>'
+          + '<td>' + badgeState(j.state) + _errDiv + '</td>'
           + '<td style="min-width:190px">' + bar + '</td>'
           + '<td>' + share + '</td>'
-          + '<td>' + _actHtml + '</td>'
+          + '<td>' + _act + '</td>'
           + '</tr>';
       }).join('');
     }
+    const _so={uploading:0,checking:1,queued:2,failed:3,error:3,cancelling:4,cancelled:5,done:6};
+    rows.sort((a,b)=>(_so[a.state]??7)-(_so[b.state]??7));
     const queuedCount    = rows.filter(j => j.state === 'queued').length;
     const uploadingCount = rows.filter(j => j.state === 'uploading').length;
+    const failedCount    = rows.filter(j => ['failed','error'].includes(j.state)).length;
+    const doneCount      = rows.filter(j => j.state === 'done').length;
     const totalPending   = queuedCount + uploadingCount + rows.filter(j => j.state === 'checking').length;
+    const _rafBtn = document.getElementById('btn-retry-failed');
+    if (_rafBtn) _rafBtn.style.display = failedCount > 0 ? '' : 'none';
+    const _sumBar = document.getElementById('jobs-summary');
+    if (_sumBar) {
+      _sumBar.style.display = rows.length ? '' : 'none';
+      const _sv=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+      _sv('sum-uploading',uploadingCount); _sv('sum-queued',queuedCount);
+      _sv('sum-done',doneCount); _sv('sum-failed',failedCount);
+      const _tb=rows.reduce((s,j)=>s+(j.uploaded||0),0);
+      const _bw=document.getElementById('sum-bytes-wrap');
+      if(_bw){_bw.style.display=_tb>0?'':'none';_sv('sum-bytes',fmtBytes(_tb));}
+      const _me=rows.filter(j=>j.state==='uploading').reduce((mn,j)=>(j.eta_s>0?Math.min(mn,j.eta_s):mn),Infinity);
+      const _ew=document.getElementById('sum-eta-wrap');
+      if(_ew){_ew.style.display=isFinite(_me)?'':'none';_sv('sum-eta',_me>60?Math.floor(_me/60)+'m '+(_me%60)+'s':_me+'s');}
+    }
+    _filterJobs();
     const pendEl = document.getElementById('stat-pending');
     if (pendEl) pendEl.textContent = totalPending || 0;
     const qEl = document.getElementById('stat-queued');
@@ -1657,4 +1736,86 @@ async function bulkDeleteFiles() {
   }
   toast(n+' deleted'+(fail?', '+fail+' failed':'')); clearMfSel(); loadMediaFolder();
 }
+
+// ── stacked toasts override ──────────────────────────
+(function(){
+  const _stk=document.createElement('div'); _stk.id='u-toast-stack'; document.body.appendChild(_stk);
+  const _ic={ok:'✓',err:'✗',info:'ℹ',warn:'⚠'};
+  window.toast=function(msg,type,dur){
+    if(typeof type!=='string'||!_ic[type]){dur=type;type='ok';} dur=dur||3500;
+    const el=document.createElement('div');
+    el.className='u-toast u-t-'+type;
+    el.innerHTML='<span>'+(_ic[type]||'✓')+'</span><span style="flex:1">'+msg+'</span>';
+    function _d(e){clearTimeout(e._tid);e.classList.add('u-out');setTimeout(()=>e.remove(),250);}
+    el.onclick=()=>_d(el); el._tid=setTimeout(()=>_d(el),dur);
+    _stk.appendChild(el);
+  };
+})();
+
+// ── smart episode parser ─────────────────────────────
+function _parseEp(fn){
+  let m=fn.match(/^(.*?)[.s_-]+[Ss](d{1,2})[Ee](d{1,2})/);
+  if(m) return{show:m[1].replace(/[._]/g,' ').trim(),ep:'S'+m[2].padStart(2,'0')+'E'+m[3].padStart(2,'0')};
+  m=fn.match(/^(.*?)[.s_-]+(d{1,2})x(d{2})/);
+  if(m) return{show:m[1].replace(/[._]/g,' ').trim(),ep:'S'+m[2].padStart(2,'0')+'E'+m[3].padStart(2,'0')};
+  m=fn.match(/^(.*?)[.s_-]+[Ee](d{2,3})(?:[.s_-]|$)/);
+  if(m) return{show:m[1].replace(/[._]/g,' ').trim(),ep:'E'+m[2].padStart(2,'0')};
+  return null;
+}
+
+// ── filter jobs table ────────────────────────────────
+function _filterJobs(){
+  const q=(document.getElementById('job-search')?.value||'').toLowerCase().trim();
+  const s=document.getElementById('job-sf')?.value||'';
+  document.querySelectorAll('#jobs-tbody tr[data-job-id]').forEach(r=>{
+    r.style.display=(!q||r.dataset.name?.includes(q))&&(!s||r.dataset.state===s)?'':'none';
+  });
+}
+
+// ── retry all failed ─────────────────────────────────
+async function retryAllFailed(){
+  const r=await api('/upload/api/jobs');
+  const f=(r.jobs||[]).filter(j=>['failed','error','cancelled'].includes(j.state)&&!j.id?.startsWith('db:'));
+  if(!f.length){toast('No failed jobs','info');return;}
+  if(!confirm('Retry '+f.length+' job(s)?'))return;
+  let n=0;
+  for(const j of f){try{const res=await api('/upload/api/retry-job',{method:'POST',body:JSON.stringify({job_id:j.id})});if(res.ok)n++;}catch(e){}
+    await new Promise(r2=>setTimeout(r2,80));
+  }
+  toast(n+' re-queued','ok'); setTimeout(()=>loadJobs(),700);
+}
+
+// ── duplicate detection ──────────────────────────────
+async function _checkDupe(filename){
+  const e1=_parseEp(filename);if(!e1)return null;
+  try{
+    const r=await api('/upload/api/jobs');
+    for(const j of(r.jobs||[])){
+      if(!['done','uploading','queued','checking'].includes(j.state))continue;
+      const jn=(j.path||'').split('/').pop();if(jn===filename)continue;
+      const e2=_parseEp(jn);
+      if(e2&&e2.ep===e1.ep&&e2.show.toLowerCase()===e1.show.toLowerCase())
+        return e1.show+' '+e1.ep+' already queued as "'+jn+'"';
+    }
+  }catch(e){}return null;
+}
+const _origQLF=typeof queueLocalFile==='function'?queueLocalFile:null;
+if(_origQLF){window.queueLocalFile=async function(path){
+  const w=await _checkDupe(path.split('/').pop());
+  if(w&&!confirm('⚠ Possible duplicate:
+'+w+'
+
+Queue anyway?'))return;
+  return _origQLF(path);};}
+
+// ── keyboard shortcuts ───────────────────────────────
+document.addEventListener('keydown',e=>{
+  if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;
+  if(e.key==='Escape'){clearJobSel();clearMfSel();}
+  if((e.ctrlKey||e.metaKey)&&e.key==='a'){
+    const tab=document.querySelector('.tab-content.active')?.dataset?.tab; e.preventDefault();
+    if(tab==='upload'){const m=document.getElementById('jobs-sel-all');if(m){m.checked=true;toggleAllJobs(m);}}
+    else if(tab==='mediafolder'){const m=document.getElementById('mf-sel-all');if(m){m.checked=true;toggleAllMf(m);}}
+  }
+});
 </script>{% endblock %}
