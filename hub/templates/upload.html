@@ -36,6 +36,35 @@
 </div>
 <style>
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+/* ── upload panel enhancements ── */
+.u-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap}
+.u-tab{background:transparent;border:none;border-radius:8px 8px 0 0;padding:9px 16px;color:var(--muted);font-weight:500;cursor:pointer;font-size:13px;transition:color .15s,background .15s}
+.u-tab:hover{background:var(--panel2);color:var(--text)}
+.u-tab.active{background:var(--accent);color:#fff}
+.u-tab.active:hover{filter:brightness(1.1)}
+.u-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px}
+.u-stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px;overflow:hidden}
+.u-stat-accent{border-left:3px solid var(--accent)}
+.u-stat-ok{border-left:3px solid var(--ok)}
+.u-stat-warn{border-left:3px solid #f59e0b}
+.u-stat-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:6px}
+.u-stat-val{font-size:1.45rem;font-weight:700;line-height:1.1}
+.u-stat-sub{font-size:11px;color:var(--muted);margin-top:4px;min-height:14px}
+.u-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.u-toolbar-btns{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.u-toolbar-btns button{font-size:12px;padding:4px 10px}
+.u-section-head{margin:0;font-size:15px;font-weight:600}
+.bulk-bar{display:none;align-items:center;gap:8px;flex-wrap:wrap;background:rgba(124,92,255,.11);border:1px solid rgba(124,92,255,.32);border-radius:8px;padding:8px 12px;margin-bottom:10px}
+.bulk-bar.show{display:flex}
+.bulk-bar-ct{font-size:13px;font-weight:600;color:var(--accent);margin-right:2px}
+.bulk-bar button{font-size:12px;padding:4px 11px}
+tbody tr{transition:background .1s}
+tbody tr:hover td{background:rgba(255,255,255,.02)}
+tbody tr.u-sel td{background:rgba(124,92,255,.09)!important;border-bottom-color:rgba(124,92,255,.2)}
+input.row-ck{width:14px;height:14px;cursor:pointer;accent-color:var(--accent)}
+th.ck-col,td.ck-col{width:32px!important;padding:8px 4px 8px 12px!important}
+.u-dropzone{border:2px dashed var(--border);border-radius:12px;padding:28px 20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}
+.u-dropzone:hover,.u-dropzone.over{border-color:var(--accent);background:rgba(124,92,255,.04)}
 </style>
 
 {# ── OTP quick-login banner ── #}
@@ -133,49 +162,46 @@
 </div>
 
 {# ── Dashboard stats ── #}
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
-  <div class="card" style="padding:14px;text-align:center">
-    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Session</div>
-    <div id="stat-session" style="font-size:1.35rem;font-weight:700">…</div>
-    <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">
-      <div id="stat-session-sub" class="muted" style="font-size:11px"></div>
-      <button id="btn-relogin" class="primary" style="font-size:11px;padding:3px 8px;display:none" onclick="showOtpModal()">Re-login</button>
-    </div>
+<div class="u-stats">
+  <div class="u-stat u-stat-accent">
+    <div class="u-stat-lbl">Session</div>
+    <div id="stat-session" class="u-stat-val">…</div>
+    <div class="u-stat-sub" id="stat-session-sub"></div>
+    <button id="btn-relogin" class="primary" style="font-size:11px;padding:3px 8px;display:none;margin-top:6px" onclick="showOtpModal()">Re-login</button>
   </div>
-  <div class="card" style="padding:14px;text-align:center">
-    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Account</div>
-    <div id="stat-msisdn" style="font-size:1.05rem;font-weight:700;font-family:monospace">—</div>
-    <div class="muted" style="font-size:11px;margin-top:3px">linked phone</div>
+  <div class="u-stat u-stat-ok">
+    <div class="u-stat-lbl">Account</div>
+    <div id="stat-msisdn" class="u-stat-val" style="font-size:1rem;font-family:monospace">—</div>
+    <div class="u-stat-sub">linked Jazz number</div>
   </div>
-  <div class="card" style="padding:14px;text-align:center">
-    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Storage</div>
-    <div id="stat-storage" style="font-size:1.35rem;font-weight:700">—</div>
-    <div id="stat-storage-sub" class="muted" style="font-size:11px;margin-top:3px"></div>
+  <div class="u-stat u-stat-warn">
+    <div class="u-stat-lbl">JazzDrive Storage</div>
+    <div id="stat-storage" class="u-stat-val">—</div>
+    <div class="u-stat-sub" id="stat-storage-sub"></div>
     <div id="stat-storage-bar-wrap" style="display:none;margin-top:8px">
-      <div style="height:5px;background:var(--surface2,#1a1a2e);border-radius:3px;overflow:hidden">
+      <div style="height:5px;background:var(--panel2);border-radius:3px;overflow:hidden">
         <div id="stat-storage-bar" style="height:100%;background:var(--accent);border-radius:3px;transition:width .6s;width:0%"></div>
       </div>
       <div id="stat-storage-pct" class="muted" style="font-size:10px;margin-top:3px"></div>
     </div>
   </div>
-
-  <div class="card" style="padding:14px;text-align:center">
-    <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Queue</div>
-    <div id="stat-pending" style="font-size:1.35rem;font-weight:700">—</div>
-    <div style="display:flex;justify-content:center;gap:10px;margin-top:4px">
-      <span class="muted" style="font-size:10px"><span id="stat-queued" style="font-weight:600">0</span> queued</span>
-      <span class="muted" style="font-size:10px"><span id="stat-uploading" style="font-weight:600;color:#6366f1">0</span> uploading</span>
+  <div class="u-stat u-stat-accent">
+    <div class="u-stat-lbl">Upload Queue</div>
+    <div id="stat-pending" class="u-stat-val">—</div>
+    <div class="u-stat-sub">
+      <span id="stat-queued" style="font-weight:600">0</span> queued &nbsp;
+      <span id="stat-uploading" style="font-weight:600;color:var(--accent)">0</span> active
     </div>
-    <div id="stat-queue-speed" class="muted" style="font-size:10px;margin-top:5px;min-height:14px"></div>
+    <div id="stat-queue-speed" style="font-size:10px;margin-top:4px;min-height:14px;color:var(--muted)"></div>
   </div>
 </div>
 
 {# ── Tab navigation ── #}
-<div style="display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap">
-  <button class="tab-btn active" onclick="switchTab('upload', this)"   style="background:transparent;border:none;border-bottom:2px solid var(--accent);padding:9px 16px;color:var(--text);font-weight:500;border-radius:0;cursor:pointer">Uploads</button>
-  <button class="tab-btn"        onclick="switchTab('flixcfg', this)"  style="background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 16px;color:var(--muted);font-weight:500;border-radius:0;cursor:pointer">Settings</button>
-  <button class="tab-btn"        onclick="switchTab('logs', this)"     style="background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 16px;color:var(--muted);font-weight:500;border-radius:0;cursor:pointer">Logs</button>
-  <button class="tab-btn"        onclick="switchTab('mediafolder', this)" style="background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 16px;color:var(--muted);font-weight:500;border-radius:0;cursor:pointer">📁 Media Folder</button>
+<div class="u-tabs">
+  <button class="u-tab tab-btn active" onclick="switchTab('upload',this)">⬆ Uploads</button>
+  <button class="u-tab tab-btn"        onclick="switchTab('mediafolder',this)">📁 Media Folder</button>
+  <button class="u-tab tab-btn"        onclick="switchTab('logs',this)">📋 Logs</button>
+  <button class="u-tab tab-btn"        onclick="switchTab('flixcfg',this)">⚙ Settings</button>
 </div>
 
 {# ══ TAB: Upload ══ #}
@@ -186,12 +212,10 @@
     uploads keep running even if you close this browser tab. Worker thread is active.
   </div>
 
-  <div class="card" id="drop-zone"
-       style="border:2px dashed var(--border);border-radius:10px;padding:32px 20px;
-              text-align:center;cursor:pointer;transition:border-color .2s,background .2s"
+  <div class="card u-dropzone" id="drop-zone"
        ondragover="dzOver(event)" ondragleave="dzLeave(event)" ondrop="dzDrop(event)"
        onclick="document.getElementById('file-input').click()">
-    <div style="font-size:2rem;margin-bottom:8px;user-select:none">📂</div>
+    <div style="font-size:2.2rem;margin-bottom:10px;user-select:none">📂</div>
     <div style="font-weight:600;margin-bottom:4px">Drag &amp; drop files here, or click to choose</div>
     <div class="muted" style="font-size:12px">Any video file — auto-queued for JazzDrive upload</div>
     <input id="file-input" type="file" multiple accept="video/*,.mkv,.avi,.mov,.ts,.m2ts,.wmv,.flv"
@@ -200,27 +224,35 @@
   </div>
 
   <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-      <h3 style="margin:0">Active &amp; Recent Uploads</h3>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;color:#888" title="Also re-queue failed/skipped files">
+    <div class="u-toolbar">
+      <h3 class="u-section-head">⬆ Active &amp; Recent Uploads</h3>
+      <div class="u-toolbar-btns">
+        <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--muted)" title="Also re-queue failed/skipped files">
           <input type="checkbox" id="reset-incl-failed" style="cursor:pointer"> incl. failed
         </label>
-        <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="resetStuck()">Reset stuck</button>
-        <button id="btn-cancel-all" class="ghost" style="font-size:12px;padding:4px 10px;display:none" onclick="cancelAllUploading()">Stop all</button>
-        <button id="btn-clear-done" class="ghost" style="font-size:12px;padding:4px 10px" onclick="clearDoneJobs()">Clear done</button>
-        <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="loadJobs()">↻ Refresh</button>
-        <button id="btn-upload-toggle" class="ghost" style="font-size:12px;padding:4px 10px" onclick="toggleUploadService()">⏸ Pause</button>
+        <button class="ghost" onclick="resetStuck()">Reset stuck</button>
+        <button id="btn-cancel-all" class="ghost" style="display:none" onclick="cancelAllUploading()">Stop all</button>
+        <button id="btn-clear-done" class="ghost" onclick="clearDoneJobs()">Clear done</button>
+        <button class="ghost" onclick="loadJobs()">↻</button>
+        <button id="btn-upload-toggle" class="ghost" onclick="toggleUploadService()">⏸ Pause</button>
       </div>
+    </div>
+    <div id="bulk-bar-jobs" class="bulk-bar">
+      <span class="bulk-bar-ct"><span id="jobs-sel-ct">0</span> selected</span>
+      <button class="ghost" onclick="bulkCancelJobs()">✕ Cancel</button>
+      <button class="ghost" onclick="bulkRetryJobs()">↻ Retry</button>
+      <button class="danger" onclick="bulkClearJobs()">🗑 Remove</button>
+      <button class="ghost" style="margin-left:auto" onclick="clearJobSel()">✕ Deselect</button>
     </div>
     <div class="table-wrap">
     <table id="upload-table" style="min-width:560px">
       <thead><tr>
-        <th style="width:120px">When</th><th>File</th>
-        <th style="width:100px">State</th><th style="width:220px">Progress</th>
-        <th>Share</th><th style="width:80px">Action</th>
+        <th class="ck-col"><input type="checkbox" class="row-ck" id="jobs-sel-all" onchange="toggleAllJobs(this)"></th>
+        <th style="width:105px">When</th><th>File</th>
+        <th style="width:90px">State</th><th style="width:200px">Progress</th>
+        <th>Share</th><th style="width:90px">Action</th>
       </tr></thead>
-      <tbody><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+      <tbody id="jobs-tbody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
     </table>
     </div>
   </div>
@@ -230,27 +262,34 @@
 {# ══ TAB: Media Folder ══ #}
 <div class="tab-content" data-tab="mediafolder">
   <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div class="u-toolbar">
       <div>
-        <h3 style="margin:0">Oracle Media Folder</h3>
-        <div class="muted" style="font-size:12px;margin-top:3px" id="mf-dir-label">Files in the local upload queue on the server</div>
+        <h3 class="u-section-head">📁 Oracle Media Folder</h3>
+        <div class="muted" style="font-size:12px;margin-top:2px" id="mf-dir-label">Files in the local upload queue on the server</div>
       </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <span class="muted" style="font-size:12px"><span id="mf-count">—</span> file(s)</span>
-        <button class="ghost" style="font-size:12px;padding:4px 10px;color:var(--accent)" onclick="queueAllUnqueued()">▲ Queue all unqueued</button>
-        <button class="ghost" style="font-size:12px;padding:4px 10px" onclick="loadMediaFolder()">↻ Refresh</button>
+      <div class="u-toolbar-btns">
+        <span class="muted" style="font-size:12px"><span id="mf-count">—</span> files</span>
+        <button class="ghost" style="color:var(--accent)" onclick="queueAllUnqueued()">▲ Queue all</button>
+        <button class="ghost" onclick="loadMediaFolder()">↻</button>
       </div>
+    </div>
+    <div id="bulk-bar-mf" class="bulk-bar">
+      <span class="bulk-bar-ct"><span id="mf-sel-ct">0</span> selected</span>
+      <button class="ghost" style="color:var(--accent)" onclick="bulkQueueFiles()">▲ Queue selected</button>
+      <button class="danger" onclick="bulkDeleteFiles()">🗑 Delete selected</button>
+      <button class="ghost" style="margin-left:auto" onclick="clearMfSel()">✕ Deselect</button>
     </div>
     <div class="table-wrap">
     <table id="mf-table" style="min-width:580px">
       <thead><tr>
+        <th class="ck-col"><input type="checkbox" class="row-ck" id="mf-sel-all" onchange="toggleAllMf(this)"></th>
         <th>Filename</th>
-        <th style="width:90px">Size</th>
-        <th style="width:110px">Modified</th>
-        <th style="width:100px">Status</th>
-        <th style="width:160px">Actions</th>
+        <th style="width:85px">Size</th>
+        <th style="width:100px">Modified</th>
+        <th style="width:90px">Status</th>
+        <th style="width:130px">Actions</th>
       </tr></thead>
-      <tbody><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+      <tbody id="mf-tbody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
     </table>
     </div>
   </div>
@@ -484,24 +523,15 @@ function sessionDeadBanner(job) {
 }
 /* ── tabs ── */
 function switchTab(tab, btn) {
-  document.querySelectorAll('.tab-btn').forEach(b => {
-    b.style.color = 'var(--muted)';
-    b.style.borderBottom = '2px solid transparent';
-  });
+  document.querySelectorAll('.u-tab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  
-  if (btn) {
-    btn.style.color = 'var(--text)';
-    btn.style.borderBottom = '2px solid var(--accent)';
-  }
-  
+  if (btn) btn.classList.add('active');
   const target = document.querySelector('.tab-content[data-tab="' + tab + '"]');
   if (target) target.classList.add('active');
-
-  if (tab === 'upload')    loadJobs();
+  if (tab === 'upload')      loadJobs();
   if (tab === 'mediafolder') loadMediaFolder();
-  if (tab === 'flixcfg')   { loadConfig(); loadAccountsList(); }
-  if (tab === 'logs')      startLogStream();
+  if (tab === 'flixcfg')     { loadConfig(); loadAccountsList(); }
+  if (tab === 'logs')        startLogStream();
 }
 
 /* ── dashboard stats (auto-refreshes every 20s) ── */
@@ -712,7 +742,7 @@ function _showUploadPasteCookiesNeeded(msisdn, message, accountId) {
   }
   if (accountId) _uploadPtAccountId = accountId;
   /* Switch to the Settings tab so the card is visible */
-  const settingsBtn = document.querySelector('.tab-btn[onclick*="flixcfg"]');
+  const settingsBtn = document.querySelector('.u-tab[onclick*="flixcfg"]');
   if (settingsBtn && !settingsBtn.classList.contains('active')) settingsBtn.click();
   if (card) setTimeout(() => card.scrollIntoView({behavior:'smooth', block:'center'}), 300);
 }
@@ -808,11 +838,11 @@ async function loadJobs() {
     const r = await api('/upload/api/jobs');
     let rows = r.jobs || [];
     if (typeof _hideDone !== 'undefined' && _hideDone) rows = rows.filter(j => !['done','cancelled'].includes(j.state));
-    const tbl = document.querySelector('#upload-table tbody');
+    const tbl = document.getElementById('jobs-tbody');
     if (!tbl) return;
 
     if (!rows.length) {
-      tbl.innerHTML = '<tr><td colspan="6" class="empty">No jobs yet.</td></tr>';
+      tbl.innerHTML = '<tr><td colspan="7" class="empty">No jobs yet.</td></tr>';
     } else {
       tbl.innerHTML = rows.map(j => {
         const pct  = j.percent || 0;
@@ -861,12 +891,22 @@ async function loadJobs() {
           + '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';transition:width .5s"></div></div>'
           + sparkSvg
           + proxyHtml;
-        return '<tr>'
+        const _isSel = _selJobs.has(j.id);
+        const _canCancel = ['uploading','queued','checking'].includes(j.state);
+        const _canRetry  = ['failed','cancelled','error'].includes(j.state);
+        const _actHtml = _canCancel
+          ? '<button class="ghost" style="font-size:11px;padding:2px 7px" onclick="cancelJob('' + j.id + '')">✕ Cancel</button>'
+          : _canRetry
+          ? '<button class="ghost" style="font-size:11px;padding:2px 7px" onclick="retryJob('' + j.id + '')">↻ Retry</button>'
+          : '<span class="muted" style="font-size:11px">—</span>';
+        return '<tr class="' + (_isSel ? 'u-sel' : '') + '" data-job-id="' + j.id + '">'
+          + '<td class="ck-col"><input type="checkbox" class="row-ck" data-id="' + j.id + '" onchange="toggleJobCk(this)" ' + (_isSel ? 'checked' : '') + '></td>'
           + '<td class="muted" style="font-size:11px">' + fmtTs(j.started_at) + '</td>'
-          + '<td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (j.path||'') + '">' + name + '</td>'
-          + '<td>' + badgeState(j.state) + (j.error ? '<div class="muted" style="font-size:10px;margin-top:2px">' + j.error.slice(0,60) + '</div>' : '') + '</td>'
-          + '<td style="min-width:200px">' + bar + '</td>'
+          + '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (j.path||'') + '">' + name + '</td>'
+          + '<td>' + badgeState(j.state) + (j.error ? '<div class="muted" style="font-size:10px;margin-top:2px;max-width:150px;overflow:hidden;text-overflow:ellipsis" title="' + (j.error||'').replace(/"/g,"'") + '">' + (j.error||'').slice(0,55) + '</div>' : '') + '</td>'
+          + '<td style="min-width:190px">' + bar + '</td>'
           + '<td>' + share + '</td>'
+          + '<td>' + _actHtml + '</td>'
           + '</tr>';
       }).join('');
     }
@@ -1367,10 +1407,10 @@ function updateUploadToggleBtn(enabled) {
 
 // ── Media Folder browser ──────────────────────────────────────────────────
 async function loadMediaFolder() {
-  const tbl = document.querySelector('#mf-table tbody');
+  const tbl = document.getElementById('mf-tbody');
   const cntEl = document.getElementById('mf-count');
   const dirEl = document.getElementById('mf-dir-label');
-  if (tbl) tbl.innerHTML = '<tr><td colspan="5" class="empty">Loading…</td></tr>';
+  if (tbl) tbl.innerHTML = '<tr><td colspan="6" class="empty">Loading…</td></tr>';
   try {
     const r = await api('/upload/api/local-files');
     const files = r.files || [];
@@ -1378,7 +1418,7 @@ async function loadMediaFolder() {
     if (dirEl && r.media_dir) dirEl.textContent = r.media_dir;
     if (!tbl) return;
     if (!files.length) {
-      tbl.innerHTML = '<tr><td colspan="5" class="empty">No files in media folder.</td></tr>';
+      tbl.innerHTML = '<tr><td colspan="6" class="empty">No files in media folder.</td></tr>';
       return;
     }
     tbl.innerHTML = files.map(f => {
@@ -1395,8 +1435,10 @@ async function loadMediaFolder() {
         ? `<button class="ghost" style="font-size:11px;padding:2px 7px" onclick="queueLocalFile('${f.path.replace(/'/g,"\\'")}')"  title="Queue for upload">▲ Queue</button> `
         : '';
       const delBtn = `<button class="danger" style="font-size:11px;padding:2px 7px" onclick="deleteLocalFile('${f.name.replace(/'/g,"\\'")}')" title="Delete from server">✕</button>`;
-      return '<tr>'
-        + '<td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + f.path + '">' + f.name + '</td>'
+      const _mfSel = _selFiles.has(f.name);
+      return '<tr class="' + (_mfSel ? 'u-sel' : '') + '">'
+        + '<td class="ck-col"><input type="checkbox" class="row-ck" data-name="' + f.name.replace(/"/g,"'") + '" onchange="toggleFileCk(this)" ' + (_mfSel ? 'checked' : '') + '></td>'
+        + '<td style="max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + f.path + '">' + f.name + '</td>'
         + '<td class="muted" style="font-size:11px">' + fmtBytes(f.size) + '</td>'
         + '<td class="muted" style="font-size:11px">' + fmtTs(f.modified) + '</td>'
         + '<td>' + badge + '</td>'
@@ -1404,7 +1446,7 @@ async function loadMediaFolder() {
         + '</tr>';
     }).join('');
   } catch(e) {
-    if (tbl) tbl.innerHTML = '<tr><td colspan="5" class="empty" style="color:var(--err)">Error: ' + e.message + '</td></tr>';
+    if (tbl) tbl.innerHTML = '<tr><td colspan="6" class="empty" style="color:var(--err)">Error: ' + e.message + '</td></tr>';
   }
 }
 
@@ -1495,5 +1537,124 @@ async function queueAllUnqueued() {
     toast(ok + " file(s) queued" + (fail ? ", " + fail + " failed" : ""));
     setTimeout(() => { loadJobs(); loadMediaFolder(); }, 700);
   } catch(e) { toast("Error: " + e.message); }
+}
+
+// ══════════════════════════════════════════════════════
+// MULTI-SELECT STATE
+// ══════════════════════════════════════════════════════
+const _selJobs  = new Set();
+const _selFiles = new Set();
+
+// ── Jobs ─────────────────────────────────────────────
+function toggleJobCk(cb) {
+  const id = cb.dataset.id;
+  if (cb.checked) _selJobs.add(id); else _selJobs.delete(id);
+  const row = cb.closest('tr'); if (row) row.classList.toggle('u-sel', cb.checked);
+  _refreshJobBar();
+}
+function toggleAllJobs(master) {
+  document.querySelectorAll('#jobs-tbody input.row-ck').forEach(cb => {
+    cb.checked = master.checked;
+    if (master.checked) _selJobs.add(cb.dataset.id); else _selJobs.delete(cb.dataset.id);
+    const row = cb.closest('tr'); if (row) row.classList.toggle('u-sel', cb.checked);
+  });
+  _refreshJobBar();
+}
+function clearJobSel() {
+  _selJobs.clear();
+  document.querySelectorAll('#jobs-tbody input.row-ck').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('#jobs-tbody tr.u-sel').forEach(r => r.classList.remove('u-sel'));
+  const sa = document.getElementById('jobs-sel-all'); if (sa) sa.checked = false;
+  _refreshJobBar();
+}
+function _refreshJobBar() {
+  const bar = document.getElementById('bulk-bar-jobs');
+  const ct  = document.getElementById('jobs-sel-ct');
+  if (!bar) return;
+  bar.classList.toggle('show', _selJobs.size > 0);
+  if (ct) ct.textContent = _selJobs.size;
+}
+// ── Files ─────────────────────────────────────────────
+function toggleFileCk(cb) {
+  const nm = cb.dataset.name;
+  if (cb.checked) _selFiles.add(nm); else _selFiles.delete(nm);
+  const row = cb.closest('tr'); if (row) row.classList.toggle('u-sel', cb.checked);
+  _refreshMfBar();
+}
+function toggleAllMf(master) {
+  document.querySelectorAll('#mf-tbody input.row-ck').forEach(cb => {
+    cb.checked = master.checked;
+    if (master.checked) _selFiles.add(cb.dataset.name); else _selFiles.delete(cb.dataset.name);
+    const row = cb.closest('tr'); if (row) row.classList.toggle('u-sel', cb.checked);
+  });
+  _refreshMfBar();
+}
+function clearMfSel() {
+  _selFiles.clear();
+  document.querySelectorAll('#mf-tbody input.row-ck').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('#mf-tbody tr.u-sel').forEach(r => r.classList.remove('u-sel'));
+  const sa = document.getElementById('mf-sel-all'); if (sa) sa.checked = false;
+  _refreshMfBar();
+}
+function _refreshMfBar() {
+  const bar = document.getElementById('bulk-bar-mf');
+  const ct  = document.getElementById('mf-sel-ct');
+  if (!bar) return;
+  bar.classList.toggle('show', _selFiles.size > 0);
+  if (ct) ct.textContent = _selFiles.size;
+}
+// ══════════════════════════════════════════════════════
+// BULK ACTIONS — JOBS
+// ══════════════════════════════════════════════════════
+async function bulkCancelJobs() {
+  const ids = [..._selJobs]; if (!ids.length) return;
+  let n = 0;
+  for (const id of ids) {
+    try { const r = await api('/upload/api/cancel-job',{method:'POST',body:JSON.stringify({job_id:id})}); if (r.ok && r.cancelled) n++; } catch(e) {}
+    await new Promise(r=>setTimeout(r,80));
+  }
+  toast(n+' cancelled'); clearJobSel(); setTimeout(()=>loadJobs(),700);
+}
+async function bulkRetryJobs() {
+  const ids = [..._selJobs]; if (!ids.length) return;
+  let n = 0;
+  for (const id of ids) {
+    try { const r = await api('/upload/api/retry-job',{method:'POST',body:JSON.stringify({job_id:id})}); if (r.ok) n++; } catch(e) {}
+    await new Promise(r=>setTimeout(r,80));
+  }
+  toast(n+' re-queued'); clearJobSel(); setTimeout(()=>loadJobs(),700);
+}
+function bulkClearJobs() {
+  const ids = new Set([..._selJobs]);
+  document.querySelectorAll('#jobs-tbody tr').forEach(row => {
+    if (ids.has(row.dataset.jobId)) row.remove();
+  });
+  ids.forEach(id => _selJobs.delete(id));
+  _refreshJobBar(); toast(ids.size+' removed from view');
+}
+// ══════════════════════════════════════════════════════
+// BULK ACTIONS — FILES
+// ══════════════════════════════════════════════════════
+async function bulkQueueFiles() {
+  const names = [..._selFiles]; if (!names.length) return;
+  if (!confirm('Queue '+names.length+' file(s) for upload?')) return;
+  const rf = await api('/upload/api/local-files');
+  const pathMap = {}; (rf.files||[]).forEach(f => { pathMap[f.name]=f.path; });
+  let n=0, fail=0;
+  for (const nm of names) {
+    const path = pathMap[nm]; if (!path) { fail++; continue; }
+    try { const r = await api('/upload/api/manual-upload',{method:'POST',body:JSON.stringify({path})}); r.ok ? n++ : fail++; } catch(e) { fail++; }
+    await new Promise(r=>setTimeout(r,100));
+  }
+  toast(n+' queued'+(fail?', '+fail+' failed':'')); clearMfSel(); setTimeout(()=>{loadMediaFolder();loadJobs();},700);
+}
+async function bulkDeleteFiles() {
+  const names = [..._selFiles]; if (!names.length) return;
+  if (!confirm('Delete '+names.length+' file(s) from the server? This cannot be undone.')) return;
+  let n=0, fail=0;
+  for (const filename of names) {
+    try { const r = await api('/upload/api/local-file',{method:'DELETE',body:JSON.stringify({filename})}); r.ok ? n++ : fail++; } catch(e) { fail++; }
+  }
+  toast(n+' deleted'+(fail?', '+fail+' failed':'')); clearMfSel(); loadMediaFolder();
 }
 </script>{% endblock %}
