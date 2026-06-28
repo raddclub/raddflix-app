@@ -320,3 +320,32 @@ User asked to eliminate all remaining /tmp usage and avoid wasting tokens on rep
 - AGENT_PROMPT.md: 5517cc3
 - TASKS.md: 1370da2
 - Open tasks: none
+
+---
+
+## Session 2026-06-28C — push.js Retry Logic
+
+### Context
+Added exponential-backoff retry logic to agent-hub/scripts/push.js so agent sessions
+survive transient GitHub API failures (5xx, 429 rate limits, network drops) without
+failing the entire push script.
+
+### Design decisions
+- _request() handles one HTTP attempt and resolves { status, body, headers }
+- api() wraps _request with a retry loop (max 3 attempts)
+- Retryable: network errors (ECONNRESET/ETIMEDOUT/etc), HTTP 429, HTTP 5xx
+- Never retried: HTTP 4xx — these are logic errors (wrong SHA = 422, missing file = 404)
+- 429 respects Retry-After header; falls back to 60s if header absent
+- 5xx uses exponential backoff: 1s, 2s, 4s
+- All existing callers (readFile, pushFile, pushTree) get retry for free — no changes needed
+
+### Files changed
+| File | Commit |
+|------|--------|
+| agent-hub/scripts/push.js | a4e4395 |
+| agent-hub/TASKS.md | 1da1053 |
+
+### State at end of session
+- Oracle Flask: RUNNING (v3.0.0)
+- push.js: a4e4395
+- Open tasks: none
