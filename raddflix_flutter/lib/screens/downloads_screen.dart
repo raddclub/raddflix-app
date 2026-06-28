@@ -12,7 +12,8 @@ import '../core/debug/debug_logger.dart';
 import '../widgets/bottom_nav.dart';
 import '../services/thumb_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../services/vault_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+  import '../services/vault_service.dart';
 
 enum _SortMode { name, size, date }
 enum _FilterMode { all, completed, downloading, failed }
@@ -198,13 +199,13 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         ] else ...[
           IconButton(
             icon: Icon(_view == _ViewMode.grid ? Icons.view_list_rounded : Icons.grid_view_rounded),
-            onPressed: () => setState(() => _view = _view == _ViewMode.grid ? _ViewMode.list : _ViewMode.grid),
+            onPressed: () => setState(() => _view = _view == _ViewMode.grid ? _ViewMode.list : _ViewMode.grid); _savePrefs(),
             tooltip: 'Toggle view',
           ),
           PopupMenuButton<_SortMode>(
             icon: const Icon(Icons.sort_rounded),
             tooltip: 'Sort',
-            onSelected: (s) => setState(() => _sort = s),
+            onSelected: (s) => setState(() => _sort = s); _savePrefs(),
             itemBuilder: (_) => [
               const PopupMenuItem(value: _SortMode.date, child: Text('By Date')),
               const PopupMenuItem(value: _SortMode.name, child: Text('By Name')),
@@ -278,7 +279,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           final labels = {_FilterMode.all:'All', _FilterMode.completed:'Done',
               _FilterMode.downloading:'Downloading', _FilterMode.failed:'Failed'};
           return GestureDetector(
-            onTap: () => setState(() => _filter = f),
+            onTap: () => setState(() => _filter = f); _savePrefs(),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.only(right: 8),
