@@ -125,7 +125,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
 
   PreferredSizeWidget _buildAppBar(dynamic user) {
     return AppBar(
-      backgroundColor: _scrolled ? t.surface.withOpacity(0.95) : Colors.transparent,
+      backgroundColor: _scrolled ? t.surface.withOpacity(0.96) : Colors.transparent,
       elevation: 0,
       flexibleSpace: _scrolled
           ? null
@@ -137,7 +137,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               )),
       title: RichText(
         text: TextSpan(
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+          style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900, letterSpacing: -0.8),
           children: [
             TextSpan(text: 'Radd', style: TextStyle(color: t.textPrimary)),
             TextSpan(text: 'Flix', style: TextStyle(color: AppColors.primary)),
@@ -161,6 +161,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                   shape: BoxShape.circle,
                   gradient: AppColors.primaryGradient,
                   boxShadow: AppShadows.primary,
+                  border: Border.all(color: Colors.white24, width: 1.5),
                 ),
                 child: Center(child: Text(
                   user.avatarInitial, // BUG-M01 fix: use model getter, not inline phone[0]
@@ -200,7 +201,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                         valueColor: AlwaysStoppedAnimation(AppColors.primary))),
                   SizedBox(width: 8),
                   Text('Syncing catalog…', style: TextStyle(color: AppColors.primary,
-                      fontSize: 11, fontWeight: FontWeight.w600)),
+                      fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.1)),
                 ]),
               ),
             ),

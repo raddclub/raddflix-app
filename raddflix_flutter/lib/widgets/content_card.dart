@@ -46,9 +46,9 @@ class ContentCard extends StatelessWidget {
                 ),
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white, fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            shadows: [Shadow(color: Colors.black, blurRadius: 8)])),
+                        style: const TextStyle(color: Colors.white, fontSize: 12,
+                            fontWeight: FontWeight.w700, height: 1.25,
+                            shadows: [Shadow(color: Colors.black54, blurRadius: 6)])),
                   if (showProgress && progress != null) ...[
                     const SizedBox(height: 4),
                     LinearProgressIndicator(value: progress,
@@ -172,8 +172,8 @@ class ShimmerCard extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Shimmer.fromColors(
-        baseColor: t.surface,
-        highlightColor: t.surfaceHigh,
+        baseColor:      t.shimmerBase,
+        highlightColor: t.shimmerHighlight,
         child: Stack(fit: StackFit.expand, children: [
           Container(color: t.surface),
           // Subtle gradient sheen at the bottom
@@ -214,10 +214,14 @@ class _Badge extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: [BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0,1))],
+      ),
       child: Text(label, style: const TextStyle(
-          color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+          color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 0.6)),
     );
   }
 }
@@ -545,18 +549,18 @@ class _NewEpBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(3),
-        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4,
+        gradient: AppColors.primaryGradient,
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 5,
             offset: Offset(0, 1))],
       ),
       child: Text(
-        '+$count EP',
+        count > 99 ? '99+ EP' : '+$count EP',
         style: const TextStyle(
           color: Colors.white, fontSize: 8,
-          fontWeight: FontWeight.w800, letterSpacing: 0.3),
+          fontWeight: FontWeight.w900, letterSpacing: 0.4),
       ),
     );
   }
@@ -654,7 +658,7 @@ class _PressableCardState extends State<_PressableCard> {
       },
       onLongPress: widget.onLongPress,
       child: AnimatedScale(
-        scale: _pressed ? 0.93 : 1.0,
+        scale: _pressed ? 0.92 : 1.0,
         duration: const Duration(milliseconds: 100),
         curve: Curves.easeOut,
         child: RepaintBoundary(child: widget.child),
