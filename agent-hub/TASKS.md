@@ -149,3 +149,10 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 | ID | Task | Status |
 |----|------|--------|
 | BUG-28-02 | Sync Oracle downloader.py ZIP extraction fix to GitHub (was live on server, not in repo) | ✅ DONE (40fcbdc) |
+
+## Phase 29 — Agent Prompt & Push Helper Refactor (2026-06-28)
+
+| ID | Task | Status |
+|----|------|--------|
+| AGT-29-01 | Rewrite AGENT_PROMPT.md: eliminate /tmp file content dependency, condense 349→~185 lines, remove stale player_screen status table, trim 22 inline rules to 12 critical ones | ✅ DONE (0709faa) |
+| AGT-29-02 | Create agent-hub/scripts/push.js: canonical readFile/pushFile/pushTree helper, downloaded once per session | ✅ DONE (fcf4af5) |
