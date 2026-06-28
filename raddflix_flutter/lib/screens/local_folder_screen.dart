@@ -60,20 +60,22 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
     for (int i = 0; i < _videos.length; i += batchSize) {
       if (!mounted) return;
       final batch = _videos.skip(i).take(batchSize).toList();
+      // FIX-19: collect all results for this batch, then ONE setState per batch
+      // (previously: setState per thumbnail → up to 40 rebuilds for 40 videos).
+      final batchResults = <String, Uint8List?>{};
       await Future.wait(batch.map((v) async {
         if (_thumbCache.containsKey(v.filePath)) return;
-        // Audio files — no video thumbnail, show null (music icon)
-        if (v.isAudio) {
-          if (mounted) setState(() => _thumbCache[v.filePath] = null);
-          return;
-        }
+        if (v.isAudio) { batchResults[v.filePath] = null; return; }
         Uint8List? thumb;
         if (v.id > 0) {
           thumb = await LocalMediaService.getThumbnailById(v.id, size: 220);
         }
         thumb ??= await LocalMediaService.getThumbnail(v.filePath, quality: 55, maxDimension: 220);
-        if (mounted) setState(() => _thumbCache[v.filePath] = thumb);
+        batchResults[v.filePath] = thumb;
       }));
+      if (mounted && batchResults.isNotEmpty) {
+        setState(() => _thumbCache.addAll(batchResults));
+      }
     }
     if (mounted) setState(() => _loadingThumbs = false);
   }
