@@ -427,3 +427,10 @@ Agents follow the example literally — so until the example shows validatePatch
 - BUG-33-01: downloads_screen.dart lines 202/208/282 — arrow callbacks with semicolons converted to block syntax
 - BUG-33-02: content_card.dart line 51 — missing comma after Text() in Column.children
 - Commit: 0e44ecd
+
+---
+
+## Session 2026-06-28 — Build fix: downloads_screen _savePrefs
+
+- BUG-34-01: Removed 3 calls to _savePrefs() which does not exist in _DownloadsScreenState — was added by a previous agent
+- Commit: 0de6b07
