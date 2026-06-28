@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -39,6 +40,8 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   final Map<String, Uint8List?> _thumbCache = {};
+  static const _kThumbCacheMax = 80; // OOM guard — evict oldest when exceeded
+  Timer? _searchDebounce;
 
   // Resume last local video
   String? _resumePath;
@@ -74,6 +77,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchCtrl.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -111,31 +115,38 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
     _loadThumbnails(folders);
   }
 
+  // Evict the oldest half of _thumbCache when it exceeds _kThumbCacheMax entries.
+  void _evictThumbCache() {
+    if (_thumbCache.length <= _kThumbCacheMax) return;
+    final toRemove = _thumbCache.keys.take(_thumbCache.length ~/ 2).toList();
+    for (final k in toRemove) _thumbCache.remove(k);
+  }
+
   Future<void> _loadThumbnails(List<LocalFolder> folders) async {
     const batchSize = 4;
     for (int i = 0; i < folders.length; i += batchSize) {
       if (!mounted) return;
+      _evictThumbCache();
       final batch = folders.skip(i).take(batchSize).toList();
+      // Collect all thumb results for this batch, then setState once per batch
+      // (not once per thumbnail — avoids N full widget-tree rebuilds per batch).
+      final batchResults = <String, Uint8List?>{};
       await Future.wait(batch.map((folder) async {
         if (_thumbCache.containsKey(folder.path)) return;
-        // For audio folders, skip video thumbnail — will show music icon
-        if (folder.folderType == 'audio') {
-          if (mounted) setState(() => _thumbCache[folder.path] = null);
-          return;
-        }
+        if (folder.folderType == 'audio') { batchResults[folder.path] = null; return; }
         for (final video in folder.videos.where((v) => v.isVideo).take(3)) {
           Uint8List? thumb;
           if (video.id > 0) {
             thumb = await LocalMediaService.getThumbnailById(video.id, size: 160);
           }
           thumb ??= await LocalMediaService.getThumbnail(video.filePath, quality: 40, maxDimension: 160);
-          if (thumb != null) {
-            if (mounted) setState(() => _thumbCache[folder.path] = thumb);
-            return;
-          }
+          if (thumb != null) { batchResults[folder.path] = thumb; return; }
         }
-        if (mounted) setState(() => _thumbCache[folder.path] = null);
+        batchResults[folder.path] = null;
       }));
+      if (mounted && batchResults.isNotEmpty) {
+        setState(() => _thumbCache.addAll(batchResults));
+      }
     }
   }
 
@@ -501,7 +512,12 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
       child: TextField(
         controller: _searchCtrl,
         focusNode: _searchFocus,
-        onChanged: (v) => setState(() => _searchQuery = v),
+        onChanged: (v) {
+                  _searchDebounce?.cancel();
+                  _searchDebounce = Timer(const Duration(milliseconds: 200), () {
+                    if (mounted) setState(() => _searchQuery = v);
+                  });
+                },
         style: TextStyle(color: t.textPrimary, fontSize: 15),
         decoration: InputDecoration(
           hintText: 'Search folders…',
