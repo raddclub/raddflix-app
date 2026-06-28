@@ -96,7 +96,8 @@ class _NavButton extends StatelessWidget {
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w700 : FontWeight.normal,
               ),
-              child: Text(item.label),
+              // FIX-25: noScaling prevents system text-scale from overflowing nav bar
+              child: Text(item.label, textScaler: TextScaler.noScaling),
             ),
 
           ]),
