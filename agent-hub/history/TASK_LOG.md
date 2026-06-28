@@ -261,3 +261,35 @@ Two bugs were fixed on Oracle but were missing from GitHub:
 - downloader.py: in sync between Oracle and GitHub
 - APK build run#1311/1312: in progress on 1354ae5
 - Open tasks: DATA-01 (All Of Us Are Dead missing episodes)
+
+---
+
+## Session 2026-06-28 — Agent Prompt & Push Helper Refactor
+
+### Context
+User requested AGENT_PROMPT.md be simplified and made more reliable for AI agents.
+Key problem: Step 2.5 told agents to download files to /tmp/raddflix/ for editing,
+but /tmp is ephemeral and gets wiped after a few hours — any long session risked pushing
+stale or empty file content. Also the prompt was 349 lines with duplicated push boilerplate
+appearing 3 times and a stale player_screen status table.
+
+### Changes made
+| ID | Task | Commit |
+|----|------|--------|
+| AGT-29-01 | Rewrote AGENT_PROMPT.md — no /tmp file dependency, push helper reference, condensed rules | 0709faa |
+| AGT-29-02 | Created agent-hub/scripts/push.js — readFile/pushFile/pushTree/delay helper | fcf4af5 |
+
+### What changed in the prompt
+- Dropped Step 2.5 (local /tmp workspace) — replaced with read-from-GitHub-in-memory pattern
+- push.js helper now lives in repo; agents download it once, reuse all session
+- pushFile() signature changed: takes string content (not local file path) — no /tmp needed
+- Removed player_screen.dart status table (goes stale every session — lives in AGENT_HANDOFF.md)
+- 22 inline rules condensed to 12 critical ones in a clean table; pointer to RULES.md for rest
+- Push boilerplate reduced from 3 duplicate blocks to 1 canonical example
+- Prompt: 349 lines → ~185 lines
+
+### State at end of session
+- Oracle Flask: RUNNING (v3.0.0)
+- AGENT_PROMPT.md: 0709faa
+- agent-hub/scripts/push.js: fcf4af5
+- Open tasks: none
