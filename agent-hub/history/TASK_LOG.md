@@ -382,3 +382,31 @@ wasting a commit and leaving the intended change unapplied with no error.
 - Oracle Flask: RUNNING (v3.0.0)
 - push.js: b160b9a (retry logic + validatePatch)
 - Open tasks: none
+
+---
+
+## Session 2026-06-28E — Prompt: validatePatch wired into examples
+
+### Context
+validatePatch() was added to push.js in session D but AGENT_PROMPT.md still showed the old
+manual pattern (const before = dart; ... if (dart === before) throw new Error(...)).
+Agents follow the example literally — so until the example shows validatePatch, they won't use it.
+
+### Changes
+- Step 3b require() line: added validatePatch to destructuring
+- Step 3b main example: OLD/NEW defined as consts at top; validatePatch(dart, OLD, FILE) before replace()
+- Step 3b: validatePatch also shown on TASKS.md replace (agents need it there too)
+- Step 3c pushTree example: validatePatch before each .replace()
+- Key file paths: push.js description updated to list validatePatch
+
+### Files changed
+| File | Commit |
+|------|--------|
+| AGENT_PROMPT.md | 6f172f1 |
+| agent-hub/TASKS.md | d5b962d |
+
+### State at end of session
+- Oracle Flask: RUNNING (v3.0.0)
+- push.js: b160b9a (retry logic + validatePatch)
+- AGENT_PROMPT.md: 6f172f1
+- Open tasks: none
