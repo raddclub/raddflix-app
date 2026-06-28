@@ -452,3 +452,13 @@ Agents follow the example literally — so until the example shows validatePatch
 
 - Bug: CachedNetworkImage uses errorWidget not errorBuilder — compile error in _buildNetworkPosterSR
 - Commit: 9ed66e1
+
+---
+
+## Session 2026-06-28 — Phase 36 Missing Features
+
+- Settings Screen (new): quality default, subtitle toggle, cache clear, version/about
+- Share button on show detail using share_plus (already in pubspec)
+- "More Like This" section: genre-match filter, horizontal poster scroll
+- Profile → General → Settings tile wired to /settings route
+- Tree commit: 2975c52
