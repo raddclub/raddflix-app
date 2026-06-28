@@ -445,3 +445,10 @@ Agents follow the example literally — so until the example shows validatePatch
 - search_screen: Browse-by-genre headers now have primary accent bar + count badge
 - splash_screen: Added top-left and bottom-right corner glows; replaced CircularProgressIndicator with branded 3-dot pulsing loader
 - Commit: 39f1d9f
+
+---
+
+## Session 2026-06-28 — Phase 35B Build Fix
+
+- Bug: CachedNetworkImage uses errorWidget not errorBuilder — compile error in _buildNetworkPosterSR
+- Commit: 9ed66e1
