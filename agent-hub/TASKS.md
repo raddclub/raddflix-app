@@ -231,3 +231,14 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 | ID | Task | Status |
 |----|------|--------|
 | BUG-35B-01 | search_screen: CachedNetworkImage errorWidget (not errorBuilder) | ✅ DONE (9ed66e1) |
+
+## Phase 36 — Missing Features Pass (2026-06-28)
+
+| ID | Task | Status |
+|----|------|--------|
+| FEAT-36-01 | settings_screen.dart: new screen (quality, subtitle default, cache clear, version, about) | ✅ DONE (2975c52) |
+| FEAT-36-02 | constants.dart: AppRoutes.settings + StorageKeys.defaultQuality/subtitleDefault | ✅ DONE (975e62b) |
+| FEAT-36-03 | app.dart: import + register /settings route | ✅ DONE (6fbeb10) |
+| FEAT-36-04 | profile_screen.dart: General section with Settings tile | ✅ DONE (2975c52) |
+| FEAT-36-05 | show_detail_screen.dart: share button in SliverAppBar (share_plus) | ✅ DONE (2975c52) |
+| FEAT-36-06 | show_detail_screen.dart: "More Like This" horizontal scroll (genre-matched) | ✅ DONE (2975c52) |
