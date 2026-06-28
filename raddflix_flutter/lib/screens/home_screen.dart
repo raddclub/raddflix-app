@@ -25,7 +25,7 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   RaddTheme get t => RaddTheme.of(context);
 
   int _navIndex = 0;
@@ -39,6 +39,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     DebugLogger.logLifecycle('HomeScreen', 'initState');
+    WidgetsBinding.instance.addObserver(this);
     _scroll.addListener(() {
       final now = _scroll.offset > 50;
       if (now != _scrolled) setState(() => _scrolled = now);
@@ -54,9 +55,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void dispose() {
     DebugLogger.logLifecycle('HomeScreen', 'dispose');
+    WidgetsBinding.instance.removeObserver(this);
     _notifTimer?.cancel();
     _scroll.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      _notifTimer?.cancel();
+      _notifTimer = null;
+    } else if (state == AppLifecycleState.resumed && _notifTimer == null) {
+      _notifTimer = Timer.periodic(const Duration(minutes: 5),
+          (_) => NotificationService.instance.fetch());
+    }
   }
 
   List<CatalogItem> _filtered(CatalogState s) {
@@ -64,7 +77,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     switch (_selectedCategory) {
       case 'Movies':  return s.movies;
       case 'Shows':   return s.shows;
-      case 'Dramas':  return all.where((i) { final g = (i.genres ?? '').toLowerCase(); return g.contains('drama') || (g.isEmpty && i.isShow); }).toList();
+      case 'Dramas':  return all.where((i) => (i.genres ?? '').toLowerCase().contains('drama')).toList();
       case 'Urdu':    return all.where((i) => (i.language ?? '').toLowerCase().contains('urdu')).toList();
       case 'Punjabi': return all.where((i) => (i.language ?? '').toLowerCase().contains('punjabi')).toList();
       case 'English': return all.where((i) => (i.language ?? '').toLowerCase().contains('english')).toList();
