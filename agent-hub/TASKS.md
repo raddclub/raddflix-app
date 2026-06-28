@@ -197,3 +197,9 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 | AGT-31B-03 | Step 3b: show validatePatch on TASKS.md replace too (agents always need this) | ✅ DONE (6f172f1) |
 | AGT-31B-04 | Step 3c pushTree example: add validatePatch calls before each .replace() | ✅ DONE (6f172f1) |
 | AGT-31B-05 | Key file paths: update push.js description to list validatePatch | ✅ DONE (6f172f1) |
+
+## Phase 32 — Build Fix: edit_profile_screen corruption (2026-06-28)
+
+| ID | Task | Status |
+|----|------|--------|
+| BUG-32-01 | Fix broken regex + duplicate class defs in edit_profile_screen.dart (build error run#1320) | ✅ DONE (e286322) |
