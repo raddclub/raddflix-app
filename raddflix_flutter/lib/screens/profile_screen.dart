@@ -364,8 +364,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _SectionTile(
                       icon: Icons.palette_outlined,
                       label: 'Theme',
-                      trailing: Text(ref.watch(themeProvider.notifier).displayName,
-                          style: TextStyle(color: t.textMuted, fontSize: 13)),
+                      trailing: _ThemeTrailing(),
                       onTap: () => _showThemePicker(context),
                     ),
                   ]),
@@ -607,6 +606,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
     } catch (_) { return iso; }
+  }
+}
+
+// ── Theme section trailing: color swatch dot + name ──────────────────────────
+class _ThemeTrailing extends ConsumerWidget {
+  static Color _dotColor(JazzTheme mode) {
+    switch (mode) {
+      case JazzTheme.midnight: return const Color(0xFF181838);
+      case JazzTheme.navy:     return const Color(0xFF162A4A);
+      case JazzTheme.forest:   return const Color(0xFF152B1A);
+      case JazzTheme.cobalt:   return const Color(0xFF18255A);
+      case JazzTheme.rose:     return const Color(0xFF2E1822);
+      case JazzTheme.charcoal: return const Color(0xFF272729);
+      case JazzTheme.amoled:   return const Color(0xFF000000);
+      case JazzTheme.light:    return const Color(0xFFF0F0F7);
+      default:                 return const Color(0xFF1A1A2E);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t    = RaddTheme.of(context);
+    final mode = ref.watch(themeProvider).mode;
+    final name = ref.watch(themeProvider.notifier).displayName;
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        width: 14, height: 14,
+        decoration: BoxDecoration(
+          color: _dotColor(mode),
+          shape: BoxShape.circle,
+          border: Border.all(color: t.textMuted.withOpacity(0.4), width: 1),
+        ),
+      ),
+      const SizedBox(width: 6),
+      Text(name, style: TextStyle(color: t.textMuted, fontSize: 13)),
+    ]);
   }
 }
 

@@ -79,15 +79,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         backgroundColor: null,
         body: Stack(
           children: [
-            // Background glow
+            // Background glows
             Positioned(
               top: -100, left: -80,
               child: Container(
-                width: 300, height: 300,
+                width: 320, height: 320,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
-                    colors: [AppColors.primary.withOpacity(0.15), Colors.transparent],
+                    colors: [AppColors.primary.withOpacity(0.16), Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -60, right: -60,
+              child: Container(
+                width: 240, height: 240,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [AppColors.primary.withOpacity(0.08), Colors.transparent],
                   ),
                 ),
               ),
@@ -107,13 +119,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     SizedBox(height: 48),
                     Text('Welcome back',
                         style: TextStyle(
-                          color: t.textMuted, fontSize: 14, letterSpacing: 0.3))
+                          color: t.textMuted, fontSize: 14, letterSpacing: 0.4,
+                          fontWeight: FontWeight.w500))
                         .animate(delay: 100.ms).fadeIn(duration: 400.ms),
                     SizedBox(height: 4),
                     Text('Sign In',
                         style: TextStyle(
-                          color: t.textPrimary, fontSize: 28,
-                          fontWeight: FontWeight.w800, letterSpacing: -0.5))
+                          color: t.textPrimary, fontSize: 30,
+                          fontWeight: FontWeight.w800, letterSpacing: -0.8))
                         .animate(delay: 150.ms).fadeIn(duration: 400.ms)
                         .slideX(begin: -0.2, end: 0, duration: 400.ms, curve: AppCurves.standard),
                     const SizedBox(height: 28),
@@ -500,7 +513,7 @@ class _GradientButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
     return Container(
-      height: 52,
+      height: 54,
       decoration: BoxDecoration(
         gradient: onTap != null ? AppColors.primaryGradient : null,
         color: onTap == null ? AppColors.primary.withOpacity(0.4) : null,
@@ -516,7 +529,7 @@ class _GradientButton extends StatelessWidget {
             child: Text(label,
               style: const TextStyle(
                 color: Colors.white, fontSize: 15,
-                fontWeight: FontWeight.w700, letterSpacing: 0.3)),
+                fontWeight: FontWeight.w800, letterSpacing: 0.5)),
           ),
         ),
       ),

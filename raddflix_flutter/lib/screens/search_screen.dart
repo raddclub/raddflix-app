@@ -375,7 +375,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                   focusNode: _focus,
                   style: TextStyle(color: t.textPrimary, fontSize: 15),
                   decoration: InputDecoration(
-                    hintText: 'Movies, shows, dramas…',
+                    hintText: 'Search movies, dramas, shows…',
                     hintStyle: TextStyle(color: t.textMuted),
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
