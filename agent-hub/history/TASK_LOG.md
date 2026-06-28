@@ -293,3 +293,30 @@ appearing 3 times and a stale player_screen status table.
 - AGENT_PROMPT.md: 0709faa
 - agent-hub/scripts/push.js: fcf4af5
 - Open tasks: none
+
+---
+
+## Session 2026-06-28B — Prompt Token Optimisation
+
+### Context
+User asked to eliminate all remaining /tmp usage and avoid wasting tokens on repeat sessions.
+
+### Changes
+| ID | Change | Commit |
+|----|--------|--------|
+| AGT-29B-01 | Idempotent init block: [\ -f ] checks skip SSH key + push helper if already present | 5517cc3 |
+| AGT-29B-02 | All /tmp refs removed — ~/.ssh/raddflix_oracle + workspace/.local/ | 5517cc3 |
+| AGT-29B-03 | TASK_LOG curl opt-in only (saves ~60 lines of context when not needed) | 5517cc3 |
+| AGT-29B-04 | Code examples tightened, obvious comments removed | 5517cc3 |
+| AGT-29B-05 | Oracle file paths table condensed to one line | 5517cc3 |
+
+### Result
+- Prompt: 207 lines → 168 lines
+- Repeat sessions: SSH key + push helper setup skipped if workspace already initialised
+- TASK_LOG: only fetched when agent needs historical context
+
+### State at end of session
+- Oracle Flask: RUNNING (v3.0.0)
+- AGENT_PROMPT.md: 5517cc3
+- TASKS.md: 1370da2
+- Open tasks: none
