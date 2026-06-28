@@ -274,6 +274,7 @@ class AppRoutes {
   static const String adminQueue   = '/admin-queue';
   static const String quotaFull    = '/quota-full';
   static const String planExpired  = '/plan-expired';
+  static const String settings     = '/settings';
 }
 
 // ── Storage Keys ──────────────────────────────────────────────────────────────
@@ -290,6 +291,8 @@ class StorageKeys {
   static const String cachedSubExpiry  = 'jm_cached_sub_expiry';
   static const String themeMode        = 'jm_theme_mode';
   static const String searchHistory    = 'jm_search_history';
+  static const String defaultQuality   = 'jm_default_quality';
+  static const String subtitleDefault  = 'jm_subtitle_default';
 }
 
 // ── API Paths ─────────────────────────────────────────────────────────────────
