@@ -187,3 +187,13 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 | AGT-31-03 | Error includes up to 3 nearest matching lines from the file (word-overlap scoring) | ✅ DONE (b160b9a) |
 | AGT-31-04 | Error includes re-read hint so agent knows how to recover | ✅ DONE (b160b9a) |
 | AGT-31-05 | validatePatch exported in module.exports | ✅ DONE (b160b9a) |
+
+## Phase 31B — Prompt: validatePatch in examples (2026-06-28)
+
+| ID | Task | Status |
+|----|------|--------|
+| AGT-31B-01 | Step 3b: import validatePatch in require() line | ✅ DONE (6f172f1) |
+| AGT-31B-02 | Step 3b: replace manual before/after check with validatePatch(dart, OLD, FILE) | ✅ DONE (6f172f1) |
+| AGT-31B-03 | Step 3b: show validatePatch on TASKS.md replace too (agents always need this) | ✅ DONE (6f172f1) |
+| AGT-31B-04 | Step 3c pushTree example: add validatePatch calls before each .replace() | ✅ DONE (6f172f1) |
+| AGT-31B-05 | Key file paths: update push.js description to list validatePatch | ✅ DONE (6f172f1) |
