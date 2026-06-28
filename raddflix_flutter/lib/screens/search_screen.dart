@@ -1188,7 +1188,7 @@ class _SearchResultTile extends StatelessWidget {
         placeholder: (_, __) => Shimmer.fromColors(
           baseColor: t.card, highlightColor: t.surfaceHigh,
           child: Container(width: w, height: h, color: t.card)),
-        errorBuilder: (_, __, ___) => _posterPlaceholder(item, t, w, h),
+        errorWidget: (_, __, ___) => _posterPlaceholder(item, t, w, h),
       );
     }
     return _posterPlaceholder(item, t, w, h);
