@@ -31,6 +31,7 @@ import 'screens/quota_full_screen.dart';
 import 'screens/plan_expired_screen.dart';
 import 'screens/watchlist_screen.dart';
 import 'screens/history_screen.dart';
+import 'screens/settings_screen.dart';
 import 'core/services/app_update_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'core/debug/debug_logger.dart';
@@ -118,6 +119,7 @@ class RaddFlixApp extends ConsumerWidget {
         AppRoutes.planExpired:   (_) => const PlanExpiredScreen(),
         AppRoutes.watchlist:     (_) => const WatchlistScreen(),
         AppRoutes.history:       (_) => const HistoryScreen(),
+        AppRoutes.settings:      (_) => const SettingsScreen(),
         AppRoutes.localMedia:    (_) => const LocalMediaScreen(),
         '/player-settings':      (_) => const _PlayerSettingsLoader(),
         '/layout-designer':      (_) => const _LayoutDesignerLoader(),
