@@ -45,6 +45,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
   String? _selectedMethod;
   List<_PayMethod> _methods  = [];
   bool _methodsLoading       = true;
+  String? _methodsError;
 
   @override
   void initState() {
@@ -71,8 +72,13 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
             .toList();
         _methodsLoading = false;
       });
-    } catch (_) {
-      setState(() { _methods = []; _methodsLoading = false; });
+    } catch (e) {
+      setState(() {
+        _methods = [];
+        _methodsLoading = false;
+        _methodsError = 'Could not load payment methods. Check your connection.';
+      });
+      debugPrint('[SubscriptionScreen] _fetchMethods error: $e');
     }
   }
 
@@ -246,15 +252,27 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                 decoration: BoxDecoration(color: t.surface,
                     borderRadius: BorderRadius.circular(AppRadius.md))))
             else if (_methods.isEmpty)
-              Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: t.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(color: t.border)),
-                child: Text('Payment methods loading... proceed with your TID below.',
-                    style: TextStyle(color: t.textMuted, fontSize: 13)),
-              )
+                Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                      color: _methodsError != null ? AppColors.error.withOpacity(0.07) : t.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: _methodsError != null ? AppColors.error.withOpacity(0.3) : t.border)),
+                  child: Row(children: [
+                    if (_methodsError != null) ...[
+                      const Icon(Icons.wifi_off_rounded, color: AppColors.error, size: 16),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(child: Text(
+                      _methodsError ?? 'Loading payment methods...',
+                      style: TextStyle(color: _methodsError != null ? AppColors.error : t.textMuted, fontSize: 13))),
+                    if (_methodsError != null)
+                      TextButton(
+                        onPressed: () { setState(() { _methodsError = null; _methodsLoading = true; }); _fetchMethods(); },
+                        child: const Text('Retry', style: TextStyle(fontSize: 12))),
+                  ]),
+                )
             else
               ..._methods.map((m) => _PayMethodCard(
                 method: m,
