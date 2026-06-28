@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
 
-enum JazzTheme { dark, amoled, light, auto }
+enum JazzTheme { dark, amoled, light, auto, midnight, navy, forest, cobalt, rose, charcoal }
 
 class ThemeState {
   final JazzTheme mode;
@@ -20,7 +20,7 @@ class ThemeNotifier extends StateNotifier<ThemeState> {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(StorageKeys.themeMode) ?? 'dark';
     final mode = JazzTheme.values.firstWhere(
-      (e) => e.name == saved, orElse: () => JazzTheme.dark);
+        (e) => e.name == saved, orElse: () => JazzTheme.dark);
     state = ThemeState(mode: mode, isDark: _computeIsDark(mode));
   }
 
@@ -28,9 +28,9 @@ class ThemeNotifier extends StateNotifier<ThemeState> {
     if (mode == JazzTheme.light) return false;
     if (mode == JazzTheme.auto) {
       final hour = DateTime.now().hour;
-      return hour < 6 || hour >= 19; // Night = dark
+      return hour < 6 || hour >= 19;
     }
-    return true;
+    return true; // dark, amoled, midnight, navy, forest, cobalt, rose, charcoal
   }
 
   Future<void> setTheme(JazzTheme mode) async {
@@ -41,10 +41,16 @@ class ThemeNotifier extends StateNotifier<ThemeState> {
 
   String get displayName {
     switch (state.mode) {
-      case JazzTheme.dark:   return 'Dark';
-      case JazzTheme.amoled: return 'AMOLED';
-      case JazzTheme.light:  return 'Light';
-      case JazzTheme.auto:   return 'Auto';
+      case JazzTheme.dark:     return 'Dark';
+      case JazzTheme.amoled:   return 'AMOLED';
+      case JazzTheme.light:    return 'Light';
+      case JazzTheme.auto:     return 'Auto';
+      case JazzTheme.midnight: return 'Midnight';
+      case JazzTheme.navy:     return 'Navy';
+      case JazzTheme.forest:   return 'Forest';
+      case JazzTheme.cobalt:   return 'Cobalt';
+      case JazzTheme.rose:     return 'Rose';
+      case JazzTheme.charcoal: return 'Charcoal';
     }
   }
 }

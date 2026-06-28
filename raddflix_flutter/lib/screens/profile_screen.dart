@@ -611,71 +611,162 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 }
 
 class _ThemePicker extends ConsumerWidget {
-  static const _options = [
-    (JazzTheme.dark,   '🌙', 'Dark',   'Deep dark background'),
-    (JazzTheme.amoled, '⬛', 'AMOLED', 'Pure black for OLED screens'),
-    (JazzTheme.light,  '☀️', 'Light',  'Light background'),
-    (JazzTheme.auto,   '🔄', 'Auto',   'Follows time of day'),
+  // Standard themes shown as list rows
+  static const _standard = [
+    (JazzTheme.dark,   Icons.nights_stay_rounded,   'Dark',   'Deep dark — easy on the eyes'),
+    (JazzTheme.amoled, Icons.phone_android_rounded,  'AMOLED', 'Pure black — zero drain on OLED'),
+    (JazzTheme.light,  Icons.wb_sunny_rounded,       'Light',  'Bright background for daylight'),
+    (JazzTheme.auto,   Icons.brightness_auto_rounded,'Auto',   'Switches dark/light by time of day'),
+  ];
+
+  // Color themes shown as visual swatches (bg, card, label)
+  static const _colorThemes = [
+    (JazzTheme.midnight, Color(0xFF070712), Color(0xFF181838), 'Midnight'),
+    (JazzTheme.navy,     Color(0xFF060D1A), Color(0xFF162A4A), 'Navy'),
+    (JazzTheme.forest,   Color(0xFF060E09), Color(0xFF152B1A), 'Forest'),
+    (JazzTheme.cobalt,   Color(0xFF060A1A), Color(0xFF18255A), 'Cobalt'),
+    (JazzTheme.rose,     Color(0xFF100608), Color(0xFF2E1822), 'Rose'),
+    (JazzTheme.charcoal, Color(0xFF0E0E0F), Color(0xFF272729), 'Charcoal'),
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = RaddTheme.of(context);
+    final t       = RaddTheme.of(context);
     final current = ref.watch(themeProvider).mode;
+
+    void pick(JazzTheme m) {
+      ref.read(themeProvider.notifier).setTheme(m);
+      Navigator.pop(context);
+    }
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Handle
         Center(child: Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 20),
-            decoration: BoxDecoration(color: t.textMuted.withOpacity(0.3), borderRadius: BorderRadius.circular(2)))),
-        Text('Choose Theme', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
-            color: t.textPrimary)),
-        const SizedBox(height: 16),
-        ..._options.map((opt) => _ThemeOption(
-          icon: opt.$2, title: opt.$3, subtitle: opt.$4,
-          isSelected: current == opt.$1,
-          onTap: () {
-            ref.read(themeProvider.notifier).setTheme(opt.$1);
-            Navigator.pop(context);
-          },
-        )),
+            decoration: BoxDecoration(color: t.textMuted.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2)))),
+
+        // Title
+        Text('Choose Theme',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: t.textPrimary)),
+        const SizedBox(height: 18),
+
+        // ── Standard themes ──────────────────────────────────────────────
+        _pickerLabel('Standard', t),
+        const SizedBox(height: 10),
+        ..._standard.map((opt) {
+          final sel = current == opt.$1;
+          return GestureDetector(
+            onTap: () => pick(opt.$1),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              decoration: BoxDecoration(
+                color: sel ? AppColors.primary.withOpacity(0.10) : t.card,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                    color: sel ? AppColors.primary.withOpacity(0.6) : t.cardBorder,
+                    width: sel ? 1.5 : 0.5),
+              ),
+              child: Row(children: [
+                Container(
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                    color: sel ? AppColors.primary.withOpacity(0.15) : t.surface,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(opt.$2,
+                      color: sel ? AppColors.primary : t.textMuted, size: 20),
+                ),
+                const SizedBox(width: 14),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(opt.$3, style: TextStyle(
+                      color: sel ? AppColors.primary : t.textPrimary,
+                      fontWeight: FontWeight.w600, fontSize: 14)),
+                  Text(opt.$4, style: TextStyle(color: t.textMuted, fontSize: 12)),
+                ])),
+                if (sel)
+                  const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 20),
+              ]),
+            ),
+          );
+        }),
+
+        const SizedBox(height: 20),
+
+        // ── Color themes grid ────────────────────────────────────────────
+        _pickerLabel('Color Themes', t),
+        const SizedBox(height: 10),
+        GridView.count(
+          crossAxisCount: 3,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: 1.15,
+          children: _colorThemes.map((opt) {
+            final sel = current == opt.$1;
+            return GestureDetector(
+              onTap: () => pick(opt.$1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  gradient: LinearGradient(
+                    colors: [opt.$2, opt.$3],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  border: Border.all(
+                    color: sel ? AppColors.primary : Colors.white10,
+                    width: sel ? 2 : 0.5,
+                  ),
+                  boxShadow: sel
+                      ? [BoxShadow(color: AppColors.primary.withOpacity(0.25),
+                          blurRadius: 10, spreadRadius: 1)]
+                      : null,
+                ),
+                child: Stack(children: [
+                  // Theme name bottom
+                  Positioned(bottom: 8, left: 0, right: 0,
+                    child: Text(opt.$4, textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 11,
+                            fontWeight: FontWeight.w600, letterSpacing: 0.2))),
+                  // Check indicator top-right
+                  if (sel)
+                    Positioned(top: 6, right: 6,
+                      child: Container(
+                        width: 18, height: 18,
+                        decoration: const BoxDecoration(
+                            color: AppColors.primary, shape: BoxShape.circle),
+                        child: const Icon(Icons.check, color: Colors.white, size: 12),
+                      )),
+                ]),
+              ),
+            );
+          }).toList(),
+        ),
+
+        const SizedBox(height: 8),
       ]),
     );
   }
-}
 
-class _ThemeOption extends StatelessWidget {
-  final String icon, title, subtitle;
-  final bool isSelected;
-  final VoidCallback onTap;
-  const _ThemeOption({required this.icon, required this.title, required this.subtitle,
-      required this.isSelected, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.12) : t.surface,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: isSelected ? AppColors.primary : t.border)),
-        child: Row(children: [
-          Text(icon, style: TextStyle(fontSize: 24)),
-          SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: TextStyle(color: isSelected ? AppColors.primary : t.textPrimary,
-                fontWeight: FontWeight.w600, fontSize: 15)),
-            Text(subtitle, style: TextStyle(color: t.textMuted, fontSize: 12)),
-          ])),
-          if (isSelected) const Icon(Icons.check_circle_rounded, color: AppColors.primary),
-        ]),
-      ),
-    );
-  }
+  static Widget _pickerLabel(String label, RaddTheme t) => Row(children: [
+    Container(width: 12, height: 1.5,
+        margin: const EdgeInsets.only(right: 6),
+        color: AppColors.primary.withOpacity(0.5)),
+    Text(label.toUpperCase(),
+        style: TextStyle(color: t.textMuted, fontSize: 10,
+            fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+  ]);
 }
 
 class _Section extends StatelessWidget {
