@@ -177,3 +177,13 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 | AGT-30-04 | Retry on HTTP 5xx: exponential backoff 1s/2s/4s (max 3 retries) | ✅ DONE (a4e4395) |
 | AGT-30-05 | Never retry 4xx (SHA conflict, not found etc — logic errors, not transient) | ✅ DONE (a4e4395) |
 | AGT-30-06 | Update download comment in push.js to workspace path (not /tmp) | ✅ DONE (a4e4395) |
+
+## Phase 31 — push.js validatePatch() (2026-06-28)
+
+| ID | Task | Status |
+|----|------|--------|
+| AGT-31-01 | validatePatch(content, oldString, repoPath?): throws if oldString not in content | ✅ DONE (b160b9a) |
+| AGT-31-02 | Error includes first 120 chars of oldString (newlines shown as ↵) | ✅ DONE (b160b9a) |
+| AGT-31-03 | Error includes up to 3 nearest matching lines from the file (word-overlap scoring) | ✅ DONE (b160b9a) |
+| AGT-31-04 | Error includes re-read hint so agent knows how to recover | ✅ DONE (b160b9a) |
+| AGT-31-05 | validatePatch exported in module.exports | ✅ DONE (b160b9a) |
