@@ -156,3 +156,13 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 |----|------|--------|
 | AGT-29-01 | Rewrite AGENT_PROMPT.md: eliminate /tmp file content dependency, condense 349→~185 lines, remove stale player_screen status table, trim 22 inline rules to 12 critical ones | ✅ DONE (0709faa) |
 | AGT-29-02 | Create agent-hub/scripts/push.js: canonical readFile/pushFile/pushTree helper, downloaded once per session | ✅ DONE (fcf4af5) |
+
+## Phase 29B — Prompt Token Optimisation (2026-06-28)
+
+| ID | Task | Status |
+|----|------|--------|
+| AGT-29B-01 | Idempotent session init: SSH key + push helper skip if already present | ✅ DONE (5517cc3) |
+| AGT-29B-02 | All /tmp refs removed — ~/.ssh/raddflix_oracle + workspace/.local/ only | ✅ DONE (5517cc3) |
+| AGT-29B-03 | TASK_LOG curl made opt-in (commented out) — skip when not needed | ✅ DONE (5517cc3) |
+| AGT-29B-04 | Code examples tightened, rule descriptions shortened | ✅ DONE (5517cc3) |
+| AGT-29B-05 | Oracle file paths condensed in key paths table | ✅ DONE (5517cc3) |
