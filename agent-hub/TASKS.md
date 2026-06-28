@@ -216,3 +216,12 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 | ID | Task | Status |
 |----|------|--------|
 | BUG-34-01 | downloads_screen: remove 3 calls to non-existent _savePrefs() method | ✅ DONE (0de6b07) |
+
+## Phase 35 — UI/UX Completion Pass (2026-06-28)
+
+| ID | Task | Status |
+|----|------|--------|
+| UI-35-01 | home_screen: _CategoryChip checkmark icon for selected state | ⏳ IN PROGRESS |
+| UI-35-02 | search_screen: upgrade _SearchResultTile._buildPoster (local file + CachedNetworkImage) | ⏳ IN PROGRESS |
+| UI-35-03 | search_screen: genre section headers with accent bar + count badge | ⏳ IN PROGRESS |
+| UI-35-04 | splash_screen: corner glows + 3-dot branded loader | ⏳ IN PROGRESS |
