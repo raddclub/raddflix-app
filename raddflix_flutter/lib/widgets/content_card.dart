@@ -48,7 +48,7 @@ class ContentCard extends StatelessWidget {
                   Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: Colors.white, fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            shadows: [Shadow(color: Colors.black, blurRadius: 8)]))
+                            shadows: [Shadow(color: Colors.black, blurRadius: 8)])),
                   if (showProgress && progress != null) ...[
                     const SizedBox(height: 4),
                     LinearProgressIndicator(value: progress,
