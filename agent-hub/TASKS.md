@@ -225,3 +225,9 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 | UI-35-02 | search_screen: upgrade _SearchResultTile._buildPoster (local file + CachedNetworkImage) | ✅ DONE (39f1d9f) |
 | UI-35-03 | search_screen: genre section headers with accent bar + count badge | ✅ DONE (39f1d9f) |
 | UI-35-04 | splash_screen: corner glows + 3-dot branded loader | ✅ DONE (39f1d9f) |
+
+## Phase 35B — Build Fix (2026-06-28)
+
+| ID | Task | Status |
+|----|------|--------|
+| BUG-35B-01 | search_screen: CachedNetworkImage errorWidget (not errorBuilder) | ✅ DONE (9ed66e1) |
