@@ -92,16 +92,14 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         .toList()
       ..sort();
 
-    // Find the episode most recently watched but not finished, to show Resume button
+    // FIX-08: Find the LATEST in-sequence in-progress episode (not highest %).
+    // Iterating forward and always overwriting means we end on the highest-index
+    // episode that's in progress — e.g. E01=80%, E02=15% → correctly resumes E02.
     int? resumeIdx;
-    double resumeHighProg = 0;
     for (int i = 0; i < eps.length; i++) {
       final fid = eps[i]['file_id']?.toString() ?? '';
       final p = prog[fid] ?? 0.0;
-      if (p > 0.03 && p < 0.95 && p > resumeHighProg) {
-        resumeHighProg = p;
-        resumeIdx = i;
-      }
+      if (p > 0.03 && p < 0.95) resumeIdx = i;
     }
 
     if (mounted) {
