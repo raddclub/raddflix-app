@@ -410,3 +410,12 @@ Agents follow the example literally — so until the example shows validatePatch
 - push.js: b160b9a (retry logic + validatePatch)
 - AGENT_PROMPT.md: 6f172f1
 - Open tasks: none
+
+---
+
+## Session 2026-06-28 — Build fix: edit_profile_screen corruption
+
+- Task: BUG-32-01 — Repaired broken raw-string regex (line 64) and removed 603-line duplicate class block (lines 663-1265) in edit_profile_screen.dart
+- Root cause: Previous agent patch truncated the raw-string regex end, then re-appended the full second half of the file as a duplicate
+- Files: raddflix_flutter/lib/screens/edit_profile_screen.dart
+- Commit: e286322
