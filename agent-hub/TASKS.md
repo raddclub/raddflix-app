@@ -210,3 +210,9 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 |----|------|--------|
 | BUG-33-01 | downloads_screen: fix 3 arrow-callback semicolon syntax errors | ✅ DONE (0e44ecd) |
 | BUG-33-02 | content_card: add missing comma after Text() in Column children | ✅ DONE (0e44ecd) |
+
+## Phase 34 — Build Fix: downloads_screen _savePrefs (2026-06-28)
+
+| ID | Task | Status |
+|----|------|--------|
+| BUG-34-01 | downloads_screen: remove 3 calls to non-existent _savePrefs() method | ✅ DONE (0de6b07) |
