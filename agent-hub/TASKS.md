@@ -166,3 +166,14 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 | AGT-29B-03 | TASK_LOG curl made opt-in (commented out) — skip when not needed | ✅ DONE (5517cc3) |
 | AGT-29B-04 | Code examples tightened, rule descriptions shortened | ✅ DONE (5517cc3) |
 | AGT-29B-05 | Oracle file paths condensed in key paths table | ✅ DONE (5517cc3) |
+
+## Phase 30 — push.js Retry Logic (2026-06-28)
+
+| ID | Task | Status |
+|----|------|--------|
+| AGT-30-01 | Split api() into _request() (single attempt) + api() (retry wrapper) | ✅ DONE (a4e4395) |
+| AGT-30-02 | Retry on network errors: ECONNRESET, ETIMEDOUT, ENOTFOUND, ECONNREFUSED, EPIPE | ✅ DONE (a4e4395) |
+| AGT-30-03 | Retry on HTTP 429: respect Retry-After header, default 60s | ✅ DONE (a4e4395) |
+| AGT-30-04 | Retry on HTTP 5xx: exponential backoff 1s/2s/4s (max 3 retries) | ✅ DONE (a4e4395) |
+| AGT-30-05 | Never retry 4xx (SHA conflict, not found etc — logic errors, not transient) | ✅ DONE (a4e4395) |
+| AGT-30-06 | Update download comment in push.js to workspace path (not /tmp) | ✅ DONE (a4e4395) |
