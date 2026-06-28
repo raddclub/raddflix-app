@@ -56,7 +56,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _clearCache() async {
     PaintingBinding.instance.imageCache.clear();
-    PaintingBinding.instance.imageCache.clearLive();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Image cache cleared successfully')),
