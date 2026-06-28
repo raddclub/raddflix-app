@@ -46,9 +46,9 @@ class ContentCard extends StatelessWidget {
                 ),
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white, fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          shadows: [Shadow(color: Colors.black, blurRadius: 8)])),
+                        style: const TextStyle(color: Colors.white, fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            shadows: [Shadow(color: Colors.black, blurRadius: 8)]))
                   if (showProgress && progress != null) ...[
                     const SizedBox(height: 4),
                     LinearProgressIndicator(value: progress,
@@ -60,11 +60,11 @@ class ContentCard extends StatelessWidget {
               )),
             // Top badges
             Positioned(top: 6, left: 6, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (item.isFree) _Badge(label: 'FREE', color: AppColors.success),
-              if (item.isNew == true) ...[
-                const SizedBox(height: 4),
+              // FIX-13: show only one badge at a time — FREE takes priority over NEW
+              if (item.isFree)
+                _Badge(label: 'FREE', color: AppColors.success)
+              else if (item.isNew == true)
                 _Badge(label: 'NEW', color: AppColors.primary),
-              ],
               if (item.isUploading == true) ...[
                 const SizedBox(height: 4),
                 _UploadingBadge(),
