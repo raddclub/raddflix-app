@@ -349,3 +349,36 @@ failing the entire push script.
 - Oracle Flask: RUNNING (v3.0.0)
 - push.js: a4e4395
 - Open tasks: none
+
+---
+
+## Session 2026-06-28D — push.js validatePatch()
+
+### Context
+Added validatePatch() helper to agent-hub/scripts/push.js to catch silent no-op patches
+before they reach GitHub. Previously an agent could call content.replace(OLD, NEW) with
+a wrong OLD string, get back the original content unchanged, and push it silently —
+wasting a commit and leaving the intended change unapplied with no error.
+
+### Design
+- validatePatch(content, oldString, repoPath?) — call before every .replace()
+- Throws immediately if oldString is not found in content
+- Error message shows: first 120 chars of oldString (↵ for newlines)
+- Nearest-line hints: scores every file line by word-overlap with first line of oldString,
+  shows top 3 matches so agent can see what the code looks like now vs what it expected
+- Recovery hint: "re-read the file — it may have changed since you fetched it"
+
+### Usage pattern (add to all session scripts)
+  validatePatch(dart, OLD_STRING, 'screens/player_screen.dart');
+  dart = dart.replace(OLD_STRING, NEW_STRING);
+
+### Files changed
+| File | Commit |
+|------|--------|
+| agent-hub/scripts/push.js | b160b9a |
+| agent-hub/TASKS.md | 5929d84 |
+
+### State at end of session
+- Oracle Flask: RUNNING (v3.0.0)
+- push.js: b160b9a (retry logic + validatePatch)
+- Open tasks: none
