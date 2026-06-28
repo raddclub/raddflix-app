@@ -594,11 +594,13 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                       children: _parseGenres(item.genres!).map((g) => Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: t.surface,
+                          color: AppColors.primary.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: t.border),
+                          border: Border.all(color: AppColors.primary.withOpacity(0.22)),
                         ),
-                        child: Text(g, style: TextStyle(color: t.textSecondary, fontSize: 12)),
+                        child: Text(g, style: TextStyle(
+                            color: AppColors.primary.withOpacity(0.9), fontSize: 12,
+                            fontWeight: FontWeight.w500)),
                       )).toList(),
                     ).animate().fadeIn(delay: 100.ms),
                     const SizedBox(height: 16),
