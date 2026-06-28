@@ -359,6 +359,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(children: [
+                  // General
+                  _Section(title: 'General', children: [
+                    _SectionTile(
+                      icon: Icons.settings_outlined,
+                      label: 'Settings',
+                      onTap: () {
+                        DebugLogger.logTap('Profile', 'settings');
+                        Navigator.of(context).pushNamed(AppRoutes.settings);
+                      },
+                    ),
+                  ]),
+                  const SizedBox(height: 12),
                   // Appearance
                   _Section(title: 'Appearance', children: [
                     _SectionTile(

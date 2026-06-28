@@ -18,6 +18,7 @@ import '../providers/subscription_provider.dart';
 import 'subscription_screen.dart';
 import '../widgets/cast_rail.dart';
 import '../core/debug/debug_logger.dart';
+import 'package:share_plus/share_plus.dart';
 
 class ShowDetailScreen extends ConsumerStatefulWidget {
   final CatalogItem item;
@@ -462,6 +463,28 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
               ),
               onPressed: () => Navigator.pop(context),
             ),
+            actions: [
+              IconButton(
+                tooltip: 'Share',
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.black45,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.share_rounded,
+                      size: 18, color: Colors.white),
+                ),
+                onPressed: () {
+                  final title = item.title;
+                  final url = item.shareUrl ?? '';
+                  final text = url.isNotEmpty
+                      ? 'Watch "$title" on RaddFlix — zero-rated on Jazz!\n$url'
+                      : 'Watch "$title" on RaddFlix — zero-rated on Jazz!';
+                  Share.share(text, subject: title);
+                },
+              ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               stretchModes: const [StretchMode.zoomBackground],
               background: Stack(
@@ -1044,6 +1067,17 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                           childCount: _currentEpisodesWithGaps.length,
                         ),
                       ),
+
+          // ── More Like This ──────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: _MoreLikeThisSection(
+              current: item,
+              allItems: [
+                ...ref.watch(catalogProvider).movies,
+                ...ref.watch(catalogProvider).shows,
+              ],
+            ),
+          ),
 
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],
@@ -1688,6 +1722,148 @@ class _AdminChip extends StatelessWidget {
 }
 
 // ── Coming Soon banner ───────────────────────────────────────────────────────
+
+// ── More Like This Section ─────────────────────────────────────────────────
+class _MoreLikeThisSection extends StatelessWidget {
+  final CatalogItem current;
+  final List<CatalogItem> allItems;
+  const _MoreLikeThisSection(
+      {required this.current, required this.allItems});
+
+  Set<String> _parseG(CatalogItem item) {
+    if (item.genres == null || item.genres!.isEmpty) return {};
+    return item.genres!
+        .split(RegExp(r'[,|/]'))
+        .map((g) => g.trim().toLowerCase())
+        .where((g) => g.isNotEmpty)
+        .toSet();
+  }
+
+  List<CatalogItem> _similar() {
+    final myG = _parseG(current);
+    if (myG.isEmpty) return [];
+    final scored = <MapEntry<CatalogItem, int>>[];
+    for (final item in allItems) {
+      if (item.id == current.id) continue;
+      final shared = myG.intersection(_parseG(item)).length;
+      if (shared > 0) scored.add(MapEntry(item, shared));
+    }
+    scored.sort((a, b) => b.value.compareTo(a.value));
+    return scored.take(12).map((e) => e.key).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final similar = _similar();
+    if (similar.isEmpty) return const SizedBox.shrink();
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
+        child: Row(children: [
+          Container(
+            width: 3,
+            height: 18,
+            decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 8),
+          Text('More Like This',
+              style: TextStyle(
+                  color: t.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800)),
+        ]),
+      ),
+      SizedBox(
+        height: 196,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: similar.length,
+          itemBuilder: (context, i) {
+            final item = similar[i];
+            return GestureDetector(
+              onTap: () => Navigator.pushReplacement(context,
+                  MaterialPageRoute(
+                      builder: (_) => ShowDetailScreen(item: item))),
+              child: Container(
+                width: 110,
+                margin: const EdgeInsets.only(right: 10),
+                decoration: BoxDecoration(
+                  color: t.card,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(color: t.border.withOpacity(0.5)),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  child: Stack(fit: StackFit.expand, children: [
+                    if (item.posterUrl != null &&
+                        item.posterUrl!.isNotEmpty)
+                      CachedNetworkImage(
+                        imageUrl: item.posterUrl!,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => Shimmer.fromColors(
+                          baseColor: t.card,
+                          highlightColor: t.surfaceHigh,
+                          child: Container(color: t.card)),
+                        errorWidget: (_, __, ___) =>
+                            _placeholder(item, t),
+                      )
+                    else
+                      _placeholder(item, t),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding:
+                            const EdgeInsets.fromLTRB(6, 24, 6, 6),
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              Colors.black87,
+                              Colors.transparent
+                            ]),
+                        ),
+                        child: Text(item.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ).animate(
+                delay: Duration(milliseconds: i * 40),
+                effects: [FadeEffect(duration: 300.ms)]);
+          },
+        ),
+      ),
+      const SizedBox(height: 8),
+    ]);
+  }
+
+  Widget _placeholder(CatalogItem item, RaddTheme t) => Container(
+        color: t.card,
+        child: Center(
+            child: Icon(
+                item.isMovie
+                    ? Icons.movie_outlined
+                    : Icons.tv_outlined,
+                color: t.textMuted,
+                size: 32)),
+      );
+}
+
+
 class _ComingSoonBanner extends StatelessWidget {
   final int? episodeCount;
   final int season;
