@@ -64,19 +64,25 @@ node /home/runner/workspace/.local/run.js
 **Rules: never use `sed` for multi-line Dart. Always push SEQUENTIALLY — parallel pushes cause SHA 422 conflicts.**
 
 ```javascript
-const { readFile, pushFile, delay } = require('/home/runner/workspace/.local/push.js');
+const { readFile, pushFile, validatePatch, delay } = require('/home/runner/workspace/.local/push.js');
+
+const FILE = 'raddflix_flutter/lib/screens/player_screen.dart';
+const OLD  = `exact old string here`;
+const NEW  = `replacement string here`;
 
 async function main() {
-  let dart = await readFile('raddflix_flutter/lib/screens/player_screen.dart');
-  const before = dart;
-  dart = dart.replace('OLD_STRING', 'NEW_STRING');
-  if (dart === before) throw new Error('patch had no effect — check OLD_STRING');
+  let dart = await readFile(FILE);
 
-  const sha = await pushFile(
-    'raddflix_flutter/lib/screens/player_screen.dart', dart, 'fix: description');
+  // validatePatch throws immediately if OLD is not found — shows nearest matching
+  // lines so you can see what changed. Always call before .replace().
+  validatePatch(dart, OLD, FILE);
+  dart = dart.replace(OLD, NEW);
+
+  const sha = await pushFile(FILE, dart, 'fix: description');
   await delay(1500);
 
   let tasks = await readFile('agent-hub/TASKS.md');
+  validatePatch(tasks, '⏳ IN PROGRESS');
   tasks = tasks.replace('⏳ IN PROGRESS', '✅ DONE');
   await pushFile('agent-hub/TASKS.md', tasks, `chore(tasks): done (${sha})`);
   await delay(1500);
@@ -92,8 +98,17 @@ main().catch(e => { console.error(e.message); process.exit(1); });
 ### Multiple files → use pushTree (one atomic commit, no SHA conflicts)
 
 ```javascript
-const { readFile, pushTree } = require('/home/runner/workspace/.local/push.js');
-// read and patch files in memory, then:
+const { readFile, pushTree, validatePatch } = require('/home/runner/workspace/.local/push.js');
+
+let dart = await readFile('raddflix_flutter/lib/screens/player_screen.dart');
+let app  = await readFile('raddflix_flutter/lib/app.dart');
+
+validatePatch(dart, OLD_DART, 'screens/player_screen.dart');
+dart = dart.replace(OLD_DART, NEW_DART);
+
+validatePatch(app, OLD_APP, 'app.dart');
+app = app.replace(OLD_APP, NEW_APP);
+
 await pushTree([
   { path: 'raddflix_flutter/lib/screens/player_screen.dart', content: dart },
   { path: 'raddflix_flutter/lib/app.dart',                   content: app  },
@@ -182,7 +197,7 @@ Coordination (GitHub main):
   agent-hub/TASKS.md          ← READ FIRST
   agent-hub/RULES.md          Full rules
   agent-hub/CONTEXT.md        Architecture + proxy
-  agent-hub/scripts/push.js   Push helper source
+  agent-hub/scripts/push.js   Push helper (readFile / pushFile / pushTree / validatePatch)
   AGENT_HANDOFF.md            Current state
   agent-hub/history/TASK_LOG.md
 
