@@ -434,3 +434,14 @@ Agents follow the example literally — so until the example shows validatePatch
 
 - BUG-34-01: Removed 3 calls to _savePrefs() which does not exist in _DownloadsScreenState — was added by a previous agent
 - Commit: 0de6b07
+
+---
+
+## Session 2026-06-28 — Phase 35 UI/UX Completion Pass
+
+- Task: Complete UI/UX improvements (continuing from run#1332)
+- home_screen: _CategoryChip gets checkmark icon when selected
+- search_screen: _SearchResultTile._buildPoster now uses local file first then CachedNetworkImage (was bare Image.network)
+- search_screen: Browse-by-genre headers now have primary accent bar + count badge
+- splash_screen: Added top-left and bottom-right corner glows; replaced CircularProgressIndicator with branded 3-dot pulsing loader
+- Commit: 39f1d9f
