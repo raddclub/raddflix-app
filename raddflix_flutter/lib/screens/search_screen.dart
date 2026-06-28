@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../core/db/local_db.dart';
@@ -917,17 +919,34 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
                 child: GestureDetector(
                   onTap: () {
                     _applyFilter(_filters.copyWith(genre: e.key));
                     if (!_showFilters) setState(() => _showFilters = true);
                   },
                   child: Row(children: [
+                    Container(width: 3, height: 16,
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(2))),
                     Text(e.key, style: TextStyle(
-                        color: t.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
-                    const SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_ios_rounded, size: 11, color: t.textMuted),
+                        color: t.textPrimary, fontSize: 14,
+                        fontWeight: FontWeight.w800, letterSpacing: -0.2)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(AppRadius.round),
+                        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                      ),
+                      child: Text('${e.value.length}', style: const TextStyle(
+                          color: AppColors.primary, fontSize: 9, fontWeight: FontWeight.w800)),
+                    ),
+                    const Spacer(),
+                    Icon(Icons.chevron_right_rounded, size: 18, color: t.textMuted),
                   ]),
                 ),
               ),
@@ -1150,9 +1169,27 @@ class _SearchResultTile extends StatelessWidget {
 
   Widget _buildPoster(CatalogItem item, RaddTheme t) {
     const w = 64.0; const h = 90.0;
+    // Local cached poster first (zero network, works offline)
+    if (item.posterPath != null && item.posterPath!.isNotEmpty) {
+      final f = File(item.posterPath!);
+      if (f.existsSync()) {
+        return Image.file(f, width: w, height: h, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildNetworkPosterSR(item, t, w, h));
+      }
+    }
+    return _buildNetworkPosterSR(item, t, w, h);
+  }
+
+  Widget _buildNetworkPosterSR(CatalogItem item, RaddTheme t, double w, double h) {
     if (item.posterUrl != null && item.posterUrl!.isNotEmpty) {
-      return Image.network(item.posterUrl!, width: w, height: h, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _posterPlaceholder(item, t, w, h));
+      return CachedNetworkImage(
+        imageUrl: item.posterUrl!,
+        width: w, height: h, fit: BoxFit.cover,
+        placeholder: (_, __) => Shimmer.fromColors(
+          baseColor: t.card, highlightColor: t.surfaceHigh,
+          child: Container(width: w, height: h, color: t.card)),
+        errorBuilder: (_, __, ___) => _posterPlaceholder(item, t, w, h),
+      );
     }
     return _posterPlaceholder(item, t, w, h);
   }

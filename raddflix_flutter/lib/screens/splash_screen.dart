@@ -147,6 +147,34 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               ),
             ),
           ),
+          // Top-left accent glow
+          Positioned(
+            top: -80, left: -60,
+            child: Container(
+              width: 260, height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  AppColors.primary.withOpacity(0.10),
+                  Colors.transparent,
+                ]),
+              ),
+            ),
+          ),
+          // Bottom-right complementary glow
+          Positioned(
+            bottom: -90, right: -50,
+            child: Container(
+              width: 220, height: 220,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  AppColors.primary.withOpacity(0.07),
+                  Colors.transparent,
+                ]),
+              ),
+            ),
+          ),
           Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -165,16 +193,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     .fadeIn(duration: 400.ms)
                     .slideY(begin: 0.3, end: 0, duration: 400.ms, curve: AppCurves.standard),
                 const SizedBox(height: 80),
-                SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.primary.withOpacity(0.8)),
-                    strokeCap: StrokeCap.round,
-                  ),
-                )
+                const _ThreeDotsLoader()
                     .animate(delay: 500.ms)
                     .fadeIn(duration: 300.ms),
               ],
@@ -233,6 +252,54 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             .fadeIn(duration: 400.ms)
             .slideY(begin: 0.2, end: 0, duration: 400.ms, curve: AppCurves.standard),
       ],
+    );
+  }
+}
+
+// ── Three-dot branded loader ──────────────────────────────────────────────────
+class _ThreeDotsLoader extends StatefulWidget {
+  const _ThreeDotsLoader();
+  @override
+  State<_ThreeDotsLoader> createState() => _ThreeDotsLoaderState();
+}
+
+class _ThreeDotsLoaderState extends State<_ThreeDotsLoader>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))
+      ..repeat();
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 20,
+      child: Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) {
+        final start = i / 4.0;
+        final anim  = CurvedAnimation(
+          parent: _ctrl,
+          curve: Interval(start, (start + 0.5).clamp(0.0, 1.0), curve: Curves.easeInOut),
+        );
+        return AnimatedBuilder(
+          animation: anim,
+          builder: (_, __) => Container(
+            width: 7, height: 7,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.primary.withOpacity(
+                  0.3 + 0.7 * (i % 2 == 0 ? anim.value : 1 - anim.value)),
+            ),
+          ),
+        );
+      })),
     );
   }
 }

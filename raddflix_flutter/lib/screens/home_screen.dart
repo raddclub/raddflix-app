@@ -881,9 +881,17 @@ class _CategoryChip extends StatelessWidget {
               ? [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))]
               : null,
         ),
-        child: Text(label, style: TextStyle(
-          color: isSelected ? Colors.white : t.textMuted,
-          fontSize: 12, fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (isSelected) ...[
+            const Icon(Icons.check_rounded, size: 11, color: Colors.white),
+            const SizedBox(width: 4),
+          ],
+          Text(label, style: TextStyle(
+            color: isSelected ? Colors.white : t.textMuted,
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+            letterSpacing: isSelected ? 0.1 : 0)),
+        ]),
       ),
     );
   }
