@@ -419,3 +419,11 @@ Agents follow the example literally — so until the example shows validatePatch
 - Root cause: Previous agent patch truncated the raw-string regex end, then re-appended the full second half of the file as a duplicate
 - Files: raddflix_flutter/lib/screens/edit_profile_screen.dart
 - Commit: e286322
+
+---
+
+## Session 2026-06-28 — Build fix: downloads_screen + content_card
+
+- BUG-33-01: downloads_screen.dart lines 202/208/282 — arrow callbacks with semicolons converted to block syntax
+- BUG-33-02: content_card.dart line 51 — missing comma after Text() in Column.children
+- Commit: 0e44ecd
