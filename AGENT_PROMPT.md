@@ -11,16 +11,17 @@ node -e "
 const raw = process.env.ORACLE_SSH_KEY || '';
 const m = raw.match(/(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)/s);
 if (!m) { console.error('ORACLE_SSH_KEY missing'); process.exit(1); }
-require('fs').writeFileSync('/tmp/oracle_key',
+require('fs').mkdirSync(require('os').homedir()+'/.ssh', { recursive: true });
+require('fs').writeFileSync(require('os').homedir()+'/.ssh/raddflix_oracle',
   m[1].trim()+'\n'+m[2].trim().replace(/ /g,'\n')+'\n'+m[3].trim()+'\n',
   { mode: 0o600 });
-console.log('SSH key ready');
+console.log('SSH key ready →', require('os').homedir()+'/.ssh/raddflix_oracle');
 "
 ```
 
 Verify Oracle is alive:
 ```bash
-ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
+ssh -i ~/.ssh/raddflix_oracle -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
   "curl -s http://localhost:5000/healthz"
 ```
 Expected: `{"ok":true,"version":"3.0.0"}`
@@ -41,28 +42,36 @@ curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub
 
 ## Step 3 — Edit & push files
 
-> **Why no /tmp for file content:** `/tmp` is wiped every few hours. If your session runs long, any file you downloaded there is gone by push time. Instead, read files directly from GitHub into memory, patch the string, push back. The push helper below handles this cleanly.
+> **No /tmp ever.** `/tmp` is wiped by the OS unpredictably. All persistent files go inside the
+> Replit workspace (`/home/runner/workspace/.local/`) or home dir (`~/.ssh/` for keys).
+> File *content* (Dart, Python, etc.) is never written to disk at all — read from GitHub into
+> memory, patch the string, push back immediately.
 
-### 3a. Download push helper once per session
+### 3a. Download push helper (once per session — persists in workspace)
 
 ```bash
+mkdir -p /home/runner/workspace/.local
 curl -sL "https://raw.githubusercontent.com/raddclub/raddflix-app/main/agent-hub/scripts/push.js" \
-  > /tmp/push.js
+  > /home/runner/workspace/.local/push.js
+echo "Push helper ready"
 ```
 
-Provides: `readFile(repoPath)` → string, `pushFile(repoPath, newContent, message)` → sha, `pushTree(files, msg)` → sha, `delay(ms)`.
+Provides: `readFile(repoPath)` → string, `pushFile(repoPath, newContent, message)` → sha,
+`pushTree(files, msg)` → sha, `delay(ms)`.
 
 ### 3b. Read → patch in memory → push
 
-Write your session script to `/tmp/run.js` using the Replit `write` tool, then run `node /tmp/run.js`.
+Write your session script using the Replit `write` tool to `/home/runner/workspace/.local/run.js`,
+then run `node /home/runner/workspace/.local/run.js`.
+
 **Never use `sed` for multi-line Dart — use JS string replace.**
 **Always push SEQUENTIALLY with `await delay(1500)` between calls — parallel pushes cause SHA 422 conflicts.**
 
 ```javascript
-const { readFile, pushFile, delay } = require('/tmp/push.js');
+const { readFile, pushFile, delay } = require('/home/runner/workspace/.local/push.js');
 
 async function main() {
-  // 1. Read from GitHub
+  // 1. Read from GitHub into memory
   let dart = await readFile('raddflix_flutter/lib/screens/player_screen.dart');
 
   // 2. Patch in memory — verify the patch actually fired
@@ -95,7 +104,7 @@ main().catch(e => { console.error(e.message); process.exit(1); });
 ### 3c. Multiple files in one atomic commit — use pushTree
 
 ```javascript
-const { readFile, pushTree } = require('/tmp/push.js');
+const { readFile, pushTree } = require('/home/runner/workspace/.local/push.js');
 
 const dart = await readFile('raddflix_flutter/lib/screens/player_screen.dart');
 const app  = await readFile('raddflix_flutter/lib/app.dart');
@@ -114,13 +123,13 @@ await pushTree([
 *Only needed if you edited Oracle Python files.*
 
 ```bash
-ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
+ssh -i ~/.ssh/raddflix_oracle -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
   "sudo supervisorctl restart raddflix_radd && sleep 3 && curl -s http://localhost:5000/healthz"
 ```
 
 Oracle git pull (always stash — Oracle has local uncommitted files):
 ```bash
-ssh -i /tmp/oracle_key -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
+ssh -i ~/.ssh/raddflix_oracle -o StrictHostKeyChecking=no ubuntu@92.4.95.252 \
   "cd /opt/jazzmax/radd-hub && git stash && git pull && git stash pop"
 ```
 
@@ -204,4 +213,9 @@ Coordination (GitHub main branch):
   AGENT_HANDOFF.md                     Current state + handoff notes
   agent-hub/history/TASK_LOG.md        Session history (append when done)
   AGENT_PROMPT.md                      This file
+
+Workspace (Replit — persists across sessions, never committed):
+  ~/.ssh/raddflix_oracle               Oracle SSH key (written by Step 1)
+  /home/runner/workspace/.local/push.js   Push helper (downloaded by Step 3a)
+  /home/runner/workspace/.local/run.js    Session script (written per task)
 ```
