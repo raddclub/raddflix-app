@@ -203,3 +203,10 @@ None — all phases 17–26 complete (including audit pass). Awaiting next task.
 | ID | Task | Status |
 |----|------|--------|
 | BUG-32-01 | Fix broken regex + duplicate class defs in edit_profile_screen.dart (build error run#1320) | ✅ DONE (e286322) |
+
+## Phase 33 — Build Fix: downloads_screen + content_card (2026-06-28)
+
+| ID | Task | Status |
+|----|------|--------|
+| BUG-33-01 | downloads_screen: fix 3 arrow-callback semicolon syntax errors | ✅ DONE (0e44ecd) |
+| BUG-33-02 | content_card: add missing comma after Text() in Column children | ✅ DONE (0e44ecd) |
