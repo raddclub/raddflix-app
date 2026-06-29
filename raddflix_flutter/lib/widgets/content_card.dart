@@ -51,10 +51,16 @@ class ContentCard extends StatelessWidget {
                             shadows: [Shadow(color: Colors.black54, blurRadius: 6)])),
                   if (showProgress && progress != null) ...[
                     const SizedBox(height: 4),
-                    LinearProgressIndicator(value: progress,
+                    const SizedBox(height: 3),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: progress,
                         backgroundColor: Colors.white24,
                         valueColor: const AlwaysStoppedAnimation(AppColors.primary),
-                        minHeight: 2),
+                        minHeight: 3,
+                      ),
+                    ),
                   ],
                 ]),
               )),
