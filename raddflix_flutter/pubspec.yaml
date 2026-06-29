@@ -81,6 +81,7 @@ dependencies:
 
   # App version info (for update check)
   package_info_plus: ^8.0.2
+  share_plus: ^10.1.4
 
   # Open URLs (for update dialog)
   url_launcher: ^6.3.0
