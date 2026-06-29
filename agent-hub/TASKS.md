@@ -74,7 +74,20 @@
 | BUG-26-C | `/status` guest response missing quota fields | Guest `_user_id==0` early-return didn't include quota — could cause null errors in `SubscriptionStatus.fromJson` | Added minimal quota dict to the guest early-return path | ✅ FIXED |
 
 ## Open Tasks
-None — all phases 17–26 complete (including audit pass). Awaiting next task.
+None — all phases 17–37 complete. Awaiting next task.
+
+## Phase 37 — Bug Fixes (2026-06-29)
+
+| ID | Task | Status |
+|----|------|--------|
+| BUG-37-01 | Remove share button from show_detail_screen (import + actions block) | ✅ DONE |
+| BUG-37-02 | Remove quality picker from settings_screen (only one fixed video source) | ✅ DONE |
+| BUG-37-03 | Remove defaultQuality storage key from constants.dart | ✅ DONE |
+| BUG-37-04 | Fix free-content gate: guest/free users blocked on free content (4 call sites in show_detail_screen — isFreeEp, route args, downloadCurrentSeason, episode tile — now fall back to widget.item.isFree) | ✅ DONE |
+| BUG-37-05 | Fix player transport row overlap: replace fixed SizedBox(108) right zone with Stack centering — play button always pixel-centered, nav+utility buttons share one full-width Row (no RenderFlex overflow) | ✅ DONE |
+| BUG-37-06 | Fix theme picker cut off: showModalBottomSheet missing isScrollControlled:true + DraggableScrollableSheet — all 10 themes now visible | ✅ DONE |
+| BUILD-FIX-37-01 | Re-add share_plus to pubspec (debug_logger.dart uses it to share crash logs — only UI button was removed) | ✅ DONE |
+
 
 ## Phase 22 — Bug Fixes (2026-06-24)
 
