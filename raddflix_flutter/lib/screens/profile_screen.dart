@@ -609,7 +609,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _divider() => const Divider(height: 1, indent: 52);
 
   void _showThemePicker(BuildContext context) {
-    showModalBottomSheet(context: context, builder: (_) => _ThemePicker());
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.72,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (_, controller) => SingleChildScrollView(
+          controller: controller,
+          child: const _ThemePicker(),
+        ),
+      ),
+    );
   }
 
   String _fmt(String iso) {
@@ -658,6 +672,7 @@ class _ThemeTrailing extends ConsumerWidget {
 }
 
 class _ThemePicker extends ConsumerWidget {
+  const _ThemePicker();
   // Standard themes shown as list rows
   static const _standard = [
     (JazzTheme.dark,   Icons.nights_stay_rounded,   'Dark',   'Deep dark — easy on the eyes'),
