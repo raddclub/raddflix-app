@@ -220,8 +220,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 blurRadius: 28, spreadRadius: 2),
                           ],
                         ),
-                        child: Center(child: Text(initial, style: const TextStyle(
-                            color: Colors.white, fontSize: 40, fontWeight: FontWeight.w900))),
+                        child: Center(
+                          child: (user?.avatarEmoji ?? '').isNotEmpty
+                              ? Text(user!.avatarEmoji,
+                                  style: const TextStyle(fontSize: 34))
+                              : Text(initial, style: const TextStyle(
+                                  color: Colors.white, fontSize: 40,
+                                  fontWeight: FontWeight.w900)),
+                        ),
                       ),
                       if (user?.isGuest != true)
                         Container(
@@ -241,10 +247,50 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       color: t.textPrimary, fontSize: 20, fontWeight: FontWeight.w700,
                       letterSpacing: -0.3))
                       .animate(delay: 100.ms).fadeIn(duration: 300.ms),
-                  if (user?.isGuest != true && user?.displayName != null && user!.displayName!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(user.phone, style: TextStyle(color: t.textMuted, fontSize: 13))
-                        .animate(delay: 120.ms).fadeIn(),
+                  if (user?.isGuest != true) ...[
+                    const SizedBox(height: 5),
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.phone_outlined, size: 13, color: t.textMuted),
+                      const SizedBox(width: 5),
+                      Text(user!.phone,
+                          style: TextStyle(color: t.textMuted, fontSize: 12)),
+                    ]).animate(delay: 120.ms).fadeIn(),
+                    if ((user.email ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.mail_outline_rounded, size: 13, color: t.textMuted),
+                        const SizedBox(width: 5),
+                        Text(user.email!,
+                            style: TextStyle(color: t.textMuted, fontSize: 12)),
+                      ]).animate(delay: 140.ms).fadeIn(),
+                    ],
+                    if ((user.displayName ?? '').isEmpty) ...[
+                      const SizedBox(height: 7),
+                      GestureDetector(
+                        onTap: () async {
+                          final changed = await Navigator.of(context).push<bool>(
+                            MaterialPageRoute(
+                                builder: (_) => const EditProfileScreen()));
+                          if (changed == true && mounted) setState(() {});
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: t.surfaceHigh,
+                            borderRadius: BorderRadius.circular(AppRadius.round),
+                            border: Border.all(color: t.border),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.edit_rounded, size: 11, color: t.textMuted),
+                            const SizedBox(width: 4),
+                            Text('Add your name',
+                                style: TextStyle(color: t.textMuted, fontSize: 11,
+                                    fontWeight: FontWeight.w500)),
+                          ]),
+                        ),
+                      ).animate(delay: 160.ms).fadeIn(),
+                    ],
                   ],
                   const SizedBox(height: 8),
                   Builder(builder: (ctx) {
