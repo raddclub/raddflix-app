@@ -15,7 +15,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  String _defaultQuality = 'auto';
   bool _subtitleDefault = false;
   String _version = '';
   String _buildNumber = '';
@@ -32,20 +31,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final info = await PackageInfo.fromPlatform();
     if (mounted) {
       setState(() {
-        _defaultQuality = prefs.getString(StorageKeys.defaultQuality) ?? 'auto';
         _subtitleDefault = prefs.getBool(StorageKeys.subtitleDefault) ?? false;
         _version = info.version;
         _buildNumber = info.buildNumber;
         _isLoading = false;
       });
     }
-  }
-
-  Future<void> _setQuality(String q) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(StorageKeys.defaultQuality, q);
-    setState(() => _defaultQuality = q);
-    DebugLogger.logTap('Settings', 'quality: $q');
   }
 
   Future<void> _setSubtitleDefault(bool v) async {
@@ -61,69 +52,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         const SnackBar(content: Text('Image cache cleared successfully')),
       );
     }
-  }
-
-  String _qualityLabel(String q) {
-    switch (q) {
-      case 'high':   return 'High (1080p)';
-      case 'medium': return 'Medium (720p)';
-      case 'low':    return 'Low (480p)';
-      default:       return 'Auto (recommended)';
-    }
-  }
-
-  void _showQualitySheet() {
-    final t = RaddTheme.of(context);
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          border: Border.all(color: t.border),
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 36, height: 4,
-            margin: const EdgeInsets.only(top: 12, bottom: 4),
-            decoration: BoxDecoration(
-                color: t.textMuted.withOpacity(0.4),
-                borderRadius: BorderRadius.circular(2))),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-            child: Row(children: [
-              Text('Default Video Quality',
-                  style: TextStyle(color: t.textPrimary,
-                      fontSize: 16, fontWeight: FontWeight.w800)),
-            ]),
-          ),
-          const SizedBox(height: 4),
-          ...['auto', 'high', 'medium', 'low'].map((q) {
-            final selected = _defaultQuality == q;
-            return ListTile(
-              leading: Icon(
-                selected
-                    ? Icons.radio_button_checked_rounded
-                    : Icons.radio_button_unchecked_rounded,
-                color: selected ? AppColors.primary : t.textMuted, size: 22,
-              ),
-              title: Text(_qualityLabel(q),
-                  style: TextStyle(
-                      color: t.textPrimary,
-                      fontWeight:
-                          selected ? FontWeight.w700 : FontWeight.w400)),
-              onTap: () {
-                Navigator.pop(context);
-                _setQuality(q);
-              },
-            );
-          }),
-          const SizedBox(height: 8),
-        ]),
-      ),
-    );
   }
 
   @override
@@ -157,14 +85,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 // ── Playback ────────────────────────────────────────────
                 _SettingsSection(t: t, title: 'Playback', children: [
-                  _SettingsTile(
-                    t: t,
-                    icon: Icons.hd_rounded,
-                    label: 'Default Quality',
-                    subtitle: _qualityLabel(_defaultQuality),
-                    onTap: _showQualitySheet,
-                  ),
-                  _divider(t),
                   _SettingsSwitch(
                     t: t,
                     icon: Icons.subtitles_outlined,
