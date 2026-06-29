@@ -1,44 +1,37 @@
+# RaddFlix Agent Handoff
 
----
-## Windows Client Research Results (2026-06-10)
+## Current State (2026-06-29)
 
-### Source
-84MB NSIS installer extracted to /tmp/jd_extracted (188 files, Qt5/Funambol SDK)
-Binaries analyzed: Jazz Drive.exe, Jazz Drive-sync.exe, Qt5Network.dll, obhExt.dll
+### Oracle
+- Flask: RUNNING ✅ healthz: {"ok":true,"version":"3.0.0"}
+- DB: schema current (display_name/email/avatar_color/avatar_emoji + all Phase 26 columns)
+- Endpoints: PUT /api/auth/profile, POST /api/auth/change-password, GET /api/quota all live
 
-### Confirmed HTTP Headers (from binary strings)
-| Header | Value | Status |
-|---|---|---|
-| X-deviceid | android-raddhub-{last10_msisdn} | existing ✅ |
-| X-devicename | SM-A515F (Android model; Windows uses COMPUTERNAME) | **added** ✅ |
-| X-request-id | uuid4().hex per-request | **added** ✅ |
-| X-funambol-file-size | file size bytes (upload only) | **added** ✅ |
-| X-funambol-id | uuid4().hex per-upload session | **added** ✅ |
-| X-Requested-With | com.jazz.drive | existing ✅ |
-| User-Agent | Dalvik/2.1.0 (Linux; U; Android 12; SM-A515F Build/SP1A.210812.016) | existing ✅ (Android for zero-rating) |
+### Flutter / APK
+- Latest successful build: Phase 37 bug-fix commits ✅ CI PASSING
+- All compile errors resolved
+- Phases 17–37 fully merged and building clean
 
-### Multipart Boundary (Critical Fix)
-- **Before:**  (custom, non-standard)
-- **After:**  (Funambol SDK hardcoded value from Qt5Network.dll)
+### What was fixed in Phase 37 (2026-06-29)
+1. **Share button removed** — `show_detail_screen.dart`: stripped import + SliverAppBar actions block
+2. **Quality picker removed** — `settings_screen.dart`: only one fixed video source, no user choice
+3. **Free-content gate bug fixed** — 4 call sites in `show_detail_screen.dart` now OR with `widget.item.isFree` so free content is always free even if API episodes lack explicit `is_free:1`
+4. **Player transport row overlap fixed** — `player_screen.dart`: Stack centering replaces broken fixed SizedBox(108) right zone
+5. **Theme picker cut off fixed** — `profile_screen.dart`: isScrollControlled:true + DraggableScrollableSheet; all 10 themes visible
+6. **share_plus kept in pubspec** — `debug_logger.dart` uses `Share` API to export crash logs; only the UI share button was removed
 
-### Upload URL (Fix)
-- **Before:** 
-- **After:** 
+### Open Tasks
+None — awaiting next task from user.
 
-### Full SAPI Endpoint Map (from Jazz Drive-sync.exe)
+### Known Data Issues
+- DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 — upload to JazzDrive + sync still needed
 
-
-### OAuth2 Flow (from binary)
-- Grant type: 
-- OOB redirect: 
-- Platform parameter:  (Win client) /  (Android client)
-- client_id field:  (dynamic, not hardcoded in binary)
-- Config keys: oauth2AccessToken, oauth2RefreshToken, oauth2ExpiresIn, oauth2ClientType
-
-### Client Version
-- Registry: 
-- Client Version: 
-
-### Files Changed
--  — get_auth_headers(): X-devicename + X-request-id
--  — boundary, lastupdate=true, X-funambol-* headers
+### Key Rules (NEVER BREAK)
+- Never add `androidAttachSurfaceAfterVideoParameters: true` (black screen on MediaTek)
+- Never upgrade `sqflite_sqlcipher` past `3.1.0+1`
+- Oracle git pull: always `git stash && git pull && git stash pop`
+- Push files SEQUENTIALLY — never parallel (SHA race condition)
+- Use `db.setting(k)` not `db.get_setting(k)`
+- `DebugDiagnosticsScreen` is intentionally NOT gated by `kDebugMode`
+- `ImageCache.clearLive()` does NOT exist in this Flutter version — use `PaintingBinding.instance.imageCache.clear()`
+- CachedNetworkImage uses `errorWidget:` not `errorBuilder:`
