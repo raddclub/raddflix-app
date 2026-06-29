@@ -1,5 +1,33 @@
 # RaddFlix Task Log
 
+## Session 2026-06-29 — Phase 37: UI Bug Fixes
+
+### Tasks completed
+| ID | Task | Status |
+|----|------|--------|
+| BUG-37-01 | Remove share button from show_detail_screen (import + SliverAppBar actions block) | DONE |
+| BUG-37-02 | Remove quality picker from settings_screen (only one fixed video source exists) | DONE |
+| BUG-37-03 | Remove defaultQuality storage key from constants.dart | DONE |
+| BUG-37-04 | Fix free-content gate: 4 call sites in show_detail_screen now use `_parseFree(ep['is_free']) || widget.item.isFree` — free/guest users can watch free content without subscribe prompt | DONE |
+| BUG-37-05 | Fix player transport row RenderFlex overflow — replaced fixed-width SizedBox(108) right zone with Stack approach: play/pause always pixel-centered, nav+utility buttons in single full-width Row | DONE |
+| BUG-37-06 | Fix theme picker cut off — added isScrollControlled:true + DraggableScrollableSheet to showModalBottomSheet; all 10 themes (4 standard + 6 color) now visible | DONE |
+| BUILD-FIX-37-01 | Re-add share_plus to pubspec.yaml (debug_logger.dart uses Share API for crash log sharing) | DONE |
+
+### Root cause of free-content gate bug (BUG-37-04)
+When the backend returns episodes without an explicit `is_free` field (null/absent), `_parseFree()` defaults to false (paid). If the parent CatalogItem has `isFree=true` (catalog sync sets this), the episodes inherited no free status. Fix: all 4 call sites in show_detail_screen now OR with `widget.item.isFree` so the parent's flag propagates to all episode-level gates.
+
+### Build status
+- All 6 commits pushed, CI passed ✅ (run#1341+)
+- Latest successful build: pubspec share_plus restore commit
+
+### State at end of session
+- Oracle Flask: RUNNING (v3.0.0)
+- Build: PASSING ✅
+- Open tasks: none
+
+---
+
+
 ## Session 2026-06-07 — OPS-01 Session Expired Fix
 
 ### Tasks completed
