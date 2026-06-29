@@ -291,7 +291,6 @@ class StorageKeys {
   static const String cachedSubExpiry  = 'jm_cached_sub_expiry';
   static const String themeMode        = 'jm_theme_mode';
   static const String searchHistory    = 'jm_search_history';
-  static const String defaultQuality   = 'jm_default_quality';
   static const String subtitleDefault  = 'jm_subtitle_default';
 }
 
