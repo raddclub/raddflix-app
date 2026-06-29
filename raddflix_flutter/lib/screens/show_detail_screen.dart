@@ -18,7 +18,6 @@ import '../providers/subscription_provider.dart';
 import 'subscription_screen.dart';
 import '../widgets/cast_rail.dart';
 import '../core/debug/debug_logger.dart';
-import 'package:share_plus/share_plus.dart';
 
 class ShowDetailScreen extends ConsumerStatefulWidget {
   final CatalogItem item;
@@ -225,7 +224,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     }
 
     // Access gate — free episodes play for everyone; paid episodes require subscription.
-    final isFreeEp = _parseFree(ep['is_free']);
+    final isFreeEp = _parseFree(ep['is_free']) || widget.item.isFree;
     if (!isFreeEp && !_isSubscribed) {
       _requireSub(context);
       return;
@@ -247,7 +246,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         'episode_index': resolvedPlayerIdx, // index within allSeasonsEps
         'show_title': widget.item.title,
         'content_type': widget.item.mediaType,
-        'is_free': _parseFree(ep['is_free']),
+        'is_free': _parseFree(ep['is_free']) || widget.item.isFree,
       },
     );
     if (mounted) setState(() => _nowPlayingIdx = null);
@@ -355,7 +354,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     // BUG-H03 fix: only require a subscription when the season contains paid episodes.
     // Previously ALL batch-downloads required a subscription, blocking free-episode
     // seasons for unsubscribed / free-plan users (unfair and incorrect UX).
-    final hasPaidEps = _currentEpisodes.any((ep) => !_parseFree(ep['is_free']));
+    final hasPaidEps = !widget.item.isFree && _currentEpisodes.any((ep) => !_parseFree(ep['is_free']));
     if (hasPaidEps && !_isSubscribed) { _requireSub(context); return; }
     final dlState = ref.read(downloadsProvider);
     // Only queue episodes that have a fileId and are not already downloaded/queued
@@ -463,28 +462,6 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
               ),
               onPressed: () => Navigator.pop(context),
             ),
-            actions: [
-              IconButton(
-                tooltip: 'Share',
-                icon: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.black45,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.share_rounded,
-                      size: 18, color: Colors.white),
-                ),
-                onPressed: () {
-                  final title = item.title;
-                  final url = item.shareUrl ?? '';
-                  final text = url.isNotEmpty
-                      ? 'Watch "$title" on RaddFlix — zero-rated on Jazz!\n$url'
-                      : 'Watch "$title" on RaddFlix — zero-rated on Jazz!';
-                  Share.share(text, subject: title);
-                },
-              ),
-            ],
             flexibleSpace: FlexibleSpaceBar(
               stretchModes: const [StretchMode.zoomBackground],
               background: Stack(
@@ -1020,7 +997,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                             final realIdx = ep['_realIndex'] as int;
                             final fileId = ep['file_id']?.toString() ?? '';
                             final progress = _watchProgress[fileId] ?? 0.0;
-                            final isFree   = _parseFree(ep['is_free']);
+                            final isFree   = _parseFree(ep['is_free']) || widget.item.isFree;
                             final quality  = ep['quality'] as String?;
                             final epShareUrl = ep['share_url'] as String? ?? '';
                             final dlState = ref.watch(downloadsProvider);
