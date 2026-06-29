@@ -2876,115 +2876,98 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     Widget _buildTransportRow() {
-      // ── 3-zone layout: [left nav] [center play] [right nav + utils] ──────────
-      // Using a Row with a fixed-width left balancer ensures the play/pause button
-      // is always truly centered and NEVER overlaps the utility buttons. The old
-      // Stack + Positioned(right:0) caused overlap/overflow on small screens.
-      const double utilWidth = 108.0; // lock(36) + immersive(36) + settings(36)
-
+      // ── Stack layout: play/pause always pixel-centered. Nav buttons (prev/next/
+      // skip) and utility buttons (lock/immersive/settings) share a single Row that
+      // overlays the Stack. No fixed-width SizedBox = no RenderFlex overflow when
+      // all optional buttons are active simultaneously.
       return SizedBox(
         height: 52,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            // ── Left zone: backward nav (mirrors right width so center is exact) ──
-            SizedBox(
-              width: utilWidth,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_showSkipBtns)
-                    _RaddIconBtn(
-                      icon: Icons.replay_rounded,
-                      size: 22,
-                      onTap: () => _seekRelative(-_skipInterval),
-                    ),
-                  if (_showSkipBtns && _showPrevNextBtns)
-                    const SizedBox(width: 2),
-                  if (_showPrevNextBtns)
-                    Opacity(
-                      opacity: _hasPrev ? 1.0 : 0.25,
-                      child: _RaddIconBtn(
-                        icon: Icons.skip_previous_rounded,
-                        size: 26,
-                        onTap: _hasPrev ? () => _playEpisodeAt(_currentEpIdx - 1) : null,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            // ── Center zone: play/pause (always centered) ─────────────────────
-            Expanded(
-              child: Center(
-                child: GestureDetector(
-                  onTap: () { _player.playOrPause(); _scheduleHide(); },
-                  child: Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.12),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.35), width: 1.2),
-                    ),
-                    child: Icon(
-                      _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                      color: Colors.white,
-                      size: 24,
+            // ── Nav + utility row (spans full width) ───────────────────────────
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Left nav: replay + prev episode
+                if (_showSkipBtns)
+                  _RaddIconBtn(
+                    icon: Icons.replay_rounded,
+                    size: 22,
+                    onTap: () => _seekRelative(-_skipInterval),
+                  ),
+                if (_showSkipBtns && _showPrevNextBtns)
+                  const SizedBox(width: 2),
+                if (_showPrevNextBtns)
+                  Opacity(
+                    opacity: _hasPrev ? 1.0 : 0.25,
+                    child: _RaddIconBtn(
+                      icon: Icons.skip_previous_rounded,
+                      size: 26,
+                      onTap: _hasPrev ? () => _playEpisodeAt(_currentEpIdx - 1) : null,
                     ),
                   ),
+                const Spacer(),
+                // Right nav: next episode + skip forward
+                if (_showPrevNextBtns)
+                  Opacity(
+                    opacity: _hasNext ? 1.0 : 0.25,
+                    child: _RaddIconBtn(
+                      icon: Icons.skip_next_rounded,
+                      size: 26,
+                      onTap: _hasNext ? () => _playEpisodeAt(_currentEpIdx + 1) : null,
+                    ),
+                  ),
+                if (_showPrevNextBtns && _showSkipBtns)
+                  const SizedBox(width: 2),
+                if (_showSkipBtns)
+                  _RaddIconBtn(
+                    icon: Icons.forward_rounded,
+                    size: 22,
+                    onTap: () => _seekRelative(_skipInterval),
+                  ),
+                // Utility buttons — always shown, right of nav
+                const SizedBox(width: 4),
+                _RaddIconBtn(
+                  icon: Icons.lock_outline_rounded,
+                  size: 19,
+                  onTap: () => setState(() {
+                    _isLocked = true;
+                    _showControls = false;
+                    _applySubtitleMargin(controlsVisible: false);
+                  }),
                 ),
-              ),
+                _RaddIconBtn(
+                  icon: _isImmersive
+                      ? Icons.theaters_rounded
+                      : Icons.theaters_outlined,
+                  size: 19,
+                  onTap: _isImmersive ? _exitImmersive : _enterImmersive,
+                ),
+                _RaddIconBtn(
+                  icon: Icons.settings_rounded,
+                  size: 19,
+                  onTap: _openSettingsPanel,
+                ),
+              ],
             ),
 
-            // ── Right zone: forward nav + utility buttons ──────────────────────
-            SizedBox(
-              width: utilWidth,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_showPrevNextBtns)
-                    Opacity(
-                      opacity: _hasNext ? 1.0 : 0.25,
-                      child: _RaddIconBtn(
-                        icon: Icons.skip_next_rounded,
-                        size: 26,
-                        onTap: _hasNext ? () => _playEpisodeAt(_currentEpIdx + 1) : null,
-                      ),
-                    ),
-                  if (_showPrevNextBtns && _showSkipBtns)
-                    const SizedBox(width: 2),
-                  if (_showSkipBtns)
-                    _RaddIconBtn(
-                      icon: Icons.forward_rounded,
-                      size: 22,
-                      onTap: () => _seekRelative(_skipInterval),
-                    ),
-                  const Spacer(),
-                  _RaddIconBtn(
-                    icon: Icons.lock_outline_rounded,
-                    size: 19,
-                    onTap: () => setState(() {
-                      _isLocked = true;
-                      _showControls = false;
-                      _applySubtitleMargin(controlsVisible: false);
-                    }),
-                  ),
-                  _RaddIconBtn(
-                    icon: _isImmersive
-                        ? Icons.theaters_rounded
-                        : Icons.theaters_outlined,
-                    size: 19,
-                    onTap: _isImmersive ? _exitImmersive : _enterImmersive,
-                  ),
-                  _RaddIconBtn(
-                    icon: Icons.settings_rounded,
-                    size: 19,
-                    onTap: _openSettingsPanel,
-                  ),
-                ],
+            // ── Play/pause — always centered via Stack.center ──────────────────
+            GestureDetector(
+              onTap: () { _player.playOrPause(); _scheduleHide(); },
+              child: Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.12),
+                  border: Border.all(
+                      color: Colors.white.withOpacity(0.35), width: 1.2),
+                ),
+                child: Icon(
+                  _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
             ),
           ],
