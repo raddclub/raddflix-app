@@ -123,6 +123,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     );
   }
 
+  Color _userAvatarColor(dynamic user) {
+    if (user == null) return AppColors.primary;
+    final hex = ((user.avatarColor as String?) ?? '#8B002D').replaceAll('#', '');
+    try { return Color(int.parse('FF$hex', radix: 16)); }
+    catch (_) { return AppColors.primary; }
+  }
+
   PreferredSizeWidget _buildAppBar(dynamic user) {
     return AppBar(
       backgroundColor: _scrolled ? t.surface.withOpacity(0.96) : Colors.transparent,
@@ -156,16 +163,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             child: GestureDetector(
               onTap: () { DebugLogger.logTap('Home', 'profileAvatar'); Navigator.of(context).pushNamed(AppRoutes.profile); },
               child: Container(
-                width: 34, height: 34,
+                width: 38, height: 38,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: AppColors.primaryGradient,
+                  gradient: LinearGradient(
+                    colors: [_userAvatarColor(user), _userAvatarColor(user).withOpacity(0.75)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   boxShadow: AppShadows.primary,
                   border: Border.all(color: Colors.white24, width: 1.5),
                 ),
                 child: Center(child: Text(
-                  user.avatarInitial, // BUG-M01 fix: use model getter, not inline phone[0]
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14))),
+                  user.avatarInitial,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
               ),
             ),
           ),
@@ -767,13 +778,32 @@ class _ContentSection extends StatelessWidget {
           itemBuilder: (_, i) => Padding(
             padding: EdgeInsets.only(right: i < items.length - 1 ? 10 : 0),
             child: SizedBox(width: 126,
-                child: ContentCard(
-                    item: items[i],
-                    showProgress: showProgress,
-                    progress: showProgress ? (items[i].watchProgress ?? 0.5) : null,
-                    onLongPress: onRemove != null
-                        ? () => _showRemoveDialog(context, items[i])
-                        : null))
+                child: Stack(children: [
+                  ContentCard(
+                      item: items[i],
+                      showProgress: showProgress,
+                      progress: showProgress ? (items[i].watchProgress ?? 0.5) : null,
+                      onLongPress: onRemove != null
+                          ? () => _showRemoveDialog(context, items[i])
+                          : null),
+                  if (onRemove != null)
+                    Positioned(
+                      top: 5, right: 5,
+                      child: GestureDetector(
+                        onTap: () => _showRemoveDialog(context, items[i]),
+                        child: Container(
+                          width: 22, height: 22,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.65),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white24, width: 0.5),
+                          ),
+                          child: const Icon(Icons.close_rounded,
+                              size: 13, color: Colors.white70),
+                        ),
+                      ),
+                    ),
+                ]))
                 .animate(delay: (i * 30).ms).fadeIn(duration: 300.ms)
                 .slideX(begin: 0.1, end: 0, duration: 300.ms, curve: AppCurves.standard),
           ),
