@@ -191,7 +191,16 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               ),
 
               const SizedBox(height: 8),
-              Text('Tap to change color',
+              Text(
+                (user?.displayName ?? '').isNotEmpty
+                    ? user!.displayName!
+                    : (user?.phone ?? ''),
+                style: TextStyle(
+                    color: t.textPrimary, fontSize: 15,
+                    fontWeight: FontWeight.w600),
+              ).animate(delay: 80.ms).fadeIn(),
+              const SizedBox(height: 2),
+              Text('Tap avatar to change color',
                   style: TextStyle(color: t.textMuted, fontSize: 12))
                   .animate(delay: 100.ms).fadeIn(),
 
