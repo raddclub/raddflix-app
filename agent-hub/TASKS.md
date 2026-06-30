@@ -138,8 +138,18 @@
 | ANIM-41-05 | main.dart: Animate.restartOnHotReload = kDebugMode + animConfigProvider override in ProviderScope | ✅ DONE |
 | ANIM-41-06 | Create anim_durations.dart — tier-aware fast/normal/slow/stagger/morph constants | ✅ DONE |
 
+## Phase 42 — Hero Poster Transition (2026-06-30)
+
+| ID | Task | Status |
+|----|------|--------|
+| ANIM-42-01 | home_screen: Hero(tag: 'poster_${item.id}') wraps _buildPosterImage() in _HeroCard | ✅ DONE |
+| ANIM-42-02 | show_detail_screen: FlexibleSpaceBar banner replaced with Hero+Builder (collapses if/else) | ✅ DONE |
+| ANIM-42-03 | search_screen: poster ClipRRect wrapped in Hero with matching tag | ✅ DONE |
+| ANIM-42-04 | downloads_screen: skipped — downloads navigate to player not show_detail (no Hero path) | ⏭ SKIPPED |
+| ANIM-42-05 | app.dart showDetail route: SlideTransition → FadeTransition (Hero-compatible) | ✅ DONE |
+
 ## Open Tasks
-None — phases 17–41 complete. Phases 42–49 defined in agent-hub/ANIMATION_PLAN.md.
+None — phases 17–42 complete. Phases 43–49 defined in agent-hub/ANIMATION_PLAN.md.
 
 ## Phase 37 — Bug Fixes (2026-06-29)
 
