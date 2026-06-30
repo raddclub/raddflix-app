@@ -499,3 +499,18 @@ Agents follow the example literally — so until the example shows validatePatch
 - home_screen: greeting row below appbar + avatar ring + emoji display in appbar
 - edit_profile_screen: bigger avatar preview + emoji row (20 emojis + None) + avatarEmoji saved
 - Commit: fbc56ac
+
+---
+
+## Session 2026-06-30 — Phase 39 Download Audit
+
+### Bugs Fixed
+- BUG-39-01: startDownload() duplicate guard (isDownloading||isDownloaded early-return)
+- BUG-39-02: Episode tile onDownload null-guard adds || isDownloading
+- BUG-39-03: Cancel now deletes partial .mp4 + DB record (was: marked 'cancelled', file left)
+- BUG-39-04: cancelDownload() async + loadDownloads() → UI clears after cancel
+- BUG-39-05: deleteDownload() awaits async cancelDownload()
+- BUG-39-06: _isDownloadingAll wrapped in try/finally
+- BUG-39-07: _DownloadCard/_DownloadListTile get onCancel parameter + stop/sweep icons
+- BUG-39-08: _FeaturePill t.textSecondary → t.textMuted
+- Commit: e750398
