@@ -291,8 +291,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 );
                 return RepaintBoundary(
                   child: canAnimate
+                      // Phase 46 ANIM-46-05: shimmer runs once after slide-in (Tier 1+)
                       ? chip.animate(delay: animConfig.stagger(i)).fadeIn(duration: animConfig.normal)
                           .slideX(begin: 0.2, end: 0, duration: animConfig.normal, curve: AppCurves.standard)
+                          .shimmer(duration: 500.ms, color: Colors.white24)
                       : chip,
                 );
               },

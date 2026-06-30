@@ -4,6 +4,7 @@ import '../core/theme/radd_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
@@ -50,6 +51,8 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   bool _sortAscending = true;
   // Tracks active "Download Season" batch to prevent duplicate triggers.
   bool _isDownloadingAll = false;
+  // Phase 46 ANIM-46-02: delays typewriter until page transition finishes
+  bool _typewriterReady  = false;
 
   @override
   void initState() {
@@ -57,6 +60,10 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     DebugLogger.logLifecycle('ShowDetail', 'initState id=${widget.item.id} title="${widget.item.title}" type=${widget.item.mediaType}');
     _seasonTab = null;
     _loadEpisodes();
+    // Phase 46 ANIM-46-02: wait 300ms so typewriter doesn't compete with Hero/OpenContainer
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) setState(() => _typewriterReady = true);
+    });
   }
 
   @override
@@ -619,9 +626,33 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                     const SizedBox(height: 16),
                   ],
 
-                  // Description
+                  // Description — Phase 46 ANIM-46-01/02: TypewriterAnimatedText on Tier 1+
+                  // Starts only when _typewriterReady (300ms post-transition).
+                  // Tier 0 or accessibility: plain _ExpandableText.
                   if (item.description != null && item.description!.isNotEmpty) ...[
-                    _ExpandableText(text: item.description!),
+                    if (_typewriterReady &&
+                        animConfig.canStagger &&
+                        !MediaQuery.of(context).disableAnimations)
+                      AnimatedTextKit(
+                        animatedTexts: [
+                          TypewriterAnimatedText(
+                            // Cap at 220 chars to keep typing time under 4s
+                            item.description!.length > 220
+                                ? '${item.description!.substring(0, 220)}…'
+                                : item.description!,
+                            textStyle: TextStyle(
+                              color: t.textMuted, fontSize: 13, height: 1.5),
+                            speed: const Duration(milliseconds: 18),
+                            cursor: '',
+                          ),
+                        ],
+                        isRepeatingAnimation: false,
+                        totalRepeatCount: 1,
+                        // Tapping the text skips to full text (good UX)
+                        displayFullTextOnTap: true,
+                      )
+                    else
+                      _ExpandableText(text: item.description!),
                     const SizedBox(height: 20),
                   ],
 
