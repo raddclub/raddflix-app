@@ -585,3 +585,14 @@ Agents follow the example literally — so until the example shows validatePatch
 - ANIM-45-03 skipped: glow_effects package not in pubspec, would require new dep; Tier 2 shadow sufficient
 - ANIM-45-05 deferred: SnackBar content animation requires custom SnackBar widget; not worth scope now
 - Commit: bec1909
+
+---
+
+## Session 2026-06-30 — Phase 46 Typewriter & Animated Text
+
+- show_detail: import animated_text_kit added; _typewriterReady bool added to state class; initState gets Future.delayed(300ms, setState(_typewriterReady=true))
+- show_detail description section: if(_typewriterReady && animConfig.canStagger && !disableAnimations) → AnimatedTextKit(TypewriterAnimatedText, speed:18ms, cursor:'', cap 220 chars, totalRepeatCount:1, displayFullTextOnTap:true) else _ExpandableText
+- home_screen chips: .shimmer(500ms, white24) appended after slideX in the entrance stagger chain (ANIM-46-05)
+- ANIM-46-03: deferred — tagline not in CatalogItem model reliably
+- ANIM-46-04: deferred — WavyAnimatedText on downloads bar low priority
+- Commit: 647ac5c
