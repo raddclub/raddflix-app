@@ -596,3 +596,13 @@ Agents follow the example literally — so until the example shows validatePatch
 - ANIM-46-03: deferred — tagline not in CatalogItem model reliably
 - ANIM-46-04: deferred — WavyAnimatedText on downloads bar low priority
 - Commit: 647ac5c
+
+---
+
+## Session 2026-06-30 — Phase 47 Frosted Glass Bottom Nav
+
+- bottom_nav: added dart:ui, flutter_riverpod, anim_config imports; StatelessWidget→ConsumerWidget; build() now reads animConfig; Tier 2+ (canBlur) → ClipRect>BackdropFilter(sigmaX/Y:12)>Container(opacity 0.72); Tier 0/1 → existing solid Container fallback
+- home_screen Scaffold: extendBody:true (ANIM-47-03)
+- home_screen slivers: SliverToBoxAdapter(72) appended after existing 24px bottom sliver (ANIM-47-04)
+- ANIM-47-05 deferred: no measurable repaint issue with BouncingScrollPhysics
+- Commit: af27e1a
