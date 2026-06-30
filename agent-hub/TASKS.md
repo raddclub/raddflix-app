@@ -157,8 +157,18 @@
 | ANIM-43-03 | search_screen: _buildResults() — animConfig + tier-gated results stagger | ✅ DONE |
 | ANIM-43-04 | Tier 0 policy: canStagger=false → raw widget; stagger(i)=0ms on potato tier | ✅ DONE |
 
+## Phase 44 — Card → Detail Screen Morph (2026-06-30)
+
+| ID | Task | Status |
+|----|------|--------|
+| ANIM-44-01 | home_screen: grid delegate → 3-way branch: OpenContainer (Tier2+) / stagger (Tier1) / raw (Tier0) | ✅ DONE |
+| ANIM-44-02 | closedElevation: 0, openElevation: 0, transitionDuration: animConfig.slow | ✅ DONE |
+| ANIM-44-03 | closedColor: Colors.transparent / openColor: Colors.transparent (no white flash) | ✅ DONE |
+| ANIM-44-04 | Hero + OpenContainer conflict avoided: ContentCard in grid has no Hero; _SearchResultTile onTap overrides navigation | ✅ DONE |
+| ANIM-44-05 | search_screen: _SearchResultTile gets VoidCallback? onTap; _buildResults canMorph branch; OpenContainer on Tier 2+ | ✅ DONE |
+
 ## Open Tasks
-None — phases 17–43 complete. Phases 44–49 defined in agent-hub/ANIMATION_PLAN.md.
+None — phases 17–44 complete. Phases 45–49 defined in agent-hub/ANIMATION_PLAN.md.
 
 ## Phase 37 — Bug Fixes (2026-06-29)
 
