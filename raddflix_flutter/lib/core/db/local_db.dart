@@ -1290,6 +1290,28 @@ class LocalDb {
     await db.delete('downloads', where: 'file_id = ?', whereArgs: [fileId]);
   }
 
+  /// Look up stream info for [fileId] from the catalog (episodes or titles).
+  /// Returns a Map with share_url, filename?, remote_id? or null if not found.
+  /// Used by DownloadsNotifier.retryDownload() so the user can retry a failed
+  /// download directly from the Downloads screen without navigating back to the
+  /// content page.
+  static Future<Map<String, dynamic>?> getFileInfo(String fileId) async {
+    final db = await instance;
+    // Episodes table first (TV shows, dramas)
+    final eps = await db.query('episodes',
+        columns: ['file_id', 'share_url', 'filename', 'remote_id'],
+        where: 'file_id = ?', whereArgs: [fileId], limit: 1);
+    if (eps.isNotEmpty) return Map<String, dynamic>.from(eps.first);
+    // Titles table fallback (movies / single-file items)
+    try {
+      final titles = await db.query('titles',
+          columns: ['file_id', 'share_url'],
+          where: 'file_id = ?', whereArgs: [fileId], limit: 1);
+      if (titles.isNotEmpty) return Map<String, dynamic>.from(titles.first);
+    } catch (_) {}
+    return null;
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   // ── Phase 6: Usage Tracking ────────────────────────────────────────────

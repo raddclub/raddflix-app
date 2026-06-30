@@ -109,8 +109,26 @@
 | UI-39-03 | Active card progress % shown inline in info row (not separate line) | ✅ DONE |
 | UI-39-04 | List tile active state shows "X% downloading…" text on progress row | ✅ DONE |
 
+## Phase 40 — Downloads: Speed/ETA, Retry, Disk Space, Connectivity (2026-06-30)
+
+### Features Added
+
+| ID | Feature | Files | Status |
+|----|---------|-------|--------|
+| F-40-01 | Download speed (MB/s) + ETA display on active cards/tiles | download_service, downloads_provider, downloads_screen | ✅ |
+| F-40-02 | Free disk space display in storage bar (colour-coded: red<200MB, amber<500MB) | downloads_provider, downloads_screen | ✅ |
+| F-40-03 | Pre-download storage check: abort + user message if < 200 MB free | downloads_provider | ✅ |
+| F-40-04 | In-screen retry for failed downloads (looks up share_url from catalog SQLite) | local_db, downloads_provider, downloads_screen | ✅ |
+| F-40-05 | LocalDb.getFileInfo() — queries episodes then titles by file_id | local_db | ✅ |
+| F-40-06 | Auto-retry on SocketException (network blip) after 4 s delay, 1 attempt | downloads_provider | ✅ |
+| F-40-07 | Download completion SnackBar notification (green, title shown) | downloads_provider, downloads_screen | ✅ |
+| F-40-08 | Queue position badge (#2, #3…) on active cards waiting to start | downloads_screen | ✅ |
+| F-40-09 | Sort/filter/view mode persist via SharedPreferences (survive app restarts) | downloads_screen | ✅ |
+| F-40-10 | Offline mode banner with ↺ refresh tap when connectivity lost | downloads_screen | ✅ |
+| F-40-11 | Failed list-tile shows ↺ Retry + 🗑 Delete buttons side-by-side | downloads_screen | ✅ |
+
 ## Open Tasks
-None — all phases 17–39 complete. Awaiting next task.
+None — all phases 17–40 complete. Awaiting next task.
 
 ## Phase 37 — Bug Fixes (2026-06-29)
 

@@ -46,7 +46,7 @@ class DownloadService {
     String? shareUrl,
     String? targetFilename,
     int remoteId = 0,
-    required void Function(double progress) onProgress,
+    required void Function(double progress, int received, int total) onProgress,
     String? contentType,
   }) async {
     await _checkDownloadQuota();
@@ -119,7 +119,7 @@ class DownloadService {
         cancelToken: cancelToken,
         onReceiveProgress: (received, total) {
           final progress = total > 0 ? received / total : 0.0;
-          onProgress(progress);
+          onProgress(progress, received, total > 0 ? total : 0);
           // FIX-DL-THROTTLE: only write to DB when progress crosses a 5% boundary
           // to avoid flooding SQLite with hundreds of UPDATE calls per second.
           final pct5 = (progress * 20).floor();
@@ -147,7 +147,7 @@ class DownloadService {
       // Count actual downloaded bytes toward monthly quota (exact size, counted once at completion).
       // Playback of this file later uses _isLocal=true → zero additional quota deduction.
       UsageService.addDownloadBytes(bytes: fileSize).ignore();
-      onProgress(1.0);
+      onProgress(1.0, fileSize, fileSize);
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
         // Delete partial file and remove DB record entirely so the item

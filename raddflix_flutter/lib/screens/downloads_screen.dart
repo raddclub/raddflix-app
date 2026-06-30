@@ -13,6 +13,8 @@ import '../widgets/bottom_nav.dart';
 import '../services/thumb_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:disk_space_plus/disk_space_plus.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
   import '../services/vault_service.dart';
 
 enum _SortMode { name, size, date }
@@ -35,14 +37,59 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   final Set<String> _selected = {};
   String? _activeFolder;
 
+  // Phase-40: disk space display + offline banner
+  double? _freeMB;
+  bool    _isOnline = true;
+
   static const _folders = ['Movies', 'TV Shows', 'Dramas', 'Other'];
+
+  static const _kPrefsSort   = 'dl_sort_v2';
+  static const _kPrefsFilter = 'dl_filter_v2';
+  static const _kPrefsView   = 'dl_view_v2';
 
   @override
   void initState() {
     super.initState();
     DebugLogger.logLifecycle('DownloadsScreen', 'initState');
-    WidgetsBinding.instance.addPostFrameCallback((_) =>
-        ref.read(downloadsProvider.notifier).loadDownloads());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      ref.read(downloadsProvider.notifier).loadDownloads();
+      await _loadPrefs();
+      _refreshDiskSpace();
+      _checkConnectivity();
+    });
+  }
+
+  Future<void> _loadPrefs() async {
+    final p = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _sort   = _SortMode.values.firstWhere(
+          (e) => e.name == (p.getString(_kPrefsSort) ?? ''), orElse: () => _SortMode.date);
+      _filter = _FilterMode.values.firstWhere(
+          (e) => e.name == (p.getString(_kPrefsFilter) ?? ''), orElse: () => _FilterMode.all);
+      _view   = _ViewMode.values.firstWhere(
+          (e) => e.name == (p.getString(_kPrefsView) ?? ''), orElse: () => _ViewMode.grid);
+    });
+  }
+
+  Future<void> _savePrefs() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_kPrefsSort,   _sort.name);
+    await p.setString(_kPrefsFilter, _filter.name);
+    await p.setString(_kPrefsView,   _view.name);
+  }
+
+  void _refreshDiskSpace() {
+    DiskSpacePlus.getFreeDiskSpace.then((mb) {
+      if (mounted && mb != null) setState(() => _freeMB = mb);
+    }).ignore();
+  }
+
+  Future<void> _checkConnectivity() async {
+    try {
+      final r = await Connectivity().checkConnectivity();
+      if (mounted) setState(() => _isOnline = r != ConnectivityResult.none);
+    } catch (_) {}
   }
 
   // ── Helpers on raw Map ────────────────────────────────────────────────────
@@ -131,6 +178,27 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
     final state = ref.watch(downloadsProvider);
+
+    // Show a SnackBar when a download finishes in the background.
+    ref.listen(
+      downloadsProvider.select((s) => s.recentlyCompleted),
+      (_, next) {
+        if (next.isEmpty) return;
+        ref.read(downloadsProvider.notifier).clearRecentlyCompleted();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Row(children: [
+            const Icon(Icons.download_done_rounded, color: Colors.white, size: 18),
+            const SizedBox(width: 10),
+            Expanded(child: Text('Downloaded: ${next.last}',
+                overflow: TextOverflow.ellipsis)),
+          ]),
+          backgroundColor: AppColors.success,
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+        ));
+      },
+    );
     return Scaffold(
       backgroundColor: null,
       appBar: _buildAppBar(state),
@@ -144,6 +212,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         },
       ),
       body: Column(children: [
+        if (!_isOnline) _buildOfflineBanner(),
         _buildStorageBar(state),
         _buildFilterRow(),
         const Divider(height: 1),
@@ -199,13 +268,13 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         ] else ...[
           IconButton(
             icon: Icon(_view == _ViewMode.grid ? Icons.view_list_rounded : Icons.grid_view_rounded),
-            onPressed: () { setState(() => _view = _view == _ViewMode.grid ? _ViewMode.list : _ViewMode.grid); },
+            onPressed: () { setState(() => _view = _view == _ViewMode.grid ? _ViewMode.list : _ViewMode.grid); _savePrefs(); },
             tooltip: 'Toggle view',
           ),
           PopupMenuButton<_SortMode>(
             icon: const Icon(Icons.sort_rounded),
             tooltip: 'Sort',
-            onSelected: (s) { setState(() => _sort = s); },
+            onSelected: (s) { setState(() => _sort = s); _savePrefs(); },
             itemBuilder: (_) => [
               const PopupMenuItem(value: _SortMode.date, child: Text('By Date')),
               const PopupMenuItem(value: _SortMode.name, child: Text('By Name')),
@@ -217,10 +286,37 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     );
   }
 
+  Widget _buildOfflineBanner() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.error.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.error.withOpacity(0.3)),
+      ),
+      child: Row(children: [
+        Icon(Icons.wifi_off_rounded, size: 16, color: AppColors.error),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('You are offline. Downloads are paused.',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
+        GestureDetector(
+          onTap: _checkConnectivity,
+          child: Icon(Icons.refresh_rounded, size: 16, color: AppColors.error),
+        ),
+      ]),
+    );
+  }
+
   Widget _buildStorageBar(DownloadsState state) {
     final totalBytes = state.downloads.fold<int>(0, (sum, d) => sum + _size(d));
     final completed = state.downloads.where((d) => _isComplete(d)).length;
     final active    = state.downloads.where((d) => _isDownloading(d)).length;
+    final freeStr   = _freeMB != null
+        ? (_freeMB! >= 1024
+            ? '${(_freeMB! / 1024).toStringAsFixed(1)} GB free'
+            : '${_freeMB!.toStringAsFixed(0)} MB free')
+        : null;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 6),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -259,9 +355,19 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           ]),
           SizedBox(height: 5),
           Row(children: [
-            Text('$completed complete', style: TextStyle(color: t.textMuted, fontSize: 11)),
+            Text('${completed} done', style: TextStyle(color: t.textMuted, fontSize: 11)),
             Text(' · ', style: TextStyle(color: t.textMuted)),
             Text('${state.downloads.length} total', style: TextStyle(color: t.textMuted, fontSize: 11)),
+            if (freeStr != null) ...[
+              Text(' · ', style: TextStyle(color: t.textMuted)),
+              Text(freeStr, style: TextStyle(
+                  color: (_freeMB ?? 999) < 200
+                      ? AppColors.error
+                      : (_freeMB ?? 999) < 500
+                          ? AppColors.warning
+                          : t.textMuted,
+                  fontSize: 11, fontWeight: FontWeight.w500)),
+            ],
           ]),
         ])),
       ]),
@@ -279,7 +385,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           final labels = {_FilterMode.all:'All', _FilterMode.completed:'Done',
               _FilterMode.downloading:'Downloading', _FilterMode.failed:'Failed'};
           return GestureDetector(
-            onTap: () { setState(() => _filter = f); },
+            onTap: () { setState(() => _filter = f); _savePrefs(); },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.only(right: 8),
@@ -575,6 +681,12 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
           onDelete: () => _deleteOne(id, _title(d)),
           onCancel: () => ref.read(downloadsProvider.notifier).cancelDownload(id).ignore(),
+          onRetry:  () => ref.read(downloadsProvider.notifier).retryDownload(
+            fileId: id, titleText: _title(d),
+            posterUrl: _posterUrl(d), contentType: d['content_type'] as String?).ignore(),
+          speedLabel:    state.speedOf(id),
+          etaLabel:      state.etaOf(id),
+          queuePosition: state.queuePositionOf(id),
           localPath: _path(d),
           posterUrl: _posterUrl(d),
         ).animate(delay: (i * 30).ms).fadeIn(duration: 250.ms);
@@ -619,6 +731,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
           onDelete: () => _deleteOne(id, _title(d)),
           onCancel: () => ref.read(downloadsProvider.notifier).cancelDownload(id).ignore(),
+          onRetry:  () => ref.read(downloadsProvider.notifier).retryDownload(
+            fileId: id, titleText: _title(d),
+            posterUrl: _posterUrl(d), contentType: d['content_type'] as String?).ignore(),
+          speedLabel: state.speedOf(id),
+          etaLabel:   state.etaOf(id),
           localPath: _path(d),
           posterUrl: _posterUrl(d),
         ).animate(delay: (i * 30).ms).fadeIn(duration: 250.ms)
@@ -729,11 +846,16 @@ class _DownloadCard extends StatefulWidget {
   final bool isActive, isComplete, isSelected, isSelecting;
   final VoidCallback onTap, onLongPress, onDelete;
   final VoidCallback? onCancel;
+  final VoidCallback? onRetry;
+  final String speedLabel;
+  final String etaLabel;
+  final int    queuePosition;
   const _DownloadCard({required this.title, required this.sizeStr,
       required this.statusStr, required this.progress, required this.isActive,
       required this.isComplete, required this.isSelected, required this.isSelecting,
       required this.onTap, required this.onLongPress, required this.onDelete,
-      this.onCancel, this.localPath = '', this.posterUrl});
+      this.onCancel, this.onRetry, this.speedLabel = '', this.etaLabel = '',
+      this.queuePosition = 0, this.localPath = '', this.posterUrl});
   @override State<_DownloadCard> createState() => _DownloadCardState();
 }
 class _DownloadCardState extends State<_DownloadCard> {
@@ -799,6 +921,16 @@ class _DownloadCardState extends State<_DownloadCard> {
                     color: widget.isSelected ? AppColors.primary : Colors.black38,
                     border: Border.all(color: widget.isSelected ? AppColors.primary : Colors.white38, width: 1.5)),
                 child: widget.isSelected ? Icon(Icons.check_rounded, color: Colors.white, size: 14) : null)),
+            // Queue position badge (shown for #2 onwards so #1 = no badge = "currently downloading")
+            if (widget.isActive && widget.queuePosition > 1)
+              Positioned(top: 6, right: 6, child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                    color: Colors.black65,
+                    borderRadius: BorderRadius.circular(4)),
+                child: Text('#${widget.queuePosition}',
+                    style: const TextStyle(color: Colors.white,
+                        fontSize: 9, fontWeight: FontWeight.w800)))),
             // Failed badge
             if (widget.statusStr == 'failed')
               Positioned(top: 6, left: 6, child: Container(
@@ -818,9 +950,12 @@ class _DownloadCardState extends State<_DownloadCard> {
               SizedBox(height: 4),
               Row(children: [
                 if (widget.isActive)
-                  Text('${(widget.progress * 100).toStringAsFixed(0)}%',
-                      style: const TextStyle(color: AppColors.primary,
-                          fontSize: 10, fontWeight: FontWeight.w700))
+                  Flexible(child: Text(
+                    '${(widget.progress * 100).toStringAsFixed(0)}%'
+                    '${widget.speedLabel.isNotEmpty ? "  ${widget.speedLabel}" : ""}',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppColors.primary,
+                        fontSize: 10, fontWeight: FontWeight.w700)))
                 else
                   Text(widget.sizeStr, style: TextStyle(color: t.textMuted, fontSize: 10)),
                 const Spacer(),
@@ -828,25 +963,31 @@ class _DownloadCardState extends State<_DownloadCard> {
                   GestureDetector(
                     onTap: widget.isActive
                         ? (widget.onCancel ?? widget.onDelete)
-                        : widget.onDelete,
+                        : widget.statusStr == 'failed'
+                            ? (widget.onRetry ?? widget.onDelete)
+                            : widget.onDelete,
                     child: Icon(
                       widget.isActive
                           ? Icons.stop_circle_outlined
                           : widget.statusStr == 'failed'
-                              ? Icons.delete_sweep_rounded
+                              ? Icons.refresh_rounded
                               : Icons.delete_outline_rounded,
                       size: 16,
                       color: widget.isActive
                           ? AppColors.error.withOpacity(0.75)
                           : widget.statusStr == 'failed'
-                              ? AppColors.error.withOpacity(0.7)
+                              ? AppColors.primary.withOpacity(0.8)
                               : t.textMuted,
                     ),
                   ),
               ]),
+              if (widget.isActive && widget.etaLabel.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(widget.etaLabel, style: TextStyle(color: t.textMuted, fontSize: 8)),
+              ],
               if (widget.statusStr == 'failed') ...[
                 const SizedBox(height: 2),
-                Text('Failed — delete & redownload',
+                Text('Tap ↺ to retry download',
                     style: TextStyle(color: AppColors.error.withOpacity(0.65),
                         fontSize: 8, fontWeight: FontWeight.w600)),
               ],
@@ -867,11 +1008,15 @@ class _DownloadListTile extends StatefulWidget {
   final bool isActive, isComplete, isSelected, isSelecting;
   final VoidCallback onTap, onLongPress, onDelete;
   final VoidCallback? onCancel;
+  final VoidCallback? onRetry;
+  final String speedLabel;
+  final String etaLabel;
   const _DownloadListTile({required this.title, required this.sizeStr,
       required this.statusStr, required this.progress, required this.isActive,
       required this.isComplete, required this.isSelected, required this.isSelecting,
       required this.onTap, required this.onLongPress, required this.onDelete,
-      this.onCancel, this.localPath = '', this.posterUrl});
+      this.onCancel, this.onRetry, this.speedLabel = '', this.etaLabel = '',
+      this.localPath = '', this.posterUrl});
   @override State<_DownloadListTile> createState() => _DownloadListTileState();
 }
 class _DownloadListTileState extends State<_DownloadListTile> {
@@ -951,35 +1096,44 @@ class _DownloadListTileState extends State<_DownloadListTile> {
                   valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
                   minHeight: 2),
               SizedBox(height: 3),
-              Text('${(widget.progress * 100).toStringAsFixed(0)}%  downloading…',
-                  style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
+              Text(
+                '${(widget.progress * 100).toStringAsFixed(0)}%'
+                '${widget.speedLabel.isNotEmpty ? "  ${widget.speedLabel}" : "  downloading..."}'
+                '${widget.etaLabel.isNotEmpty ? "  ${widget.etaLabel}" : ""}',
+                style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
             ],
             if (widget.statusStr == 'failed') ...[
               SizedBox(height: 3),
-              Text('Failed — delete & redownload from content page',
+              Text('Failed — tap ↺ to retry or 🗑 to remove',
                   style: TextStyle(color: AppColors.error.withOpacity(0.7),
                       fontSize: 10, fontWeight: FontWeight.w500)),
             ],
           ])),
           if (!widget.isSelecting)
-            IconButton(
-              icon: Icon(
-                widget.isActive
-                    ? Icons.stop_circle_outlined
-                    : widget.statusStr == 'failed'
-                        ? Icons.delete_sweep_rounded
-                        : Icons.delete_outline_rounded,
-                size: 18,
-                color: widget.isActive
-                    ? AppColors.error.withOpacity(0.75)
-                    : widget.statusStr == 'failed'
-                        ? AppColors.error.withOpacity(0.7)
-                        : t.textMuted,
-              ),
-              onPressed: widget.isActive
-                  ? (widget.onCancel ?? widget.onDelete)
-                  : widget.onDelete,
-            ),
+            widget.statusStr == 'failed'
+              // Failed: show Retry + Delete side by side
+              ? Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(
+                    icon: Icon(Icons.refresh_rounded, size: 18, color: AppColors.primary.withOpacity(0.85)),
+                    tooltip: 'Retry download',
+                    onPressed: widget.onRetry ?? widget.onDelete,
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.delete_outline_rounded, size: 18, color: t.textMuted),
+                    tooltip: 'Remove',
+                    onPressed: widget.onDelete,
+                  ),
+                ])
+              : IconButton(
+                  icon: Icon(
+                    widget.isActive ? Icons.stop_circle_outlined : Icons.delete_outline_rounded,
+                    size: 18,
+                    color: widget.isActive ? AppColors.error.withOpacity(0.75) : t.textMuted,
+                  ),
+                  onPressed: widget.isActive
+                      ? (widget.onCancel ?? widget.onDelete)
+                      : widget.onDelete,
+                ),
         ]),
       ),
     );
