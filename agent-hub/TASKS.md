@@ -167,8 +167,18 @@
 | ANIM-44-04 | Hero + OpenContainer conflict avoided: ContentCard in grid has no Hero; _SearchResultTile onTap overrides navigation | ✅ DONE |
 | ANIM-44-05 | search_screen: _SearchResultTile gets VoidCallback? onTap; _buildResults canMorph branch; OpenContainer on Tier 2+ | ✅ DONE |
 
+## Phase 45 — Neon/Glow on Primary Action Buttons (2026-06-30)
+
+| ID | Task | Status |
+|----|------|--------|
+| ANIM-45-01 | show_detail: _GlowPulse on Play button; maxBlur=14 on Tier 0/1 (CPU, no GPU shader) | ✅ DONE |
+| ANIM-45-02 | Tier 2+: maxBlur=22 (stronger glow via animConfig.tierLevel >= 2) | ✅ DONE |
+| ANIM-45-03 | Tier 3 GPU shader: skipped — glow_effects package unstable; Tier 2 shadow covers it | ⏭ SKIPPED |
+| ANIM-45-04 | Download button: conditional _GlowPulse wrap when isDownloading==true | ✅ DONE |
+| ANIM-45-05 | downloads_screen shake burst on done SnackBar: deferred to Phase 49 polish pass | ⏭ DEFERRED |
+
 ## Open Tasks
-None — phases 17–44 complete. Phases 45–49 defined in agent-hub/ANIMATION_PLAN.md.
+None — phases 17–45 complete. Phases 46–49 defined in agent-hub/ANIMATION_PLAN.md.
 
 ## Phase 37 — Bug Fixes (2026-06-29)
 
