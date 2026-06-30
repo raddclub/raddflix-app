@@ -75,6 +75,10 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
     int remoteId = 0,
     String? contentType,
   }) async {
+    // BUG-DL-DUP: guard against concurrent downloads of the same fileId.
+    // Double-tap or batch loops could both reach here before state updates.
+    // isDownloaded() checks in-memory DB snapshot (fast, no disk I/O).
+    if (state.isDownloading(fileId) || state.isDownloaded(fileId)) return;
     final progress = Map<String, double>.from(state.activeProgress);
     progress[fileId] = 0.0;
     state = state.copyWith(activeProgress: progress, clearQuotaError: true);
@@ -114,15 +118,18 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
 
   /// Cancel an in-progress download. Stops the HTTP stream and removes from
   /// the active progress map so the UI reflects cancellation instantly.
-  void cancelDownload(String fileId) {
+  Future<void> cancelDownload(String fileId) async {
     DownloadService.cancelDownload(fileId);
     final updated = Map<String, double>.from(state.activeProgress);
     updated.remove(fileId);
     state = state.copyWith(activeProgress: updated);
+    // BUG-DL-CANCEL: reload so the downloads list reflects deletion
+    // (DS1 now deletes the file+DB record on cancel, so we must re-fetch).
+    await loadDownloads();
   }
 
   Future<void> deleteDownload(String fileId) async {
-    cancelDownload(fileId); // stop HTTP stream if still active
+    await cancelDownload(fileId); // stop HTTP stream if still active (now async)
     await DownloadService.deleteDownload(fileId);
     await loadDownloads();
   }

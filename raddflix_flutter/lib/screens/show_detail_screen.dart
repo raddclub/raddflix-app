@@ -374,32 +374,37 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     }
     setState(() => _isDownloadingAll = true);
     int queued = 0;
-    for (final ep in toQueue) {
-      final fid   = ep['file_id']?.toString() ?? '';
-      final sNum  = (ep['season']   as int? ?? _selectedSeason).toString().padLeft(2, '0');
-      final eNum  = (ep['episode']  as int? ?? 0).toString().padLeft(2, '0');
-      final label = ep['label']    as String? ?? 'S${sNum}E${eNum}';
-      final rawUrl = ep['share_url'] as String?;
-      final shareUrl = await LocalDb.decodeShareUrl(rawUrl) ?? '';
-      if (shareUrl.isEmpty) continue;
-      try {
-        await ref.read(downloadsProvider.notifier).startDownload(
-          fileId:         fid,
-          titleText:      '${widget.item.title} $label',
-          streamUrl:      shareUrl,
-          posterUrl:      widget.item.posterUrl,
-          targetFilename: ep['filename'] as String?,
-          remoteId:       ep['remote_id'] as int? ?? 0,
-          contentType:    widget.item.mediaType,
-        );
-        queued++;
-      } on DownloadQuotaException catch (e) {
-        if (mounted) _showQuotaError(context, e.userMessage);
-        break; // quota hit — stop queuing
-      } catch (_) {}
+    // BUG-DL-FLAG: wrap in try/finally so _isDownloadingAll always resets
+    // even if an unexpected exception escapes the inner catch(_){} block.
+    try {
+      for (final ep in toQueue) {
+        final fid   = ep['file_id']?.toString() ?? '';
+        final sNum  = (ep['season']   as int? ?? _selectedSeason).toString().padLeft(2, '0');
+        final eNum  = (ep['episode']  as int? ?? 0).toString().padLeft(2, '0');
+        final label = ep['label']    as String? ?? 'S${sNum}E${eNum}';
+        final rawUrl = ep['share_url'] as String?;
+        final shareUrl = await LocalDb.decodeShareUrl(rawUrl) ?? '';
+        if (shareUrl.isEmpty) continue;
+        try {
+          await ref.read(downloadsProvider.notifier).startDownload(
+            fileId:         fid,
+            titleText:      '${widget.item.title} $label',
+            streamUrl:      shareUrl,
+            posterUrl:      widget.item.posterUrl,
+            targetFilename: ep['filename'] as String?,
+            remoteId:       ep['remote_id'] as int? ?? 0,
+            contentType:    widget.item.mediaType,
+          );
+          queued++;
+        } on DownloadQuotaException catch (e) {
+          if (mounted) _showQuotaError(context, e.userMessage);
+          break; // quota hit — stop queuing
+        } catch (_) {}
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloadingAll = false);
     }
     if (mounted) {
-      setState(() => _isDownloadingAll = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(queued > 0
             ? 'Queued $queued episode${queued == 1 ? '' : 's'} for download'
@@ -1013,7 +1018,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                               onTap: () => _playEpisode(realIdx),
                               isDownloading: isDownloading,
                               isDownloaded: isDownloaded,
-                              onDownload: fileId.isEmpty || isDownloaded ? null : () async {
+                              onDownload: fileId.isEmpty || isDownloaded || isDownloading ? null : () async {
                                 // Access gate — paid episode downloads require subscription.
                                 if (!isFree && !_isSubscribed) {
                                   _requireSub(context);

@@ -574,6 +574,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           },
           onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
           onDelete: () => _deleteOne(id, _title(d)),
+          onCancel: () => ref.read(downloadsProvider.notifier).cancelDownload(id).ignore(),
           localPath: _path(d),
           posterUrl: _posterUrl(d),
         ).animate(delay: (i * 30).ms).fadeIn(duration: 250.ms);
@@ -617,6 +618,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           },
           onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
           onDelete: () => _deleteOne(id, _title(d)),
+          onCancel: () => ref.read(downloadsProvider.notifier).cancelDownload(id).ignore(),
           localPath: _path(d),
           posterUrl: _posterUrl(d),
         ).animate(delay: (i * 30).ms).fadeIn(duration: 250.ms)
@@ -726,11 +728,12 @@ class _DownloadCard extends StatefulWidget {
   final double progress;
   final bool isActive, isComplete, isSelected, isSelecting;
   final VoidCallback onTap, onLongPress, onDelete;
+  final VoidCallback? onCancel;
   const _DownloadCard({required this.title, required this.sizeStr,
       required this.statusStr, required this.progress, required this.isActive,
       required this.isComplete, required this.isSelected, required this.isSelecting,
       required this.onTap, required this.onLongPress, required this.onDelete,
-      this.localPath = '', this.posterUrl});
+      this.onCancel, this.localPath = '', this.posterUrl});
   @override State<_DownloadCard> createState() => _DownloadCardState();
 }
 class _DownloadCardState extends State<_DownloadCard> {
@@ -814,18 +817,38 @@ class _DownloadCardState extends State<_DownloadCard> {
                       fontWeight: FontWeight.w600, height: 1.3)),
               SizedBox(height: 4),
               Row(children: [
-                Text(widget.sizeStr, style: TextStyle(color: t.textMuted, fontSize: 10)),
+                if (widget.isActive)
+                  Text('${(widget.progress * 100).toStringAsFixed(0)}%',
+                      style: const TextStyle(color: AppColors.primary,
+                          fontSize: 10, fontWeight: FontWeight.w700))
+                else
+                  Text(widget.sizeStr, style: TextStyle(color: t.textMuted, fontSize: 10)),
                 const Spacer(),
                 if (!widget.isSelecting)
-                  GestureDetector(onTap: widget.onDelete,
-                      child: Icon(Icons.delete_outline_rounded,
-                          size: 16, color: t.textMuted)),
+                  GestureDetector(
+                    onTap: widget.isActive
+                        ? (widget.onCancel ?? widget.onDelete)
+                        : widget.onDelete,
+                    child: Icon(
+                      widget.isActive
+                          ? Icons.stop_circle_outlined
+                          : widget.statusStr == 'failed'
+                              ? Icons.delete_sweep_rounded
+                              : Icons.delete_outline_rounded,
+                      size: 16,
+                      color: widget.isActive
+                          ? AppColors.error.withOpacity(0.75)
+                          : widget.statusStr == 'failed'
+                              ? AppColors.error.withOpacity(0.7)
+                              : t.textMuted,
+                    ),
+                  ),
               ]),
-              if (widget.isActive) ...[
-                const SizedBox(height: 4),
-                Text('${(widget.progress * 100).toStringAsFixed(0)}%',
-                    style: const TextStyle(color: AppColors.primary,
-                        fontSize: 10, fontWeight: FontWeight.w700)),
+              if (widget.statusStr == 'failed') ...[
+                const SizedBox(height: 2),
+                Text('Failed — delete & redownload',
+                    style: TextStyle(color: AppColors.error.withOpacity(0.65),
+                        fontSize: 8, fontWeight: FontWeight.w600)),
               ],
             ]),
           ),
@@ -843,11 +866,12 @@ class _DownloadListTile extends StatefulWidget {
   final double progress;
   final bool isActive, isComplete, isSelected, isSelecting;
   final VoidCallback onTap, onLongPress, onDelete;
+  final VoidCallback? onCancel;
   const _DownloadListTile({required this.title, required this.sizeStr,
       required this.statusStr, required this.progress, required this.isActive,
       required this.isComplete, required this.isSelected, required this.isSelecting,
       required this.onTap, required this.onLongPress, required this.onDelete,
-      this.localPath = '', this.posterUrl});
+      this.onCancel, this.localPath = '', this.posterUrl});
   @override State<_DownloadListTile> createState() => _DownloadListTileState();
 }
 class _DownloadListTileState extends State<_DownloadListTile> {
@@ -927,13 +951,35 @@ class _DownloadListTileState extends State<_DownloadListTile> {
                   valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
                   minHeight: 2),
               SizedBox(height: 3),
-              Text('${(widget.progress * 100).toStringAsFixed(0)}%',
+              Text('${(widget.progress * 100).toStringAsFixed(0)}%  downloading…',
                   style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
+            ],
+            if (widget.statusStr == 'failed') ...[
+              SizedBox(height: 3),
+              Text('Failed — delete & redownload from content page',
+                  style: TextStyle(color: AppColors.error.withOpacity(0.7),
+                      fontSize: 10, fontWeight: FontWeight.w500)),
             ],
           ])),
           if (!widget.isSelecting)
-            IconButton(icon: Icon(Icons.delete_outline_rounded,
-                size: 18, color: t.textMuted), onPressed: widget.onDelete),
+            IconButton(
+              icon: Icon(
+                widget.isActive
+                    ? Icons.stop_circle_outlined
+                    : widget.statusStr == 'failed'
+                        ? Icons.delete_sweep_rounded
+                        : Icons.delete_outline_rounded,
+                size: 18,
+                color: widget.isActive
+                    ? AppColors.error.withOpacity(0.75)
+                    : widget.statusStr == 'failed'
+                        ? AppColors.error.withOpacity(0.7)
+                        : t.textMuted,
+              ),
+              onPressed: widget.isActive
+                  ? (widget.onCancel ?? widget.onDelete)
+                  : widget.onDelete,
+            ),
         ]),
       ),
     );
@@ -1160,7 +1206,7 @@ class _FeaturePill extends StatelessWidget {
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, size: 13, color: AppColors.primary),
       const SizedBox(width: 5),
-      Text(label, style: TextStyle(color: t.textSecondary,
+      Text(label, style: TextStyle(color: t.textMuted,
           fontSize: 12, fontWeight: FontWeight.w500)),
     ]),
   );

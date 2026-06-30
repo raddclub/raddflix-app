@@ -85,8 +85,32 @@
 | UI-38-06 | edit_profile_screen: emoji row picker (20 emojis + None chip) | ✅ DONE |
 | UI-38-07 | edit_profile_screen: pass avatarEmoji to updateProfile() | ✅ DONE |
 
+## Phase 39 — Download Logic Audit & Fixes (2026-06-30)
+
+### Bugs Found & Fixed
+
+| ID | Bug | File | Status |
+|----|-----|------|--------|
+| BUG-39-01 | No duplicate-download guard in startDownload() — double-tap or batch loop starts two concurrent HTTP downloads writing to same .mp4 | downloads_provider.dart | ✅ DONE |
+| BUG-39-02 | Episode tile onDownload null-guard missing isDownloading — second download triggerable while first in progress | show_detail_screen.dart | ✅ DONE |
+| BUG-39-03 | Cancel left partial .mp4 on disk + stale 'cancelled' DB row forever; disk wasted until manual delete | download_service.dart | ✅ DONE |
+| BUG-39-04 | cancelDownload() was sync/void — didn't reload downloads list → card stuck with 0% after cancel | downloads_provider.dart | ✅ DONE |
+| BUG-39-05 | deleteDownload() called cancelDownload() without await (now async) → race condition | downloads_provider.dart | ✅ DONE |
+| BUG-39-06 | _isDownloadingAll not in finally — uncaught exception left batch-download button permanently disabled | show_detail_screen.dart | ✅ DONE |
+| BUG-39-07 | _DownloadCard/_DownloadListTile had no cancel action — only delete (cancel+delete combined) | downloads_screen.dart | ✅ DONE |
+| BUG-39-08 | t.textSecondary used in _FeaturePill — field doesn't exist in RaddTheme → compile/runtime error | downloads_screen.dart | ✅ DONE |
+
+### UI/UX Improvements
+
+| ID | Change | Status |
+|----|--------|--------|
+| UI-39-01 | Active cards show ⬛ stop icon instead of 🗑 delete; tapping cancels without deleting the slot | ✅ DONE |
+| UI-39-02 | Failed cards show 🗑 sweep icon + "Failed — delete & redownload" hint text | ✅ DONE |
+| UI-39-03 | Active card progress % shown inline in info row (not separate line) | ✅ DONE |
+| UI-39-04 | List tile active state shows "X% downloading…" text on progress row | ✅ DONE |
+
 ## Open Tasks
-None — all phases 17–38 complete. Awaiting next task.
+None — all phases 17–39 complete. Awaiting next task.
 
 ## Phase 37 — Bug Fixes (2026-06-29)
 

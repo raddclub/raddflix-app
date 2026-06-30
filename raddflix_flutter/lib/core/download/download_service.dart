@@ -150,7 +150,12 @@ class DownloadService {
       onProgress(1.0);
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
-        await LocalDb.updateDownloadStatus(fileId, 'cancelled', 0.0, 0);
+        // Delete partial file and remove DB record entirely so the item
+        // disappears from the downloads list and the episode tile resets to
+        // "not downloaded". Previously a stale 'cancelled' row and partial
+        // .mp4 file were left on disk wasting storage.
+        try { await File(localPath).delete(); } catch (_) {}
+        await LocalDb.deleteDownload(fileId);
         return; // cancelled by user — not an error
       }
       await LocalDb.updateDownloadStatus(fileId, 'failed', 0.0, 0);
