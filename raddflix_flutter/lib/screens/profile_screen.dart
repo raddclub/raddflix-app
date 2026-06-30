@@ -190,7 +190,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
                 child: Column(children: [
-                  // Avatar with glow ring
+                  // Time-based greeting
+                  Builder(builder: (_) {
+                    final hour = DateTime.now().hour;
+                    final tod = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+                    return Text(tod, style: TextStyle(
+                        color: t.textMuted, fontSize: 13, fontWeight: FontWeight.w500,
+                        letterSpacing: 0.2));
+                  }).animate().fadeIn(duration: 400.ms),
+                  const SizedBox(height: 18),
+                  // Avatar with double glow ring
                   GestureDetector(
                     onTap: user?.isGuest == true ? null : () async {
                       final changed = await Navigator.of(context).push<bool>(
@@ -198,54 +207,69 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       if (changed == true && mounted) setState(() {});
                     },
                     child: Stack(alignment: Alignment.bottomRight, children: [
-                      // Glow ring
+                      // Outer soft glow halo
+                      Container(
+                        width: 132, height: 132,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _avatarColor(user).withOpacity(0.07),
+                        ),
+                      ),
+                      // Inner border ring
+                      Container(
+                        width: 120, height: 120,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _avatarColor(user).withOpacity(0.35), width: 2),
+                        ),
+                      ),
+                      // Avatar circle
                       Container(
                         width: 108, height: 108,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(
-                            color: _avatarColor(user).withOpacity(0.3), width: 2),
-                        ),
-                      ),
-                      Container(
-                        width: 96, height: 96,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
                           gradient: LinearGradient(
-                            colors: [_avatarColor(user), _avatarColor(user).withOpacity(0.7)],
+                            colors: [_avatarColor(user), _avatarColor(user).withOpacity(0.72)],
                             begin: Alignment.topLeft, end: Alignment.bottomRight,
                           ),
                           boxShadow: [
-                            BoxShadow(color: _avatarColor(user).withOpacity(0.45),
-                                blurRadius: 28, spreadRadius: 2),
+                            BoxShadow(color: _avatarColor(user).withOpacity(0.5),
+                                blurRadius: 36, spreadRadius: 4),
                           ],
                         ),
                         child: Center(
                           child: (user?.avatarEmoji ?? '').isNotEmpty
                               ? Text(user!.avatarEmoji,
-                                  style: const TextStyle(fontSize: 34))
+                                  style: const TextStyle(fontSize: 42))
                               : Text(initial, style: const TextStyle(
-                                  color: Colors.white, fontSize: 40,
+                                  color: Colors.white, fontSize: 48,
                                   fontWeight: FontWeight.w900)),
                         ),
                       ),
+                      // Edit pencil badge
                       if (user?.isGuest != true)
                         Container(
-                          width: 28, height: 28,
+                          width: 34, height: 34,
                           decoration: BoxDecoration(
                             color: t.surface,
                             shape: BoxShape.circle,
-                            border: Border.all(color: t.border, width: 1.5),
+                            border: Border.all(
+                                color: _avatarColor(user).withOpacity(0.45), width: 1.5),
+                            boxShadow: [BoxShadow(
+                                color: _avatarColor(user).withOpacity(0.25),
+                                blurRadius: 8)],
                           ),
-                          child: Icon(Icons.edit_rounded, size: 14, color: t.textMuted),
+                          child: Icon(Icons.edit_rounded, size: 15,
+                              color: _avatarColor(user)),
                         ),
                     ]),
                   ).animate().scale(begin: const Offset(0.6, 0.6), end: const Offset(1, 1),
                       duration: 400.ms, curve: AppCurves.enter),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 18),
                   Text(user?.displayLabel ?? 'Guest', style: TextStyle(
-                      color: t.textPrimary, fontSize: 20, fontWeight: FontWeight.w700,
-                      letterSpacing: -0.3))
+                      color: t.textPrimary, fontSize: 23, fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6))
                       .animate(delay: 100.ms).fadeIn(duration: 300.ms),
                   if (user?.isGuest != true) ...[
                     const SizedBox(height: 5),

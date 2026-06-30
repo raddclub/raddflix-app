@@ -38,6 +38,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _emailCtrl;
   late String _avatarColor;
+  late String _avatarEmoji;
   bool _saving = false;
   String? _error;
 
@@ -45,9 +46,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void initState() {
     super.initState();
     final user = ref.read(authProvider).user;
-    _nameCtrl   = TextEditingController(text: user?.displayName ?? '');
-    _emailCtrl  = TextEditingController(text: user?.email ?? '');
+    _nameCtrl    = TextEditingController(text: user?.displayName ?? '');
+    _emailCtrl   = TextEditingController(text: user?.email ?? '');
     _avatarColor = user?.avatarColor ?? '#8B002D';
+    _avatarEmoji = user?.avatarEmoji ?? '';
   }
 
   @override
@@ -71,6 +73,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         displayName: name,
         email: email,
         avatarColor: _avatarColor,
+        avatarEmoji: _avatarEmoji,
       );
       // Refresh user in provider
       await ref.read(authProvider.notifier).silentRefresh();
@@ -154,7 +157,22 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               // ── Avatar ─────────────────────────────────────────────────
               GestureDetector(
                 onTap: _showColorPicker,
-                child: Stack(alignment: Alignment.bottomRight, children: [
+                child: Stack(alignment: Alignment.center, children: [
+                  // Outer glow halo
+                  Container(
+                    width: 122, height: 122,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color.withOpacity(0.08),
+                    ),
+                  ),
+                  Container(
+                    width: 112, height: 112,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: color.withOpacity(0.35), width: 2),
+                    ),
+                  ),
                   Container(
                     width: 100, height: 100,
                     decoration: BoxDecoration(
@@ -165,44 +183,79 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         end: Alignment.bottomRight,
                       ),
                       boxShadow: [
-                        BoxShadow(color: color.withOpacity(0.5),
-                            blurRadius: 24, spreadRadius: 2),
+                        BoxShadow(color: color.withOpacity(0.55),
+                            blurRadius: 30, spreadRadius: 4),
                       ],
                     ),
                     child: Center(
-                      child: Text(initial,
-                          style: const TextStyle(color: Colors.white,
-                              fontSize: 42, fontWeight: FontWeight.w900)),
+                      child: _avatarEmoji.isNotEmpty
+                          ? Text(_avatarEmoji,
+                              style: const TextStyle(fontSize: 42))
+                          : Text(initial,
+                              style: const TextStyle(color: Colors.white,
+                                  fontSize: 44, fontWeight: FontWeight.w900)),
                     ),
                   ),
-                  Container(
-                    width: 30, height: 30,
-                    decoration: BoxDecoration(
-                      color: t.surface,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: t.border, width: 1.5),
+                  // Palette badge bottom-right
+                  Positioned(
+                    bottom: 6, right: 6,
+                    child: Container(
+                      width: 32, height: 32,
+                      decoration: BoxDecoration(
+                        color: t.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: color.withOpacity(0.4), width: 1.5),
+                        boxShadow: [BoxShadow(
+                            color: color.withOpacity(0.2), blurRadius: 6)],
+                      ),
+                      child: Icon(Icons.palette_rounded,
+                          size: 16, color: color),
                     ),
-                    child: Icon(Icons.palette_rounded,
-                        size: 15, color: t.textMuted),
                   ),
                 ]).animate().scale(
                     begin: const Offset(0.85, 0.85),
                     duration: 350.ms, curve: Curves.easeOutBack),
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
                 (user?.displayName ?? '').isNotEmpty
                     ? user!.displayName!
                     : (user?.phone ?? ''),
                 style: TextStyle(
-                    color: t.textPrimary, fontSize: 15,
-                    fontWeight: FontWeight.w600),
+                    color: t.textPrimary, fontSize: 17,
+                    fontWeight: FontWeight.w700),
               ).animate(delay: 80.ms).fadeIn(),
               const SizedBox(height: 2),
-              Text('Tap avatar to change color',
+              Text('Tap to change color · pick emoji below',
                   style: TextStyle(color: t.textMuted, fontSize: 12))
                   .animate(delay: 100.ms).fadeIn(),
+              const SizedBox(height: 14),
+              // ── Emoji row ───────────────────────────────────────────────
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  children: [
+                    _EmojiChip(
+                      emoji: '',
+                      isSelected: _avatarEmoji.isEmpty,
+                      onTap: () => setState(() => _avatarEmoji = ''),
+                      isNone: true,
+                    ),
+                    ...['🎬','🎭','🎮','🎵','🦁','🔥','⚡','🌟','👑','🎯',
+                        '🦊','🐺','🎸','💎','🚀','🌙','😎','🦅','🐉','🌺',
+                    ].map((e) => _EmojiChip(
+                        emoji: e,
+                        isSelected: _avatarEmoji == e,
+                        onTap: () {
+                          setState(() => _avatarEmoji = e);
+                          HapticFeedback.selectionClick();
+                        })),
+                  ],
+                ),
+              ).animate(delay: 130.ms).fadeIn(),
 
               const SizedBox(height: 32),
 
@@ -342,6 +395,51 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             ]),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Emoji chip ───────────────────────────────────────────────────────────────
+class _EmojiChip extends StatelessWidget {
+  final String emoji;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final bool isNone;
+  const _EmojiChip({required this.emoji, required this.isSelected,
+      required this.onTap, this.isNone = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 40, height: 40,
+        margin: const EdgeInsets.only(right: 8),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isSelected
+              ? AppColors.primary.withOpacity(0.18)
+              : t.surface,
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primary.withOpacity(0.6)
+                : t.border,
+            width: isSelected ? 1.5 : 1,
+          ),
+          boxShadow: isSelected
+              ? [BoxShadow(color: AppColors.primary.withOpacity(0.25),
+                    blurRadius: 8)]
+              : null,
+        ),
+        child: Center(
+          child: isNone
+              ? Icon(Icons.close_rounded, size: 16,
+                    color: isSelected ? AppColors.primary : t.textMuted)
+              : Text(emoji, style: const TextStyle(fontSize: 20)),
+        ),
       ),
     );
   }

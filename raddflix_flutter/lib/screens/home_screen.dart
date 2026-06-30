@@ -162,22 +162,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             padding: const EdgeInsets.only(right: 12),
             child: GestureDetector(
               onTap: () { DebugLogger.logTap('Home', 'profileAvatar'); Navigator.of(context).pushNamed(AppRoutes.profile); },
-              child: Container(
-                width: 38, height: 38,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [_userAvatarColor(user), _userAvatarColor(user).withOpacity(0.75)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+              child: Stack(alignment: Alignment.center, children: [
+                // Outer glow ring
+                Container(
+                  width: 46, height: 46,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: _userAvatarColor(user).withOpacity(0.35), width: 1.5),
                   ),
-                  boxShadow: AppShadows.primary,
-                  border: Border.all(color: Colors.white24, width: 1.5),
                 ),
-                child: Center(child: Text(
-                  user.avatarInitial,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
-              ),
+                Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [_userAvatarColor(user), _userAvatarColor(user).withOpacity(0.75)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [BoxShadow(
+                        color: _userAvatarColor(user).withOpacity(0.4),
+                        blurRadius: 12, spreadRadius: 1)],
+                  ),
+                  child: Center(child: (user.avatarEmoji.isNotEmpty)
+                      ? Text(user.avatarEmoji,
+                          style: const TextStyle(fontSize: 18))
+                      : Text(user.avatarInitial,
+                          style: const TextStyle(color: Colors.white,
+                              fontWeight: FontWeight.w800, fontSize: 16))),
+                ),
+              ]),
             ),
           ),
       ],
@@ -192,6 +207,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       slivers: [
         // Spacing for AppBar
         const SliverToBoxAdapter(child: SizedBox(height: 96)),
+
+        // Personalized greeting row
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 2, 18, 10),
+            child: Builder(builder: (_) {
+              final u = ref.read(authProvider).user;
+              final firstName = (u?.displayName?.isNotEmpty == true)
+                  ? u!.displayName!.split(' ').first : null;
+              final hour = DateTime.now().hour;
+              final tod = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+              return RichText(text: TextSpan(children: [
+                TextSpan(text: '$tod',
+                    style: TextStyle(color: t.textMuted, fontSize: 13,
+                        fontWeight: FontWeight.w500)),
+                if (firstName != null) ...[
+                  TextSpan(text: ', ',
+                      style: TextStyle(color: t.textMuted, fontSize: 13)),
+                  TextSpan(text: firstName,
+                      style: TextStyle(color: t.textPrimary, fontSize: 13,
+                          fontWeight: FontWeight.w700)),
+                ],
+                TextSpan(text: ' 👋',
+                    style: const TextStyle(fontSize: 13)),
+              ]));
+            }),
+          ).animate().fadeIn(duration: 500.ms),
+        ),
 
         // Sync banner
         if (catalog.status == CatalogStatus.syncing)

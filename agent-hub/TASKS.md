@@ -73,8 +73,20 @@
 | BUG-26-B | Wrong variable name in `_startUsageTimer()` | `final h = _player.state.width ?? 0` — used `.width` but named it `h` (height) causing confusing quality detection logic | Renamed to `w` and updated comment to correctly say "from video width" | ✅ FIXED |
 | BUG-26-C | `/status` guest response missing quota fields | Guest `_user_id==0` early-return didn't include quota — could cause null errors in `SubscriptionStatus.fromJson` | Added minimal quota dict to the guest early-return path | ✅ FIXED |
 
+## Phase 38 — UI/UX Polish Pass (2026-06-30)
+
+| ID | Task | Status |
+|----|------|--------|
+| UI-38-01 | profile_screen: double glow ring + bigger avatar (108px) + greeting "Good morning/afternoon/evening" | ✅ DONE |
+| UI-38-02 | profile_screen: bigger name text (23px w800) + colored edit pencil badge | ✅ DONE |
+| UI-38-03 | home_screen: personalized greeting row below app bar ("Good evening, Name 👋") | ✅ DONE |
+| UI-38-04 | home_screen: app bar avatar upgraded (40px + outer ring + show emoji if set) | ✅ DONE |
+| UI-38-05 | edit_profile_screen: bigger avatar (100px) + double glow ring + emoji in preview | ✅ DONE |
+| UI-38-06 | edit_profile_screen: emoji row picker (20 emojis + None chip) | ✅ DONE |
+| UI-38-07 | edit_profile_screen: pass avatarEmoji to updateProfile() | ✅ DONE |
+
 ## Open Tasks
-None — all phases 17–37 complete. Awaiting next task.
+None — all phases 17–38 complete. Awaiting next task.
 
 ## Phase 37 — Bug Fixes (2026-06-29)
 
