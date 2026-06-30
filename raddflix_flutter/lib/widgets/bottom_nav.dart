@@ -19,7 +19,6 @@ class RaddFlixBottomNav extends ConsumerWidget {
   ];
 
   @override
-  @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t          = RaddTheme.of(context);
     final isDark     = Theme.of(context).brightness == Brightness.dark;
