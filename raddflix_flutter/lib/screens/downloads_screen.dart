@@ -413,10 +413,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2, childAspectRatio: 0.72, crossAxisSpacing: 12, mainAxisSpacing: 12),
       itemCount: 6,
-      itemBuilder: (_, __) => Shimmer.fromColors(
-        baseColor: t.surface, highlightColor: t.surfaceHigh,
-        child: Container(decoration: BoxDecoration(color: t.surface,
-            borderRadius: BorderRadius.circular(AppRadius.sm)))),
+      itemBuilder: (_, __) => RepaintBoundary(
+        child: Shimmer.fromColors(
+          baseColor: t.surface, highlightColor: t.surfaceHigh,
+          child: Container(decoration: BoxDecoration(color: t.surface,
+              borderRadius: BorderRadius.circular(AppRadius.sm))))),
     );
   }
 
@@ -494,7 +495,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         final folder = _folders[i];
         final count = state.downloads.where((d) => _folderFor(d) == folder).length;
         final folderColor = _folderColor(folder, t.textMuted);
-        return GestureDetector(
+        return RepaintBoundary(child: GestureDetector(
           onTap: count > 0 ? () => setState(() => _activeFolder = folder) : null,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -548,7 +549,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           ),
         ).animate(delay: (i * 60).ms).fadeIn(duration: 300.ms)
             .scale(begin: const Offset(0.92, 0.92), end: const Offset(1, 1),
-                duration: 350.ms, curve: AppCurves.enter);
+                duration: 350.ms, curve: AppCurves.enter));
       },
     );
   }

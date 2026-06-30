@@ -1,7 +1,9 @@
 import 'dart:async' show unawaited;
 import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'app.dart' show RaddFlixApp, pendingVideoUri, pendingVideoTitle, pendingSubtitleUri, appNavigatorKey;
@@ -16,6 +18,7 @@ import 'core/debug/debug_logger.dart';
 import 'core/security/app_guard.dart';
 import 'core/services/connectivity_sync_service.dart';
 import 'core/services/usage_service.dart';
+import 'core/utils/anim_config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,6 +56,14 @@ void main() async {
 
   // Initialize media_kit video engine
   MediaKit.ensureInitialized();
+
+  // Phase 41: Detect device animation tier once at startup.
+  // Stored in Riverpod so every widget reads it cheaply via ref.watch(animConfigProvider).
+  // Detection reads Android SDK version — no permissions required.
+  final animConfig = await AnimConfig.detect();
+  // In debug builds, restart animations on hot reload for faster iteration.
+  // Zero cost in release builds (kDebugMode is a compile-time constant).
+  Animate.restartOnHotReload = kDebugMode;
 
   // Security shield — must run before any network or DB calls.
   // If tampered (cracked APK / Frida detected), sets AppGuard.isTampered = true.
@@ -103,8 +114,9 @@ void main() async {
   } catch (_) {}
 
   runApp(
-    const ProviderScope(
-      child: RaddFlixApp(),
+    ProviderScope(
+      overrides: [animConfigProvider.overrideWithValue(animConfig)],
+      child: const RaddFlixApp(),
     ),
   );
 

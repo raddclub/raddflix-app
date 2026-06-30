@@ -275,12 +275,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               itemCount: _categories.length,
-              itemBuilder: (_, i) => _CategoryChip(
-                label: _categories[i],
-                isSelected: _selectedCategory == _categories[i],
-                onTap: () { DebugLogger.logTap('Home', 'category ${_categories[i]}'); setState(() => _selectedCategory = _categories[i]); },
-              ).animate(delay: (i * 40).ms).fadeIn(duration: 300.ms)
-                  .slideX(begin: 0.2, end: 0, duration: 300.ms, curve: AppCurves.standard),
+              itemBuilder: (_, i) => RepaintBoundary(
+                child: _CategoryChip(
+                  label: _categories[i],
+                  isSelected: _selectedCategory == _categories[i],
+                  onTap: () { DebugLogger.logTap('Home', 'category ${_categories[i]}'); setState(() => _selectedCategory = _categories[i]); },
+                ).animate(delay: (i * 40).ms).fadeIn(duration: 300.ms)
+                    .slideX(begin: 0.2, end: 0, duration: 300.ms, curve: AppCurves.standard),
+              ),
             ),
           ),
         ),
@@ -391,10 +393,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                     )))
                 : SliverGrid(
                     delegate: SliverChildBuilderDelegate((_, i) =>
-                        ContentCard(item: filtered[i])
-                            .animate(delay: (i * 30).ms).fadeIn(duration: 300.ms)
-                            .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1),
-                                duration: 300.ms, curve: AppCurves.standard),
+                        RepaintBoundary(
+                          child: ContentCard(item: filtered[i])
+                              .animate(delay: (i * 30).ms).fadeIn(duration: 300.ms)
+                              .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1),
+                                  duration: 300.ms, curve: AppCurves.standard),
+                        ),
                         childCount: filtered.length),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 3, childAspectRatio: 2/3,
@@ -1014,14 +1018,16 @@ class _RecommendationsSection extends StatelessWidget {
             final title  = rec['title']      as String? ?? '';
             final poster = rec['poster_url'] as String? ?? '';
             final rating = (rec['rating'] as num?)?.toDouble() ?? 0.0;
-            return Padding(
-              padding: EdgeInsets.only(right: i < recommendations.length - 1 ? 10 : 0),
-              child: SizedBox(
-                width: 126,
-                child: _RecommendCard(title: title, poster: poster, rating: rating),
-              ).animate(delay: (i * 30).ms).fadeIn(duration: 300.ms)
-                  .slideX(begin: 0.1, end: 0, duration: 300.ms,
-                      curve: AppCurves.standard),
+            return RepaintBoundary(
+              child: Padding(
+                padding: EdgeInsets.only(right: i < recommendations.length - 1 ? 10 : 0),
+                child: SizedBox(
+                  width: 126,
+                  child: _RecommendCard(title: title, poster: poster, rating: rating),
+                ).animate(delay: (i * 30).ms).fadeIn(duration: 300.ms)
+                    .slideX(begin: 0.1, end: 0, duration: 300.ms,
+                        curve: AppCurves.standard),
+              ),
             );
           },
         ),
