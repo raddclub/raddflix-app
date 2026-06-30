@@ -551,3 +551,13 @@ Agents follow the example literally — so until the example shows validatePatch
 - ANIM-42-04: SKIPPED — downloads_screen navigates to player not show_detail so Hero tags would never match
 - ANIM-42-05: app.dart — showDetail route transitionsBuilder changed from SlideTransition+Fade to pure FadeTransition; SlideTransition was fighting Hero's flight animation
 - Commit: 50717ac
+
+---
+
+## Session 2026-06-30 — Phase 43 Staggered Grid/List Entry
+
+- ANIM-43-01: home_screen — added import anim_config.dart + animConfig/canAnimate in main build(); category chips itemBuilder refactored to block syntax with ternary; grid ContentCard delegate uses canAnimate ternary; .scale() → .slideY(begin:0.06) everywhere
+- ANIM-43-02: downloads_screen — added anim_config import; _buildFolderView + _gridView + _listView each get ref.read(animConfigProvider) at top; all .animate() chains now use animConfig.stagger(i) and animConfig.normal instead of hardcoded ms; folder .scale() → .slideY(0.06)
+- ANIM-43-03: search_screen — added import; _buildResults() gets ref.read(animConfigProvider) + canAnimate; itemBuilder uses canAnimate ternary for tier-gated stagger
+- Tier 0 policy: canStagger=false → raw widget (ternary); animConfig.stagger(i) returns Duration.zero on potato so even if animate() runs it is instant
+- Commit: 4f55fcd
