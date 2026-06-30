@@ -1117,10 +1117,13 @@ class _SearchResultTile extends StatelessWidget {
           border: Border.all(color: t.border),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Poster
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            child: _buildPoster(item, t),
+          // Poster — Hero tag matches home grid and show_detail banner (Phase 42)
+          Hero(
+            tag: 'poster_${item.id}',
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              child: _buildPoster(item, t),
+            ),
           ),
           const SizedBox(width: 10),
           // Info

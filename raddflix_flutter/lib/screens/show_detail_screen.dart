@@ -472,29 +472,34 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Poster image — local cache first (zero-rated, works offline)
-                  if (item.posterPath != null && item.posterPath!.isNotEmpty)
-                    Image.file(
-                      File(item.posterPath!),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => item.posterUrl != null
-                          ? CachedNetworkImage(
-                              imageUrl: item.posterUrl!,
-                              fit: BoxFit.cover,
-                              placeholder: (_, __) => Container(color: t.surface),
-                              errorWidget: (_, __, ___) => _posterFallback(item),
-                            )
-                          : _posterFallback(item),
-                    )
-                  else if (item.posterUrl != null)
-                    CachedNetworkImage(
-                      imageUrl: item.posterUrl!,
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) => Container(color: t.surface),
-                      errorWidget: (_, __, ___) => _posterFallback(item),
-                    )
-                  else
-                    _posterFallback(item),
+                  // Poster image — Hero-wrapped; tag matches home/search grid (Phase 42)
+                  // Builder collapses the if/else branches into a single Hero child
+                  Hero(
+                    tag: 'poster_${item.id}',
+                    child: Builder(builder: (_) {
+                      if (item.posterPath != null && item.posterPath!.isNotEmpty)
+                        return Image.file(
+                          File(item.posterPath!),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => item.posterUrl != null
+                              ? CachedNetworkImage(
+                                  imageUrl: item.posterUrl!,
+                                  fit: BoxFit.cover,
+                                  placeholder: (_, __) => Container(color: t.surface),
+                                  errorWidget: (_, __, ___) => _posterFallback(item),
+                                )
+                              : _posterFallback(item),
+                        );
+                      if (item.posterUrl != null)
+                        return CachedNetworkImage(
+                          imageUrl: item.posterUrl!,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => Container(color: t.surface),
+                          errorWidget: (_, __, ___) => _posterFallback(item),
+                        );
+                      return _posterFallback(item);
+                    }),
+                  ),
                   // Gradient overlay
                   DecoratedBox(
                     decoration: BoxDecoration(

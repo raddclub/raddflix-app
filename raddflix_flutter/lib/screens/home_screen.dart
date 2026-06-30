@@ -617,7 +617,8 @@ class _HeroCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppRadius.lg),
           child: Stack(fit: StackFit.expand, children: [
             // Task 3.5: prefer local cached poster file; fallback to network URL
-            _buildPosterImage(),
+            // Phase 42: Hero tag matches show_detail_screen banner for smooth morph
+            Hero(tag: 'poster_${item.id}', child: _buildPosterImage()),
             // Cinematic gradient overlay — bottom 70% fade
             Container(
               decoration: const BoxDecoration(

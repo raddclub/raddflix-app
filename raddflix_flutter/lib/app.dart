@@ -159,12 +159,10 @@ class RaddFlixApp extends ConsumerWidget {
           final item = settings.arguments;
           return PageRouteBuilder(
             pageBuilder: (_, __, ___) => ShowDetailScreen(item: item as CatalogItem),
+            // Phase 42: pure FadeTransition lets Hero poster morph animate freely.
+            // SlideTransition was removed — it conflicts with Hero's flight animation.
             transitionsBuilder: (_, anim, __, child) =>
-                SlideTransition(
-                  position: Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
-                      .animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-                  child: FadeTransition(opacity: anim, child: child),
-                ),
+                FadeTransition(opacity: anim, child: child),
             transitionDuration: const Duration(milliseconds: 350),
           );
         }
