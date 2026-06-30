@@ -540,3 +540,14 @@ Agents follow the example literally — so until the example shows validatePatch
 - ANIM-41-05: main.dart — AnimConfig.detect() before runApp, Animate.restartOnHotReload=kDebugMode, animConfigProvider.overrideWithValue in ProviderScope
 - ANIM-41-03: RepaintBoundary added to home_screen (category chip itemBuilder, grid ContentCard itemBuilder, recommendation card itemBuilder) and downloads_screen (shimmer grid itemBuilder, folder GestureDetector cards)
 - Commit: 8396c13
+
+---
+
+## Session 2026-06-30 — Phase 42 Hero Poster Transition
+
+- ANIM-42-01: home_screen.dart — _buildPosterImage() in _HeroCard wrapped with Hero(tag: 'poster_${item.id}')
+- ANIM-42-02: show_detail_screen.dart — FlexibleSpaceBar banner if/else if/else replaced with Hero(tag: 'poster_${item.id}', child: Builder(...)) — Builder collapses 3 branches into 1 Hero child
+- ANIM-42-03: search_screen.dart — poster ClipRRect wrapped in Hero with same tag pattern
+- ANIM-42-04: SKIPPED — downloads_screen navigates to player not show_detail so Hero tags would never match
+- ANIM-42-05: app.dart — showDetail route transitionsBuilder changed from SlideTransition+Fade to pure FadeTransition; SlideTransition was fighting Hero's flight animation
+- Commit: 50717ac
