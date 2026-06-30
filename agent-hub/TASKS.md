@@ -127,8 +127,19 @@
 | F-40-10 | Offline mode banner with ↺ refresh tap when connectivity lost | downloads_screen | ✅ |
 | F-40-11 | Failed list-tile shows ↺ Retry + 🗑 Delete buttons side-by-side | downloads_screen | ✅ |
 
+## Phase 41 — Animation Infrastructure (2026-06-30)
+
+| ID | Task | Status |
+|----|------|--------|
+| ANIM-41-01 | Create AnimConfig singleton (anim_config.dart) — tier 0-3 detection via SDK version | ✅ DONE |
+| ANIM-41-02 | shouldAnimate(ctx) — respects MediaQuery.disableAnimations accessibility setting | ✅ DONE |
+| ANIM-41-03 | RepaintBoundary audit: home_screen (chips, grid, recommends) + downloads (shimmer, folders) | ✅ DONE |
+| ANIM-41-04 | pubspec.yaml: add animations ^2.0.11, flutter_staggered_animations ^1.1.1, animated_text_kit ^4.2.2 | ✅ DONE |
+| ANIM-41-05 | main.dart: Animate.restartOnHotReload = kDebugMode + animConfigProvider override in ProviderScope | ✅ DONE |
+| ANIM-41-06 | Create anim_durations.dart — tier-aware fast/normal/slow/stagger/morph constants | ✅ DONE |
+
 ## Open Tasks
-None — all phases 17–40 complete. Awaiting next task.
+None — phases 17–41 complete. Phases 42–49 defined in agent-hub/ANIMATION_PLAN.md.
 
 ## Phase 37 — Bug Fixes (2026-06-29)
 
