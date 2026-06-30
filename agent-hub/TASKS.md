@@ -309,3 +309,116 @@ None — all phases 17–40 complete. Awaiting next task.
 | FEAT-36-04 | profile_screen.dart: General section with Settings tile | ✅ DONE (2975c52) |
 | FEAT-36-05 | show_detail_screen.dart: share button in SliverAppBar (share_plus) | ✅ DONE (2975c52) |
 | FEAT-36-06 | show_detail_screen.dart: "More Like This" horizontal scroll (genre-matched) | ✅ DONE (2975c52) |
+
+
+---
+
+## 🎬 Animation Roadmap — Phases 41–49
+> Full spec: agent-hub/ANIMATION_PLAN.md
+> Performance-first: every animation is gated by AnimConfig tier (0=potato → 3=premium).
+> minSdkVersion = 21 (Android 5). Target audience: Pakistani low-end phones.
+
+### Phase 41 — Performance Infrastructure *(START HERE — blocks all other phases)*
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| ANIM-41-01 | Create `lib/core/utils/anim_config.dart` — AnimConfig class + AnimTier enum | ⏳ TODO |
+| ANIM-41-02 | `AnimConfig.shouldAnimate(ctx)` checks `MediaQuery.disableAnimations` first | ⏳ TODO |
+| ANIM-41-03 | Add `animConfigProvider` Riverpod provider; initialize in main.dart with `AnimConfig.detect()` | ⏳ TODO |
+| ANIM-41-04 | Create `lib/core/utils/anim_durations.dart` — tier-aware duration constants | ⏳ TODO |
+| ANIM-41-05 | Add `animations: ^2.x`, `flutter_staggered_animations: ^1.x`, `animated_text_kit: ^4.x` to pubspec.yaml | ⏳ TODO |
+| ANIM-41-06 | Audit home_screen + downloads_screen: wrap isolated animated widgets with `RepaintBoundary` | ⏳ TODO |
+| ANIM-41-07 | Set `Animate.restartOnHotReload = kDebugMode` in main.dart | ⏳ TODO |
+
+### Phase 42 — Hero Poster Transition *(built-in Flutter, zero cost, API 21+)*
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| ANIM-42-01 | Home screen grid cards: `Hero(tag: 'poster_${item.id}')` on poster image | ⏳ TODO |
+| ANIM-42-02 | show_detail_screen banner: matching `Hero(tag: 'poster_${item.id}')` | ⏳ TODO |
+| ANIM-42-03 | search_screen result cards: same Hero tag pattern | ⏳ TODO |
+| ANIM-42-04 | downloads_screen grid cards: `Hero(tag: 'dl_poster_${fileId}')` | ⏳ TODO |
+| ANIM-42-05 | Replace default MaterialPageRoute slide with `FadeTransition` page route in app.dart | ⏳ TODO |
+
+### Phase 43 — Staggered Grid / List Entry *(flutter_staggered_animations, Tier 1+)*
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| ANIM-43-01 | Home screen content grid: `AnimationLimiter` + `staggeredGrid` + `FadeIn` + `SlideAnimation` | ⏳ TODO |
+| ANIM-43-02 | Downloads grid: replace current per-item `.animate(delay:)` with proper AnimationLimiter | ⏳ TODO |
+| ANIM-43-03 | Search results grid/list: stagger with same config | ⏳ TODO |
+| ANIM-43-04 | show_detail "More Like This" horizontal list: stagger | ⏳ TODO |
+| ANIM-43-05 | All stagger gated: `anim.canStagger && anim.shouldAnimate(context)` | ⏳ TODO |
+
+### Phase 44 — Card → Detail Morph *(animations package, Tier 2+)*
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| ANIM-44-01 | Home screen cards: wrap with `OpenContainer` (Tier 2+) | ⏳ TODO |
+| ANIM-44-02 | `closedColor: Colors.transparent`, `closedElevation: 0`, correct transition duration | ⏳ TODO |
+| ANIM-44-03 | Remove Hero tags from OpenContainer cards (they conflict) | ⏳ TODO |
+| ANIM-44-04 | Search result cards: same OpenContainer (Tier 2+) | ⏳ TODO |
+| ANIM-44-05 | Tier 0/1 fallback: plain Navigator.push (no morph, identical behavior) | ⏳ TODO |
+
+### Phase 45 — Glow on Primary Action Buttons *(flutter_animate, all tiers)*
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| ANIM-45-01 | Play button: pulsing BoxShadow glow via flutter_animate `.boxShadow().animate(repeat)` | ⏳ TODO |
+| ANIM-45-02 | Tier 2: stronger shadow + subtle scale breathing (1.0 → 1.03 → 1.0) | ⏳ TODO |
+| ANIM-45-03 | Download button: glow pulses while download is actively running | ⏳ TODO |
+| ANIM-45-04 | Download complete: shake + burst scale animation on SnackBar icon | ⏳ TODO |
+| ANIM-45-05 | Tier 3: optionally add `glow_effects` NeonGlowEffect — only if no crash on test devices | ⏳ TODO |
+
+### Phase 46 — Typewriter & Animated Text *(animated_text_kit, Tier 1+)*
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| ANIM-46-01 | show_detail_screen synopsis: `TypewriterAnimatedText` (18ms/char, no cursor) | ⏳ TODO |
+| ANIM-46-02 | Start typewriter only after page transition + 300ms delay (addPostFrameCallback) | ⏳ TODO |
+| ANIM-46-03 | Hero banner tagline: `FadeAnimatedText` looping tagline + year + rating | ⏳ TODO |
+| ANIM-46-04 | Downloads storage bar: `WavyAnimatedText` "loading" label when active > 0 | ⏳ TODO |
+| ANIM-46-05 | Tier 0 fallback: plain `Text` widget everywhere | ⏳ TODO |
+
+### Phase 47 — Frosted Glass Bottom Nav *(BackdropFilter, Tier 2+)*
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| ANIM-47-01 | bottom_nav.dart: `BackdropFilter blur(12,12)` + semi-transparent bg on Tier 2+ | ⏳ TODO |
+| ANIM-47-02 | Tier 0/1: solid background unchanged | ⏳ TODO |
+| ANIM-47-03 | `extendBody: true` in Scaffold + bottom padding in all main screens | ⏳ TODO |
+| ANIM-47-04 | Verify no layout clip/overlap on all screen sizes | ⏳ TODO |
+
+### Phase 48 — 3D Tilt Hero Banner *(sensors_plus + Transform, Tier 3)*
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| ANIM-48-01 | Add `sensors_plus` to pubspec (Tier 3 only) | ⏳ TODO |
+| ANIM-48-02 | Home screen hero banner: gyroscope listener → `Matrix4` rotateX/Y (max ±8°, 0.08 lerp) | ⏳ TODO |
+| ANIM-48-03 | Parallax layers: poster ×1.0, title text ×0.4 depth factor | ⏳ TODO |
+| ANIM-48-04 | Tier 2 fallback: gentle sine-wave auto-float (no gyroscope needed) | ⏳ TODO |
+| ANIM-48-05 | Sensor listener disposed in dispose() — no exceptions | ⏳ TODO |
+
+### Phase 49 — Ambient Particle Background *(particles_flutter, Tier 3, splash/login only)*
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| ANIM-49-01 | Add `particles_flutter` to pubspec | ⏳ TODO |
+| ANIM-49-02 | splash_screen: `ParticleField` bg (25 particles max, speed 0.3, opacity 0.3, NO connect lines) | ⏳ TODO |
+| ANIM-49-03 | login screen (if applicable): same particle config | ⏳ TODO |
+| ANIM-49-04 | Particle controller disposed in dispose() | ⏳ TODO |
+| ANIM-49-05 | Tier 0/1/2: static background (no particles) | ⏳ TODO |
+
+---
+
+### 🛡️ Hard Rules for Every Animation Phase
+
+> An agent MUST verify these before marking any ANIM task as DONE:
+> 1. ✅ Gated behind `AnimConfig.tier` check
+> 2. ✅ Respects `MediaQuery.disableAnimations`
+> 3. ✅ No `BackdropFilter` on API < 28 (Tier < 2)
+> 4. ✅ No fragment shaders on API < 26 (Tier < 2)
+> 5. ✅ `RepaintBoundary` on every isolated animated widget
+> 6. ✅ All controllers/listeners disposed in `dispose()`
+> 7. ✅ Tested on API-21 emulator — must not crash or jank
+> 8. ✅ Duration ≤ 350ms on Tier 0/1
