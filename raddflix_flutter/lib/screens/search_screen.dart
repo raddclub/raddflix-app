@@ -14,6 +14,8 @@ import '../providers/catalog_provider.dart';
 import '../models/catalog_item.dart';
 import '../widgets/content_card.dart';
 import '../core/utils/anim_config.dart';
+import 'package:animations/animations.dart';
+import 'show_detail_screen.dart';
 
 // ── Filter state ─────────────────────────────────────────────────────────────
 class _FilterState {
@@ -721,9 +723,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   // ── Results ────────────────────────────────────────────────────────────────
 
   Widget _buildResults() {
-    // Phase 43: tier-gated stagger for search results
+    // Phase 43: stagger; Phase 44: OpenContainer morph on Tier 2+
     final animConfig = ref.read(animConfigProvider);
     final canAnimate = animConfig.canStagger;
+    final canMorph   = animConfig.canMorph;
+    final t          = RaddTheme.of(context);
     if (_loading && (_results == null)) {
       return _buildShimmer();
     }
@@ -743,14 +747,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         child: ListView.builder(
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
           itemCount: res.length,
-          // Phase 43: Tier 0 → raw tile; Tier 1+ → stagger in from right
-          itemBuilder: (_, i) => canAnimate
-              ? _SearchResultTile(result: res[i])
-                  .animate(delay: animConfig.stagger(i))
-                  .fadeIn(duration: animConfig.normal)
-                  .slideX(begin: 0.07, end: 0, duration: animConfig.normal,
-                      curve: Curves.easeOut)
-              : _SearchResultTile(result: res[i]),
+          // Phase 44: Tier 2+ → OpenContainer morph; Tier 1 → stagger; Tier 0 → raw
+          itemBuilder: (_, i) {
+            final item = res[i].item;
+            if (canMorph) {
+              return OpenContainer<void>(
+                closedColor: t.surface,
+                openColor: t.bg,
+                closedElevation: 0,
+                openElevation: 0,
+                transitionDuration: animConfig.slow,
+                tappable: false,
+                closedBuilder: (_, openFn) =>
+                    _SearchResultTile(result: res[i], onTap: openFn),
+                openBuilder: (_, __) => ShowDetailScreen(item: item),
+              );
+            }
+            return canAnimate
+                ? _SearchResultTile(result: res[i])
+                    .animate(delay: animConfig.stagger(i))
+                    .fadeIn(duration: animConfig.normal)
+                    .slideX(begin: 0.07, end: 0, duration: animConfig.normal,
+                        curve: Curves.easeOut)
+                : _SearchResultTile(result: res[i]);
+          },
         ),
       ),
     ]);
@@ -1100,7 +1120,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
 class _SearchResultTile extends StatelessWidget {
   final SearchResult result;
-  const _SearchResultTile({required this.result});
+  // Phase 44: optional override — OpenContainer passes openFn here on Tier 2+
+  final VoidCallback? onTap;
+  const _SearchResultTile({required this.result, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1112,7 +1134,8 @@ class _SearchResultTile extends StatelessWidget {
     final hasSnippet = rawSnippet != null && rawSnippet.isNotEmpty;
 
     return GestureDetector(
-      onTap: () {
+      // Phase 44: if onTap provided (OpenContainer), use it; otherwise default push
+      onTap: onTap ?? () {
         DebugLogger.logTap('Search', 'result id=${item.id} "${item.title}"');
         Navigator.of(context).pushNamed(AppRoutes.showDetail, arguments: item);
       },

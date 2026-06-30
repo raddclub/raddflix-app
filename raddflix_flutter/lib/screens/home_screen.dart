@@ -19,6 +19,8 @@ import '../widgets/simosa_card.dart';
 import '../core/debug/debug_logger.dart';
 import '../widgets/resume_fab.dart';
 import '../core/utils/anim_config.dart';
+import 'package:animations/animations.dart';
+import 'show_detail_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -91,9 +93,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     final t = RaddTheme.of(context);
     final catalog    = ref.watch(catalogProvider);
     final user       = ref.watch(authProvider).user;
-    // Phase 43: tier-aware stagger — canStagger=false on Tier 0 (API<23)
+    // Phase 43/44: tier-gated stagger + OpenContainer morph
     final animConfig = ref.watch(animConfigProvider);
     final canAnimate = animConfig.canStagger && animConfig.shouldAnimate(context);
+    final canMorph   = animConfig.canMorph   && animConfig.shouldAnimate(context);
 
     return Scaffold(
       backgroundColor: null,
@@ -404,14 +407,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 : SliverGrid(
                     delegate: SliverChildBuilderDelegate((_, i) =>
                         RepaintBoundary(
-                          // Phase 43: skip animation on Tier 0 (potato); stagger on Tier 1+
-                          child: canAnimate
-                              ? ContentCard(item: filtered[i])
-                                  .animate(delay: animConfig.stagger(i))
-                                  .fadeIn(duration: animConfig.normal)
-                                  .slideY(begin: 0.06, end: 0, duration: animConfig.normal,
-                                      curve: AppCurves.standard)
-                              : ContentCard(item: filtered[i]),
+                          // Phase 44: Tier 2+ → OpenContainer morph (card expands to detail)
+                          // Phase 43: Tier 1  → stagger; Tier 0 → raw widget
+                          child: canMorph
+                              ? OpenContainer<void>(
+                                  closedColor: Colors.transparent,
+                                  openColor: Colors.transparent,
+                                  closedElevation: 0,
+                                  openElevation: 0,
+                                  transitionDuration: animConfig.slow,
+                                  tappable: false,
+                                  closedBuilder: (_, openFn) =>
+                                      ContentCard(item: filtered[i], onTap: openFn),
+                                  openBuilder: (_, __) =>
+                                      ShowDetailScreen(item: filtered[i]),
+                                )
+                              : canAnimate
+                                  ? ContentCard(item: filtered[i])
+                                      .animate(delay: animConfig.stagger(i))
+                                      .fadeIn(duration: animConfig.normal)
+                                      .slideY(begin: 0.06, end: 0, duration: animConfig.normal,
+                                          curve: AppCurves.standard)
+                                  : ContentCard(item: filtered[i]),
                         ),
                         childCount: filtered.length),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
