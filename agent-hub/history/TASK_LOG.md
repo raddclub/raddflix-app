@@ -573,3 +573,15 @@ Agents follow the example literally — so until the example shows validatePatch
 - search_screen _buildResults: canMorph + t(RaddTheme) added; itemBuilder 3-way: OpenContainer(tile+openFn)/stagger/raw
 - Hero conflict note: ContentCard in grid has no Hero; Hero only on _HeroSpotlight and _SearchResultTile poster (separate widget, compatible with OpenContainer)
 - Commit: 2600a39
+
+---
+
+## Session 2026-06-30 — Phase 45 Neon/Glow Buttons
+
+- Added import anim_config to show_detail_screen; animConfig = ref.watch(animConfigProvider) in build()
+- _GlowPulse StatefulWidget added at end of show_detail_screen.dart; uses AnimationController (1400ms, repeat+reverse) + AnimatedBuilder + Container boxShadow; respects MediaQuery.disableAnimations
+- Play button: Expanded > _GlowPulse(color:primary, maxBlur: tier>=2 ? 22 : 14, br:14) > ElevatedButton.icon
+- Download button: Consumer return refactored — ElevatedButton → final dlBtn; return isDownloading ? _GlowPulse(maxBlur:12) : dlBtn
+- ANIM-45-03 skipped: glow_effects package not in pubspec, would require new dep; Tier 2 shadow sufficient
+- ANIM-45-05 deferred: SnackBar content animation requires custom SnackBar widget; not worth scope now
+- Commit: bec1909
