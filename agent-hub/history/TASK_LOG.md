@@ -561,3 +561,15 @@ Agents follow the example literally — so until the example shows validatePatch
 - ANIM-43-03: search_screen — added import; _buildResults() gets ref.read(animConfigProvider) + canAnimate; itemBuilder uses canAnimate ternary for tier-gated stagger
 - Tier 0 policy: canStagger=false → raw widget (ternary); animConfig.stagger(i) returns Duration.zero on potato so even if animate() runs it is instant
 - Commit: 4f55fcd
+
+---
+
+## Session 2026-06-30 — Phase 44 OpenContainer Morph
+
+- Added import animations + show_detail_screen to home_screen + search_screen
+- home_screen build(): added canMorph = animConfig.canMorph && shouldAnimate(context)
+- home_screen grid delegate: 3-way tier branch — Tier2+ OpenContainer(tappable:false, ContentCard(onTap:openFn), ShowDetailScreen); Tier1 stagger; Tier0 raw
+- search_screen _SearchResultTile: added VoidCallback? onTap field; GestureDetector uses onTap ?? defaultNavPush
+- search_screen _buildResults: canMorph + t(RaddTheme) added; itemBuilder 3-way: OpenContainer(tile+openFn)/stagger/raw
+- Hero conflict note: ContentCard in grid has no Hero; Hero only on _HeroSpotlight and _SearchResultTile poster (separate widget, compatible with OpenContainer)
+- Commit: 2600a39
