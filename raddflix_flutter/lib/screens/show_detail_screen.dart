@@ -18,6 +18,7 @@ import '../providers/subscription_provider.dart';
 import 'subscription_screen.dart';
 import '../widgets/cast_rail.dart';
 import '../core/debug/debug_logger.dart';
+import '../core/utils/anim_config.dart';
 
 class ShowDetailScreen extends ConsumerStatefulWidget {
   final CatalogItem item;
@@ -439,7 +440,9 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     final t = RaddTheme.of(context);
     final item = widget.item;
     final cs = Theme.of(context).colorScheme;
-    final isMovie = item.isMovie;
+    final isMovie    = item.isMovie;
+    // Phase 45: tier-aware glow intensity for Play/Download buttons
+    final animConfig = ref.watch(animConfigProvider);
 
     return Scaffold(
       backgroundColor: null,
@@ -630,17 +633,23 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                   if (isMovie) ...[
                     Row(children: [
                       // Play button
+                      // Phase 45: _GlowPulse wraps Play button — pulsing glow on primary CTA
                       Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _playMovie,
-                          icon: const Icon(Icons.play_arrow_rounded, size: 22),
-                          label: const Text('Play Now', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            elevation: 0,
+                        child: _GlowPulse(
+                          color: AppColors.primary,
+                          maxBlur: animConfig.tierLevel >= 2 ? 22.0 : 14.0,
+                          borderRadius: BorderRadius.circular(14),
+                          child: ElevatedButton.icon(
+                            onPressed: _playMovie,
+                            icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                            label: const Text('Play Now', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              elevation: 0,
+                            ),
                           ),
                         ),
                       ),
@@ -652,7 +661,8 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                             final dlState2 = ref2.watch(downloadsProvider);
                             final isDownloading = dlState2.isDownloading(widget.item.fileId!);
                             final isDownloaded  = dlState2.isDownloaded(widget.item.fileId!);
-                            return ElevatedButton.icon(
+                            // Phase 45: extract to local var so we can conditionally glow
+                            final dlBtn = ElevatedButton.icon(
                               onPressed: isDownloading || isDownloaded ? null : () async {
                                 // Access gate — paid movie downloads require subscription.
                                 if (!widget.item.isFree && !_isSubscribed) {
@@ -704,6 +714,15 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                 elevation: 0,
                               ),
                             );
+                            // Phase 45 ANIM-45-04: glow pulses while download is in-flight
+                            return isDownloading
+                                ? _GlowPulse(
+                                    color: AppColors.primary,
+                                    maxBlur: 12.0,
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: dlBtn,
+                                  )
+                                : dlBtn;
                           }),
                         ),
                       ],
@@ -2014,3 +2033,68 @@ class _StatusPill extends StatelessWidget {
     );
   }
 }
+// ── Phase 45: Pulsing glow wrapper for primary action buttons ─────────────────
+// Uses AnimationController + AnimatedBuilder (pure CPU, zero GPU shader cost).
+// maxBlur scales with tier: 14 on Tier 0/1, 22 on Tier 2+.
+class _GlowPulse extends StatefulWidget {
+  final Widget child;
+  final Color color;
+  final double maxBlur;
+  final BorderRadius borderRadius;
+
+  const _GlowPulse({
+    required this.child,
+    required this.color,
+    this.maxBlur = 14.0,
+    this.borderRadius = const BorderRadius.all(Radius.circular(14)),
+  });
+
+  @override
+  State<_GlowPulse> createState() => _GlowPulseState();
+}
+
+class _GlowPulseState extends State<_GlowPulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Skip glow when system animations are disabled (accessibility)
+    if (MediaQuery.of(context).disableAnimations) return widget.child;
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, child) => Container(
+        decoration: BoxDecoration(
+          borderRadius: widget.borderRadius,
+          boxShadow: [
+            BoxShadow(
+              color: widget.color.withOpacity(_anim.value * 0.55),
+              blurRadius: _anim.value * widget.maxBlur,
+              spreadRadius: _anim.value * 1.5,
+            ),
+          ],
+        ),
+        child: child,
+      ),
+      child: widget.child,
+    );
+  }
+}
+
