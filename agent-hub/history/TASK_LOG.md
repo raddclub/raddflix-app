@@ -490,3 +490,12 @@ Agents follow the example literally — so until the example shows validatePatch
 - "More Like This" section: genre-match filter, horizontal poster scroll
 - Profile → General → Settings tile wired to /settings route
 - Tree commit: 2975c52
+
+---
+
+## Session 2026-06-30 — Phase 38 UI/UX Polish
+
+- profile_screen: greeting text + double-glow avatar (108px) + colored edit badge + name 23px w800
+- home_screen: greeting row below appbar + avatar ring + emoji display in appbar
+- edit_profile_screen: bigger avatar preview + emoji row (20 emojis + None) + avatarEmoji saved
+- Commit: fbc56ac
