@@ -148,8 +148,17 @@
 | ANIM-42-04 | downloads_screen: skipped — downloads navigate to player not show_detail (no Hero path) | ⏭ SKIPPED |
 | ANIM-42-05 | app.dart showDetail route: SlideTransition → FadeTransition (Hero-compatible) | ✅ DONE |
 
+## Phase 43 — Staggered Grid/List Entry (2026-06-30)
+
+| ID | Task | Status |
+|----|------|--------|
+| ANIM-43-01 | home_screen: animConfig + canAnimate in build(); chips + grid itemBuilder tier-gated | ✅ DONE |
+| ANIM-43-02 | downloads_screen: _buildFolderView, _gridView, _listView — animConfig + tier-gated stagger | ✅ DONE |
+| ANIM-43-03 | search_screen: _buildResults() — animConfig + tier-gated results stagger | ✅ DONE |
+| ANIM-43-04 | Tier 0 policy: canStagger=false → raw widget; stagger(i)=0ms on potato tier | ✅ DONE |
+
 ## Open Tasks
-None — phases 17–42 complete. Phases 43–49 defined in agent-hub/ANIMATION_PLAN.md.
+None — phases 17–43 complete. Phases 44–49 defined in agent-hub/ANIMATION_PLAN.md.
 
 ## Phase 37 — Bug Fixes (2026-06-29)
 
