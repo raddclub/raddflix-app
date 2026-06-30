@@ -177,8 +177,18 @@
 | ANIM-45-04 | Download button: conditional _GlowPulse wrap when isDownloading==true | ✅ DONE |
 | ANIM-45-05 | downloads_screen shake burst on done SnackBar: deferred to Phase 49 polish pass | ⏭ DEFERRED |
 
+## Phase 46 — Typewriter & Animated Text (2026-06-30)
+
+| ID | Task | Status |
+|----|------|--------|
+| ANIM-46-01 | show_detail: TypewriterAnimatedText(speed:18ms, cursor:'', cap:220 chars) on Tier 1+ | ✅ DONE |
+| ANIM-46-02 | 300ms initState delay (_typewriterReady flag) so typewriter starts after page transition | ✅ DONE |
+| ANIM-46-03 | Hero banner FadeAnimatedText: deferred — tagline field not reliably populated | ⏭ DEFERRED |
+| ANIM-46-04 | downloads WavyAnimatedText: deferred — low impact, tight scope | ⏭ DEFERRED |
+| ANIM-46-05 | home chips: .shimmer(500ms, white24) appended to entrance stagger chain | ✅ DONE |
+
 ## Open Tasks
-None — phases 17–45 complete. Phases 46–49 defined in agent-hub/ANIMATION_PLAN.md.
+None — phases 17–46 complete. Phases 47–49 defined in agent-hub/ANIMATION_PLAN.md.
 
 ## Phase 37 — Bug Fixes (2026-06-29)
 
