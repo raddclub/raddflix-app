@@ -101,6 +101,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     return Scaffold(
       backgroundColor: null,
       extendBodyBehindAppBar: true,
+      // Phase 47 ANIM-47-03: content renders behind frosted nav on Tier 2+
+      extendBody: true,
       appBar: _buildAppBar(user),
       body: RefreshIndicator(
         color: AppColors.primary,
@@ -440,6 +442,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           ),
 
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        // Phase 47 ANIM-47-04: extra clearance so last card isn't hidden behind nav bar
+        const SliverToBoxAdapter(child: SizedBox(height: 72)),
       ],
     );
   }

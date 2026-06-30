@@ -1,9 +1,12 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
+import '../core/utils/anim_config.dart';
 
-class RaddFlixBottomNav extends StatelessWidget {
+class RaddFlixBottomNav extends ConsumerWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
   const RaddFlixBottomNav({super.key, required this.currentIndex, required this.onTap});
@@ -16,9 +19,44 @@ class RaddFlixBottomNav extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
-    final t      = RaddTheme.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t          = RaddTheme.of(context);
+    final isDark     = Theme.of(context).brightness == Brightness.dark;
+    // Phase 47 ANIM-47-01/02: Tier 2+ (API 28+) → frosted glass; Tier 0/1 → solid surface
+    final animConfig = ref.watch(animConfigProvider);
+
+    if (animConfig.canBlur) {
+      // ── Tier 2+: BackdropFilter frosted glass ─────────────────────
+      return ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: (isDark ? Colors.black : t.surface).withOpacity(0.72),
+              border: Border(top: BorderSide(color: t.border.withOpacity(0.4), width: 0.5)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: SizedBox(
+                height: 58,
+                child: Row(
+                  children: List.generate(_items.length, (i) => Expanded(
+                    child: _NavButton(
+                      item:     _items[i],
+                      isActive: currentIndex == i,
+                      onTap:    () => onTap(i),
+                    ),
+                  )),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ── Tier 0/1 fallback: solid surface (unchanged) ────────────────
     return Container(
       decoration: BoxDecoration(
         color: t.surface,
