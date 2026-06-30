@@ -13,6 +13,7 @@ import '../core/debug/debug_logger.dart';
 import '../providers/catalog_provider.dart';
 import '../models/catalog_item.dart';
 import '../widgets/content_card.dart';
+import '../core/utils/anim_config.dart';
 
 // ── Filter state ─────────────────────────────────────────────────────────────
 class _FilterState {
@@ -720,6 +721,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   // ── Results ────────────────────────────────────────────────────────────────
 
   Widget _buildResults() {
+    // Phase 43: tier-gated stagger for search results
+    final animConfig = ref.read(animConfigProvider);
+    final canAnimate = animConfig.canStagger;
     if (_loading && (_results == null)) {
       return _buildShimmer();
     }
@@ -739,10 +743,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         child: ListView.builder(
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
           itemCount: res.length,
-          itemBuilder: (_, i) => _SearchResultTile(result: res[i])
-              .animate(delay: Duration(milliseconds: i * 25))
-              .fadeIn(duration: 260.ms)
-              .slideX(begin: 0.07, end: 0, duration: 260.ms, curve: Curves.easeOut),
+          // Phase 43: Tier 0 → raw tile; Tier 1+ → stagger in from right
+          itemBuilder: (_, i) => canAnimate
+              ? _SearchResultTile(result: res[i])
+                  .animate(delay: animConfig.stagger(i))
+                  .fadeIn(duration: animConfig.normal)
+                  .slideX(begin: 0.07, end: 0, duration: animConfig.normal,
+                      curve: Curves.easeOut)
+              : _SearchResultTile(result: res[i]),
         ),
       ),
     ]);

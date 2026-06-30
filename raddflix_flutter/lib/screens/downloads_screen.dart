@@ -16,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:disk_space_plus/disk_space_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
   import '../services/vault_service.dart';
+import '../core/utils/anim_config.dart';
 
 enum _SortMode { name, size, date }
 enum _FilterMode { all, completed, downloading, failed }
@@ -485,6 +486,8 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   }
 
   Widget _buildFolderView(DownloadsState state) {
+    // Phase 43: tier-aware stagger
+    final animConfig = ref.read(animConfigProvider);
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       physics: const BouncingScrollPhysics(),
@@ -547,9 +550,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
               ]),
             ),
           ),
-        ).animate(delay: (i * 60).ms).fadeIn(duration: 300.ms)
-            .scale(begin: const Offset(0.92, 0.92), end: const Offset(1, 1),
-                duration: 350.ms, curve: AppCurves.enter));
+        ).animate(delay: animConfig.stagger(i))
+            .fadeIn(duration: animConfig.normal)
+            .slideY(begin: 0.06, end: 0, duration: animConfig.normal,
+                curve: AppCurves.enter));
       },
     );
   }
@@ -644,6 +648,8 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   }
 
   Widget _gridView(List<Map<String, dynamic>> items, DownloadsState state) {
+    // Phase 43: tier-aware stagger
+    final animConfig = ref.read(animConfigProvider);
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       physics: const BouncingScrollPhysics(),
@@ -690,12 +696,17 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           queuePosition: state.queuePositionOf(id),
           localPath: _path(d),
           posterUrl: _posterUrl(d),
-        ).animate(delay: (i * 30).ms).fadeIn(duration: 250.ms);
+        ).animate(delay: animConfig.stagger(i))
+            .fadeIn(duration: animConfig.normal)
+            .slideY(begin: 0.06, end: 0, duration: animConfig.normal,
+                curve: AppCurves.standard);
       },
     );
   }
 
   Widget _listView(List<Map<String, dynamic>> items, DownloadsState state) {
+    // Phase 43: tier-aware stagger
+    final animConfig = ref.read(animConfigProvider);
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       physics: const BouncingScrollPhysics(),
@@ -739,8 +750,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           etaLabel:   state.etaOf(id),
           localPath: _path(d),
           posterUrl: _posterUrl(d),
-        ).animate(delay: (i * 30).ms).fadeIn(duration: 250.ms)
-            .slideX(begin: 0.1, end: 0, duration: 250.ms, curve: AppCurves.standard);
+        ).animate(delay: animConfig.stagger(i))
+            .fadeIn(duration: animConfig.normal)
+            .slideX(begin: 0.1, end: 0, duration: animConfig.normal,
+                curve: AppCurves.standard);
       },
     );
   }

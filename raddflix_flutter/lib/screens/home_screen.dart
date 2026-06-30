@@ -18,6 +18,7 @@ import '../core/services/notification_service.dart';
 import '../widgets/simosa_card.dart';
 import '../core/debug/debug_logger.dart';
 import '../widgets/resume_fab.dart';
+import '../core/utils/anim_config.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -88,8 +89,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final catalog = ref.watch(catalogProvider);
-    final user    = ref.watch(authProvider).user;
+    final catalog    = ref.watch(catalogProvider);
+    final user       = ref.watch(authProvider).user;
+    // Phase 43: tier-aware stagger — canStagger=false on Tier 0 (API<23)
+    final animConfig = ref.watch(animConfigProvider);
+    final canAnimate = animConfig.canStagger && animConfig.shouldAnimate(context);
 
     return Scaffold(
       backgroundColor: null,
@@ -275,14 +279,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               itemCount: _categories.length,
-              itemBuilder: (_, i) => RepaintBoundary(
-                child: _CategoryChip(
+              itemBuilder: (_, i) {
+                // Phase 43: tier-gated chip stagger
+                final chip = _CategoryChip(
                   label: _categories[i],
                   isSelected: _selectedCategory == _categories[i],
                   onTap: () { DebugLogger.logTap('Home', 'category ${_categories[i]}'); setState(() => _selectedCategory = _categories[i]); },
-                ).animate(delay: (i * 40).ms).fadeIn(duration: 300.ms)
-                    .slideX(begin: 0.2, end: 0, duration: 300.ms, curve: AppCurves.standard),
-              ),
+                );
+                return RepaintBoundary(
+                  child: canAnimate
+                      ? chip.animate(delay: animConfig.stagger(i)).fadeIn(duration: animConfig.normal)
+                          .slideX(begin: 0.2, end: 0, duration: animConfig.normal, curve: AppCurves.standard)
+                      : chip,
+                );
+              },
             ),
           ),
         ),
@@ -394,10 +404,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 : SliverGrid(
                     delegate: SliverChildBuilderDelegate((_, i) =>
                         RepaintBoundary(
-                          child: ContentCard(item: filtered[i])
-                              .animate(delay: (i * 30).ms).fadeIn(duration: 300.ms)
-                              .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1),
-                                  duration: 300.ms, curve: AppCurves.standard),
+                          // Phase 43: skip animation on Tier 0 (potato); stagger on Tier 1+
+                          child: canAnimate
+                              ? ContentCard(item: filtered[i])
+                                  .animate(delay: animConfig.stagger(i))
+                                  .fadeIn(duration: animConfig.normal)
+                                  .slideY(begin: 0.06, end: 0, duration: animConfig.normal,
+                                      curve: AppCurves.standard)
+                              : ContentCard(item: filtered[i]),
                         ),
                         childCount: filtered.length),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
