@@ -529,3 +529,14 @@ Agents follow the example literally — so until the example shows validatePatch
 - F-40-10: offline banner using connectivity_plus
 - F-40-11: failed tile shows ↺ Retry + 🗑 Delete dual action
 - Commit: f370635
+
+---
+
+## Session 2026-06-30 — Phase 41 Animation Infrastructure
+
+- ANIM-41-01/02: Created lib/core/utils/anim_config.dart — AnimConfig singleton with AnimTier enum (potato/basic/standard/premium), detect() reads Android SDK, shouldAnimate() respects disableAnimations, canBlur/canStagger/canMorph flags, tier-aware fast/normal/slow durations, Riverpod animConfigProvider
+- ANIM-41-06: Created lib/core/utils/anim_durations.dart — AnimDurations helpers + morph constant
+- ANIM-41-04: pubspec.yaml — added animations ^2.0.11, flutter_staggered_animations ^1.1.1, animated_text_kit ^4.2.2
+- ANIM-41-05: main.dart — AnimConfig.detect() before runApp, Animate.restartOnHotReload=kDebugMode, animConfigProvider.overrideWithValue in ProviderScope
+- ANIM-41-03: RepaintBoundary added to home_screen (category chip itemBuilder, grid ContentCard itemBuilder, recommendation card itemBuilder) and downloads_screen (shimmer grid itemBuilder, folder GestureDetector cards)
+- Commit: 8396c13
