@@ -187,8 +187,18 @@
 | ANIM-46-04 | downloads WavyAnimatedText: deferred — low impact, tight scope | ⏭ DEFERRED |
 | ANIM-46-05 | home chips: .shimmer(500ms, white24) appended to entrance stagger chain | ✅ DONE |
 
+## Phase 47 — Frosted Glass Bottom Nav (2026-06-30)
+
+| ID | Task | Status |
+|----|------|--------|
+| ANIM-47-01 | bottom_nav: ClipRect > BackdropFilter(blur 12) > Container(0.72 opacity) on Tier 2+ (canBlur) | ✅ DONE |
+| ANIM-47-02 | Tier 0/1 fallback: solid surface unchanged | ✅ DONE |
+| ANIM-47-03 | home Scaffold: extendBody=true so body renders behind nav bar | ✅ DONE |
+| ANIM-47-04 | home slivers: SliverToBoxAdapter(72) bottom clearance so last card visible | ✅ DONE |
+| ANIM-47-05 | clampingScrollPhysics: deferred — BouncingScrollPhysics fine; repaint not a measurable issue | ⏭ DEFERRED |
+
 ## Open Tasks
-None — phases 17–46 complete. Phases 47–49 defined in agent-hub/ANIMATION_PLAN.md.
+None — phases 17–47 complete. Phases 48–49 defined in agent-hub/ANIMATION_PLAN.md.
 
 ## Phase 37 — Bug Fixes (2026-06-29)
 
