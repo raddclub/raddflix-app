@@ -514,3 +514,18 @@ Agents follow the example literally — so until the example shows validatePatch
 - BUG-39-07: _DownloadCard/_DownloadListTile get onCancel parameter + stop/sweep icons
 - BUG-39-08: _FeaturePill t.textSecondary → t.textMuted
 - Commit: e750398
+
+---
+
+## Session 2026-06-30 — Phase 40 Downloads Feature Pack
+
+- F-40-01: download speed (MB/s) + ETA on cards/tiles (average-speed method, 500ms throttle)
+- F-40-02/03: disk_space_plus free-space display + 200MB pre-flight abort
+- F-40-04/05: LocalDb.getFileInfo() + retryDownload() — retry from downloads screen
+- F-40-06: auto-retry on SocketException (1× after 4s)
+- F-40-07: completion SnackBar via recentlyCompleted reactive list
+- F-40-08: queue position badge on cards
+- F-40-09: SharedPreferences persistence for sort/filter/view mode
+- F-40-10: offline banner using connectivity_plus
+- F-40-11: failed tile shows ↺ Retry + 🗑 Delete dual action
+- Commit: f370635
