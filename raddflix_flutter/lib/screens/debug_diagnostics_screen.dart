@@ -60,6 +60,7 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
   @override
   void dispose() {
     _stopLogTimer();
+    _stopTimelineTimer(); // Fix #3: was missing — tlTimer kept firing after screen closed
     _tabs.dispose();
     _logScroll.dispose();
     super.dispose();
