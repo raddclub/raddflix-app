@@ -704,3 +704,21 @@ Phase 49: Ambient particle background
 - _heroItems() inserts catalog.recentlyWatched.first at hero position 0
 - _HeroCard reads catalogProvider to detect isResume
 - Button shows "Resume" (play_circle_filled) vs "Watch Now" (play_arrow)
+
+---
+
+## Subtitle Audit Fixes · 4f568fc
+
+### BUG1 — Customization tab Opacity slider corrupted text colour
+- Was: `sub-color: #AAfffffff` (white with alpha) — overwrote user's chosen text colour
+- Fix: use `sub-opacity` (correct mpv property); also syncs `_subFade` state so tab-1 Fade slider stays in sync
+
+### BUG2 — sub-ass-override: force not set for background/scale/opacity/shadow
+- Was: only applied for sub-font-size, sub-font, sub-bold, sub-color
+- Fix: also applies for sub-back-color, sub-scale, sub-opacity, sub-outline-size, sub-shadow-offset
+- Effect: ASS/SSA styled subtitle files now respect all visual setting changes
+
+### Confirmed working correctly (no changes needed)
+- Subtitle z-order vs controls: MPV sub-margin-y bumped +140px (base 100→240) when controls visible
+- Called on every _toggleControls, _scheduleHide, _enterImmersive, _exitImmersive
+- 240px clears the full bottom area (seek bar ~32px + transport ~48px + padding + SafeArea) on all devices
