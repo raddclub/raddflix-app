@@ -325,6 +325,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           if (_filters.hasAny)
             _buildActiveFilterBar(),
           const SizedBox(height: 4),
+          if (!showResultsArea && _history.isNotEmpty)
+            _buildHistorySection(),
           Expanded(
             child: showResultsArea
                 ? _buildResults()
@@ -332,6 +334,62 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           ),
         ]),
       ),
+    );
+  }
+
+  // ── Recent search history ─────────────────────────────────────────────────
+
+  Widget _buildHistorySection() {
+    return Container(
+      color: t.bg,
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.history_rounded, size: 14, color: AppColors.primary),
+          const SizedBox(width: 6),
+          Text('Recent Searches', style: TextStyle(
+              color: t.textPrimary, fontSize: 13, fontWeight: FontWeight.w800)),
+          const Spacer(),
+          GestureDetector(
+            onTap: _clearHistory,
+            child: Text('Clear all', style: TextStyle(
+                color: t.textMuted, fontSize: 12, fontWeight: FontWeight.w500)),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _history.map((q) {
+            return GestureDetector(
+              onTap: () => _tapSuggestion(q),
+              child: Container(
+                padding: const EdgeInsets.only(left: 10, right: 6, top: 6, bottom: 6),
+                decoration: BoxDecoration(
+                  color: t.surface,
+                  borderRadius: BorderRadius.circular(AppRadius.round),
+                  border: Border.all(color: t.border),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.history_rounded, size: 13, color: t.textMuted),
+                  const SizedBox(width: 5),
+                  Text(q, style: TextStyle(
+                      color: t.textSecondary, fontSize: 13,
+                      fontWeight: FontWeight.w500)),
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    onTap: () => _removeFromHistory(q),
+                    child: Icon(Icons.close_rounded, size: 13, color: t.textMuted),
+                  ),
+                ]),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        Divider(height: 1, color: t.border.withOpacity(0.4)),
+        const SizedBox(height: 4),
+      ]),
     );
   }
 
