@@ -8,7 +8,7 @@
 - Endpoints: PUT /api/auth/profile, POST /api/auth/change-password, GET /api/quota all live
 
 ### Flutter / APK
-- Latest successful build: Phase 37 bug-fix commits ✅ CI PASSING
+- Latest successful build: Phase 60 (P60 + Kotlin 2.2.0 + minSdk 24 fixes) ✅ CI PASSING · commit 98323a8
 - All compile errors resolved
 - Phases 17–37 fully merged and building clean
 
@@ -25,8 +25,13 @@
 2. **Remove Dub button** — single tap in the Audio Panel calls `_disableDubMode()` and dismisses the panel — no need to reopen the subtitle/dub panel
 3. **New props** — `isDubMode`, `dubActiveLang`, `onRemoveDub` added to `_AudioTrackPanel` (all optional / have defaults)
 
+### Build fixes applied alongside Phase 60 (2026-07-01)
+- **Kotlin 2.2.0** — bumped `ext.kotlin_version` from `1.9.20` → `2.2.0` in `android/build.gradle` (flutter_tts 4.2.5 stdlib uses Kotlin 2.2.x metadata)
+- **minSdkVersion 24** — bumped from 21 → 24 in `android/app/build.gradle` (flutter_tts 4.2.5 declares minSdk 24 in its manifest; Android 5/6 dropped — <2% of Pakistani market)
+- Both fixes address a pre-existing break introduced in Phase 59 (flutter_tts was added but build never ran green)
+
 ### Open Tasks
-None — Phase 60 complete. Awaiting next task from user.
+None — Phase 60 complete + build green. Awaiting next task from user.
 
 ### Known Data Issues
 - DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 — upload to JazzDrive + sync still needed
