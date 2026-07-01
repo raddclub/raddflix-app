@@ -618,3 +618,25 @@ Agents follow the example literally — so until the example shows validatePatch
 - final item = widget.item shorthand in build() + _buildPosterImage() avoids renaming all item. references
 - ANIM-48-01: sensors_plus gyroscope deferred (needs pubspec edit + lock regen, risky without flutter pub get)
 - Commit: a8d4323
+
+---
+
+## Session 2026-06-30 — Phase 49 Ambient Particle Background + ANIM-45-05
+
+- NEW FILE: lib/widgets/particle_overlay.dart — ConsumerStatefulWidget, SingleTickerProviderStateMixin; AnimationController(12s repeat); CustomPainter (_ParticlePainter) draws 25 dots from fixed-seed Random(42); drift upward (modulo 1.0 wrap), sine horizontal offset; IgnorePointer wraps CustomPaint; tier gate: canParticle && !disableAnimations → SizedBox.shrink() fallback
+- splash_screen: import particle_overlay added; Positioned.fill(ParticleOverlay()) inserted before Center in body Stack (ANIM-49-02)
+- login_screen: import particle_overlay added; Positioned.fill(ParticleOverlay()) inserted before SafeArea in body Stack (ANIM-49-03)
+- downloads_screen ANIM-45-05 (deferred from Phase 45): download-done SnackBar icon gets .animate().shake(400ms).scale(1.0→1.15, 200ms)
+- ANIM-49-01 skipped: particles_flutter not added; pure CustomPainter achieves same visual
+- Commit: f81b0cb
+
+### ANIMATION ROADMAP PHASES 41–49 — ALL COMPLETE
+Phase 41: AnimConfig infrastructure
+Phase 42: Hero poster transition
+Phase 43: Staggered grid/list entry
+Phase 44: OpenContainer card-to-detail morph
+Phase 45: Neon/Glow primary action buttons
+Phase 46: Typewriter & animated text
+Phase 47: Frosted glass bottom nav
+Phase 48: 3D tilt hero banner
+Phase 49: Ambient particle background
