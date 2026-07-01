@@ -139,6 +139,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   AudioTrack? _selectedAudio;
   List<SubtitleTrack> _subtitleTracks = [];
   SubtitleTrack? _selectedSubtitle;
+  SubtitleTrack? _selectedSecondSub; // secondary-sid — OST / signs track
 
   // ── MX Layout State ──────────────────────────────────────────────────────────
   bool _isLocked = false;
@@ -206,6 +207,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Audio
   double _audioSync = 0.0;
   bool _useSWDecoder = false;
+
+  // ── Real track getters — filter media_kit sentinel values ───────────────────
+  // SubtitleTrack.no() has id='no'; AudioTrack.auto() has id='auto'.
+  // Only tracks with numeric MPV IDs are real embedded tracks.
+  List<SubtitleTrack> get _realSubtitleTracks =>
+      _subtitleTracks.where((t) => t.id != null && int.tryParse(t.id!) != null).toList();
+  List<AudioTrack> get _realAudioTracks =>
+      _audioTracks.where((t) => t.id != null && int.tryParse(t.id!) != null).toList();
 
   // Sleep timer
   int? _sleepTimerMinutes;
@@ -586,6 +595,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _audioTracks = tracks.audio;
           _subtitleTracks = tracks.subtitle;
         });
+        // P57-05: EAC3/DTS auto SW decoder fallback
+        // media_kit_libs_android_video bundles full ffmpeg so EAC3 decodes fine,
+        // but Android MediaCodec (hwdec=auto-safe) can silently fail on EAC3/DTS
+        // on MediaTek devices. Auto-detect and switch to SW to be safe.
+        if (mounted && tracks.audio.any((t) => t.id != null && int.tryParse(t.id!) != null)) {
+          Future.delayed(const Duration(seconds: 1), () async {
+            if (!mounted) return;
+            try {
+              final codec = (await _np.getProperty('audio-codec-name') ?? '').toLowerCase();
+              if (['eac3', 'ac3', 'dts', 'dca', 'truehd', 'mlp'].any(codec.contains)) {
+                if (!_useSWDecoder) {
+                  try { _np.setProperty('hwdec', 'no'); } catch (_) {}
+                  if (mounted) setState(() => _useSWDecoder = true);
+                  _showInfoSnackbar('EAC3/DTS audio detected — using software decoder');
+                }
+              }
+            } catch (_) {}
+          });
+        }
       }),
       _player.stream.track.listen((track) {
         if (mounted) setState(() {
@@ -2684,8 +2712,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     Widget _buildTopBar() {
       // P1: badge helpers
-      final hasAudio = _audioTracks.length > 1;
-      final hasSubs  = _subtitleTracks.isNotEmpty;
+      final hasAudio = _realAudioTracks.length > 1;
+      final hasSubs  = _realSubtitleTracks.isNotEmpty;
       final isEpSeries = _eps.length > 1;
       final zoomLabels = ['Fit', 'Fill', 'Crop', '1:1', 'Cust'];
 
@@ -3146,17 +3174,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Build shortcut definitions from current live state
       final defs = <String, ({IconData icon, String label, bool active, bool available, VoidCallback? onTap})>{
         'cc': (
-          icon: _subtitleTracks.isNotEmpty ? Icons.subtitles_rounded : Icons.subtitles_off_rounded,
+          icon: _realSubtitleTracks.isNotEmpty ? Icons.subtitles_rounded : Icons.subtitles_off_rounded,
           label: 'CC',
-          active: _subtitleTracks.isNotEmpty,
+          active: _realSubtitleTracks.isNotEmpty,
           available: true,
           onTap: _openSubtitlePanel,
         ),
         'audio': (
           icon: Icons.headphones_rounded,
           label: 'Audio',
-          active: _audioTracks.length > 1,
-          available: _audioTracks.length > 1,
+          active: _realAudioTracks.length > 1,
+          available: _realAudioTracks.length > 1,
           onTap: _openAudioPanel,
         ),
         'eq': (
@@ -3607,12 +3635,36 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
           setState(() => _currentSubFile = path);
           try { _np.setProperty('sub-file', path); } catch (_) {}
         },
+        // P57-02: embedded track selector
+        embeddedTracks: _realSubtitleTracks,
+        selectedSubtitle: _selectedSubtitle,
+        onSubtitleTrackSelected: (track) {
+          setState(() => _selectedSubtitle = track);
+          if (track != null) {
+            _player.setSubtitleTrack(track);
+          } else {
+            try { _np.setProperty('sid', 'no'); } catch (_) {}
+          }
+        },
+        // P57-07: secondary subtitle (OST/signs at top)
+        selectedSecondSub: _selectedSecondSub,
+        onSecondSubSelected: (track) {
+          setState(() => _selectedSecondSub = track);
+          try {
+            if (track != null) {
+              _np.setProperty('secondary-sid', track.id!);
+              _np.setProperty('secondary-sub-visibility', 'yes');
+            } else {
+              _np.setProperty('secondary-sid', 'no');
+            }
+          } catch (_) {}
+        },
       ));
     }
 
     void _openAudioPanel() {
       _openRightPanel(_AudioTrackPanel(
-        tracks: _audioTracks,
+        tracks: _realAudioTracks,
         selectedTrack: _selectedAudio,
         audioSync: _audioSync,
         useSWDecoder: _useSWDecoder,
@@ -3641,6 +3693,8 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
           _savePrefs();
         },
         initialChannelModeIdx: _channelModeIdx,
+        isPlaying: _playing,
+        currentCodec: _useSWDecoder ? null : null, // populated by EAC3 detector via _useSWDecoder
         onClose: () => Navigator.of(context).pop(),
       ));
     }
@@ -4940,6 +4994,12 @@ class _SubtitlePanel extends StatefulWidget {
   final VoidCallback onClose;
   final String? title;
   final void Function(String)? onSubtitleFilePicked;
+  // P57-02: embedded MKV subtitle tracks + P57-07: secondary (OST/signs) sub
+  final List<SubtitleTrack> embeddedTracks;
+  final SubtitleTrack? selectedSubtitle;
+  final SubtitleTrack? selectedSecondSub;
+  final void Function(SubtitleTrack?) onSubtitleTrackSelected;
+  final void Function(SubtitleTrack?) onSecondSubSelected;
 
   const _SubtitlePanel({
     required this.isLocal,
@@ -4952,6 +5012,11 @@ class _SubtitlePanel extends StatefulWidget {
     required this.onClose,
     this.title,
     this.onSubtitleFilePicked,
+    this.embeddedTracks = const [],
+    this.selectedSubtitle,
+    this.selectedSecondSub,
+    required this.onSubtitleTrackSelected,
+    required this.onSecondSubSelected,
   });
 
   @override
@@ -5232,6 +5297,80 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
 
               // ── Open tab: local file picker ──────────────────────────────────────
               if (_tab == 0) ...[
+                // P57-02: Embedded subtitle track selector
+                if (widget.embeddedTracks.isNotEmpty) ...[
+                  const Text('Embedded Tracks',
+                      style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  for (int i = 0; i < widget.embeddedTracks.length; i++)
+                    RadioListTile<SubtitleTrack?>(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 0),
+                      value: widget.embeddedTracks[i],
+                      groupValue: widget.selectedSubtitle,
+                      onChanged: (t) => widget.onSubtitleTrackSelected(t),
+                      activeColor: Colors.white,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Text(
+                        widget.embeddedTracks[i].language != null && widget.embeddedTracks[i].title != null
+                            ? '${widget.embeddedTracks[i].language} — ${widget.embeddedTracks[i].title}'
+                            : widget.embeddedTracks[i].language
+                                ?? widget.embeddedTracks[i].title
+                                ?? 'Track ${i + 1}',
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    ),
+                  RadioListTile<SubtitleTrack?>(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 0),
+                    value: null,
+                    groupValue: widget.selectedSubtitle,
+                    onChanged: (_) => widget.onSubtitleTrackSelected(null),
+                    activeColor: Colors.white,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('Off', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  ),
+                  const Divider(color: Colors.white12, height: 20),
+                  // P57-07: Secondary subtitle (OST / signs) — displayed at TOP via MPV secondary-sid
+                  const Text('Secondary Subtitle — OST / Signs (shown at top)',
+                      style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  const Text('Select a track to show at the top of the video (song lyrics, signs, on-screen text)',
+                      style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  const SizedBox(height: 6),
+                  for (int i = 0; i < widget.embeddedTracks.length; i++)
+                    RadioListTile<SubtitleTrack?>(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 0),
+                      value: widget.embeddedTracks[i],
+                      groupValue: widget.selectedSecondSub,
+                      onChanged: (t) => widget.onSecondSubSelected(t),
+                      activeColor: const Color(0xFF4A9EFF),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Text(
+                        widget.embeddedTracks[i].language != null && widget.embeddedTracks[i].title != null
+                            ? '${widget.embeddedTracks[i].language} — ${widget.embeddedTracks[i].title}'
+                            : widget.embeddedTracks[i].language
+                                ?? widget.embeddedTracks[i].title
+                                ?? 'Track ${i + 1}',
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    ),
+                  RadioListTile<SubtitleTrack?>(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 0),
+                    value: null,
+                    groupValue: widget.selectedSecondSub,
+                    onChanged: (_) => widget.onSecondSubSelected(null),
+                    activeColor: const Color(0xFF4A9EFF),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('Off', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  ),
+                  const Divider(color: Colors.white12, height: 20),
+                  const Text('External File',
+                      style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                ],
                 GestureDetector(
                   onTap: () async {
                     final result = await FilePicker.platform.pickFiles(
@@ -5679,6 +5818,8 @@ class _AudioTrackPanel extends StatefulWidget {
   final void Function(bool) onSWDecoderChanged;
   final void Function(String) onChannelModeChanged;
   final int initialChannelModeIdx;
+  final bool isPlaying; // P57-04: disable SW decoder toggle during playback
+  final String? currentCodec; // P57-06: show codec badge on active track
   final VoidCallback onClose;
 
   const _AudioTrackPanel({
@@ -5691,6 +5832,8 @@ class _AudioTrackPanel extends StatefulWidget {
     required this.onSWDecoderChanged,
     required this.onChannelModeChanged,
     this.initialChannelModeIdx = 0,
+    this.isPlaying = false,
+    this.currentCodec,
     required this.onClose,
   });
 
@@ -7162,11 +7305,30 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
                   value: widget.tracks[i],
                   groupValue: widget.selectedTrack,
                   onChanged: (v) => v != null ? widget.onTrackSelected(v) : null,
-                  title: Text(
-                    (widget.tracks[i].language != null && widget.tracks[i].title != null)
-                        ? "${widget.tracks[i].language} (${widget.tracks[i].title})"
-                        : widget.tracks[i].language ?? widget.tracks[i].title ?? "Audio track ${i + 1}",
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          (widget.tracks[i].language != null && widget.tracks[i].title != null)
+                              ? "\${widget.tracks[i].language} (\${widget.tracks[i].title})"
+                              : widget.tracks[i].language ?? widget.tracks[i].title ?? "Audio track \${i + 1}",
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ),
+                      // P57-06: codec badge on active track
+                      if (widget.tracks[i] == widget.selectedTrack && widget.currentCodec != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white12,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            widget.currentCodec!.toUpperCase(),
+                            style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                    ],
                   ),
                   activeColor: Colors.white,
                   controlAffinity: ListTileControlAffinity.leading,
@@ -7186,11 +7348,14 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
 
               const Divider(color: Colors.white12),
 
-              // SW decoder toggle
+              // SW decoder toggle (P57-04: disabled during playback)
               SwitchListTile(
                 title: const Text('Use SW audio decoder', style: TextStyle(color: Colors.white, fontSize: 14)),
+                subtitle: widget.isPlaying
+                    ? const Text('Stop playback to apply', style: TextStyle(color: Colors.orange, fontSize: 11))
+                    : null,
                 value: _useSW,
-                onChanged: (v) {
+                onChanged: widget.isPlaying ? null : (v) {
                   setState(() => _useSW = v);
                   widget.onSWDecoderChanged(v);
                 },
