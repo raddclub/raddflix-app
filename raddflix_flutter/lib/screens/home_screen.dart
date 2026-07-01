@@ -20,6 +20,7 @@ import '../widgets/simosa_card.dart';
 import '../core/debug/debug_logger.dart';
 import '../widgets/resume_fab.dart';
 import '../core/utils/anim_config.dart';
+import '../widgets/offline_banner.dart';
 import 'package:animations/animations.dart';
 import 'show_detail_screen.dart';
 
@@ -105,17 +106,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       // Phase 47 ANIM-47-03: content renders behind frosted nav on Tier 2+
       extendBody: true,
       appBar: _buildAppBar(user),
-      body: RefreshIndicator(
-        color: AppColors.primary,
-        backgroundColor: t.surface,
-        onRefresh: () {
-          HapticFeedback.lightImpact();
-          return ref.read(catalogProvider.notifier).syncFromServer();
-        },
-        child: catalog.isEmpty && catalog.status == CatalogStatus.syncing
-            ? _buildShimmer()
-            : _buildContent(catalog, animConfig: animConfig, canAnimate: canAnimate, canMorph: canMorph),
-      ),
+      body: Column(children: [
+        const OfflineBanner(),
+        Expanded(
+          child: RefreshIndicator(
+            color: AppColors.primary,
+            backgroundColor: t.surface,
+            onRefresh: () {
+              HapticFeedback.lightImpact();
+              return ref.read(catalogProvider.notifier).syncFromServer();
+            },
+            child: catalog.isEmpty && catalog.status == CatalogStatus.syncing
+                ? _buildShimmer()
+                : _buildContent(catalog, animConfig: animConfig, canAnimate: canAnimate, canMorph: canMorph),
+          ),
+        ),
+      ]),
       floatingActionButton: const ResumeFab(),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: RaddFlixBottomNav(
