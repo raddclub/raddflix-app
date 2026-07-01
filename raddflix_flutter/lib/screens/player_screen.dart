@@ -5030,6 +5030,11 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   List<Map<String,dynamic>> _onlineResults = [];
   bool _onlineLoading = false;
   String _onlineError = '';
+  // Subtitle search improvements
+  late TextEditingController _searchController;
+  String _selectedLangCode = 'urd,hin'; // default: Urdu + Hindi for Pakistani content
+  bool _hasSearched = false;
+  String? _osToken; // cached XML-RPC session token
   // Real subtitle style state
   int _subFontIdx = 0;  // 0=Sans Serif 1=Serif 2=Monospace 3=Casual
   double _subSize = 22.0;
@@ -5074,6 +5079,19 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     super.initState();
     _sync = widget.subSync;
     _speed = widget.subSpeed;
+    _searchController = TextEditingController(text: widget.title ?? '');
+    // Auto-search on open if we have a title and aren't viewing local files
+    if ((widget.title ?? '').isNotEmpty && !widget.isLocal) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _fetchOnlineSubtitles(context);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _showColorPicker(BuildContext ctx, List<Color> presets, Color current, ValueChanged<Color> onPick) {
@@ -5107,59 +5125,104 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   }
 
 
-  // Feature 21: Online subtitle search (stub — wire to opensubtitles.com)
-  Future<void> _fetchOnlineSubtitles(BuildContext ctx) async {
-    if (_onlineLoading) return;
-    if (mounted) setState(() { _onlineLoading = true; _onlineError = ''; _onlineResults = []; });
+  // ── Online subtitle search via OpenSubtitles XML-RPC (anonymous, no key needed) ──
+  // The old REST API (rest.opensubtitles.org) is dead as of 2023.
+  // The XML-RPC API (api.opensubtitles.org/xml-rpc) still accepts anonymous login.
+
+  /// Step 1: anonymous login → returns session token (cached in _osToken)
+  Future<String?> _osLogin() async {
+    if (_osToken != null) return _osToken;
+    const loginXml =
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<methodCall><methodName>LogIn</methodName><params>'
+        '<param><value><string></string></value></param>'
+        '<param><value><string></string></value></param>'
+        '<param><value><string>en</string></value></param>'
+        '<param><value><string>RaddFlix v1</string></value></param>'
+        '</params></methodCall>';
     try {
-      final query = Uri.encodeComponent(widget.title ?? '');
-      final uri = Uri.parse('https://rest.opensubtitles.org/search/query-$query/sublanguageid-eng,urd');
       final client = HttpClient();
-      final req = await client.getUrl(uri);
-      req.headers.set('X-User-Agent', 'TemporaryUserAgent');
-      req.headers.set('Accept', 'application/json');
-      final resp = await req.close().timeout(const Duration(seconds: 15));
+      final req = await client.postUrl(
+          Uri.parse('https://api.opensubtitles.org/xml-rpc'));
+      req.headers.set('Content-Type', 'text/xml; charset=utf-8');
+      req.headers.set('User-Agent', 'RaddFlix v1');
+      req.write(loginXml);
+      final resp = await req.close().timeout(const Duration(seconds: 12));
       final body = await resp.transform(const Utf8Decoder()).join();
       client.close();
-      if (resp.statusCode != 200) {
-        if (mounted) setState(() { _onlineLoading = false; _onlineError = 'Search unavailable (${resp.statusCode}).'; });
-        _showInfoSnackbar('Subtitle search unavailable. Try uploading a file directly.');
-        return;
-      }
-      if (resp.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(body) as List<dynamic>;
-        final results = data.take(15).map((e) => e as Map<String, dynamic>).toList();
-        if (mounted) setState(() { _onlineResults = results; _onlineLoading = false; });
-      } else {
-        if (mounted) setState(() { _onlineError = 'Server error ${resp.statusCode}'; _onlineLoading = false; });
-      }
-    } catch (e) {
-      if (mounted) setState(() { _onlineError = 'Search failed: $e'; _onlineLoading = false; });
-    }
+      final m = RegExp(r'<name>token</name>\s*<value><string>([^<]+)</string>')
+          .firstMatch(body);
+      _osToken = m?.group(1);
+      return _osToken;
+    } catch (_) { return null; }
   }
 
-  Future<void> _fetchSubtitlesInLanguage(BuildContext ctx, String langCode, String langName) async {
-    if (mounted) setState(() { _onlineLoading = true; _onlineError = ''; _onlineResults = []; _tab = 0; });
+  /// Extract all string-value members from an XML-RPC struct block
+  Map<String, String> _parseXmlRpcStruct(String block) {
+    final result = <String, String>{};
+    final members = RegExp(
+        r'<name>([^<]+)</name>\s*<value><string>([^<]*)</string>',
+        dotAll: true).allMatches(block);
+    for (final m in members) {
+      result[m.group(1)!] = m.group(2)!;
+    }
+    return result;
+  }
+
+  /// Step 2: search by query + language code
+  Future<void> _fetchOnlineSubtitles(BuildContext ctx) async {
+    if (_onlineLoading) return;
+    final query = _searchController.text.trim().isNotEmpty
+        ? _searchController.text.trim()
+        : (widget.title ?? '');
+    if (query.isEmpty) return;
+    if (mounted) setState(() {
+      _onlineLoading = true; _onlineError = ''; _onlineResults = []; _hasSearched = true;
+    });
     try {
-      final query = Uri.encodeComponent(widget.title ?? '');
-      final uri = Uri.parse('https://rest.opensubtitles.org/search/query-$query/sublanguageid-$langCode');
+      final token = await _osLogin();
+      if (token == null) {
+        if (mounted) setState(() { _onlineLoading = false; _onlineError = 'Could not connect to subtitle server. Try again.'; });
+        return;
+      }
+      final safeQuery = query.replaceAll('&', '&amp;').replaceAll('<', '&lt;');
+      final searchXml =
+          '<?xml version="1.0" encoding="utf-8"?>'
+          '<methodCall><methodName>SearchSubtitles</methodName><params>'
+          '<param><value><string>$token</string></value></param>'
+          '<param><value><array><data><value><struct>'
+          '<member><name>sublanguageid</name><value><string>$_selectedLangCode</string></value></member>'
+          '<member><name>query</name><value><string>$safeQuery</string></value></member>'
+          '</struct></value></data></array></value></param>'
+          '</params></methodCall>';
       final client = HttpClient();
-      final req = await client.getUrl(uri);
-      req.headers.set('X-User-Agent', 'TemporaryUserAgent');
-      req.headers.set('Accept', 'application/json');
-      final resp = await req.close().timeout(const Duration(seconds: 15));
+      final req = await client.postUrl(
+          Uri.parse('https://api.opensubtitles.org/xml-rpc'));
+      req.headers.set('Content-Type', 'text/xml; charset=utf-8');
+      req.headers.set('User-Agent', 'RaddFlix v1');
+      req.write(searchXml);
+      final resp = await req.close().timeout(const Duration(seconds: 20));
       final body = await resp.transform(const Utf8Decoder()).join();
       client.close();
-      if (resp.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(body) as List<dynamic>;
-        final results = data.take(10).map((e) => e as Map<String, dynamic>).toList();
-        if (mounted) setState(() { _onlineResults = results; _onlineLoading = false; });
-        if (mounted) _showInfoSnackbar('Found ${results.length} $langName subtitles');
-      } else {
-        if (mounted) setState(() { _onlineError = 'No $langName subtitles found (${resp.statusCode})'; _onlineLoading = false; });
+      // Check for fault
+      if (body.contains('<name>faultString</name>')) {
+        _osToken = null; // token may be expired, reset
+        if (mounted) setState(() { _onlineLoading = false; _onlineError = 'Search failed. Tap retry.'; });
+        return;
       }
+      // Split on struct boundaries and parse each subtitle entry
+      final structs = RegExp(r'<value><struct>(.*?)</struct></value>', dotAll: true)
+          .allMatches(body)
+          .map((m) => _parseXmlRpcStruct(m.group(1)!))
+          .where((s) => s.containsKey('SubFileName'))
+          .toList();
+      if (mounted) setState(() {
+        _onlineResults = structs.take(20).toList();
+        _onlineLoading = false;
+        if (structs.isEmpty) _onlineError = 'No subtitles found. Try a different title or language.';
+      });
     } catch (e) {
-      if (mounted) setState(() { _onlineError = 'Search failed: $e'; _onlineLoading = false; });
+      if (mounted) setState(() { _onlineLoading = false; _onlineError = 'Search failed: try again.'; });
     }
   }
 
@@ -5171,64 +5234,25 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     try {
       final client = HttpClient();
       final req = await client.getUrl(Uri.parse(link));
-      req.headers.set('X-User-Agent', 'TemporaryUserAgent');
+      req.headers.set('User-Agent', 'RaddFlix v1');
       final resp = await req.close().timeout(const Duration(seconds: 30));
       final bytesList = <List<int>>[];
       await for (final chunk in resp) { bytesList.add(chunk); }
       final bytes = bytesList.expand((e) => e).toList();
       client.close();
-      // The download is .gz — decode with zlib/gzip
       List<int> srtBytes;
-      try {
-        srtBytes = ZLibDecoder().convert(bytes);
-      } catch (_) {
-        srtBytes = bytes; // already plain SRT
-      }
+      try { srtBytes = ZLibDecoder().convert(bytes); }
+      catch (_) { srtBytes = bytes; }
       final dir = await getTemporaryDirectory();
-      final outPath = '${dir.path}/${fname.replaceAll('.gz', '')}';
+      final cleanName = fname.replaceAll('.gz', '');
+      final outPath = '\${dir.path}/\$cleanName';
       File(outPath).writeAsBytesSync(srtBytes);
       widget.onSubtitleFilePicked?.call(outPath);
       if (mounted) setState(() => _onlineLoading = false);
-      if (ctx.mounted) Navigator.of(ctx).pop();
-      if (mounted) _showInfoSnackbar('Subtitle loaded: ${fname.replaceAll('.gz', '')}');
+      if (mounted) _showInfoSnackbar('✓ Subtitle loaded: \$cleanName');
     } catch (e) {
-      if (mounted) setState(() { _onlineLoading = false; _onlineError = 'Download failed: $e'; });
+      if (mounted) setState(() { _onlineLoading = false; _onlineError = 'Download failed: try again.'; });
     }
-  }
-
-  // Feature 22: Subtitle translation language picker
-  void _showTranslationDialog(BuildContext ctx) {
-    const langs = ['Urdu', 'Hindi', 'Arabic', 'French', 'Spanish', 'German'];
-    showDialog(
-      context: ctx,
-      builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1C1C),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        title: const Text('Add Translation', style: TextStyle(color: Colors.white)),
-        content: SizedBox(
-          width: 220,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: langs.map((lang) => ListTile(
-              dense: true,
-              title: Text(lang, style: const TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.of(c).pop();
-                // Map lang name to ISO code for OpenSubtitles
-                const langMap = {
-                  'Urdu': 'urd', 'Hindi': 'hin', 'Arabic': 'ara',
-                  'French': 'fre', 'Spanish': 'spa', 'German': 'ger',
-                };
-                final code = langMap[lang] ?? 'eng';
-                _fetchSubtitlesInLanguage(ctx, code, lang);
-              },
-            )).toList(),
-          ),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.of(c).pop(),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white54)))],
-      ),
-    );
   }
 
   @override
@@ -5648,49 +5672,162 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                     contentPadding: EdgeInsets.zero,
                   ),
                 ],
-                if (_tab == 0) ...[
-                if (!widget.isLocal) GestureDetector(
-                  onTap: () => _showTranslationDialog(context),
-                  child: const Text('🌐  Find in another language',
-                      style: TextStyle(color: Color(0xFF4A9EFF), fontSize: 14,
-                          decoration: TextDecoration.underline,
-                          decorationColor: Color(0xFF4A9EFF))),
+                if (_tab == 0 && !widget.isLocal) ...[
+                // ── Online Subtitle Search ─────────────────────────────────
+                const Text('Search Online', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                // Search field
+                Row(children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'Enter title to search...',
+                        hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                        filled: true,
+                        fillColor: Colors.white10,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                        prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 18),
+                        suffixIcon: _searchController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, color: Colors.white38, size: 16),
+                                onPressed: () => setState(() => _searchController.clear()),
+                                padding: EdgeInsets.zero,
+                              )
+                            : null,
+                      ),
+                      onSubmitted: (_) => _fetchOnlineSubtitles(context),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _onlineLoading ? null : () => _fetchOnlineSubtitles(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _onlineLoading ? Colors.white12 : Colors.white24,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: _onlineLoading
+                          ? const SizedBox(width: 16, height: 16,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Text('Search', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 10),
+                // Language chips
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(children: [
+                    for (final lang in [
+                      ('🇵🇰 Urdu', 'urd'),
+                      ('🇮🇳 Hindi', 'hin'),
+                      ('🇵🇰+🇮🇳', 'urd,hin'),
+                      ('🇬🇧 English', 'eng'),
+                      ('🇸🇦 Arabic', 'ara'),
+                      ('🌍 All', ''),
+                    ])
+                      GestureDetector(
+                        onTap: () {
+                          setState(() => _selectedLangCode = lang.$2);
+                          _fetchOnlineSubtitles(context);
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: _selectedLangCode == lang.$2
+                                ? const Color(0xFF4A9EFF)
+                                : Colors.white12,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(lang.$1,
+                              style: TextStyle(
+                                color: _selectedLangCode == lang.$2 ? Colors.white : Colors.white60,
+                                fontSize: 12,
+                                fontWeight: _selectedLangCode == lang.$2
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              )),
+                        ),
+                      ),
+                  ]),
                 ),
                 const SizedBox(height: 12),
-                // Results / loading / error
-                if (_onlineLoading)
-                  const Center(child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: CircularProgressIndicator(color: Colors.white38, strokeWidth: 2),
-                  )),
-                if (!_onlineLoading && _onlineError.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(_onlineError, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
-                  ),
+                // Error state with retry
+                if (!_onlineLoading && _onlineError.isNotEmpty) ...[
+                  Row(children: [
+                    Expanded(child: Text(_onlineError,
+                        style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
+                    TextButton(
+                      onPressed: () => _fetchOnlineSubtitles(context),
+                      child: const Text('Retry', style: TextStyle(color: Color(0xFF4A9EFF), fontSize: 12)),
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
+                ],
+                // Idle state — not yet searched
+                if (!_hasSearched && !_onlineLoading && _onlineError.isEmpty)
+                  const Text('Auto-searching... or tap Search.',
+                      style: TextStyle(color: Colors.white38, fontSize: 12)),
+                // Results
                 if (!_onlineLoading && _onlineResults.isNotEmpty) ...[
-                  Text('${_onlineResults.length} subtitles found:', style: const TextStyle(color: Colors.white54, fontSize: 11)),
-                  const SizedBox(height: 6),
+                  Text('${_onlineResults.length} subtitles found:',
+                      style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                  const SizedBox(height: 8),
                   for (final r in _onlineResults)
                     GestureDetector(
                       onTap: () => _downloadOnlineSubtitle(context, r),
                       child: Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(8)),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2A2A2A),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white10),
+                        ),
                         child: Row(children: [
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text((r['SubFileName'] ?? '').replaceAll('.gz', ''),
-                                style: const TextStyle(color: Colors.white, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                            Text('${r['LanguageName'] ?? ''}  •  ↓ ${r['SubDownloadsCnt'] ?? '0'}  •  ⭐ ${r['SubRating'] ?? '-'}',
-                                style: const TextStyle(color: Colors.white38, fontSize: 10)),
-                          ])),
+                          Expanded(child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                (r['SubFileName'] ?? '').replaceAll('.gz', ''),
+                                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                                maxLines: 2, overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Row(children: [
+                                // Language badge
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF4A9EFF).withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    (r['LanguageName'] ?? r['SubLanguageID'] ?? '').toUpperCase(),
+                                    style: const TextStyle(color: Color(0xFF4A9EFF), fontSize: 9, fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '↓ ${r['SubDownloadsCnt'] ?? '0'}  •  ⭐ ${double.tryParse(r['SubRating'] ?? '0')?.toStringAsFixed(1) ?? '-'}',
+                                  style: const TextStyle(color: Colors.white38, fontSize: 10),
+                                ),
+                              ]),
+                            ],
+                          )),
                           const SizedBox(width: 8),
-                          const Icon(Icons.download_rounded, color: Colors.white38, size: 18),
+                          const Icon(Icons.download_rounded, color: Colors.white54, size: 20),
                         ]),
                       ),
                     ),
                 ],
+                const SizedBox(height: 8),
               ],
               // Customization tab (tab 5)
               if (_tab == 5) ...[
