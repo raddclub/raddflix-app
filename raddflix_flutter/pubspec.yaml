@@ -107,6 +107,9 @@ dependencies:
   flutter_colorpicker: ^1.1.0
   audio_session: ^0.1.21
 
+  # Phase 59: Android on-device TTS for AI dubbing
+  flutter_tts: ^4.0.2
+
   # IDEA-01: Universal Subtitle Hunter — ZIP archive extraction
   archive: ^3.4.0
 

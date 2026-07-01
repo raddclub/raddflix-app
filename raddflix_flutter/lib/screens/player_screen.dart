@@ -42,6 +42,8 @@ import '../core/player/voice_commands_service.dart';
 import '../core/services/usage_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/subscription_provider.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import '../core/player/subtitle_dubber.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Widget
@@ -207,6 +209,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Audio
   double _audioSync = 0.0;
   bool _useSWDecoder = false;
+
+  // ── AI Dub state (Phase 59) ──────────────────────────────────────────────
+  String? _dubbedWavPathUr;     // cached path for Urdu dub WAV
+  String? _dubbedWavPathHi;     // cached path for Hindi dub WAV
+  bool   _isDubMode    = false;
+  bool   _dubGenerating = false;
+  double _dubProgress  = 0.0;   // 0.0..1.0
+  int    _dubCurrentLine = 0;
+  int    _dubTotalLines  = 0;
+  String _dubActiveLang  = 'ur-PK';
+  String _dubStatusText  = '';
 
   // ── Real track getters — filter media_kit sentinel values ───────────────────
   // SubtitleTrack.no() has id='no'; AudioTrack.auto() has id='auto'.
@@ -1740,6 +1753,112 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  //  Phase 59 — AI Dub (Method 1: Android TTS + MPV karaoke filter)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<void> _startDubGeneration(String lang) async {
+    if (_currentSubFile == null) {
+      _showInfoSnackbar('Load an SRT subtitle file first');
+      return;
+    }
+    setState(() {
+      _dubGenerating  = true;
+      _isDubMode      = false;
+      _dubActiveLang  = lang;
+      _dubProgress    = 0.0;
+      _dubCurrentLine = 0;
+      _dubTotalLines  = 0;
+      _dubStatusText  = 'Reading subtitle file…';
+    });
+    try {
+      final srtContent = await File(_currentSubFile!).readAsString();
+      final entries    = SubtitleDubber.parseSrt(srtContent);
+      if (entries.isEmpty) {
+        if (mounted) setState(() { _dubGenerating = false; });
+        _showInfoSnackbar('No subtitle entries found in the file');
+        return;
+      }
+      setState(() { _dubTotalLines = entries.length; });
+      final cacheKey = '${_currentSubFile!.hashCode}_${lang.replaceAll('-', '')}';
+      final wavPath  = await SubtitleDubber.generateDub(
+        entries:       entries,
+        language:      lang,
+        totalDuration: _duration,
+        cacheKey:      cacheKey,
+        onProgress: (cur, total, status) {
+          if (mounted) setState(() {
+            _dubCurrentLine = cur;
+            _dubTotalLines  = total;
+            _dubProgress    = total > 0 ? cur / total : 0.0;
+            _dubStatusText  = status;
+          });
+        },
+      );
+      if (!mounted) return;
+      if (wavPath == null) {
+        setState(() { _dubGenerating = false; });
+        _showInfoSnackbar('Dub generation failed — is ${lang == 'ur-PK' ? 'Urdu' : 'Hindi'} TTS installed?');
+        return;
+      }
+      setState(() {
+        if (lang == 'ur-PK') _dubbedWavPathUr = wavPath;
+        else                  _dubbedWavPathHi = wavPath;
+        _dubGenerating = false;
+      });
+      _applyDubMode(lang);
+    } catch (e) {
+      if (mounted) setState(() { _dubGenerating = false; });
+      _showInfoSnackbar('Dub error: $e');
+    }
+  }
+
+  void _applyDubMode(String lang) {
+    final path = lang == 'ur-PK' ? _dubbedWavPathUr : _dubbedWavPathHi;
+    if (path == null) return;
+    setState(() { _isDubMode = true; _dubActiveLang = lang; });
+    // Load external dubbed WAV as aid=2
+    try { _np.setProperty('audio-file', path); } catch (_) {}
+    // After MPV registers the new track, apply lavfi-complex:
+    //   aid1 = original audio → karaoke filter (removes centre-panned dialogue ~65%)
+    //          then at 65% volume so music/SFX stay audible but voices are faint
+    //   aid2 = dubbed WAV → full volume
+    //   amix: both tracks mixed to output
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted || !_isDubMode) return;
+      try {
+        _np.setProperty('lavfi-complex',
+          '[aid1]pan=stereo|c0=0.5*c0-0.5*c1|c1=-0.5*c0+0.5*c1,'
+          'volume=0.65[bg];'
+          '[aid2]volume=1.5[fg];'
+          '[bg][fg]amix=inputs=2:normalize=0[ao]');
+      } catch (_) {}
+    });
+  }
+
+  void _disableDubMode() {
+    setState(() { _isDubMode = false; });
+    try { _np.setProperty('lavfi-complex', ''); } catch (_) {}
+    try { _np.setProperty('audio-file', '');    } catch (_) {}
+  }
+
+  Widget _buildDubProgressOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withOpacity(0.88),
+        child: Center(
+          child: _DubProgressCard(
+            lang:        _dubActiveLang,
+            progress:    _dubProgress,
+            currentLine: _dubCurrentLine,
+            totalLines:  _dubTotalLines,
+            statusText:  _dubStatusText,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   //  Gesture handlers
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1946,6 +2065,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
                 // 2. Lock overlay
                 if (_isLocked) _buildLockOverlay(),
+
+                // P59: AI Dub generation progress overlay
+                if (_dubGenerating) _buildDubProgressOverlay(),
 
                 // Voice command feedback badge
                 if (_voiceCommandsEnabled && _lastVoiceCmd.isNotEmpty)
@@ -3659,6 +3781,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
             }
           } catch (_) {}
         },
+        onDubRequested: _startDubGeneration,  // P59
       ));
     }
 
@@ -4994,6 +5117,7 @@ class _SubtitlePanel extends StatefulWidget {
   final VoidCallback onClose;
   final String? title;
   final void Function(String)? onSubtitleFilePicked;
+  final void Function(String lang)? onDubRequested; // P59
   // P57-02: embedded MKV subtitle tracks + P57-07: secondary (OST/signs) sub
   final List<SubtitleTrack> embeddedTracks;
   final SubtitleTrack? selectedSubtitle;
@@ -5012,6 +5136,7 @@ class _SubtitlePanel extends StatefulWidget {
     required this.onClose,
     this.title,
     this.onSubtitleFilePicked,
+    this.onDubRequested,
     this.embeddedTracks = const [],
     this.selectedSubtitle,
     this.selectedSecondSub,
@@ -5255,6 +5380,71 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     }
   }
 
+  // ── P59: AI Dub button section ─────────────────────────────────────────
+  List<Widget> _buildDubSection(BuildContext context) {
+    final hasDub = widget.onDubRequested != null;
+    return [
+      const SizedBox(height: 4),
+      Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+          ),
+          border: Border.all(color: const Color(0xFF4A9EFF).withOpacity(0.35), width: 1),
+        ),
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4A9EFF).withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text('AI', style: TextStyle(color: Color(0xFF4A9EFF),
+                    fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+              ),
+              const SizedBox(width: 8),
+              const Text('Auto Dubbing', style: TextStyle(color: Colors.white,
+                  fontSize: 14, fontWeight: FontWeight.w700)),
+            ]),
+            const SizedBox(height: 4),
+            const Text('Generates on-device voice dub from this subtitle',
+                style: TextStyle(color: Colors.white38, fontSize: 11)),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: _DubLangBtn(
+                flag: '🇵🇰', label: 'Urdu', sublabel: 'ur-PK',
+                color: const Color(0xFF00A651),
+                onTap: hasDub ? () => widget.onDubRequested!('ur-PK') : null,
+              )),
+              const SizedBox(width: 10),
+              Expanded(child: _DubLangBtn(
+                flag: '🇮🇳', label: 'Hindi', sublabel: 'hi-IN',
+                color: const Color(0xFFFF9933),
+                onTap: hasDub ? () => widget.onDubRequested!('hi-IN') : null,
+              )),
+            ]),
+            const SizedBox(height: 10),
+            const Row(children: [
+              Icon(Icons.info_outline_rounded, color: Colors.white24, size: 12),
+              SizedBox(width: 5),
+              Expanded(child: Text(
+                'Music + effects preserved via karaoke filter. 2-5 min first time.',
+                style: TextStyle(color: Colors.white24, fontSize: 10),
+              )),
+            ]),
+          ],
+        ),
+      ),
+      const SizedBox(height: 16),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -5427,6 +5617,9 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                 const SizedBox(height: 16),
                 const Divider(color: Colors.white12, height: 1),
                 const SizedBox(height: 12),
+
+                // ── P59: AI Dub button (only when an SRT file is loaded) ─
+                if (widget.currentFile != null && widget.onDubRequested != null) ..._buildDubSection(context),
               ],
 
               if (_tab == 2) ...[
@@ -7862,6 +8055,173 @@ class _SidebarCustomizerPanelState extends State<_SidebarCustomizerPanel> {
           ]),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  P59 — Dub language button
+// ─────────────────────────────────────────────────────────────────────────────
+class _DubLangBtn extends StatelessWidget {
+  final String flag;
+  final String label;
+  final String sublabel;
+  final Color  color;
+  final VoidCallback? onTap;
+  const _DubLangBtn({required this.flag, required this.label,
+      required this.sublabel, required this.color, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.14),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(0.40), width: 1),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(flag, style: const TextStyle(fontSize: 22)),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(color: Colors.white,
+              fontSize: 13, fontWeight: FontWeight.w700)),
+          Text(sublabel, style: TextStyle(color: color.withOpacity(0.8), fontSize: 10)),
+        ]),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  P59 — Dub progress card (shown as full-screen overlay during generation)
+// ─────────────────────────────────────────────────────────────────────────────
+class _DubProgressCard extends StatelessWidget {
+  final String lang;
+  final double progress;
+  final int    currentLine;
+  final int    totalLines;
+  final String statusText;
+
+  const _DubProgressCard({
+    required this.lang,
+    required this.progress,
+    required this.currentLine,
+    required this.totalLines,
+    required this.statusText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isUrdu   = lang == 'ur-PK';
+    final flag     = isUrdu ? '🇵🇰' : '🇮🇳';
+    final langName = isUrdu ? 'Urdu' : 'Hindi';
+    final barColor = isUrdu ? const Color(0xFF00A651) : const Color(0xFFFF9933);
+    final pct      = (progress * 100).round();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D1117),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white10, width: 1),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 40)],
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        // Flag + title
+        Text(flag, style: const TextStyle(fontSize: 48))
+            .animate(onPlay: (c) => c.repeat(reverse: true))
+            .scale(begin: const Offset(1,1), end: const Offset(1.08,1.08),
+                   duration: 900.ms, curve: Curves.easeInOut),
+        const SizedBox(height: 14),
+        Text('Generating $langName Dub',
+            style: const TextStyle(color: Colors.white,
+                fontSize: 18, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        const Text('Using on-device TTS · Music will be preserved',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white38, fontSize: 12)),
+        const SizedBox(height: 28),
+
+        // Animated waveform bars
+        const _WaveformBars(),
+        const SizedBox(height: 28),
+
+        // Progress bar
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 8,
+            backgroundColor: Colors.white12,
+            valueColor: AlwaysStoppedAnimation<Color>(barColor),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Percentage + line counter
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text('$pct%',
+              style: TextStyle(color: barColor,
+                  fontSize: 16, fontWeight: FontWeight.w800)),
+          Text(totalLines > 0 ? 'Line $currentLine of $totalLines' : statusText,
+              style: const TextStyle(color: Colors.white38, fontSize: 12)),
+        ]),
+        const SizedBox(height: 8),
+        Text(statusText,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white24, fontSize: 11)),
+      ]),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  P59 — Animated waveform bars
+// ─────────────────────────────────────────────────────────────────────────────
+class _WaveformBars extends StatelessWidget {
+  const _WaveformBars();
+
+  @override
+  Widget build(BuildContext context) {
+    const bars = 7;
+    const barW = 5.0;
+    const maxH = 36.0;
+    const minH = 8.0;
+    const barColor = Color(0xFF4A9EFF);
+    return SizedBox(
+      height: maxH,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: List.generate(bars, (i) {
+          final delay = Duration(milliseconds: i * 100);
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: Container(width: barW, height: minH,
+                    decoration: BoxDecoration(
+                      color: barColor.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(3),
+                    ))
+                .animate(onPlay: (c) => c.repeat(reverse: true), delay: delay)
+                .scaleY(begin: 1, end: maxH / minH,
+                        duration: 500.ms, curve: Curves.easeInOut,
+                        alignment: Alignment.bottomCenter)
+                .then()
+                .custom(
+                  duration: 0.ms,
+                  builder: (ctx, val, child) => ColorFiltered(
+                    colorFilter: ColorFilter.mode(
+                        barColor.withOpacity(0.4 + val * 0.5),
+                        BlendMode.srcATop),
+                    child: child,
+                  ),
+                ),
+          );
+        }),
+      ),
     );
   }
 }
