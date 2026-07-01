@@ -14,6 +14,7 @@
 // Audio sync = MPV audio-delay — 100% safe
 
 import 'dart:async';
+import 'package:file_picker/file_picker.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -5223,6 +5224,42 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                 const Text('Add Translation',
                     style: TextStyle(color: Color(0xFF4A9EFF), fontSize: 13)),
                 const SizedBox(height: 16),
+              ],
+
+              // ── Open tab: local file picker ──────────────────────────────────────
+              if (_tab == 0) ...[
+                GestureDetector(
+                  onTap: () async {
+                    final result = await FilePicker.platform.pickFiles(
+                      type: FileType.custom,
+                      allowedExtensions: ['srt', 'vtt', 'ass', 'ssa'],
+                    );
+                    if (result != null && result.files.single.path != null) {
+                      widget.onSubtitleFilePicked?.call(result.files.single.path!);
+                    }
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: const Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.folder_open_rounded, color: Colors.white70, size: 30),
+                      SizedBox(height: 8),
+                      Text('Open from device',
+                          style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                      SizedBox(height: 3),
+                      Text('SRT · VTT · ASS · SSA',
+                          style: TextStyle(color: Colors.white38, fontSize: 11)),
+                    ]),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Divider(color: Colors.white12, height: 1),
+                const SizedBox(height: 12),
               ],
 
               if (_tab == 2) ...[
