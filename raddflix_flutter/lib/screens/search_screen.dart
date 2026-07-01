@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../widgets/animated_empty_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -791,12 +792,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               shape: BoxShape.circle,
               border: Border.all(color: t.border),
             ),
-            child: Icon(
-              hasQuery
-                  ? Icons.search_off_rounded
-                  : Icons.filter_alt_off_rounded,
-              size: 36,
-              color: t.textMuted.withOpacity(0.6)),
+            child: hasQuery
+                ? Center(child: AnimatedSearchIcon(size: 44, color: t.textMuted.withOpacity(0.7)))
+                : Icon(Icons.filter_alt_off_rounded, size: 36, color: t.textMuted.withOpacity(0.6)),
           ),
           const SizedBox(height: 16),
           Text(
