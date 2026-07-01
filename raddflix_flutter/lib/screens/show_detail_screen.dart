@@ -338,17 +338,21 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     return user.subscription?.isActive == true; // fallback if provider hasn't loaded yet
   }
 
-  /// Shows a paywall snack-bar with a Subscribe action button.
-  /// Tapping Subscribe navigates to the subscription screen.
+  /// Shows a paywall snack-bar with an appropriate call-to-action.
+  /// Guests see "Create account" — they land on _GuestWarning in SubscriptionScreen.
+  /// Free registered users see "Subscribe" — they see the plan list.
   void _requireSub(BuildContext ctx) {
+    final isGuest = ref.read(authProvider).user?.isGuest == true;
     ScaffoldMessenger.of(ctx).showSnackBar(
       SnackBar(
-        content: const Text('Subscribe to access paid content'),
+        content: Text(isGuest
+            ? 'Create a free account to access this content'
+            : 'Subscribe to access paid content'),
         backgroundColor: AppColors.primary,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 4),
         action: SnackBarAction(
-          label: 'Subscribe',
+          label: isGuest ? 'Sign In' : 'Subscribe',
           textColor: Colors.white,
           onPressed: () => Navigator.of(ctx).pushNamed(AppRoutes.subscription),
         ),
@@ -1072,6 +1076,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                               index: realIdx,
                               label: label,
                               isFree: isFree,
+                              isLocked: !isFree && !_isSubscribed,
                               quality: quality,
                               progress: progress,
                               isNowPlaying: realIdx == _nowPlayingIdx,
@@ -1156,6 +1161,9 @@ class _EpisodeTile extends StatelessWidget {
   final int index;
   final String label;
   final bool isFree;
+  /// True when the episode is paid AND the current user has no active subscription.
+  /// Shows a gold PREMIUM lock badge so users know before tapping.
+  final bool isLocked;
   final String? quality;
   final double progress;
   final bool isNowPlaying;
@@ -1168,6 +1176,7 @@ class _EpisodeTile extends StatelessWidget {
     required this.index,
     required this.label,
     required this.isFree,
+    this.isLocked = false,
     required this.progress,
     this.quality,
     required this.onTap,
@@ -1313,6 +1322,23 @@ class _EpisodeTile extends StatelessWidget {
                                 child: Text('FREE', style: TextStyle(
                                   color: Colors.green, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5,
                                 )),
+                              )
+                            else if (isLocked)
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFB300).withOpacity(0.13),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFFFFB300).withOpacity(0.4)),
+                                ),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  const Icon(Icons.lock_rounded, size: 8, color: Color(0xFFFFB300)),
+                                  const SizedBox(width: 3),
+                                  const Text('PREMIUM', style: TextStyle(
+                                    color: Color(0xFFFFB300), fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5,
+                                  )),
+                                ]),
                               ),
                             if (quality != null && quality!.isNotEmpty && !isNowPlaying && !isDownloaded)
                               Container(
