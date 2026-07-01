@@ -130,3 +130,14 @@
 
 ## Open Tasks
 **None.** Phases 41–49 fully implemented. Animation roadmap complete. 🎉
+
+---
+
+## ⏳ IN PROGRESS — Phase 56: Subscription Tier Badge
+
+| ID | Task | Status |
+|----|------|--------|
+| ANIM-56-01 | TierBadge widget — animated glow pulse (FREE/STANDARD/PREMIUM) | ⏳ |
+| ANIM-56-02 | profile_screen: replace static plan badge with TierBadge | ⏳ |
+| ANIM-56-03 | subscription_screen _ActivePlanCard: add TierBadge beside plan name | ⏳ |
+| ANIM-56-04 | Tier gate: basic+ glows; potato static; respects disableAnimations | ⏳ |
