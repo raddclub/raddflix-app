@@ -56,7 +56,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         setState(() { _loading = false; });
         return;
       }
-      setState(() { _error = AuthErrors.login(e.toString()); _loading = false; });
+      if (mounted) setState(() { _error = AuthErrors.login(e.toString()); _loading = false; });
     }
   }
 
@@ -66,7 +66,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref.read(authProvider.notifier).continueAsGuest();
       if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.home);
     } catch (e) {
-      setState(() { _error = 'Cannot connect. Check your internet.'; _loading = false; });
+      if (mounted) setState(() { _error = 'Cannot connect. Check your internet.'; _loading = false; });
     }
   }
 
@@ -281,7 +281,7 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
       await AuthApi.requestDeviceSwitchOtp(phone: _phoneCtrl.text.trim());
       setState(() { _otpSent = true; _otpLoading = false; });
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _otpError = e.toString().contains('Unimplemented')
             ? 'OTP not yet configured' : 'Failed to send OTP. Try again.';
         _otpLoading = false;
@@ -306,7 +306,7 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
         Navigator.of(context).pushReplacementNamed(AppRoutes.home);
       }
     } catch (e) {
-      setState(() {
+      if (mounted) setState(() {
         _otpError = e.toString().contains('Unimplemented')
             ? 'OTP not yet configured' : 'Invalid or expired OTP.';
         _otpLoading = false;
