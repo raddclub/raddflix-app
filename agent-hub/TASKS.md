@@ -340,3 +340,17 @@ own margin via `secondary-sub-pos` (MPV property). Default is top-of-screen, whi
 - [ ] Secondary subtitle (OST) shows at top while primary shows at bottom (P57-07)
 - [ ] Setting secondary-sid to 'no' removes top subtitle (P57-07)
 - [ ] APK builds clean, no compile errors
+
+---
+
+## ✅ Phase 58 — Online Subtitle Search Overhaul · Done 2026-07-01
+
+| ID | Issue | Status |
+|----|-------|--------|
+| P58-01 | Dead REST API → replaced with OpenSubtitles XML-RPC (anonymous, no key) | ✅ DONE |
+| P58-02 | No manual search field → text field pre-filled with title, editable | ✅ DONE |
+| P58-03 | Language hidden in dialog → inline chips: 🇵🇰 Urdu, 🇮🇳 Hindi, 🇵🇰+🇮🇳, English, Arabic, All | ✅ DONE |
+| P58-04 | No auto-search → auto-triggers on panel open if title available | ✅ DONE |
+| P58-05 | Basic result cards → language badge, rating, download count, 2-line filename | ✅ DONE |
+| P58-06 | No error recovery → Retry button on error | ✅ DONE |
+| P58-07 | No dispose → TextEditingController.dispose() added | ✅ DONE |
