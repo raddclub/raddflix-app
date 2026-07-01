@@ -640,3 +640,12 @@ Phase 46: Typewriter & animated text
 Phase 47: Frosted glass bottom nav
 Phase 48: 3D tilt hero banner
 Phase 49: Ambient particle background
+
+---
+
+## Session 2026-07-01 — Phase 56 Subscription Tier Badge
+
+- NEW FILE: lib/widgets/tier_badge.dart — ConsumerStatefulWidget, SingleTickerProviderStateMixin; AnimationController 1600ms repeat+reverse; tier-specific aura colors: FREE=grey(0xFF9E9E9E), STANDARD=blue(0xFF2196F3), PREMIUM=gold(0xFFFFB300); RepaintBoundary wraps AnimatedBuilder BoxShadow glow; canStagger gate (basic/API23+); respects disableAnimations
+- profile_screen: import tier_badge.dart; replaced 21-line static Builder badge with TierBadge(plan: _remotePlan ?? user?.planName ?? 'FREE') + same .animate().fadeIn() wrapper
+- subscription_screen: import tier_badge.dart; _ActivePlanCard plan name Text wrapped in Row with Flexible + TierBadge(plan: status.planName)
+- Commit: a34b5f9
