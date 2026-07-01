@@ -11,6 +11,7 @@ import '../services/local_media_service.dart';
 import 'local_folder_screen.dart';
 import '../widgets/bottom_nav.dart';
 import '../core/theme/radd_theme.dart';
+import '../widgets/animated_empty_icons.dart';
 import '../core/db/local_db.dart';
 import '../services/vault_service.dart';
 
@@ -637,7 +638,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
       Container(width: 84, height: 84,
         decoration: BoxDecoration(shape: BoxShape.circle, color: t.surface,
             border: Border.all(color: t.border, width: 1.5)),
-        child: Icon(Icons.video_library_outlined, color: t.textMuted, size: 40)),
+        child: Center(child: AnimatedWifiOffIcon(size: 46, color: t.textMuted))),
       const SizedBox(height: 18),
       Text(_searchQuery.isNotEmpty ? 'No folders match "$_searchQuery"' : 'No media files found',
           style: TextStyle(color: t.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
