@@ -146,7 +146,10 @@ class SubtitleDubber {
     if (!dubDir.existsSync()) dubDir.createSync(recursive: true);
 
     final outPath = '${dubDir.path}/dub_$cacheKey.wav';
-    if (File(outPath).existsSync()) return outPath;   // cache hit
+    // Fix #12: verify the cached file is non-empty. A zero-byte file left by
+    // a previous crash would be returned as a valid hit and play as silence.
+    final cachedFile = File(outPath);
+    if (cachedFile.existsSync() && cachedFile.lengthSync() > 100) return outPath; // cache hit
 
     final tts = FlutterTts();
     await tts.setLanguage(language);
@@ -184,13 +187,22 @@ class SubtitleDubber {
     if (clips.isEmpty) return null;
 
     // ── Phase 2: assemble PCM buffer ─────────────────────────────────────────
-    onProgress(entries.length, entries.length, 'Assembling audio...');
+    // Fix #23: report phase-2 start; without this the progress bar stalls at
+    // 100% during PCM assembly which can take several seconds on long content.
+    onProgress(clips.length, entries.length, 'Assembling ${clips.length}/${entries.length} clips...');
     final bytesPerSec = sampleRate * channels * (bitsPerSample ~/ 8);
     final minBytes    = clips.isNotEmpty
         ? ((clips.last.end.inMilliseconds / 1000.0 + 1.0) * bytesPerSec).ceil()
         : 0;
     final totalBytes  = math.max(
       (totalDuration.inMilliseconds / 1000.0 * bytesPerSec).ceil(), minBytes);
+    // Fix #2: OOM guard — a 2-hr film @ 22 kHz/16-bit/mono is ~350 MB, enough
+    // to crash entry-level 1-2 GB devices. Bail cleanly instead of OOM-killing.
+    const maxDubBytes = 200 * 1024 * 1024; // 200 MB ceiling
+    if (totalBytes > maxDubBytes) {
+      onProgress(0, entries.length, 'Error: audio too large to dub on this device (>200 MB)');
+      return null;
+    }
     final buf = Uint8List(totalBytes); // silence = 0x00
 
     for (final c in clips) {
