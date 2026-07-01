@@ -722,3 +722,21 @@ Phase 49: Ambient particle background
 - Subtitle z-order vs controls: MPV sub-margin-y bumped +140px (base 100→240) when controls visible
 - Called on every _toggleControls, _scheduleHide, _enterImmersive, _exitImmersive
 - 240px clears the full bottom area (seek bar ~32px + transport ~48px + padding + SafeArea) on all devices
+
+---
+
+## Session 2026-07-01 — Player Audit: Dual Subtitles, Track Bugs, EAC3, MKV
+
+- **Task:** Research + audit session (no code pushed). Findings written to TASKS.md Phase 57.
+- **kisskh.la analysis:** Dual subtitle system uses MPV `secondary-sid` property. OST/signs track rendered at top natively by MPV. Can replicate exactly in our player.
+- **Bugs found (7):**
+  - P57-01: Fake subtitle track bug (SubtitleTrack.no() always present → button always active)
+  - P57-02: No embedded MKV subtitle track selector in SubtitlePanel (AudioPanel has it, SubtitlePanel doesn't)
+  - P57-03: Fake audio track bug (AudioTrack.auto() makes length always >= 1 even for no-audio files)
+  - P57-04: SW decoder toggle silently does nothing during playback (guard exists but UI doesn't reflect it)
+  - P57-05: EAC3/DTS no auto-fallback to SW decoder (user must know to toggle manually)
+  - P57-06: No codec label shown in AudioPanel track list
+  - P57-07: No secondary-sid / dual subtitle system (missing feature, OST/signs use case)
+- **EAC3 status:** Supported by media_kit_libs_android_video (full ffmpeg) — no new package needed. Issue is auto-detection + fallback.
+- **MKV status:** Format fully supported. Auto subtitle file detection works (MPV sub-auto=fuzzy default). Issue is UI track selector missing.
+- **Commit:** N/A (audit only)
