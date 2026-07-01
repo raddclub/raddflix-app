@@ -670,3 +670,37 @@ Phase 49: Ambient particle background
 - AUD-02: _requireSub() — guests now see "Create a free account to access this content" / "Sign In" action; free registered users still see "Subscribe to access paid content" / "Subscribe" action
 - AUD-03: episode builder now passes isLocked: !isFree && !_isSubscribed to each _EpisodeTile
 - Commit: 336dbb5
+
+---
+
+## Session 2026-07-01 — 5 Feature Batch
+
+### F01 — Settings screen (1859ec1)
+- Added: Auto-play Next Episode toggle (jm_autoplay_next)
+- Added: Download on WiFi Only toggle (jm_wifi_only)
+- Added: Data Saver toggle (jm_data_saver)
+- Added: Refresh Catalog tile → calls catalogProvider.syncFromServer()
+- Added: Contact Support → opens WhatsApp wa.me link
+- Added: Manage Downloads → navigates to /downloads
+- Kept: Subtitles On By Default, Clear Image Cache, About section
+
+### F02 — Search history UI (a6d938b)
+- _loadHistory/_saveToHistory/_removeFromHistory/_clearHistory already existed
+- Added: _buildHistorySection() widget — history chips with × remove + Clear all
+- Shown when !showResultsArea && _history.isNotEmpty (above discover content)
+
+### F03 — Subtitle file picker (2562512)
+- Added FilePicker.platform.pickFiles() button in SubtitlePanel _tab==0 (Open tab)
+- Supports .srt, .vtt, .ass, .ssa local files
+- Calls widget.onSubtitleFilePicked → _np.setProperty('sub-file', path)
+- Added import 'package:file_picker/file_picker.dart' to player_screen.dart
+
+### F04 — In-app update check (d2f8146)
+- _checkForUpdates() reads /api/config min_version_code on every app start
+- Compares to PackageInfo.buildNumber; shows non-dismissable _UpdateDialog if behind
+- Dialog has "Update Now" button → launchUrl(update_url)
+
+### F05 — Continue Watching hero shortcut (d2f8146)
+- _heroItems() inserts catalog.recentlyWatched.first at hero position 0
+- _HeroCard reads catalogProvider to detect isResume
+- Button shows "Resume" (play_circle_filled) vs "Watch Now" (play_arrow)
