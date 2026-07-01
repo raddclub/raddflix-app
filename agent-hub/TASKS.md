@@ -151,3 +151,15 @@
 | AUD-01 | _EpisodeTile: add isLocked field + PREMIUM lock badge for paid episodes | ✅ DONE |
 | AUD-02 | _requireSub: show different SnackBar message for guests vs free users | ✅ DONE |
 | AUD-03 | Episode builder: pass isLocked = !isFree && !_isSubscribed to each tile | ✅ DONE |
+
+---
+
+## ⏳ IN PROGRESS — 5 Feature Batch
+
+| ID | Feature | File |
+|----|---------|------|
+| F01 | Settings screen (WiFi-only, auto-play, sync, WhatsApp support) | settings_screen.dart |
+| F02 | Search history UI (recent chips + clear all) | search_screen.dart |
+| F03 | Subtitle local file picker (SRT/VTT/ASS/SSA) | player_screen.dart |
+| F04 | In-app update check (/api/config min_version_code) | home_screen.dart |
+| F05 | Continue Watching hero shortcut (resume item first + Resume button) | home_screen.dart |
