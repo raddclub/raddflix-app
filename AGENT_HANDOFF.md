@@ -21,7 +21,14 @@
 6. **share_plus kept in pubspec** — `debug_logger.dart` uses `Share` API to export crash logs; only the UI share button was removed
 
 ### Open Tasks
-None — awaiting next task from user.
+**Phase 57 — Player Audit Fixes** (7 tasks, see agent-hub/TASKS.md)
+- P57-01: Fix fake subtitle track bug (SubtitleTrack.no() sentinel)
+- P57-02: Add embedded subtitle track selector to SubtitlePanel
+- P57-03: Fix fake audio track bug (AudioTrack.auto() sentinel)
+- P57-04: Disable SW decoder toggle during playback (add disabled state + tooltip)
+- P57-05: EAC3/DTS auto SW decoder fallback
+- P57-06: Codec badge in AudioPanel track list
+- P57-07: Dual subtitle / secondary-sid system (OST/signs at top)
 
 ### Known Data Issues
 - DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 — upload to JazzDrive + sync still needed
