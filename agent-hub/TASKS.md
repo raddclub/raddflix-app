@@ -354,3 +354,14 @@ own margin via `secondary-sub-pos` (MPV property). Default is top-of-screen, whi
 | P58-05 | Basic result cards → language badge, rating, download count, 2-line filename | ✅ DONE |
 | P58-06 | No error recovery → Retry button on error | ✅ DONE |
 | P58-07 | No dispose → TextEditingController.dispose() added | ✅ DONE |
+
+---
+
+## ✅ Phase 60 — Remove Dub / Dub Active Indicator in Audio Panel · 803f09a
+
+| ID | Task | Status |
+|----|------|--------|
+| P60-01 | Add `isDubMode`, `dubActiveLang`, `onRemoveDub` props to `_AudioTrackPanel` | ✅ DONE |
+| P60-02 | Dub Active indicator card (green border, flag + lang label) in Audio Panel ListView | ✅ DONE |
+| P60-03 | "Remove" button in indicator card — calls `_disableDubMode()` + closes panel | ✅ DONE |
+| P60-04 | Wire new props in `_openAudioPanel()` (passes live `_isDubMode` / `_dubActiveLang`) | ✅ DONE |
