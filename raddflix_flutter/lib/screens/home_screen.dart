@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -107,7 +108,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       body: RefreshIndicator(
         color: AppColors.primary,
         backgroundColor: t.surface,
-        onRefresh: () => ref.read(catalogProvider.notifier).syncFromServer(),
+        onRefresh: () {
+          HapticFeedback.lightImpact();
+          return ref.read(catalogProvider.notifier).syncFromServer();
+        },
         child: catalog.isEmpty && catalog.status == CatalogStatus.syncing
             ? _buildShimmer()
             : _buildContent(catalog, animConfig: animConfig, canAnimate: canAnimate, canMorph: canMorph),

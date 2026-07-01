@@ -671,7 +671,10 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                           maxBlur: animConfig.tierLevel >= 2 ? 22.0 : 14.0,
                           borderRadius: BorderRadius.circular(14),
                           child: ElevatedButton.icon(
-                            onPressed: _playMovie,
+                            onPressed: () {
+                              HapticFeedback.mediumImpact();
+                              _playMovie();
+                            },
                             icon: const Icon(Icons.play_arrow_rounded, size: 22),
                             label: const Text('Play Now', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                             style: ElevatedButton.styleFrom(
@@ -766,6 +769,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                     final inWatchlist = ref2.watch(watchlistProvider).isInWatchlist(widget.item.id);
                     return GestureDetector(
                       onTap: () async {
+                        HapticFeedback.selectionClick();
                         await ref2.read(watchlistProvider.notifier).toggle(widget.item);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -832,6 +836,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                           children: [
                             ElevatedButton.icon(
                               onPressed: () {
+                                HapticFeedback.mediumImpact();
                                 // Find the index of this episode in _currentEpisodes
                                 final currentIdx = _currentEpisodes.indexWhere(
                                   (e) => e['file_id']?.toString() == fid);
@@ -1365,7 +1370,10 @@ class _EpisodeTile extends StatelessWidget {
               child: SizedBox(
                 height: 40,
                 child: ElevatedButton.icon(
-                  onPressed: onTap,
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    onTap();
+                  },
                   icon: const Icon(Icons.play_arrow_rounded, size: 18),
                   label: const Text('Play', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(

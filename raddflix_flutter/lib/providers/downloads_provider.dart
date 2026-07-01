@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/db/local_db.dart';
 import '../core/download/download_service.dart';
@@ -175,6 +176,7 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
     final prog0 = Map<String, double>.from(state.activeProgress)..[fileId] = 0.0;
     state = state.copyWith(activeProgress: prog0, clearQuotaError: true);
     _downloadStartMs[fileId] = DateTime.now().millisecondsSinceEpoch;
+    HapticFeedback.lightImpact(); // Phase 50: download start feedback
 
     bool succeeded = false;
 
@@ -225,6 +227,7 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
 
     // Notify the UI via recentlyCompleted (triggers SnackBar in DownloadsScreen).
     if (succeeded) {
+      HapticFeedback.mediumImpact(); // Phase 50: download complete feedback
       state = state.copyWith(recentlyCompleted: [...state.recentlyCompleted, titleText]);
     }
   }
