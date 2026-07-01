@@ -167,7 +167,7 @@
 
 ---
 
-## ⏳ Phase 57 — Player Audit: Dual Subtitles, Track Bugs, EAC3, MKV · Planned 2026-07-01
+## ✅ Phase 57 — Player Audit: Dual Subtitles, Track Bugs, EAC3, MKV · Done 2026-07-01
 
 > **Research + audit session findings. Fix in next session.**
 > Source: User request — kisskh.la dual-subtitle analysis + full player track/codec audit.
@@ -192,13 +192,13 @@ effect: primary dialogue at bottom, secondary OST/signs track at top, simultaneo
 
 | ID | Severity | Issue | Status |
 |----|----------|-------|--------|
-| P57-01 | 🔴 HIGH | **Fake subtitle track bug** — `_subtitleTracks.isNotEmpty` is always `true` because media_kit always includes `SubtitleTrack.no()` in the list. Subtitle button shows active even for videos with zero embedded subs. | ⏳ OPEN |
-| P57-02 | 🔴 HIGH | **No embedded MKV subtitle track selector** — `_SubtitlePanel` has NO way to switch between multiple embedded subtitle tracks (e.g. English, Arabic, Urdu tracks in an MKV). `_AudioTrackPanel` has this; `_SubtitlePanel` is missing the equivalent. | ⏳ OPEN |
-| P57-03 | 🟠 MED | **Fake audio track bug** — `_audioTracks.length > 1` check: for single-audio-track MKV, media_kit includes `AudioTrack.auto()` + 1 real track = length 2. Audio button shows when there's nothing to switch to. Fix: count only real tracks, filter out the auto() sentinel. | ⏳ OPEN |
-| P57-04 | 🟠 MED | **SW decoder toggle broken during playback** — The "Use SW audio decoder" switch in AudioPanel has a guard that only applies when `_player.state.duration == Duration.zero` (video not started yet). During playback it silently does nothing. UI should be grayed out + show "Restart video to apply" tooltip. | ⏳ OPEN |
-| P57-05 | 🟠 MED | **EAC3/DTS no auto-fallback** — EAC3 IS supported by media_kit_libs_android_video (full ffmpeg). But Android MediaCodec (hwdec=auto-safe) fails silently on EAC3/DTS on many MediaTek devices. User must manually toggle SW decoder without knowing when. Fix: after playback starts, read `audio-codec` via `_np.getProperty('audio-codec')` → if EAC3/DTS/AC3, auto-switch to SW decoder + show SnackBar: "EAC3 audio detected — switched to software decoder". | ⏳ OPEN |
-| P57-06 | 🟡 LOW | **No codec label in AudioPanel** — Track list shows language/title but not codec (EAC3, AAC, AC3, Opus…). Users don't know what they're selecting. Add small grey codec badge from `audio-codec` property. | ⏳ OPEN |
-| P57-07 | ✨ FEAT | **Dual subtitle / Secondary-SID system (kisskh.la feature)** — Add `secondary-sid` support so user can pick a second subtitle track displayed at the TOP of video (OST/signs) while primary dialogue shows at bottom. MPV supports this natively. Add "Secondary Subtitle" row in SubtitlePanel after the primary track list. | ⏳ OPEN |
+| P57-01 | 🔴 HIGH | **Fake subtitle track bug** — `_subtitleTracks.isNotEmpty` is always `true` because media_kit always includes `SubtitleTrack.no()` in the list. Subtitle button shows active even for videos with zero embedded subs. | ✅ DONE |
+| P57-02 | 🔴 HIGH | **No embedded MKV subtitle track selector** — `_SubtitlePanel` has NO way to switch between multiple embedded subtitle tracks (e.g. English, Arabic, Urdu tracks in an MKV). `_AudioTrackPanel` has this; `_SubtitlePanel` is missing the equivalent. | ✅ DONE |
+| P57-03 | 🟠 MED | **Fake audio track bug** — `_audioTracks.length > 1` check: for single-audio-track MKV, media_kit includes `AudioTrack.auto()` + 1 real track = length 2. Audio button shows when there's nothing to switch to. Fix: count only real tracks, filter out the auto() sentinel. | ✅ DONE |
+| P57-04 | 🟠 MED | **SW decoder toggle broken during playback** — The "Use SW audio decoder" switch in AudioPanel has a guard that only applies when `_player.state.duration == Duration.zero` (video not started yet). During playback it silently does nothing. UI should be grayed out + show "Restart video to apply" tooltip. | ✅ DONE |
+| P57-05 | 🟠 MED | **EAC3/DTS no auto-fallback** — EAC3 IS supported by media_kit_libs_android_video (full ffmpeg). But Android MediaCodec (hwdec=auto-safe) fails silently on EAC3/DTS on many MediaTek devices. User must manually toggle SW decoder without knowing when. Fix: after playback starts, read `audio-codec` via `_np.getProperty('audio-codec')` → if EAC3/DTS/AC3, auto-switch to SW decoder + show SnackBar: "EAC3 audio detected — switched to software decoder". | ✅ DONE |
+| P57-06 | 🟡 LOW | **No codec label in AudioPanel** — Track list shows language/title but not codec (EAC3, AAC, AC3, Opus…). Users don't know what they're selecting. Add small grey codec badge from `audio-codec` property. | ✅ DONE |
+| P57-07 | ✨ FEAT | **Dual subtitle / Secondary-SID system (kisskh.la feature)** — Add `secondary-sid` support so user can pick a second subtitle track displayed at the TOP of video (OST/signs) while primary dialogue shows at bottom. MPV supports this natively. Add "Secondary Subtitle" row in SubtitlePanel after the primary track list. | ✅ DONE |
 
 ---
 
