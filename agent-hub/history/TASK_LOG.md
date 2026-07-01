@@ -606,3 +606,15 @@ Agents follow the example literally — so until the example shows validatePatch
 - home_screen slivers: SliverToBoxAdapter(72) appended after existing 24px bottom sliver (ANIM-47-04)
 - ANIM-47-05 deferred: no measurable repaint issue with BouncingScrollPhysics
 - Commit: af27e1a
+
+---
+
+## Session 2026-06-30 — Phase 48 3D Tilt Hero Banner
+
+- _HeroCard converted from StatelessWidget → ConsumerStatefulWidget (_HeroCardState with SingleTickerProviderStateMixin)
+- Added AnimationController _floatCtrl (3200ms); _tiltX (±0.025 rad), _tiltY (±0.015 rad) with easeInOut curves
+- shouldFloat = animConfig.canStagger && !MediaQuery.disableAnimations; starts/stops controller in build()
+- When shouldFloat: AnimatedBuilder wraps card in Transform with Matrix4 perspective (entry 3,2 = 0.001) + rotateX/Y
+- final item = widget.item shorthand in build() + _buildPosterImage() avoids renaming all item. references
+- ANIM-48-01: sensors_plus gyroscope deferred (needs pubspec edit + lock regen, risky without flutter pub get)
+- Commit: a8d4323
