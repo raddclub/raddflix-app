@@ -163,3 +163,180 @@
 | F03 | Subtitle local file picker (SRT/VTT/ASS/SSA) | player_screen.dart |
 | F04 | In-app update check (/api/config min_version_code) | home_screen.dart |
 | F05 | Continue Watching hero shortcut (resume item first + Resume button) | home_screen.dart |
+
+
+---
+
+## ⏳ Phase 57 — Player Audit: Dual Subtitles, Track Bugs, EAC3, MKV · Planned 2026-07-01
+
+> **Research + audit session findings. Fix in next session.**
+> Source: User request — kisskh.la dual-subtitle analysis + full player track/codec audit.
+
+### 🎯 What is the kisskh.la dual-subtitle system?
+
+kisskh.la shows **two subtitle tracks simultaneously**:
+- **Bottom** — regular dialogue subtitles (primary)
+- **Top** — OST lyrics, song titles, character names, location cards, on-screen sign translations (secondary)
+
+Their web player loads two separate subtitle files and overlays them using WebVTT position cues (or
+CSS positioning). When you download the video and play locally in MX Player, the OST/signs track
+is a **separate file** that was never downloaded — only the dialogue .srt was saved. That's why it
+disappears in MX Player.
+
+**MPV natively supports this via `secondary-sid` property.** Our player can show the exact same
+effect: primary dialogue at bottom, secondary OST/signs track at top, simultaneously.
+
+---
+
+### Findings — Bugs & Missing Features
+
+| ID | Severity | Issue | Status |
+|----|----------|-------|--------|
+| P57-01 | 🔴 HIGH | **Fake subtitle track bug** — `_subtitleTracks.isNotEmpty` is always `true` because media_kit always includes `SubtitleTrack.no()` in the list. Subtitle button shows active even for videos with zero embedded subs. | ⏳ OPEN |
+| P57-02 | 🔴 HIGH | **No embedded MKV subtitle track selector** — `_SubtitlePanel` has NO way to switch between multiple embedded subtitle tracks (e.g. English, Arabic, Urdu tracks in an MKV). `_AudioTrackPanel` has this; `_SubtitlePanel` is missing the equivalent. | ⏳ OPEN |
+| P57-03 | 🟠 MED | **Fake audio track bug** — `_audioTracks.length > 1` check: for single-audio-track MKV, media_kit includes `AudioTrack.auto()` + 1 real track = length 2. Audio button shows when there's nothing to switch to. Fix: count only real tracks, filter out the auto() sentinel. | ⏳ OPEN |
+| P57-04 | 🟠 MED | **SW decoder toggle broken during playback** — The "Use SW audio decoder" switch in AudioPanel has a guard that only applies when `_player.state.duration == Duration.zero` (video not started yet). During playback it silently does nothing. UI should be grayed out + show "Restart video to apply" tooltip. | ⏳ OPEN |
+| P57-05 | 🟠 MED | **EAC3/DTS no auto-fallback** — EAC3 IS supported by media_kit_libs_android_video (full ffmpeg). But Android MediaCodec (hwdec=auto-safe) fails silently on EAC3/DTS on many MediaTek devices. User must manually toggle SW decoder without knowing when. Fix: after playback starts, read `audio-codec` via `_np.getProperty('audio-codec')` → if EAC3/DTS/AC3, auto-switch to SW decoder + show SnackBar: "EAC3 audio detected — switched to software decoder". | ⏳ OPEN |
+| P57-06 | 🟡 LOW | **No codec label in AudioPanel** — Track list shows language/title but not codec (EAC3, AAC, AC3, Opus…). Users don't know what they're selecting. Add small grey codec badge from `audio-codec` property. | ⏳ OPEN |
+| P57-07 | ✨ FEAT | **Dual subtitle / Secondary-SID system (kisskh.la feature)** — Add `secondary-sid` support so user can pick a second subtitle track displayed at the TOP of video (OST/signs) while primary dialogue shows at bottom. MPV supports this natively. Add "Secondary Subtitle" row in SubtitlePanel after the primary track list. | ⏳ OPEN |
+
+---
+
+### Implementation Plan — Phase 57
+
+#### TASK-57-01 — Fix subtitle track visibility (P57-01)
+
+**File:** `player_screen.dart`
+
+**Problem:** `SubtitleTrack.no()` is always in `_subtitleTracks`, so the subtitle button is always active.
+
+**Fix:** Replace the raw list with a filtered getter:
+```dart
+// Add getter near top of _PlayerScreenState:
+List<SubtitleTrack> get _realSubtitleTracks =>
+    _subtitleTracks.where((t) => t.id != null).toList();
+```
+Then replace all 4 usages of `_subtitleTracks.isNotEmpty` with `_realSubtitleTracks.isNotEmpty`.
+
+The `active:` / `available:` in sidebar and icon toggle both use this check.
+
+---
+
+#### TASK-57-02 — Add embedded subtitle track selector to SubtitlePanel (P57-02)
+
+**File:** `player_screen.dart`
+
+**Problem:** SubtitlePanel has no track switcher for embedded MKV subs.
+
+**Fix:**
+1. Add `tracks`, `selectedSubtitle`, `onSubtitleTrackSelected` params to `_SubtitlePanel` (mirror AudioPanel)
+2. In `_SubtitlePanelState` build(), add a new header section at top of "Open" tab (tab index 0):
+   - "Embedded Tracks" heading (only shown when `widget.tracks.isNotEmpty`)
+   - RadioListTile for each real SubtitleTrack (language ?? title ?? "Track N")
+   - "None" option at end
+3. In `_openSubtitlePanel()`, pass `tracks: _realSubtitleTracks`, `selectedSubtitle: _selectedSubtitle`, `onSubtitleTrackSelected: (t) { setState(() => _selectedSubtitle = t); if (t != null) _player.setSubtitleTrack(t); else _np.setProperty('sid', 'no'); }`
+
+---
+
+#### TASK-57-03 — Fix fake audio track (P57-03)
+
+**File:** `player_screen.dart`
+
+**Fix:** Add getter:
+```dart
+List<AudioTrack> get _realAudioTracks =>
+    _audioTracks.where((t) => t.id != null).toList();
+```
+Replace `_audioTracks.length > 1` (3 usages) with `_realAudioTracks.length > 1`.
+Pass `tracks: _realAudioTracks` to AudioPanel instead of `_audioTracks`.
+
+---
+
+#### TASK-57-04 — Disable SW decoder toggle during playback (P57-04)
+
+**File:** `player_screen.dart` → `_AudioTrackPanelState`
+
+**Fix:** Pass a `bool isPlaying` param to `_AudioTrackPanel`. In the SW decoder `SwitchListTile`:
+```dart
+SwitchListTile(
+  title: const Text('Use SW audio decoder', ...),
+  subtitle: widget.isPlaying
+      ? const Text('Stop video to apply', style: TextStyle(color: Colors.orange, fontSize: 11))
+      : null,
+  value: _useSW,
+  onChanged: widget.isPlaying ? null : (v) { ... }, // null = disabled
+  ...
+)
+```
+
+---
+
+#### TASK-57-05 — EAC3/DTS auto SW fallback (P57-05)
+
+**File:** `player_screen.dart`
+
+**Fix:** In `_player.stream.tracks.listen` callback (after tracks populate), schedule a 1-second delayed check:
+```dart
+Future.delayed(const Duration(seconds: 1), () async {
+  if (!mounted) return;
+  try {
+    final codec = await _np.getProperty('audio-codec-name');
+    if (['eac3','ac3','dts','dts-hd','truehd','mlp'].contains(codec?.toLowerCase())) {
+      if (!_useSWDecoder) {
+        _np.setProperty('hwdec', 'no'); // force SW
+        setState(() => _useSWDecoder = true);
+        _showInfoSnackbar('EAC3/DTS detected — using SW audio decoder');
+      }
+    }
+  } catch (_) {}
+});
+```
+Note: Use `audio-codec-name` (short name) not `audio-codec` (full name with profile).
+
+---
+
+#### TASK-57-06 — Codec badge in AudioPanel track list (P57-06)
+
+**File:** `player_screen.dart` → `_AudioTrackPanelState`
+
+**Fix:** The track label already shows language + title. Append codec as a small grey tag:
+Pass `List<String?> codecs` (length = tracks.length) into AudioPanel. In player, populate after track load via repeated `getProperty('audio-codec-name')` calls per track id.
+OR simpler: just read the CURRENT codec once and show it as a badge only on the selected/active track. Less complex, still useful.
+
+---
+
+#### TASK-57-07 — Dual subtitle / Secondary-SID (kisskh.la feature) (P57-07)
+
+**File:** `player_screen.dart`
+
+**New state vars:**
+```dart
+SubtitleTrack? _selectedSecondSub;
+bool _secondSubEnabled = false;
+```
+
+**SubtitlePanel changes:** After the primary subtitle track list, add:
+- Divider + "Secondary Subtitle (OST / Signs)" heading
+- "OFF" option + real subtitle track list (same `_realSubtitleTracks` list)
+- When user picks one: `_np.setProperty('secondary-sid', track.id.toString())`
+- When user picks OFF: `_np.setProperty('secondary-sid', 'no')`
+
+**MPV behaviour:** Secondary track auto-renders at top of video. No extra Flutter widget needed —
+MPV renders it natively above the primary subtitle.
+
+**Note:** Secondary subtitle respects `sub-margin-y` for the primary track but secondary sub has its
+own margin via `secondary-sub-pos` (MPV property). Default is top-of-screen, which is correct.
+
+---
+
+### 🧪 Testing Checklist (for implementing agent)
+
+- [ ] Video with NO subtitles → subtitle button grayed out (P57-01)
+- [ ] Video with NO multi-audio → audio button grayed out (P57-03)
+- [ ] MKV with 3 subtitle tracks → all 3 appear in SubtitlePanel, switching works (P57-02)
+- [ ] MKV with EAC3 audio → SW decoder auto-enables + snackbar shows (P57-05)
+- [ ] AAC audio → SW decoder does NOT auto-enable (P57-05)
+- [ ] SW decoder toggle grayed out during playback (P57-04)
+- [ ] Secondary subtitle (OST) shows at top while primary shows at bottom (P57-07)
+- [ ] Setting secondary-sid to 'no' removes top subtitle (P57-07)
+- [ ] APK builds clean, no compile errors
