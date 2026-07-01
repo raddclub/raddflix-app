@@ -11,6 +11,7 @@ import '../providers/auth_provider.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/radd_text_field.dart';
 import 'tid_status_screen.dart';
+import '../widgets/tier_badge.dart';
 
 // ── Payment method model ──────────────────────────────────────────────────────
 class _PayMethod {
@@ -357,9 +358,13 @@ class _ActivePlanCard extends StatelessWidget {
                 color: AppColors.success, size: 20))),
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Active: ${status.planName}',
-                style: TextStyle(color: t.textPrimary,
-                    fontSize: 15, fontWeight: FontWeight.w700)),
+            Row(children: [
+              Flexible(child: Text('Active: ${status.planName}',
+                  style: TextStyle(color: t.textPrimary,
+                      fontSize: 15, fontWeight: FontWeight.w700))),
+              const SizedBox(width: 8),
+              TierBadge(plan: status.planName),
+            ]),
             if (status.expiryLabel != null)
               Text('Renews ${status.expiryLabel}',
                   style: TextStyle(color: t.textMuted, fontSize: 12)),
