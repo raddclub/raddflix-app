@@ -377,3 +377,29 @@ flutter_tts 4.2.5 (Phase 59) uses Kotlin 2.2.x stdlib (metadata 2.2.0). Bumped `
 ## ✅ Build Fix — minSdkVersion 24 · 98323a8
 
 flutter_tts 4.2.5 declares minSdkVersion 24 in its AndroidManifest. Bumped project minSdkVersion 21 → 24 in `android/app/build.gradle`. Android 5/6 (<2% of Pakistani market) dropped; Android 7.0+ (API 24+) supported.
+
+---
+
+## ✅ Full-App Bug & Logic Audit Fix Batch — 2026-07-01
+
+Applied fixes for 15 verified issues across 7 files:
+
+| # | File | Fix |
+|---|------|-----|
+| #1 | player_screen.dart | `unobserveProperty('log-message')` in dispose() — memory/crash leak |
+| #6 | player_screen.dart | Voice commands stub — now shows "coming soon" snackbar |
+| #24 | player_screen.dart | Silence-skip log filter tightened (prevent false-positive seeks) |
+| #3 | debug_diagnostics_screen.dart | `_tlTimer` now cancelled in dispose() |
+| #7 | login_screen.dart | `_login()` catch — mounted guard added |
+| #8 | login_screen.dart | `_guest()` catch — mounted guard added |
+| #20 | login_screen.dart | OTP request+verify catches — mounted guards added |
+| #14 | show_detail_screen.dart | `_playEpisode()` setState — mounted guard added |
+| #9 | search_screen.dart | `_SnippetText` RegExp made static class field |
+| #10 | search_screen.dart | `_computeGenres` RegExp constant-ified |
+| #2 | subtitle_dubber.dart | OOM guard — bail if PCM buffer > 200 MB |
+| #11 | subtitle_dubber.dart | Silent catch now logs errors via print |
+| #12 | subtitle_dubber.dart | Cache hit now verifies file size > 100 bytes |
+| #23 | subtitle_dubber.dart | Phase-2 PCM assembly now reports progress |
+| #22 | pubspec.yaml | flutter_tts pinned to `>=4.2.5 <5.0.0` |
+
+Not fixed (safe by design or require backend work): #4 (isActive — gates work via subscription.isActive), #5 (Watch Party backend not implemented), #13 (subtitle_dubber clip collision — cacheKey already includes lang), #15 (download cancel map — Dart event loop is single-threaded), #16 (AudioTrackPanel reactivity — low impact), #17 (_checkForUpdates — already has internal try/catch), #18 (debug auto-scroll UX), #19 (broadcast StreamControllers — intentional singleton design), #21 (profile multi-setState — no crash risk).
