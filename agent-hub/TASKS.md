@@ -365,3 +365,9 @@ own margin via `secondary-sub-pos` (MPV property). Default is top-of-screen, whi
 | P60-02 | Dub Active indicator card (green border, flag + lang label) in Audio Panel ListView | ✅ DONE |
 | P60-03 | "Remove" button in indicator card — calls `_disableDubMode()` + closes panel | ✅ DONE |
 | P60-04 | Wire new props in `_openAudioPanel()` (passes live `_isDubMode` / `_dubActiveLang`) | ✅ DONE |
+
+---
+
+## ✅ Build Fix — Kotlin 2.2.0 · a8e5bf1
+
+flutter_tts 4.2.5 (Phase 59) uses Kotlin 2.2.x stdlib (metadata 2.2.0). Bumped `ext.kotlin_version` in `android/build.gradle` from 1.9.20 → 2.2.0. Pre-existing failure since Phase 59; fixed alongside P60 build.
