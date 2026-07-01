@@ -1,11 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
+import '../core/constants.dart' show AppRoutes;
 import '../models/catalog_item.dart';
+import '../providers/watchlist_provider.dart';
 
 class ContentCard extends StatelessWidget {
   final CatalogItem item;
@@ -22,7 +25,9 @@ class ContentCard extends StatelessWidget {
     final t = RaddTheme.of(context);
     return _PressableCard(
       onTap: onTap ?? () => _onTap(context),
-      onLongPress: onLongPress ?? () => _showQuickView(context),
+      onLongPressStart: onLongPress != null
+          ? (_) => onLongPress!()
+          : (details) => _showQuickActions(context, details.globalPosition),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -160,6 +165,71 @@ class ContentCard extends StatelessWidget {
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (_) => _DetailSheet(item: item),
+      );
+    }
+
+    // Phase 55: long-press card context menu — compact quick-action popup
+    // anchored to the press point (Play / Watchlist toggle / More Info),
+    // instead of jumping straight to the full quick-view sheet.
+    void _showQuickActions(BuildContext context, Offset globalPosition) {
+      HapticFeedback.mediumImpact();
+      final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+      final screenSize = overlay.size;
+      final consumerContainer = ProviderScope.containerOf(context, listen: false);
+      final isInWatchlist = consumerContainer.read(watchlistProvider).isInWatchlist(item.id);
+
+      showMenu<String>(
+        context: context,
+        position: RelativeRect.fromLTRB(
+          globalPosition.dx, globalPosition.dy,
+          screenSize.width - globalPosition.dx,
+          screenSize.height - globalPosition.dy,
+        ),
+        color: RaddTheme.of(context).surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          side: BorderSide(color: RaddTheme.of(context).border),
+        ),
+        elevation: 12,
+        items: [
+          _quickActionItem('play', Icons.play_arrow_rounded, 'Play', context),
+          _quickActionItem(
+            'watchlist',
+            isInWatchlist ? Icons.bookmark_remove_rounded : Icons.bookmark_add_rounded,
+            isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist',
+            context,
+          ),
+          _quickActionItem('info', Icons.info_outline_rounded, 'More Info', context),
+        ],
+      ).then((action) {
+        if (action == null) return;
+        HapticFeedback.selectionClick();
+        switch (action) {
+          case 'play':
+            _onTap(context);
+            break;
+          case 'watchlist':
+            consumerContainer.read(watchlistProvider.notifier).toggle(item);
+            break;
+          case 'info':
+            _showQuickView(context);
+            break;
+        }
+      });
+    }
+
+    PopupMenuItem<String> _quickActionItem(
+        String value, IconData icon, String label, BuildContext context) {
+      final t = RaddTheme.of(context);
+      return PopupMenuItem<String>(
+        value: value,
+        height: 44,
+        child: Row(children: [
+          Icon(icon, size: 18, color: t.textPrimary),
+          const SizedBox(width: 12),
+          Text(label, style: TextStyle(
+              color: t.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+        ]),
       );
     }
 
@@ -643,8 +713,8 @@ class _UploadingBadgeState extends State<_UploadingBadge>
 class _PressableCard extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
-  const _PressableCard({required this.child, this.onTap, this.onLongPress});
+  final void Function(LongPressStartDetails)? onLongPressStart;
+  const _PressableCard({required this.child, this.onTap, this.onLongPressStart});
   @override
   State<_PressableCard> createState() => _PressableCardState();
 }
@@ -662,7 +732,7 @@ class _PressableCardState extends State<_PressableCard> {
         HapticFeedback.selectionClick();
         widget.onTap?.call();
       },
-      onLongPress: widget.onLongPress,
+      onLongPressStart: widget.onLongPressStart,
       child: AnimatedScale(
         scale: _pressed ? 0.92 : 1.0,
         duration: const Duration(milliseconds: 100),
