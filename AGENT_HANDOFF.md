@@ -1,6 +1,6 @@
 # RaddFlix Agent Handoff
 
-## Current State (2026-06-29)
+## Current State (2026-07-01)
 
 ### Oracle
 - Flask: RUNNING ✅ healthz: {"ok":true,"version":"3.0.0"}
@@ -20,8 +20,13 @@
 5. **Theme picker cut off fixed** — `profile_screen.dart`: isScrollControlled:true + DraggableScrollableSheet; all 10 themes visible
 6. **share_plus kept in pubspec** — `debug_logger.dart` uses `Share` API to export crash logs; only the UI share button was removed
 
+### What was added in Phase 60 (2026-07-01)
+1. **Dub Active indicator** — `_AudioTrackPanel` now shows a green-bordered card at the top of its list when `_isDubMode == true`, displaying the active language flag + label
+2. **Remove Dub button** — single tap in the Audio Panel calls `_disableDubMode()` and dismisses the panel — no need to reopen the subtitle/dub panel
+3. **New props** — `isDubMode`, `dubActiveLang`, `onRemoveDub` added to `_AudioTrackPanel` (all optional / have defaults)
+
 ### Open Tasks
-None — Phase 57 complete. Awaiting next task from user.
+None — Phase 60 complete. Awaiting next task from user.
 
 ### Known Data Issues
 - DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 — upload to JazzDrive + sync still needed
