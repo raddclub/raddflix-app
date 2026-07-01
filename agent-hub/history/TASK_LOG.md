@@ -768,3 +768,15 @@ Phase 49: Ambient particle background
 - TextEditingController.dispose() added
 - Token cached in `_osToken` — only one login per panel open
 - Commit: feat(player): subtitle search overhaul
+
+---
+
+## Session 2026-07-01 — Phase 60: Remove Dub / Dub Active Indicator in Audio Panel
+
+- **Task:** Add a "Dub Active" indicator and "Remove Dub" toggle to the Audio Track Panel so users can see and turn off dubbed mode without reopening the subtitle/dub panel.
+- **Files changed:** `raddflix_flutter/lib/screens/player_screen.dart`
+- **Patches:**
+  1. Added `isDubMode`, `dubActiveLang`, `onRemoveDub` fields + constructor params to `_AudioTrackPanel`
+  2. Inserted green-bordered "Dub Active" indicator card (with flag label + Remove button) at top of Audio Track Panel ListView when dub is on
+  3. Wired new props in `_openAudioPanel()` — passes live `_isDubMode` / `_dubActiveLang` and a callback that calls `_disableDubMode()` + `Navigator.pop()`
+- **Commit:** 803f09a
