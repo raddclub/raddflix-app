@@ -632,14 +632,58 @@ class _HeroSpotlightState extends State<_HeroSpotlight> {
   }
 }
 
-class _HeroCard extends StatelessWidget {
+// Phase 48 ANIM-48-04: _HeroCard → ConsumerStatefulWidget with 3D auto-float tilt
+// Real gyroscope (sensors_plus, ANIM-48-01) deferred — requires pubspec.yaml package add.
+// Auto-float is the accepted Tier-2 fallback per spec and works for all tiers.
+class _HeroCard extends ConsumerStatefulWidget {
   final CatalogItem item;
   const _HeroCard({required this.item});
 
   @override
+  ConsumerState<_HeroCard> createState() => _HeroCardState();
+}
+
+class _HeroCardState extends ConsumerState<_HeroCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _floatCtrl;
+  late final Animation<double> _tiltX;
+  late final Animation<double> _tiltY;
+
+  @override
+  void initState() {
+    super.initState();
+    // 3200ms sine-wave gives a slow, dreamy float without visual fatigue
+    _floatCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3200),
+    );
+    _tiltX = Tween<double>(begin: -0.025, end: 0.025)
+        .animate(CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut));
+    _tiltY = Tween<double>(begin: 0.015, end: -0.015)
+        .animate(CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    // ANIM-48-05: always dispose — sensor/controller leaks drain battery
+    _floatCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return GestureDetector(
+    // Shorthand so every `item.` reference below works unchanged (was a field in StatelessWidget)
+    final item       = widget.item;
+    final t          = RaddTheme.of(context);
+    final animConfig = ref.watch(animConfigProvider);
+    // Phase 48: Tier 1+ and animations-enabled → start float; otherwise stop
+    final shouldFloat = animConfig.canStagger &&
+        !MediaQuery.of(context).disableAnimations;
+    if (shouldFloat && !_floatCtrl.isAnimating) _floatCtrl.repeat(reverse: true);
+    else if (!shouldFloat && _floatCtrl.isAnimating) _floatCtrl.stop();
+
+    // Build the card widget (identical to old StatelessWidget.build, no renames needed)
+    final card = GestureDetector(
       onTap: () {
         DebugLogger.logTap('Home', 'heroCard', 'title="${item.title}" id=${item.id}');
         Navigator.of(context).pushNamed(AppRoutes.showDetail, arguments: item);
@@ -743,9 +787,24 @@ class _HeroCard extends StatelessWidget {
         ),
       ),
     );
+    // Phase 48: wrap card in 3D Transform with perspective depth (ANIM-48-02/03)
+    if (!shouldFloat) return card;
+    return AnimatedBuilder(
+      animation: _floatCtrl,
+      builder: (_, child) => Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.identity()
+          ..setEntry(3, 2, 0.001) // perspective — needed for rotateX/Y to appear 3D
+          ..rotateX(_tiltX.value) // pitch tilt  ±1.43°
+          ..rotateY(_tiltY.value), // yaw tilt   ±0.86°
+        child: child,
+      ),
+      child: card,
+    );
   }
 
   Widget _buildPosterImage() {
+    final item = widget.item; // Phase 48: shorthand; was a direct field in StatelessWidget
     final placeholder = DecoratedBox(
       decoration: const BoxDecoration(color: AppColors.card),
       child: const Center(child: Icon(Icons.movie_outlined, color: AppColors.textMuted, size: 48)),
