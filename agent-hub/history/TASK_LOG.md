@@ -740,3 +740,17 @@ Phase 49: Ambient particle background
 - **EAC3 status:** Supported by media_kit_libs_android_video (full ffmpeg) — no new package needed. Issue is auto-detection + fallback.
 - **MKV status:** Format fully supported. Auto subtitle file detection works (MPV sub-auto=fuzzy default). Issue is UI track selector missing.
 - **Commit:** N/A (audit only)
+
+---
+
+## Session 2026-07-01 — Phase 57 Implementation
+
+- **Commit:** fix(player): Phase 57 — 7 bugs fixed in player_screen.dart (+165 lines)
+- **P57-01 ✅** Fake subtitle track bug: added `_realSubtitleTracks` getter filtering `SubtitleTrack.no()` sentinel. Replaced in sidebar + top bar.
+- **P57-02 ✅** Embedded MKV subtitle selector: added RadioListTile section in SubtitlePanel Open tab with all embedded tracks + Off option.
+- **P57-03 ✅** Fake audio track bug: added `_realAudioTracks` getter filtering `AudioTrack.auto()` sentinel. Replaced in sidebar + top bar + AudioPanel call.
+- **P57-04 ✅** SW decoder toggle disabled during playback: grayed out SwitchListTile with "Stop playback to apply" subtitle.
+- **P57-05 ✅** EAC3/DTS auto SW fallback: after tracks load, delay 1s, read `audio-codec-name`, auto-enable SW decoder + snackbar if EAC3/DTS/AC3/TrueHD.
+- **P57-06 ✅** Codec badge in AudioPanel: active track shows codec name (e.g. EAC3) in small grey badge.
+- **P57-07 ✅** Dual subtitle / OST system: secondary-sid selector in SubtitlePanel Open tab. Blue radio buttons, sets MPV `secondary-sid` property. Shows OST/signs at top while dialogue at bottom.
+- **EAC3 confirmed:** will play in app without any changes — mpv decodes audio via libavcodec (ffmpeg), not Android MediaCodec.
