@@ -110,7 +110,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         onRefresh: () => ref.read(catalogProvider.notifier).syncFromServer(),
         child: catalog.isEmpty && catalog.status == CatalogStatus.syncing
             ? _buildShimmer()
-            : _buildContent(catalog),
+            : _buildContent(catalog, animConfig: animConfig, canAnimate: canAnimate, canMorph: canMorph),
       ),
       floatingActionButton: const ResumeFab(),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
@@ -208,7 +208,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _buildContent(CatalogState catalog) {
+  Widget _buildContent(CatalogState catalog, {required AnimConfig animConfig, required bool canAnimate, required bool canMorph}) {
     final filtered = _filtered(catalog);
     return CustomScrollView(
       controller: _scroll,

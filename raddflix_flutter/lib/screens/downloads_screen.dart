@@ -945,7 +945,7 @@ class _DownloadCardState extends State<_DownloadCard> {
               Positioned(top: 6, right: 6, child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                 decoration: BoxDecoration(
-                    color: Colors.black65,
+                    color: Colors.black.withOpacity(0.65),
                     borderRadius: BorderRadius.circular(4)),
                 child: Text('#${widget.queuePosition}',
                     style: const TextStyle(color: Colors.white,
