@@ -1,50 +1,13 @@
-/// Phase 56 — Subscription tier badge with glow.
-/// Reusable pill badge for FREE / STANDARD / PREMIUM plans, used on the
-/// profile screen and the subscription/paywall screen so the tier styling
-/// stays consistent everywhere it appears.
-library tier_badge;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../core/constants.dart';
 import '../core/utils/anim_config.dart';
 
-enum SubscriptionTier { free, standard, premium }
-
-SubscriptionTier tierFromPlanName(String planName) {
-  final p = planName.toUpperCase();
-  if (p.contains('PREMIUM') || p.contains('GOLD')) return SubscriptionTier.premium;
-  if (p.contains('STANDARD') || p.contains('SILVER')) return SubscriptionTier.standard;
-  return SubscriptionTier.free;
-}
-
-class _TierStyle {
-  final String emoji;
-  final Color color;
-  final List<Color> glowGradient;
-  const _TierStyle(this.emoji, this.color, this.glowGradient);
-}
-
-const _tierStyles = {
-  SubscriptionTier.free: _TierStyle('🎬', Color(0xFF9CA3AF), [Color(0xFF9CA3AF), Color(0xFF9CA3AF)]),
-  SubscriptionTier.standard: _TierStyle('⭐', Color(0xFF3B82F6), [Color(0xFF3B82F6), Color(0xFF60A5FA)]),
-  SubscriptionTier.premium: _TierStyle('👑', Color(0xFFFBBF24), [Color(0xFFFBBF24), Color(0xFFF59E0B)]),
-};
-
-/// Pill badge showing the user's current plan name with a tier-appropriate
-/// glow. Premium/Standard get a slow breathing glow pulse on Tier 1+ devices;
-/// Free and low-end/reduced-motion devices get a static soft glow.
+/// Animated glowing tier badge — FREE (grey) / STANDARD (blue) / PREMIUM (gold).
+/// Tier-gated: basic+ (API 23+) gets a pulsing glow; potato gets a static badge.
+/// Respects MediaQuery.disableAnimations.
 class TierBadge extends ConsumerStatefulWidget {
-  final String planName;
-  final double fontSize;
-  final EdgeInsets padding;
-
-  const TierBadge({
-    super.key,
-    required this.planName,
-    this.fontSize = 11,
-    this.padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-  });
+  final String plan;
+  const TierBadge({super.key, required this.plan});
 
   @override
   ConsumerState<TierBadge> createState() => _TierBadgeState();
@@ -52,76 +15,98 @@ class TierBadge extends ConsumerStatefulWidget {
 
 class _TierBadgeState extends ConsumerState<TierBadge>
     with SingleTickerProviderStateMixin {
-  AnimationController? _ctrl;
+  late AnimationController _ctrl;
+
+  static Color _auraFor(String plan) {
+    final p = plan.toUpperCase();
+    if (p.contains('PREMIUM') || p.contains('GOLD')) return const Color(0xFFFFB300);
+    if (p.contains('STANDARD') || p.contains('SILVER')) return const Color(0xFF2196F3);
+    return const Color(0xFF9E9E9E);
+  }
+
+  static String _labelFor(String plan) {
+    final p = plan.toUpperCase();
+    if (p.contains('PREMIUM') || p.contains('GOLD')) return 'PREMIUM';
+    if (p.contains('STANDARD') || p.contains('SILVER')) return 'STANDARD';
+    return 'FREE';
+  }
+
+  static String _emojiFor(String plan) {
+    final p = plan.toUpperCase();
+    if (p.contains('PREMIUM') || p.contains('GOLD')) return '\u{1F451}';
+    if (p.contains('STANDARD') || p.contains('SILVER')) return '\u2B50';
+    return '\u{1F3AC}';
+  }
 
   @override
   void initState() {
     super.initState();
-    final tier = tierFromPlanName(widget.planName);
-    if (tier != SubscriptionTier.free) {
-      final animConfig = ref.read(animConfigProvider);
-      final shouldPulse = animConfig.tierLevel >= AnimTier.basic.index &&
-          animConfig.shouldAnimate(context);
-      if (shouldPulse) {
-        _ctrl = AnimationController(
-            vsync: this, duration: const Duration(milliseconds: 2000))
-          ..repeat(reverse: true);
-      }
-    }
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
-    _ctrl?.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final tier = tierFromPlanName(widget.planName);
-    final style = _tierStyles[tier]!;
+    final aura  = _auraFor(widget.plan);
+    final label = _labelFor(widget.plan);
+    final emoji = _emojiFor(widget.plan);
 
-    Widget buildPill(double glowT) {
-      final glowOpacity = 0.10 + glowT * 0.18;
-      final glowBlur = 10.0 + glowT * 10.0;
+    final animConfig   = ref.read(animConfigProvider);
+    final disableAnim  = MediaQuery.of(context).disableAnimations;
+    final shouldGlow   = animConfig.canStagger && !disableAnim;
+
+    final inner = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+      decoration: BoxDecoration(
+        color: aura.withOpacity(0.13),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: aura.withOpacity(0.55), width: 1.2),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(emoji, style: const TextStyle(fontSize: 13)),
+        const SizedBox(width: 5),
+        Text(label, style: TextStyle(
+            color: aura, fontSize: 11,
+            fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+      ]),
+    );
+
+    if (!shouldGlow) {
       return Container(
-        padding: widget.padding,
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [
-            style.color.withOpacity(0.14),
-            style.color.withOpacity(0.06),
-          ]),
-          borderRadius: BorderRadius.circular(AppRadius.round),
-          border: Border.all(color: style.color.withOpacity(0.4)),
-          boxShadow: [
-            BoxShadow(
-              color: style.color.withOpacity(glowOpacity),
-              blurRadius: glowBlur,
-              spreadRadius: tier == SubscriptionTier.premium ? 1.5 : 0.5,
-            ),
-          ],
+          borderRadius: BorderRadius.circular(32),
+          boxShadow: [BoxShadow(color: aura.withOpacity(0.18), blurRadius: 10)],
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(style.emoji, style: TextStyle(fontSize: widget.fontSize + 2)),
-          const SizedBox(width: 5),
-          Text(
-            widget.planName.toUpperCase(),
-            style: TextStyle(
-              color: style.color,
-              fontSize: widget.fontSize,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.5,
-            ),
-          ),
-        ]),
+        child: inner,
       );
     }
 
-    if (_ctrl == null) return buildPill(0.5);
-
-    return AnimatedBuilder(
-      animation: _ctrl!,
-      builder: (_, __) => buildPill(_ctrl!.value),
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (_, child) => Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color: aura.withOpacity(0.10 + 0.22 * _ctrl.value),
+                blurRadius: 6 + 16 * _ctrl.value,
+                spreadRadius: _ctrl.value * 2.5,
+              ),
+            ],
+          ),
+          child: child,
+        ),
+        child: inner,
+      ),
     );
   }
 }
