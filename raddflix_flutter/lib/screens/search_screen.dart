@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/animated_empty_icons.dart';
+import '../widgets/offline_banner.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -313,6 +314,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       backgroundColor: t.bg,
       body: SafeArea(
         child: Column(children: [
+          const OfflineBanner(),
           _buildSearchBar(),
           _buildTypeRow(),
           AnimatedSize(
