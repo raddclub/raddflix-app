@@ -241,7 +241,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     // Mark this episode as "now playing" so the tile shows the indicator;
     // clear it when the player route pops (user exits or PiP closes).
     DebugLogger.logFeature('PlayEpisode', 'id=${widget.item.id} title="${widget.item.title}" epIdx=$episodeIndex S$_selectedSeason fileId=${fileId ?? "null"} local=${localPath != null}');
-    setState(() => _nowPlayingIdx = episodeIndex);
+    if (mounted) setState(() => _nowPlayingIdx = episodeIndex); // Fix #14: guard against back-navigation race
     await Navigator.pushNamed(
       context,
       AppRoutes.player,
