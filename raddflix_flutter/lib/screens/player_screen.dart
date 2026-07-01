@@ -20,6 +20,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -2176,7 +2177,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
 
-                // 8. Double-tap seek flash — MX-style triple chevron + label
+                // 8. Double-tap seek flash — Phase 51: MX-style triple-chevron
+                // ripple burst + "+Ns"/"-Ns" text, fades out over 600ms total.
                 if (_showSeekFlash)
                   Positioned(
                     left: _seekFlashLeft ? 0 : null,
@@ -2196,32 +2198,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             children: [
                               Row(
                                 mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
+                                children: List.generate(3, (i) {
+                                  final sizes = [22.0, 28.0, 28.0];
+                                  final colors = [Colors.white54, Colors.white, Colors.white];
+                                  return Icon(
                                     _seekFlashLeft ? Icons.chevron_left : Icons.chevron_right,
-                                    color: Colors.white54, size: 22,
-                                  ),
-                                  Icon(
-                                    _seekFlashLeft ? Icons.chevron_left : Icons.chevron_right,
-                                    color: Colors.white, size: 28,
-                                  ),
-                                  Icon(
-                                    _seekFlashLeft ? Icons.chevron_left : Icons.chevron_right,
-                                    color: Colors.white, size: 28,
-                                  ),
-                                ],
+                                    color: colors[i], size: sizes[i],
+                                  )
+                                      .animate(delay: (i * 90).ms)
+                                      .fadeIn(duration: 150.ms, curve: Curves.easeOut)
+                                      .scaleXY(begin: 0.4, end: 1.0, duration: 220.ms, curve: Curves.easeOutBack)
+                                      .then(delay: (150 - i * 40).ms)
+                                      .fadeOut(duration: 180.ms);
+                                }),
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '$_skipInterval seconds',
-                                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                              ),
+                                _seekFlashLeft ? '−$_skipInterval s' : '+$_skipInterval s',
+                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                              )
+                                  .animate()
+                                  .fadeIn(duration: 150.ms, delay: 60.ms)
+                                  .slideY(begin: 0.3, end: 0, duration: 200.ms, curve: Curves.easeOut)
+                                  .then(delay: 180.ms)
+                                  .fadeOut(duration: 200.ms),
                             ],
                           ),
                         ),
                       ),
                     ),
-                  ),
+                  )
+                      .animate()
+                      .fadeIn(duration: 100.ms)
+                      .scaleXY(begin: 0.85, end: 1.0, duration: 180.ms, curve: Curves.easeOutBack)
+                      .then(delay: 260.ms)
+                      .fadeOut(duration: 160.ms),
 
                 // 9. Buffering spinner
                 if (_buffering && !_isLinkLoading && _streamError == null)
