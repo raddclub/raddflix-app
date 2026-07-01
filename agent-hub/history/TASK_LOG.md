@@ -649,3 +649,24 @@ Phase 49: Ambient particle background
 - profile_screen: import tier_badge.dart; replaced 21-line static Builder badge with TierBadge(plan: _remotePlan ?? user?.planName ?? 'FREE') + same .animate().fadeIn() wrapper
 - subscription_screen: import tier_badge.dart; _ActivePlanCard plan name Text wrapped in Row with Flexible + TierBadge(plan: status.planName)
 - Commit: a34b5f9
+
+---
+
+## Session 2026-07-01 — Full Audit: Guest/Free/Premium Logic
+
+### Audit findings (phases 50–56 + all logic):
+- Phases 50–55 already complete from previous session
+- Phase 56 (TierBadge): pushed this session (e6a841e)
+- Auth flow (guest/free/premium): CORRECT ✅
+- Player Layer 2 subscription gate: CORRECT ✅
+- show_detail isFreeEp = _parseFree(ep['is_free']) || item.isFree: CORRECT ✅
+- Guest → _GuestWarning in SubscriptionScreen → Create Account: CORRECT ✅
+- Downloads: guests blocked from paid, allowed for free: CORRECT ✅
+- Content cards FREE badge (FIX-13): CORRECT ✅
+- Oracle guest quota (always allowed): CORRECT ✅
+
+### Bugs fixed:
+- AUD-01: _EpisodeTile — added isLocked bool field + gold PREMIUM lock badge (🔒 PREMIUM) shown when !isFree && isLocked; FREE episodes still show green FREE badge; paid+unsubscribed episodes now visually communicate paywall before user taps
+- AUD-02: _requireSub() — guests now see "Create a free account to access this content" / "Sign In" action; free registered users still see "Subscribe to access paid content" / "Subscribe" action
+- AUD-03: episode builder now passes isLocked: !isFree && !_isSubscribed to each _EpisodeTile
+- Commit: 336dbb5
