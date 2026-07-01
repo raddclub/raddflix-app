@@ -23,6 +23,9 @@ import '../core/utils/anim_config.dart';
 import '../widgets/offline_banner.dart';
 import 'package:animations/animations.dart';
 import 'show_detail_screen.dart';
+import '../core/api/api_client.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -52,6 +55,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(catalogProvider.notifier).initialize();
       NotificationService.instance.fetch();
+      _checkForUpdates();
     });
     _notifTimer = Timer.periodic(const Duration(minutes: 5),
         (_) => NotificationService.instance.fetch());
@@ -74,6 +78,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     } else if (state == AppLifecycleState.resumed && _notifTimer == null) {
       _notifTimer = Timer.periodic(const Duration(minutes: 5),
           (_) => NotificationService.instance.fetch());
+    }
+  }
+
+  /// Puts the most recent Continue Watching item first so users can resume immediately.
+  List<CatalogItem> _heroItems(CatalogState catalog) {
+    final base = (catalog.movies.isNotEmpty ? catalog.movies : catalog.shows).take(5).toList();
+    if (catalog.recentlyWatched.isEmpty) return base;
+    final resume  = catalog.recentlyWatched.first;
+    final deduped = base.where((i) => i.id != resume.id).take(4).toList();
+    return [resume, ...deduped];
+  }
+
+  /// Fetches /api/config and shows a non-dismissable update dialog when
+  /// the installed build is older than min_version_code.
+  Future<void> _checkForUpdates() async {
+    try {
+      final resp    = await ApiClient.instance.get('/api/config');
+      final data    = resp.data as Map<String, dynamic>? ?? {};
+      final minCode = (data['min_version_code'] as num?)?.toInt() ?? 0;
+      if (minCode <= 0 || !mounted) return;
+      final info      = await PackageInfo.fromPlatform();
+      final buildCode = int.tryParse(info.buildNumber) ?? 0;
+      if (buildCode >= minCode || !mounted) return;
+      final updateUrl = (data['update_url'] as String?) ?? '';
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _UpdateDialog(updateUrl: updateUrl),
+      );
+    } catch (_) {
+      // Offline or server error — skip silently; user is unaffected
     }
   }
 
@@ -283,7 +318,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         // Hero spotlight (first 5 items)
         if (catalog.movies.isNotEmpty || catalog.shows.isNotEmpty)
           SliverToBoxAdapter(child: _HeroSpotlight(
-            items: (catalog.movies.isNotEmpty ? catalog.movies : catalog.shows).take(5).toList(),
+            items: _heroItems(catalog),
           ).animate().fadeIn(duration: 500.ms)),
 
         // Category chips
@@ -686,6 +721,8 @@ class _HeroCardState extends ConsumerState<_HeroCard>
     final item       = widget.item;
     final t          = RaddTheme.of(context);
     final animConfig = ref.watch(animConfigProvider);
+    final catalog    = ref.watch(catalogProvider);
+    final isResume   = catalog.recentlyWatched.any((e) => e.id == item.id);
     // Phase 48: Tier 1+ and animations-enabled → start float; otherwise stop
     final shouldFloat = animConfig.canStagger &&
         !MediaQuery.of(context).disableAnimations;
@@ -768,11 +805,14 @@ class _HeroCardState extends ConsumerState<_HeroCard>
                       decoration: BoxDecoration(gradient: AppColors.primaryGradient,
                           borderRadius: BorderRadius.circular(AppRadius.round),
                           boxShadow: AppShadows.primary),
-                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.play_arrow_rounded, color: Colors.white, size: 18),
-                        SizedBox(width: 5),
-                        Text('Watch Now', style: TextStyle(color: Colors.white,
-                            fontSize: 13, fontWeight: FontWeight.w800)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(
+                          isResume ? Icons.play_circle_filled_rounded : Icons.play_arrow_rounded,
+                          color: Colors.white, size: 18),
+                        const SizedBox(width: 5),
+                        Text(isResume ? 'Resume' : 'Watch Now',
+                            style: const TextStyle(color: Colors.white,
+                                fontSize: 13, fontWeight: FontWeight.w800)),
                       ]),
                     ),
                     const SizedBox(width: 10),
@@ -851,6 +891,66 @@ class _HeroCardState extends ConsumerState<_HeroCard>
 
     // 3. No image available
     return placeholder;
+  }
+}
+
+// ── Update Dialog ─────────────────────────────────────────────────────────────
+/// Non-dismissable dialog shown when the installed build is below min_version_code.
+class _UpdateDialog extends StatelessWidget {
+  final String updateUrl;
+  const _UpdateDialog({required this.updateUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return PopScope(
+      canPop: false,
+      child: AlertDialog(
+        backgroundColor: t.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 8),
+          Container(
+            width: 64, height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.system_update_rounded, size: 32, color: AppColors.primary),
+          ),
+          const SizedBox(height: 16),
+          Text('Update Required', style: TextStyle(
+              color: t.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text(
+            'A new version of RaddFlix is available. Please update to keep streaming.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: t.textSecondary, fontSize: 13, height: 1.5),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.download_rounded, size: 18),
+              label: const Text('Update Now'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.round)),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+              onPressed: () async {
+                if (updateUrl.isNotEmpty) {
+                  await launchUrl(Uri.parse(updateUrl),
+                      mode: LaunchMode.externalApplication);
+                }
+              },
+            ),
+          ),
+        ]),
+      ),
+    );
   }
 }
 
