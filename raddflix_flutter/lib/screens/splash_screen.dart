@@ -9,6 +9,7 @@ import '../core/remote_config.dart';
 import '../core/theme/brand_theme_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/subscription_provider.dart';
+import '../widgets/particle_overlay.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -175,6 +176,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               ),
             ),
           ),
+          // Phase 49 ANIM-49-02: ambient spark particles on Tier 3 (API 33+)
+          // Renders behind logo/text via Stack ordering; IgnorePointer inside
+          Positioned.fill(child: ParticleOverlay()),
           Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,

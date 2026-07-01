@@ -10,6 +10,7 @@ import '../providers/auth_provider.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/radd_text_field.dart';
 import '../core/utils/auth_utils.dart';
+import '../widgets/particle_overlay.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -104,6 +105,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ),
             ),
+            // Phase 49 ANIM-49-03: ambient spark particles on Tier 3 (API 33+)
+            Positioned.fill(child: ParticleOverlay()),
             SafeArea(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24),

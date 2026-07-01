@@ -189,7 +189,12 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Row(children: [
-            const Icon(Icons.download_done_rounded, color: Colors.white, size: 18),
+            // Phase 45 ANIM-45-05: shake+scale burst on download completion
+            const Icon(Icons.download_done_rounded, color: Colors.white, size: 18)
+                .animate()
+                .shake(duration: 400.ms)
+                .scale(begin: const Offset(1.0, 1.0),
+                       end: const Offset(1.15, 1.15), duration: 200.ms),
             const SizedBox(width: 10),
             Expanded(child: Text('Downloaded: ${next.last}',
                 overflow: TextOverflow.ellipsis)),
