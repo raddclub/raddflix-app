@@ -754,3 +754,17 @@ Phase 49: Ambient particle background
 - **P57-06 ✅** Codec badge in AudioPanel: active track shows codec name (e.g. EAC3) in small grey badge.
 - **P57-07 ✅** Dual subtitle / OST system: secondary-sid selector in SubtitlePanel Open tab. Blue radio buttons, sets MPV `secondary-sid` property. Shows OST/signs at top while dialogue at bottom.
 - **EAC3 confirmed:** will play in app without any changes — mpv decodes audio via libavcodec (ffmpeg), not Android MediaCodec.
+
+---
+
+## Session 2026-07-01 — Phase 58: Online Subtitle Search Overhaul
+
+- Replaced dead `rest.opensubtitles.org` REST API with OpenSubtitles **XML-RPC** (api.opensubtitles.org/xml-rpc — anonymous login, no API key needed)
+- Added manual search text field (pre-filled with video title, editable, clears with X)
+- Inline language chips: 🇵🇰 Urdu | 🇮🇳 Hindi | 🇵🇰+🇮🇳 | 🇬🇧 English | 🇸🇦 Arabic | 🌍 All — tapping a chip auto-re-searches
+- Auto-search triggers on SubtitlePanel open (postFrameCallback, only for non-local streams with known title)
+- Improved result cards: language badge, ⭐ rating, ↓ download count, 2-line filename
+- Retry button on error state
+- TextEditingController.dispose() added
+- Token cached in `_osToken` — only one login per panel open
+- Commit: feat(player): subtitle search overhaul
