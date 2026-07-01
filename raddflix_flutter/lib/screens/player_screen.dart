@@ -505,6 +505,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     WatchPartyService.instance.leaveRoom();
     VoiceCommandsService.instance.stop();
     _stopUsageTimer();
+    // Fix #1: unregister the log-message observer added in _initPlayer().
+    // Without this, the C-level MPV callback fires into disposed Dart state.
+    try { _np.unobserveProperty('log-message'); } catch (_) {}
     _player.dispose();
     super.dispose();
   }
@@ -655,7 +658,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       _np.observeProperty('log-message', (String msg) async {
         if (!_silenceInPipeline || !mounted) return;
-        if (msg.contains('silence_end:')) {
+        if (msg.contains('[silencedetect') && msg.contains('silence_end:')) {
           final endMatch = RegExp(r'silence_end:\s*([\d.]+)').firstMatch(msg);
           final durMatch = RegExp(r'silence_duration:\s*([\d.]+)').firstMatch(msg);
           if (endMatch != null && durMatch != null) {
@@ -4660,6 +4663,8 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
             }
             VoiceCommandsService.instance.start();
             _voiceSub = VoiceCommandsService.instance.commandStream.listen(_onVoiceCommand);
+            // Fix #6: STT engine is not yet wired — be transparent about it.
+            _showInfoSnackbar('🎤 Voice commands are in development — stay tuned!');
           } else {
             _voiceSub?.cancel();
             VoiceCommandsService.instance.stop();
