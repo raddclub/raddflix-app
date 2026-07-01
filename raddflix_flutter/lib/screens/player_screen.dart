@@ -3591,7 +3591,11 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
             try {
               _np.setProperty(prop, val);
               // Force ASS style override so font/size/color changes apply to styled subs
-              if (prop == 'sub-font-size' || prop == 'sub-font' || prop == 'sub-bold' || prop == 'sub-color') {
+              if (prop == 'sub-font-size'    || prop == 'sub-font'          ||
+                  prop == 'sub-bold'        || prop == 'sub-color'        ||
+                  prop == 'sub-back-color'  || prop == 'sub-scale'        ||
+                  prop == 'sub-opacity'     || prop == 'sub-outline-size' ||
+                  prop == 'sub-shadow-offset') {
                 _np.setProperty('sub-ass-override', 'force');
               }
             } catch (_) {}
@@ -5617,10 +5621,10 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                   Expanded(child: Slider(
                     value: _subOpacity, min: 0.1, max: 1.0, divisions: 9,
                     activeColor: Colors.white, inactiveColor: Colors.white24,
-                    onChanged: (v) => setState(() => _subOpacity = v),
+                    onChanged: (v) => setState(() { _subOpacity = v; _subFade = v; }),
                     onChangeEnd: (v) {
-                      final alpha = (v * 255).round().toRadixString(16).padLeft(2,'0');
-                      widget.onSubPropertyChanged('sub-color', '#${alpha}ffffff');
+                      // sub-opacity is the correct property; sub-color must not be touched here
+                      widget.onSubPropertyChanged('sub-opacity', v.toStringAsFixed(2));
                     },
                   )),
                   SizedBox(width: 40, child: Text('${(_subOpacity * 100).round()}%',
