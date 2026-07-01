@@ -780,3 +780,13 @@ Phase 49: Ambient particle background
   2. Inserted green-bordered "Dub Active" indicator card (with flag label + Remove button) at top of Audio Track Panel ListView when dub is on
   3. Wired new props in `_openAudioPanel()` — passes live `_isDubMode` / `_dubActiveLang` and a callback that calls `_disableDubMode()` + `Navigator.pop()`
 - **Commit:** 803f09a
+
+---
+
+## Session 2026-07-01 — Build Fixes (Kotlin 2.2.0 + minSdkVersion 24)
+
+- **Context:** flutter_tts 4.2.5 (added in Phase 59) caused two cascading build failures never caught before because CI hadn't run since Phase 58.
+- **Fix 1 (commit a8e5bf1):** `android/build.gradle` — bumped `ext.kotlin_version` 1.9.20 → 2.2.0. flutter_tts 4.2.5 stdlib is compiled with Kotlin 2.2.x metadata; older compiler rejected it.
+- **Fix 2 (commit 98323a8):** `android/app/build.gradle` — bumped `minSdkVersion` 21 → 24. flutter_tts 4.2.5 declares minSdk 24 in its AndroidManifest.xml.
+- **Result:** CI green ✅ Run #1399 — https://github.com/raddclub/raddflix-app/actions/runs/28534863281
+- **APK:** Release APK built and uploaded successfully.
