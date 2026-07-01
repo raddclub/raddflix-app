@@ -133,11 +133,11 @@
 
 ---
 
-## ⏳ IN PROGRESS — Phase 56: Subscription Tier Badge
+## ✅ Phase 56 — Subscription Tier Badge · `a34b5f9`
 
 | ID | Task | Status |
 |----|------|--------|
-| ANIM-56-01 | TierBadge widget — animated glow pulse (FREE/STANDARD/PREMIUM) | ⏳ |
-| ANIM-56-02 | profile_screen: replace static plan badge with TierBadge | ⏳ |
-| ANIM-56-03 | subscription_screen _ActivePlanCard: add TierBadge beside plan name | ⏳ |
-| ANIM-56-04 | Tier gate: basic+ glows; potato static; respects disableAnimations | ⏳ |
+| ANIM-56-01 | TierBadge widget — animated glow pulse (FREE/STANDARD/PREMIUM) | ✅ DONE |
+| ANIM-56-02 | profile_screen: replace static plan badge with TierBadge | ✅ DONE |
+| ANIM-56-03 | subscription_screen _ActivePlanCard: add TierBadge beside plan name | ✅ DONE |
+| ANIM-56-04 | Tier gate: basic+ glows; potato static; respects disableAnimations | ✅ DONE |
