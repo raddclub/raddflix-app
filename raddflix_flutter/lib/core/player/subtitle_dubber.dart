@@ -181,7 +181,12 @@ class SubtitleDubber {
           fmtOk = true;
         }
         clips.add(_AudioClip(entry.start, entry.end, bytes.sublist(header['dataOffset']!)));
-      } catch (_) { continue; }
+      } catch (e) {
+        // Fix #11: log instead of silently swallowing — helps debug bad SRT/WAV.
+        // ignore: avoid_print
+        print('[SubtitleDubber] clip $i synthesis error: $e');
+        continue;
+      }
     }
 
     if (clips.isEmpty) return null;
