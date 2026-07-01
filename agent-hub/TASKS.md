@@ -144,10 +144,10 @@
 
 ---
 
-## ⏳ IN PROGRESS — Audit Fixes (Guest/Free/Premium logic)
+## ✅ Audit Fixes — Guest/Free/Premium logic · `336dbb5`
 
 | ID | Fix | Status |
 |----|-----|--------|
-| AUD-01 | _EpisodeTile: add isLocked field + PREMIUM lock badge for paid episodes | ⏳ |
-| AUD-02 | _requireSub: show different SnackBar message for guests vs free users | ⏳ |
-| AUD-03 | Episode builder: pass isLocked = !isFree && !_isSubscribed to each tile | ⏳ |
+| AUD-01 | _EpisodeTile: add isLocked field + PREMIUM lock badge for paid episodes | ✅ DONE |
+| AUD-02 | _requireSub: show different SnackBar message for guests vs free users | ✅ DONE |
+| AUD-03 | Episode builder: pass isLocked = !isFree && !_isSubscribed to each tile | ✅ DONE |
