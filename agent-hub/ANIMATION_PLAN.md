@@ -226,15 +226,15 @@ Each phase must pass ALL of the following before a commit is made:
 
 | Phase | Name | Status | Commit |
 |-------|------|--------|--------|
-| 41 | Performance Infrastructure (AnimConfig + pubspec) | ⏳ TODO | — |
-| 42 | Hero Poster Transition (built-in) | ⏳ TODO | — |
-| 43 | Staggered Grid / List Entry | ⏳ TODO | — |
-| 44 | Card → Detail Morph (OpenContainer) | ⏳ TODO | — |
-| 45 | Neon/Glow Primary Action Buttons | ⏳ TODO | — |
-| 46 | Typewriter & Animated Text | ⏳ TODO | — |
-| 47 | Frosted Glass Bottom Nav | ⏳ TODO | — |
-| 48 | 3D Tilt Hero Banner | ⏳ TODO | — |
-| 49 | Ambient Particle Background | ⏳ TODO | — |
+| 41 | Performance Infrastructure (AnimConfig + pubspec) | ✅ DONE | `8396c13` |
+| 42 | Hero Poster Transition (built-in) | ✅ DONE | `50717ac` |
+| 43 | Staggered Grid / List Entry | ✅ DONE | `4f55fcd` |
+| 44 | Card → Detail Morph (OpenContainer) | ✅ DONE | `2600a39` |
+| 45 | Neon/Glow Primary Action Buttons | ✅ DONE | `bec1909` |
+| 46 | Typewriter & Animated Text | ✅ DONE | `647ac5c` |
+| 47 | Frosted Glass Bottom Nav | ✅ DONE | `af27e1a` |
+| 48 | 3D Tilt Hero Banner | ✅ DONE | `a8d4323` |
+| 49 | Ambient Particle Background | ✅ DONE | `f81b0cb` |
 
 ---
 
