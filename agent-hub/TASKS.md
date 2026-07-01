@@ -197,8 +197,18 @@
 | ANIM-47-04 | home slivers: SliverToBoxAdapter(72) bottom clearance so last card visible | ✅ DONE |
 | ANIM-47-05 | clampingScrollPhysics: deferred — BouncingScrollPhysics fine; repaint not a measurable issue | ⏭ DEFERRED |
 
+## Phase 48 — 3D Tilt Hero Banner (2026-06-30)
+
+| ID | Task | Status |
+|----|------|--------|
+| ANIM-48-01 | sensors_plus gyroscope listener: deferred — requires pubspec.yaml add + pub lock regeneration | ⏭ DEFERRED |
+| ANIM-48-02 | Transform.rotateX/Y (max ±0.025/0.015 rad) via Matrix4 with perspective entry | ✅ DONE |
+| ANIM-48-03 | Parallax depth: single-layer card at full Transform depth (poster + text move together) | ✅ DONE |
+| ANIM-48-04 | Auto-float sine-wave tilt fallback: AnimationController(3200ms) + repeat(reverse:true) on Tier 1+ | ✅ DONE |
+| ANIM-48-05 | Dispose: _floatCtrl.dispose() in state's dispose() | ✅ DONE |
+
 ## Open Tasks
-None — phases 17–47 complete. Phases 48–49 defined in agent-hub/ANIMATION_PLAN.md.
+None — phases 17–48 complete. Phase 49 defined in agent-hub/ANIMATION_PLAN.md.
 
 ## Phase 37 — Bug Fixes (2026-06-29)
 
