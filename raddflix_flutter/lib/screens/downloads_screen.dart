@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../widgets/animated_empty_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
@@ -444,12 +445,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                     blurRadius: 24, spreadRadius: 4),
               ],
             ),
-            child: Icon(Icons.download_for_offline_outlined,
-                color: AppColors.primary.withOpacity(0.7), size: 48),
-          ).animate(onPlay: (c) => c.repeat(reverse: true))
-           .scaleXY(begin: 0.96, end: 1.0,
-               duration: const Duration(milliseconds: 1800),
-               curve: Curves.easeInOut),
+            child: Center(
+              child: AnimatedCloudDownIcon(size: 52, color: AppColors.primary.withOpacity(0.75)),
+            ),
+          ),
           const SizedBox(height: 24),
           Text('No Downloads Yet',
               style: TextStyle(color: t.textPrimary,
