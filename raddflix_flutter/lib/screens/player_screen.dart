@@ -3819,6 +3819,12 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
         isPlaying: _playing,
         currentCodec: _useSWDecoder ? null : null, // populated by EAC3 detector via _useSWDecoder
         onClose: () => Navigator.of(context).pop(),
+        isDubMode: _isDubMode,           // P60
+        dubActiveLang: _dubActiveLang,   // P60
+        onRemoveDub: () {                // P60
+          _disableDubMode();
+          Navigator.of(context).pop();
+        },
       ));
     }
 
@@ -6151,6 +6157,9 @@ class _AudioTrackPanel extends StatefulWidget {
   final bool isPlaying; // P57-04: disable SW decoder toggle during playback
   final String? currentCodec; // P57-06: show codec badge on active track
   final VoidCallback onClose;
+  final bool isDubMode;        // P60: dub active indicator
+  final String dubActiveLang;  // P60: 'ur-PK' or 'hi-IN'
+  final VoidCallback? onRemoveDub; // P60: tap to disable dub
 
   const _AudioTrackPanel({
     required this.tracks,
@@ -6165,6 +6174,9 @@ class _AudioTrackPanel extends StatefulWidget {
     this.isPlaying = false,
     this.currentCodec,
     required this.onClose,
+    this.isDubMode = false,
+    this.dubActiveLang = 'ur-PK',
+    this.onRemoveDub,
   });
 
   @override
@@ -7623,6 +7635,55 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
           child: ListView(
             padding: EdgeInsets.zero,
             children: [
+              // P60: Dub active indicator + one-tap remove
+              if (widget.isDubMode)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0D2B0D),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF00C853).withOpacity(0.55)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.record_voice_over_rounded,
+                          color: Color(0xFF00C853), size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Dub Active',
+                                style: TextStyle(
+                                    color: Color(0xFF00C853),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700)),
+                            Text(
+                              widget.dubActiveLang == 'ur-PK'
+                                  ? '🇵🇰 Urdu dub is playing'
+                                  : '🇮🇳 Hindi dub is playing',
+                              style: const TextStyle(
+                                  color: Colors.white54, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: widget.onRemoveDub,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('Remove',
+                            style: TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w700)),
+                      ),
+                    ],
+                  ),
+                ),
               // Track list
               if (widget.tracks.isEmpty)
                 const Padding(
