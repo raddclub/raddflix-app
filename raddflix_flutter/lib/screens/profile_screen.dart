@@ -22,6 +22,7 @@ import '../core/player/player_prefs.dart';          // BUG-A21
 import '../core/db/local_db.dart';                  // BUG-A22
 import '../widgets/bottom_nav.dart';
 import 'debug_diagnostics_screen.dart';
+import '../widgets/tier_badge.dart';
 import 'edit_profile_screen.dart';
 import '../core/debug/debug_logger.dart';
 
@@ -318,27 +319,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ],
                   ],
                   const SizedBox(height: 8),
-                  Builder(builder: (ctx) {
-                    final plan = (_remotePlan ?? user?.planName ?? 'FREE').toUpperCase();
-                    final isPremium = plan.contains('PREMIUM') || plan.contains('GOLD');
-                    final isStandard = plan.contains('STANDARD') || plan.contains('SILVER');
-                    final emoji = isPremium ? '👑' : isStandard ? '⭐' : '🎬';
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(AppRadius.round),
-                        border: Border.all(color: AppColors.primary.withOpacity(0.35)),
-                        boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.1), blurRadius: 12)],
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Text(emoji, style: const TextStyle(fontSize: 13)),
-                        const SizedBox(width: 5),
-                        Text(plan, style: const TextStyle(color: AppColors.primary, fontSize: 11,
-                            fontWeight: FontWeight.w800, letterSpacing: 1.5)),
-                      ]),
-                    );
-                  }).animate(delay: 150.ms).fadeIn(duration: 300.ms),
+                  TierBadge(
+                    plan: _remotePlan ?? user?.planName ?? 'FREE',
+                  ).animate(delay: 150.ms).fadeIn(duration: 300.ms),
                 ]),
               ),
             ),
