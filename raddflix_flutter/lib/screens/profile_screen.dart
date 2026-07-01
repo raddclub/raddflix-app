@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/utils/anim_config.dart';
 import '../core/constants.dart';
 import '../services/vault_service.dart';
 import '../core/security/device_id.dart';
@@ -985,6 +986,8 @@ class _StatsCard extends StatelessWidget {
                         iconColor: AppColors.primary,
                         label: 'Watch Time',
                         value: totalMs > 0 ? _fmtTime(totalMs) : '—',
+                        countTarget: totalMs > 0 ? totalMs : null,
+                        countFormatter: _fmtTime,
                       ),
                       _StatDivider(),
                       _StatTile(
@@ -992,6 +995,8 @@ class _StatsCard extends StatelessWidget {
                         iconColor: const Color(0xFF22C55E),
                         label: 'Completed',
                         value: completed > 0 ? '$completed' : '—',
+                        countTarget: completed > 0 ? completed : null,
+                        countFormatter: (v) => '$v',
                       ),
                     ]),
                     Divider(height: 1, color: t.border),
@@ -1001,6 +1006,8 @@ class _StatsCard extends StatelessWidget {
                         iconColor: const Color(0xFF3B82F6),
                         label: 'Downloads',
                         value: dlCount > 0 ? '$dlCount (${_fmtBytes(dlBytes)})' : '—',
+                        countTarget: dlCount > 0 ? dlCount : null,
+                        countFormatter: (v) => '$v (${_fmtBytes(dlBytes)})',
                       ),
                       _StatDivider(),
                       _StatTile(
@@ -1018,13 +1025,57 @@ class _StatsCard extends StatelessWidget {
   }
 }
 
-class _StatTile extends StatelessWidget {
+class _StatTile extends ConsumerStatefulWidget {
   final IconData icon;
   final Color iconColor;
   final String label;
   final String value;
+  // Phase 53: when set, animates a count-up from 0 to [countTarget] using
+  // [countFormatter] to render each intermediate frame. Tier 1+ (basic) only —
+  // potato devices and reduced-motion settings render [value] statically.
+  final int? countTarget;
+  final String Function(int)? countFormatter;
   const _StatTile({required this.icon, required this.iconColor,
-      required this.label, required this.value});
+      required this.label, required this.value,
+      this.countTarget, this.countFormatter});
+
+  @override
+  ConsumerState<_StatTile> createState() => _StatTileState();
+}
+
+class _StatTileState extends ConsumerState<_StatTile>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _ctrl;
+  Animation<double>? _tween;
+
+  bool get _canCountUp =>
+      widget.countTarget != null && widget.countFormatter != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_canCountUp) {
+      final animConfig = ref.read(animConfigProvider);
+      final shouldAnimate = animConfig.tierLevel >= AnimTier.basic.index &&
+          animConfig.shouldAnimate(context);
+      if (shouldAnimate) {
+        _ctrl = AnimationController(
+            vsync: this, duration: const Duration(milliseconds: 1100));
+        _tween = Tween<double>(begin: 0, end: widget.countTarget!.toDouble())
+            .animate(CurvedAnimation(parent: _ctrl!, curve: Curves.easeOutCubic));
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _ctrl!.forward();
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl?.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
@@ -1036,20 +1087,29 @@ class _StatTile extends StatelessWidget {
             width: 34, height: 34,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: iconColor.withOpacity(0.12),
-              border: Border.all(color: iconColor.withOpacity(0.2)),
+              color: widget.iconColor.withOpacity(0.12),
+              border: Border.all(color: widget.iconColor.withOpacity(0.2)),
             ),
-            child: Icon(icon, size: 16, color: iconColor),
+            child: Icon(widget.icon, size: 16, color: widget.iconColor),
           ),
           const SizedBox(width: 10),
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(value,
-                  style: TextStyle(color: t.textPrimary, fontSize: 13,
-                      fontWeight: FontWeight.w700),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              Text(label,
+              _tween != null
+                  ? AnimatedBuilder(
+                      animation: _tween!,
+                      builder: (_, __) => Text(
+                          widget.countFormatter!(_tween!.value.round()),
+                          style: TextStyle(color: t.textPrimary, fontSize: 13,
+                              fontWeight: FontWeight.w700),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                    )
+                  : Text(widget.value,
+                      style: TextStyle(color: t.textPrimary, fontSize: 13,
+                          fontWeight: FontWeight.w700),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(widget.label,
                   style: TextStyle(color: t.textMuted, fontSize: 10)),
             ],
           )),
