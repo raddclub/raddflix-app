@@ -371,3 +371,9 @@ own margin via `secondary-sub-pos` (MPV property). Default is top-of-screen, whi
 ## ✅ Build Fix — Kotlin 2.2.0 · a8e5bf1
 
 flutter_tts 4.2.5 (Phase 59) uses Kotlin 2.2.x stdlib (metadata 2.2.0). Bumped `ext.kotlin_version` in `android/build.gradle` from 1.9.20 → 2.2.0. Pre-existing failure since Phase 59; fixed alongside P60 build.
+
+---
+
+## ✅ Build Fix — minSdkVersion 24 · 98323a8
+
+flutter_tts 4.2.5 declares minSdkVersion 24 in its AndroidManifest. Bumped project minSdkVersion 21 → 24 in `android/app/build.gradle`. Android 5/6 (<2% of Pakistani market) dropped; Android 7.0+ (API 24+) supported.
