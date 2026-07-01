@@ -207,8 +207,19 @@
 | ANIM-48-04 | Auto-float sine-wave tilt fallback: AnimationController(3200ms) + repeat(reverse:true) on Tier 1+ | ✅ DONE |
 | ANIM-48-05 | Dispose: _floatCtrl.dispose() in state's dispose() | ✅ DONE |
 
+## Phase 49 — Ambient Particle Background (2026-06-30)
+
+| ID | Task | Status |
+|----|------|--------|
+| ANIM-49-01 | particles_flutter package add: skipped — pubspec.lock needs flutter pub get; pure-Dart CustomPainter is functionally equivalent | ⏭ SKIPPED |
+| ANIM-49-02 | Splash screen: Positioned.fill(ParticleOverlay()) in body Stack, behind Center content | ✅ DONE |
+| ANIM-49-03 | Login screen: Positioned.fill(ParticleOverlay()) in body Stack, behind SafeArea | ✅ DONE |
+| ANIM-49-04 | Particle config: 25 particles, radius 1.0-1.4px, opacity 20-70%, sine horizontal drift, no connect lines | ✅ DONE |
+| ANIM-49-05 | ParticleOverlay: _ctrl.dispose() in ConsumerState.dispose() | ✅ DONE |
+| ANIM-45-05 | Downloads SnackBar icon: .animate().shake(400ms).scale(1→1.15) on completion (deferred from P45) | ✅ DONE |
+
 ## Open Tasks
-None — phases 17–48 complete. Phase 49 defined in agent-hub/ANIMATION_PLAN.md.
+None — phases 17–49 complete. ANIMATION_PLAN.md roadmap fully implemented.
 
 ## Phase 37 — Bug Fixes (2026-06-29)
 
