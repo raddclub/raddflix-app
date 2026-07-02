@@ -94,7 +94,7 @@ class CatalogItem {
           ? json['genres'] as String
           : (json['genres'] is List ? (json['genres'] as List).map((e) => e.toString()).join(', ') : json['genres']?.toString()),  // FIX BUG-010
       posterUrl:   json['poster'] as String? ?? json['poster_url'] as String?,
-      isFree:      json['is_free'] == 1 || json['is_free'] == true,
+      isFree:      json['is_free'] == 1 || json['is_free'] == true || json['is_free'] == '1' || json['is_free'] == 'true',
       dbVersion:   json['db_version'] as int? ?? 0,
       episodes:    episodesRaw.cast<Map<String, dynamic>>(),
       fileId:      json['file_id']?.toString(),
