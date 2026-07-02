@@ -403,3 +403,18 @@ Applied fixes for 15 verified issues across 7 files:
 | #22 | pubspec.yaml | flutter_tts pinned to `>=4.2.5 <5.0.0` |
 
 Not fixed (safe by design or require backend work): #4 (isActive — gates work via subscription.isActive), #5 (Watch Party backend not implemented), #13 (subtitle_dubber clip collision — cacheKey already includes lang), #15 (download cancel map — Dart event loop is single-threaded), #16 (AudioTrackPanel reactivity — low impact), #17 (_checkForUpdates — already has internal try/catch), #18 (debug auto-scroll UX), #19 (broadcast StreamControllers — intentional singleton design), #21 (profile multi-setState — no crash risk).
+
+---
+
+## Bug-Fix Batch 2026-07-02-B — Free-user + Subtitle fixes
+
+| SHA | File | Fixes |
+|---|---|---|
+| `b0b01ff` | player_screen.dart | dub section always visible; sub-ass-override applied before margin+style props |
+| `7835605` | catalog_item.dart | isFree parses bool true as well as int 1 |
+
+### Root causes
+- **Dub not visible**: `widget.currentFile != null` guard hid the dub UI unless an external SRT was explicitly loaded; `_startDubGeneration` already handles null with a snackbar.
+- **Subtitles behind seekbar**: `_applySubtitleMargin` set `sub-margin-y` but never set `sub-ass-override: yes`, so ASS-format subs ignored the margin.
+- **Settings not applying**: `sub-ass-override: force` was set AFTER the style property — on first change ASS subs hadn't entered override mode yet.
+- **Free user sees subscribe**: `CatalogItem.isFree` cast `json['is_free'] as int?`; JSON boolean `true` → null → `isFree = false` for all items where API returns a bool.
