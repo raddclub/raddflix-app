@@ -323,7 +323,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   /// Safely parse is_free from server response.
   /// Server returns JSON bool (true/false) but legacy code expected int (1/0).
   /// This helper handles both to avoid TypeError crashes.
-  static bool _parseFree(dynamic v) => v == true || v == 1;
+  static bool _parseFree(dynamic v) => v == true || v == 1 || v == '1' || v == 'true';
 
   /// True when the current user has an active paid subscription.
   /// Guests (isGuest=true) and free-plan users (subscription==null) return false.
