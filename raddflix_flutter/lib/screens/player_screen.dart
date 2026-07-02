@@ -384,6 +384,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _currentEpIdx = widget.episodeIndex;
     _currentFileId = widget.fileId;
     _currentTitle = widget.title;
+    // Seed _currentSubFile so _applyCompanionSub() can load it once media opens.
+    // Prefer the explicit subtitlePath prop from the route args; fall back to the
+    // opening episode's subtitle_path field (set by Oracle/LocalDb for companion SRTs).
+    _currentSubFile = widget.subtitlePath ??
+        (_eps.isNotEmpty && _currentEpIdx < _eps.length
+            ? _eps[_currentEpIdx]['subtitle_path'] as String?
+            : null);
     _initPlayer();
     // Init volume/brightness readings
     VolumeController().listener((v) {
@@ -763,6 +770,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) setState(() { _streamError = null; _ended = false; _position = Duration.zero; });
       _videoOpened = true;
       await _player.open(Media(effectivePath));
+      _applyCompanionSub(); // load companion SRT after media opens
       await _restoreWatchPos();
       _startSavePositionTimer();
     _loadSkipEditorPrefs();
@@ -808,6 +816,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (mounted) setState(() { _isLinkLoading = false; _streamError = null; });
         _videoOpened = true;
         await _player.open(Media(link.streamUrl));
+        _applyCompanionSub(); // load companion SRT after media opens
         await _restoreWatchPos();
       _startSavePositionTimer();
         _scheduleHide();
@@ -862,6 +871,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _currentTitle = ep['label'] as String? ?? ep['title'] as String? ?? widget.title;
       _ended = false;
       _position = Duration.zero;
+      // Track the companion SRT for the incoming episode (null clears previous one).
+      _currentSubFile = ep['subtitle_path'] as String?;
     });
     _openMediaForEpisode(ep,
       localPath: (ep['local_path'] ?? ep['localPath'] ?? ep['download_path']) as String?,
@@ -929,6 +940,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) setState(() { _streamError = null; _ended = false; _position = Duration.zero; });
       _videoOpened = true;
       await _player.open(Media(localPath));
+      _applyCompanionSub(); // load companion SRT after media opens
       await _restoreWatchPos();
       _startSavePositionTimer();
       _scheduleHide();
@@ -940,6 +952,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (mounted) setState(() { _streamError = null; _ended = false; _position = Duration.zero; });
       _videoOpened = true;
       await _player.open(Media(fileId));
+      _applyCompanionSub(); // load companion SRT after media opens
       await _restoreWatchPos();
       _startSavePositionTimer();
       _scheduleHide();
@@ -982,6 +995,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (mounted) setState(() { _isLinkLoading = false; _streamError = null; });
         _videoOpened = true;
         await _player.open(Media(link.streamUrl));
+        _applyCompanionSub(); // load companion SRT after media opens
         await _restoreWatchPos();
       _startSavePositionTimer();
         _scheduleHide();
@@ -1161,6 +1175,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Dynamically shift subtitles above the controls area so they are never
   // covered. Called whenever controls show or hide.
   // Controls bottom area is ~90px (seek bar ~32px + transport row ~48px + padding).
+  /// Loads _currentSubFile into MPV immediately after _player.open().
+  /// Call after every _player.open() in _openMedia and _openMediaForEpisode so
+  /// that a companion SRT survives stream-URL resolution (MPV resets sub-file on
+  /// each open()) and in-player episode navigation.
+  void _applyCompanionSub() {
+    final sub = _currentSubFile;
+    if (sub == null || sub.isEmpty) return;
+    try { _np.setProperty('sub-file', sub); } catch (_) {}
+  }
+
   void _applySubtitleMargin({required bool controlsVisible}) {
     // When controls are visible, push subs 140px above bottom controls so they
     // clear the seek bar AND transport row.
