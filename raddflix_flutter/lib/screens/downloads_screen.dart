@@ -618,11 +618,6 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 _selected.contains(id) ? _selected.remove(id) : _selected.add(id);
               });
             } else if (_isComplete(d)) {
-              // BUG-C04 fix: block playback if subscription has expired
-              if (_isSubExpired()) {
-                Navigator.of(context).pushNamed(AppRoutes.planExpired);
-                return;
-              }
               final doneEps = eps.where(_isComplete).toList();
               final epIdx   = doneEps.indexOf(d as Map<String, dynamic>);
               final epList  = doneEps.asMap().entries.map((e) => <String, dynamic>{
@@ -639,6 +634,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 'episodes':     epList,
                 'episode_index': epIdx < 0 ? 0 : epIdx,
                 'content_type': d['content_type'] as String? ?? 'show',
+                'is_free':      true, // local files bypass the player's subscription gate
               });
             }
           },
@@ -678,15 +674,12 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             if (_selecting) {
               setState(() { _selected.contains(id) ? _selected.remove(id) : _selected.add(id); });
             } else if (_isComplete(d)) {
-              // BUG-C04 fix: block playback if subscription has expired
-              if (_isSubExpired()) {
-                Navigator.of(context).pushNamed(AppRoutes.planExpired);
-                return;
-              }
               // BUG-7 fix: include content_type so player doesn't default all downloads to 'series'.
               Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
                 'file_id': id, 'title': _title(d), 'local_path': _path(d),
-                'content_type': d['content_type'] as String? ?? 'movie'});
+                'content_type': d['content_type'] as String? ?? 'movie',
+                'is_free': true, // local files bypass the player's subscription gate
+              });
             }
           },
           onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
@@ -733,15 +726,12 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             if (_selecting) {
               setState(() { _selected.contains(id) ? _selected.remove(id) : _selected.add(id); });
             } else if (_isComplete(d)) {
-              // BUG-C04 fix: block playback if subscription has expired
-              if (_isSubExpired()) {
-                Navigator.of(context).pushNamed(AppRoutes.planExpired);
-                return;
-              }
               // BUG-7 fix: include content_type so player doesn't default all downloads to 'series'.
               Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
                 'file_id': id, 'title': _title(d), 'local_path': _path(d),
-                'content_type': d['content_type'] as String? ?? 'movie'});
+                'content_type': d['content_type'] as String? ?? 'movie',
+                'is_free': true, // local files bypass the player's subscription gate
+              });
             }
           },
           onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
