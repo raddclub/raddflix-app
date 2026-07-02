@@ -45,3 +45,37 @@ None — Phase 60 complete + build green. Awaiting next task from user.
 - `DebugDiagnosticsScreen` is intentionally NOT gated by `kDebugMode`
 - `ImageCache.clearLive()` does NOT exist in this Flutter version — use `PaintingBinding.instance.imageCache.clear()`
 - CachedNetworkImage uses `errorWidget:` not `errorBuilder:`
+
+---
+
+## Bug-Fix Batch 2026-07-02 — COMPLETE ✅
+
+All 15 verified issues from the full-app audit fixed. CI green on commit `3c38f31` (run #28588429103).
+
+### Commits
+| SHA | File | Fixes |
+|---|---|---|
+| `5fd4490` | player_screen.dart | #1 unobserveProperty leak, #6 voice-cmd snackbar, #24 silence-filter |
+| `81a6d09` | debug_diagnostics_screen.dart | #3 _tlTimer cancel in dispose() |
+| `535477e` | login_screen.dart | #7, #8, #20 mounted guards in catch blocks |
+| `685673f` | show_detail_screen.dart | #14 mounted guard in _playEpisode |
+| `be0174d` | subtitle_dubber.dart | #2 OOM guard, #12 cache integrity, #23 phase-2 progress |
+| `69c3703` | subtitle_dubber.dart | #11 log synthesis errors |
+| `26f8f48` | pubspec.yaml | #22 pin flutter_tts >=4.2.5 <5.0.0 |
+| `ae85282` | TASKS.md | audit summary |
+| `3c38f31` | search_screen.dart | RESTORED from clean base — JS $' replace-pattern corrupted previous attempt |
+
+### Root-Cause: search_screen Corruption
+Fix #10 replacement string contained `r'^\[|\]$'` — the `$'` is a JS special replacement pattern
+("insert string suffix"), which doubled the file to 2424 lines. Fix: use `$$` in JS replacement
+strings whenever Dart code contains `$` characters. Final file restored from commit 685673f baseline.
+
+### Issues Not Fixed (by design)
+#4, #5, #13, #15, #16, #17, #18, #19, #21 — see TASKS.md for rationale.
+
+### Permanent Rules (never violate)
+- No `androidAttachSurfaceAfterVideoParameters: true`
+- No `sqflite_sqlcipher` past `3.1.0+1`
+- Push files sequentially (SHA race)
+- `_np` must remain a getter, never a local variable
+- JS `String.replace(old, new)`: escape `$` as `$$` in replacement when Dart code contains `$`
