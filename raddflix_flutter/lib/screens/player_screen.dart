@@ -389,7 +389,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // opening episode's subtitle_path field (set by Oracle/LocalDb for companion SRTs).
     _currentSubFile = widget.subtitlePath ??
         (_eps.isNotEmpty && _currentEpIdx < _eps.length
-            ? _eps[_currentEpIdx]['subtitle_path'] as String?
+            ? _eps[_currentEpIdx]['subtitle_path']?.toString()
             : null);
     _initPlayer();
     // Init volume/brightness readings
@@ -769,8 +769,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (effectivePath != null) {
       if (mounted) setState(() { _streamError = null; _ended = false; _position = Duration.zero; });
       _videoOpened = true;
+      final _subForThisOpen = _currentSubFile; // capture before async open
       await _player.open(Media(effectivePath));
-      _applyCompanionSub(); // load companion SRT after media opens
+      _applyCompanionSub(_subForThisOpen); // load companion SRT after media opens
       await _restoreWatchPos();
       _startSavePositionTimer();
     _loadSkipEditorPrefs();
@@ -815,8 +816,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _cancelAutoRetry();
         if (mounted) setState(() { _isLinkLoading = false; _streamError = null; });
         _videoOpened = true;
+        final _subForThisOpen = _currentSubFile; // capture before async open
         await _player.open(Media(link.streamUrl));
-        _applyCompanionSub(); // load companion SRT after media opens
+        _applyCompanionSub(_subForThisOpen); // load companion SRT after media opens
         await _restoreWatchPos();
       _startSavePositionTimer();
         _scheduleHide();
@@ -872,7 +874,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _ended = false;
       _position = Duration.zero;
       // Track the companion SRT for the incoming episode (null clears previous one).
-      _currentSubFile = ep['subtitle_path'] as String?;
+      _currentSubFile = ep['subtitle_path']?.toString();
     });
     _openMediaForEpisode(ep,
       localPath: (ep['local_path'] ?? ep['localPath'] ?? ep['download_path']) as String?,
@@ -939,8 +941,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (localPath != null && localPath.isNotEmpty) {
       if (mounted) setState(() { _streamError = null; _ended = false; _position = Duration.zero; });
       _videoOpened = true;
+      final _subForThisOpen = _currentSubFile; // capture before async open
       await _player.open(Media(localPath));
-      _applyCompanionSub(); // load companion SRT after media opens
+      _applyCompanionSub(_subForThisOpen); // load companion SRT after media opens
       await _restoreWatchPos();
       _startSavePositionTimer();
       _scheduleHide();
@@ -951,8 +954,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (fileId.startsWith('/') || fileId.startsWith('content://')) {
       if (mounted) setState(() { _streamError = null; _ended = false; _position = Duration.zero; });
       _videoOpened = true;
+      final _subForThisOpen = _currentSubFile; // capture before async open
       await _player.open(Media(fileId));
-      _applyCompanionSub(); // load companion SRT after media opens
+      _applyCompanionSub(_subForThisOpen); // load companion SRT after media opens
       await _restoreWatchPos();
       _startSavePositionTimer();
       _scheduleHide();
@@ -994,8 +998,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _cancelAutoRetry();
         if (mounted) setState(() { _isLinkLoading = false; _streamError = null; });
         _videoOpened = true;
+        final _subForThisOpen = _currentSubFile; // capture before async open
         await _player.open(Media(link.streamUrl));
-        _applyCompanionSub(); // load companion SRT after media opens
+        _applyCompanionSub(_subForThisOpen); // load companion SRT after media opens
         await _restoreWatchPos();
       _startSavePositionTimer();
         _scheduleHide();
@@ -1175,14 +1180,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Dynamically shift subtitles above the controls area so they are never
   // covered. Called whenever controls show or hide.
   // Controls bottom area is ~90px (seek bar ~32px + transport row ~48px + padding).
-  /// Loads _currentSubFile into MPV immediately after _player.open().
-  /// Call after every _player.open() in _openMedia and _openMediaForEpisode so
-  /// that a companion SRT survives stream-URL resolution (MPV resets sub-file on
-  /// each open()) and in-player episode navigation.
-  void _applyCompanionSub() {
-    final sub = _currentSubFile;
-    if (sub == null || sub.isEmpty) return;
-    try { _np.setProperty('sub-file', sub); } catch (_) {}
+  /// Loads [subPath] into MPV immediately after _player.open().
+  /// Callers MUST capture _currentSubFile into a local before the await open()
+  /// call and pass it here — this prevents a race where rapid episode taps
+  /// cause a later setState to overwrite _currentSubFile before an earlier
+  /// open() completes, which would load the wrong SRT.
+  void _applyCompanionSub(String? subPath) {
+    if (subPath == null || subPath.isEmpty) return;
+    try { _np.setProperty('sub-file', subPath); } catch (_) {}
   }
 
   void _applySubtitleMargin({required bool controlsVisible}) {
