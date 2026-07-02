@@ -1164,9 +1164,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _applySubtitleMargin({required bool controlsVisible}) {
     // When controls are visible, push subs 140px above bottom controls so they
     // clear the seek bar AND transport row.
+    // sub-ass-override 'yes' makes sub-margin-y apply to ASS-format subs too
+    // (which is the default embedded format). Using 'yes' not 'force' so that
+    // ASS colour/bold/italic styles are still respected.
     final base = _subBottomMarginMain;
     final marginY = controlsVisible ? (base + 140).round() : base.round();
-    try { _np.setProperty('sub-margin-y', marginY.toString()); } catch (_) {}
+    try {
+      _np.setProperty('sub-ass-override', 'yes');
+      _np.setProperty('sub-margin-y', marginY.toString());
+    } catch (_) {}
   }
 
   // ── Immersive mode ────────────────────────────────────────────────────────
@@ -3742,8 +3748,8 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
             _savePrefs();
           } else {
             try {
-              _np.setProperty(prop, val);
-              // Force ASS style override so font/size/color changes apply to styled subs
+              // Force ASS style override FIRST so that the property change below
+              // immediately takes effect on ASS-format subs (embedded or SRT→ASS).
               if (prop == 'sub-font-size'    || prop == 'sub-font'          ||
                   prop == 'sub-bold'        || prop == 'sub-color'        ||
                   prop == 'sub-back-color'  || prop == 'sub-scale'        ||
@@ -3751,6 +3757,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
                   prop == 'sub-shadow-offset') {
                 _np.setProperty('sub-ass-override', 'force');
               }
+              _np.setProperty(prop, val);
             } catch (_) {}
           }
         },
@@ -5629,8 +5636,8 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                 const Divider(color: Colors.white12, height: 1),
                 const SizedBox(height: 12),
 
-                // ── P59: AI Dub button (only when an SRT file is loaded) ─
-                if (widget.currentFile != null && widget.onDubRequested != null) ..._buildDubSection(context),
+                // ── P59: AI Dub button (always visible; _startDubGeneration guards null SRT)
+                if (widget.onDubRequested != null) ..._buildDubSection(context),
               ],
 
               if (_tab == 2) ...[
