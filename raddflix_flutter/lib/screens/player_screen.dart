@@ -5514,6 +5514,16 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
             ],
           ),
         ),
+        // ── AI Auto Dubbing — pinned above tabs, always visible on panel open ──
+        if (widget.onDubRequested != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: _buildDubSection(context),
+            ),
+          ),
         // Tabs
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -5661,12 +5671,6 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                     ]),
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Divider(color: Colors.white12, height: 1),
-                const SizedBox(height: 12),
-
-                // ── P59: AI Dub button (always visible; _startDubGeneration guards null SRT)
-                if (widget.onDubRequested != null) ..._buildDubSection(context),
               ],
 
               if (_tab == 2) ...[
