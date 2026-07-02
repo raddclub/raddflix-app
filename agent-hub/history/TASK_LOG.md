@@ -790,3 +790,13 @@ Phase 49: Ambient particle background
 - **Fix 2 (commit 98323a8):** `android/app/build.gradle` — bumped `minSdkVersion` 21 → 24. flutter_tts 4.2.5 declares minSdk 24 in its AndroidManifest.xml.
 - **Result:** CI green ✅ Run #1399 — https://github.com/raddclub/raddflix-app/actions/runs/28534863281
 - **APK:** Release APK built and uploaded successfully.
+
+---
+
+## Session 2026-07-02-B — Subtitle + free-user fixes
+
+- Fix 1 (dub hidden): removed currentFile guard from line 5633 — section always visible
+- Fix 2 (subs behind seekbar): added `sub-ass-override: yes` in `_applySubtitleMargin` so ASS-format subs respect sub-margin-y
+- Fix 3 (settings no effect): moved `sub-ass-override: force` before `_np.setProperty(prop, val)` in onSubPropertyChanged
+- Fix 4 (free user subscribe): CatalogItem.isFree now accepts `== true` (bool) not just `== 1` (int)
+- Commits: player_screen b0b01ff, catalog_item 7835605
