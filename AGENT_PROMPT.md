@@ -45,6 +45,9 @@ brand-new session with no local clone yet. Do exactly this, in order, then stop 
 7. **`agent-hub/OPERATIONS.md`** — step-by-step "how do I actually do it": connecting to GitHub
    and Oracle, editing files, and pushing changes. Read this before running any script or SSH
    command for the first time. Deep server-provisioning reference lives in `agent-hub/SERVER_SETUP.md`.
+8. **`agent-hub/RESILIENCE.md`** — how to handle large/multi-file work, parallelize safely, and
+   use fallback approaches when something fails, without ever skipping verification or the
+   "confirm before touching production" rule.
 
 Older one-off audit reports and superseded handoff files have been moved to `agent-hub/archive/`
 for reference — they are historical, not current. Do not treat anything in `archive/` as live state.
