@@ -15,7 +15,11 @@ set -e
 
 GITHUB_USER="raddclub"
 GITHUB_REPO="raddflix-app"
-WORKSPACE="/home/runner/workspace"
+# Resolve to the directory this script lives in (the repo root), not a
+# hardcoded workspace path. This script may run inside a subfolder of a
+# larger workspace (e.g. cloned into another project) — always target its
+# own directory, never assume it IS the workspace root.
+WORKSPACE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo ""
 echo "╔══════════════════════════════════════════════════╗"
@@ -59,10 +63,19 @@ else
     exit 1
 fi
 
+# ── Verify this directory is actually the raddflix-app git repo ──────────────
+cd "$WORKSPACE"
+
+if [ ! -d ".git" ]; then
+    echo "  ❌ ERROR: $WORKSPACE has no .git directory."
+    echo "     Refusing to run — this script must only ever act on the"
+    echo "     raddflix-app repo root, never on a parent/unrelated workspace."
+    exit 1
+fi
+
 # ── Set git remote ────────────────────────────────────────────────────────────
 echo ""
 echo "▶ Setting git remote..."
-cd "$WORKSPACE"
 
 REMOTE_URL="https://$GITHUB_TOKEN@github.com/$GITHUB_USER/$GITHUB_REPO.git"
 
