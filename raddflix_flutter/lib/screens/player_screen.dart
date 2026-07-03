@@ -43,6 +43,7 @@ import '../core/services/usage_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/subscription_provider.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:android_intent_plus/android_intent.dart';
 import '../core/player/subtitle_dubber.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1835,7 +1836,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       if (!mounted) return;
       if (wavPath == null) {
         setState(() { _dubGenerating = false; });
-        _showInfoSnackbar('Dub generation failed — is ${lang == 'ur-PK' ? 'Urdu' : 'Hindi'} TTS installed?');
+        final langName = lang == 'ur-PK' ? 'Urdu' : 'Hindi';
+        if (_dubStatusText == 'LANG_NOT_INSTALLED') {
+          // Language pack missing — show actionable prompt to open TTS settings
+          _showTtsInstallPrompt(langName);
+        } else {
+          _showInfoSnackbar('Dub generation failed — check that $langName TTS is installed');
+        }
         return;
       }
       setState(() {
@@ -4729,6 +4736,41 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+
+    // Fix #DUB-01: shown when setLanguage() returns LANG_MISSING_DATA (-1) or
+    // LANG_NOT_SUPPORTED (-2). Provides an "Install" action that deep-links to
+    // the Android TTS settings page so the user can download the voice pack.
+    void _showTtsInstallPrompt(String langName) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$langName TTS voice not installed. Tap Install to add it.',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: const Color(0xFF2A2A2A),
+          duration: const Duration(seconds: 8),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          action: SnackBarAction(
+            label: 'Install',
+            textColor: Colors.amber,
+            onPressed: () {
+              try {
+                const AndroidIntent(
+                  action: 'com.android.settings.TTS_SETTINGS',
+                ).launch();
+              } catch (_) {
+                try {
+                  const AndroidIntent(
+                    action: 'android.settings.SETTINGS',
+                  ).launch();
+                } catch (_) {}
+              }
+            },
+          ),
         ),
       );
     }
