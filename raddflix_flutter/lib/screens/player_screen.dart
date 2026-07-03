@@ -2013,6 +2013,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       final newScale = (_pinchBaseScale * d.scale).clamp(0.5, 4.0);
       _indicatorTimer?.cancel();
       if (mounted) setState(() { _pinchScale = newScale; _showZoomIndicator = true; });
+      // Apply zoom via MPV's native video-zoom (log2 scale: 0=1x, 1=2x, -1=0.5x).
+      // This works correctly with SurfaceView; Flutter Transform.scale does not.
+      try { _np.setProperty('video-zoom',
+          (math.log(newScale) / math.log(2)).toStringAsFixed(4)); } catch (_) {}
       return;
     }
     // Single-finger drag — replicate _onDragUpdate
@@ -2064,6 +2068,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Snap back to 1.0 if within ±8% of natural size
       if (_pinchScale > 0.92 && _pinchScale < 1.08) {
         setState(() { _pinchScale = 1.0; _showZoomIndicator = false; });
+        try { _np.setProperty('video-zoom', '0'); } catch (_) {}
       } else {
         _indicatorTimer = Timer(const Duration(seconds: 2), () {
           if (mounted) setState(() => _showZoomIndicator = false);
@@ -2353,7 +2358,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     top: 14,
                     right: 60,
                     child: GestureDetector(
-                      onTap: () => setState(() { _pinchScale = 1.0; _showZoomIndicator = false; }),
+                      onTap: () {
+                        setState(() { _pinchScale = 1.0; _showZoomIndicator = false; });
+                        try { _np.setProperty('video-zoom', '0'); } catch (_) {}
+                      },
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
@@ -2653,10 +2661,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           child: video,
         );
       }
-      // Pinch-to-zoom: apply scale transform (overflow clipped by Scaffold bounds)
-      if (_pinchScale != 1.0) {
-        video = Transform.scale(scale: _pinchScale, child: video);
-      }
+      // Pinch-to-zoom: zoom is applied via MPV's native video-zoom property
+      // (set in _onScaleUpdate / _onScaleEnd). Do NOT use Transform.scale here —
+      // media_kit renders to an Android SurfaceView which Flutter's Transform
+      // cannot scale; it would produce a gray/blank area instead of a zoomed image.
       return video;
     }
 
