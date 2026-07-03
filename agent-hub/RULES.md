@@ -2,9 +2,12 @@
 Last updated: 2026-06-09 (added Rules 32–38 — RemoteConfig, sync, confirm/prompt, template paths)
 
 ## Startup (every session, no exceptions)
-1. Set up SSH key from `ORACLE_SSH_KEY` env var (see AGENT_PROMPT.md Step 1)
-2. Read `AGENT_HANDOFF.md` + last 80 lines of `TASK_LOG.md` + `BUG_TRACKER.md`
-3. Read `agent-hub/TASKS.md` — continue any OPEN tasks before starting new work
+1. Read `AGENT_PROMPT.md` (repo root) — the single entry point, links everything below.
+2. Read `AGENT_HANDOFF.md` (current state) + last 80 lines of `agent-hub/history/TASK_LOG.md`.
+3. Read `agent-hub/TASKS.md` — continue any OPEN tasks before starting new work.
+4. Check `agent-hub/memory/MEMORY.md` for durable lessons relevant to the task.
+
+Note: `BUG_TRACKER.md` referenced in older docs does not exist — tracked bugs live in `TASKS.md`.
 
 ---
 
@@ -138,11 +141,10 @@ Last updated: 2026-06-09 (added Rules 32–38 — RemoteConfig, sync, confirm/pr
 ## End of Session (every session, no exceptions)
 25. Mark all completed tasks ✅ DONE in `agent-hub/TASKS.md`
 26. Append session summary to `agent-hub/history/TASK_LOG.md`
-27. Update `BUG_TRACKER.md` with any new bugs found or fixed
-28. Update `AGENT_HANDOFF.md` current state section
-29. Update `HANDOFF_NEXT.md` with what was done + what's next
-30. Update `PLAYER_SPEC.md` if any player architecture changed
-31. Push ALL doc changes to GitHub before ending session
+27. Update `AGENT_HANDOFF.md` current state section (this is the ONLY handoff file — do not create a new one)
+28. Update `PLAYER_SPEC.md` if any player architecture changed
+29. Update `agent-hub/memory/` if you learned a durable, non-obvious lesson
+30. Push ALL doc changes to GitHub before ending session
 
 
 ---

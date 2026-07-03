@@ -1,5 +1,8 @@
-# RaddFlix Animation Tasks
+# RaddFlix Tasks
 
+> This is the single live task board. Start every session at `AGENT_PROMPT.md`.
+> Add a row here (⏳ IN PROGRESS) before starting work, mark ✅ DONE when pushed.
+>
 > **All 9 animation phases (41–49) are complete as of 2026-07-01.**
 > See `agent-hub/history/TASK_LOG.md` for full session detail.
 > See `agent-hub/ANIMATION_PLAN.md` for spec and acceptance criteria.

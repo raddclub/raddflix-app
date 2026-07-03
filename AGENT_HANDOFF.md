@@ -1,5 +1,8 @@
 # RaddFlix Agent Handoff
 
+> Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
+> in place each session instead of creating a new dated handoff/status file.
+
 ## Current State (2026-07-01)
 
 ### Oracle
