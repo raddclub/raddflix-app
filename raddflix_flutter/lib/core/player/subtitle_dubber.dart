@@ -145,6 +145,14 @@ class SubtitleDubber {
     final dubDir = Directory('${tmpDir.path}/radd_dub');
     if (!dubDir.existsSync()) dubDir.createSync(recursive: true);
 
+    // flutter_tts.synthesizeToFile() on Android only accepts a plain filename —
+    // it ignores any directory portion and always writes to getExternalFilesDir(null),
+    // which path_provider exposes as getExternalStorageDirectory(). If external
+    // storage is unavailable (some low-RAM devices), fall back to app-documents dir.
+    final extDir = (await getExternalStorageDirectory()) ??
+                   (await getApplicationDocumentsDirectory());
+    final ttsDir = extDir;
+
     final outPath = '${dubDir.path}/dub_$cacheKey.wav';
     // Fix #12: verify the cached file is non-empty. A zero-byte file left by
     // a previous crash would be returned as a valid hit and play as silence.
@@ -173,9 +181,12 @@ class SubtitleDubber {
     for (int i = 0; i < entries.length; i++) {
       onProgress(i + 1, entries.length, 'Synthesizing line ${i+1} of ${entries.length}');
       final entry    = entries[i];
-      final clipPath = '${dubDir.path}/clip_${cacheKey}_$i.wav';
+      // Pass only the filename to synthesizeToFile — flutter_tts writes to
+      // getExternalFilesDir(null) on Android, ignoring any directory prefix.
+      final clipName = 'clip_${cacheKey}_$i.wav';
+      final clipPath = '${ttsDir.path}/$clipName';
       try {
-        final r = await tts.synthesizeToFile(entry.text, clipPath);
+        final r = await tts.synthesizeToFile(entry.text, clipName);
         if (r != 1) continue;
         final f = File(clipPath);
         if (!f.existsSync()) continue;
@@ -231,7 +242,7 @@ class SubtitleDubber {
     // ── Phase 3: write WAV + clean clips ─────────────────────────────────────
     File(outPath).writeAsBytesSync(_buildWav(buf, sampleRate, channels, bitsPerSample));
     for (int i = 0; i < entries.length; i++) {
-      final f = File('${dubDir.path}/clip_${cacheKey}_$i.wav');
+      final f = File('${ttsDir.path}/clip_${cacheKey}_$i.wav');
       if (f.existsSync()) f.deleteSync();
     }
     return outPath;
