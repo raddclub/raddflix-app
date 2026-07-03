@@ -74,7 +74,7 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 | `agent-hub/RESILIENCE.md` | Scaling/fallback playbook — local sub-agents vs. Project Tasks, fallback ladders, verify-before-success, hard boundary on safety | `c0cec01`, `62e46ad` | ✅ DONE |
 | Oracle drift fix | Server was 281 commits behind + UU conflict markers + local edits. Backed up server files, `git checkout -f origin/main`, `git pull --ff-only`. Server now at `baf349f`, clean tree, healthz ✅ | — | ✅ DONE 2026-07-03 |
 | Bug-Fix Batch 2026-07-03 | Free-content play gate + download failures: episode `is_free` inheritance in all 3 catalog API endpoints; movie/episode play gates bypass for local files; episode download URL decode; retryDownload URL decode; `_isSubExpired` live provider | `8176835` | ✅ DONE |
-| MPV-Native Player Upgrades 2026-07-03 | Native `ab-loop-a/b` (removed Dart-side seek polling), background next-episode link prefetch for near-gapless transitions, screenshot-with-subtitles (long-press) | see `TASK_LOG.md` "MPV-Native Player Upgrades 2026-07-03" | ✅ DONE |
+| MPV-Native Player Upgrades 2026-07-03 | Native `ab-loop-a/b` (removed Dart-side seek polling), background next-episode link prefetch for near-gapless transitions, screenshot-with-subtitles (long-press) | `4cda21c` | ✅ DONE |
 
 ---
 
