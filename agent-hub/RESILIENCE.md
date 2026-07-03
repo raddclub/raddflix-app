@@ -13,18 +13,36 @@ Most large tasks in this repo decompose into pieces that don't depend on each ot
 - Auditing 5 different `radd-hub/hub/routes/*.py` files for the same bug pattern
 - Writing docs for 4 different subsystems
 
-**How to parallelize safely:**
-- Use background sub-agents (or a second Replit Agent session on a separate checkout) for
-  independent *editing/analysis* work — each chunk touches different files, so there's no
-  conflict until it's time to commit.
-- **Never parallelize the commit/push step.** This project already learned this the hard way
-  (`AGENT_HANDOFF.md` — "search_screen Corruption" incident, `agent-hub/RULES.md` rule on
-  sequential pushes): concurrent pushes race on the same GitHub ref SHA and the loser gets a 409
-  or, worse, silently clobbers the other's change. Collect all parallel work into one local
-  clone first, review the combined diff, then push once, sequentially.
-- For genuinely large one-shot audits (e.g. "review the whole Flutter player module"), split by
-  *file*, not by *line range within a file* — half-edited files are much harder to reconcile
-  than whole files done independently.
+**If you're a Replit Agent session working on this repo, you have two real, native tools for
+this — use the right one for the size of the split:**
+
+1. **Local sub-agents (same session, same checkout)** — for independent chunks that are small
+   enough to finish within this conversation. Launch them synchronously when you need the result
+   before continuing, or asynchronously (and check back with `wait_for_background_tasks`) to
+   keep working on something else in the meantime. Good for: parallel file audits, parallel
+   research/exploration, parallel doc drafts — anything where the "merge" step is just you
+   reading their output and applying it yourself.
+2. **Project Tasks (Replit's native Task System)** — for large, multi-step deliverables that
+   deserve their own isolated environment and their own lifecycle (`PENDING` →
+   `IN_PROGRESS` → `IMPLEMENTED` → `MERGED`), visible to the human as persistent, trackable
+   items. Each task agent gets a full snapshot of the repo, works independently, and only
+   affects the main checkout once its result is reviewed and merged. Good for: "audit and fix
+   the whole player module," "migrate the DB schema," or any chunk of work large/risky enough
+   that you want a clean, isolated attempt with a reviewable diff before it touches anything
+   live. Only the main session should create/manage these — never something a task agent does
+   to itself.
+
+**Either way, the same rule applies: never parallelize the commit/push step.** This project
+already learned this the hard way (`AGENT_HANDOFF.md` — "search_screen Corruption" incident,
+`agent-hub/RULES.md` rule on sequential pushes): concurrent pushes race on the same GitHub ref
+SHA and the loser gets a 409 or, worse, silently clobbers the other's change. Whether the
+parallel work came from local sub-agents or from merged Project Tasks, collect it into one local
+clone, review the combined diff, then push once, sequentially — never fan out multiple
+`push_to_github.sh` runs at the same time.
+
+For genuinely large one-shot audits (e.g. "review the whole Flutter player module"), split by
+*file*, not by *line range within a file* — half-edited files are much harder to reconcile than
+whole files done independently, regardless of which mechanism did the splitting.
 
 ## 2. Don't stop at the first failure — have a fallback ladder, not a single path
 
