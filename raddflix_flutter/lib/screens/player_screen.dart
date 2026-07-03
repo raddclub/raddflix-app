@@ -507,6 +507,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     const MethodChannel('com.raddflix.app/pip')
         .invokeMethod('stopBgPlayback').catchError((_) {});
     const MethodChannel('com.raddflix.app/pip').setMethodCallHandler(null);
+    _immersiveExitTimer?.cancel();
     _watchPartySub?.cancel();
     _voiceSub?.cancel();
     _voiceCmdTimer?.cancel();
@@ -876,7 +877,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _position = Duration.zero;
       // Track the companion SRT for the incoming episode (null clears previous one).
       _currentSubFile = ep['subtitle_path']?.toString();
+      // Reset pinch zoom — carry-over zoom from the previous episode is
+      // disorienting and the MPV video-zoom property is also cleared below.
+      _pinchScale = 1.0;
+      _pinchBaseScale = 1.0;
+      _showZoomIndicator = false;
     });
+    // Reset MPV native zoom alongside Flutter state so they stay in sync.
+    try { _np.setProperty('video-zoom', '0'); } catch (_) {}
     _openMediaForEpisode(ep,
       localPath: (ep['local_path'] ?? ep['localPath'] ?? ep['download_path']) as String?,
       shareUrl: (ep['share_url'] ?? ep['shareUrl']) as String?,
