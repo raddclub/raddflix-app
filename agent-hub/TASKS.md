@@ -74,6 +74,7 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 | Bootstrap section | `AGENT_PROMPT.md` now walks a fresh session through secret checks + doc order before waiting for a task | `3c52e22` | ✅ DONE |
 | `agent-hub/RESILIENCE.md` | Scaling/fallback playbook — local sub-agents vs. Project Tasks, fallback ladders, verify-before-success, hard boundary on safety | `c0cec01`, `62e46ad` | ✅ DONE |
 | Oracle drift found (unresolved) | `/opt/jazzmax` has uncommitted/conflicted files (UU markers, `.bak` files) — flagged, will block future automated deploys until a human resolves it manually | — | ⚠️ OPEN — needs a human decision, not an automated fix |
+| Bug-Fix Batch 2026-07-03 | Free-content play gate + download failures: episode `is_free` inheritance in all 3 catalog API endpoints; movie/episode play gates bypass for local files; episode download URL decode; retryDownload URL decode; `_isSubExpired` live provider | see `2026-07.md` "Bug-Fix Batch 2026-07-03" | ⏳ IN PROGRESS (committing) |
 
 ---
 

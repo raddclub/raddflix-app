@@ -296,6 +296,11 @@ def sync():
             "share_url":       r["file_share_url"] or "",
         })
 
+    # Build a lookup so episodes can inherit is_free from their parent title.
+    # The Oracle `files` table has no per-episode is_free column; a title marked
+    # is_free=1 makes ALL its episodes freely playable/downloadable.
+    title_free_map = {r["id"]: bool(r["is_free"]) for r in title_rows}
+
     episodes = []
     if title_ids:
         placeholders = ",".join("?" * len(title_ids))
@@ -319,7 +324,10 @@ def sync():
                 "share_url": r["share_url"] or "",
                 "filename":  r["filename"] or "",
                 "remote_id": int(r["remote_id"] or 0),
-                "is_free":   0,
+                # BUG-FREE-EP-01: inherit is_free from parent title (files table has no
+                # per-episode is_free column; hardcoding 0 caused free-show episodes to
+                # appear as paid in the Flutter app).
+                "is_free":   1 if title_free_map.get(r["title_id"]) else 0,
             })
 
     # Always include the complete list of valid published title IDs.
@@ -537,6 +545,10 @@ def db_update(_user_id=None, _phone=None):
             "share_url":       r["file_share_url"] or "",
         })
 
+    # Build title→is_free lookup for episode inheritance (same fix as the delta-sync
+    # endpoint — see BUG-FREE-EP-01 comment above).
+    title_free_map_full = {r["id"]: bool(r["is_free"]) for r in title_rows}
+
     episodes_out = []
     if title_ids:
         placeholders = ",".join("?" * len(title_ids))
@@ -560,7 +572,8 @@ def db_update(_user_id=None, _phone=None):
                 "filename":  r["filename"] or "",
                 "remote_id": int(r["remote_id"] or 0),
                 "quality":   None,
-                "is_free":   0,
+                # BUG-FREE-EP-01 (db_update endpoint): inherit is_free from parent title.
+                "is_free":   1 if title_free_map_full.get(r["title_id"]) else 0,
             })
 
     catalog_version = _catalog_version() or now
@@ -601,6 +614,12 @@ def delta(_user_id=None, _phone=None):
 
     title_ids = [r["id"] for r in title_rows]
 
+    # Build title→is_free lookup so episodes can inherit from their parent title.
+    # BUG-FREE-EP-01 (delta endpoint): same fix as sync/db_update — the Oracle
+    # `files` table has no per-episode is_free column, so hardcoding 0 here caused
+    # free-show episodes to appear as paid in the Flutter app.
+    delta_title_free_map = {r["id"]: bool(r["is_free"]) for r in title_rows}
+
     # Fetch all episodes and group by title_id (nested, not flat)
     eps_by_title: dict = {}
     if title_ids:
@@ -621,7 +640,7 @@ def delta(_user_id=None, _phone=None):
                 "episode":   r["episode"],
                 "label":     "S{:02d}E{:02d}".format(r["season"] or 0, r["episode"] or 0),
                 "quality":   r["quality"] or None,
-                "is_free":   0,
+                "is_free":   1 if delta_title_free_map.get(r["title_id"]) else 0,
                 "share_url": r["share_url"] or "",
                 "filename":  r["filename"] or "",
                 "remote_id": int(r["remote_id"] or 0),

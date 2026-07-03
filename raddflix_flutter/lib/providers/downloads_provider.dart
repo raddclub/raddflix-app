@@ -243,14 +243,18 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
     String? posterUrl,
     String? contentType,
   }) async {
-    final info     = await LocalDb.getFileInfo(fileId);
-    final shareUrl = info?['share_url'] as String? ?? '';
-    if (shareUrl.isEmpty) {
+    final info        = await LocalDb.getFileInfo(fileId);
+    final rawShareUrl = info?['share_url'] as String? ?? '';
+    if (rawShareUrl.isEmpty) {
       state = state.copyWith(
         quotaError: 'Cannot auto-retry — go to the content page and tap Download.',
       );
       return;
     }
+    // BUG-DL-RETRY-01: getFileInfo returns the raw XOR-encoded share_url stored in
+    // SQLite.  Decode it before passing as streamUrl so that if downloadFile's Path B
+    // (JazzDrive resolution) fails, the fallback URL is usable rather than corrupt.
+    final shareUrl = (await LocalDb.decodeShareUrl(rawShareUrl)) ?? rawShareUrl;
     // Remove failed record so startDownload's isDownloaded() guard passes.
     await LocalDb.deleteDownload(fileId);
     await loadDownloads();

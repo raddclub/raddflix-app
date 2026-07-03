@@ -232,8 +232,11 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     }
 
     // Access gate — free episodes play for everyone; paid episodes require subscription.
+    // Downloaded content always bypasses the gate: the user already owned the file
+    // when they downloaded it (subscribed or free), and offline viewing must work
+    // even after a subscription lapses (mirrors downloads_screen behaviour).
     final isFreeEp = _parseFree(ep['is_free']) || widget.item.isFree;
-    if (!isFreeEp && !_isSubscribed) {
+    if (!isFreeEp && localPath == null && !_isSubscribed) {
       _requireSub(context);
       return;
     }
@@ -274,17 +277,22 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
       );
       return;
     }
-    // Access gate — paid movies require an active subscription.
-    if (!widget.item.isFree && !_isSubscribed) {
-      _requireSub(context);
-      return;
-    }
-
     // Prefer locally-downloaded file: plays offline, no JazzDrive needed.
+    // IMPORTANT: resolve local path BEFORE the access gate so that downloaded
+    // content can bypass the subscription check (mirrors downloads_screen behaviour —
+    // if the user downloaded the file while subscribed, offline playback must still
+    // work even after the subscription lapses).
     final dlState = ref.read(downloadsProvider);
     final localPath = (fileId != null && fileId.isNotEmpty)
         ? dlState.getLocalPath(fileId)
         : null;
+
+    // Access gate — paid movies require an active subscription.
+    // Downloaded copies bypass the gate (localPath != null).
+    if (!widget.item.isFree && localPath == null && !_isSubscribed) {
+      _requireSub(context);
+      return;
+    }
     Navigator.pushNamed(
       context,
       AppRoutes.player,
@@ -1094,10 +1102,18 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                     duration: const Duration(seconds: 2)),
                                 );
                                 try {
+                                  // BUG-DL-URL-01: the share_url stored in the local DB is
+                                  // XOR-encoded (RF1:xxx prefix). Decode it here so the
+                                  // download service has a usable fallback URL if JazzDrive
+                                  // resolution (Path B) ever fails.  Path B in downloadFile
+                                  // also decodes via getShareInfo, but belt-and-suspenders.
+                                  final decodedEpUrl = epShareUrl.isNotEmpty
+                                      ? (await LocalDb.decodeShareUrl(epShareUrl) ?? epShareUrl)
+                                      : '';
                                   await ref.read(downloadsProvider.notifier).startDownload(
                                     fileId: fileId,
                                     titleText: '${widget.item.title} $label',
-                                    streamUrl: epShareUrl,
+                                    streamUrl: decodedEpUrl,
                                     posterUrl: widget.item.posterUrl,
                                     targetFilename: ep['filename'] as String?,
                                     remoteId: ep['remote_id'] as int? ?? 0,

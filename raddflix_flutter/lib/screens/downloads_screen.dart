@@ -9,6 +9,7 @@ import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../providers/downloads_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/subscription_provider.dart';
 import '../core/debug/debug_logger.dart';
 import '../widgets/bottom_nav.dart';
 import '../services/thumb_service.dart';
@@ -106,9 +107,16 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   // BUG-C04 fix: check if subscription has expired before playing downloaded content.
   // If user had a subscription and it's now expired, redirect to PlanExpiredScreen.
   // Free users (subscription==null) and guests can still play their downloads.
+  //
+  // BUG-SUB-STALE-01: always prefer the live subscriptionProvider.status over the
+  // auth-cached user.subscription, which can be stale after a renewal or expiry.
   bool _isSubExpired() {
     final user = ref.read(authProvider).user;
     if (user == null || user.isGuest) return false;
+    // Live status from subscriptionProvider (loaded at splash and refreshed on resume).
+    final subStatus = ref.read(subscriptionProvider).status;
+    if (subStatus != null) return !subStatus.isActive;
+    // Fallback to cached value on the user object if provider hasn't loaded yet.
     if (user.subscription == null) return false; // free user — no sub ever
     return !user.subscription!.isActive; // has sub record but it expired
   }
