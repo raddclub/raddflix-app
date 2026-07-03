@@ -34,7 +34,11 @@
 - Both fixes address a pre-existing break introduced in Phase 59 (flutter_tts was added but build never ran green)
 
 ### Open Tasks
-None — Oracle drift fixed + server synced to HEAD. Awaiting next task from user.
+None — two player bugs fixed (dubbing + pinch zoom). CI building. Awaiting next task.
+
+### What was fixed 2026-07-03B
+1. **AI dub failing** — `subtitle_dubber.dart`: `flutter_tts.synthesizeToFile()` on Android ignores directory prefix, always writes to `getExternalFilesDir(null)`. Fixed: pass plain filename to TTS, read clips back from `getExternalStorageDirectory()` (same path). Previously all clips were missing → `clips.isEmpty` → null.
+2. **Pinch zoom gray screen** — `player_screen.dart`: `Transform.scale` on media_kit's `Video` widget (SurfaceView) produces gray area — Flutter cannot scale a SurfaceView via Transform. Fixed: removed `Transform.scale`; apply zoom via MPV native `video-zoom` property (log2 scale) in `_onScaleUpdate`, `_onScaleEnd`, and reset button. Commits: `8829d3d` (dubber), `2918655` (player).
 
 ### Known Data Issues
 - DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 — upload to JazzDrive + sync still needed
