@@ -256,10 +256,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _loopEnabled = false;
   bool _isMuted = false;
 
-  // A-B repeat
+  // A-B repeat (enforced natively by MPV via ab-loop-a/ab-loop-b — Dart only
+  // mirrors state for the UI pins/labels, it never seeks manually anymore)
   Duration? _abA;
   Duration? _abB;
   bool _abActive = false;
+
+  // ── Near-gapless episode transitions ─────────────────────────────────────
+  // Next episode's stream link is resolved ahead of time (while the current
+  // episode is still playing) so `_playEpisodeAt` can call `_player.open()`
+  // immediately instead of waiting on a network round-trip for the link.
+  String? _prefetchedFileId;
+  String? _prefetchedStreamUrl;
+  bool _prefetchInFlight = false;
+  bool _prefetchTriggeredForEp = false;
 
   // ── Sprint 2 — new state vars ────────────────────────────────────────────────
   // End action (what happens when video finishes)
@@ -579,8 +589,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         if (!mounted) return;
         _position = v;
         _checkSkipEditor();
-        if (_abActive && _abA != null && _abB != null && v >= _abB!) {
-          _player.seek(_abA!);
+        // A-B loop is now enforced natively by MPV (ab-loop-a/ab-loop-b) —
+        // no manual seek here anymore, which removes a per-tick Duration
+        // comparison + seek call from the hottest listener in the player.
+        // Fire the next-episode prefetch once, ~20s before this episode ends,
+        // so the transition can skip the network round-trip entirely.
+        if (!_prefetchTriggeredForEp &&
+            _hasNext &&
+            _duration.inMilliseconds > 0 &&
+            (_duration - v).inSeconds <= 20 &&
+            (_duration - v).inSeconds >= 0) {
+          _prefetchTriggeredForEp = true;
+          _prefetchNextEpisode();
         }
         // Throttle UI rebuild to 2×/sec — seek bar stays smooth
         final ms = v.inMilliseconds;
@@ -882,13 +902,102 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _pinchScale = 1.0;
       _pinchBaseScale = 1.0;
       _showZoomIndicator = false;
+      // A-B loop never carries over to a new episode.
+      _abA = null;
+      _abB = null;
+      _abActive = false;
+      // Reset the prefetch-trigger latch for the new episode; a stale
+      // `_prefetchedFileId` from the previous one is fine — it's simply
+      // ignored below if it doesn't match the episode we're opening.
+      _prefetchTriggeredForEp = false;
     });
-    // Reset MPV native zoom alongside Flutter state so they stay in sync.
+    // Reset MPV native zoom + A-B loop alongside Flutter state so they stay in sync.
     try { _np.setProperty('video-zoom', '0'); } catch (_) {}
+    try {
+      _np.setProperty('ab-loop-a', 'no');
+      _np.setProperty('ab-loop-b', 'no');
+    } catch (_) {}
     _openMediaForEpisode(ep,
       localPath: (ep['local_path'] ?? ep['localPath'] ?? ep['download_path']) as String?,
       shareUrl: (ep['share_url'] ?? ep['shareUrl']) as String?,
     );
+  }
+
+  // ── Native A-B loop sync ──────────────────────────────────────────────
+  // Pushes the current `_abA`/`_abB` Dart state into MPV's own ab-loop-a /
+  // ab-loop-b / ab-loop-count properties. Once both points are set, MPV
+  // enforces the loop natively inside the playback engine (sample-accurate,
+  // zero Dart overhead) instead of Flutter polling `position` every tick and
+  // calling `_player.seek()` — lighter, smoother, and immune to any Dart-side
+  // jank near the loop boundary.
+  void _syncNativeAbLoop() {
+    try {
+      _np.setProperty('ab-loop-a', _abA != null
+          ? (_abA!.inMilliseconds / 1000).toStringAsFixed(3) : 'no');
+      _np.setProperty('ab-loop-b', _abB != null
+          ? (_abB!.inMilliseconds / 1000).toStringAsFixed(3) : 'no');
+      _np.setProperty('ab-loop-count', (_abA != null && _abB != null) ? 'inf' : '1');
+    } catch (_) {}
+  }
+
+  // ── Prefetch next episode's stream link ahead of time ───────────────────
+  // Mirrors the remote-link resolution steps in `_openMediaForEpisode` but
+  // only resolves the URL — it never touches the player. Safe to call
+  // repeatedly; guarded by `_prefetchInFlight` and a match check on the
+  // target file id so it never resolves the same episode twice or races
+  // itself. Local/offline episodes need no prefetch (opening them is
+  // already instant), so this is a no-op for those.
+  Future<void> _prefetchNextEpisode() async {
+    if (_prefetchInFlight || !_hasNext) return;
+    final next = _eps[_currentEpIdx + 1];
+    final fileId = next['file_id'] as String? ?? '';
+    final localPath = (next['local_path'] ?? next['localPath'] ?? next['download_path']) as String?;
+    if (fileId.isEmpty) return;
+    if ((localPath != null && localPath.isNotEmpty) ||
+        fileId.startsWith('/') || fileId.startsWith('content://')) {
+      return; // local files open instantly — nothing to prefetch
+    }
+    if (_prefetchedFileId == fileId && _prefetchedStreamUrl != null) return;
+    _prefetchInFlight = true;
+    try {
+      String? resolvedShare = (next['share_url'] ?? next['shareUrl']) as String?;
+      String? targetFilename;
+      int remoteId = 0;
+      final info = await LocalDb.getShareInfo(fileId);
+      final dbShare = info['share_url'] as String?;
+      if (dbShare != null && dbShare.isNotEmpty) resolvedShare = dbShare;
+      targetFilename = info['filename'] as String?;
+      remoteId = info['remote_id'] as int? ?? 0;
+
+      if (resolvedShare != null &&
+          (resolvedShare.startsWith('RF1:') || resolvedShare.startsWith('RF2:'))) {
+        resolvedShare = await LocalDb.decodeShareUrl(resolvedShare);
+      }
+      if ((resolvedShare == null || resolvedShare.isEmpty) && fileId.isNotEmpty) {
+        resolvedShare = await CatalogApi.getShareUrl(fileId);
+      }
+      if (resolvedShare != null && resolvedShare.isNotEmpty) {
+        final cacheKey = fileId.isNotEmpty ? fileId : 'share_${resolvedShare.hashCode}';
+        final link = await JazzDriveService.getStreamLink(
+          cacheKey, resolvedShare,
+          targetFilename: targetFilename,
+          remoteId: remoteId,
+        );
+        // Only keep the result if we're still on the episode that scheduled
+        // this prefetch (user may have navigated elsewhere while awaiting).
+        if (mounted && _hasNext && _eps[_currentEpIdx + 1]['file_id'] == fileId) {
+          _prefetchedFileId = fileId;
+          _prefetchedStreamUrl = link.streamUrl;
+        }
+      }
+    } catch (e) {
+      // Silent by design — prefetch is a pure optimization. A failure here
+      // just means the normal (slower) resolution path runs when the user
+      // actually advances to this episode.
+      DebugLogger.logError('PLAYER', 'Prefetch failed for $fileId', e);
+    } finally {
+      _prefetchInFlight = false;
+    }
   }
 
   Future<void> _openMediaForEpisode(Map<String, dynamic> ep,
@@ -973,6 +1082,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     if (mounted) setState(() { _streamError = null; _isLinkLoading = true; _ended = false; _position = Duration.zero; });
+
+    // ── Near-gapless fast path ────────────────────────────────────────────
+    // If this exact episode's link was already resolved by the background
+    // prefetch (see `_prefetchNextEpisode`), skip straight to `_player.open`
+    // — no DB lookup, no share-URL decode, no network round-trip.
+    if (fileId.isNotEmpty && _prefetchedFileId == fileId && _prefetchedStreamUrl != null) {
+      final fastUrl = _prefetchedStreamUrl!;
+      _prefetchedFileId = null;
+      _prefetchedStreamUrl = null;
+      _cancelAutoRetry();
+      if (mounted) setState(() { _isLinkLoading = false; _streamError = null; });
+      _videoOpened = true;
+      final _subForThisOpen = _currentSubFile;
+      await _player.open(Media(fastUrl));
+      _applyCompanionSub(_subForThisOpen);
+      await _restoreWatchPos();
+      _startSavePositionTimer();
+      _scheduleHide();
+      return;
+    }
 
     String? resolvedShare = shareUrl;
     String? targetFilename;
@@ -3299,6 +3428,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             onAChanged: (d) {
                               if (_abB == null || d < _abB!) {
                                 setState(() => _abA = d);
+                                _syncNativeAbLoop();
                               }
                             },
                             onBChanged: (d) {
@@ -3307,15 +3437,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                   _abB = d;
                                   _abActive = _abA != null;
                                 });
+                                _syncNativeAbLoop();
                               }
                             },
                             onAClear: () => setState(() {
                               _abA = null;
                               if (_abB == null) _abActive = false;
+                              _syncNativeAbLoop();
                             }),
                             onBClear: () => setState(() {
                               _abB = null;
                               _abActive = false;
+                              _syncNativeAbLoop();
                             }),
                           ),
                       ],
@@ -3997,6 +4130,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
         onSpeedPresets:   () { Navigator.of(context).pop(); _showSpeedPresetsSheet(context); },
         onEndAction:      () { Navigator.of(context).pop(); _showEndActionSheet(context); },
         onScreenshot:     () { Navigator.of(context).pop(); _takeScreenshot(); },
+        onScreenshotWithSubtitles: () { Navigator.of(context).pop(); _takeScreenshot(withSubtitles: true); },
         onWatchParty:     () { Navigator.of(context).pop(); _showWatchPartyDialog(context); },
         onSilenceSkip:    () { Navigator.of(context).pop(); _showSilenceSkipSheet(context); },
         onZoomCrop:       () { Navigator.of(context).pop(); _showZoomCropSheet(context); },
@@ -4013,12 +4147,15 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
     void _handleAbRepeat() {
       if (_abA == null) {
         setState(() { _abA = _position; _abActive = false; });
+        _syncNativeAbLoop();
         _showInfoSnackbar('A point set at ${_formatDuration(_position)}');
       } else if (_abB == null) {
         setState(() { _abB = _position; _abActive = true; });
-        _showInfoSnackbar('B point set. A-B repeat active.');
+        _syncNativeAbLoop();
+        _showInfoSnackbar('B point set. A-B repeat active (native MPV loop).');
       } else {
         setState(() { _abA = null; _abB = null; _abActive = false; });
+        _syncNativeAbLoop();
         _showInfoSnackbar('A-B repeat cleared.');
       }
     }
@@ -4555,13 +4692,17 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
     }
 
     // ── Screenshot ────────────────────────────────────────────────────────────
-    Future<void> _takeScreenshot() async {
+    // `withSubtitles: true` uses MPV's native `screenshot subtitles` mode
+    // (burns in whatever subs/overlays are currently rendered) instead of
+    // the default `screenshot video` (clean frame only). Long-press the
+    // screenshot shortcut to capture with subtitles.
+    Future<void> _takeScreenshot({bool withSubtitles = false}) async {
       try {
         final dir = await getTemporaryDirectory();
         final ts = DateTime.now().millisecondsSinceEpoch;
         final baseName = 'RaddFlix_$ts';
         _np.setProperty('screenshot-template', '${dir.path}/$baseName');
-        await _np.command(['screenshot', 'video']);
+        await _np.command(['screenshot', withSubtitles ? 'subtitles' : 'video']);
         await Future.delayed(const Duration(milliseconds: 700));
         final pngFile = File('${dir.path}/$baseName.png');
         if (pngFile.existsSync()) {
@@ -4573,7 +4714,9 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
             skipIfExists: false,
             quality: 95,
           );
-          _showInfoSnackbar(result.isSuccess ? '📷 Screenshot saved to gallery' : 'Screenshot save failed');
+          _showInfoSnackbar(result.isSuccess
+              ? (withSubtitles ? '📷 Screenshot (with subtitles) saved' : '📷 Screenshot saved to gallery')
+              : 'Screenshot save failed');
         } else {
           _showInfoSnackbar('Screenshot captured — check mpv output folder');
         }
@@ -6795,6 +6938,7 @@ class _QuickShortcutsPanel extends StatefulWidget {
   final VoidCallback onSpeedPresets;
   final VoidCallback onEndAction;
   final VoidCallback onScreenshot;
+  final VoidCallback? onScreenshotWithSubtitles;
   final VoidCallback onWatchParty;
   final VoidCallback onSilenceSkip;
   final VoidCallback onZoomCrop;
@@ -6836,6 +6980,7 @@ class _QuickShortcutsPanel extends StatefulWidget {
     required this.onSpeedPresets,
     required this.onEndAction,
     required this.onScreenshot,
+    this.onScreenshotWithSubtitles,
     required this.onWatchParty,
     required this.onSilenceSkip,
     required this.onZoomCrop,
@@ -6980,7 +7125,8 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
                   _ShortcutItem(Icons.access_time_rounded, 'Jump To', false, widget.onJumpTo),
                   _ShortcutItem(Icons.speed_outlined, 'Speed List', false, widget.onSpeedPresets),
                   _ShortcutItem(Icons.last_page_rounded, 'End Action', widget.endAction != 'play_next', widget.onEndAction),
-                  _ShortcutItem(Icons.camera_alt_rounded, 'Screenshot', false, widget.onScreenshot),
+                  _ShortcutItem(Icons.camera_alt_rounded, 'Screenshot', false, widget.onScreenshot,
+                      widget.onScreenshotWithSubtitles),
                 ],
               ),
 
@@ -7075,7 +7221,8 @@ class _ShortcutItem {
   final String label;
   final bool active;
   final VoidCallback onTap;
-  _ShortcutItem(this.icon, this.label, this.active, this.onTap);
+  final VoidCallback? onLongPress;
+  _ShortcutItem(this.icon, this.label, this.active, this.onTap, [this.onLongPress]);
 }
 
 class _ShortcutGrid extends StatelessWidget {
@@ -7088,6 +7235,7 @@ class _ShortcutGrid extends StatelessWidget {
       children: items.map((item) => Expanded(
         child: GestureDetector(
           onTap: item.onTap,
+          onLongPress: item.onLongPress,
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 4),
             padding: const EdgeInsets.symmetric(vertical: 10),

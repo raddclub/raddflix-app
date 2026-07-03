@@ -34,7 +34,14 @@
 - Both fixes address a pre-existing break introduced in Phase 59 (flutter_tts was added but build never ran green)
 
 ### Open Tasks
-None — two player bugs fixed (dubbing + pinch zoom). CI building. Awaiting next task.
+None — MPV-native player upgrades pushed (native A-B loop, gapless-ish episode prefetch, screenshot-with-subtitles). CI building. Awaiting next task.
+
+### What was added 2026-07-03 — MPV-Native Player Upgrades
+1. **Native A-B loop** — replaced Dart position-listener seek with MPV's own `ab-loop-a`/`ab-loop-b`/`ab-loop-count` properties via new `_syncNativeAbLoop()`; frame-accurate, zero per-tick Dart overhead. Dart state now UI-only.
+2. **Near-gapless episode transitions** — `_prefetchNextEpisode()` resolves the next episode's stream link ~20s before the current one ends (once per episode); `_openMediaForEpisode()` has a fast path that uses the cached URL directly, skipping the network round-trip when the user advances.
+3. **Screenshot with subtitles** — `_takeScreenshot({withSubtitles})` uses MPV's `screenshot subtitles` command; wired to long-press on the Screenshot shortcut in the More panel.
+- See `agent-hub/history/2026-07.md` → "MPV-Native Player Upgrades 2026-07-03" for full detail.
+- No local Flutter build tool in that session — verified by code review only; watch first CI run closely.
 
 ### What was fixed 2026-07-03B
 1. **AI dub failing** — `subtitle_dubber.dart`: `flutter_tts.synthesizeToFile()` on Android ignores directory prefix, always writes to `getExternalFilesDir(null)`. Fixed: pass plain filename to TTS, read clips back from `getExternalStorageDirectory()` (same path). Previously all clips were missing → `clips.isEmpty` → null.
