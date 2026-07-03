@@ -14,6 +14,8 @@
 ---
 
 ## Open Tasks
+| Doc fix | Rewrote AGENT_PROMPT.md bootstrap to fix agent safety refusals | `fd351a1` | ✅ DONE |
+
 **None.** All logged work below is shipped and pushed.
 
 ---
