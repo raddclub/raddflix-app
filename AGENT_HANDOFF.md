@@ -3,7 +3,7 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
-## Current State (2026-07-01)
+## Current State (2026-07-03)
 
 ### Oracle
 - Flask: RUNNING ✅ healthz: {"ok":true,"version":"3.0.0"}
@@ -34,7 +34,7 @@
 - Both fixes address a pre-existing break introduced in Phase 59 (flutter_tts was added but build never ran green)
 
 ### Open Tasks
-None — Phase 60 complete + build green. Awaiting next task from user.
+None — Oracle drift fixed + server synced to HEAD. Awaiting next task from user.
 
 ### Known Data Issues
 - DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 — upload to JazzDrive + sync still needed
