@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/db/local_db.dart';
 import '../core/db/sync_service.dart';
 import '../core/services/poster_service.dart';
@@ -102,6 +104,9 @@ class CatalogNotifier extends StateNotifier<CatalogState>
     _initialized = true;
 
     await _loadFromDb();
+    // Force a full re-sync when the APK is updated so any data-parsing fixes
+    // (e.g. is_free bool/int correction) are applied to existing SQLite rows.
+    await _resetSyncIfNewBuild();
     await syncFromServer(); // version-gated: no-op if Oracle unchanged
 
     // Load recommendations in background — non-blocking
@@ -139,6 +144,34 @@ class CatalogNotifier extends StateNotifier<CatalogState>
     WidgetsBinding.instance.removeObserver(this);
     _connectivitySub?.cancel();
     super.dispose();
+  }
+
+  /// Resets sync metadata when the APK build number changes so SyncService
+  /// treats the next launch as a first-run full sync. This is critical after
+  /// any release that fixes data-parsing bugs (e.g. is_free boolean handling):
+  /// the fix only applies to freshly-parsed API data, but SQLite can hold stale
+  /// values from before the fix. Resetting forces a clean re-download.
+  ///
+  /// Uses SharedPreferences key 'raddflix_sync_reset_build' to detect changes.
+  /// Safe to call on every initialize() — the check is a fast prefs read.
+  Future<void> _resetSyncIfNewBuild() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      // Combine version + buildNumber so any change (patch, minor, major) triggers
+      final currentBuild = '${info.version}+${info.buildNumber}';
+      final prefs = await SharedPreferences.getInstance();
+      const kKey = 'raddflix_sync_reset_build';
+      final lastBuild = prefs.getString(kKey) ?? '';
+      if (lastBuild != currentBuild) {
+        // New APK detected — reset sync timestamps so the next syncFromServer()
+        // runs a full sync and overwrites all stale is_free (and other) values.
+        await LocalDb.setLastSyncTimestamp(0);
+        await LocalDb.setLastSyncVersion(0);
+        await prefs.setString(kKey, currentBuild);
+      }
+    } catch (_) {
+      // Non-fatal: if PackageInfo fails the sync continues normally.
+    }
   }
 
   Future<void> _loadFromDb() async {
