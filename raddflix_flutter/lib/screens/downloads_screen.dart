@@ -8,8 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../providers/downloads_provider.dart';
-import '../providers/auth_provider.dart';
-import '../providers/subscription_provider.dart';
 import '../core/debug/debug_logger.dart';
 import '../widgets/bottom_nav.dart';
 import '../services/thumb_service.dart';
@@ -104,22 +102,12 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   int    _size(Map m)     => m['file_size']  as int? ?? 0;
   int    _date(Map m)     => m['downloaded_at'] as int? ?? 0;
 
-  // BUG-C04 fix: check if subscription has expired before playing downloaded content.
-  // If user had a subscription and it's now expired, redirect to PlanExpiredScreen.
-  // Free users (subscription==null) and guests can still play their downloads.
-  //
-  // BUG-SUB-STALE-01: always prefer the live subscriptionProvider.status over the
-  // auth-cached user.subscription, which can be stale after a renewal or expiry.
-  bool _isSubExpired() {
-    final user = ref.read(authProvider).user;
-    if (user == null || user.isGuest) return false;
-    // Live status from subscriptionProvider (loaded at splash and refreshed on resume).
-    final subStatus = ref.read(subscriptionProvider).status;
-    if (subStatus != null) return !subStatus.isActive;
-    // Fallback to cached value on the user object if provider hasn't loaded yet.
-    if (user.subscription == null) return false; // free user — no sub ever
-    return !user.subscription!.isActive; // has sub record but it expired
-  }
+  // NOTE: downloaded content is intentionally always playable regardless of the
+  // user's current subscription status (matches show_detail_screen.dart and
+  // player_screen.dart, which bypass subscription checks for local/downloaded
+  // files). A previous `_isSubExpired()` gate here was dead code that was never
+  // wired into any tap handler — removed to avoid confusing future edits into
+  // thinking downloads are subscription-gated.
 
   bool _isComplete(Map m)    => _status(m) == 'completed';
   bool _isDownloading(Map m) => _status(m) == 'downloading' || _status(m) == 'pending';

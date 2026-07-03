@@ -185,7 +185,24 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     return result;
   }
 
+  // BUG-RACE-EP-01: guards against rapid multi-tap on the episode list. _playEpisode
+  // is async (awaits decodeShareUrl before pushing) so several taps in quick succession
+  // could each resolve and independently push AppRoutes.player, stacking duplicate
+  // Player screens. One in-flight request at a time is enough — the nav push below
+  // still awaits so the guard clears once the user returns from (or fails to reach) the player.
+  bool _playEpisodeInFlight = false;
+
   Future<void> _playEpisode(int episodeIndex) async {
+    if (_playEpisodeInFlight) return;
+    _playEpisodeInFlight = true;
+    try {
+      await _playEpisodeImpl(episodeIndex);
+    } finally {
+      _playEpisodeInFlight = false;
+    }
+  }
+
+  Future<void> _playEpisodeImpl(int episodeIndex) async {
     // BUG-M02+M06 fix: build a single ascending list across ALL seasons for the player.
     // Previously allEps = _currentEpisodes which:
     //   (M02) could be descending when user toggled sort → player Next/Prev reversed

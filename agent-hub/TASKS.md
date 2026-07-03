@@ -75,6 +75,7 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 | Oracle drift fix | Server was 281 commits behind + UU conflict markers + local edits. Backed up server files, `git checkout -f origin/main`, `git pull --ff-only`. Server now at `baf349f`, clean tree, healthz ✅ | — | ✅ DONE 2026-07-03 |
 | Bug-Fix Batch 2026-07-03 | Free-content play gate + download failures: episode `is_free` inheritance in all 3 catalog API endpoints; movie/episode play gates bypass for local files; episode download URL decode; retryDownload URL decode; `_isSubExpired` live provider | `8176835` | ✅ DONE |
 | MPV-Native Player Upgrades 2026-07-03 | Native `ab-loop-a/b` (removed Dart-side seek polling), background next-episode link prefetch for near-gapless transitions, screenshot-with-subtitles (long-press) | `4cda21c` | ✅ DONE |
+| Full Audit Pass 2026-07-03 | Subtitles, player controls, access control, downloads — see `TASK_LOG.md` "Full Audit Pass 2026-07-03" | see below | ✅ DONE |
 
 ---
 

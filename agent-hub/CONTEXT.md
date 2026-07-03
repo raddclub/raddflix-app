@@ -18,9 +18,20 @@ Users install the APK, log in, and stream content. All content lives on JazzDriv
 
 ### GitHub Repo: raddclub/raddflix-app
 - Flutter app: `raddflix_flutter/`
-- Flask backend: `radd-hub/`
+- Flask backend: `radd-hub/` (this is the ONLY copy that runs — Oracle deploys
+  `/opt/jazzmax/radd-hub/hub/`, see above)
 - Agent docs: `agent-hub/`, `AGENT_HANDOFF.md`, `AGENT_PROMPT.md`
 - APK CI: `.github/workflows/build-apk.yml` (triggers on push to `raddflix_flutter/**`)
+
+### ⚠️ Duplicate `hub/` directory at repo root — DEAD CODE, do not edit
+There are two copies of the Flask backend in this repo: `radd-hub/hub/` (real,
+deployed) and a stray `hub/` at the repo root (legacy leftover, never deployed —
+`push_to_oracle.sh` only pulls the whole repo onto the server, but the Flask
+service itself only ever imports from `radd-hub/hub/`). A previous session fixed
+BUG-FREE-EP-01 (episode `is_free` inheritance) in `hub/routes/catalog_api.py`
+by mistake, leaving the real, live `radd-hub/hub/routes/catalog_api.py` still
+broken in production for weeks — always double check you are editing the
+`radd-hub/hub/` copy, and grep both if unsure which one a past commit touched.
 
 ---
 

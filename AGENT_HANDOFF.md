@@ -5,6 +5,17 @@
 
 ## Current State (2026-07-03)
 
+### Full audit pass (subtitles, player controls, access control, downloads) — 2026-07-03
+Found and fixed a critical bug: the backend `is_free` episode-inheritance fix from
+commit `8176835` had been applied to a stray, never-deployed `hub/` directory at the
+repo root instead of the real `radd-hub/hub/` that Oracle runs — production was still
+showing free-show episodes as locked. Re-applied the fix to the correct file. Also
+fixed a subtitle-track-carries-over-to-next-episode bug, a weak download-completion
+size check, a rapid-multi-tap race on the episode list, and removed a dead/misleading
+subscription-expiry check in the Downloads screen. Full detail in
+`agent-hub/history/2026-07.md` → "Full Audit Pass 2026-07-03". See also the new
+`agent-hub/CONTEXT.md` warning about the duplicate `hub/` directory.
+
 ### Oracle
 - Flask: RUNNING ✅ healthz: {"ok":true,"version":"3.0.0"}
 - DB: schema current (display_name/email/avatar_color/avatar_emoji + all Phase 26 columns)

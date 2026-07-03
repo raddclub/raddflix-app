@@ -112,12 +112,18 @@ class DownloadService {
     final cancelToken = CancelToken();
     _cancelTokens[fileId] = cancelToken;
     int localProgressPct5 = -1; // H-06: local per-download, not shared across concurrent downloads
+    // BUG-DL-VALIDATE-01: remember the server-reported Content-Length (once known)
+    // so completion can be validated against the *expected* size, not just a fixed
+    // 512 KB floor — a large file truncated mid-download (e.g. connection dropped
+    // at 80%) would previously pass the 512 KB check and be wrongly marked 'completed'.
+    int expectedTotal = 0;
     try {
       await _dio.download(
         resolvedUrl,
         localPath,
         cancelToken: cancelToken,
         onReceiveProgress: (received, total) {
+          if (total > 0) expectedTotal = total;
           final progress = total > 0 ? received / total : 0.0;
           onProgress(progress, received, total > 0 ? total : 0);
           // FIX-DL-THROTTLE: only write to DB when progress crosses a 5% boundary
@@ -137,11 +143,19 @@ class DownloadService {
 
       final file = File(localPath);
       final fileSize = await file.exists() ? await file.length() : 0;
-      // BUG-DL-08: validate file is not a partial/empty download (< 512 KB = broken)
-      if (fileSize < 512 * 1024) {
+      // BUG-DL-08: validate file is not a partial/empty download (< 512 KB = broken).
+      // BUG-DL-VALIDATE-01: also fail if the server told us the real size up front
+      // (Content-Length) and we ended up with materially less than that — catches
+      // truncated downloads on large files that would otherwise clear the 512 KB floor.
+      final tooSmallAbsolute = fileSize < 512 * 1024;
+      final tooSmallVsExpected = expectedTotal > 0 && fileSize < (expectedTotal * 0.99).floor();
+      if (tooSmallAbsolute || tooSmallVsExpected) {
         await file.exists().then((e) => e ? file.delete() : Future.value());
         await LocalDb.updateDownloadStatus(fileId, 'failed', 0.0, 0);
-        throw Exception('Download incomplete: file too small (${fileSize} bytes)');
+        throw Exception(
+          'Download incomplete: got $fileSize bytes'
+          '${expectedTotal > 0 ? ' of expected $expectedTotal' : ''}',
+        );
       }
       await LocalDb.updateDownloadStatus(fileId, 'completed', 1.0, fileSize);
       // Count actual downloaded bytes toward monthly quota (exact size, counted once at completion).

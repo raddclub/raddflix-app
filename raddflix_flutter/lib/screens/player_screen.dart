@@ -906,6 +906,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _abA = null;
       _abB = null;
       _abActive = false;
+      // BUG-SUB-CARRY-01: a manually-picked subtitle/secondary-subtitle track ID
+      // (e.g. sid=3) is an MPV *property*, not per-file state — it survives a
+      // loadfile/open of the next episode and gets blindly re-applied to that
+      // file's track list, which can pick the wrong (or a nonexistent) track.
+      // Reset the Dart-side selection here; the native `sid`/`secondary-sid`
+      // properties are reset to 'auto' just below so MPV re-picks the new
+      // episode's default/forced track once it loads.
+      _selectedSubtitle = null;
+      _selectedSecondSub = null;
       // Reset the prefetch-trigger latch for the new episode; a stale
       // `_prefetchedFileId` from the previous one is fine — it's simply
       // ignored below if it doesn't match the episode we're opening.
@@ -916,6 +925,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     try {
       _np.setProperty('ab-loop-a', 'no');
       _np.setProperty('ab-loop-b', 'no');
+    } catch (_) {}
+    // BUG-SUB-CARRY-01: reset subtitle track selection to auto so MPV re-picks
+    // the new episode's own default track instead of reapplying a stale index.
+    try {
+      _np.setProperty('sid', 'auto');
+      _np.setProperty('secondary-sid', 'no');
     } catch (_) {}
     _openMediaForEpisode(ep,
       localPath: (ep['local_path'] ?? ep['localPath'] ?? ep['download_path']) as String?,
