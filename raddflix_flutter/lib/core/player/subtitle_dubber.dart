@@ -152,7 +152,15 @@ class SubtitleDubber {
     if (cachedFile.existsSync() && cachedFile.lengthSync() > 100) return outPath; // cache hit
 
     final tts = FlutterTts();
-    await tts.setLanguage(language);
+    // Fix #DUB-01: setLanguage() returns a negative int when the language pack
+    // is not installed on the device (LANG_MISSING_DATA = -1, LANG_NOT_SUPPORTED = -2).
+    // Returning null here triggers the 'Install TTS' prompt in player_screen.dart
+    // instead of silently looping through all lines and failing at the end.
+    final langResult = await tts.setLanguage(language);
+    if (langResult is int && langResult < 0) {
+      onProgress(0, entries.length, 'LANG_NOT_INSTALLED');
+      return null;
+    }
     await tts.setSpeechRate(0.45);
     await tts.setVolume(1.0);
     await tts.setPitch(1.0);
