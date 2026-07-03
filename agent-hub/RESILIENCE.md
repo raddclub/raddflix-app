@@ -85,7 +85,47 @@ actually responds before printing success) — extend the same habit to manual w
   evidence from logs/code — before writing the fix. Guessing-and-checking against production is
   expensive; guessing-and-checking against logs/code is free.
 
-## 5. Hard boundary — what never gets "optimized away"
+## 5. Keep context lean so agents don't lose the thread or waste tokens
+
+A future agent's biggest enemy isn't a hard bug — it's re-reading a bloated file, missing the
+one line that mattered, or burning its context window before it gets to the actual task. Treat
+this repo's docs as a **memory system**, not a diary:
+
+- **`TASKS.md` is an index, not a diary.** One row per completed item (summary + commit SHA),
+  never the full implementation write-up. Full detail goes in `agent-hub/history/TASK_LOG.md`
+  instead — append-only, so nothing is lost, but nobody has to read it unless they're chasing a
+  specific past decision.
+- **`agent-hub/memory/MEMORY.md` follows the same rule** — one-line pointers to topic files
+  (`oracle-github-access.md`, `player-ux-sidebar.md`, etc.), never inline detail. If you learn
+  something durable, add a one-liner to `MEMORY.md` and put the actual explanation in its own
+  topic file. If `MEMORY.md` starts growing past a screen or two, that's a signal to demote a
+  verbose entry into its topic file, not to let it keep growing.
+- **Before re-deriving something, search first.** If a task looks like something that's probably
+  been hit before (a codec quirk, a proxy failure mode, a build error), grep `TASK_LOG.md` and
+  `MEMORY.md` before spending tokens re-investigating from scratch.
+- **Don't paste large unchanged blocks back into docs "to be safe."** When updating a doc, edit
+  the specific section that changed; re-typing the whole file wastes tokens and risks silently
+  dropping something on the way back in.
+- **A session that's about to run low on context should write down state before continuing,**
+  not push through and risk losing track of what's already done vs. still pending — add a
+  `TASKS.md` row and a `MEMORY.md`/`TASK_LOG.md` note *before* the thread gets lost, so the next
+  agent (even if it's a fresh session with zero conversation history) can pick up exactly where
+  this one left off just by reading the docs.
+
+## 6. Treat "pushed" as unverified until you've checked GitHub, not the command output
+
+A command returning exit code 0 is not proof the work is safe on GitHub. Before calling any task
+done:
+
+1. Re-fetch the file's content (or the branch ref SHA) directly from GitHub — via the Contents
+   API or `git fetch` — and diff it against what you meant to push.
+2. If it doesn't match, the push didn't really succeed (or pushed something stale) — fix it now,
+   don't leave it for the next session to discover as a surprise.
+3. When a task touches several files, verify all of them, not just the first one you happened to
+   check — a partial push (some files landed, one didn't) is worse than an obvious full failure
+   because it looks done.
+
+## 7. Hard boundary — what never gets "optimized away"
 
 Speed and resilience never come at the cost of these, no matter how big or urgent the task is:
 
