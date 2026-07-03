@@ -67,12 +67,14 @@ fi
 chmod 600 "$KEY_FILE"
 echo "  ✓ SSH key restored (temp file, auto-deleted on exit)"
 
-SSH="ssh -i $KEY_FILE -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes"
+# Use a bash array so the SSH options survive the non-space IFS ($'\n\t') set
+# above.  Never collapse to a plain string — use "${SSH[@]}" everywhere.
+SSH=(ssh -i "$KEY_FILE" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes)
 
 # ── Test connection ───────────────────────────────────────────────────────────
 echo ""
 echo "▶ Testing connection to Oracle..."
-if ! CONNECT_OUT=$($SSH "${ORACLE_USER}@${ORACLE_IP}" "echo OK" 2>&1); then
+if ! CONNECT_OUT=$("${SSH[@]}" "${ORACLE_USER}@${ORACLE_IP}" "echo OK" 2>&1); then
     echo "$CONNECT_OUT" >&2
     fail "cannot connect to Oracle ($ORACLE_IP). Check ORACLE_SSH_KEY, network, and that the host is reachable."
 fi
@@ -81,7 +83,7 @@ echo "  ✓ Connected to $ORACLE_IP"
 # ── Verify target directory + git repo exist before touching anything ────────
 echo ""
 echo "▶ Verifying remote deploy directory..."
-if ! $SSH "${ORACLE_USER}@${ORACLE_IP}" "[ -d '$ORACLE_DIR/.git' ]" 2>/dev/null; then
+if ! "${SSH[@]}" "${ORACLE_USER}@${ORACLE_IP}" "[ -d '$ORACLE_DIR/.git' ]" 2>/dev/null; then
     fail "$ORACLE_DIR is missing or is not a git repo on $ORACLE_IP. Refusing to proceed."
 fi
 echo "  ✓ $ORACLE_DIR is a valid git checkout"
@@ -89,7 +91,7 @@ echo "  ✓ $ORACLE_DIR is a valid git checkout"
 # ── Pull latest code (abort on merge conflicts instead of leaving a broken tree) ─
 echo ""
 echo "▶ Pulling latest code from GitHub..."
-PULL_OUTPUT=$($SSH "${ORACLE_USER}@${ORACLE_IP}" "
+PULL_OUTPUT=$("${SSH[@]}" "${ORACLE_USER}@${ORACLE_IP}" "
     set -e
     cd '$ORACLE_DIR'
     if [ -n \"\$(git status --porcelain)\" ]; then
@@ -118,7 +120,7 @@ echo "  ✓ Code updated"
 # ── Install any new Python deps (non-fatal, but surfaced clearly) ────────────
 echo ""
 echo "▶ Installing Python dependencies..."
-if ! DEPS_OUTPUT=$($SSH "${ORACLE_USER}@${ORACLE_IP}" "
+if ! DEPS_OUTPUT=$("${SSH[@]}" "${ORACLE_USER}@${ORACLE_IP}" "
     cd '$ORACLE_DIR'
     if [ -f requirements.txt ]; then
         pip3 install -r requirements.txt -q --break-system-packages
@@ -135,7 +137,7 @@ fi
 # ── Restart Flask server ──────────────────────────────────────────────────────
 echo ""
 echo "▶ Restarting RaddFlix server..."
-if ! RESTART_OUTPUT=$($SSH "${ORACLE_USER}@${ORACLE_IP}" "
+if ! RESTART_OUTPUT=$("${SSH[@]}" "${ORACLE_USER}@${ORACLE_IP}" "
     sudo -n supervisorctl restart '$SERVICE_NAME' 2>&1 || exit 1
     sleep 2
     sudo -n supervisorctl status '$SERVICE_NAME'
@@ -154,7 +156,7 @@ echo "  ✓ Service restarted and RUNNING"
 echo ""
 echo "▶ Verifying API..."
 sleep 2
-API_RESP=$($SSH "${ORACLE_USER}@${ORACLE_IP}" "curl -s --max-time 10 http://localhost:5000/api/app/version" 2>/dev/null || true)
+API_RESP=$("${SSH[@]}" "${ORACLE_USER}@${ORACLE_IP}" "curl -s --max-time 10 http://localhost:5000/api/app/version" 2>/dev/null || true)
 
 if [ -z "$API_RESP" ]; then
     fail "API did not respond at all after restart — deployment may have broken the server. Check logs immediately: sudo supervisorctl tail $SERVICE_NAME"
