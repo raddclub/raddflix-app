@@ -27,7 +27,9 @@ WORKSPACE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Single global lock — prevents two sessions from racing a commit/push
 # against the same working tree (partial commits, interleaved index state).
-LOCK_FILE="$WORKSPACE/.push_to_github.lock"
+# Kept in /tmp (outside the repo) so it can never be picked up by `git add -A`
+# and accidentally committed.
+LOCK_FILE="/tmp/.push_to_github.lock.$(printf '%s' "$WORKSPACE" | md5sum | cut -d' ' -f1)"
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
     echo "  ❌ ERROR: another push_to_github.sh run is already in progress"
