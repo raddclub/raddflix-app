@@ -17,6 +17,9 @@ Doc sprawl from repeated one-off handoff files is exactly what this file replace
 4. **`agent-hub/TASKS.md`** — the live task board. Check for OPEN/IN-PROGRESS items before starting new work.
 5. **`agent-hub/memory/MEMORY.md`** — durable lessons and pointers to topic files.
 6. **`agent-hub/history/TASK_LOG.md`** — append-only session log (most recent entries at the bottom).
+7. **`agent-hub/OPERATIONS.md`** — step-by-step "how do I actually do it": connecting to GitHub
+   and Oracle, editing files, and pushing changes. Read this before running any script or SSH
+   command for the first time. Deep server-provisioning reference lives in `agent-hub/SERVER_SETUP.md`.
 
 Older one-off audit reports and superseded handoff files have been moved to `agent-hub/archive/`
 for reference — they are historical, not current. Do not treat anything in `archive/` as live state.
