@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
@@ -217,7 +218,7 @@ class _CastCard extends StatelessWidget {
 
   Widget _placeholder(RaddTheme t, double size) => Container(
     color: t.bg,
-    child: Icon(Icons.person_rounded, color: t.textMuted, size: size * 0.45),
+    child: Icon(AppIcons.profileFill, color: t.textMuted, size: size * 0.45),
   );
 }
 

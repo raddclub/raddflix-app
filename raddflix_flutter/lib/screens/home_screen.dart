@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -208,7 +209,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       actions: [
         const NotificationBell(),
         IconButton(
-          icon: const Icon(Icons.search_rounded, size: 26),
+          icon: const Icon(AppIcons.search, size: 26),
           onPressed: () { DebugLogger.logTap('Home', 'searchIcon'); Navigator.of(context).pushNamed(AppRoutes.search); },
         ),
         if (user != null)
@@ -367,7 +368,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         if (catalog.shows.any((s) => (s.newEpisodeCount ?? 0) > 0))
           SliverToBoxAdapter(child: _ContentSection(
             title: 'New Episodes',
-            titleIcon: Icons.fiber_new_rounded,
+            titleIcon: AppIcons.newReleases,
             items: catalog.shows.where((s) => (s.newEpisodeCount ?? 0) > 0).toList(),
           ).animate().fadeIn(duration: 400.ms)),
 
@@ -375,7 +376,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         if (catalog.freeContent.isNotEmpty)
           SliverToBoxAdapter(child: _ContentSection(
             title: 'Free to Watch',
-            titleIcon: Icons.play_circle_outline_rounded,
+            titleIcon: AppIcons.playCircle,
             items: catalog.freeContent,
           ).animate().fadeIn(duration: 400.ms)),
 
@@ -383,7 +384,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         if (catalog.ongoingShows.isNotEmpty)
           SliverToBoxAdapter(child: _ContentSection(
             title: 'Ongoing Shows',
-            titleIcon: Icons.live_tv_rounded,
+            titleIcon: AppIcons.liveTv,
             items: catalog.ongoingShows,
           ).animate().fadeIn(duration: 400.ms)),
 
@@ -418,7 +419,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           if (catalog.newlyAdded.isNotEmpty)
             SliverToBoxAdapter(child: _ContentSection(
               title: 'New Arrivals',
-              titleIcon: Icons.new_releases_rounded,
+              titleIcon: AppIcons.newReleases,
               items: catalog.newlyAdded,
             ).animate().fadeIn(duration: 400.ms)),
 
@@ -428,7 +429,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
                 child: Column(children: [
-                  Icon(Icons.movie_filter_outlined,
+                  Icon(AppIcons.filmSlate,
                       color: t.textMuted.withOpacity(0.4), size: 64),
                   const SizedBox(height: 16),
                   Text('No content yet',
@@ -447,7 +448,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                     child: Center(child: Padding(
                       padding: const EdgeInsets.only(top: 40),
                       child: Column(children: [
-                        Icon(Icons.search_off_rounded, color: t.textMuted, size: 48),
+                        Icon(AppIcons.search, color: t.textMuted, size: 48),
                         SizedBox(height: 12),
                         Text('No $_selectedCategory content yet',
                             style: TextStyle(color: t.textMuted)),
@@ -779,7 +780,7 @@ class _HeroCardState extends ConsumerState<_HeroCard>
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.star_rounded, color: Colors.amber, size: 10),
+                    const Icon(AppIcons.starFill, color: Colors.amber, size: 10),
                     const SizedBox(width: 3),
                     Text(item.displayRating, style: const TextStyle(
                         color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
@@ -807,7 +808,7 @@ class _HeroCardState extends ConsumerState<_HeroCard>
                           boxShadow: AppShadows.primary),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Icon(
-                          isResume ? Icons.play_circle_filled_rounded : Icons.play_arrow_rounded,
+                          isResume ? AppIcons.playCircleFill : AppIcons.play,
                           color: Colors.white, size: 18),
                         const SizedBox(width: 5),
                         Text(isResume ? 'Resume' : 'Watch Now',
@@ -824,7 +825,7 @@ class _HeroCardState extends ConsumerState<_HeroCard>
                         border: Border.all(color: Colors.white24),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.add_rounded, color: Colors.white, size: 16),
+                        Icon(AppIcons.add, color: Colors.white, size: 16),
                         SizedBox(width: 4),
                         Text('My List', style: TextStyle(color: Colors.white,
                             fontSize: 12, fontWeight: FontWeight.w600)),
@@ -857,7 +858,7 @@ class _HeroCardState extends ConsumerState<_HeroCard>
     final item = widget.item; // Phase 48: shorthand; was a direct field in StatelessWidget
     final placeholder = DecoratedBox(
       decoration: const BoxDecoration(color: AppColors.card),
-      child: const Center(child: Icon(Icons.movie_outlined, color: AppColors.textMuted, size: 48)),
+      child: const Center(child: Icon(AppIcons.movie, color: AppColors.textMuted, size: 48)),
     );
 
     // 1. Local file (permanent cached poster — zero network, instant load)
@@ -916,7 +917,7 @@ class _UpdateDialog extends StatelessWidget {
               color: AppColors.primary.withOpacity(0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.system_update_rounded, size: 32, color: AppColors.primary),
+            child: const Icon(AppIcons.systemUpdate, size: 32, color: AppColors.primary),
           ),
           const SizedBox(height: 16),
           Text('Update Required', style: TextStyle(
@@ -931,7 +932,7 @@ class _UpdateDialog extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              icon: const Icon(Icons.download_rounded, size: 18),
+              icon: const Icon(AppIcons.downloadAction, size: 18),
               label: const Text('Update Now'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -1052,7 +1053,7 @@ class _ContentSection extends StatelessWidget {
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white24, width: 0.5),
                           ),
-                          child: const Icon(Icons.close_rounded,
+                          child: const Icon(AppIcons.close,
                               size: 13, color: Colors.white70),
                         ),
                       ),
@@ -1086,7 +1087,7 @@ class _ContentSection extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
             child: Column(children: [
               Row(children: [
-                Icon(Icons.remove_circle_outline_rounded,
+                Icon(AppIcons.minusCircle,
                     color: AppColors.error, size: 20),
                 SizedBox(width: 10),
                 Expanded(child: Text(
@@ -1167,7 +1168,7 @@ class _CategoryChip extends StatelessWidget {
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (isSelected) ...[
-            const Icon(Icons.check_rounded, size: 11, color: Colors.white),
+            const Icon(AppIcons.check, size: 11, color: Colors.white),
             const SizedBox(width: 4),
           ],
           Text(label, style: TextStyle(
@@ -1280,10 +1281,10 @@ class _RecommendCard extends StatelessWidget {
                       highlightColor: t.surfaceHigh,
                       child: Container(color: t.card)),
                     errorWidget: (_, __, ___) => Container(color: t.card,
-                        child: Icon(Icons.movie_outlined,
+                        child: Icon(AppIcons.movie,
                             color: t.textMuted, size: 28)))
                 : Container(color: t.card,
-                    child: Icon(Icons.movie_outlined,
+                    child: Icon(AppIcons.movie,
                         color: t.textMuted, size: 28)),
             // Gradient overlay
             Positioned(bottom: 0, left: 0, right: 0,
@@ -1308,7 +1309,7 @@ class _RecommendCard extends StatelessWidget {
                   decoration: BoxDecoration(color: Colors.black54,
                       borderRadius: BorderRadius.circular(4)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.star_rounded, color: Colors.amber, size: 10),
+                    const Icon(AppIcons.starFill, color: Colors.amber, size: 10),
                     const SizedBox(width: 2),
                     Text(rating.toStringAsFixed(1), style: const TextStyle(
                         color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600)),

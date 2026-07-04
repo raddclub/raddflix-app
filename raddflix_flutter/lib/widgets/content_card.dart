@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/radd_theme.dart';
@@ -120,7 +121,7 @@ class ContentCard extends StatelessWidget {
                   decoration: BoxDecoration(color: Colors.black54,
                       borderRadius: BorderRadius.circular(4)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.star_rounded, color: Colors.amber, size: 10),
+                    const Icon(AppIcons.starFill, color: Colors.amber, size: 10),
                     const SizedBox(width: 2),
                     Text(item.displayRating,
                         style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600)),
@@ -192,14 +193,14 @@ class ContentCard extends StatelessWidget {
         ),
         elevation: 12,
         items: [
-          _quickActionItem('play', Icons.play_arrow_rounded, 'Play', context),
+          _quickActionItem('play', AppIcons.play, 'Play', context),
           _quickActionItem(
             'watchlist',
-            isInWatchlist ? Icons.bookmark_remove_rounded : Icons.bookmark_add_rounded,
+            isInWatchlist ? AppIcons.bookmarkFill : AppIcons.bookmark,
             isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist',
             context,
           ),
-          _quickActionItem('info', Icons.info_outline_rounded, 'More Info', context),
+          _quickActionItem('info', AppIcons.info, 'More Info', context),
         ],
       ).then((action) {
         if (action == null) return;
@@ -318,7 +319,7 @@ class _Fallback extends StatelessWidget {
       child: Stack(fit: StackFit.expand, children: [
         Center(
           child: Icon(
-            item.isShow ? Icons.tv_outlined : Icons.movie_outlined,
+            item.isShow ? AppIcons.tv : AppIcons.movie,
             color: t.textMuted.withOpacity(0.4), size: 30),
         ),
         Positioned(bottom: 0, left: 0, right: 0,
@@ -421,7 +422,7 @@ class _DetailSheet extends StatelessWidget {
                   const SizedBox(height: 5),
                   Row(children: [
                     if (item.displayYear.isNotEmpty) ...[
-                      Icon(Icons.calendar_today_rounded,
+                      Icon(AppIcons.calendar,
                           size: 11, color: Colors.white.withOpacity(0.7)),
                       const SizedBox(width: 4),
                       Text(item.displayYear,
@@ -439,7 +440,7 @@ class _DetailSheet extends StatelessWidget {
                                 fontSize: 12)),
                       ),
                     if (item.displayRating.isNotEmpty) ...[
-                      const Icon(Icons.star_rounded, color: Colors.amber, size: 13),
+                      const Icon(AppIcons.starFill, color: Colors.amber, size: 13),
                       const SizedBox(width: 3),
                       Text(item.displayRating,
                           style: TextStyle(
@@ -477,8 +478,8 @@ class _DetailSheet extends StatelessWidget {
                   child: _SheetBtn(
                     label: isShow ? 'Browse Episodes' : 'Watch Now',
                     icon: isShow
-                        ? Icons.video_library_rounded
-                        : Icons.play_arrow_rounded,
+                        ? AppIcons.videoLibrary
+                        : AppIcons.play,
                     useGradient: true,
                     onTap: () {
                       Navigator.pop(context);
@@ -507,7 +508,7 @@ class _DetailSheet extends StatelessWidget {
                   flex: 2,
                   child: _SheetBtn(
                     label: 'Details',
-                    icon: Icons.info_outline_rounded,
+                    icon: AppIcons.info,
                     useGradient: false,
                     theme: t,
                     onTap: () {

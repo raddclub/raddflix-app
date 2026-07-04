@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../providers/subscription_provider.dart';
@@ -227,7 +228,7 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
                           // Play icon overlay
                           const Positioned.fill(
                             child: Center(
-                              child: Icon(Icons.play_circle_filled_rounded,
+                              child: Icon(AppIcons.playCircleFill,
                                   color: Colors.white70, size: 36),
                             ),
                           ),
@@ -242,7 +243,7 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
                                   color: Colors.black54,
                                   borderRadius: BorderRadius.circular(11),
                                 ),
-                                child: const Icon(Icons.close_rounded,
+                                child: const Icon(AppIcons.close,
                                     size: 14, color: Colors.white70),
                               ),
                             ),
@@ -298,7 +299,7 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
   Widget _posterFallback() => Container(
     color: const Color(0xFF2A2A2A),
     child: const Center(
-      child: Icon(Icons.movie_rounded, color: Colors.white24, size: 40),
+      child: Icon(AppIcons.movieFill, color: Colors.white24, size: 40),
     ),
   );
 }

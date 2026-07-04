@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -185,7 +186,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     )),
                     const Spacer(),
                     IconButton(onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(Icons.close_rounded, color: t.textMuted)),
+                        icon: Icon(AppAppIcons.close, color: t.textMuted)),
                   ]),
                 ),
               ).animate().fadeIn(duration: 300.ms),
@@ -266,7 +267,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 color: _avatarColor(user).withOpacity(0.25),
                                 blurRadius: 8)],
                           ),
-                          child: Icon(Icons.edit_rounded, size: 15,
+                          child: Icon(AppIcons.edit, size: 15,
                               color: _avatarColor(user)),
                         ),
                     ]),
@@ -280,7 +281,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   if (user?.isGuest != true) ...[
                     const SizedBox(height: 5),
                     Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.phone_outlined, size: 13, color: t.textMuted),
+                      Icon(AppIcons.phone, size: 13, color: t.textMuted),
                       const SizedBox(width: 5),
                       Text(user!.phone,
                           style: TextStyle(color: t.textMuted, fontSize: 12)),
@@ -288,7 +289,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     if ((user.email ?? '').isNotEmpty) ...[
                       const SizedBox(height: 3),
                       Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.mail_outline_rounded, size: 13, color: t.textMuted),
+                        Icon(AppIcons.mail, size: 13, color: t.textMuted),
                         const SizedBox(width: 5),
                         Text(user.email!,
                             style: TextStyle(color: t.textMuted, fontSize: 12)),
@@ -312,7 +313,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             border: Border.all(color: t.border),
                           ),
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(Icons.edit_rounded, size: 11, color: t.textMuted),
+                            Icon(AppIcons.edit, size: 11, color: t.textMuted),
                             const SizedBox(width: 4),
                             Text('Add your name',
                                 style: TextStyle(color: t.textMuted, fontSize: 11,
@@ -348,7 +349,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
-                        Icon(Icons.star_rounded, color: AppColors.primary, size: 24),
+                        Icon(AppIcons.starFill, color: AppColors.primary, size: 24),
                         SizedBox(width: 12),
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text('Active Subscription', style: TextStyle(
@@ -420,7 +421,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   // General
                   _Section(title: 'General', children: [
                     _SectionTile(
-                      icon: Icons.settings_outlined,
+                      icon: AppIcons.settings,
                       label: 'Settings',
                       onTap: () {
                         DebugLogger.logTap('Profile', 'settings');
@@ -432,7 +433,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   // Appearance
                   _Section(title: 'Appearance', children: [
                     _SectionTile(
-                      icon: Icons.palette_outlined,
+                      icon: AppIcons.colorPalette,
                       label: 'Theme',
                       trailing: _ThemeTrailing(),
                       onTap: () => _showThemePicker(context),
@@ -442,7 +443,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   // Player — BUG-A21 + BUG-A22: expose reset actions
                   _Section(title: 'Player', children: [
                     _SectionTile(
-                      icon: Icons.tune_rounded,
+                      icon: AppIcons.equalizer,
                       label: 'Reset Player Settings',
                       onTap: () async {
                         final ok = await showDialog<bool>(context: context,
@@ -470,7 +471,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     _divider(),
                     _SectionTile(
-                      icon: Icons.history_toggle_off_rounded,
+                      icon: AppIcons.history,
                       label: 'Reset Watch Progress',
                       onTap: () async {
                         final ok = await showDialog<bool>(context: context,
@@ -504,14 +505,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                   _Section(title: 'My Content', children: [
                     _SectionTile(
-                      icon: Icons.bookmark_rounded,
+                      icon: AppIcons.bookmarkFill,
                       iconColor: AppColors.primary,
                       label: 'My Watchlist',
                       onTap: () { DebugLogger.logTap('Profile', 'watchlist'); Navigator.of(context).pushNamed(AppRoutes.watchlist); },
                     ),
                     _divider(),
                     _SectionTile(
-                      icon: Icons.history_rounded,
+                      icon: AppIcons.history,
                       iconColor: const Color(0xFF22C55E),
                       label: 'Watch History',
                       onTap: () { DebugLogger.logTap('Profile', 'history'); Navigator.of(context).pushNamed(AppRoutes.history); },
@@ -521,14 +522,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   // Device
                   _Section(title: 'Device', children: [
                     _SectionTile(
-                      icon: Icons.smartphone_rounded,
+                      icon: AppIcons.device,
                       label: 'Device',
                       trailing: Text(_deviceName ?? '…',
                           style: TextStyle(color: t.textMuted, fontSize: 12)),
                     ),
                     _divider(),
                     _SectionTile(
-                      icon: _hasInternet ? Icons.wifi_rounded : Icons.wifi_off_rounded,
+                      icon: _hasInternet ? AppIcons.wifi : AppIcons.wifiOff,
                       iconColor: _hasInternet ? const Color(0xFF22C55E) : AppColors.error,
                       label: 'Network',
                       trailing: Container(
@@ -549,14 +550,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   // Account
                   _Section(title: 'Account', children: [
                     _SectionTile(
-                      icon: Icons.workspace_premium_outlined,
+                      icon: AppIcons.crown,
                       iconColor: AppColors.primary,
                       label: 'Upgrade Plan',
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.subscription),
                     ),
                     _divider(),
                     _SectionTile(
-                      icon: Icons.switch_account_rounded,
+                      icon: AppIcons.users,
                       iconColor: const Color(0xFF3B82F6),
                       label: 'Switch Profile',
                       trailing: activeProfile != null
@@ -567,7 +568,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     _divider(),
                     _SectionTile(
-                      icon: Icons.manage_accounts_outlined,
+                      icon: AppIcons.manageAccount,
                       iconColor: const Color(0xFF14B8A6),
                       label: 'Manage Profiles',
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.addProfile),
@@ -575,7 +576,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     if (!isKidsProfile) ...[
                       _divider(),
                       _SectionTile(
-                        icon: Icons.lock_rounded,
+                        icon: AppIcons.lock,
                         iconColor: const Color(0xFF7C5CFF),
                         label: 'Private Vault',
                         trailing: Container(
@@ -605,14 +606,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ],
                     _divider(),
                     _SectionTile(
-                      icon: Icons.download_outlined,
+                      icon: AppIcons.downloads,
                       label: 'Downloads',
                       onTap: () { DebugLogger.logTap('Profile', 'downloads'); Navigator.of(context).pushNamed(AppRoutes.downloads); },
                     ),
                     if (user?.isGuest != true && _hasInternet) ...[
                       _divider(),
                       _SectionTile(
-                        icon: Icons.cloud_download_outlined,
+                        icon: AppIcons.cloudDownload,
                         iconColor: const Color(0xFF3B82F6),
                         label: 'Server Downloads',
                         trailing: Container(
@@ -629,7 +630,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ],
                     _divider(),
                     _SectionTile(
-                      icon: Icons.bug_report_outlined,
+                      icon: AppIcons.bugReport,
                       iconColor: Colors.orange,
                       label: 'Debug Logs',
                       onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -637,7 +638,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     _divider(),
                     _SectionTile(
-                      icon: Icons.logout_rounded,
+                      icon: AppIcons.logout,
                       iconColor: AppColors.error,
                       label: 'Sign Out',
                       labelColor: AppColors.error,
@@ -753,10 +754,10 @@ class _ThemePicker extends ConsumerWidget {
   const _ThemePicker();
   // Standard themes shown as list rows
   static const _standard = [
-    (JazzTheme.dark,   Icons.nights_stay_rounded,   'Dark',   'Deep dark — easy on the eyes'),
-    (JazzTheme.amoled, Icons.phone_android_rounded,  'AMOLED', 'Pure black — zero drain on OLED'),
-    (JazzTheme.light,  Icons.wb_sunny_rounded,       'Light',  'Bright background for daylight'),
-    (JazzTheme.auto,   Icons.brightness_auto_rounded,'Auto',   'Switches dark/light by time of day'),
+    (JazzTheme.dark,   AppIcons.moon,   'Dark',   'Deep dark — easy on the eyes'),
+    (JazzTheme.amoled, AppIcons.device,  'AMOLED', 'Pure black — zero drain on OLED'),
+    (JazzTheme.light,  AppIcons.sun,       'Light',  'Bright background for daylight'),
+    (JazzTheme.auto,   AppIcons.brightness,'Auto',   'Switches dark/light by time of day'),
   ];
 
   // Color themes shown as visual swatches (bg, card, label)
@@ -832,7 +833,7 @@ class _ThemePicker extends ConsumerWidget {
                   Text(opt.$4, style: TextStyle(color: t.textMuted, fontSize: 12)),
                 ])),
                 if (sel)
-                  const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 20),
+                  const Icon(AppIcons.successIcon, color: AppColors.primary, size: 20),
               ]),
             ),
           );
@@ -886,7 +887,7 @@ class _ThemePicker extends ConsumerWidget {
                         width: 18, height: 18,
                         decoration: const BoxDecoration(
                             color: AppColors.primary, shape: BoxShape.circle),
-                        child: const Icon(Icons.check, color: Colors.white, size: 12),
+                        child: const Icon(AppIcons.check, color: Colors.white, size: 12),
                       )),
                 ]),
               ),
@@ -989,7 +990,7 @@ class _StatsCard extends StatelessWidget {
                 : Column(children: [
                     Row(children: [
                       _StatTile(
-                        icon: Icons.access_time_rounded,
+                        icon: AppIcons.clock,
                         iconColor: AppColors.primary,
                         label: 'Watch Time',
                         value: totalMs > 0 ? _fmtTime(totalMs) : '—',
@@ -998,7 +999,7 @@ class _StatsCard extends StatelessWidget {
                       ),
                       _StatDivider(),
                       _StatTile(
-                        icon: Icons.check_circle_outline_rounded,
+                        icon: AppIcons.successIcon,
                         iconColor: const Color(0xFF22C55E),
                         label: 'Completed',
                         value: completed > 0 ? '$completed' : '—',
@@ -1009,7 +1010,7 @@ class _StatsCard extends StatelessWidget {
                     Divider(height: 1, color: t.border),
                     Row(children: [
                       _StatTile(
-                        icon: Icons.download_rounded,
+                        icon: AppIcons.downloadAction,
                         iconColor: const Color(0xFF3B82F6),
                         label: 'Downloads',
                         value: dlCount > 0 ? '$dlCount (${_fmtBytes(dlBytes)})' : '—',
@@ -1018,7 +1019,7 @@ class _StatsCard extends StatelessWidget {
                       ),
                       _StatDivider(),
                       _StatTile(
-                        icon: Icons.local_fire_department_rounded,
+                        icon: AppIcons.trending,
                         iconColor: AppColors.warning,
                         label: 'Top Genre',
                         value: topGenre ?? '—',
@@ -1158,7 +1159,7 @@ class _SectionTile extends StatelessWidget {
       title: Text(label, style: TextStyle(
           color: labelColor ?? t.textPrimary, fontSize: 14, fontWeight: FontWeight.w500)),
       trailing: trailing ?? (onTap != null
-          ? Icon(Icons.chevron_right_rounded, color: t.textMuted, size: 20)
+          ? Icon(AppIcons.caretRight, color: t.textMuted, size: 20)
           : null),
       onTap: onTap,
     );

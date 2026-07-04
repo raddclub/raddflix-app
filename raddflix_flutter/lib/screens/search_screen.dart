@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/animated_empty_icons.dart';
@@ -347,7 +348,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.history_rounded, size: 14, color: AppColors.primary),
+          const Icon(AppIcons.history, size: 14, color: AppColors.primary),
           const SizedBox(width: 6),
           Text('Recent Searches', style: TextStyle(
               color: t.textPrimary, fontSize: 13, fontWeight: FontWeight.w800)),
@@ -373,7 +374,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                   border: Border.all(color: t.border),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.history_rounded, size: 13, color: t.textMuted),
+                  Icon(AppIcons.history, size: 13, color: t.textMuted),
                   const SizedBox(width: 5),
                   Text(q, style: TextStyle(
                       color: t.textSecondary, fontSize: 13,
@@ -381,7 +382,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                   const SizedBox(width: 6),
                   GestureDetector(
                     onTap: () => _removeFromHistory(q),
-                    child: Icon(Icons.close_rounded, size: 13, color: t.textMuted),
+                    child: Icon(AppIcons.close, size: 13, color: t.textMuted),
                   ),
                 ]),
               ),
@@ -402,7 +403,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       padding: const EdgeInsets.fromLTRB(8, 12, 12, 0),
       child: Row(children: [
         IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: t.textPrimary),
+          icon: Icon(AppIcons.back, size: 20, color: t.textPrimary),
           onPressed: () => Navigator.of(context).pop(),
         ),
         Expanded(
@@ -434,7 +435,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                           child: CircularProgressIndicator(strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation(AppColors.primary)))
                       : Icon(key: const ValueKey('icon'),
-                          Icons.search_rounded, color: t.textMuted, size: 22),
+                          AppIcons.search, color: t.textMuted, size: 22),
                 ),
               ),
               Expanded(
@@ -458,7 +459,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               ),
               if (_ctrl.text.isNotEmpty)
                 IconButton(
-                  icon: Icon(Icons.clear_rounded, size: 18, color: t.textMuted),
+                  icon: Icon(AppIcons.close, size: 18, color: t.textMuted),
                   onPressed: () {
                     _ctrl.clear();
                     setState(() { _results = null; _loading = false; });
@@ -486,7 +487,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               ),
             ),
             child: Stack(clipBehavior: Clip.none, children: [
-              Icon(Icons.tune_rounded, size: 20,
+              Icon(AppIcons.equalizer, size: 20,
                   color: _showFilters || _filters.hasAny ? AppColors.primary : t.textMuted),
               if (_filters.activeCount > 0)
                 Positioned(
@@ -599,7 +600,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 if (r != null) ...[
-                  Icon(Icons.star_rounded, size: 13,
+                  Icon(AppIcons.starFill, size: 13,
                       color: active ? AppColors.accent : t.textMuted),
                   const SizedBox(width: 3),
                 ],
@@ -665,7 +666,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           // Free toggle
           _toggleChip(
             label: 'Free Only',
-            icon: Icons.local_offer_rounded,
+            icon: AppIcons.tag,
             active: _filters.isFree == true,
             color: Colors.green,
             onTap: () => _applyFilter(
@@ -675,7 +676,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           // Premium toggle
           _toggleChip(
             label: 'Premium',
-            icon: Icons.workspace_premium_rounded,
+            icon: AppIcons.crown,
             active: _filters.isFree == false,
             color: AppColors.accent,
             onTap: () => _applyFilter(
@@ -685,7 +686,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           // Offline toggle
           _toggleChip(
             label: 'Downloaded',
-            icon: Icons.download_done_rounded,
+            icon: AppIcons.downloadDone,
             active: _filters.offlineOnly,
             color: AppColors.primary,
             onTap: () => _applyFilter(_filters.copyWith(offlineOnly: !_filters.offlineOnly)),
@@ -699,11 +700,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [
-            ['relevance', 'Best Match', Icons.auto_awesome_rounded],
-            ['rating',    'Top Rated',  Icons.star_rounded],
-            ['year_desc', 'Newest',     Icons.new_releases_rounded],
-            ['year_asc',  'Oldest',     Icons.history_rounded],
-            ['title',     'A–Z',        Icons.sort_by_alpha_rounded],
+            ['relevance', 'Best Match', AppIcons.sparkle],
+            ['rating',    'Top Rated',  AppIcons.starFill],
+            ['year_desc', 'Newest',     AppIcons.newReleases],
+            ['year_asc',  'Oldest',     AppIcons.history],
+            ['title',     'A–Z',        AppIcons.sort],
           ].map((s) {
             final val   = s[0] as String;
             final label = s[1] as String;
@@ -856,7 +857,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             ),
             child: hasQuery
                 ? Center(child: AnimatedSearchIcon(size: 44, color: t.textMuted.withOpacity(0.7)))
-                : Icon(Icons.filter_alt_off_rounded, size: 36, color: t.textMuted.withOpacity(0.6)),
+                : Icon(AppIcons.filter, size: 36, color: t.textMuted.withOpacity(0.6)),
           ),
           const SizedBox(height: 16),
           Text(
@@ -903,7 +904,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                   border: Border.all(color: t.border),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.close_rounded, size: 14, color: t.textMuted),
+                  Icon(AppIcons.close, size: 14, color: t.textMuted),
                   const SizedBox(width: 6),
                   Text('Clear search',
                       style: TextStyle(color: t.textSecondary,
@@ -970,7 +971,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                       border: Border.all(color: t.border),
                     ),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.history_rounded, size: 14, color: t.textMuted),
+                      Icon(AppIcons.history, size: 14, color: t.textMuted),
                       const SizedBox(width: 5),
                       Text(h, style: TextStyle(color: t.textSecondary, fontSize: 13)),
                     ]),
@@ -1034,7 +1035,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                           color: AppColors.primary, fontSize: 9, fontWeight: FontWeight.w800)),
                     ),
                     const Spacer(),
-                    Icon(Icons.chevron_right_rounded, size: 18, color: t.textMuted),
+                    Icon(AppIcons.caretRight, size: 18, color: t.textMuted),
                   ]),
                 ),
               ),
@@ -1293,7 +1294,7 @@ class _SearchResultTile extends StatelessWidget {
         width: w, height: h,
         color: t.bg,
         child: Center(child: Icon(
-            item.isMovie ? Icons.movie_outlined : Icons.tv_outlined,
+            item.isMovie ? AppIcons.movie : AppIcons.tv,
             color: t.textMuted, size: 28)),
       );
 

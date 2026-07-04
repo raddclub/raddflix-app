@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/db/local_db.dart';
 import '../core/constants.dart';
@@ -246,7 +247,7 @@ class _SimosaCardState extends State<SimosaCard>
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: Icon(
-                          Icons.close_rounded,
+                          AppIcons.close,
                           size: 15,
                           color: isDark ? Colors.white30 : Colors.black26,
                         ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -142,7 +143,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           label: 'Phone Number',
                           hint: '03001234567',
                           keyboardType: TextInputType.phone,
-                          prefixIcon: Icons.phone_outlined,
+                          prefixIcon: AppIcons.phone,
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) return 'Enter your phone number';
                             return null;
@@ -154,10 +155,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           controller: _passCtrl,
                           label: 'Password',
                           obscureText: _obscure,
-                          prefixIcon: Icons.lock_outline_rounded,
+                          prefixIcon: AppIcons.lock,
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              _obscure ? AppIcons.eyeOff : AppIcons.eye,
                               color: t.textMuted, size: 20),
                             onPressed: () => setState(() => _obscure = !_obscure),
                           ),
@@ -329,7 +330,7 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header
         Row(children: [
-          Icon(Icons.devices_outlined, color: Color(0xFFF59E0B), size: 18),
+          Icon(AppIcons.devices, color: Color(0xFFF59E0B), size: 18),
           SizedBox(width: 8),
           Text('Device Conflict',
               style: TextStyle(color: Color(0xFFF59E0B), fontSize: 14,
@@ -352,7 +353,7 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
               foregroundColor: const Color(0xFF25D366),
               padding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            icon: Icon(Icons.chat_outlined, size: 16),
+            icon: Icon(AppIcons.chat, size: 16),
             label: Text('Contact Support on WhatsApp',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
             onPressed: _openWhatsApp,
@@ -381,7 +382,7 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
               label: 'Your Phone Number',
               hint: '03001234567',
               keyboardType: TextInputType.phone,
-              prefixIcon: Icons.phone_outlined,
+              prefixIcon: AppIcons.phone,
             ),
             const SizedBox(height: 10),
             SizedBox(
@@ -407,7 +408,7 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
               label: 'Enter OTP',
               hint: '6-digit code',
               keyboardType: TextInputType.number,
-              prefixIcon: Icons.pin_outlined,
+              prefixIcon: AppIcons.pinCode,
             ),
             const SizedBox(height: 10),
             SizedBox(
@@ -498,7 +499,7 @@ class _ErrorBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 18),
+          const Icon(AppIcons.errorIcon, color: AppColors.error, size: 18),
           const SizedBox(width: 10),
           Expanded(child: Text(message,
               style: const TextStyle(color: AppColors.error, fontSize: 13))),

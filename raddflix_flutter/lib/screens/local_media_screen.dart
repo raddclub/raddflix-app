@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shimmer/shimmer.dart';
@@ -235,11 +236,11 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Row(children: [
-        _filterChip(t, _WatchFilter.all,        'All',      Icons.folder_rounded),
+        _filterChip(t, _WatchFilter.all,        'All',      AppIcons.localMediaFill),
         const SizedBox(width: 8),
-        _filterChip(t, _WatchFilter.inProgress, 'Watching', Icons.play_circle_outline_rounded),
+        _filterChip(t, _WatchFilter.inProgress, 'Watching', AppIcons.playCircle),
         const SizedBox(width: 8),
-        _filterChip(t, _WatchFilter.watched,    'Watched',  Icons.check_circle_outline_rounded),
+        _filterChip(t, _WatchFilter.watched,    'Watched',  AppIcons.successIcon),
       ]),
     );
   }
@@ -274,7 +275,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
         : 'No fully watched folders yet';
     return Center(
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(Icons.filter_list_off_rounded, size: 48, color: t.border),
+        Icon(AppIcons.filter, size: 48, color: t.border),
         const SizedBox(height: 12),
         Text(msg, style: TextStyle(color: t.textSecondary, fontSize: 15)),
       ]).animate().fadeIn(duration: 300.ms),
@@ -334,7 +335,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.lock_outline_rounded, color: AppColors.primary),
+            leading: const Icon(AppIcons.lock, color: AppColors.primary),
             title: const Text('Add to Vault'),
             subtitle: const Text('Import all videos from this folder'),
             onTap: () { Navigator.pop(context); _addFolderToVault(folder); },
@@ -405,7 +406,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
           ? FloatingActionButton.extended(
               onPressed: _resumeLastVideo,
               backgroundColor: AppColors.primary,
-              icon: const Icon(Icons.play_circle_filled_rounded, color: Colors.white, size: 22),
+              icon: const Icon(AppIcons.playCircleFill, color: Colors.white, size: 22),
               label: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -464,7 +465,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
               border: Border.all(color: t.border),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.video_library_rounded, size: 11, color: AppColors.primary),
+              Icon(AppIcons.videoLibrary, size: 11, color: AppColors.primary),
               const SizedBox(width: 4),
               Text('$_totalFiles',
                   style: TextStyle(color: t.textMuted, fontSize: 11, fontWeight: FontWeight.w600)),
@@ -473,7 +474,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
         const SizedBox(width: 6),
         // Search
         IconButton(
-          icon: Icon(_searching ? Icons.close_rounded : Icons.search_rounded,
+          icon: Icon(_searching ? AppAppIcons.close : AppIcons.search,
               color: t.textSecondary, size: 22),
           onPressed: () {
             setState(() {
@@ -488,7 +489,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
         // Layout toggle (list/grid)
         IconButton(
           icon: Icon(
-            _layout == _LayoutMode.list ? Icons.grid_view_rounded : Icons.view_list_rounded,
+            _layout == _LayoutMode.list ? AppIcons.gridView : AppIcons.listView,
             color: t.textSecondary, size: 22),
           onPressed: () => setState(() =>
               _layout = _layout == _LayoutMode.list ? _LayoutMode.grid : _LayoutMode.list),
@@ -497,7 +498,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
         ),
         // Sort & filter sheet
         IconButton(
-          icon: Icon(Icons.sort_rounded, color: t.textSecondary, size: 22),
+          icon: Icon(AppIcons.sort, color: t.textSecondary, size: 22),
           onPressed: _showSortSheet,
           constraints: const BoxConstraints(),
           padding: const EdgeInsets.all(6),
@@ -523,7 +524,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
         decoration: InputDecoration(
           hintText: 'Search folders…',
           hintStyle: TextStyle(color: t.textMuted),
-          prefixIcon: Icon(Icons.search_rounded, color: t.textMuted, size: 20),
+          prefixIcon: Icon(AppIcons.search, color: t.textMuted, size: 20),
           filled: true,
           fillColor: t.surface,
           border: OutlineInputBorder(
@@ -599,7 +600,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
         Container(width: 80, height: 80,
           decoration: BoxDecoration(shape: BoxShape.circle,
               color: AppColors.error.withOpacity(0.1)),
-          child: Icon(Icons.folder_off_rounded, color: AppColors.error, size: 40)),
+          child: Icon(AppIcons.folderX, color: AppColors.error, size: 40)),
         const SizedBox(height: 24),
         Text('Storage Permission Required',
             style: TextStyle(color: t.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
@@ -619,7 +620,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
               boxShadow: AppShadows.primary,
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.settings_rounded, size: 18, color: Colors.white),
+              const Icon(AppIcons.settings, size: 18, color: Colors.white),
               const SizedBox(width: 8),
               const Text('Open Settings', style: TextStyle(color: Colors.white,
                   fontWeight: FontWeight.w700, fontSize: 14)),
@@ -749,9 +750,9 @@ class _SortSheetState extends State<_SortSheet> {
                   fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
               const SizedBox(height: 10),
               Row(children: [
-                _layoutBtn(context, t, _LayoutMode.list, Icons.view_list_rounded, 'List'),
+                _layoutBtn(context, t, _LayoutMode.list, AppIcons.listView, 'List'),
                 const SizedBox(width: 10),
-                _layoutBtn(context, t, _LayoutMode.grid, Icons.grid_view_rounded, 'Grid'),
+                _layoutBtn(context, t, _LayoutMode.grid, AppIcons.gridView, 'Grid'),
               ]),
               const SizedBox(height: 20),
 
@@ -760,11 +761,11 @@ class _SortSheetState extends State<_SortSheet> {
                   fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
               const SizedBox(height: 10),
               Wrap(spacing: 10, runSpacing: 10, children: [
-                _sortChip(context, t, _SortBy.date,     Icons.access_time_rounded,       'Date'),
-                _sortChip(context, t, _SortBy.name,     Icons.sort_by_alpha_rounded,     'Name'),
-                _sortChip(context, t, _SortBy.size,     Icons.storage_rounded,           'Size'),
-                _sortChip(context, t, _SortBy.count,    Icons.video_library_rounded,     'Count'),
-                _sortChip(context, t, _SortBy.duration, Icons.timer_outlined,            'Duration'),
+                _sortChip(context, t, _SortBy.date,     AppIcons.clock,       'Date'),
+                _sortChip(context, t, _SortBy.name,     AppIcons.sort,     'Name'),
+                _sortChip(context, t, _SortBy.size,     AppIcons.storage,           'Size'),
+                _sortChip(context, t, _SortBy.count,    AppIcons.videoLibrary,     'Count'),
+                _sortChip(context, t, _SortBy.duration, AppIcons.timerIcon,            'Duration'),
               ]),
               const SizedBox(height: 20),
 
@@ -773,9 +774,9 @@ class _SortSheetState extends State<_SortSheet> {
                   fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
               const SizedBox(height: 10),
               Row(children: [
-                Expanded(child: _dirBtn(context, t, true,  Icons.arrow_upward_rounded,   'A → Z  (Ascending)')),
+                Expanded(child: _dirBtn(context, t, true,  AppIcons.arrowUp,   'A → Z  (Ascending)')),
                 const SizedBox(width: 10),
-                Expanded(child: _dirBtn(context, t, false, Icons.arrow_downward_rounded, 'Z → A  (Descending)')),
+                Expanded(child: _dirBtn(context, t, false, AppIcons.arrowDown, 'Z → A  (Descending)')),
               ]),
             ],
           ),
@@ -908,9 +909,9 @@ class _FolderListTile extends StatelessWidget {
                     child: thumb != null
                         ? Image.memory(thumb!, fit: BoxFit.cover)
                         : Center(child: Icon(
-                            type == 'audio' ? Icons.music_note_rounded
-                                : type == 'mixed' ? Icons.perm_media_rounded
-                                : Icons.folder_rounded,
+                            type == 'audio' ? AppIcons.music
+                                : type == 'mixed' ? AppIcons.videoLibrary
+                                : AppIcons.localMediaFill,
                             color: type == 'audio' ? AppColors.primary : t.textMuted,
                             size: 28)),
                   ),
@@ -984,7 +985,7 @@ class _FolderListTile extends StatelessWidget {
                     style: const TextStyle(color: Colors.white,
                         fontSize: 9, fontWeight: FontWeight.w800)),
               ),
-            Icon(Icons.chevron_right_rounded, color: t.textMuted, size: 20),
+            Icon(AppIcons.caretRight, color: t.textMuted, size: 20),
           ]),
         ),
       ),
@@ -1031,9 +1032,9 @@ class _FolderGridCard extends StatelessWidget {
               : Container(
                   color: type == 'audio' ? AppColors.primary.withOpacity(0.1) : t.surface,
                   child: Icon(
-                    type == 'audio' ? Icons.music_note_rounded
-                        : type == 'mixed' ? Icons.perm_media_rounded
-                        : Icons.folder_rounded,
+                    type == 'audio' ? AppIcons.music
+                        : type == 'mixed' ? AppIcons.videoLibrary
+                        : AppIcons.localMediaFill,
                     color: type == 'audio' ? AppColors.primary : t.textMuted,
                     size: 36)),
           // Gradient scrim

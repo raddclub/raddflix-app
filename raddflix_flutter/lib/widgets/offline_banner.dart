@@ -5,6 +5,7 @@
 library offline_banner;
 
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/radd_theme.dart';
@@ -34,7 +35,7 @@ class OfflineBanner extends ConsumerWidget {
                 border: Border.all(color: AppColors.error.withOpacity(0.3)),
               ),
               child: Row(children: [
-                Icon(Icons.wifi_off_rounded, size: 16, color: AppColors.error),
+                Icon(AppIcons.wifiOff, size: 16, color: AppColors.error),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

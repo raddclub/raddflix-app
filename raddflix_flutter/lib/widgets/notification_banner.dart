@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/constants.dart';
@@ -18,7 +19,7 @@ class NotificationBell extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             IconButton(
-              icon: const Icon(Icons.notifications_outlined, size: 24),
+              icon: const Icon(AppIcons.notification, size: 24),
               tooltip: 'Notifications',
               onPressed: () => _showNotificationSheet(context),
             ),
@@ -83,7 +84,7 @@ class _NotificationSheet extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 10, 12, 12),
               child: Row(children: [
-                const Icon(Icons.notifications_outlined, color: AppColors.primary, size: 20),
+                const Icon(AppIcons.notification, color: AppColors.primary, size: 20),
                 const SizedBox(width: 8),
                 Text('Notifications',
                     style: TextStyle(color: t.textPrimary,
@@ -114,7 +115,7 @@ class _NotificationSheet extends StatelessWidget {
                     return Center(child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.notifications_none_rounded,
+                        Icon(AppIcons.notification,
                             size: 48, color: t.textMuted),
                         const SizedBox(height: 12),
                         Text('No notifications yet',
@@ -148,11 +149,11 @@ class _NotificationCard extends StatelessWidget {
   const _NotificationCard({required this.notif});
 
   static const _icons = {
-    'new_content':  (Icons.movie_outlined, AppColors.info),
-    'promo':        (Icons.card_giftcard_outlined, AppColors.success),
-    'renewal':      (Icons.timer_outlined, AppColors.warning),
-    'maintenance':  (Icons.build_outlined, AppColors.textMuted),
-    'info':         (Icons.info_outline_rounded, AppColors.primary),
+    'new_content':  (AppIcons.movie, AppColors.info),
+    'promo':        (AppIcons.gift, AppColors.success),
+    'renewal':      (AppIcons.timerIcon, AppColors.warning),
+    'maintenance':  (AppIcons.tools, AppColors.textMuted),
+    'info':         (AppIcons.info, AppColors.primary),
   };
 
   @override

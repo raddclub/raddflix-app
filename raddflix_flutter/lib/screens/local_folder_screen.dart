@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
@@ -284,7 +285,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
         color: t.surface,
         child: Row(children: [
           IconButton(
-            icon: Icon(Icons.close_rounded, color: t.textPrimary),
+            icon: Icon(AppAppIcons.close, color: t.textPrimary),
             onPressed: () => setState(() { _selected.clear(); _selecting = false; }),
           ),
           Expanded(child: Text('${_selected.length} selected',
@@ -292,11 +293,11 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
                   fontSize: 16, fontWeight: FontWeight.w700))),
           if (_selected.isNotEmpty) ...[
             IconButton(
-              icon: Icon(Icons.delete_outline_rounded, color: AppColors.error),
+              icon: Icon(AppIcons.trash, color: AppColors.error),
               onPressed: _deleteSelected,
             ),
             IconButton(
-              icon: Icon(Icons.share_rounded, color: t.textSecondary),
+              icon: Icon(AppIcons.share, color: t.textSecondary),
               onPressed: () {},
             ),
           ],
@@ -317,7 +318,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Row(children: [
         IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: t.textPrimary, size: 20),
+          icon: Icon(AppIcons.back, color: t.textPrimary, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
         Expanded(child: Text(widget.folder.name, maxLines: 1,
@@ -325,7 +326,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
             style: TextStyle(color: t.textPrimary, fontSize: 18, fontWeight: FontWeight.w700))),
         // Search
         IconButton(
-          icon: Icon(_searching ? Icons.close_rounded : Icons.search_rounded,
+          icon: Icon(_searching ? AppAppIcons.close : AppIcons.search,
               color: t.textSecondary, size: 22),
           onPressed: () {
             setState(() {
@@ -339,7 +340,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
         // Layout toggle
         IconButton(
           icon: Icon(_layout == _LayoutMode.list
-              ? Icons.grid_view_rounded : Icons.view_list_rounded,
+              ? AppIcons.gridView : AppIcons.listView,
               color: t.textSecondary, size: 22),
           onPressed: () => setState(() => _layout = _layout == _LayoutMode.list
               ? _LayoutMode.grid : _LayoutMode.list),
@@ -347,13 +348,13 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
         ),
         // Sort & filter sheet
         IconButton(
-          icon: Icon(Icons.sort_rounded, color: t.textSecondary, size: 22),
+          icon: Icon(AppIcons.sort, color: t.textSecondary, size: 22),
           onPressed: _showSortSheet,
           constraints: const BoxConstraints(), padding: const EdgeInsets.all(8),
         ),
         // More
         PopupMenuButton<String>(
-          icon: Icon(Icons.more_vert_rounded, color: t.textSecondary, size: 22),
+          icon: Icon(AppIcons.more, color: t.textSecondary, size: 22),
           color: t.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
           onSelected: (v) {
@@ -362,10 +363,10 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
             else if (v == 'play_all') _playAll();
           },
           itemBuilder: (_) => [
-            _menuItem('play_all', Icons.play_circle_rounded,           'Play All',        false),
-            _menuItem('group',   Icons.collections_bookmark_rounded,
+            _menuItem('play_all', AppIcons.playCircleFill,           'Play All',        false),
+            _menuItem('group',   AppIcons.bookmarkFill,
                 _groupingEnabled ? 'Ungroup Series' : 'Group by Series', _groupingEnabled),
-            _menuItem('select',  Icons.check_box_outlined,             'Select Files',    false),
+            _menuItem('select',  AppIcons.check,             'Select Files',    false),
           ],
         ),
       ]),
@@ -382,7 +383,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
         Text(label, style: TextStyle(
             color: active ? AppColors.primary : t.textPrimary, fontSize: 14,
             fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
-        if (active) ...[const Spacer(), Icon(Icons.check_rounded, color: AppColors.primary, size: 16)],
+        if (active) ...[const Spacer(), Icon(AppIcons.check, color: AppColors.primary, size: 16)],
       ]),
     );
   }
@@ -399,7 +400,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
         decoration: InputDecoration(
           hintText: 'Search in ${widget.folder.name}…',
           hintStyle: TextStyle(color: t.textMuted),
-          prefixIcon: Icon(Icons.search_rounded, color: t.textMuted, size: 20),
+          prefixIcon: Icon(AppIcons.search, color: t.textMuted, size: 20),
           filled: true, fillColor: t.surface,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md),
               borderSide: BorderSide.none),
@@ -424,11 +425,11 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
       child: Row(children: [
         // Stats
         if (audioCount > 0 && videoCount > 0) ...[
-          Icon(Icons.videocam_rounded, size: 13, color: t.textMuted),
+          Icon(AppIcons.videoCamera, size: 13, color: t.textMuted),
           const SizedBox(width: 3),
           Text('$videoCount', style: TextStyle(color: t.textMuted, fontSize: 12)),
           const SizedBox(width: 8),
-          Icon(Icons.music_note_rounded, size: 13, color: AppColors.primary),
+          Icon(AppIcons.music, size: 13, color: AppColors.primary),
           const SizedBox(width: 3),
           Text('$audioCount', style: TextStyle(color: AppColors.primary, fontSize: 12)),
         ] else
@@ -475,7 +476,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
     final t = RaddTheme.of(context);
     if (sorted.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.videocam_off_rounded, color: t.textMuted, size: 48),
+        Icon(AppIcons.movie, color: t.textMuted, size: 48),
         const SizedBox(height: 12),
         Text(_searchQuery.isNotEmpty ? 'No results for "$_searchQuery"' : 'No files',
             style: TextStyle(color: t.textMuted)),
@@ -545,7 +546,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 10, 12, 6),
                 child: Row(children: [
-                  Icon(Icons.tv_rounded, size: 16, color: AppColors.primary),
+                  Icon(AppIcons.tv, size: 16, color: AppColors.primary),
                   const SizedBox(width: 8),
                   Expanded(child: Text(
                     group.seriesName.isEmpty ? 'Series' : group.seriesName,
@@ -567,7 +568,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
                   AnimatedRotation(
                     duration: const Duration(milliseconds: 200),
                     turns: expanded ? 0.25 : 0,
-                    child: Icon(Icons.chevron_right_rounded,
+                    child: Icon(AppIcons.caretRight,
                         color: RaddTheme.of(context).textMuted, size: 18),
                   ),
                 ]),
@@ -736,9 +737,9 @@ class _FolderSortSheetState extends State<_FolderSortSheet> {
                   fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
               const SizedBox(height: 10),
               Row(children: [
-                _layoutBtn(t, _LayoutMode.list, Icons.view_list_rounded, 'List'),
+                _layoutBtn(t, _LayoutMode.list, AppIcons.listView, 'List'),
                 const SizedBox(width: 10),
-                _layoutBtn(t, _LayoutMode.grid, Icons.grid_view_rounded, 'Grid'),
+                _layoutBtn(t, _LayoutMode.grid, AppIcons.gridView, 'Grid'),
               ]),
               const SizedBox(height: 18),
 
@@ -747,12 +748,12 @@ class _FolderSortSheetState extends State<_FolderSortSheet> {
                   fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
               const SizedBox(height: 10),
               Wrap(spacing: 8, runSpacing: 8, children: [
-                _sortChip(t, _SortBy.date,       Icons.access_time_rounded,     'Date'),
-                _sortChip(t, _SortBy.name,       Icons.sort_by_alpha_rounded,   'Name'),
-                _sortChip(t, _SortBy.size,       Icons.storage_rounded,         'Size'),
-                _sortChip(t, _SortBy.duration,   Icons.timer_outlined,          'Duration'),
-                _sortChip(t, _SortBy.resolution, Icons.hd_rounded,              'Resolution'),
-                _sortChip(t, _SortBy.type,       Icons.perm_media_rounded,      'Type'),
+                _sortChip(t, _SortBy.date,       AppIcons.clock,     'Date'),
+                _sortChip(t, _SortBy.name,       AppIcons.sort,   'Name'),
+                _sortChip(t, _SortBy.size,       AppIcons.storage,         'Size'),
+                _sortChip(t, _SortBy.duration,   AppIcons.timerIcon,          'Duration'),
+                _sortChip(t, _SortBy.resolution, AppIcons.storage,              'Resolution'),
+                _sortChip(t, _SortBy.type,       AppIcons.videoLibrary,      'Type'),
               ]),
               const SizedBox(height: 18),
 
@@ -761,11 +762,11 @@ class _FolderSortSheetState extends State<_FolderSortSheet> {
                   fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
               const SizedBox(height: 10),
               Row(children: [
-                _filterBtn(t, _TypeFilter.all,   Icons.apps_rounded,            'All Files'),
+                _filterBtn(t, _TypeFilter.all,   AppIcons.gridView,            'All Files'),
                 const SizedBox(width: 8),
-                _filterBtn(t, _TypeFilter.video, Icons.videocam_rounded,        'Videos'),
+                _filterBtn(t, _TypeFilter.video, AppIcons.videoCamera,        'Videos'),
                 const SizedBox(width: 8),
-                _filterBtn(t, _TypeFilter.audio, Icons.music_note_rounded,      'Audio'),
+                _filterBtn(t, _TypeFilter.audio, AppIcons.music,      'Audio'),
               ]),
               const SizedBox(height: 18),
 
@@ -774,9 +775,9 @@ class _FolderSortSheetState extends State<_FolderSortSheet> {
                   fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
               const SizedBox(height: 10),
               Row(children: [
-                Expanded(child: _dirBtn(t, true,  Icons.arrow_upward_rounded,   'A → Z')),
+                Expanded(child: _dirBtn(t, true,  AppIcons.arrowUp,   'A → Z')),
                 const SizedBox(width: 10),
-                Expanded(child: _dirBtn(t, false, Icons.arrow_downward_rounded, 'Z → A')),
+                Expanded(child: _dirBtn(t, false, AppIcons.arrowDown, 'Z → A')),
               ]),
             ],
           ),
@@ -908,7 +909,7 @@ class _VideoListTile extends StatelessWidget {
                   border: Border.all(
                       color: selected ? AppColors.primary : t.textMuted, width: 2),
                 ),
-                child: selected ? Icon(Icons.check_rounded, color: Colors.white, size: 14) : null,
+                child: selected ? Icon(AppIcons.check, color: Colors.white, size: 14) : null,
               ),
             ),
           // Thumbnail / audio icon
@@ -921,7 +922,7 @@ class _VideoListTile extends StatelessWidget {
                     ? Container(
                         color: AppColors.primary.withOpacity(0.08),
                         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Icon(Icons.music_note_rounded, color: AppColors.primary, size: 28),
+                          Icon(AppIcons.music, color: AppColors.primary, size: 28),
                           if (video.durationMs > 0)
                             Text(video.formattedDuration,
                                 style: TextStyle(color: AppColors.primary,
@@ -931,7 +932,7 @@ class _VideoListTile extends StatelessWidget {
                     : thumb != null
                         ? Image.memory(thumb!, fit: BoxFit.cover)
                         : Container(color: t.surface,
-                            child: Icon(Icons.play_circle_outline_rounded,
+                            child: Icon(AppIcons.playCircle,
                                 color: t.textMuted, size: 32)),
               ),
             ),
@@ -985,7 +986,7 @@ class _VideoListTile extends StatelessWidget {
           )),
           if (!selecting)
             IconButton(
-              icon: Icon(Icons.more_vert_rounded, color: t.textMuted, size: 20),
+              icon: Icon(AppIcons.more, color: t.textMuted, size: 20),
               onPressed: () => _showVideoMenu(context),
               constraints: const BoxConstraints(),
               padding: const EdgeInsets.all(8),
@@ -1027,8 +1028,8 @@ class _VideoListTile extends StatelessWidget {
                     ? Image.memory(thumb!, fit: BoxFit.cover)
                     : Container(color: t.card,
                         child: Icon(video.isAudio
-                            ? Icons.music_note_rounded
-                            : Icons.videocam_rounded,
+                            ? AppIcons.music
+                            : AppIcons.videoCamera,
                             color: video.isAudio ? AppColors.primary : t.textMuted)))),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1041,20 +1042,20 @@ class _VideoListTile extends StatelessWidget {
             ])),
           ]),
         ),
-        _menuTile(context, Icons.play_arrow_rounded, 'Play', () {
+        _menuTile(context, AppIcons.play, 'Play', () {
           Navigator.pop(context);
           onTap();
         }),
-        _menuTile(context, Icons.info_outline_rounded, 'File Info', () {
+        _menuTile(context, AppIcons.info, 'File Info', () {
           Navigator.pop(context);
           _showFileInfo(context);
         }),
-        _menuTile(context, Icons.lock_rounded, 'Add to Vault', () async {
+        _menuTile(context, AppIcons.lock, 'Add to Vault', () async {
           Navigator.pop(context);
           await _addToVault(context);
         }),
-        _menuTile(context, Icons.share_rounded, 'Share', () { Navigator.pop(context); }),
-        _menuTile(context, Icons.delete_outline_rounded, 'Delete',
+        _menuTile(context, AppIcons.share, 'Share', () { Navigator.pop(context); }),
+        _menuTile(context, AppIcons.trash, 'Delete',
             () { Navigator.pop(context); }, isDestructive: true),
         const SizedBox(height: 8),
       ])),
@@ -1165,7 +1166,7 @@ class _VideoGridCard extends StatelessWidget {
               ? Container(
                   color: AppColors.primary.withOpacity(0.08),
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(Icons.music_note_rounded, color: AppColors.primary, size: 36),
+                    Icon(AppIcons.music, color: AppColors.primary, size: 36),
                     const SizedBox(height: 4),
                     Text(video.formattedDuration,
                         style: TextStyle(color: AppColors.primary,
@@ -1174,7 +1175,7 @@ class _VideoGridCard extends StatelessWidget {
               : thumb != null
                   ? Image.memory(thumb!, fit: BoxFit.cover)
                   : Container(color: t.surface,
-                      child: Icon(Icons.play_circle_outline_rounded,
+                      child: Icon(AppIcons.playCircle,
                           color: t.textMuted, size: 32)),
           // Scrim
           DecoratedBox(decoration: BoxDecoration(
@@ -1230,7 +1231,7 @@ class _VideoGridCard extends StatelessWidget {
                   color: selected ? AppColors.primary : Colors.black45,
                   border: Border.all(color: Colors.white70, width: 1.5),
                 ),
-                child: selected ? const Icon(Icons.check_rounded,
+                child: selected ? const Icon(AppIcons.check,
                     color: Colors.white, size: 14) : null)),
         ]),
       ),

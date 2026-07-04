@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -135,7 +136,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
         appBar: AppBar(
           title: const Text('Get RaddFlix', style: TextStyle(fontWeight: FontWeight.w800)),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+            icon: const Icon(AppIcons.back, size: 20),
             onPressed: () => Navigator.of(context).pop()),
         ),
         body: state.loading && state.plans.isEmpty
@@ -262,7 +263,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                       border: Border.all(color: _methodsError != null ? AppColors.error.withOpacity(0.3) : t.border)),
                   child: Row(children: [
                     if (_methodsError != null) ...[
-                      const Icon(Icons.wifi_off_rounded, color: AppColors.error, size: 16),
+                      const Icon(AppIcons.wifiOff, color: AppColors.error, size: 16),
                       const SizedBox(width: 8),
                     ],
                     Expanded(child: Text(
@@ -295,7 +296,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
               controller: _tidCtrl,
               label: 'Transaction ID',
               hint: 'e.g. T123456789',
-              prefixIcon: Icons.receipt_long_outlined,
+              prefixIcon: AppIcons.receipt,
             ).animate().fadeIn(duration: 300.ms),
             if (_tidError != null) ...[
               const SizedBox(height: 8),
@@ -354,7 +355,7 @@ class _ActivePlanCard extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: AppColors.success.withOpacity(0.15)),
-            child: const Center(child: Icon(Icons.verified_rounded,
+            child: const Center(child: Icon(AppIcons.verified,
                 color: AppColors.success, size: 20))),
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -415,8 +416,8 @@ class _ActivePlanCard extends StatelessWidget {
                 border: Border.all(color: barColor.withOpacity(0.25))),
               child: Row(children: [
                 Icon(pct >= 1.0
-                    ? Icons.block_rounded
-                    : Icons.warning_amber_rounded,
+                    ? AppIcons.block
+                    : AppIcons.warning,
                     color: barColor, size: 14),
                 const SizedBox(width: 7),
                 Expanded(child: Text(
@@ -447,7 +448,7 @@ class _JazzPartnerBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.round),
         border: Border.all(color: t.border)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.signal_cellular_4_bar_rounded, size: 14, color: AppColors.primary),
+        const Icon(AppIcons.wifi, size: 14, color: AppColors.primary),
         const SizedBox(width: 6),
         Text('Zero-rated on Jazz SIM · No data deducted from your Jazz balance',
             style: TextStyle(color: t.textMuted, fontSize: 11)),
@@ -504,7 +505,7 @@ class _PlanCard extends StatelessWidget {
                 color: isSelected ? accentColor : Colors.transparent,
                 border: Border.all(color: isSelected ? accentColor : t.textMuted, width: 2)),
               child: isSelected ? Center(
-                  child: Icon(Icons.check_rounded, size: 12, color: Colors.white)) : null),
+                  child: Icon(AppIcons.check, size: 12, color: Colors.white)) : null),
           ),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -554,7 +555,7 @@ class _PlanCard extends StatelessWidget {
             if (isRenewal) ...[
               const SizedBox(height: 8),
               Row(children: [
-                Icon(Icons.autorenew_rounded, size: 13, color: AppColors.primary),
+                Icon(AppIcons.arrowsSync, size: 13, color: AppColors.primary),
                 const SizedBox(width: 4),
                 Text('Tap to renew this plan',
                     style: TextStyle(color: AppColors.primary,
@@ -628,7 +629,7 @@ class _SelectedPlanSummary extends StatelessWidget {
           Text('${plan.dataGb.toInt()} GB · ${plan.durationDays} days · Rs. ${plan.priceMonthly}',
               style: TextStyle(color: t.textMuted, fontSize: 12)),
         ])),
-        Icon(Icons.check_circle_outline_rounded, color: AppColors.primary, size: 20),
+        Icon(AppIcons.successIcon, color: AppColors.primary, size: 20),
       ]),
     );
   }
@@ -647,7 +648,7 @@ class _GuestWarning extends ConsumerWidget {
         border: Border.all(color: AppColors.primary.withOpacity(0.3))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.account_circle_outlined, color: AppColors.primary, size: 20),
+          const Icon(AppIcons.userCircle, color: AppColors.primary, size: 20),
           const SizedBox(width: 8),
           const Text('Sign in to Subscribe',
               style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14)),
@@ -660,7 +661,7 @@ class _GuestWarning extends ConsumerWidget {
           child: OutlinedButton.icon(
             onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil(
                 AppRoutes.register, (r) => false),
-            icon: const Icon(Icons.person_add_outlined, size: 16),
+            icon: const Icon(AppIcons.personAdd, size: 16),
             label: const Text('Create Account', style: TextStyle(fontSize: 13)),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primary,
@@ -703,7 +704,7 @@ class _PayMethodCard extends StatelessWidget {
                 border: Border.all(
                     color: isSelected ? AppColors.primary : t.textMuted, width: 2)),
               child: isSelected ? Center(
-                  child: Icon(Icons.check_rounded, size: 10, color: Colors.white)) : null),
+                  child: Icon(AppIcons.check, size: 10, color: Colors.white)) : null),
             const SizedBox(width: 10),
             Text(method.name, style: TextStyle(
                 color: isSelected ? AppColors.primary : t.textPrimary,
@@ -718,7 +719,7 @@ class _PayMethodCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadius.xs),
                 border: Border.all(color: AppColors.primary.withOpacity(0.2))),
               child: Row(children: [
-                const Icon(Icons.account_balance_wallet_outlined,
+                const Icon(AppIcons.wallet,
                     size: 16, color: AppColors.primary),
                 const SizedBox(width: 8),
                 Expanded(child: Text(method.accountNumber!,
@@ -732,7 +733,7 @@ class _PayMethodCard extends StatelessWidget {
                         content: Text('Account number copied! ✅'),
                         duration: Duration(seconds: 2)));
                   },
-                  child: const Icon(Icons.copy_rounded, size: 16, color: AppColors.primary)),
+                  child: const Icon(AppIcons.copy, size: 16, color: AppColors.primary)),
               ]),
             ),
             if (method.instructions != null) ...[
@@ -763,7 +764,7 @@ class _SubmitButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.md),
         onTap: onTap,
         child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.send_rounded, color: Colors.white, size: 18),
+          Icon(AppIcons.sendMessage, color: Colors.white, size: 18),
           SizedBox(width: 10),
           Text('Submit TID & Activate Plan',
               style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
@@ -786,7 +787,7 @@ class _ErrorCard extends StatelessWidget {
         border: Border.all(color: AppColors.error.withOpacity(0.25))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.wifi_off_rounded, color: AppColors.error, size: 18),
+          const Icon(AppIcons.wifiOff, color: AppColors.error, size: 18),
           const SizedBox(width: 8),
           Expanded(child: Text(message,
               style: const TextStyle(color: AppColors.error,
@@ -796,7 +797,7 @@ class _ErrorCard extends StatelessWidget {
         SizedBox(width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded, size: 16),
+            icon: const Icon(AppIcons.refresh, size: 16),
             label: const Text('Try Again', style: TextStyle(fontSize: 13)),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primary,
@@ -812,17 +813,17 @@ class _WhyRaddFlix extends StatelessWidget {
   const _WhyRaddFlix();
 
   static const _items = [
-    (Icons.signal_cellular_4_bar_rounded, 'Zero Jazz Data Cost',
+    (AppIcons.wifi, 'Zero Jazz Data Cost',
         'Stream all day — JazzDrive CDN means ZERO data deducted from your Jazz balance.'),
-    (Icons.download_done_rounded, 'Download for Offline',
+    (AppIcons.downloadDone, 'Download for Offline',
         'Save shows when on WiFi, watch them anywhere — no internet needed.'),
-    (Icons.hd_rounded, 'HD Quality',
+    (AppIcons.storage, 'HD Quality',
         'Enjoy HD and Full HD streams without buffering. Crystal clear, always.'),
-    (Icons.auto_awesome_rounded, 'All Content Included',
+    (AppIcons.sparkle, 'All Content Included',
         'Every plan unlocks the full library. Pick by GB, not by content.'),
-    (Icons.lock_reset_rounded, 'Monthly Reset',
+    (AppIcons.lock, 'Monthly Reset',
         'Your GB quota resets every month. Stream fresh every billing cycle.'),
-    (Icons.verified_rounded, 'Fast Activation',
+    (AppIcons.verified, 'Fast Activation',
         'Pay → submit TID → activated within 24 hours. No contract, no hassle.'),
   ];
 

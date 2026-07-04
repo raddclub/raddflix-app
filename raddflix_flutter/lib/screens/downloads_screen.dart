@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/animated_empty_icons.dart';
@@ -187,7 +188,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Row(children: [
             // Phase 45 ANIM-45-05: shake+scale burst on download completion
-            const Icon(Icons.download_done_rounded, color: Colors.white, size: 18)
+            const Icon(AppIcons.downloadDone, color: Colors.white, size: 18)
                 .animate()
                 .shake(duration: 400.ms)
                 .scale(begin: const Offset(1.0, 1.0),
@@ -242,7 +243,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
               style: const TextStyle(fontWeight: FontWeight.w800)),
       leading: IconButton(
         icon: Icon(_activeFolder != null || _selecting
-            ? Icons.arrow_back_ios_new_rounded : Icons.close_rounded, size: 20),
+            ? AppIcons.back : AppAppIcons.close, size: 20),
         onPressed: () {
           if (_selecting) {
             setState(() { _selecting = false; _selected.clear(); });
@@ -260,22 +261,22 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             child: const Text('All'),
           ),
           IconButton(
-            icon: const Icon(Icons.lock_outline_rounded, color: AppColors.primary),
+            icon: const Icon(AppIcons.lock, color: AppColors.primary),
             tooltip: 'Add to Vault',
             onPressed: _selected.isEmpty ? null : _addSelectedToVault,
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
+            icon: const Icon(AppIcons.trash, color: AppColors.error),
             onPressed: _selected.isEmpty ? null : () => _bulkDelete(),
           ),
         ] else ...[
           IconButton(
-            icon: Icon(_view == _ViewMode.grid ? Icons.view_list_rounded : Icons.grid_view_rounded),
+            icon: Icon(_view == _ViewMode.grid ? AppIcons.listView : AppIcons.gridView),
             onPressed: () { setState(() => _view = _view == _ViewMode.grid ? _ViewMode.list : _ViewMode.grid); _savePrefs(); },
             tooltip: 'Toggle view',
           ),
           PopupMenuButton<_SortMode>(
-            icon: const Icon(Icons.sort_rounded),
+            icon: const Icon(AppIcons.sort),
             tooltip: 'Sort',
             onSelected: (s) { setState(() => _sort = s); _savePrefs(); },
             itemBuilder: (_) => [
@@ -299,13 +300,13 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         border: Border.all(color: AppColors.error.withOpacity(0.3)),
       ),
       child: Row(children: [
-        Icon(Icons.wifi_off_rounded, size: 16, color: AppColors.error),
+        Icon(AppIcons.wifiOff, size: 16, color: AppColors.error),
         const SizedBox(width: 8),
         const Expanded(child: Text('You are offline. Downloads are paused.',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
         GestureDetector(
           onTap: _checkConnectivity,
-          child: Icon(Icons.refresh_rounded, size: 16, color: AppColors.error),
+          child: Icon(AppIcons.refresh, size: 16, color: AppColors.error),
         ),
       ]),
     );
@@ -336,7 +337,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             color: AppColors.primary.withOpacity(0.12),
             border: Border.all(color: AppColors.primary.withOpacity(0.25)),
           ),
-          child: Icon(Icons.download_done_rounded, size: 20, color: AppColors.primary),
+          child: Icon(AppIcons.downloadDone, size: 20, color: AppColors.primary),
         ),
         SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -458,9 +459,9 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           const SizedBox(height: 20),
           // Feature pills
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            _FeaturePill(icon: Icons.wifi_off_rounded, label: 'Works offline', t: t),
+            _FeaturePill(icon: AppIcons.wifiOff, label: 'Works offline', t: t),
             const SizedBox(width: 8),
-            _FeaturePill(icon: Icons.bolt_rounded, label: 'Fast resume', t: t),
+            _FeaturePill(icon: AppIcons.lightning, label: 'Fast resume', t: t),
           ]),
           const SizedBox(height: 28),
           GestureDetector(
@@ -473,7 +474,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 boxShadow: AppShadows.primary,
               ),
               child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.explore_rounded, color: Colors.white, size: 16),
+                Icon(AppIcons.gridView, color: Colors.white, size: 16),
                 SizedBox(width: 6),
                 Text('Browse Content', style: TextStyle(
                     color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
@@ -565,7 +566,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
 
     if (items.isEmpty) {
       return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(Icons.filter_list_off_rounded, color: t.textMuted, size: 48),
+        Icon(AppIcons.filter, color: t.textMuted, size: 48),
         SizedBox(height: 12),
         Text('No ${_filter.name} downloads in $_activeFolder',
             style: TextStyle(color: t.textMuted)),
@@ -825,10 +826,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
 
   IconData _folderIcon(String name) {
     switch (name) {
-      case 'Movies':   return Icons.movie_rounded;
-      case 'TV Shows': return Icons.live_tv_rounded;
-      case 'Dramas':   return Icons.theater_comedy_rounded;
-      default:         return Icons.folder_rounded;
+      case 'Movies':   return AppIcons.movieFill;
+      case 'TV Shows': return AppIcons.liveTv;
+      case 'Dramas':   return AppIcons.liveTv;
+      default:         return AppIcons.localMediaFill;
     }
   }
 
@@ -897,10 +898,10 @@ class _DownloadCardState extends State<_DownloadCard> {
                         imageUrl: widget.posterUrl!,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) => Container(color: t.card,
-                            child: Center(child: Icon(Icons.movie_outlined,
+                            child: Center(child: Icon(AppIcons.movie,
                                 color: t.textMuted, size: 36))))
                     : Container(color: t.card,
-                        child: Center(child: Icon(Icons.movie_outlined,
+                        child: Center(child: Icon(AppIcons.movie,
                             color: t.textMuted, size: 36)))),
             // Play overlay
             if (widget.isComplete && !widget.isSelecting)
@@ -908,7 +909,7 @@ class _DownloadCardState extends State<_DownloadCard> {
                 width: 40, height: 40,
                 decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black54,
                     border: Border.all(color: Colors.white30)),
-                child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24))),
+                child: const Icon(AppIcons.play, color: Colors.white, size: 24))),
             // Download widget.progress bar
             if (widget.isActive || (!widget.isComplete && widget.statusStr != 'failed'))
               Positioned(bottom: 0, left: 0, right: 0,
@@ -924,7 +925,7 @@ class _DownloadCardState extends State<_DownloadCard> {
                 decoration: BoxDecoration(shape: BoxShape.circle,
                     color: widget.isSelected ? AppColors.primary : Colors.black38,
                     border: Border.all(color: widget.isSelected ? AppColors.primary : Colors.white38, width: 1.5)),
-                child: widget.isSelected ? Icon(Icons.check_rounded, color: Colors.white, size: 14) : null)),
+                child: widget.isSelected ? Icon(AppIcons.check, color: Colors.white, size: 14) : null)),
             // Queue position badge (shown for #2 onwards so #1 = no badge = "currently downloading")
             if (widget.isActive && widget.queuePosition > 1)
               Positioned(top: 6, right: 6, child: Container(
@@ -972,10 +973,10 @@ class _DownloadCardState extends State<_DownloadCard> {
                             : widget.onDelete,
                     child: Icon(
                       widget.isActive
-                          ? Icons.stop_circle_outlined
+                          ? AppIcons.stopIcon
                           : widget.statusStr == 'failed'
-                              ? Icons.refresh_rounded
-                              : Icons.delete_outline_rounded,
+                              ? AppIcons.refresh
+                              : AppIcons.trash,
                       size: 16,
                       color: widget.isActive
                           ? AppColors.error.withOpacity(0.75)
@@ -1061,12 +1062,12 @@ class _DownloadListTileState extends State<_DownloadListTile> {
                     ? CachedNetworkImage(imageUrl: widget.posterUrl!,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) =>
-                            Center(child: Icon(Icons.movie_outlined, color: t.textMuted, size: 24)))
-                    : Center(child: Icon(Icons.movie_outlined, color: t.textMuted, size: 24)),
+                            Center(child: Icon(AppIcons.movie, color: t.textMuted, size: 24)))
+                    : Center(child: Icon(AppIcons.movie, color: t.textMuted, size: 24)),
               if (widget.isComplete && !widget.isSelecting)
                 Center(child: Container(width: 24, height: 24,
                     decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black54),
-                    child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 16))),
+                    child: Icon(AppIcons.play, color: Colors.white, size: 16))),
               if (widget.isSelecting)
                 Positioned(top: 4, right: 4, child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -1074,7 +1075,7 @@ class _DownloadListTileState extends State<_DownloadListTile> {
                   decoration: BoxDecoration(shape: BoxShape.circle,
                       color: widget.isSelected ? AppColors.primary : Colors.black38,
                       border: Border.all(color: Colors.white38)),
-                  child: widget.isSelected ? Icon(Icons.check_rounded, color: Colors.white, size: 10) : null)),
+                  child: widget.isSelected ? Icon(AppIcons.check, color: Colors.white, size: 10) : null)),
             ])),
           SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1118,19 +1119,19 @@ class _DownloadListTileState extends State<_DownloadListTile> {
               // Failed: show Retry + Delete side by side
               ? Row(mainAxisSize: MainAxisSize.min, children: [
                   IconButton(
-                    icon: Icon(Icons.refresh_rounded, size: 18, color: AppColors.primary.withOpacity(0.85)),
+                    icon: Icon(AppIcons.refresh, size: 18, color: AppColors.primary.withOpacity(0.85)),
                     tooltip: 'Retry download',
                     onPressed: widget.onRetry ?? widget.onDelete,
                   ),
                   IconButton(
-                    icon: Icon(Icons.delete_outline_rounded, size: 18, color: t.textMuted),
+                    icon: Icon(AppIcons.trash, size: 18, color: t.textMuted),
                     tooltip: 'Remove',
                     onPressed: widget.onDelete,
                   ),
                 ])
               : IconButton(
                   icon: Icon(
-                    widget.isActive ? Icons.stop_circle_outlined : Icons.delete_outline_rounded,
+                    widget.isActive ? AppIcons.stopIcon : AppIcons.trash,
                     size: 18,
                     color: widget.isActive ? AppColors.error.withOpacity(0.75) : t.textMuted,
                   ),
@@ -1196,9 +1197,9 @@ class _ShowGroupState extends State<_ShowGroup> {
                 child: (widget.posterUrl != null && widget.posterUrl!.isNotEmpty)
                     ? CachedNetworkImage(imageUrl: widget.posterUrl!, fit: BoxFit.cover,
                         errorWidget: (_, __, ___) => Container(color: t.card,
-                            child: Icon(Icons.tv_rounded, color: t.textMuted, size: 22)))
+                            child: Icon(AppIcons.tv, color: t.textMuted, size: 22)))
                     : Container(color: t.card,
-                        child: Icon(Icons.tv_rounded, color: t.textMuted, size: 22))),
+                        child: Icon(AppIcons.tv, color: t.textMuted, size: 22))),
             ),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1225,8 +1226,8 @@ class _ShowGroupState extends State<_ShowGroup> {
             ])),
             const SizedBox(width: 8),
             Icon(_expanded
-                ? Icons.keyboard_arrow_up_rounded
-                : Icons.keyboard_arrow_down_rounded,
+                ? AppIcons.caretUp
+                : AppIcons.caretDown,
                 color: t.textMuted, size: 22),
           ])),
         ),
@@ -1265,10 +1266,10 @@ class _ShowGroupState extends State<_ShowGroup> {
                                   : RaddTheme.of(context).card,
                     ),
                     child: Icon(
-                      isComp ? Icons.play_arrow_rounded
-                          : isAct ? Icons.downloading_rounded
-                          : status == 'failed' ? Icons.error_outline_rounded
-                          : Icons.hourglass_top_rounded,
+                      isComp ? AppIcons.play
+                          : isAct ? AppIcons.cloudDownload
+                          : status == 'failed' ? AppIcons.errorIcon
+                          : AppIcons.hourglass,
                       size: 14,
                       color: isComp ? AppColors.primary
                           : isAct ? const Color(0xFF22C55E)
@@ -1299,7 +1300,7 @@ class _ShowGroupState extends State<_ShowGroup> {
                     GestureDetector(
                       onTap: () => widget.onDeleteEp(ep),
                       child: Padding(padding: const EdgeInsets.all(6),
-                        child: Icon(Icons.delete_outline_rounded,
+                        child: Icon(AppIcons.trash,
                             size: 16, color: RaddTheme.of(context).textMuted))),
                   if (widget.isSelecting)
                     AnimatedContainer(
@@ -1312,7 +1313,7 @@ class _ShowGroupState extends State<_ShowGroup> {
                             color: isSel ? AppColors.primary
                                 : RaddTheme.of(context).textMuted, width: 1.5)),
                       child: isSel
-                          ? const Icon(Icons.check_rounded, color: Colors.white, size: 11)
+                          ? const Icon(AppIcons.check, color: Colors.white, size: 11)
                           : null),
                 ]),
               ),

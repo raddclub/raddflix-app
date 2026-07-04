@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -208,12 +209,12 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
         scrolledUnderElevation: 0,
         leading: _selectMode
             ? IconButton(
-                icon: const Icon(Icons.close),
+                icon: const Icon(AppIcons.close),
                 onPressed: () => setState(() { _selected.clear(); _selectMode = false; }),
               )
             : (isRoot
                 ? IconButton(
-                    icon: const Icon(Icons.lock_rounded),
+                    icon: const Icon(AppIcons.lock),
                     tooltip: 'Lock vault',
                     onPressed: () {
                       VaultService.lock();
@@ -226,7 +227,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
                 style: TextStyle(color: AppColors.primary, fontSize: 16, fontWeight: FontWeight.w700))
             : Row(children: [
                 if (!isRoot) ...[
-                  Icon(Icons.folder_rounded, color: AppColors.primary, size: 20),
+                  Icon(AppIcons.localMediaFill, color: AppColors.primary, size: 20),
                   SizedBox(width: 8),
                 ],
                 if (isRoot)
@@ -247,18 +248,18 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
         actions: _selectMode
             ? [
                 IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                    icon: const Icon(AppIcons.trash, color: Colors.red),
                     onPressed: _deleteSelected),
                 if (_selected.length == 1)
                   IconButton(
-                      icon: Icon(Icons.drive_file_rename_outline_rounded),
+                      icon: Icon(AppIcons.edit),
                       onPressed: () {
                         final f = _files.firstWhere((f) => f.path == _selected.first);
                         _renameFile(f);
                       }),
                 IconButton(
                     icon: Icon(_selected.length == _files.length
-                        ? Icons.deselect_rounded : Icons.select_all_rounded),
+                        ? AppIcons.deselect : AppIcons.selectAll),
                     onPressed: () => setState(() {
                       if (_selected.length == _files.length) {
                         _selected.clear(); _selectMode = false;
@@ -269,12 +270,12 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
               ]
             : [
                 IconButton(
-                    icon: Icon(_gridView ? Icons.list_rounded : Icons.grid_view_rounded),
+                    icon: Icon(_gridView ? AppIcons.listView : AppIcons.gridView),
                     color: t.textSecondary,
                     onPressed: () => setState(() => _gridView = !_gridView)),
                 if (isRoot)
                   IconButton(
-                      icon: Icon(Icons.settings_outlined),
+                      icon: Icon(AppIcons.settings),
                       color: t.textSecondary,
                       onPressed: () => Navigator.of(context).push(
                             MaterialPageRoute(builder: (_) => const VaultSettingsScreen()),
@@ -295,7 +296,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
                       border: Border.all(color: t.border),
                     ),
                     child: Row(children: [
-                      Icon(Icons.storage_rounded, color: AppColors.primary, size: 18),
+                      Icon(AppIcons.storage, color: AppColors.primary, size: 18),
                       SizedBox(width: 10),
                       Text('Vault size: ', style: TextStyle(color: t.textSecondary, fontSize: 13)),
                       Text(_formatSize(_totalSize),
@@ -310,7 +311,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
                   child: _files.isEmpty
                       ? Center(
                           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            Icon(Icons.lock_open_rounded, size: 64, color: t.border),
+                            Icon(AppIcons.unlock, size: 64, color: t.border),
                             SizedBox(height: 16),
                             Text('Vault is empty', style: TextStyle(
                                 color: t.textSecondary, fontSize: 16)),
@@ -329,7 +330,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
           ? FloatingActionButton.extended(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
-              icon: const Icon(Icons.add_rounded),
+              icon: const Icon(AppIcons.add),
               label: const Text('Add'),
               onPressed: _showAddMenu,
             )
@@ -382,7 +383,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
             ),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               if (selected)
-                Icon(Icons.check_circle_rounded, color: Color(0xFF7C5CFF), size: 40)
+                Icon(AppIcons.successIcon, color: Color(0xFF7C5CFF), size: 40)
               else
                 Icon(f.icon, color: f.isFolder ? AppColors.primary : t.textSecondary, size: 40),
               SizedBox(height: 8),
@@ -415,18 +416,18 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
               title: Text(f.name, style: TextStyle(color: t.textPrimary, fontWeight: FontWeight.w600))),
           const Divider(height: 1),
           if (f.isVideo)
-            _SheetTile(icon: Icons.play_arrow_rounded, label: 'Play', onTap: () {
+            _SheetTile(icon: AppIcons.play, label: 'Play', onTap: () {
               Navigator.pop(context); _openFile(f);
             }),
-          _SheetTile(icon: Icons.drive_file_rename_outline_rounded, label: 'Rename', onTap: () {
+          _SheetTile(icon: AppIcons.edit, label: 'Rename', onTap: () {
             Navigator.pop(context); _renameFile(f);
           }),
           if (!f.isFolder)
-            _SheetTile(icon: Icons.restore_rounded, label: 'Restore to Gallery', onTap: () async {
+            _SheetTile(icon: AppIcons.refresh, label: 'Restore to Gallery', onTap: () async {
               Navigator.pop(context);
               await _restoreToGallery(f);
             }),
-          _SheetTile(icon: Icons.delete_outline_rounded, label: 'Delete', color: Colors.red,
+          _SheetTile(icon: AppIcons.trash, label: 'Delete', color: Colors.red,
               onTap: () async {
                 Navigator.pop(context);
                 await VaultService.deleteVaultFile(f.path);
@@ -546,12 +547,12 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
                   fontSize: 16, fontWeight: FontWeight.w700)),
             ),
           ),
-          _SheetTile(icon: Icons.create_new_folder_rounded, label: 'New Folder',
+          _SheetTile(icon: AppIcons.createFolder, label: 'New Folder',
               onTap: () { Navigator.pop(context); _createFolder(); }),
-          _SheetTile(icon: Icons.video_library_rounded, label: 'Add Video Files',
+          _SheetTile(icon: AppIcons.videoLibrary, label: 'Add Video Files',
               subtitle: 'Pick individual video files',
               onTap: () => _importVideoFiles()),
-          _SheetTile(icon: Icons.folder_open_rounded, label: 'Add Folder',
+          _SheetTile(icon: AppIcons.folder2, label: 'Add Folder',
               subtitle: 'Import all videos from a folder',
               onTap: () => _importVideoFolder()),
           const SizedBox(height: 8),
@@ -625,7 +626,7 @@ class _FileListTileState extends State<_FileListTile> {
             AnimatedSwitcher(
               duration: AppDurations.fast,
               child: widget.selected
-                  ? Icon(Icons.check_circle_rounded, color: Color(0xFF7C5CFF), size: 40, key: ValueKey('check'))
+                  ? Icon(AppIcons.successIcon, color: Color(0xFF7C5CFF), size: 40, key: ValueKey('check'))
                   : SizedBox(key: const ValueKey('icon'), width: 44, height: 44, child: iconWidget),
             ),
             SizedBox(width: 14),
@@ -638,7 +639,7 @@ class _FileListTileState extends State<_FileListTile> {
             ])),
             if (!widget.selectMode)
               IconButton(
-                icon: Icon(Icons.more_vert_rounded, color: t.textSecondary, size: 20),
+                icon: Icon(AppIcons.more, color: t.textSecondary, size: 20),
                 onPressed: widget.onMenuTap,
               ),
           ]),

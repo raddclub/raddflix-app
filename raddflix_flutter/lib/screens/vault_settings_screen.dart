@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -231,7 +232,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
         backgroundColor: t.surface,
         title: Text('Vault Settings', style: TextStyle(color: t.textPrimary)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+          icon: const Icon(AppIcons.back, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -242,16 +243,16 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
           _SectionHeader(label: 'Security'),
           _SettingCard(children: [
             _SettingTile(
-              icon: Icons.pin_rounded,
+              icon: AppIcons.pinCode,
               title: 'Change PIN',
               subtitle: 'Update your vault unlock PIN',
               onTap: _changePin,
-              trailing: Icon(Icons.chevron_right_rounded, color: t.textSecondary.withOpacity(0.4)),
+              trailing: Icon(AppIcons.caretRight, color: t.textSecondary.withOpacity(0.4)),
             ),
             if (_biometricAvailable) ...[
               const _Divider(),
               _SettingTile(
-                icon: Icons.fingerprint_rounded,
+                icon: AppIcons.fingerprint,
                 title: 'Biometric Unlock',
                 subtitle: 'Use fingerprint to open vault',
                 trailing: Switch(
@@ -266,13 +267,13 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
             ],
             const _Divider(),
             _SettingTile(
-              icon: Icons.timer_outlined,
+              icon: AppIcons.timerIcon,
               title: 'Auto-Lock',
               subtitle: _lockOptions
                   .firstWhere((o) => o.value == _autoLockSeconds,
                       orElse: () => (label: 'Custom', value: _autoLockSeconds))
                   .label,
-              trailing: Icon(Icons.chevron_right_rounded, color: t.textSecondary.withOpacity(0.4)),
+              trailing: Icon(AppIcons.caretRight, color: t.textSecondary.withOpacity(0.4)),
               onTap: () => _showAutoLockPicker(),
             ),
           ]).animate().fadeIn(delay: 50.ms),
@@ -283,7 +284,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
           _SectionHeader(label: 'Privacy'),
           _SettingCard(children: [
             _SettingTile(
-              icon: Icons.masks_rounded,
+              icon: AppIcons.fingerprint,
               title: 'Decoy PIN',
               subtitle: _hasFakePin
                   ? 'Active — shows empty vault'
@@ -299,7 +300,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
                       color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w700)),
                 ),
                 const SizedBox(width: 8),
-                Icon(Icons.chevron_right_rounded, color: t.textSecondary.withOpacity(0.4)),
+                Icon(AppIcons.caretRight, color: t.textSecondary.withOpacity(0.4)),
               ]),
               onTap: _setFakePin,
             ),
@@ -311,12 +312,12 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
           _SectionHeader(label: 'Danger Zone'),
           _SettingCard(children: [
             _SettingTile(
-              icon: Icons.delete_forever_rounded,
+              icon: AppIcons.trash,
               title: 'Clear Vault',
               subtitle: 'Permanently delete all vault files',
               titleColor: AppColors.error.withOpacity(0.85),
               onTap: _clearVault,
-              trailing: Icon(Icons.chevron_right_rounded, color: t.textSecondary.withOpacity(0.4)),
+              trailing: Icon(AppIcons.caretRight, color: t.textSecondary.withOpacity(0.4)),
             ),
           ]).animate().fadeIn(delay: 150.ms),
 
@@ -331,7 +332,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
               border: Border.all(color: AppColors.primary.withOpacity(0.2)),
             ),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.shield_rounded, color: AppColors.primary, size: 20),
+              Icon(AppIcons.shield, color: AppColors.primary, size: 20),
               const SizedBox(width: 12),
               Expanded(child: Text(
                 'Vault files are stored in your app\'s private directory — invisible to other apps, file managers, and the system gallery. Auto-lock secures the vault when your phone is idle.',
@@ -365,7 +366,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
           ..._lockOptions.map((o) => ListTile(
             title: Text(o.label, style: TextStyle(color: t.textPrimary)),
             trailing: _autoLockSeconds == o.value
-                ? Icon(Icons.check_rounded, color: AppColors.primary)
+                ? Icon(AppIcons.check, color: AppColors.primary)
                 : null,
             onTap: () async {
               await VaultService.setAutoLockSeconds(o.value);

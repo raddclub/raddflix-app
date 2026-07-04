@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -74,10 +75,10 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
           ..._SortBy.values.map((s) {
             final selected = _sortBy == s;
             final labels = {
-              _SortBy.dateAdded:    ('Date Added',    Icons.schedule_rounded),
-              _SortBy.alphabetical: ('A–Z',           Icons.sort_by_alpha_rounded),
-              _SortBy.rating:       ('Highest Rating', Icons.star_rounded),
-              _SortBy.type:         ('Type',           Icons.category_outlined),
+              _SortBy.dateAdded:    ('Date Added',    AppIcons.clock),
+              _SortBy.alphabetical: ('A–Z',           AppIcons.sort),
+              _SortBy.rating:       ('Highest Rating', AppIcons.starFill),
+              _SortBy.type:         ('Type',           AppIcons.category),
             };
             final (label, icon) = labels[s]!;
             return ListTile(
@@ -90,7 +91,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                     fontSize: 14,
                   )),
               trailing: selected
-                  ? const Icon(Icons.check_rounded, color: AppColors.primary, size: 18)
+                  ? const Icon(AppIcons.check, color: AppColors.primary, size: 18)
                   : null,
               onTap: () {
                 setState(() => _sortBy = s);
@@ -115,7 +116,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
         backgroundColor: t.bg,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: t.textPrimary),
+          icon: Icon(AppIcons.back, color: t.textPrimary),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text('My Watchlist',
@@ -135,7 +136,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                   border: Border.all(color: t.border),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.sort_rounded, size: 15,
+                  Icon(AppIcons.sort, size: 15,
                       color: AppColors.primary),
                   const SizedBox(width: 4),
                   Text(_sortLabel,
@@ -181,7 +182,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
             color: t.surface, shape: BoxShape.circle,
             border: Border.all(color: t.border),
           ),
-          child: Icon(Icons.bookmark_add_outlined,
+          child: Icon(AppIcons.bookmark,
               color: t.textMuted, size: 36),
         ),
         const SizedBox(height: 20),
@@ -240,7 +241,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                   color: t.bg.withOpacity(0.85),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.close_rounded,
+                child: Icon(AppIcons.close,
                     color: t.textMuted, size: 15),
               ),
             ),

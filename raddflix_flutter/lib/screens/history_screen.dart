@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,7 +50,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         backgroundColor: t.bg,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded,
+          icon: Icon(AppIcons.back,
               color: t.textPrimary),
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -116,7 +117,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               shape: BoxShape.circle,
               border: Border.all(color: t.border),
             ),
-            child: Icon(Icons.history_rounded,
+            child: Icon(AppIcons.history,
                 color: t.textMuted, size: 36),
           ),
           SizedBox(height: 20),

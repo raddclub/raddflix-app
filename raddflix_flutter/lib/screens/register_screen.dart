@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -78,7 +79,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           leading: IconButton(
-            icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+            icon: Icon(AppIcons.back, size: 20),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
@@ -106,7 +107,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   Form(key: _formKey, child: Column(children: [
                     RaddTextField(controller: _phone, label: 'Phone Number',
                         hint: '03001234567', keyboardType: TextInputType.phone,
-                        prefixIcon: Icons.phone_outlined,
+                        prefixIcon: AppIcons.phone,
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) return 'Enter your phone number';
                           final digits = v.trim().replaceAll(RegExp(r'[\s\-\(\)]'), '');
@@ -118,9 +119,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         .slideY(begin: 0.2, end: 0, duration: 350.ms, curve: AppCurves.standard),
                     SizedBox(height: 14),
                     RaddTextField(controller: _pass, label: 'Password',
-                        obscureText: _obscure, prefixIcon: Icons.lock_outline_rounded,
+                        obscureText: _obscure, prefixIcon: AppIcons.lock,
                         suffixIcon: IconButton(
-                          icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                          icon: Icon(_obscure ? AppIcons.eyeOff : AppIcons.eye,
                               color: t.textMuted, size: 20),
                           onPressed: () => setState(() => _obscure = !_obscure)),
                         validator: (v) {
@@ -132,7 +133,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         .slideY(begin: 0.2, end: 0, duration: 350.ms, curve: AppCurves.standard),
                     const SizedBox(height: 14),
                     RaddTextField(controller: _confirm, label: 'Confirm Password',
-                        obscureText: _obscure, prefixIcon: Icons.lock_outlined,
+                        obscureText: _obscure, prefixIcon: AppIcons.lock,
                         validator: (v) {
                           if (v != _pass.text) return 'Passwords do not match';
                           return null;
@@ -148,7 +149,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           borderRadius: BorderRadius.circular(AppRadius.sm),
                           border: Border.all(color: AppColors.error.withOpacity(0.3))),
                       child: Row(children: [
-                        const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 18),
+                        const Icon(AppIcons.errorIcon, color: AppColors.error, size: 18),
                         const SizedBox(width: 10),
                         Expanded(child: Text(_error!, style: const TextStyle(color: AppColors.error, fontSize: 13))),
                       ]),

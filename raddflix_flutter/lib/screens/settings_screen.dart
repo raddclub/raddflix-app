@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -113,7 +114,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: t.textPrimary, size: 20),
+          icon: Icon(AppIcons.back, color: t.textPrimary, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('Settings', style: TextStyle(
@@ -133,7 +134,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsSection(t: t, title: 'Playback', children: [
                   _SettingsSwitch(
                     t: t,
-                    icon: Icons.subtitles_outlined,
+                    icon: AppIcons.subtitle,
                     label: 'Subtitles On By Default',
                     subtitle: 'Auto-enable subtitles when opening a video',
                     value: _subtitleDefault,
@@ -143,7 +144,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _divider(t),
                   _SettingsSwitch(
                     t: t,
-                    icon: Icons.skip_next_rounded,
+                    icon: AppIcons.skipForward,
                     label: 'Auto-play Next Episode',
                     subtitle: 'Automatically play the next episode when one ends',
                     value: _autoPlayNext,
@@ -157,7 +158,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsSection(t: t, title: 'Network & Data', children: [
                   _SettingsSwitch(
                     t: t,
-                    icon: Icons.wifi_rounded,
+                    icon: AppIcons.wifi,
                     label: 'Download on WiFi Only',
                     subtitle: 'Prevent downloads over mobile data',
                     value: _wifiOnly,
@@ -167,7 +168,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _divider(t),
                   _SettingsSwitch(
                     t: t,
-                    icon: Icons.data_saver_on_rounded,
+                    icon: AppIcons.dataSaver,
                     label: 'Data Saver',
                     subtitle: 'Reduces streaming buffer size to save mobile data',
                     value: _dataSaver,
@@ -181,7 +182,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsSection(t: t, title: 'Storage & Cache', children: [
                   _SettingsTile(
                     t: t,
-                    icon: Icons.cleaning_services_rounded,
+                    icon: AppIcons.clearCache,
                     label: 'Clear Image Cache',
                     subtitle: 'Frees cached poster and thumbnail images',
                     onTap: _clearImageCache,
@@ -190,7 +191,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _divider(t),
                   _SettingsTile(
                     t: t,
-                    icon: Icons.folder_open_rounded,
+                    icon: AppIcons.folder2,
                     label: 'Manage Downloads',
                     subtitle: 'View, delete and manage downloaded content',
                     onTap: () => Navigator.of(context).pushNamed(AppRoutes.downloads),
@@ -203,7 +204,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsSection(t: t, title: 'Catalog', children: [
                   _SettingsTile(
                     t: t,
-                    icon: _syncing ? Icons.sync_rounded : Icons.refresh_rounded,
+                    icon: _syncing ? AppIcons.arrowsSync : AppIcons.refresh,
                     label: _syncing ? 'Syncing…' : 'Refresh Catalog',
                     subtitle: 'Force download the latest movies and shows',
                     onTap: _syncing ? null : _syncNow,
@@ -223,7 +224,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsSection(t: t, title: 'Support', children: [
                   _SettingsTile(
                     t: t,
-                    icon: Icons.support_agent_rounded,
+                    icon: AppIcons.support,
                     label: 'Contact Support',
                     subtitle: 'Chat with us on WhatsApp',
                     onTap: _contactSupport,
@@ -236,7 +237,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsSection(t: t, title: 'About', children: [
                   _SettingsTile(
                     t: t,
-                    icon: Icons.info_outline_rounded,
+                    icon: AppIcons.info,
                     label: 'App Version',
                     subtitle: '$_version (build $_buildNumber)',
                     onTap: null,
@@ -244,7 +245,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _divider(t),
                   _SettingsTile(
                     t: t,
-                    icon: Icons.bolt_rounded,
+                    icon: AppIcons.lightning,
                     label: 'Zero-Rated on Jazz',
                     subtitle: 'Stream & download with no data charges on Jazz SIM',
                     onTap: null,
@@ -253,7 +254,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _divider(t),
                   _SettingsTile(
                     t: t,
-                    icon: Icons.favorite_outline_rounded,
+                    icon: AppIcons.heart,
                     label: 'Made in Pakistan',
                     subtitle: 'RaddFlix — Streaming ki apni zubaan',
                     onTap: null,
@@ -330,7 +331,7 @@ class _SettingsTile extends StatelessWidget {
           : null,
       trailing: trailing ??
           (onTap != null
-              ? Icon(Icons.chevron_right_rounded, color: t.textMuted, size: 20)
+              ? Icon(AppIcons.caretRight, color: t.textMuted, size: 20)
               : null),
       onTap: onTap,
     );
