@@ -1,117 +1,124 @@
 #!/usr/bin/env bash
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║  RaddFlix — Auto-Commit & Push                                       ║
+# ║  RaddFlix — Auto-Commit & Push (GitHub API)                          ║
 # ║                                                                      ║
-# ║  Call this after EVERY file edit, big or small. Designed to be      ║
-# ║  fast — minimal validation, no heavy API checks.                    ║
+# ║  Call this after EVERY file edit, big or small. Uses the GitHub     ║
+# ║  Trees API directly — no git shell required.                        ║
 # ║                                                                      ║
 # ║  HOW TO RUN:                                                         ║
-# ║    bash auto_commit.sh "describe what you changed"                  ║
-# ║    bash auto_commit.sh "fix player zoom" player_screen.dart         ║
-# ║    DRY_RUN=1 bash auto_commit.sh "preview only"                     ║
+# ║    bash auto_commit.sh "message" file1 [file2 ...]                  ║
+# ║    bash auto_commit.sh "fix player zoom" raddflix_flutter/lib/screens/player_screen.dart
+# ║    DRY_RUN=1 bash auto_commit.sh "preview" file1                    ║
 # ║                                                                      ║
 # ║  Arguments:                                                          ║
 # ║    $1  — commit message (required)                                   ║
-# ║    $2+ — specific files to stage (optional; stages ALL if omitted)  ║
+# ║    $2+ — repo-relative paths of files that changed (required)       ║
+# ║           These are read from disk and pushed via the GitHub API.   ║
 # ║                                                                      ║
 # ║  REQUIREMENT: GITHUB_TOKEN in Replit Secrets (repo scope)           ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 set -euo pipefail
 
-GITHUB_USER="raddclub"
-GITHUB_REPO="raddflix-app"
-DRY_RUN="${DRY_RUN:-0}"
+[ -n "${GITHUB_TOKEN:-}" ] || { echo "  ❌ GITHUB_TOKEN is not set" >&2; exit 1; }
+[ "${1:-}" != "" ] || { echo "  ❌ Usage: bash auto_commit.sh \"message\" file1 [file2 ...]" >&2; exit 1; }
+[ "${2:-}" != "" ] || { echo "  ❌ At least one file path is required" >&2; exit 1; }
 
-# Resolve repo root (script lives at the repo root)
+COMMIT_MSG="$1"
+shift
+
+# Resolve the repo root — the directory this script lives in
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-fail() {
-    echo "  ❌ $1" >&2
-    exit 1
+[ "$DRY_RUN:-0}" != "1" ] || { echo "  ℹ️  DRY_RUN=1 — would commit: $COMMIT_MSG"; exit 0; }
+
+echo ""
+echo "  → Committing: $COMMIT_MSG"
+echo "    Files: $*"
+echo ""
+
+# Pass everything to the Node.js implementation
+node --input-type=module - "$COMMIT_MSG" "$REPO_ROOT" "$@" <<'ENDNODE'
+import fs from 'fs';
+import https from 'https';
+import path from 'path';
+
+const [, , commitMsg, repoRoot, ...filePaths] = process.argv;
+const TOKEN = process.env.GITHUB_TOKEN;
+const REPO  = 'raddclub/raddflix-app';
+
+function ghReq(method, apiPath, body) {
+  return new Promise((resolve, reject) => {
+    const data = body ? JSON.stringify(body) : null;
+    const req = https.request({
+      hostname: 'api.github.com',
+      path: apiPath,
+      method,
+      headers: {
+        'Authorization': `token ${TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'RaddFlix-Agent',
+        ...(data ? {'Content-Length': Buffer.byteLength(data)} : {})
+      }
+    }, res => {
+      let d = '';
+      res.on('data', c => d += c);
+      res.on('end', () => {
+        const j = JSON.parse(d);
+        if (res.statusCode >= 400) {
+          reject(new Error(`HTTP ${res.statusCode} ${apiPath}: ${JSON.stringify(j).slice(0,300)}`));
+        } else resolve(j);
+      });
+    });
+    req.on('error', reject);
+    if (data) req.write(data);
+    req.end();
+  });
 }
 
-# ── Require commit message ────────────────────────────────────────────────────
-COMMIT_MSG="${1:-}"
-[ -n "$COMMIT_MSG" ] || fail "Usage: bash auto_commit.sh \"commit message\" [file1 file2 ...]"
-shift || true   # remaining args are optional file paths
+async function main() {
+  // 1. Get HEAD commit SHA for main
+  const ref    = await ghReq('GET', `/repos/${REPO}/git/ref/heads/main`);
+  const headSha = ref.object.sha;
 
-# ── Require GITHUB_TOKEN ──────────────────────────────────────────────────────
-[ -n "${GITHUB_TOKEN:-}" ] || fail "GITHUB_TOKEN secret is not set (Replit sidebar → Secrets)"
+  // 2. Get base tree SHA
+  const commit  = await ghReq('GET', `/repos/${REPO}/git/commits/${headSha}`);
+  const treeSha  = commit.tree.sha;
 
-# ── Enter repo ────────────────────────────────────────────────────────────────
-[ -d "$REPO_ROOT/.git" ] || fail "$REPO_ROOT has no .git — run this from the raddflix-app clone"
-cd "$REPO_ROOT"
+  // 3. Build blob list from the provided file paths
+  const treeEntries = [];
+  for (const relPath of filePaths) {
+    const diskPath = path.isAbsolute(relPath) ? relPath : path.join(repoRoot, relPath);
+    if (!fs.existsSync(diskPath)) {
+      console.error(`  ❌ File not found: ${diskPath}`);
+      process.exit(1);
+    }
+    const content = fs.readFileSync(diskPath, 'utf8');
+    const blob = await ghReq('POST', `/repos/${REPO}/git/blobs`, { content, encoding: 'utf-8' });
+    treeEntries.push({ path: relPath, mode: '100644', type: 'blob', sha: blob.sha });
+    console.log(`  blob: ${relPath}`);
+  }
 
-# ── Guard: no merge/rebase in progress ───────────────────────────────────────
-if [ -d ".git/rebase-merge" ] || [ -d ".git/rebase-apply" ] || [ -f ".git/MERGE_HEAD" ]; then
-    fail "a merge or rebase is in progress — resolve it first (git status)"
-fi
+  // 4. Create a new tree on top of the base
+  const newTree = await ghReq('POST', `/repos/${REPO}/git/trees`, {
+    base_tree: treeSha,
+    tree: treeEntries
+  });
 
-# ── Set git identity (no-op if already configured) ───────────────────────────
-git config user.email >/dev/null 2>&1 || git config user.email "agent@raddflix.app"
-git config user.name  >/dev/null 2>&1 || git config user.name  "RaddFlix Agent"
+  // 5. Create the commit
+  const newCommit = await ghReq('POST', `/repos/${REPO}/git/commits`, {
+    message: commitMsg,
+    tree: newTree.sha,
+    parents: [headSha]
+  });
 
-# ── Stage files ───────────────────────────────────────────────────────────────
-if [ "$#" -gt 0 ]; then
-    # Stage only the specific files passed as arguments
-    git add -- "$@"
-    echo "  Staged: $*"
-else
-    # Stage everything (most common case)
-    git add -A
-fi
+  // 6. Fast-forward main to the new commit
+  await ghReq('PATCH', `/repos/${REPO}/git/refs/heads/main`, { sha: newCommit.sha });
 
-# ── Check for conflict markers in staged diff ────────────────────────────────
-if git diff --cached -U0 | grep -Eq '^\+(<{7}|={7}|>{7})'; then
-    fail "staged changes contain unresolved conflict markers — fix before committing"
-fi
+  console.log(`  ✅ Pushed: ${newCommit.sha}`);
+  console.log(`     https://github.com/${REPO}/commit/${newCommit.sha}`);
+}
 
-# ── Guard: no secret-looking files ───────────────────────────────────────────
-SUSPECT="$(git diff --cached --name-only | grep -Ei '(^|/)\.env($|\.)|id_rsa$|\.pem$|private.*key' || true)"
-[ -z "$SUSPECT" ] || fail "refusing to commit — looks like a secret file: $SUSPECT"
-
-# ── Nothing to commit? ───────────────────────────────────────────────────────
-if git diff --cached --quiet; then
-    echo "  ✓ Nothing to commit (working tree clean for staged files)"
-    exit 0
-fi
-
-echo ""
-echo "  Files to commit:"
-git diff --cached --name-only | sed 's/^/    - /'
-
-[ "$DRY_RUN" = "1" ] && { echo "  ℹ️  DRY_RUN=1 — stopping before commit."; exit 0; }
-
-# ── Commit ────────────────────────────────────────────────────────────────────
-git commit -m "$COMMIT_MSG"
-echo "  ✓ Committed: $COMMIT_MSG"
-
-# ── Detect branch ────────────────────────────────────────────────────────────
-BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-[ "$BRANCH" != "HEAD" ] || fail "detached HEAD — checkout a branch before pushing"
-
-# ── Fetch to check if we're behind ───────────────────────────────────────────
-git -c http.extraHeader="Authorization: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" \
-    fetch --quiet origin "$BRANCH" 2>/dev/null || true   # first push: remote branch may not exist yet
-
-if git rev-parse --verify --quiet "origin/$BRANCH" >/dev/null 2>&1; then
-    BEHIND="$(git rev-list --count "HEAD..origin/$BRANCH" 2>/dev/null || echo 0)"
-    if [ "${BEHIND:-0}" != "0" ]; then
-        fail "local is $BEHIND commit(s) behind origin/$BRANCH — run: git pull --rebase origin $BRANCH"
-    fi
-fi
-
-# ── Push ─────────────────────────────────────────────────────────────────────
-echo "  → Pushing to github.com/$GITHUB_USER/$GITHUB_REPO ($BRANCH)..."
-
-PUSH_OUT="$(git -c http.extraHeader="Authorization: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)" \
-    push origin "HEAD:$BRANCH" 2>&1)" && PUSH_OK=0 || PUSH_OK=$?
-
-echo "$PUSH_OUT" | sed "s/$GITHUB_TOKEN/[TOKEN]/g"
-[ "$PUSH_OK" -eq 0 ] || fail "git push failed (see above)"
-
-echo ""
-echo "  ✅ Pushed: $COMMIT_MSG"
-echo "     https://github.com/$GITHUB_USER/$GITHUB_REPO/commits/$BRANCH"
-echo ""
+main().catch(e => { console.error('  ❌ Push failed:', e.message); process.exit(1); });
+ENDNODE

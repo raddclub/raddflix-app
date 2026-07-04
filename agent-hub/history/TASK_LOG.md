@@ -68,4 +68,5 @@
 - Session 2026-07-01 — Phase 60: Remove Dub / Dub Active Indicator in Audio Panel
 - Session 2026-07-01 — Build Fixes (Kotlin 2.2.0 + minSdkVersion 24)
 - Session 2026-07-02-B — Subtitle + free-user fixes
+- Session 2026-07-04 — Auto-Commit Workflow + UI/UX Plan Review
 

@@ -3,7 +3,7 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
-## Current State (2026-07-03)
+## Current State (2026-07-04)
 
 ### Full audit pass (subtitles, player controls, access control, downloads) — 2026-07-03
 Found and fixed a critical bug: the backend `is_free` episode-inheritance fix from
@@ -44,8 +44,14 @@ subscription-expiry check in the Downloads screen. Full detail in
 - **minSdkVersion 24** — bumped from 21 → 24 in `android/app/build.gradle` (flutter_tts 4.2.5 declares minSdk 24 in its manifest; Android 5/6 dropped — <2% of Pakistani market)
 - Both fixes address a pre-existing break introduced in Phase 59 (flutter_tts was added but build never ran green)
 
+### Auto-commit system (2026-07-04)
+- `auto_commit.sh` added at repo root — lightweight GitHub API (Trees API) commit script, no git shell required
+- Rule 42 added to `agent-hub/RULES.md` — every file edit must be followed immediately by `bash auto_commit.sh "message" file1 ...`
+- `AGENT_PROMPT.md` updated to mention Rule 42 in the normal workflow section
+- Commit `a0d2d9f`
+
 ### Open Tasks
-None — MPV-native player upgrades pushed (native A-B loop, gapless-ish episode prefetch, screenshot-with-subtitles). CI building. Awaiting next task.
+None — awaiting next task.
 
 ### What was added 2026-07-03 — MPV-Native Player Upgrades
 1. **Native A-B loop** — replaced Dart position-listener seek with MPV's own `ab-loop-a`/`ab-loop-b`/`ab-loop-count` properties via new `_syncNativeAbLoop()`; frame-accurate, zero per-tick Dart overhead. Dart state now UI-only.

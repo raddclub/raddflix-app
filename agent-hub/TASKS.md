@@ -79,6 +79,14 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 
 ---
 
+## Auto-Commit Workflow (2026-07-04)
+
+| Task | Summary | Commit(s) | Status |
+|---|---|---|---|
+| Auto-commit system | `auto_commit.sh` — lightweight GitHub API commit script; Rule 42 added to RULES.md; AGENT_PROMPT.md updated | `a0d2d9f` | ✅ DONE |
+
+---
+
 ## Adding new work here
 
 1. Add a row with ⏳ IN PROGRESS *before* starting.
