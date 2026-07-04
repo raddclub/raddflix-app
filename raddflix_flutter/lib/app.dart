@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'core/design/app_icons.dart';
 import 'models/catalog_item.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -273,8 +274,8 @@ class _ForceUpdateScreen extends StatelessWidget {
                   ),
                   child: Icon(
                     result.blocked
-                        ? Icons.block_rounded
-                        : Icons.system_update_alt_rounded,
+                        ? AppIcons.block
+                        : AppIcons.systemUpdate,
                     color: AppColors.primary,
                     size: 52,
                   ),
@@ -325,7 +326,7 @@ class _ForceUpdateScreen extends StatelessWidget {
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.download_rounded, color: Colors.white, size: 20),
+                          Icon(AppIcons.downloadAction, color: Colors.white, size: 20),
                           SizedBox(width: 10),
                           Text('Update Now',
                               style: TextStyle(color: Colors.white,
