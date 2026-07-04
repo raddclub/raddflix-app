@@ -1,5 +1,5 @@
 # agent-hub/RULES.md — Non-Negotiable Agent Rules
-Last updated: 2026-06-09 (added Rules 32–38 — RemoteConfig, sync, confirm/prompt, template paths)
+Last updated: 2026-07-04 (added Rule 42 — mandatory auto-commit after every file change)
 
 ## Startup (every session, no exceptions)
 1. Read `AGENT_PROMPT.md` (repo root) — the single entry point, links everything below.
@@ -138,13 +138,25 @@ Note: `BUG_TRACKER.md` referenced in older docs does not exist — tracked bugs 
     Any NEW direct `_upload_file()` call must add this guard.
 
 
+## Auto-Commit Rule (MANDATORY — added 2026-07-04)
+**Rule 42: After EVERY file edit — big or small — immediately run `auto_commit.sh`.**
+- Use the lightweight `auto_commit.sh` script at the repo root, NOT `push_to_github.sh`
+- Run it after each individual file change, not batched at the end of the session
+- Usage: `bash auto_commit.sh "describe what you changed"`
+- Stage only the edited file(s): `bash auto_commit.sh "fix X" path/to/file.dart`
+- NEVER skip a commit — even a 1-line typo fix gets its own commit
+- This ensures the GitHub history always matches the real state of the code
+- `push_to_github.sh` is still used for end-of-session doc pushes — Rule 42 is in ADDITION to it
+
+---
+
 ## End of Session (every session, no exceptions)
 25. Mark all completed tasks ✅ DONE in `agent-hub/TASKS.md`
 26. Append session summary to `agent-hub/history/TASK_LOG.md`
 27. Update `AGENT_HANDOFF.md` current state section (this is the ONLY handoff file — do not create a new one)
 28. Update `PLAYER_SPEC.md` if any player architecture changed
 29. Update `agent-hub/memory/` if you learned a durable, non-obvious lesson
-30. Push ALL doc changes to GitHub before ending session
+30. Push ALL doc changes to GitHub before ending session (use `push_to_github.sh` or `auto_commit.sh`)
 
 
 ---
