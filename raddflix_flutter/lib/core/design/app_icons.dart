@@ -187,4 +187,7 @@ class AppIcons {
   static PhosphorIconData get sparkle        => PhosphorIcons.sparkle(PhosphorIconsStyle.fill);
   static PhosphorIconData get minusCircle    => PhosphorIcons.minusCircle();
   static PhosphorIconData get category       => PhosphorIcons.squaresFour();
+  static PhosphorIconData get cancel         => PhosphorIcons.xCircle(PhosphorIconsStyle.fill);
+  static PhosphorIconData get pin            => PhosphorIcons.pushPin(PhosphorIconsStyle.fill);
+  static PhosphorIconData get timeline       => PhosphorIcons.chartLineUp();
 }

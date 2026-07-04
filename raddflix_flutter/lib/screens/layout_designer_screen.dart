@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/player/layout_prefs.dart';
@@ -167,7 +168,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
           width: 36, height: 36,
           decoration: BoxDecoration(
             color: Colors.white10, borderRadius: BorderRadius.circular(8)),
-          child: const Icon(Icons.arrow_back_ios_new_rounded,
+          child: const Icon(AppIcons.back,
               color: Colors.white70, size: 18),
         ),
       ),
@@ -183,7 +184,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
       ),
       // Grid toggle
       _ToolbarBtn(
-        icon: _showGrid ? Icons.grid_on_rounded : Icons.grid_off_rounded,
+        icon: _showGrid ? AppIcons.gridView : AppIcons.gridView,
         label: 'Grid',
         active: _showGrid,
         accent: accent,
@@ -192,7 +193,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
       const SizedBox(width: 6),
       // Snap toggle
       _ToolbarBtn(
-        icon: Icons.push_pin_rounded,
+        icon: AppIcons.pin,
         label: 'Snap',
         active: _snapToGrid,
         accent: accent,
@@ -204,7 +205,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
       const SizedBox(width: 6),
       // Labels toggle
       _ToolbarBtn(
-        icon: Icons.label_rounded,
+        icon: AppIcons.tag,
         label: 'Labels',
         active: _showLabels,
         accent: accent,
@@ -253,7 +254,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
       ),
     ),
     child: Center(
-      child: Icon(Icons.movie_outlined,
+      child: Icon(AppIcons.movie,
           color: Colors.white.withOpacity(0.04), size: 80),
     ),
   );
@@ -332,7 +333,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
   Widget _buildIdleFooter() => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(Icons.touch_app_rounded, color: Colors.white38, size: 16),
+      Icon(AppIcons.fingerprint, color: Colors.white38, size: 16),
       const SizedBox(width: 8),
       const Text('Tap a control to select it, then drag to move',
           style: TextStyle(color: Colors.white38, fontSize: 12)),
@@ -362,7 +363,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
                 color: item.visible ? accent : Colors.white24),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(item.visible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+              Icon(item.visible ? AppIcons.eye : AppIcons.eyeOff,
                   color: item.visible ? accent : Colors.white54, size: 16),
               const SizedBox(width: 4),
               Text(item.visible ? 'Visible' : 'Hidden',

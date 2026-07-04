@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
@@ -64,15 +65,15 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
 
   IconData _statusIcon(String? s) {
     switch (s) {
-      case 'done':        return Icons.check_circle_rounded;
+      case 'done':        return AppIcons.successIcon;
       case 'error':
-      case 'failed':      return Icons.error_rounded;
+      case 'failed':      return AppIcons.errorIcon;
       case 'processing':
-      case 'downloading': return Icons.download_rounded;
-      case 'uploading':   return Icons.cloud_upload_rounded;
-      case 'queued':      return Icons.schedule_rounded;
-      case 'cancelled':   return Icons.cancel_rounded;
-      default:            return Icons.circle_outlined;
+      case 'downloading': return AppIcons.downloadAction;
+      case 'uploading':   return AppIcons.cloudUpload;
+      case 'queued':      return AppIcons.clock;
+      case 'cancelled':   return AppIcons.cancel;
+      default:            return AppIcons.info;
     }
   }
 
@@ -121,7 +122,7 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
             surfaceTintColor: Colors.transparent,
             pinned: true,
             leading: IconButton(
-              icon: Icon(Icons.arrow_back_ios_new_rounded,
+              icon: Icon(AppIcons.back,
                   color: t.textPrimary, size: 20),
               onPressed: () => Navigator.of(context).pop(),
             ),
@@ -130,7 +131,7 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
                     fontSize: 18, fontWeight: FontWeight.w700)),
             actions: [
               IconButton(
-                icon: Icon(Icons.refresh_rounded,
+                icon: Icon(AppIcons.refresh,
                     color: t.textMuted, size: 22),
                 onPressed: _load,
               ),
@@ -149,7 +150,7 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
             SliverFillRemaining(
               child: Center(
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.cloud_off_rounded,
+                  Icon(AppIcons.wifiOff,
                       color: t.textMuted, size: 48),
                   SizedBox(height: 12),
                   Text('Could not reach server',
@@ -170,7 +171,7 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
             SliverFillRemaining(
               child: Center(child: Column(
                   mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.download_done_rounded,
+                Icon(AppIcons.downloadDone,
                     color: t.textMuted, size: 52),
                 SizedBox(height: 12),
                 Text('No download jobs yet',

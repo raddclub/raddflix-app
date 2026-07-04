@@ -4,6 +4,7 @@
 library pin_lock;
 
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -116,7 +117,7 @@ class _PinLockScreenState extends State<PinLockScreen>
           // Back button
           Row(children: [
             IconButton(
-              icon: const Icon(Icons.close_rounded, color: Colors.white54),
+              icon: const Icon(AppAppIcons.close, color: Colors.white54),
               onPressed: () => Navigator.of(context).pop(false),
             ),
           ]),
@@ -128,7 +129,7 @@ class _PinLockScreenState extends State<PinLockScreen>
               color: widget.accentColor.withOpacity(0.12),
               shape: BoxShape.circle,
               border: Border.all(color: widget.accentColor.withOpacity(0.4), width: 1.5)),
-            child: Icon(Icons.lock_outline_rounded,
+            child: Icon(AppIcons.lock,
                 color: widget.accentColor, size: 32),
           ),
           const SizedBox(height: 16),
@@ -200,7 +201,7 @@ class _PinLockScreenState extends State<PinLockScreen>
         ),
         child: Center(
           child: label == '⌫'
-              ? const Icon(Icons.backspace_outlined, color: Colors.white54, size: 22)
+              ? const Icon(AppIcons.backspace, color: Colors.white54, size: 22)
               : Text(label,
                   style: const TextStyle(color: Colors.white,
                       fontSize: 26, fontWeight: FontWeight.w400)),
@@ -277,7 +278,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
           const SizedBox(height: 32),
           Row(children: [
             IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white54),
+              icon: const Icon(AppIcons.back, color: Colors.white54),
               onPressed: () {
                 if (_confirming) setState(() { _confirming = false; _second = ''; });
                 else Navigator.of(context).pop(false);
@@ -285,7 +286,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
             ),
           ]),
           const Spacer(),
-          Icon(Icons.lock_person_outlined, color: widget.accentColor, size: 48),
+          Icon(AppIcons.shield, color: widget.accentColor, size: 48),
           const SizedBox(height: 12),
           Text(
             _confirming ? 'Confirm PIN' : 'Set a 4-digit PIN',
@@ -338,7 +339,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
               color: Colors.white.withOpacity(0.07),
               shape: BoxShape.circle),
             child: Center(child: k == '⌫'
-              ? const Icon(Icons.backspace_outlined, color: Colors.white54, size: 22)
+              ? const Icon(AppIcons.backspace, color: Colors.white54, size: 22)
               : Text(k, style: const TextStyle(color: Colors.white,
                     fontSize: 26, fontWeight: FontWeight.w400))),
           ),

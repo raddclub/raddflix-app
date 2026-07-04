@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -134,7 +135,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
         backgroundColor: t.bg,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.close_rounded, color: t.textMuted),
+          icon: Icon(AppAppIcons.close, color: t.textMuted),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(_isEditing ? 'Edit Profile' : 'Add Profile',
@@ -186,7 +187,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
                 border: Border.all(color: AppColors.error.withOpacity(0.3)),
               ),
               child: Row(children: [
-                Icon(Icons.error_outline_rounded, color: AppColors.error, size: 16),
+                Icon(AppIcons.errorIcon, color: AppColors.error, size: 16),
                 const SizedBox(width: 8),
                 Expanded(child: Text(_error!, style: TextStyle(color: AppColors.error, fontSize: 13))),
               ]),
@@ -208,7 +209,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
                 counterText: '',
                 hintText: 'Profile name',
                 hintStyle: TextStyle(color: t.textMuted),
-                prefixIcon: Icon(Icons.person_outline_rounded, color: t.textMuted, size: 20),
+                prefixIcon: Icon(AppIcons.profile, color: t.textMuted, size: 20),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               ),
@@ -239,7 +240,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
                       ? [BoxShadow(color: c.withOpacity(0.6), blurRadius: 10, spreadRadius: 1)]
                       : [],
                 ),
-                child: selected ? const Icon(Icons.check_rounded, color: Colors.white, size: 18) : null,
+                child: selected ? const Icon(AppIcons.check, color: Colors.white, size: 18) : null,
               ),
             );
           }).toList()),
@@ -268,7 +269,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
                   ),
                   child: Center(
                     child: e.isEmpty
-                        ? Icon(Icons.close_rounded, size: 16,
+                        ? Icon(AppAppIcons.close, size: 16,
                             color: selected ? AppColors.primary : t.textMuted)
                         : Text(e, style: const TextStyle(fontSize: 18)),
                   ),
@@ -306,7 +307,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
                 width: 34, height: 34,
                 decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(9)),
-                child: Icon(_pin != null ? Icons.lock_rounded : Icons.lock_open_rounded,
+                child: Icon(_pin != null ? AppIcons.lock : AppIcons.unlock,
                     size: 18, color: AppColors.primary),
               ),
               title: Text(_pin != null ? 'PIN Lock — On' : 'PIN Lock — Off',
@@ -315,11 +316,11 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
                   style: TextStyle(color: t.textMuted, fontSize: 12)),
               trailing: _pin != null
                   ? IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 18),
+                      icon: const Icon(AppAppIcons.close, size: 18),
                       color: t.textMuted,
                       onPressed: () => setState(() => _pin = null),
                     )
-                  : Icon(Icons.chevron_right_rounded, color: t.textMuted, size: 20),
+                  : Icon(AppIcons.caretRight, color: t.textMuted, size: 20),
               onTap: _setPin,
             ),
           ),
@@ -330,7 +331,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
               width: double.infinity,
               child: TextButton.icon(
                 onPressed: _delete,
-                icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 18),
+                icon: const Icon(AppIcons.trash, color: Color(0xFFEF4444), size: 18),
                 label: const Text('Delete Profile',
                     style: TextStyle(color: Color(0xFFEF4444), fontSize: 14, fontWeight: FontWeight.w600)),
               ),
@@ -445,7 +446,7 @@ class _AddProfilePinPad extends StatelessWidget {
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         key('', child: const SizedBox.shrink()),
         key('0'),
-        key('', child: Icon(Icons.backspace_outlined, size: 20, color: t.textMuted), onPressed: onBackspace),
+        key('', child: Icon(AppIcons.backspace, size: 20, color: t.textMuted), onPressed: onBackspace),
       ]),
     ]);
   }

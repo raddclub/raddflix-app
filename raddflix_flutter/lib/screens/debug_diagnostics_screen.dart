@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api/api_client.dart';
@@ -283,7 +284,7 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
         backgroundColor: const Color(0xFF0A0A1A),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          icon: const Icon(AppIcons.back, size: 18),
           onPressed: () => Navigator.of(context).pop()),
         title: Row(children: [
           Container(
@@ -310,18 +311,18 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
                     ? const Padding(padding: EdgeInsets.only(right: 16),
                         child: Center(child: SizedBox(width: 18, height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange))))
-                    : IconButton(icon: const Icon(Icons.refresh_rounded, color: Colors.orange),
+                    : IconButton(icon: const Icon(AppIcons.refresh, color: Colors.orange),
                         tooltip: 'Re-run checks', onPressed: _runAll);
               }
               return Row(mainAxisSize: MainAxisSize.min, children: [
                 IconButton(
                   icon: Icon(
-                    _autoScroll ? Icons.vertical_align_bottom_rounded : Icons.pause_rounded,
+                    _autoScroll ? AppIcons.arrowDown : AppIcons.pause,
                     color: _autoScroll ? Colors.orange : Colors.grey, size: 20),
                   tooltip: _autoScroll ? 'Auto-scroll ON' : 'Paused',
                   onPressed: () => setState(() => _autoScroll = !_autoScroll)),
                 IconButton(
-                  icon: const Icon(Icons.share_rounded, color: Colors.orange, size: 20),
+                  icon: const Icon(AppIcons.share, color: Colors.orange, size: 20),
                   tooltip: 'Share log file',
                   onPressed: DebugLogger.shareLogs),
               ]);
@@ -392,7 +393,7 @@ class _ChecksTab extends StatelessWidget {
                 foregroundColor: Colors.orange,
                 side: BorderSide(color: Colors.orange.withOpacity(0.4)),
                 padding: const EdgeInsets.symmetric(vertical: 12)),
-              icon: const Icon(Icons.copy_rounded, size: 16),
+              icon: const Icon(AppIcons.copy, size: 16),
               label: const Text('Copy Report', style: TextStyle(fontSize: 13)),
               onPressed: () {
                 final txt = results.map((r) {
@@ -519,10 +520,10 @@ class _ResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color color; final IconData icon;
     switch (result.status) {
-      case _Status.ok:      color = const Color(0xFF22C55E); icon = Icons.check_circle_rounded;  break;
-      case _Status.warn:    color = Colors.orange;           icon = Icons.warning_amber_rounded;  break;
-      case _Status.fail:    color = const Color(0xFFEF4444); icon = Icons.cancel_rounded;         break;
-      case _Status.running: color = Colors.blueGrey;         icon = Icons.hourglass_top_rounded;  break;
+      case _Status.ok:      color = const Color(0xFF22C55E); icon = AppIcons.successIcon;  break;
+      case _Status.warn:    color = Colors.orange;           icon = AppIcons.warning;  break;
+      case _Status.fail:    color = const Color(0xFFEF4444); icon = AppIcons.cancel;         break;
+      case _Status.running: color = Colors.blueGrey;         icon = AppIcons.hourglass;  break;
     }
     return Container(
       padding: const EdgeInsets.all(14),
@@ -586,7 +587,7 @@ class _DiagResult {
       if (allSessions.isEmpty) {
         return Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.timeline_rounded, color: Colors.grey[700], size: 48),
+            Icon(AppIcons.timeline, color: Colors.grey[700], size: 48),
             const SizedBox(height: 12),
             Text('No playback sessions recorded yet.',
                 style: TextStyle(color: Colors.grey[600], fontSize: 13)),
@@ -634,7 +635,7 @@ class _DiagResult {
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     if (hasWarn) ...[
-                      const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 11),
+                      const Icon(AppIcons.warning, color: Colors.red, size: 11),
                       const SizedBox(width: 3),
                     ],
                     Text(label, style: TextStyle(

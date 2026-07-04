@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -129,7 +130,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             pinned: true,
             elevation: 0,
             leading: IconButton(
-              icon: Icon(Icons.close_rounded, color: t.textMuted),
+              icon: Icon(AppAppIcons.close, color: t.textMuted),
               onPressed: () => Navigator.of(context).pop(),
             ),
             title: Text('Edit Profile',
@@ -208,7 +209,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         boxShadow: [BoxShadow(
                             color: color.withOpacity(0.2), blurRadius: 6)],
                       ),
-                      child: Icon(Icons.palette_rounded,
+                      child: Icon(AppIcons.colorPalette,
                           size: 16, color: color),
                     ),
                   ),
@@ -275,7 +276,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             color: AppColors.error.withOpacity(0.3)),
                       ),
                       child: Row(children: [
-                        Icon(Icons.error_outline_rounded,
+                        Icon(AppIcons.errorIcon,
                             color: AppColors.error, size: 16),
                         const SizedBox(width: 8),
                         Expanded(child: Text(_error!,
@@ -291,7 +292,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       ctrl: _nameCtrl,
                       label: 'Display Name',
                       hint: 'Your name (optional)',
-                      icon: Icons.person_outline_rounded,
+                      icon: AppIcons.profile,
                       maxLength: 60,
                       textCapitalization: TextCapitalization.words,
                     ),
@@ -304,7 +305,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       ctrl: _emailCtrl,
                       label: 'Email',
                       hint: 'For account recovery (optional)',
-                      icon: Icons.mail_outline_rounded,
+                      icon: AppIcons.mail,
                       keyboardType: TextInputType.emailAddress,
                     ),
                   ]),
@@ -326,7 +327,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                               color: AppColors.primary.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(9),
                             ),
-                            child: const Icon(Icons.lock_outline_rounded,
+                            child: const Icon(AppIcons.lock,
                                 size: 18, color: AppColors.primary),
                           ),
                           const SizedBox(width: 12),
@@ -340,7 +341,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                 style: TextStyle(color: t.textMuted,
                                     fontSize: 12)),
                           ])),
-                          Icon(Icons.chevron_right_rounded,
+                          Icon(AppIcons.caretRight,
                               color: t.textMuted, size: 20),
                         ]),
                       ),
@@ -436,7 +437,7 @@ class _EmojiChip extends StatelessWidget {
         ),
         child: Center(
           child: isNone
-              ? Icon(Icons.close_rounded, size: 16,
+              ? Icon(AppAppIcons.close, size: 16,
                     color: isSelected ? AppColors.primary : t.textMuted)
               : Text(emoji, style: const TextStyle(fontSize: 20)),
         ),
@@ -495,7 +496,7 @@ class _ColorPickerSheet extends StatelessWidget {
                       : [],
                 ),
                 child: isSelected
-                    ? const Icon(Icons.check_rounded,
+                    ? const Icon(AppIcons.check,
                           color: Colors.white, size: 24)
                     : null,
               ),
@@ -591,7 +592,7 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
               color: AppColors.primary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.lock_outline_rounded,
+            child: const Icon(AppIcons.lock,
                 size: 18, color: AppColors.primary),
           ),
           const SizedBox(width: 12),
@@ -757,8 +758,8 @@ class _PwField extends StatelessWidget {
           labelStyle: TextStyle(color: t.textMuted, fontSize: 13),
           suffixIcon: IconButton(
             icon: Icon(show
-                ? Icons.visibility_off_outlined
-                : Icons.visibility_outlined,
+                ? AppIcons.eyeOff
+                : AppIcons.eye,
                 size: 18, color: t.textMuted),
             onPressed: onToggle,
           ),

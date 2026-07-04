@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
@@ -35,7 +36,7 @@ class ActorScreen extends StatelessWidget {
               expandedHeight: 300,
               pinned: true,
               leading: IconButton(
-                icon: Icon(Icons.arrow_back_ios_new_rounded,
+                icon: Icon(AppIcons.back,
                     color: t.textPrimary, size: 20),
                 onPressed: () => Navigator.of(context).pop(),
               ),
@@ -117,7 +118,7 @@ class ActorScreen extends StatelessWidget {
                       border: Border.all(color: t.border),
                     ),
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Icon(Icons.info_outline_rounded,
+                      Icon(AppIcons.info,
                           size: 15, color: t.textMuted),
                       const SizedBox(width: 8),
                       Expanded(
@@ -148,7 +149,7 @@ class ActorScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(40),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.movie_filter_outlined,
+                    Icon(AppIcons.filmSlate,
                         size: 48, color: t.textMuted.withOpacity(0.4)),
                     const SizedBox(height: 12),
                     Text('No titles in our catalog yet',
@@ -219,7 +220,7 @@ class ActorScreen extends StatelessWidget {
 
   Widget _placeholder(double size, RaddTheme t) => Container(
     width: size, height: size, color: t.surface,
-    child: Icon(Icons.person_rounded, color: t.textMuted, size: size * 0.5));
+    child: Icon(AppIcons.profileFill, color: t.textMuted, size: size * 0.5));
 }
 
 class _Shimmer extends StatelessWidget {

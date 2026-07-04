@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
   import 'package:intl/intl.dart';
   import '../core/theme/radd_theme.dart';
   import 'package:url_launcher/url_launcher.dart';
@@ -69,7 +70,7 @@ import 'package:flutter/material.dart';
                     color: AppColors.error.withOpacity(0.07),
                     border: Border.all(
                         color: AppColors.error.withOpacity(0.2), width: 2)),
-                  child: const Icon(Icons.data_usage_rounded,
+                  child: const Icon(AppIcons.dataSaver,
                       color: AppColors.error, size: 42),
                 ),
                 const SizedBox(height: 20),
@@ -115,7 +116,7 @@ import 'package:flutter/material.dart';
                             blurRadius: 20, offset: const Offset(0, 8)),
                       ]),
                     child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 20),
+                      Icon(AppIcons.crown, color: Colors.white, size: 20),
                       SizedBox(width: 10),
                       Text('Renew or Upgrade Plan',
                           style: TextStyle(color: Colors.white,

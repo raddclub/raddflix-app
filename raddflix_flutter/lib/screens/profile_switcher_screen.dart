@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -94,7 +95,7 @@ class _ProfileSwitcherScreenState extends ConsumerState<ProfileSwitcherScreen> {
                 backgroundColor: t.bg,
                 elevation: 0,
                 leading: IconButton(
-                  icon: Icon(Icons.close_rounded, color: t.textMuted),
+                  icon: Icon(AppAppIcons.close, color: t.textMuted),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               )
@@ -134,7 +135,7 @@ class _ProfileSwitcherScreenState extends ConsumerState<ProfileSwitcherScreen> {
                   const SizedBox(height: 40),
                   TextButton.icon(
                     onPressed: () => setState(() => _managing = !_managing),
-                    icon: Icon(_managing ? Icons.check_rounded : Icons.edit_outlined,
+                    icon: Icon(_managing ? AppIcons.check : AppIcons.edit,
                         size: 18, color: t.textMuted),
                     label: Text(_managing ? 'Done' : 'Manage Profiles',
                         style: TextStyle(color: t.textMuted, fontSize: 14,
@@ -217,7 +218,7 @@ class _ProfileTile extends StatelessWidget {
                     color: t.surface, shape: BoxShape.circle,
                     border: Border.all(color: t.bg, width: 2),
                   ),
-                  child: Icon(Icons.lock_rounded, size: 11, color: t.textMuted),
+                  child: Icon(AppIcons.lock, size: 11, color: t.textMuted),
                 ),
               ),
             if (managing)
@@ -228,7 +229,7 @@ class _ProfileTile extends StatelessWidget {
                   color: Colors.black.withOpacity(0.4),
                 ),
                 child: const Center(
-                  child: Icon(Icons.edit_rounded, color: Colors.white, size: 26),
+                  child: Icon(AppIcons.edit, color: Colors.white, size: 26),
                 ),
               ),
           ]),
@@ -264,7 +265,7 @@ class _AddProfileTile extends StatelessWidget {
               color: t.surface,
               border: Border.all(color: t.border, style: BorderStyle.solid, width: 1.5),
             ),
-            child: Icon(Icons.add_rounded, color: t.textMuted, size: 34),
+            child: Icon(AppIcons.add, color: t.textMuted, size: 34),
           ),
           const SizedBox(height: 10),
           Text('Add Profile', style: TextStyle(color: t.textMuted, fontSize: 13,
@@ -323,7 +324,7 @@ class _PinEntrySheetState extends State<_PinEntrySheet> {
         Container(width: 36, height: 4,
             decoration: BoxDecoration(color: t.border, borderRadius: BorderRadius.circular(2))),
         const SizedBox(height: 20),
-        Icon(Icons.lock_rounded, color: AppColors.primary, size: 28),
+        Icon(AppIcons.lock, color: AppColors.primary, size: 28),
         const SizedBox(height: 10),
         Text('Enter PIN for ${widget.profile.name}',
             style: TextStyle(color: t.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
@@ -390,7 +391,7 @@ class _NumPad extends StatelessWidget {
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         key('', child: const SizedBox.shrink()),
         key('0'),
-        key('', child: Icon(Icons.backspace_outlined, size: 20, color: t.textMuted),
+        key('', child: Icon(AppIcons.backspace, size: 20, color: t.textMuted),
             onPressed: onBackspace),
       ]),
     ]);

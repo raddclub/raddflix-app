@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import '../core/constants.dart';
 
@@ -46,7 +47,7 @@ class PlanExpiredScreen extends StatelessWidget {
                     border: Border.all(
                         color: AppColors.primary.withOpacity(0.25), width: 2),
                   ),
-                  child: Icon(Icons.lock_clock_rounded,
+                  child: Icon(AppIcons.lock,
                       color: AppColors.primary, size: 46),
                 ),
                 SizedBox(height: 32),
@@ -93,7 +94,7 @@ class PlanExpiredScreen extends StatelessWidget {
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.workspace_premium_rounded,
+                        Icon(AppIcons.crown,
                             color: Colors.white, size: 20),
                         SizedBox(width: 10),
                         Text('Renew Plan',

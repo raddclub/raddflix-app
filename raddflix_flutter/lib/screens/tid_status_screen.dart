@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
@@ -155,7 +156,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
         elevation: 0,
         leading: _status != _TidStatus.approved
             ? IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                icon: const Icon(AppIcons.back, size: 18),
                 onPressed: () => Navigator.pop(context),
               )
             : null,
@@ -287,7 +288,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
                     backgroundColor: AppColors.primary,
                   ));
                 },
-                child: Icon(Icons.copy_rounded, size: 16, color: t.textSecondary),
+                child: Icon(AppIcons.copy, size: 16, color: t.textSecondary),
               ),
             ],
           ),
@@ -316,14 +317,14 @@ class _TidStatusScreenState extends State<TidStatusScreen>
           ),
           const SizedBox(height: 16),
           _TimelineStep(
-            icon: Icons.send_rounded,
+            icon: AppIcons.sendMessage,
             label: 'TID Submitted',
             sublabel: 'Your transaction ID was received',
             isActive: true,
             isDone: true,
           ),
           _TimelineStep(
-            icon: Icons.manage_search_rounded,
+            icon: AppIcons.search,
             label: 'Under Review',
             sublabel: _status == _TidStatus.pending
                 ? 'Admin is verifying your payment'
@@ -335,7 +336,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
             isFailed: _status == _TidStatus.rejected,
           ),
           _TimelineStep(
-            icon: Icons.check_circle_rounded,
+            icon: AppIcons.successIcon,
             label: 'Subscription Activated',
             sublabel: _status == _TidStatus.approved
                 ? 'Your ${_approvedPlan?.toUpperCase() ?? widget.plan.toUpperCase()} plan is now active!'
@@ -369,7 +370,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
         ),
         if (_errorMsg != null) ...[
           const SizedBox(width: 8),
-          const Icon(Icons.wifi_off_rounded, size: 14, color: AppColors.error),
+          const Icon(AppIcons.wifiOff, size: 14, color: AppColors.error),
         ],
       ],
     );
@@ -382,7 +383,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
         _countdownTimer?.cancel();
         _poll();
       },
-      icon: const Icon(Icons.refresh_rounded, size: 18),
+      icon: const Icon(AppIcons.refresh, size: 18),
       label: const Text('Check Now'),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.primary,
@@ -409,7 +410,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
           ));
         }
       },
-      icon: const Icon(Icons.chat_rounded, size: 18, color: Color(0xFF25D366)),
+      icon: const Icon(AppIcons.chat, size: 18, color: Color(0xFF25D366)),
       label: const Text('Contact Support on WhatsApp'),
       style: TextButton.styleFrom(foregroundColor: const Color(0xFF25D366)),
     );
@@ -429,7 +430,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
             Navigator.of(context).popUntil((route) => route.isFirst);
           }
         },
-        icon: const Icon(Icons.play_circle_filled_rounded),
+        icon: const Icon(AppIcons.playCircleFill),
         label: const Text('Start Watching', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
@@ -459,7 +460,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
             ));
           }
         },
-        icon: const Icon(Icons.support_agent_rounded),
+        icon: const Icon(AppIcons.support),
         label: const Text('Contact Support via WhatsApp'),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.error,
@@ -502,11 +503,11 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   IconData _statusIcon() {
     switch (_status) {
       case _TidStatus.pending:
-        return Icons.hourglass_top_rounded;
+        return AppIcons.hourglass;
       case _TidStatus.approved:
-        return Icons.verified_rounded;
+        return AppIcons.verified;
       case _TidStatus.rejected:
-        return Icons.cancel_rounded;
+        return AppIcons.cancel;
     }
   }
 
@@ -599,7 +600,7 @@ class _TimelineStep extends StatelessWidget {
                 border: Border.all(color: color, width: 1.5),
               ),
               child: Icon(
-                isDone ? Icons.check_rounded : isFailed ? Icons.close_rounded : icon,
+                isDone ? AppIcons.check : isFailed ? AppAppIcons.close : icon,
                 size: 16,
                 color: color,
               ),
