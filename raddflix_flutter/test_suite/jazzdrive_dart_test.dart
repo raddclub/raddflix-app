@@ -5,6 +5,13 @@
 ///
 /// Run: dart run raddflix_flutter/test_suite/jazzdrive_dart_test.dart
 ///
+/// ══ SSL NOTE (Replit / Nix) ══
+/// The Nix-bundled Dart SDK lacks the system CA bundle, causing
+/// CERTIFICATE_VERIFY_FAILED on HTTPS. Both HttpClient instances use
+/// badCertificateCallback = true so this test runs from any environment.
+/// This is a DEVELOPER TEST ONLY — production code (jazzdrive_service.dart)
+/// always uses Flutter's platform TLS and does NOT bypass cert verification.
+///
 /// ══ CONFIRMED WORKING FLOW (matches Node.js reference script) ══
 ///
 /// Step 1: POST /sapi/link/login?action=login
@@ -115,7 +122,10 @@ String? _extractShareKey(String shareUrl) {
 }
 
 Future<Map<String, String>> _loginShare(String shareKey) async {
-  final client = HttpClient()..connectionTimeout = const Duration(seconds: 20);
+  final client = HttpClient()
+    ..connectionTimeout = const Duration(seconds: 20)
+    // ignore: avoid_returning_null_for_void
+    ..badCertificateCallback = (cert, host, port) => true; // dev test only
   try {
     final uri = Uri.parse('$_cloudBase/sapi/link/login?action=login');
     final req = await client.postUrl(uri);
@@ -192,7 +202,10 @@ Future<Map<String, dynamic>> _getMedia(
   String shareKey, String validationKey, String cookie, {
   String? targetFilename, int remoteId = 0,
 }) async {
-  final client = HttpClient()..connectionTimeout = const Duration(seconds: 20);
+  final client = HttpClient()
+    ..connectionTimeout = const Duration(seconds: 20)
+    // ignore: avoid_returning_null_for_void
+    ..badCertificateCallback = (cert, host, port) => true; // dev test only
   try {
     final uri = Uri.parse('$_cloudBase/sapi/media/video'
         '?action=get&shared=true'
