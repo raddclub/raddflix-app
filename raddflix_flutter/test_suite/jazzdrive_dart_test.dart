@@ -124,8 +124,8 @@ String? _extractShareKey(String shareUrl) {
 Future<Map<String, String>> _loginShare(String shareKey) async {
   final client = HttpClient()
     ..connectionTimeout = const Duration(seconds: 20)
-    // ignore: avoid_returning_null_for_void
-    ..badCertificateCallback = (cert, host, port) => true; // dev test only
+    ..badCertificateCallback = (cert, host, port) => // dev test only — Nix CA bundle missing
+        host.endsWith('jazzdrive.com.pk');
   try {
     final uri = Uri.parse('$_cloudBase/sapi/link/login?action=login');
     final req = await client.postUrl(uri);
@@ -204,8 +204,8 @@ Future<Map<String, dynamic>> _getMedia(
 }) async {
   final client = HttpClient()
     ..connectionTimeout = const Duration(seconds: 20)
-    // ignore: avoid_returning_null_for_void
-    ..badCertificateCallback = (cert, host, port) => true; // dev test only
+    ..badCertificateCallback = (cert, host, port) => // dev test only — Nix CA bundle missing
+        host.endsWith('jazzdrive.com.pk');
   try {
     final uri = Uri.parse('$_cloudBase/sapi/media/video'
         '?action=get&shared=true'
