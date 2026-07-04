@@ -68,6 +68,16 @@ All 4 files in `raddflix_flutter/test_suite/` executed:
 
 **Actionable item:** Oracle JazzDrive SAPI session is expired. To re-validate `jazzdrive_dart_test.dart`: log into Oracle admin panel → Settings → JazzDrive Login → complete OTP re-login. Then re-run the test.
 
+### Corrections applied — 2026-07-04
+Found and fixed wrong information in constants, tests, and comments discovered during the test run:
+
+| Wrong | Correct | Files fixed |
+|---|---|---|
+| Cache TTL 180 min / 6h | **110 min** (source of truth: `jazzdrive_service.dart` `_cacheTtl`) | `constants.dart`, `logic_tests.dart`, `run_tests.js`, `local_db.dart`, `README.md` |
+| `jazzdrive_dart_test.dart`: "validationkey MUST be in final URL" | **DO NOT append validationkey=** — k= token is self-authenticating | `jazzdrive_dart_test.dart` header, `_buildStreamUrl`, Validation 2 |
+
+Commits: `5d37e39`, `19fa4cf`
+
 **Minor server note:** TID validation threshold is `len < 5`; the test sends "SHORT" (5 chars) which passes. Not a critical bug — just a low threshold. No code change made.
 
 ### Open Tasks

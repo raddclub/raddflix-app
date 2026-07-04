@@ -71,4 +71,5 @@
 - Session 2026-07-04 — Auto-Commit Workflow + UI/UX Plan Review
 - Session 2026-07-04 — Icon migration: AppIcons coverage 100% (gesture_map_sheet.dart)
 - Session 2026-07-04 — Test suite: all files run; SSL cert fix for Dart test in Nix env
+- Session 2026-07-04 — Correct wrong info: TTL 110min, validationkey must NOT appear in CDN URL
 
