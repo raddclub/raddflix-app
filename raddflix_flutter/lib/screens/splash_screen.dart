@@ -9,6 +9,7 @@ import '../core/remote_config.dart';
 import '../core/theme/brand_theme_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/subscription_provider.dart';
+import '../providers/profile_provider.dart';
 import '../widgets/particle_overlay.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -87,7 +88,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       if (!mounted || _started) return;
       if (next.status == AuthStatus.authenticated) {
         _started = true;
-        Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+        navigateAfterAuth(context, ref);
         // If app was opened via "Open with" intent, push player after home loads
         final uri = pendingVideoUri;
         if (uri != null && uri.isNotEmpty) {

@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants.dart';
 import '../providers/auth_provider.dart';
+import '../providers/profile_provider.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/radd_text_field.dart';
 import '../core/utils/auth_utils.dart';
@@ -36,7 +37,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       await ref.read(authProvider.notifier).login(
           phone: _phone.text.trim(), password: _pass.text);
       if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
+      await navigateAfterAuth(context, ref);
     } on DioException catch (e) {
       final _errData = e.response?.data;
       final serverMsg = (_errData is Map
@@ -61,7 +62,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       await ref.read(authProvider.notifier).continueAsGuest();
-      if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+      if (mounted) await navigateAfterAuth(context, ref);
     } catch (e) {
       setState(() { _error = 'Cannot connect. Check your internet.'; _loading = false; });
     }

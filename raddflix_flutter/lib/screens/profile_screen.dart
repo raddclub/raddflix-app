@@ -25,6 +25,8 @@ import 'debug_diagnostics_screen.dart';
 import '../widgets/tier_badge.dart';
 import 'edit_profile_screen.dart';
 import '../core/debug/debug_logger.dart';
+import '../providers/profile_provider.dart';
+import 'profile_switcher_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -149,6 +151,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final user  = ref.watch(authProvider).user;
     final theme = ref.watch(themeProvider);
     final initial = user?.avatarInitial ?? 'U';
+    final activeProfile = ref.watch(profileProvider).active;
+    final isKidsProfile = activeProfile?.isKids ?? false;
 
     return LoadingOverlay(
       loading: _loggingOut,
@@ -552,33 +556,53 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     _divider(),
                     _SectionTile(
-                      icon: Icons.lock_rounded,
-                      iconColor: const Color(0xFF7C5CFF),
-                      label: 'Private Vault',
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0x207C5CFF),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text('PRIVATE', style: TextStyle(
-                            color: Color(0xFF7C5CFF), fontSize: 10, fontWeight: FontWeight.w700)),
-                      ),
-                      onTap: () async {
-                        final hasPin = await VaultService.hasPin();
-                        if (!context.mounted) return;
-                        if (hasPin) {
-                          if (VaultService.isUnlocked) {
-                            Navigator.of(context).pushNamed(AppRoutes.vault);
-                          } else {
-                            Navigator.of(context).pushNamed(AppRoutes.vaultLock);
-                          }
-                        } else {
-                          Navigator.of(context).pushNamed(AppRoutes.vaultLock,
-                              arguments: {'setup': true});
-                        }
-                      },
+                      icon: Icons.switch_account_rounded,
+                      iconColor: const Color(0xFF3B82F6),
+                      label: 'Switch Profile',
+                      trailing: activeProfile != null
+                          ? Text(activeProfile.name, style: TextStyle(
+                              color: t.textMuted, fontSize: 13, fontWeight: FontWeight.w500))
+                          : null,
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.profileSwitcher),
                     ),
+                    _divider(),
+                    _SectionTile(
+                      icon: Icons.manage_accounts_outlined,
+                      iconColor: const Color(0xFF14B8A6),
+                      label: 'Manage Profiles',
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.addProfile),
+                    ),
+                    if (!isKidsProfile) ...[
+                      _divider(),
+                      _SectionTile(
+                        icon: Icons.lock_rounded,
+                        iconColor: const Color(0xFF7C5CFF),
+                        label: 'Private Vault',
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0x207C5CFF),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text('PRIVATE', style: TextStyle(
+                              color: Color(0xFF7C5CFF), fontSize: 10, fontWeight: FontWeight.w700)),
+                        ),
+                        onTap: () async {
+                          final hasPin = await VaultService.hasPin();
+                          if (!context.mounted) return;
+                          if (hasPin) {
+                            if (VaultService.isUnlocked) {
+                              Navigator.of(context).pushNamed(AppRoutes.vault);
+                            } else {
+                              Navigator.of(context).pushNamed(AppRoutes.vaultLock);
+                            }
+                          } else {
+                            Navigator.of(context).pushNamed(AppRoutes.vaultLock,
+                                arguments: {'setup': true});
+                          }
+                        },
+                      ),
+                    ],
                     _divider(),
                     _SectionTile(
                       icon: Icons.download_outlined,

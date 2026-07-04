@@ -7,6 +7,7 @@ import '../core/api/auth_api.dart';
 import '../core/security/keystore.dart';
 import '../core/constants.dart';
 import '../providers/auth_provider.dart';
+import '../providers/profile_provider.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/radd_text_field.dart';
 import '../core/utils/auth_utils.dart';
@@ -49,7 +50,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         setState(() { _error = s.error; _loading = false; });
         return;
       }
-      if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+      if (mounted) await navigateAfterAuth(context, ref);
     } catch (e) {
       final s = ref.read(authProvider);
       if (s.isDeviceConflict) {
@@ -64,7 +65,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       await ref.read(authProvider.notifier).continueAsGuest();
-      if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+      if (mounted) await navigateAfterAuth(context, ref);
     } catch (e) {
       if (mounted) setState(() { _error = 'Cannot connect. Check your internet.'; _loading = false; });
     }

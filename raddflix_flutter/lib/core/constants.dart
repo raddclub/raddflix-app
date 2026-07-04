@@ -14,7 +14,7 @@ class AppConstants {
 
   static const Duration catalogSyncInterval = Duration(hours: 6);
   static const String catalogDbName = 'raddflix_catalog.db';
-  static const int catalogDbVersion = 20;
+  static const int catalogDbVersion = 21;
   static const int streamCacheTtlSeconds = 10800; // 180 min
 
   // ── JazzDrive (zero-rated CDN) ─────────────────────────────────────────────
@@ -275,6 +275,9 @@ class AppRoutes {
   static const String quotaFull    = '/quota-full';
   static const String planExpired  = '/plan-expired';
   static const String settings     = '/settings';
+  static const String profileSwitcher = '/profile-switcher';
+  static const String addProfile      = '/add-profile';
+  static const String editProfile     = '/edit-profile';
 }
 
 // ── Storage Keys ──────────────────────────────────────────────────────────────
@@ -292,6 +295,7 @@ class StorageKeys {
   static const String themeMode        = 'jm_theme_mode';
   static const String searchHistory    = 'jm_search_history';
   static const String subtitleDefault  = 'jm_subtitle_default';
+  static const String activeProfileId  = 'jm_active_profile_id';
 }
 
 // ── API Paths ─────────────────────────────────────────────────────────────────

@@ -32,6 +32,9 @@ import 'screens/plan_expired_screen.dart';
 import 'screens/watchlist_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/profile_switcher_screen.dart';
+import 'screens/add_edit_profile_screen.dart';
+import 'models/profile.dart';
 import 'core/services/app_update_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'core/debug/debug_logger.dart';
@@ -121,6 +124,8 @@ class RaddFlixApp extends ConsumerWidget {
         AppRoutes.history:       (_) => const HistoryScreen(),
         AppRoutes.settings:      (_) => const SettingsScreen(),
         AppRoutes.localMedia:    (_) => const LocalMediaScreen(),
+        AppRoutes.profileSwitcher: (_) => const ProfileSwitcherScreen(),
+        AppRoutes.addProfile:      (_) => const AddEditProfileScreen(),
         '/player-settings':      (_) => const _PlayerSettingsLoader(),
         '/layout-designer':      (_) => const _LayoutDesignerLoader(),
         '/pin-lock':             (_) => PinLockScreen(),
@@ -164,6 +169,12 @@ class RaddFlixApp extends ConsumerWidget {
             transitionsBuilder: (_, anim, __, child) =>
                 FadeTransition(opacity: anim, child: child),
             transitionDuration: const Duration(milliseconds: 350),
+          );
+        }
+        if (settings.name == AppRoutes.editProfile) {
+          final profile = settings.arguments as Profile?;
+          return MaterialPageRoute(
+            builder: (_) => AddEditProfileScreen(existing: profile),
           );
         }
         if (settings.name == AppRoutes.vaultLock) {

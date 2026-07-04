@@ -25,6 +25,13 @@ import '../security/request_encoder.dart';
 class LocalDb {
   static Database? _db;
 
+  /// Active "Who's Watching" profile id for the current session. Set by
+  /// ProfileNotifier on load/switch. All watchlist/watch-position reads and
+  /// writes below default to this profile when no explicit profileId is
+  /// passed, so existing call sites across the app stay correct without
+  /// having to thread a profile id through every caller.
+  static int currentProfileId = 1;
+
   static Future<Database> get instance async {
     _db ??= await _openDb();
     return _db!;
@@ -113,11 +120,13 @@ class LocalDb {
     ''');
     await db.execute('''
       CREATE TABLE watch_positions (
-        file_id     TEXT PRIMARY KEY,
+        profile_id  INTEGER NOT NULL DEFAULT 1,
+        file_id     TEXT NOT NULL,
         position_ms INTEGER DEFAULT 0,
         duration_ms INTEGER DEFAULT 0,
         updated_at  INTEGER DEFAULT 0,
-        synced      INTEGER DEFAULT 0
+        synced      INTEGER DEFAULT 0,
+        PRIMARY KEY (profile_id, file_id)
       )
     ''');
     await db.execute('''
@@ -176,17 +185,34 @@ class LocalDb {
         last_claim TEXT
       )
     ''');
-    // Watchlist — user-saved titles
+    // Watchlist — user-saved titles, one list per profile
     await db.execute('''
       CREATE TABLE IF NOT EXISTS watchlist (
-        id          INTEGER PRIMARY KEY,
+        profile_id  INTEGER NOT NULL DEFAULT 1,
+        id          INTEGER NOT NULL,
         title       TEXT NOT NULL,
         year        INTEGER,
         media_type  TEXT NOT NULL,
         poster_url  TEXT,
         poster_path TEXT,
         share_url   TEXT,
-        added_at    INTEGER DEFAULT 0
+        added_at    INTEGER DEFAULT 0,
+        PRIMARY KEY (profile_id, id)
+      )
+    ''');
+    // "Who's Watching" profiles — local to this device, one account can have
+    // several (family sharing). See models/profile.dart + providers/profile_provider.dart.
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS profiles (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        name         TEXT NOT NULL,
+        avatar_color TEXT DEFAULT '#8B002D',
+        avatar_emoji TEXT DEFAULT '',
+        is_kids      INTEGER DEFAULT 0,
+        max_rating   TEXT DEFAULT 'nc17',
+        pin          TEXT,
+        sort_order   INTEGER DEFAULT 0,
+        created_at   INTEGER DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -225,6 +251,13 @@ class LocalDb {
         PRIMARY KEY (person_id, title_id)
       )
     ''');
+    // Seed the default "Me" profile — id 1, matching the profile_id default
+    // already baked into watchlist/watch_positions above.
+    await db.insert('profiles', {
+      'name': 'Me', 'avatar_color': '#8B002D', 'avatar_emoji': '',
+      'is_kids': 0, 'max_rating': 'nc17', 'pin': null, 'sort_order': 0,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+    });
   }
 
   static Future<void> _migrate(Database db, int oldV, int newV) async {
@@ -422,6 +455,91 @@ class LocalDb {
       // Used as Pass 0 in JazzDriveService._getMedia() to match the exact file
       // without any filename guessing. Assigned once at upload time, never changes.
       try { await db.execute('ALTER TABLE episodes ADD COLUMN remote_id INTEGER DEFAULT 0'); } catch (_) {}
+    }
+    if (oldV < 21) {
+      // "Who's Watching" multi-profile support.
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS profiles (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            name         TEXT NOT NULL,
+            avatar_color TEXT DEFAULT '#8B002D',
+            avatar_emoji TEXT DEFAULT '',
+            is_kids      INTEGER DEFAULT 0,
+            max_rating   TEXT DEFAULT 'nc17',
+            pin          TEXT,
+            sort_order   INTEGER DEFAULT 0,
+            created_at   INTEGER DEFAULT 0
+          )
+        ''');
+      } catch (_) {}
+      // Seed the default profile so upgrading users get a "Me" profile with
+      // id 1 — matching the profile_id=1 default used by pre-existing rows.
+      try {
+        final existing = await db.query('profiles', limit: 1);
+        if (existing.isEmpty) {
+          await db.insert('profiles', {
+            'id': 1, 'name': 'Me', 'avatar_color': '#8B002D', 'avatar_emoji': '',
+            'is_kids': 0, 'max_rating': 'nc17', 'pin': null, 'sort_order': 0,
+            'created_at': DateTime.now().millisecondsSinceEpoch,
+          });
+        }
+      } catch (_) {}
+      // watchlist: id was the sole PRIMARY KEY, which would collide once two
+      // profiles both save the same title. SQLite can't alter a PRIMARY KEY in
+      // place, so rebuild the table with a composite (profile_id, id) key and
+      // copy existing rows over (all become profile_id = 1).
+      try {
+        final cols = await db.rawQuery("PRAGMA table_info(watchlist)");
+        final hasProfileCol = cols.any((c) => c['name'] == 'profile_id');
+        if (!hasProfileCol) {
+          await db.execute('ALTER TABLE watchlist RENAME TO watchlist_old');
+          await db.execute('''
+            CREATE TABLE watchlist (
+              profile_id  INTEGER NOT NULL DEFAULT 1,
+              id          INTEGER NOT NULL,
+              title       TEXT NOT NULL,
+              year        INTEGER,
+              media_type  TEXT NOT NULL,
+              poster_url  TEXT,
+              poster_path TEXT,
+              share_url   TEXT,
+              added_at    INTEGER DEFAULT 0,
+              PRIMARY KEY (profile_id, id)
+            )
+          ''');
+          await db.execute('''
+            INSERT INTO watchlist (profile_id, id, title, year, media_type, poster_url, poster_path, share_url, added_at)
+            SELECT 1, id, title, year, media_type, poster_url, poster_path, share_url, added_at FROM watchlist_old
+          ''');
+          await db.execute('DROP TABLE watchlist_old');
+        }
+      } catch (_) {}
+      // watch_positions: same rebuild — file_id alone was PRIMARY KEY, but each
+      // profile needs its own independent resume position for the same file.
+      try {
+        final cols = await db.rawQuery("PRAGMA table_info(watch_positions)");
+        final hasProfileCol = cols.any((c) => c['name'] == 'profile_id');
+        if (!hasProfileCol) {
+          await db.execute('ALTER TABLE watch_positions RENAME TO watch_positions_old');
+          await db.execute('''
+            CREATE TABLE watch_positions (
+              profile_id  INTEGER NOT NULL DEFAULT 1,
+              file_id     TEXT NOT NULL,
+              position_ms INTEGER DEFAULT 0,
+              duration_ms INTEGER DEFAULT 0,
+              updated_at  INTEGER DEFAULT 0,
+              synced      INTEGER DEFAULT 0,
+              PRIMARY KEY (profile_id, file_id)
+            )
+          ''');
+          await db.execute('''
+            INSERT INTO watch_positions (profile_id, file_id, position_ms, duration_ms, updated_at, synced)
+            SELECT 1, file_id, position_ms, duration_ms, updated_at, synced FROM watch_positions_old
+          ''');
+          await db.execute('DROP TABLE watch_positions_old');
+        }
+      } catch (_) {}
     }
   }
 
@@ -1119,20 +1237,22 @@ class LocalDb {
 
   // ── Watch Positions ───────────────────────────────────────────────────────
 
-  static Future<int> getSavedPosition(String fileId) async {
+  static Future<int> getSavedPosition(String fileId, {int? profileId}) async {
     final db = await instance;
     final rows = await db.query('watch_positions',
-        where: 'file_id = ?', whereArgs: [fileId]);
+        where: 'profile_id = ? AND file_id = ?',
+        whereArgs: [profileId ?? currentProfileId, fileId]);
     if (rows.isEmpty) return 0;
     return rows.first['position_ms'] as int? ?? 0;
   }
 
   static Future<void> savePosition(String fileId, int positionMs,
-      {int durationMs = 0}) async {
+      {int durationMs = 0, int? profileId}) async {
     final db = await instance;
     await db.insert(
       'watch_positions',
       {
+        'profile_id':  profileId ?? currentProfileId,
         'file_id':     fileId,
         'position_ms': positionMs,
         'duration_ms': durationMs,
@@ -1143,23 +1263,26 @@ class LocalDb {
     );
   }
 
-  static Future<void> clearPosition(String fileId) async {
+  static Future<void> clearPosition(String fileId, {int? profileId}) async {
     final db = await instance;
     await db.delete('watch_positions',
-        where: 'file_id = ?', whereArgs: [fileId]);
+        where: 'profile_id = ? AND file_id = ?',
+        whereArgs: [profileId ?? currentProfileId, fileId]);
   }
 
   /// BUG-A22: clearPosition(fileId) was never called from the UI.
   /// Added clearAllPositions() to support a 'Reset Watch Progress' action
   /// in profile_screen without needing a specific fileId.
-  static Future<void> clearAllPositions() async {
+  static Future<void> clearAllPositions({int? profileId}) async {
     final db = await instance;
-    await db.delete('watch_positions');
+    await db.delete('watch_positions',
+        where: 'profile_id = ?', whereArgs: [profileId ?? currentProfileId]);
   }
 
-  static Future<List<Map<String, dynamic>>> getWatchPositions() async {
+  static Future<List<Map<String, dynamic>>> getWatchPositions({int? profileId}) async {
     final db = await instance;
     return db.query('watch_positions',
+        where: 'profile_id = ?', whereArgs: [profileId ?? currentProfileId],
         orderBy: 'updated_at DESC', limit: 20);
   }
 
@@ -1173,21 +1296,26 @@ class LocalDb {
 
   /// Returns all watch positions not yet confirmed synced to the server.
   /// Called by HistoryApi.flushUnsynced() on startup and connectivity restore.
-  static Future<List<Map<String, dynamic>>> getUnsyncedPositions() async {
+  /// Note: server-side watch history has no concept of profiles (one account
+  /// = one cloud history), so sync only ever reads/writes the *active*
+  /// profile's local positions. Cross-device continue-watching therefore
+  /// tracks whichever profile is active on this device when sync runs.
+  static Future<List<Map<String, dynamic>>> getUnsyncedPositions({int? profileId}) async {
     final db = await instance;
     return db.query('watch_positions',
-        where: 'synced = 0 AND position_ms > 0',
+        where: 'profile_id = ? AND synced = 0 AND position_ms > 0',
+        whereArgs: [profileId ?? currentProfileId],
         orderBy: 'updated_at DESC');
   }
 
   /// Mark a watch position as successfully confirmed on the server.
-  static Future<void> markPositionSynced(String fileId) async {
+  static Future<void> markPositionSynced(String fileId, {int? profileId}) async {
     final db = await instance;
     await db.update(
       'watch_positions',
       {'synced': 1},
-      where: 'file_id = ?',
-      whereArgs: [fileId],
+      where: 'profile_id = ? AND file_id = ?',
+      whereArgs: [profileId ?? currentProfileId, fileId],
     );
   }
 
@@ -1199,11 +1327,13 @@ class LocalDb {
     required int positionMs,
     required int durationMs,
     required int watchedAtEpochSecs,
+    int? profileId,
   }) async {
     final db = await instance;
+    final pid = profileId ?? currentProfileId;
     final serverTs = watchedAtEpochSecs * 1000; // epoch-sec → epoch-ms
     final existing = await db.query('watch_positions',
-        where: 'file_id = ?', whereArgs: [fileId], limit: 1);
+        where: 'profile_id = ? AND file_id = ?', whereArgs: [pid, fileId], limit: 1);
     if (existing.isNotEmpty) {
       final localTs = existing.first['updated_at'] as int? ?? 0;
       if (serverTs <= localTs) return; // local is newer — keep it
@@ -1212,9 +1342,10 @@ class LocalDb {
         'duration_ms': durationMs,
         'updated_at':  serverTs,
         'synced':      1,
-      }, where: 'file_id = ?', whereArgs: [fileId]);
+      }, where: 'profile_id = ? AND file_id = ?', whereArgs: [pid, fileId]);
     } else {
       await db.insert('watch_positions', {
+        'profile_id':  pid,
         'file_id':     fileId,
         'position_ms': positionMs,
         'duration_ms': durationMs,
@@ -1431,9 +1562,10 @@ class LocalDb {
 
   // ── Watchlist ────────────────────────────────────────────────────────────
 
-  static Future<void> addToWatchlist(CatalogItem item) async {
+  static Future<void> addToWatchlist(CatalogItem item, {int? profileId}) async {
     final db = await instance;
     await db.insert('watchlist', {
+      'profile_id':  profileId ?? currentProfileId,
       'id':          item.id,
       'title':       item.title,
       'year':        item.year,
@@ -1445,21 +1577,91 @@ class LocalDb {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  static Future<void> removeFromWatchlist(int id) async {
+  static Future<void> removeFromWatchlist(int id, {int? profileId}) async {
     final db = await instance;
-    await db.delete('watchlist', where: 'id = ?', whereArgs: [id]);
+    await db.delete('watchlist',
+        where: 'profile_id = ? AND id = ?', whereArgs: [profileId ?? currentProfileId, id]);
   }
 
-  static Future<bool> isInWatchlist(int id) async {
+  static Future<bool> isInWatchlist(int id, {int? profileId}) async {
     final db = await instance;
-    final rows = await db.query('watchlist', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows = await db.query('watchlist',
+        where: 'profile_id = ? AND id = ?', whereArgs: [profileId ?? currentProfileId, id], limit: 1);
     return rows.isNotEmpty;
   }
 
-  static Future<List<CatalogItem>> getWatchlist() async {
+  static Future<List<CatalogItem>> getWatchlist({int? profileId}) async {
     final db = await instance;
-    final rows = await db.query('watchlist', orderBy: 'added_at DESC');
+    final rows = await db.query('watchlist',
+        where: 'profile_id = ?', whereArgs: [profileId ?? currentProfileId],
+        orderBy: 'added_at DESC');
     return rows.map(_rowToItem).toList();
+  }
+
+  // ── Profiles ("Who's Watching") ─────────────────────────────────────────
+
+  static Future<List<Map<String, dynamic>>> getProfiles() async {
+    final db = await instance;
+    return db.query('profiles', orderBy: 'sort_order ASC, id ASC');
+  }
+
+  static Future<int> createProfile({
+    required String name,
+    String avatarColor = '#8B002D',
+    String avatarEmoji = '',
+    bool isKids = false,
+    String maxRating = 'nc17',
+    String? pin,
+  }) async {
+    final db = await instance;
+    final countRow = await db.rawQuery('SELECT COUNT(*) AS c FROM profiles');
+    final sortOrder = (countRow.first['c'] as int?) ?? 0;
+    return db.insert('profiles', {
+      'name':         name,
+      'avatar_color': avatarColor,
+      'avatar_emoji': avatarEmoji,
+      'is_kids':      isKids ? 1 : 0,
+      'max_rating':   isKids ? 'pg' : maxRating,
+      'pin':          pin,
+      'sort_order':   sortOrder,
+      'created_at':   DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  static Future<void> updateProfile(
+    int id, {
+    String? name,
+    String? avatarColor,
+    String? avatarEmoji,
+    bool? isKids,
+    String? maxRating,
+    String? pin,
+    bool clearPin = false,
+  }) async {
+    final db = await instance;
+    final values = <String, dynamic>{};
+    if (name != null) values['name'] = name;
+    if (avatarColor != null) values['avatar_color'] = avatarColor;
+    if (avatarEmoji != null) values['avatar_emoji'] = avatarEmoji;
+    if (isKids != null) values['is_kids'] = isKids ? 1 : 0;
+    if (maxRating != null) values['max_rating'] = maxRating;
+    if (clearPin) {
+      values['pin'] = null;
+    } else if (pin != null) {
+      values['pin'] = pin;
+    }
+    if (values.isEmpty) return;
+    await db.update('profiles', values, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Deletes a profile and all data scoped to it (watchlist + resume
+  /// positions). Downloads are intentionally left alone — they're shared
+  /// device storage, not per-profile.
+  static Future<void> deleteProfile(int id) async {
+    final db = await instance;
+    await db.delete('profiles', where: 'id = ?', whereArgs: [id]);
+    await db.delete('watchlist', where: 'profile_id = ?', whereArgs: [id]);
+    await db.delete('watch_positions', where: 'profile_id = ?', whereArgs: [id]);
   }
 
     static CatalogItem _rowToItem(Map<String, dynamic> row) {
@@ -1569,21 +1771,24 @@ class LocalDb {
   ///   dl_count   — completed downloads
   ///   dl_bytes   — total byte size of completed downloads
   ///   top_genre  — most-watched genre (joined via episodes → titles)
-  static Future<Map<String, dynamic>> getWatchStats() async {
+  static Future<Map<String, dynamic>> getWatchStats({int? profileId}) async {
     final db = await instance;
+    final pid = profileId ?? currentProfileId;
 
     final timeRows = await db.rawQuery(
-      'SELECT COALESCE(SUM(position_ms), 0) AS total FROM watch_positions',
+      'SELECT COALESCE(SUM(position_ms), 0) AS total FROM watch_positions WHERE profile_id = ?',
+      [pid],
     );
     final totalMs = (timeRows.first['total'] as int?) ?? 0;
 
     final completedRows = await db.rawQuery('''
       SELECT COUNT(*) AS cnt FROM watch_positions
-      WHERE duration_ms > 0
+      WHERE profile_id = ? AND duration_ms > 0
         AND CAST(position_ms AS REAL) / duration_ms >= 0.95
-    ''');
+    ''', [pid]);
     final completed = (completedRows.first['cnt'] as int?) ?? 0;
 
+    // Downloads are shared device storage, not per-profile — intentionally unscoped.
     final dlRows = await db.rawQuery('''
       SELECT COUNT(*) AS cnt,
              COALESCE(SUM(file_size), 0) AS total_bytes
@@ -1599,9 +1804,9 @@ class LocalDb {
         FROM watch_positions wp
         JOIN episodes e ON e.file_id  = wp.file_id
         JOIN titles   t ON t.id       = e.title_id
-        WHERE t.genres IS NOT NULL AND t.genres != ''
+        WHERE wp.profile_id = ? AND t.genres IS NOT NULL AND t.genres != ''
         GROUP BY t.genres ORDER BY cnt DESC LIMIT 1
-      ''');
+      ''', [pid]);
       if (genreRows.isNotEmpty) {
         final raw = (genreRows.first['genres'] as String? ?? '')
             .replaceAll('[', '').replaceAll(']', '')
