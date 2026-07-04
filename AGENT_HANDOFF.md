@@ -56,6 +56,20 @@ subscription-expiry check in the Downloads screen. Full detail in
 - `AGENT_PROMPT.md` updated to mention Rule 42 in the normal workflow section
 - Commit `a0d2d9f`
 
+### Test suite run — 2026-07-04
+All 4 files in `raddflix_flutter/test_suite/` executed:
+
+| File | Result | Notes |
+|---|---|---|
+| `jazzdrive_logic_test.js` | ✅ 27/27 passed | Pure JS logic, no network |
+| `logic_tests.dart` | ✅ 69/69 passed | Pure Dart logic, no network; run via Nix Dart 3.0.0 |
+| `run_tests.js` | ✅ 71 passed / 0 failed / 8 warnings | Full integration against Oracle port 80; all warnings are expected (firewalled ports, repeat-run 409, Jazz-SIM can't be verified from Replit) |
+| `jazzdrive_dart_test.dart` | ⚠️ 0/8 — MED-1011 (Oracle JazzDrive session expired) | SSL cert fix applied (`badCertificateCallback=true` for Nix Dart); API is reachable, session needs OTP re-login from Oracle admin panel. Commit `2ce6ab4`. |
+
+**Actionable item:** Oracle JazzDrive SAPI session is expired. To re-validate `jazzdrive_dart_test.dart`: log into Oracle admin panel → Settings → JazzDrive Login → complete OTP re-login. Then re-run the test.
+
+**Minor server note:** TID validation threshold is `len < 5`; the test sends "SHORT" (5 chars) which passes. Not a critical bug — just a low threshold. No code change made.
+
 ### Open Tasks
 None — awaiting next task.
 

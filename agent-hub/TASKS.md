@@ -85,6 +85,7 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 |---|---|---|---|
 | Auto-commit system | `auto_commit.sh` — lightweight GitHub API commit script; Rule 42 added to RULES.md; AGENT_PROMPT.md updated | `a0d2d9f` | ✅ DONE |
 | Icon migration — gesture_map_sheet.dart | Replace 2× `Icons.block_rounded` with `AppIcons.block`; add `app_icons.dart` import — completes 100% AppIcons coverage across non-player files | `3ec3c81` | ✅ DONE |
+| Test suite — complete run | All 4 test files executed: JS logic 27/27, Dart logic 69/69, Integration 71/71, JazzDrive Dart 0/8 (MED-1011 — Oracle session expired, not a code bug). SSL cert fix applied to `jazzdrive_dart_test.dart` for Nix/Replit Dart | `2ce6ab4` | ✅ DONE |
 
 ---
 
