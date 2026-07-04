@@ -5,6 +5,12 @@
 
 ## Current State (2026-07-04)
 
+### Icon migration complete — 2026-07-04
+Replaced the last 2 raw `Icons.block_rounded` references in
+`raddflix_flutter/lib/widgets/player/gesture_map_sheet.dart` with `AppIcons.block`
+and added the `app_icons.dart` import. AppIcons coverage is now 100% across all
+non-player-widget files. Commit `3ec3c81`.
+
 ### Full audit pass (subtitles, player controls, access control, downloads) — 2026-07-03
 Found and fixed a critical bug: the backend `is_free` episode-inheritance fix from
 commit `8176835` had been applied to a stray, never-deployed `hub/` directory at the

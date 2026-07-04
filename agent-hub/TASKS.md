@@ -84,6 +84,7 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 | Task | Summary | Commit(s) | Status |
 |---|---|---|---|
 | Auto-commit system | `auto_commit.sh` — lightweight GitHub API commit script; Rule 42 added to RULES.md; AGENT_PROMPT.md updated | `a0d2d9f` | ✅ DONE |
+| Icon migration — gesture_map_sheet.dart | Replace 2× `Icons.block_rounded` with `AppIcons.block`; add `app_icons.dart` import — completes 100% AppIcons coverage across non-player files | `3ec3c81` | ✅ DONE |
 
 ---
 
