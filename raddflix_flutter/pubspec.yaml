@@ -70,6 +70,9 @@ dependencies:
   # Smooth declarative animations
   flutter_animate: ^4.5.0
 
+  # Modern icon family — Phosphor (2600+ icons, outline+fill pairs, no asset fonts)
+  phosphor_flutter: ^2.0.0
+
   # Skeleton/shimmer loading
   shimmer: ^3.0.0
 

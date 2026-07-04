@@ -229,12 +229,84 @@ class AppDurations {
 
 // ── Curves ────────────────────────────────────────────────────────────────────
 class AppCurves {
+  // Legacy — kept for backwards compatibility
   static const Curve standard = Curves.easeOutCubic;
   static const Curve enter    = Curves.easeOutExpo;
   static const Curve exit     = Curves.easeInQuart;
   static const Curve spring   = Curves.easeOutBack;
   static const Curve bounce   = Curves.bounceOut;
   static const Curve snap     = Curves.easeOutCirc;
+
+  // M3 Expressive (2026) — two-mode motion system
+  // Spatial: physical objects that move through space (nav indicator, cards, panels)
+  static const Curve expressiveSpring = Curves.easeOutBack;
+  // Effect: value changes — opacity, color, scale-in-place (no overshoot)
+  static const Curve expressiveEffect = Curves.easeOutCubic;
+  // Exit: elements leaving the screen
+  static const Curve expressiveExit   = Curves.easeInCubic;
+}
+
+// ── Gradients ─────────────────────────────────────────────────────────────────
+class AppGradients {
+  // Brand — primary action buttons, active indicators
+  static const LinearGradient brand = LinearGradient(
+    colors: [Color(0xFFE8002D), Color(0xFFFF5C5C)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  // Nav capsule — transparent tinted background behind active nav item
+  static const LinearGradient navCapsule = LinearGradient(
+    colors: [Color(0x2AE8002D), Color(0x15FF5C5C)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  // Hero overlay — fades content to background at bottom of cards
+  static const LinearGradient hero = LinearGradient(
+    colors: [Colors.transparent, Color(0xFF08080E)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    stops: [0.3, 1.0],
+  );
+
+  // Dark background — scaffold/screen backgrounds
+  static const LinearGradient dark = LinearGradient(
+    colors: [Color(0xFF08080E), Color(0xFF0D0D22)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+  );
+
+  // Card surface — elevated card backgrounds
+  static const LinearGradient card = LinearGradient(
+    colors: [Color(0xFF161628), Color(0xFF0E0E1C)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  // Atmospheric — radial accent glow behind featured content
+  static LinearGradient atmospheric(Color accent) => LinearGradient(
+    colors: [accent.withOpacity(0.14), Colors.transparent],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  // Status gradients
+  static const LinearGradient success = LinearGradient(
+    colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  static const LinearGradient premium = LinearGradient(
+    colors: [Color(0xFFFFB300), Color(0xFFFF8F00)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  static const LinearGradient simosa = LinearGradient(
+    colors: [Color(0xFF1A0A2E), Color(0xFF2D1B5E)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 }
 
 // ── Border Radius ─────────────────────────────────────────────────────────────

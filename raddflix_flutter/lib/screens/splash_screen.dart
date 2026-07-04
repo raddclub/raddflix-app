@@ -213,21 +213,29 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     return Column(
       children: [
         Container(
-          width: 80,
-          height: 80,
+          width: 84,
+          height: 84,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: const RadialGradient(
-              colors: [Color(0xFFE8002D), Color(0xFF8B0000)],
+              colors: [Color(0xFFFF2D50), Color(0xFFB5001F)],
+              center: Alignment(-0.3, -0.3),
             ),
-            boxShadow: AppShadows.glow,
+            boxShadow: [
+              ...AppShadows.glow,
+              BoxShadow(
+                color: AppColors.primary.withOpacity(0.18),
+                blurRadius: 50,
+                spreadRadius: 4,
+              ),
+            ],
           ),
           child: const Center(
             child: Text(
               'R',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 42,
+                fontSize: 44,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -2,
               ),
@@ -235,10 +243,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           ),
         )
             .animate()
-            .scale(begin: const Offset(0.5, 0.5), end: const Offset(1, 1),
-                duration: 500.ms, curve: AppCurves.enter)
-            .fadeIn(duration: 300.ms),
-        SizedBox(height: 20),
+            .scale(
+              begin: const Offset(0.35, 0.35),
+              end:   const Offset(1, 1),
+              duration: 560.ms,
+              curve: AppCurves.expressiveSpring,
+            )
+            .fadeIn(duration: 280.ms)
+            .shimmer(
+              delay:    620.ms,
+              duration: 900.ms,
+              color:    Colors.white.withOpacity(0.35),
+              angle:    0.42,
+            ),
+        const SizedBox(height: 20),
         RichText(
           text: TextSpan(
             style: const TextStyle(
@@ -253,9 +271,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             ],
           ),
         )
-            .animate(delay: 200.ms)
-            .fadeIn(duration: 400.ms)
-            .slideY(begin: 0.2, end: 0, duration: 400.ms, curve: AppCurves.standard),
+            .animate(delay: 180.ms)
+            .fadeIn(duration: 380.ms)
+            .slideY(
+              begin: 0.45,
+              end:   0,
+              duration: 500.ms,
+              curve: AppCurves.expressiveSpring,
+            ),
       ],
     );
   }

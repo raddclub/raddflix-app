@@ -2,157 +2,236 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../core/theme/radd_theme.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
 import '../core/utils/anim_config.dart';
 
-class RaddFlixBottomNav extends ConsumerWidget {
+// ── Nav item descriptors ──────────────────────────────────────────────────────
+class _NavItem {
+  final String label;
+  final PhosphorIconData Function() icon;
+  final PhosphorIconData Function() iconFill;
+
+  const _NavItem({
+    required this.label,
+    required this.icon,
+    required this.iconFill,
+  });
+}
+
+// ── Main widget ───────────────────────────────────────────────────────────────
+class RaddFlixBottomNav extends ConsumerStatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
-  const RaddFlixBottomNav({super.key, required this.currentIndex, required this.onTap});
+  const RaddFlixBottomNav({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+  });
 
-  static const _items = [
-    _NavItem(icon: Icons.home_outlined,       active: Icons.home_rounded,       label: 'Home'),
-    _NavItem(icon: Icons.folder_outlined,     active: Icons.folder_rounded,     label: 'Local'),
-    _NavItem(icon: Icons.download_outlined,   active: Icons.download_rounded,   label: 'Downloads'),
-    _NavItem(icon: Icons.person_outline_rounded, active: Icons.person_rounded,  label: 'Profile'),
+  @override
+  ConsumerState<RaddFlixBottomNav> createState() => _RaddFlixBottomNavState();
+}
+
+class _RaddFlixBottomNavState extends ConsumerState<RaddFlixBottomNav> {
+  static final _items = [
+    _NavItem(
+      label: 'Home',
+      icon:     () => PhosphorIcons.house(),
+      iconFill: () => PhosphorIcons.house(PhosphorIconsStyle.fill),
+    ),
+    _NavItem(
+      label: 'Local',
+      icon:     () => PhosphorIcons.folder(),
+      iconFill: () => PhosphorIcons.folder(PhosphorIconsStyle.fill),
+    ),
+    _NavItem(
+      label: 'Downloads',
+      icon:     () => PhosphorIcons.arrowCircleDown(),
+      iconFill: () => PhosphorIcons.arrowCircleDown(PhosphorIconsStyle.fill),
+    ),
+    _NavItem(
+      label: 'Profile',
+      icon:     () => PhosphorIcons.user(),
+      iconFill: () => PhosphorIcons.user(PhosphorIconsStyle.fill),
+    ),
   ];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final t          = RaddTheme.of(context);
-    final isDark     = Theme.of(context).brightness == Brightness.dark;
-    // Phase 47 ANIM-47-01/02: Tier 2+ (API 28+) → frosted glass; Tier 0/1 → solid surface
     final animConfig = ref.watch(animConfigProvider);
+    final isDark     = Theme.of(context).brightness == Brightness.dark;
 
-    if (animConfig.canBlur) {
-      // ── Tier 2+: BackdropFilter frosted glass ─────────────────────
-      return ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Container(
-            decoration: BoxDecoration(
-              color: (isDark ? Colors.black : t.surface).withOpacity(0.72),
-              border: Border(top: BorderSide(color: t.border.withOpacity(0.4), width: 0.5)),
-            ),
-            child: SafeArea(
-              top: false,
-              child: SizedBox(
-                height: 58,
-                child: Row(
-                  children: List.generate(_items.length, (i) => Expanded(
-                    child: _NavButton(
-                      item:     _items[i],
-                      isActive: currentIndex == i,
-                      onTap:    () => onTap(i),
-                    ),
-                  )),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final totalWidth  = constraints.maxWidth;
+            final itemWidth   = totalWidth / _items.length;
+            const capsuleW    = 68.0;
+            final capsuleLeft = widget.currentIndex * itemWidth +
+                (itemWidth - capsuleW) / 2;
+
+            Widget bar = Container(
+              height: 62,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? (animConfig.canBlur
+                        ? Colors.black.withOpacity(0.58)
+                        : t.surface)
+                    : (animConfig.canBlur
+                        ? Colors.white.withOpacity(0.88)
+                        : t.surface),
+                borderRadius: BorderRadius.circular(AppRadius.round),
+                border: Border.all(
+                  color: t.border.withOpacity(animConfig.canBlur ? 0.22 : 0.55),
+                  width: 0.75,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.48 : 0.10),
+                    blurRadius: 28,
+                    offset: const Offset(0, 10),
+                  ),
+                  if (isDark)
+                    BoxShadow(
+                      color: AppColors.primary.withOpacity(0.05),
+                      blurRadius: 48,
+                    ),
+                ],
               ),
-            ),
-          ),
-        ),
-      );
-    }
+              child: Stack(
+                children: [
+                  // ── Sliding capsule indicator ──────────────────────────
+                  AnimatedPositioned(
+                    duration: animConfig.normal,
+                    curve: AppCurves.expressiveSpring,
+                    left:   capsuleLeft,
+                    top:    8,
+                    bottom: 8,
+                    width:  capsuleW,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(AppRadius.round),
+                        gradient: AppGradients.navCapsule,
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.18),
+                          width: 0.75,
+                        ),
+                      ),
+                    ),
+                  ),
 
-    // ── Tier 0/1 fallback: solid surface (unchanged) ────────────────
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        border: Border(top: BorderSide(color: t.border, width: 0.5)),
-        boxShadow: [BoxShadow(
-          color: Colors.black.withOpacity(isDark ? 0.45 : 0.08),
-          blurRadius: 24, offset: const Offset(0, -6))],
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 58,
-          child: Row(
-            children: List.generate(_items.length, (i) => Expanded(
-              child: _NavButton(
-                item:     _items[i],
-                isActive: currentIndex == i,
-                onTap:    () => onTap(i),
+                  // ── Tab buttons ────────────────────────────────────────
+                  Positioned.fill(
+                    child: Row(
+                      children: List.generate(_items.length, (i) {
+                        final active = widget.currentIndex == i;
+                        return Expanded(
+                          child: _NavButton(
+                            item:     _items[i],
+                            isActive: active,
+                            animConfig: animConfig,
+                            t:        t,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              widget.onTap(i);
+                            },
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                ],
               ),
-            )),
-          ),
+            );
+
+            // ── Tier 2+: wrap with frosted glass blur ──────────────────
+            if (animConfig.canBlur) {
+              bar = ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.round),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                  child: bar,
+                ),
+              );
+            }
+
+            return bar;
+          },
         ),
       ),
     );
   }
 }
 
+// ── Individual tab button ─────────────────────────────────────────────────────
 class _NavButton extends StatelessWidget {
-  final _NavItem item;
-  final bool isActive;
+  final _NavItem    item;
+  final bool        isActive;
+  final AnimConfig  animConfig;
+  final RaddTheme   t;
   final VoidCallback onTap;
-  const _NavButton({required this.item, required this.isActive, required this.onTap});
+
+  const _NavButton({
+    required this.item,
+    required this.isActive,
+    required this.animConfig,
+    required this.t,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
     return Semantics(
-      label: item.label,
-      hint: isActive ? 'currently selected tab' : 'activate',
-      button: true,
+      label:    item.label,
+      hint:     isActive ? 'currently selected tab' : 'activate',
+      button:   true,
       selected: isActive,
       child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
-        behavior: HitTestBehavior.opaque,
-        child: Column(mainAxisAlignment: MainAxisAlignment.start, children: [
-          // ── Top active line ──────────────────────────────────────────
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeOutCubic,
-            height: 2.5,
-            width: isActive ? 28.0 : 0.0,
-            margin: const EdgeInsets.only(bottom: 6),
-            decoration: BoxDecoration(
-              gradient: isActive ? AppColors.primaryGradient : null,
-              color:    isActive ? null : Colors.transparent,
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(2)),
-              boxShadow: isActive
-                  ? [BoxShadow(color: AppColors.primary.withOpacity(0.4),
-                      blurRadius: 6, offset: const Offset(0, 1))]
-                  : null,
+        onTap:     onTap,
+        behavior:  HitTestBehavior.opaque,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // ── Spring-scaled icon ────────────────────────────────────
+            AnimatedScale(
+              scale:    isActive ? 1.18 : 1.0,
+              duration: animConfig.normal,
+              curve:    AppCurves.expressiveSpring,
+              child: AnimatedSwitcher(
+                duration:       animConfig.fast,
+                switchInCurve:  AppCurves.expressiveEffect,
+                switchOutCurve: AppCurves.expressiveExit,
+                child: Icon(
+                  isActive ? item.iconFill() : item.icon(),
+                  key:   ValueKey('icon_${item.label}_$isActive'),
+                  color: isActive ? AppColors.primary : t.textMuted,
+                  size:  22,
+                ),
+              ),
             ),
-          ),
-          // ── Icon ──────────────────────────────────────────────────────
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            switchInCurve:  Curves.easeOutBack,
-            switchOutCurve: Curves.easeIn,
-            child: Icon(
-              isActive ? item.active : item.icon,
-              key: ValueKey(isActive),
-              color: isActive ? AppColors.primary : t.textMuted,
-              size: 22,
+
+            const SizedBox(height: 3),
+
+            // ── Label ─────────────────────────────────────────────────
+            AnimatedDefaultTextStyle(
+              duration: animConfig.fast,
+              style: TextStyle(
+                color:       isActive ? AppColors.primary : t.textMuted,
+                fontSize:    9.5,
+                fontWeight:  isActive ? FontWeight.w700 : FontWeight.w400,
+                letterSpacing: isActive ? 0.25 : 0.0,
+              ),
+              child: Text(item.label, textScaler: TextScaler.noScaling),
             ),
-          ),
-          const SizedBox(height: 3),
-          // ── Label ─────────────────────────────────────────────────────
-          AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 200),
-            style: TextStyle(
-              color:      isActive ? AppColors.primary : t.textMuted,
-              fontSize:   10,
-              fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
-            ),
-            child: Text(item.label, textScaler: TextScaler.noScaling),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }
-}
-
-class _NavItem {
-  final IconData icon, active;
-  final String label;
-  const _NavItem({required this.icon, required this.active, required this.label});
 }
