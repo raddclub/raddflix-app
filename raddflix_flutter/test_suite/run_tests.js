@@ -672,7 +672,7 @@ async function phase9_userScenarios() {
   console.log('\n  [Scenario B] Jazz SIM user (zero-rated streaming)');
   if (state.firstEpisode?.share_url?.includes('jazzdrive')) {
     pass(9, 'Jazz SIM path: share_url present → JazzDrive flow would be used ✓');
-    pass(9, 'Jazz SIM path: link expires in 180 min → refreshed from stream_cache ✓');
+    pass(9, 'Jazz SIM path: link expires in 110 min → refreshed from stream_cache ✓');
     warn(9, 'Jazz SIM path: actual zero-rating', 'Cannot verify from Replit — must test on real Jazz SIM device');
   } else {
     warn(9, 'Jazz SIM zero-rated flow', 'No share_urls in catalog — JazzDrive flow disabled until added in admin');

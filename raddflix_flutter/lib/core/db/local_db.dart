@@ -18,7 +18,7 @@ import '../security/request_encoder.dart';
 /// Tables:
 /// - titles        — full catalog (poster_url, share_url, poster_path, …)
 /// - episodes      — TV episodes with per-episode share_url
-/// - stream_cache  — 6h TTL JazzDrive CDN link cache
+/// - stream_cache  — 110-min TTL JazzDrive CDN link cache
 /// - watch_positions — resume position per file
 /// - downloads     — offline download metadata
 /// - sync_meta     — last sync version / timestamp
@@ -346,7 +346,7 @@ class LocalDb {
           )
         ''');
       } catch (_) {}
-      // Stream link cache table (6h TTL, shared for watch + download)
+      // Stream link cache table (110-min TTL, shared for watch + download)
       try {
         await db.execute('''
           CREATE TABLE IF NOT EXISTS stream_cache (
