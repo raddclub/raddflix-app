@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:raddflix/core/design/app_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Phase C — Full Gesture Action Remapping
@@ -30,7 +31,7 @@ const kGestureActions = <String, (String, IconData)>{
   'pip':              ('Picture-in-Picture',    Icons.picture_in_picture_alt_rounded),
   'rage_skip':        ('Rage Skip (+2min)',      Icons.double_arrow_rounded),
   'bookmark':         ('Add Bookmark',          Icons.bookmark_add_rounded),
-  'nothing':          ('Nothing',               Icons.block_rounded),
+  'nothing':          ('Nothing',               AppIcons.block),
 };
 
 // Default mapping
@@ -187,7 +188,7 @@ class _GestureMapSheetState extends State<GestureMapSheet> {
                                   color: Colors.white, fontSize: 13)),
                           const SizedBox(height: 3),
                           Row(children: [
-                            Icon(action?.$2 ?? Icons.block_rounded,
+                            Icon(action?.$2 ?? AppIcons.block,
                                 color: widget.accentColor, size: 13),
                             const SizedBox(width: 5),
                             Text(action?.$1 ?? 'Nothing',
