@@ -186,7 +186,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     )),
                     const Spacer(),
                     IconButton(onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(AppAppIcons.close, color: t.textMuted)),
+                        icon: Icon(AppIcons.close, color: t.textMuted)),
                   ]),
                 ),
               ).animate().fadeIn(duration: 300.ms),

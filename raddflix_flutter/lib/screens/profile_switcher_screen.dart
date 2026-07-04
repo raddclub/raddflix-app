@@ -95,7 +95,7 @@ class _ProfileSwitcherScreenState extends ConsumerState<ProfileSwitcherScreen> {
                 backgroundColor: t.bg,
                 elevation: 0,
                 leading: IconButton(
-                  icon: Icon(AppAppIcons.close, color: t.textMuted),
+                  icon: Icon(AppIcons.close, color: t.textMuted),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               )

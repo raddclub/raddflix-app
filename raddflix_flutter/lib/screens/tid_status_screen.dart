@@ -600,7 +600,7 @@ class _TimelineStep extends StatelessWidget {
                 border: Border.all(color: color, width: 1.5),
               ),
               child: Icon(
-                isDone ? AppIcons.check : isFailed ? AppAppIcons.close : icon,
+                isDone ? AppIcons.check : isFailed ? AppIcons.close : icon,
                 size: 16,
                 color: color,
               ),

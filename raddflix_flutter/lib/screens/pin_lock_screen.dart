@@ -117,7 +117,7 @@ class _PinLockScreenState extends State<PinLockScreen>
           // Back button
           Row(children: [
             IconButton(
-              icon: const Icon(AppAppIcons.close, color: Colors.white54),
+              icon: const Icon(AppIcons.close, color: Colors.white54),
               onPressed: () => Navigator.of(context).pop(false),
             ),
           ]),

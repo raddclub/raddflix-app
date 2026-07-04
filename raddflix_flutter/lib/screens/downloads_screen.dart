@@ -243,7 +243,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
               style: const TextStyle(fontWeight: FontWeight.w800)),
       leading: IconButton(
         icon: Icon(_activeFolder != null || _selecting
-            ? AppIcons.back : AppAppIcons.close, size: 20),
+            ? AppIcons.back : AppIcons.close, size: 20),
         onPressed: () {
           if (_selecting) {
             setState(() { _selecting = false; _selected.clear(); });

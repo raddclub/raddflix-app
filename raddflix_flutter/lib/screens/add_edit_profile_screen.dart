@@ -135,7 +135,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
         backgroundColor: t.bg,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(AppAppIcons.close, color: t.textMuted),
+          icon: Icon(AppIcons.close, color: t.textMuted),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(_isEditing ? 'Edit Profile' : 'Add Profile',
@@ -269,7 +269,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
                   ),
                   child: Center(
                     child: e.isEmpty
-                        ? Icon(AppAppIcons.close, size: 16,
+                        ? Icon(AppIcons.close, size: 16,
                             color: selected ? AppColors.primary : t.textMuted)
                         : Text(e, style: const TextStyle(fontSize: 18)),
                   ),
@@ -316,7 +316,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
                   style: TextStyle(color: t.textMuted, fontSize: 12)),
               trailing: _pin != null
                   ? IconButton(
-                      icon: const Icon(AppAppIcons.close, size: 18),
+                      icon: const Icon(AppIcons.close, size: 18),
                       color: t.textMuted,
                       onPressed: () => setState(() => _pin = null),
                     )

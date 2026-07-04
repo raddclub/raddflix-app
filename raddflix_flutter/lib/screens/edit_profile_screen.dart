@@ -130,7 +130,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             pinned: true,
             elevation: 0,
             leading: IconButton(
-              icon: Icon(AppAppIcons.close, color: t.textMuted),
+              icon: Icon(AppIcons.close, color: t.textMuted),
               onPressed: () => Navigator.of(context).pop(),
             ),
             title: Text('Edit Profile',
@@ -437,7 +437,7 @@ class _EmojiChip extends StatelessWidget {
         ),
         child: Center(
           child: isNone
-              ? Icon(AppAppIcons.close, size: 16,
+              ? Icon(AppIcons.close, size: 16,
                     color: isSelected ? AppColors.primary : t.textMuted)
               : Text(emoji, style: const TextStyle(fontSize: 20)),
         ),

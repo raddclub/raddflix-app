@@ -285,7 +285,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
         color: t.surface,
         child: Row(children: [
           IconButton(
-            icon: Icon(AppAppIcons.close, color: t.textPrimary),
+            icon: Icon(AppIcons.close, color: t.textPrimary),
             onPressed: () => setState(() { _selected.clear(); _selecting = false; }),
           ),
           Expanded(child: Text('${_selected.length} selected',
@@ -326,7 +326,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
             style: TextStyle(color: t.textPrimary, fontSize: 18, fontWeight: FontWeight.w700))),
         // Search
         IconButton(
-          icon: Icon(_searching ? AppAppIcons.close : AppIcons.search,
+          icon: Icon(_searching ? AppIcons.close : AppIcons.search,
               color: t.textSecondary, size: 22),
           onPressed: () {
             setState(() {

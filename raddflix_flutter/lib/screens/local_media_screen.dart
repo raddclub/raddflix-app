@@ -474,7 +474,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
         const SizedBox(width: 6),
         // Search
         IconButton(
-          icon: Icon(_searching ? AppAppIcons.close : AppIcons.search,
+          icon: Icon(_searching ? AppIcons.close : AppIcons.search,
               color: t.textSecondary, size: 22),
           onPressed: () {
             setState(() {

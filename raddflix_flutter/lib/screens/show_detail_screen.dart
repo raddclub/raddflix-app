@@ -1685,7 +1685,7 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(AppAppIcons.close),
+                  icon: const Icon(AppIcons.close),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
