@@ -23,9 +23,10 @@
 ///   Returns: { data: { list: [ { id, name, url, thumbnails } ] } }
 ///
 /// Step 3: Build CDN URL:
-///   <rawUrl>?validationkey=<vk>&filename=<name>
-///   ^^^ validationkey MUST be in the final URL — CDN auth fails without it.
-///   This was wrong in previous service versions (had a "DO NOT add" comment).
+///   <rawUrl>?filename=<name>
+///   DO NOT append validationkey= — the k= token in rawUrl is self-authenticating.
+///   Adding validationkey= is incorrect and breaks CDN playback.
+///   (Mirrors jazzdrive_service.dart _buildStreamUrl exactly.)
 ///
 /// ══ MED-1011 NOTES ══
 /// If ALL shares return MED-1011 → JazzDrive SAPI session expired on Oracle.
@@ -297,13 +298,15 @@ Future<Map<String, dynamic>> _getMedia(
   }
 }
 
-/// Build final CDN URL — validationkey MUST be appended (CDN auth requirement).
-/// Matches working Node.js reference script exactly.
-String _buildStreamUrl(String rawUrl, String filename, String validationKey) {
+/// Build final CDN URL — mirrors jazzdrive_service.dart _buildStreamUrl exactly.
+/// DO NOT append validationkey= — the CDN URL is authenticated by the k= token only.
+/// Appending validationkey= is incorrect and breaks CDN playback.
+String _buildStreamUrl(String rawUrl, String filename) {
   var url = rawUrl.startsWith('/') ? '$_cloudBase$rawUrl' : rawUrl;
-  final sep = url.contains('?') ? '&' : '?';
-  url = '${url}${sep}validationkey=${Uri.encodeComponent(validationKey)}'
-        '&filename=${Uri.encodeComponent(filename)}';
+  if (!url.contains('filename=')) {
+    final sep = url.contains('?') ? '&' : '?';
+    url = '$url${sep}filename=${Uri.encodeComponent(filename)}';
+  }
   return url;
 }
 
@@ -350,16 +353,16 @@ Future<void> main() async {
       final rawUrl     = result['rawUrl'] as String;
       final count      = result['recordCount'] as int;
 
-      // Build final URL exactly as the service does
-      final streamUrl = _buildStreamUrl(rawUrl, matched, session['validationKey']!);
+      // Build final URL exactly as the service does (filename only, no validationkey)
+      final streamUrl = _buildStreamUrl(rawUrl, matched);
 
       // Validate 1: is a real HTTP URL
       if (streamUrl.isEmpty || !streamUrl.startsWith('http')) {
         throw Exception('stream URL empty or not HTTP: "$streamUrl"');
       }
-      // Validate 2: validationkey MUST be in final URL (CDN auth requirement)
-      if (!streamUrl.contains('validationkey=')) {
-        throw Exception('CRITICAL: validationkey missing from stream URL — CDN will reject playback!');
+      // Validate 2: validationkey must NOT be in final URL (k= token is self-authenticating)
+      if (streamUrl.contains('validationkey=') || streamUrl.contains('validationKey=')) {
+        throw Exception('CRITICAL: validationkey present in stream URL — DO NOT append it, breaks CDN playback!');
       }
       // Validate 3: matched file contains expected title fragment
       if (expectContains != null && !matchedLow.contains(expectContains)) {

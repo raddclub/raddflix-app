@@ -15,7 +15,7 @@ class AppConstants {
   static const Duration catalogSyncInterval = Duration(hours: 6);
   static const String catalogDbName = 'raddflix_catalog.db';
   static const int catalogDbVersion = 21;
-  static const int streamCacheTtlSeconds = 10800; // 180 min
+  static const int streamCacheTtlSeconds = 6600; // 110 min
 
   // ── JazzDrive (zero-rated CDN) ─────────────────────────────────────────────
   static const String jazzDriveCloudBase = 'https://cloud.jazzdrive.com.pk';
@@ -31,7 +31,7 @@ class AppConstants {
   static String get jazzDriveDbUpdateUrl => '\$apiBaseUrl/api/catalog/db_update';
 
   /// Stream link cache TTL. Same link reused for both watch + download within TTL.
-  static const Duration streamLinkTtl = Duration(minutes: 180); // 180 min cache
+  static const Duration streamLinkTtl = Duration(minutes: 110); // 110 min — matches jazzdrive_service.dart _cacheTtl
 
   // ── Support ──────────────────────────────────────────────────────────────
   /// WhatsApp support number (international format, no +, no spaces).

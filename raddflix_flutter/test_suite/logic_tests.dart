@@ -44,7 +44,7 @@ void section(String title) {
 // ── Simulated constants (mirrors raddflix_flutter/lib/core/constants.dart) ───
 class AppConstants {
   static const String jazzDriveCloudBase  = 'https://cloud.jazzdrive.com.pk';
-  static const int    streamCacheTtlSecs  = 21600;   // 6 hours
+  static const int    streamCacheTtlSecs  = 6600;    // 110 minutes (matches jazzdrive_service.dart _cacheTtl)
   static const int    catalogDbVersion    = 10;
   static const String catalogDbName       = 'raddflix_catalog.db';
   static const String appName             = 'RaddFlix';
@@ -259,7 +259,7 @@ void testJazzDriveUrlBuilding() {
 }
 
 void testStreamCache() {
-  section('SECTION 2 — Stream Cache TTL (6-hour window)');
+  section('SECTION 2 — Stream Cache TTL (110-minute window)');
 
   final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
   final ttl = AppConstants.streamCacheTtlSecs;
@@ -282,10 +282,10 @@ void testStreamCache() {
   if (!isBoundaryValid) pass('Cache entry at exact expiry is invalid ✓ (expires_at == now is expired)');
   else                  warn('Cache boundary', 'Entry at exact expiry_at == now treated as valid');
 
-  // 2.4 TTL is exactly 6 hours
-  final ttlHours = ttl / 3600;
-  if (ttlHours == 6.0) pass('Cache TTL is exactly 6 hours ✓');
-  else                 fail('Cache TTL', 'Expected 6.0h, got ${ttlHours}h');
+  // 2.4 TTL is exactly 110 minutes
+  final ttlMinutes = ttl / 60;
+  if (ttlMinutes == 110.0) pass('Cache TTL is exactly 110 minutes ✓');
+  else                     fail('Cache TTL', 'Expected 110 min, got ${ttlMinutes} min');
 
   // 2.5 Cache key is file_id (shared between watch + download)
   // Verifying that using same file_id for watch and download gives same key
@@ -302,11 +302,11 @@ void testStreamCache() {
   final createdAt = now - 3000; // created 50min ago
   final expiresAt = createdAt + ttl;
   final remaining = expiresAt - now;
-  final remainingHours = remaining / 3600;
-  if (remaining > 0 && remainingHours < 6) {
-    pass('Cache age calculation: ${remainingHours.toStringAsFixed(1)}h remaining ✓');
+  final remainingMinutes = remaining / 60;
+  if (remaining > 0 && remainingMinutes < 110) {
+    pass('Cache age calculation: ${remainingMinutes.toStringAsFixed(1)} min remaining ✓');
   } else {
-    fail('Cache age calculation', 'Expected 0 < remaining < 6h');
+    fail('Cache age calculation', 'Expected 0 < remaining < 110 min');
   }
 }
 

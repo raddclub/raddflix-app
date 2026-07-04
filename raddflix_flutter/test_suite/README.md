@@ -26,7 +26,7 @@ Complete A-to-Z tests for every API, user flow, and logic path in the RaddFlix a
 | Phase 8 | Admin queue & notifications |
 | Phase 9 | User scenarios — guest, Jazz SIM (zero-rated), internet bundle, expired token, poster tap flow |
 | Phase 10 | Vault logic — PIN hashing, fake PIN, wrong PIN, lockout escalation, auto-lock |
-| Phase 11 | Cache & TTL — 6h window, expired detection, share key regex for all URL formats |
+| Phase 11 | Cache & TTL — 110-min window, expired detection, share key regex for all URL formats |
 | Phase 12 | End-to-end full user journey — app start → remote config → guest → catalog → stream link |
 
 ### Run (from project root or Replit):
@@ -43,7 +43,7 @@ No install needed — uses Node.js built-ins only (http, https, crypto).
 | Section | What is tested |
 |---|---|
 | Section 1 | JazzDrive URL building — share key regex, buildStreamUrl, validationkey must NOT appear |
-| Section 2 | Stream cache TTL — 6h window, expiry boundary, shared watch+download cache key |
+| Section 2 | Stream cache TTL — 110-min window, expiry boundary, shared watch+download cache key |
 | Section 3 | Episode navigation — hasNext/hasPrev, cross-season, season grouping, countdown, skip intro, watch progress, resume logic |
 | Section 4 | Vault security — PIN hashing, fake PIN decoy, wrong PIN rejection, lockout escalation, auto-lock timer |
 | Section 5 | Catalog item parsing — movie vs show, isFree, episodes, genre splitting, JSON round-trip, search matching |

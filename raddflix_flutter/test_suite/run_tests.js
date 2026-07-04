@@ -800,7 +800,7 @@ async function phase10_vault() {
 async function phase11_cache() {
   section('PHASE 11 — Stream Cache & TTL Logic');
 
-  const TTL_SECONDS = 180 * 60; // 180 minutes
+  const TTL_SECONDS = 110 * 60; // 110 minutes (matches jazzdrive_service.dart _cacheTtl)
 
   // 11.1 Cache entry creation
   const now    = Math.floor(Date.now() / 1000);
@@ -815,10 +815,10 @@ async function phase11_cache() {
   if (isExpired) pass(11, 'Expired cache entry correctly detected ✓');
   else           fail(11, 'Expired cache detection', 'Old entry not detected as expired');
 
-  // 11.3 TTL = exactly 180 minutes
+  // 11.3 TTL = exactly 110 minutes
   const ttlMinutes = TTL_SECONDS / 60;
-  if (ttlMinutes === 180) pass(11, 'Cache TTL is exactly 180 minutes ✓');
-  else                fail(11, 'Cache TTL', `Expected 180 min, got ${ttlMinutes} min`);
+  if (ttlMinutes === 110) pass(11, 'Cache TTL is exactly 110 minutes ✓');
+  else                fail(11, 'Cache TTL', `Expected 110 min, got ${ttlMinutes} min`);
 
   // 11.4 Same link used for both watch AND download (shared cache)
   const watchKey   = 'file_123';
