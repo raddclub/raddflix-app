@@ -67,9 +67,12 @@ for reference — they are historical, not current. Do not treat anything in `ar
   with normal file-editing tools, and commit/push with normal `git` commands. Do not use an in-memory
   "read from GitHub, patch a string, push back" pattern — it hides diffs from the person you're working
   with and makes mistakes hard to catch.
-- **After EVERY file edit — run `bash auto_commit.sh "what you changed"` immediately.** No exceptions,
-  no batching. Use `auto_commit.sh` (fast, lightweight) not `push_to_github.sh` for per-edit commits.
-  See `agent-hub/RULES.md` Rule 42 for the full mandate.
+- **For EVERY file change — follow the 3-step workflow (Rule 42):**
+  1. `bash log_pending.sh "message" file1 [file2...]` — logs intent BEFORE editing
+  2. Edit the file(s)
+  3. `bash auto_commit.sh "message" file1 [file2...]` — pushes immediately AFTER editing
+  If the agent hits its context limit between steps 2 and 3, the user runs `bash recover_push.sh`
+  to push all logged-but-unpushed changes automatically. See `agent-hub/RULES.md` Rule 42.
 - Confirm with the user before: restarting the Oracle Flask service, running destructive DB operations,
   or triggering production deploys/APK builds. These are not "ask forgiveness" actions.
 - SSH access to the Oracle VPS uses `ORACLE_SSH_KEY` (Replit Secret). GitHub API/push access uses

@@ -1,0 +1,6 @@
+# Pending push log — auto-managed by auto_commit.sh
+# Format: one entry block per pending commit
+# If this file has content, run: bash recover_push.sh
+# from the raddflix-app directory to push everything listed here.
+#
+# EMPTY — all changes are pushed.

@@ -139,14 +139,28 @@ Note: `BUG_TRACKER.md` referenced in older docs does not exist — tracked bugs 
 
 
 ## Auto-Commit Rule (MANDATORY — added 2026-07-04)
-**Rule 42: After EVERY file edit — big or small — immediately run `auto_commit.sh`.**
-- Use the lightweight `auto_commit.sh` script at the repo root, NOT `push_to_github.sh`
-- Run it after each individual file change, not batched at the end of the session
-- Usage: `bash auto_commit.sh "describe what you changed"`
-- Stage only the edited file(s): `bash auto_commit.sh "fix X" path/to/file.dart`
-- NEVER skip a commit — even a 1-line typo fix gets its own commit
-- This ensures the GitHub history always matches the real state of the code
-- `push_to_github.sh` is still used for end-of-session doc pushes — Rule 42 is in ADDITION to it
+**Rule 42: Follow the 3-step log → edit → push workflow for EVERY file change.**
+
+**Step 1 — BEFORE editing:** log the intent
+```bash
+bash log_pending.sh "describe what you will change" path/to/file.dart [more files...]
+```
+This writes to `agent-hub/UNPUSHED.txt`. If the agent hits its context limit before pushing,
+the user runs `bash recover_push.sh` to push everything from that log automatically.
+
+**Step 2 — Edit the files** (using normal write/edit tools)
+
+**Step 3 — AFTER editing:** commit and push immediately
+```bash
+bash auto_commit.sh "describe what you changed" path/to/file.dart [more files...]
+```
+On success, `auto_commit.sh` clears `UNPUSHED.txt` automatically.
+
+**Rules within Rule 42:**
+- NEVER skip a commit — even a 1-line typo fix goes through all 3 steps
+- NEVER batch edits across multiple files before pushing — one logical change = one commit
+- `push_to_github.sh` is for end-of-session doc pushes only — Rule 42 is for per-edit commits
+- If the agent limit is hit between steps 2 and 3: user runs `bash recover_push.sh` — done
 
 ---
 
