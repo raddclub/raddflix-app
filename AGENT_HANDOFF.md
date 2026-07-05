@@ -3,7 +3,20 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
-## Current State (2026-07-04)
+## Current State (2026-07-05)
+
+### Logger secret stripping — final gap closed (2026-07-05)
+`DebugLogger.logApi()` previously wrote raw request/response bodies (and the
+`onError` path's embedded response preview) straight into the shareable log
+buffer with no redaction. Added `_redactBody()` to `debug_logger.dart` —
+redacts `validationkey=`, bare `k=<token>`, `jsessionid=`,
+`authorization`/`bearer`, and `access_token`/`refresh_token` before
+truncation/storage. Method/URL/status/duration metadata untouched. Verified
+via full-repo grep that no unredacted secret pattern reaches any
+`DebugLogger`/`print()` call. Commit `015bcea`. This closes the last known gap
+from the prior logger-cleanup session — the JazzDrive/Oracle string
+sanitisation in the share/clipboard export (`_sanitiseMessage()`) and the
+removed `print()` in `request_encoder.dart` were both re-verified intact.
 
 ### Icon migration complete — 2026-07-04
 Replaced the last 2 raw `Icons.block_rounded` references in
