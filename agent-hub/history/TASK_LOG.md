@@ -74,4 +74,5 @@
 - Session 2026-07-04 — Correct wrong info: TTL 110min, validationkey must NOT appear in CDN URL
 - Session 2026-07-05 — Logger Secret Stripping (final gap closed)
 - Session 2026-07-05 — Rebrand Zero-Rating Copy (hide JazzDrive)
+- Session 2026-07-05 — CI Fix + Full UI Audit (4 fixes shipped)
 

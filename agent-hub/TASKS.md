@@ -92,6 +92,18 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 
 ---
 
+## UI Audit & CI Fix (2026-07-05)
+
+| Task | Summary | Commit(s) | Status |
+|---|---|---|---|
+| CI fix — PhosphorIcons.wifi | `app_icons.dart`: `PhosphorIcons.wifi()` → `PhosphorIcons.wifiHigh()` — icon renamed in phosphor_flutter 2.1.0; was the sole compile error blocking APK builds | `a4b946b` | ✅ DONE |
+| UI audit — gate Server Downloads | `AppUser` model: add `isAdmin` field reading `is_admin` from JWT/JSON (defaults false). `profile_screen.dart`: "Server Downloads" row now guarded by `user?.isAdmin == true` instead of `user?.isGuest != true` — was visible to all paying users | `1e511a0` | ✅ DONE |
+| UI audit — remove hardcoded prices | `tid_status_screen.dart`: plan label getter replaced `'Basic (₨149/month)'`/`Standard`/`Premium` with `'Basic Plan'`/`'Standard Plan'`/`'Premium Plan'` — hardcoded prices caused dispute risk if backend prices change | `22d1a93` | ✅ DONE |
+| UI audit — fake→decoy wording | `vault_settings_screen.dart`: two user-visible strings changed from "fake vault / fake PIN" to "decoy vault / decoy PIN" — internal variable names unchanged | `ebf74b6` | ✅ DONE |
+| ⚠️ OPEN — Flask send is_admin field | Flask `/me` endpoint (`radd-hub/hub/routes/mobile_api.py`) must add `is_admin` to the JSON response so the admin user can see "Server Downloads" in the app. Requires confirming `is_admin` column exists in `app_users` table (not currently in SELECT). Needs Oracle SSH + explicit user approval before touching production. | — | ⚠️ OPEN |
+
+---
+
 ## Adding new work here
 
 1. Add a row with ⏳ IN PROGRESS *before* starting.
