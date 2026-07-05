@@ -132,11 +132,11 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   String get _planLabel {
     switch (widget.plan) {
       case 'basic':
-        return 'Basic (₨149/month)';
+        return 'Basic Plan';
       case 'standard':
-        return 'Standard (₨249/month)';
+        return 'Standard Plan';
       case 'premium':
-        return 'Premium (₨399/month)';
+        return 'Premium Plan';
       default:
         return widget.plan.toUpperCase();
     }
