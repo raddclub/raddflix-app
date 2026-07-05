@@ -43,7 +43,7 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
   String _rawLogs    = '';
   bool   _autoScroll = true;
   final ScrollController _logScroll = ScrollController();
-  static const _filters = ['ALL', 'ERROR', 'WARN', 'JAZZDRIVE', 'API', 'SYNC', 'DB'];
+  static const _filters = ['ALL', 'ERROR', 'WARN', 'STREAM', 'API', 'SYNC', 'DB'];
 
   @override
   void initState() {
@@ -106,8 +106,8 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
   Future<void> _runAll() async {
     if (_running) return;
     setState(() { _running = true; _results.clear(); });
-    await _check('Oracle Server',  _checkOracle);
-    await _check('JazzDrive API',  _checkJazzDrive);
+    await _check('Content Server', _checkOracle);
+    await _check('Stream Service', _checkJazzDrive);
     await _check('XOR Decode',     _checkXor);
     await _check('DB: Row Counts', _checkDb);
     await _check('Auth Tokens',    _checkAuth);
@@ -428,7 +428,7 @@ class _LogsTab extends StatelessWidget {
   Color _lineColor(String line) {
     if (line.contains('[ERROR]') || line.contains('[CRASH]')) return const Color(0xFFEF4444);
     if (line.contains('[WARN ]')) return Colors.orange;
-    if (line.contains('[JAZZDRIVE]')) return const Color(0xFF34D399);
+    if (line.contains('[JAZZDRIVE]') || line.contains('[STREAM]')) return const Color(0xFF34D399);
     if (line.contains('[API  ]')) return const Color(0xFF60A5FA);
     if (line.contains('[SYNC ]')) return const Color(0xFF818CF8);
     if (line.contains('[DB   ]')) return const Color(0xFF22D3EE);
@@ -441,8 +441,8 @@ class _LogsTab extends StatelessWidget {
   List<String> _filtered() {
     final lines = rawLogs.split('\n').where((l) => l.isNotEmpty).toList();
     if (filter == 'ALL') return lines;
-    if (filter == 'JAZZDRIVE') {
-      return lines.where((l) => l.contains('[JAZZDRIVE]')).toList();
+    if (filter == 'STREAM') {
+      return lines.where((l) => l.contains('[JAZZDRIVE]') || l.contains('[STREAM]')).toList();
     }
     final tag = '[${filter.padRight(5)}]';
     return lines.where((l) => l.contains(tag)).toList();

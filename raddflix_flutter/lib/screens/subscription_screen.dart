@@ -814,7 +814,7 @@ class _WhyRaddFlix extends StatelessWidget {
 
   static const _items = [
     (AppIcons.wifi, 'Zero Jazz Data Cost',
-        'Stream all day — JazzDrive CDN means ZERO data deducted from your Jazz balance.'),
+        'Stream all day — RaddFlix is 100% data-free on Jazz. ZERO MB deducted from your Jazz balance.'),
     (AppIcons.downloadDone, 'Download for Offline',
         'Save shows when on WiFi, watch them anywhere — no internet needed.'),
     (AppIcons.storage, 'HD Quality',
