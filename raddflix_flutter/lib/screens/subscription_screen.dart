@@ -185,11 +185,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
         Text(
           status != null && status.isActive
               ? 'Resubscribe to the same plan or switch to a bigger one — your choice.'
-              : 'Zero-rated on Jazz · No data cost · Stream all day.',
+              : 'Subscribe to unlock HD quality streaming and unlimited content.',
           style: TextStyle(color: t.textMuted, fontSize: 13, height: 1.5),
         ).animate(delay: 60.ms).fadeIn(duration: 300.ms),
-        const SizedBox(height: 10),
-        const _JazzPartnerBadge().animate(delay: 100.ms).fadeIn(duration: 350.ms),
         const SizedBox(height: 18),
 
         // ── Plan cards ────────────────────────────────────────────────────────
@@ -435,27 +433,7 @@ class _ActivePlanCard extends StatelessWidget {
   }
 }
 
-// ── Jazz partner badge ─────────────────────────────────────────────────────────
-class _JazzPartnerBadge extends StatelessWidget {
-  const _JazzPartnerBadge();
-  @override
-  Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(AppRadius.round),
-        border: Border.all(color: t.border)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(AppIcons.wifi, size: 14, color: AppColors.primary),
-        const SizedBox(width: 6),
-        Text('Zero-rated on Jazz SIM · No data deducted from your Jazz balance',
-            style: TextStyle(color: t.textMuted, fontSize: 11)),
-      ]),
-    );
-  }
-}
+// F4 fix: _JazzPartnerBadge removed — Jazz-specific promotional content
 
 // ── Plan card ──────────────────────────────────────────────────────────────────
 class _PlanCard extends StatelessWidget {
@@ -540,18 +518,7 @@ class _PlanCard extends StatelessWidget {
               Text(plan.approxLabel,
                   style: TextStyle(color: t.textSecondary, fontSize: 12)),
             ],
-            if (plan.jazzSavingsMsg.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(4)),
-                child: Text('💰 ${plan.jazzSavingsMsg}',
-                    style: const TextStyle(color: AppColors.success,
-                        fontSize: 10, fontWeight: FontWeight.w600)),
-              ),
-            ],
+            // F3 fix: removed jazzSavingsMsg Jazz-specific promotional text
             if (isRenewal) ...[
               const SizedBox(height: 8),
               Row(children: [
@@ -813,8 +780,8 @@ class _WhyRaddFlix extends StatelessWidget {
   const _WhyRaddFlix();
 
   static final _items = [
-    (AppIcons.wifi, 'Zero Jazz Data Cost',
-        'Stream all day — RaddFlix is 100% data-free on Jazz. ZERO MB deducted from your Jazz balance.'),
+    (AppIcons.wifi, 'Crystal Clear Streaming',
+        'HD and Full HD quality streams with minimal buffering. Best video quality at every speed.'),
     (AppIcons.downloadDone, 'Download for Offline',
         'Save shows when on WiFi, watch them anywhere — no internet needed.'),
     (AppIcons.storage, 'HD Quality',

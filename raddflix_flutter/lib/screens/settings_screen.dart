@@ -246,8 +246,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _SettingsTile(
                     t: t,
                     icon: AppIcons.lightning,
-                    label: 'Zero-Rated on Jazz',
-                    subtitle: 'Stream & download with no data charges on Jazz SIM',
+                    label: 'Streaming Features',
+                    subtitle: 'HD quality video and offline downloads included',
                     onTap: null,
                     iconColor: const Color(0xFFFFB800),
                   ),

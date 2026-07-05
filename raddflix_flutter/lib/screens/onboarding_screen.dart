@@ -21,10 +21,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // ── Hardcoded fallback pages ───────────────────────────────────────────────
   static const List<_PageData> _kDefaultPages = [
     _PageData(
-      icon: '📶',
+      icon: '🎬',
       gradient: [Color(0xFF22C55E), Color(0xFF16A34A)],
-      title: 'Zero-Rated Streaming',
-      body: 'Watch movies & shows on Jazz SIM without spending any data. RaddFlix traffic is completely free of charge.',
+      title: 'Stream Everything',
+      body: 'Watch movies, dramas & shows in HD quality. Your entertainment, anytime, anywhere.',
     ),
     _PageData(
       icon: '📱',
