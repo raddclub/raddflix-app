@@ -3,6 +3,23 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-05 — Portrait-Player-V1)
+
+### Portrait Player Layout — 2026-07-05 (latest)
+`Portrait-Player-V1` task complete. `player_screen.dart` now has a full portrait-mode layout that activates automatically when `constraints.maxWidth < constraints.maxHeight`.
+
+**What changed:**
+- `build()`: detects portrait via LayoutBuilder constraints and routes to `_buildPortraitLayout()`
+- `_buildPortraitLayout()`: YouTube/Netflix-style Column — top 38% video zone (Stack: video surface + gesture layer + overlays + compact top bar) + bottom 62% controls panel (dark `0xFF0D0D0D` background)
+- Gesture zone is scoped to the video area only; swipe brightness/volume/seek all work within that zone
+- `_buildPortraitTopBar()`: compact back button + title (ellipsis) + episode badge + rotate + PiP
+- `_buildPortraitControlsPanel()` + `_buildPortraitQuickActions()`: seek bar, transport row (play/pause/skip/prev/next/lock/settings), quick action buttons (CC, Audio, EQ, Speed, Loop, More)
+- `_buildPortraitActionBtn()`: icon+label tile with active-state accent highlight
+- `_openRightPanel()`: adds portrait branch using `showModalBottomSheet` + `DraggableScrollableSheet` (62% initial, 35%–88% draggable, scroll controller wired via `PrimaryScrollController`) — landscape path unchanged
+- All hardcoded portrait offsets (`0.22`, `0.88`, `75`) are superseded; one-handed mode still exists but is bypassed in portrait
+
+Commits: `e851819`, `c1131ce`. CI will verify on next APK build.
+
 ## Current State (2026-07-05)
 
 ### UI Audit + CI fix — 2026-07-05 (latest)

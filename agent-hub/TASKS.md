@@ -17,7 +17,7 @@
 
 | Task | Description | Plan | Status |
 |---|---|---|---|
-| Portrait-Player-V1 | Fix video player portrait mode layout — YouTube/Netflix split (video top 38% + controls panel below), compact top bar, bottom-sheet settings panel, portrait-aware gesture zone, fix hardcoded offsets | [`PORTRAIT_PLAYER_PLAN.md`](PORTRAIT_PLAYER_PLAN.md) | ⏳ IN PROGRESS |
+| Portrait-Player-V1 | Fix video player portrait mode layout — YouTube/Netflix split (video top 38% + controls panel below), compact top bar, bottom-sheet settings panel, portrait-aware gesture zone, fix hardcoded offsets | `e851819`, `c1131ce` | ✅ DONE |
 
 ---
 
