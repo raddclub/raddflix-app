@@ -89,6 +89,11 @@ class DebugLogger {
   }
 
   /// API call — method, URL, HTTP status, timing, optional preview
+  ///
+  /// SECURITY: requestBody/responsePreview/error may contain server-issued
+  /// secrets (validationkey, k= HMAC tokens, JSESSIONID). These are redacted
+  /// via [_redactBody] BEFORE truncation/storage — never store or export the
+  /// raw values, even in-memory, since the ring buffer is user-shareable.
   static void logApi({
     required String method,
     required String url,
@@ -101,12 +106,29 @@ class DebugLogger {
     final parts = <String>['$method $url'];
     if (statusCode != null) parts.add('HTTP $statusCode');
     if (durationMs != null) parts.add('${durationMs}ms');
-    if (requestBody != null && requestBody.isNotEmpty) parts.add('req=$requestBody');
-    if (responsePreview != null && responsePreview.isNotEmpty)
-      parts.add('resp=${responsePreview.length > 200 ? responsePreview.substring(0, 200) + "…" : responsePreview}');
-    if (error != null && error.isNotEmpty) parts.add('err=$error');
+    if (requestBody != null && requestBody.isNotEmpty) {
+      final redacted = _redactBody(requestBody);
+      parts.add('req=$redacted');
+    }
+    if (responsePreview != null && responsePreview.isNotEmpty) {
+      final redacted = _redactBody(responsePreview);
+      parts.add('resp=${redacted.length > 200 ? redacted.substring(0, 200) + "…" : redacted}');
+    }
+    if (error != null && error.isNotEmpty) parts.add('err=${_redactBody(error)}');
     _write('API', parts.join(' | '));
   }
+
+  /// Redacts server-issued secrets from a request/response body BEFORE it is
+  /// truncated or written anywhere (buffer, file, share export).
+  /// Covers: validationkey=, bare k= tokens, JSESSIONID (as a cookie/header
+  /// value or JSON field), and Bearer/Authorization tokens.
+  static String _redactBody(String body) => body
+      .replaceAll(RegExp(r'validation[_\s-]?key\s*[=:]\s*[^\s&"' "'" r']+', caseSensitive: false), 'validationkey=[redacted]')
+      .replaceAll(RegExp(r'\bk=[A-Za-z0-9%_\-+/=]{6,}'), 'k=[redacted]')
+      .replaceAll(RegExp(r'jsessionid\s*[=:]\s*[^\s&;"' "'" r']+', caseSensitive: false), 'JSESSIONID=[redacted]')
+      .replaceAll(RegExp(r'(authorization|bearer)\s*[=:]\s*[^\s&"' "'" r']+', caseSensitive: false), 'Authorization=[redacted]')
+      .replaceAll(RegExp(r'refresh_token"?\s*[=:]\s*"?[^\s&,"' "'" r' }]+', caseSensitive: false), 'refresh_token=[redacted]')
+      .replaceAll(RegExp(r'access_token"?\s*[=:]\s*"?[^\s&,"' "'" r' }]+', caseSensitive: false), 'access_token=[redacted]');
 
   /// Structured key=value state snapshot
   static void logState(String tag, Map<String, dynamic> state) =>
