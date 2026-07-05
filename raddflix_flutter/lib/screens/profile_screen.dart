@@ -610,7 +610,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       label: 'Downloads',
                       onTap: () { DebugLogger.logTap('Profile', 'downloads'); Navigator.of(context).pushNamed(AppRoutes.downloads); },
                     ),
-                    if (user?.isGuest != true && _hasInternet) ...[
+                    if (user?.isAdmin == true && _hasInternet) ...[
                       _divider(),
                       _SectionTile(
                         icon: AppIcons.cloudDownload,
