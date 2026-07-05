@@ -384,9 +384,13 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 4),
         action: SnackBarAction(
+          // E8 fix: label was 'Sign In' but route went to paywall+register, not login.
+          // Route guest to /login so existing users can sign in; they can navigate to
+          // register from the login screen if needed.
           label: isGuest ? 'Sign In' : 'Subscribe',
           textColor: Colors.white,
-          onPressed: () => Navigator.of(ctx).pushNamed(AppRoutes.subscription),
+          onPressed: () => Navigator.of(ctx).pushNamed(
+            isGuest ? AppRoutes.login : AppRoutes.subscription),
         ),
       ),
     );
@@ -395,15 +399,20 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   // ── Download all available episodes in the current season ──────────────
   Future<void> _downloadCurrentSeason() async {
     if (_isDownloadingAll) return;
-    // BUG-H03 fix: only require a subscription when the season contains paid episodes.
-    // Previously ALL batch-downloads required a subscription, blocking free-episode
-    // seasons for unsubscribed / free-plan users (unfair and incorrect UX).
-    final hasPaidEps = !widget.item.isFree && _currentEpisodes.any((ep) => !_parseFree(ep['is_free']));
-    if (hasPaidEps && !_isSubscribed) { _requireSub(context); return; }
     final dlState = ref.read(downloadsProvider);
-    // Only queue episodes that have a fileId and are not already downloaded/queued
+    // E3 fix: instead of a blanket gate that blocks even free episodes in a mixed season,
+    // show the paywall notice (so the user knows locked content exists) but still queue
+    // the free episodes.  Previously unsubscribed users couldn't batch-download free
+    // preview episodes when the season also had paid episodes.
+    final hasAnyPaidEps = !widget.item.isFree &&
+        _currentEpisodes.any((ep) => !_parseFree(ep['is_free']));
+    if (hasAnyPaidEps && !_isSubscribed) _requireSub(context); // inform; don't abort
+    // Only queue episodes that have a fileId and are not already downloaded/queued;
+    // skip paid episodes for unsubscribed users.
     final toQueue = _currentEpisodes.where((ep) {
       final fid = ep['file_id']?.toString() ?? '';
+      final epIsFree = _parseFree(ep['is_free']) || widget.item.isFree;
+      if (!epIsFree && !_isSubscribed) return false; // skip locked episodes
       return fid.isNotEmpty
           && !dlState.isDownloaded(fid)
           && !dlState.isDownloading(fid);
@@ -486,6 +495,10 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     final isMovie    = item.isMovie;
     // Phase 45: tier-aware glow intensity for Play/Download buttons
     final animConfig = ref.watch(animConfigProvider);
+    // E6 fix: watch auth/sub providers so episode PREMIUM lock badges rebuild
+    // immediately when subscription activates (ref.read alone never triggers a rebuild).
+    ref.watch(authProvider);
+    ref.watch(subscriptionProvider);
 
     return Scaffold(
       backgroundColor: null,
@@ -881,7 +894,14 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                 } else {
                                   // Episode might be in another season — switch and play
                                   setState(() => _selectedSeason = season);
-                                  Future.microtask(() {
+                                  // E4 fix: addPostFrameCallback runs after the next
+                                  // rebuild (when _currentEpisodes reflects the new
+                                  // season), unlike Future.microtask which runs before
+                                  // the rebuild and always finds indexWhere == -1.
+                                  // Also guard mounted to avoid Navigator calls on
+                                  // disposed state.
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    if (!mounted) return;
                                     final newIdx = _currentEpisodes.indexWhere(
                                       (e) => e['file_id']?.toString() == fid);
                                     if (newIdx >= 0) _playEpisode(newIdx);
@@ -1105,7 +1125,10 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                             final isDownloading = dlState.isDownloading(fileId);
                             final isDownloaded  = dlState.isDownloaded(fileId);
                             return _EpisodeTile(
-                              index: realIdx,
+                              // E7 fix: use actual episode number from data (1-based → 0-based)
+                              // instead of list position (realIdx), which was wrong in
+                              // descending sort (E12 shows badge "1", E1 shows badge "12").
+                              index: (ep['episode'] as int? ?? realIdx + 1) - 1,
                               label: label,
                               isFree: isFree,
                               isLocked: !isFree && !_isSubscribed,
@@ -1467,11 +1490,13 @@ class _EpisodeTile extends StatelessWidget {
                           ? AppIcons.downloadDone
                           : AppIcons.cloudDownload,
                         size: 18,
+                        // E5 fix: dead ternary — both branches were null so
+                        // disabled download icon looked identical to enabled.
                         color: isDownloaded
                           ? AppColors.success
                           : onDownload != null
-                            ? null
-                            : null,
+                            ? null                              // active: inherit theme
+                            : t.textSecondary.withOpacity(0.35), // disabled: muted
                       ),
                   label: Text(
                     isDownloading ? 'Saving…'
