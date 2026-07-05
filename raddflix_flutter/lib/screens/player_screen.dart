@@ -2258,6 +2258,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         backgroundColor: Colors.black,
         body: LayoutBuilder(
           builder: (context, constraints) {
+            final bool isPortrait = constraints.maxWidth < constraints.maxHeight;
+            if (isPortrait) {
+              return _buildPortraitLayout(constraints);
+            }
             return Stack(
               children: [
                 // 1. Video surface — full screen
@@ -3883,11 +3887,441 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  Panels (right-side slide-in)
+    //  Portrait layout — YouTube/Netflix split (video top 38% + controls below)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    Widget _buildPortraitLayout(BoxConstraints constraints) {
+      final double videoH = constraints.maxHeight * 0.38;
+      final Duration currentPos = _seekBarDelta != null
+          ? Duration(milliseconds: (_seekBarDelta! * _duration.inMilliseconds).round())
+          : _position;
+      final BoxConstraints videoConstraints = BoxConstraints(
+        maxWidth: constraints.maxWidth,
+        maxHeight: videoH,
+      );
+
+      return Column(
+        children: [
+          // ── Video zone (top 38%) ────────────────────────────────────────────
+          SizedBox(
+            width: constraints.maxWidth,
+            height: videoH,
+            child: Stack(
+              children: [
+                // Video surface
+                Positioned.fill(child: RepaintBoundary(child: _buildVideoSurface())),
+
+                // AI Dub progress overlay
+                if (_dubGenerating) _buildDubProgressOverlay(),
+
+                // Lock overlay
+                if (_isLocked) _buildLockOverlay(),
+
+                // Gesture layer — scoped to video zone only
+                if (!_isLocked && !_isImmersive)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: _toggleControls,
+                      onDoubleTapDown: (d) {
+                        if (!_doubleTapSeekEnabled) return;
+                        final isLeft = d.localPosition.dx < constraints.maxWidth / 2;
+                        _seekRelative(isLeft ? -_skipInterval : _skipInterval);
+                      },
+                      onLongPressStart: (_) { if (_longPressSpeedEnabled) _startLongPress(); },
+                      onLongPressEnd: (_) { if (_longPressSpeedEnabled) _endLongPress(); },
+                      onLongPressCancel: () { if (_longPressSpeedEnabled) _endLongPress(); },
+                      onScaleStart: (d) => _onScaleStart(d, videoConstraints),
+                      onScaleUpdate: (d) => _onScaleUpdate(d, videoConstraints),
+                      onScaleEnd: _onScaleEnd,
+                    ),
+                  ),
+
+                // Top gradient
+                Positioned(
+                  top: 0, left: 0, right: 0, height: 60,
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Color(0xBB000000), Colors.transparent],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Compact top bar (shown when controls visible)
+                if (!_isImmersive)
+                  Positioned(
+                    top: 0, left: 0, right: 0,
+                    child: AnimatedOpacity(
+                      opacity: _showControls && !_isLocked ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 280),
+                      child: IgnorePointer(
+                        ignoring: !_showControls || _isLocked,
+                        child: SafeArea(
+                          bottom: false,
+                          child: _buildPortraitTopBar(),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Shortcut sidebar (right edge of video zone)
+                if (!_isLocked && !_isImmersive)
+                  Positioned(
+                    right: 0, top: 0, bottom: 0,
+                    child: AnimatedOpacity(
+                      opacity: _panelOpen ? 0.0 : (_showControls ? 1.0 : 0.0),
+                      duration: const Duration(milliseconds: 280),
+                      child: IgnorePointer(
+                        ignoring: _panelOpen || !_showControls,
+                        child: _buildSidebar(videoConstraints),
+                      ),
+                    ),
+                  ),
+
+                // Brightness indicator
+                if (_showBrightnessIndicator && !_isImmersive)
+                  Positioned(
+                    left: 20, top: 0, bottom: 0,
+                    child: Center(
+                      child: _buildSideIndicator(
+                        icon: _brightness < 0.3
+                            ? Icons.brightness_low_rounded
+                            : _brightness > 0.7
+                                ? Icons.brightness_high_rounded
+                                : Icons.brightness_medium_rounded,
+                        barValue: _brightness,
+                        barColor: const Color(0xFFFFD60A),
+                        label: '${(_brightness * 100).round()}%',
+                      ),
+                    ),
+                  ),
+
+                // Volume indicator
+                if (_showVolumeIndicator && !_isImmersive)
+                  Positioned(
+                    left: 20, top: 0, bottom: 0,
+                    child: Center(
+                      child: _buildSideIndicator(
+                        icon: _isMuted
+                            ? Icons.volume_off_rounded
+                            : _volume > 1.0
+                                ? Icons.volume_up_rounded
+                                : _volume > 0.4
+                                    ? Icons.volume_down_rounded
+                                    : Icons.volume_mute_rounded,
+                        barValue: _volume.clamp(0.0, 1.0),
+                        barColor: _volume > 2.0
+                            ? const Color(0xFFFF3B30)
+                            : _volume > 1.0
+                                ? const Color(0xFFFF6B35)
+                                : Colors.white,
+                        label: '${(_volume * 100).round()}%',
+                      ),
+                    ),
+                  ),
+
+                // Long-press 2× speed badge
+                if (_longPressFast)
+                  Positioned(
+                    top: 10, left: 0, right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: const [
+                          Icon(Icons.fast_forward_rounded, color: Colors.white, size: 16),
+                          SizedBox(width: 6),
+                          Text('2× Speed', style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                        ]),
+                      ),
+                    ),
+                  ),
+
+                // Buffering spinner
+                if (_buffering && !_isLinkLoading && _streamError == null)
+                  const Center(child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 2.5)),
+
+                // Link loading
+                if (_isLinkLoading)
+                  Container(
+                    color: Colors.black87,
+                    child: const Center(
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        CircularProgressIndicator(color: Colors.white),
+                        SizedBox(height: 16),
+                        Text('Loading stream…',
+                            style: TextStyle(color: Colors.white70, fontSize: 14)),
+                      ]),
+                    ),
+                  ),
+
+                // Error overlay (compact for portrait video zone)
+                if (_streamError != null)
+                  Container(
+                    color: Colors.black87,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.error_outline_rounded,
+                              color: Colors.redAccent, size: 36),
+                          const SizedBox(height: 8),
+                          Text(_streamError!,
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                              textAlign: TextAlign.center,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 10),
+                          Row(mainAxisSize: MainAxisSize.min, children: [
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6)),
+                              icon: const Icon(Icons.refresh_rounded, size: 16),
+                              label: const Text('Retry',
+                                  style: TextStyle(fontSize: 13)),
+                              onPressed: () {
+                                _cancelAutoRetry();
+                                setState(() => _streamError = null);
+                                _openMedia(_currentFileId);
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Back',
+                                  style: TextStyle(color: Colors.white70, fontSize: 13)),
+                            ),
+                          ]),
+                        ]),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // ── Controls panel (bottom 62%) ────────────────────────────────────
+          Expanded(
+            child: Container(
+              color: const Color(0xFF0D0D0D),
+              child: SingleChildScrollView(
+                child: _buildPortraitControlsPanel(constraints, currentPos),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    Widget _buildPortraitTopBar() {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(4, 4, 8, 4),
+        child: Row(
+          children: [
+            _RaddIconBtn(
+              icon: Icons.arrow_back_ios_new_rounded,
+              size: 18,
+              onTap: () => Navigator.of(context).pop(),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                _currentTitle,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (_eps.length > 1)
+              Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Text(
+                  'E${_currentEpIdx + 1}/${_eps.length}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 10,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            _RaddIconBtn(
+              icon: _orientIcon,
+              size: 18,
+              onTap: _cycleOrientation,
+            ),
+            _RaddIconBtn(
+              icon: Icons.picture_in_picture_rounded,
+              size: 18,
+              onTap: _enterPiP,
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget _buildPortraitControlsPanel(BoxConstraints constraints, Duration currentPos) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildHorizontalSeekBar(constraints, currentPos),
+            const SizedBox(height: 4),
+            _buildTransportRow(),
+            const SizedBox(height: 12),
+            _buildPortraitQuickActions(),
+          ],
+        ),
+      );
+    }
+
+    Widget _buildPortraitQuickActions() {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _buildPortraitActionBtn(
+            _realSubtitleTracks.isNotEmpty
+                ? Icons.subtitles_rounded
+                : Icons.subtitles_off_rounded,
+            'CC',
+            _openSubtitlePanel,
+            active: _realSubtitleTracks.isNotEmpty,
+          ),
+          _buildPortraitActionBtn(
+            Icons.headphones_rounded,
+            'Audio',
+            _openAudioPanel,
+            active: _realAudioTracks.length > 1,
+          ),
+          _buildPortraitActionBtn(
+            Icons.equalizer_rounded,
+            'EQ',
+            _openAudioEffectPanel,
+            active: _eqEnabled,
+          ),
+          _buildPortraitActionBtn(
+            Icons.speed_rounded,
+            _speed == 1.0 ? '1×' : '${_speed.toStringAsFixed(1)}×',
+            _cycleSpeed,
+            active: _speed != 1.0,
+          ),
+          _buildPortraitActionBtn(
+            Icons.loop_rounded,
+            'Loop',
+            _toggleLoop,
+            active: _loopEnabled,
+          ),
+          _buildPortraitActionBtn(
+            Icons.settings_rounded,
+            'More',
+            _openSettingsPanel,
+          ),
+        ],
+      );
+    }
+
+    Widget _buildPortraitActionBtn(
+        IconData icon, String label, VoidCallback? onTap, {bool active = false}) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: active
+                    ? _accentColor.withOpacity(0.18)
+                    : Colors.white.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: active
+                      ? _accentColor.withOpacity(0.55)
+                      : Colors.white12,
+                  width: 0.8,
+                ),
+              ),
+              child: Icon(icon,
+                  color: active ? _accentColor : Colors.white70, size: 20),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: active ? _accentColor : Colors.white54,
+                fontSize: 10,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Panels (right-side slide-in / bottom-sheet in portrait)
     // ═══════════════════════════════════════════════════════════════════════════
 
 void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
+  final bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
   setState(() => _panelOpen = true);
+  if (isPortrait) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.62,
+        minChildSize: 0.35,
+        maxChildSize: 0.88,
+        expand: false,
+        builder: (_, __) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 6),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white30,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Expanded(child: content),
+            ],
+          ),
+        ),
+      ),
+    ).then((_) { if (mounted) setState(() => _panelOpen = false); });
+    return;
+  }
   showGeneralDialog(
     context: context,
     barrierDismissible: true,
