@@ -4298,7 +4298,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
         minChildSize: 0.35,
         maxChildSize: 0.88,
         expand: false,
-        builder: (_, __) => Container(
+        builder: (_, scrollController) => Container(
           decoration: const BoxDecoration(
             color: Color(0xFF1A1A1A),
             borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -4314,7 +4314,12 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              Expanded(child: content),
+              Expanded(
+                child: PrimaryScrollController(
+                  controller: scrollController,
+                  child: content,
+                ),
+              ),
             ],
           ),
         ),
