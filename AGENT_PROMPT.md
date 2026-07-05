@@ -24,8 +24,29 @@ If the human sent you this file's URL to get started, follow these steps in orde
 and wait for their actual task:
 
 1. **Verify secrets are present.** Check that `GITHUB_TOKEN` and `ORACLE_SSH_KEY` exist in
-   this environment's Secrets. If either is missing, tell the human which one is absent and
-   stop — do not proceed without them. Do not ask the human to paste secret values into chat.
+   this environment's Secrets.
+
+   > **Why secrets may be missing — read this first:**
+   > Replit Secrets are **per-Replit environment**. They are NOT shared between Repls
+   > automatically. Every time a new Replit is created (a new agent session, a fork, etc.),
+   > its secrets store starts empty even if the same secrets exist in another Replit.
+   > This is expected Replit behaviour — it is not a bug.
+   >
+   > **If `GITHUB_TOKEN` or `ORACLE_SSH_KEY` are missing, do NOT stop and wait.**
+   > Instead, tell the human exactly this:
+   >
+   > ---
+   > **Action needed — add secrets to this Replit:**
+   > This is a fresh Replit environment. Secrets don't carry over automatically between Repls.
+   > Please add the following to this Replit's Secrets panel (not in chat):
+   > - `GITHUB_TOKEN` — your GitHub personal access token (repo scope)
+   > - `ORACLE_SSH_KEY` — the private SSH key for the Oracle VPS (the full key including header/footer lines)
+   >
+   > Steps: open the Replit sidebar → click the 🔒 **Secrets** tab → add each key with its value.
+   > Once both are added, tell me and I'll continue with the clone.
+   > ---
+   >
+   > After the human confirms the secrets are added, continue to step 2.
 2. **Clone the repository locally** so you have full project context:
    ```bash
    git clone https://github.com/raddclub/raddflix-app.git raddflix-app
