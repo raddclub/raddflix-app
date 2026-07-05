@@ -23,7 +23,6 @@ class AppUser {
   final String? deviceName;
   final bool isActive;
   final bool isGuest;
-  final bool isAdmin;
   final String? createdAt;
   final String? lastLoginAt;
   final UserSubscription? subscription;
@@ -39,7 +38,6 @@ class AppUser {
     this.deviceName,
     this.isActive = true,
     this.isGuest = false,
-    this.isAdmin = false,
     this.createdAt,
     this.lastLoginAt,
     this.subscription,
@@ -67,7 +65,6 @@ class AppUser {
       // legitimate users out. Explicit servers always send the field.
       isActive: _parseBool(userData['is_active'] ?? true),
       isGuest: userData['is_guest'] as bool? ?? false,  // FIX BUG-011
-      isAdmin: _parseBool(userData['is_admin']),
       createdAt: userData['created_at']?.toString(),
       lastLoginAt: userData['last_login_at']?.toString(),
       subscription: subData != null ? UserSubscription.fromJson(subData) : null,

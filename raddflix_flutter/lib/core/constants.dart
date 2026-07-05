@@ -343,7 +343,6 @@ class AppRoutes {
   static const String vault        = '/vault';
   static const String vaultLock    = '/vault-lock';
   static const String showDetail   = '/show-detail';
-  static const String adminQueue   = '/admin-queue';
   static const String quotaFull    = '/quota-full';
   static const String planExpired  = '/plan-expired';
   static const String settings     = '/settings';
@@ -400,7 +399,6 @@ class ApiPaths {
   static String saveHistory(String fileId) => '/api/history/$fileId';
   static String playUrl(String fileId)    => '/watch/api/play/$fileId';
   static String fileShareUrl(String fileId) => '/api/catalog/share_url?file_id=${fileId}';
-  static const String adminQueue         = '/api/queue/status';
   static const String publicMethods      = '/api/payment-methods';
 
   static const String notifications      = '/api/notifications/';

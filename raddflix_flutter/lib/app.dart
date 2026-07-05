@@ -20,7 +20,6 @@ import 'screens/downloads_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/show_detail_screen.dart';
 import 'screens/vault_lock_screen.dart';
-import 'screens/admin_queue_screen.dart';
 import 'screens/player_settings_screen.dart';
 import 'screens/player/layout_designer_screen.dart';
 import 'screens/pin_lock_screen.dart'; // Phase K3
@@ -107,7 +106,6 @@ class RaddFlixApp extends ConsumerWidget {
         AppRoutes.downloads:    (_) => const DownloadsScreen(),
         AppRoutes.search:       (_) => const SearchScreen(),
         AppRoutes.vault:         (_) => const VaultScreen(),
-        AppRoutes.adminQueue:    (_) => const AdminQueueScreen(),
         // BUG-H01 fix: extract quota args from route settings so the screen
         // can display real numbers (used GB, limit, plan name, reset date).
         // Player pushes: {used_gb, limit_gb, plan_name, resets_at} as arguments.
