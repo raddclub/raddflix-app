@@ -139,7 +139,7 @@ class AppIcons {
   static PhosphorIconData get tools          => PhosphorIcons.wrench();
 
   // ── Network / Connectivity ────────────────────────────────────────────────
-  static PhosphorIconData get wifi           => PhosphorIcons.wifi();
+  static PhosphorIconData get wifi           => PhosphorIcons.wifiHigh();
   static PhosphorIconData get wifiOff        => PhosphorIcons.wifiSlash();
   static PhosphorIconData get dataSaver      => PhosphorIcons.waveform();
 
