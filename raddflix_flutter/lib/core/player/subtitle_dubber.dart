@@ -173,6 +173,26 @@ class SubtitleDubber {
     await tts.setVolume(1.0);
     await tts.setPitch(1.0);
 
+    // C1+C2 fix: Android returns langResult=0 (LANG_COUNTRY_AVAILABLE) even
+    // when the voice pack is not actually installed, so the negative-value check
+    // above is insufficient. Run a preflight synthesis to confirm TTS can
+    // actually produce audio before spending time on the full subtitle loop.
+    final _preflightClip = 'preflight_$cacheKey.wav';
+    final _preflightPath = '${ttsDir.path}/$_preflightClip';
+    try {
+      final _preflightResult = await tts.synthesizeToFile('test', _preflightClip);
+      final _preflightFile = File(_preflightPath);
+      if (_preflightResult != 1 ||
+          !_preflightFile.existsSync() ||
+          _preflightFile.lengthSync() < 50) {
+        onProgress(0, entries.length, 'LANG_NOT_INSTALLED');
+        return null;
+      }
+    } catch (_) {
+      onProgress(0, entries.length, 'LANG_NOT_INSTALLED');
+      return null;
+    }
+
     // ── Phase 1: synthesize clips ────────────────────────────────────────────
     int sampleRate = 22050, channels = 1, bitsPerSample = 16;
     bool fmtOk = false;

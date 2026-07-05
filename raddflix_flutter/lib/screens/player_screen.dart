@@ -5730,30 +5730,33 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
             ],
           ),
         ),
-        // ── AI Auto Dubbing — pinned above tabs, always visible on panel open ──
-        if (widget.onDubRequested != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: _buildDubSection(context),
-            ),
-          ),
-        // Tabs
+        // Tabs — B1/B2 fix: 'AI Dub' is now a dedicated tab (index 6) rather than
+        // a pinned block above the tabs. The pinned block consumed ~213 dp of fixed
+        // height, leaving almost no room for settings in landscape mode. Moving it
+        // into a tab makes the full settings list reachable in all orientations.
+        // B2: the tab is only added when onDubRequested is non-null.
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Row(
             children: [
-              for (final tab in ['Open', 'Settings', 'Synchronization', 'Speed', 'Panel', 'Customization'])
+              for (final tab in [
+                'Open', 'Settings', 'Synchronization', 'Speed', 'Panel', 'Customization',
+                if (widget.onDubRequested != null) 'AI Dub',
+              ])
                 GestureDetector(
-                  onTap: () => setState(() => _tab = ['Open', 'Settings', 'Synchronization', 'Speed', 'Panel', 'Customization'].indexOf(tab)),
+                  onTap: () => setState(() => _tab = [
+                    'Open', 'Settings', 'Synchronization', 'Speed', 'Panel', 'Customization',
+                    if (widget.onDubRequested != null) 'AI Dub',
+                  ].indexOf(tab)),
                   child: Container(
                     margin: const EdgeInsets.only(right: 4),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: _tab == ['Open', 'Settings', 'Synchronization', 'Speed', 'Panel', 'Customization'].indexOf(tab)
+                      color: _tab == [
+                        'Open', 'Settings', 'Synchronization', 'Speed', 'Panel', 'Customization',
+                        if (widget.onDubRequested != null) 'AI Dub',
+                      ].indexOf(tab)
                           ? Colors.white24
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(16),
@@ -6393,6 +6396,10 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                       style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.right)),
                 ]),
               ],
+              // AI Dub tab (tab 6) — B1 fix: dub controls moved here from the
+              // pinned block above the tab row, which blocked all settings in
+              // landscape mode (~213 dp of fixed height with no scrolling).
+              if (_tab == 6 && widget.onDubRequested != null) ..._buildDubSection(context),
             ],
           ),
         ),
