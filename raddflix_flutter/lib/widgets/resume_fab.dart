@@ -78,7 +78,12 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
     final durMs    = p.getInt(ResumeFab.kDurationMs) ?? 0;
     final ctype    = p.getString(ResumeFab.kContentType) ?? 'movie';
     // BUG-11 fix: read is_free so free content skips the subscription gate in _play().
-    final isFree   = p.getBool(ResumeFab.kIsFree) ?? false;
+    // A2 fix: default to true (free) when key is absent — this only happens on very old
+    // installs that played content before the BUG-11 fix wrote resume_is_free. Defaulting
+    // to false (paid) wrongly blocks free-content resume for those users. Defaulting to
+    // true is safe because the player's own Layer-2 gate will still catch actual paid
+    // content; the worst case is an extra redirect rather than a silent block.
+    final isFree   = p.getBool(ResumeFab.kIsFree) ?? true;
 
     // Only show if we have a title and meaningful progress
     if (title == null || title.isEmpty || posMs < 10000) return;
