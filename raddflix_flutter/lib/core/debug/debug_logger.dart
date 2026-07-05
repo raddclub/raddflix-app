@@ -164,8 +164,8 @@ class DebugLogger {
   static Future<void> shareLogs() => share();
 
   /// Builds a sanitised diagnostics report suitable for clipboard / share.
-  /// Contains only: entry count, error count, and last ≤10 error messages
-  /// with all internal service/provider names stripped.
+  /// Contains only: entry count, error count, and last ≤10 normalised error
+  /// summaries — no raw log lines, no IDs, no URLs, no token values.
   static String _sanitisedReport() {
     final errorEntries = _buffer.where((e) {
       final upper = e.toUpperCase();
@@ -186,19 +186,35 @@ class DebugLogger {
           ? errorEntries.sublist(errorEntries.length - 10)
           : errorEntries;
       for (final e in recent) {
-        buf.writeln(_stripInternalNames(e));
+        // Extract only the message portion (after the last '] ') and sanitise it
+        final msgStart = e.lastIndexOf('] ');
+        final raw = msgStart >= 0 ? e.substring(msgStart + 2) : e;
+        buf.writeln('  - ${_sanitiseMessage(raw)}');
       }
     }
     return buf.toString();
   }
 
-  /// Strips known internal service/provider names from a log line.
-  static String _stripInternalNames(String line) => line
-      .replaceAll(RegExp(r'jazzdrive', caseSensitive: false), 'stream-provider')
-      .replaceAll(RegExp(r'oracle', caseSensitive: false), 'content-server')
-      .replaceAll(RegExp(r'validationkey', caseSensitive: false), '[token]')
+  /// Sanitises a single log message for export:
+  /// - Strips internal service/provider names and crypto-method references
+  /// - Redacts URLs, file paths, token-like strings, and numeric/hex IDs
+  static String _sanitiseMessage(String msg) => msg
+      // Internal service names and variants
+      .replaceAll(RegExp(r'jazzdrive', caseSensitive: false), '[stream-provider]')
+      .replaceAll(RegExp(r'oracle', caseSensitive: false), '[content-server]')
+      .replaceAll(RegExp(r'validation[_\s-]?key', caseSensitive: false), '[token]')
       .replaceAll(RegExp(r'jsessionid', caseSensitive: false), '[session]')
-      .replaceAll(RegExp(r'xor', caseSensitive: false), 'enc');
+      .replaceAll(RegExp(r'\bxor\b', caseSensitive: false), '[enc]')
+      .replaceAll(RegExp(r'\bsapi\b', caseSensitive: false), '[api]')
+      // URLs (http/https and bare cloud hostnames)
+      .replaceAll(RegExp(r'https?://\S+'), '[url]')
+      .replaceAll(RegExp(r'cloud\.\S+'), '[url]')
+      // Token-like strings: long alphanumeric/base64 blobs, k= HMAC values
+      .replaceAll(RegExp(r'\bk=[A-Za-z0-9%_\-+/=]{8,}'), 'k=[token]')
+      .replaceAll(RegExp(r'\b[A-Za-z0-9+/=]{32,}\b'), '[token]')
+      // Numeric IDs and file paths
+      .replaceAll(RegExp(r'\b\d{5,}\b'), '[id]')
+      .replaceAll(RegExp(r'/[^\s]+\.(mkv|mp4|avi|srt|json)'), '[file]');
 
   // ── Internal ─────────────────────────────────────────────────────────────
 

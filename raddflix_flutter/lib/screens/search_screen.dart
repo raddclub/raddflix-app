@@ -151,7 +151,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
   @override
   void dispose() {
-    DebugLogger.logLifecycle('SearchScreen', 'dispose query="${_ctrl.text}"');
+    DebugLogger.logLifecycle('SearchScreen', 'dispose');
     _ctrl.dispose();
     _focus.dispose();
     _debounce?.cancel();
@@ -212,7 +212,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     setState(() {});
     final _dQ = q;
     _debounce = Timer(const Duration(milliseconds: 220), () {
-      DebugLogger.logTap('Search', 'query "${_dQ}"');
       _doSearch();
     });
   }
@@ -260,7 +259,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   }
 
   void _tapSuggestion(String q) {
-    DebugLogger.logTap('Search', 'suggestion "$q"');
     _ctrl.text = q;
     _ctrl.selection = TextSelection.collapsed(offset: q.length);
     _doSearch();
@@ -1195,7 +1193,6 @@ class _SearchResultTile extends StatelessWidget {
     return GestureDetector(
       // Phase 44: if onTap provided (OpenContainer), use it; otherwise default push
       onTap: onTap ?? () {
-        DebugLogger.logTap('Search', 'result id=${item.id} "${item.title}"');
         Navigator.of(context).pushNamed(AppRoutes.showDetail, arguments: item);
       },
       child: Container(

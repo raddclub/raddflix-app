@@ -67,9 +67,9 @@ class DownloadService {
           remoteId: remoteId,
         );
         resolvedUrl = link.streamUrl;
-        DebugLogger.log('DOWNLOAD', 'Stream link resolved for $fileId');
+        DebugLogger.log('DOWNLOAD', 'Stream link resolved');
       } catch (e) {
-        DebugLogger.logWarn('DOWNLOAD', 'Stream link failed, using fallback URL: $e');
+        DebugLogger.logWarn('DOWNLOAD', 'Stream link failed, using fallback');
       }
     } else {
       // Path B: no shareUrl passed — look up in SQLite.
@@ -92,9 +92,9 @@ class DownloadService {
             remoteId: dbRemoteId > 0 ? dbRemoteId : remoteId,
           );
           resolvedUrl = link.streamUrl;
-          DebugLogger.log('DOWNLOAD', 'Stream link resolved from cache for $fileId');
+          DebugLogger.log('DOWNLOAD', 'Stream link resolved (cached)');
         } catch (e) {
-          DebugLogger.logWarn('DOWNLOAD', 'Cached stream link failed, using fallback URL: $e');
+          DebugLogger.logWarn('DOWNLOAD', 'Cached stream link failed, using fallback');
         }
       }
     }

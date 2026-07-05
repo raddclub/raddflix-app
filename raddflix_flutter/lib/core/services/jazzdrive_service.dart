@@ -107,14 +107,14 @@ class JazzDriveService {
     // H-05: in-flight dedup — if a concurrent call is already generating this
     // link, wait for it rather than firing a duplicate JazzDrive API request.
     if (_inFlight.containsKey(fileId)) {
-      DebugLogger.log('STREAM', 'In-flight dedup for file $fileId');
+      DebugLogger.log('STREAM', 'In-flight dedup — awaiting existing request');
       return _inFlight[fileId]!;
     }
 
     // 1. Check in-memory cache
     final mem = _inMemory[fileId];
     if (mem != null && mem.expiresAt.isAfter(DateTime.now())) {
-      DebugLogger.log('STREAM', 'Cache hit (memory) for file $fileId');
+      DebugLogger.log('STREAM', 'Cache hit (memory)');
       return JazzDriveLink(
         streamUrl: mem.streamUrl,
         posterUrl: mem.posterUrl,
@@ -129,7 +129,7 @@ class JazzDriveService {
       if (expiresAt > DateTime.now().millisecondsSinceEpoch ~/ 1000) {
         final streamUrl = dbRow['stream_url'] as String? ?? '';
         final posterUrl = dbRow['poster_url'] as String?;
-        DebugLogger.log('STREAM', 'Cache hit (DB) for file $fileId');
+        DebugLogger.log('STREAM', 'Cache hit (DB)');
         _inMemory[fileId] = _CacheEntry(
           streamUrl: streamUrl,
           posterUrl: posterUrl,
@@ -145,7 +145,7 @@ class JazzDriveService {
 
     // 3. Generate fresh link via JazzDrive API (zero-rated)
     // H-05: register in-flight future before awaiting to dedup races
-    DebugLogger.log('STREAM', 'Generating fresh link for file $fileId');
+    DebugLogger.log('STREAM', 'Generating fresh link');
     final generationFuture = _generateLink(shareUrl, targetFilename: targetFilename, remoteId: remoteId);
     _inFlight[fileId] = generationFuture;
     late final JazzDriveLink link;
@@ -176,7 +176,7 @@ class JazzDriveService {
       unawaited(PosterService.saveFromJazzDrive(titleId, link.posterUrl!));
     }
 
-    DebugLogger.log('STREAM', 'Stream link ready for $fileId');
+    DebugLogger.log('STREAM', 'Stream link ready');
     return link;
   }
 
@@ -271,7 +271,7 @@ class JazzDriveService {
       }
       DebugLogger.log('STREAM', 'Link warm complete: $warmed/${rows.length} item(s) pre-fetched');
     } catch (e) {
-      DebugLogger.logWarn('STREAM', 'Link warm failed silently: $e');
+      DebugLogger.logWarn('STREAM', 'Link warm failed silently');
     }
   }
 
