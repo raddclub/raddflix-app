@@ -5633,11 +5633,11 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       catch (_) { srtBytes = bytes; }
       final dir = await getTemporaryDirectory();
       final cleanName = fname.replaceAll('.gz', '');
-      final outPath = '\${dir.path}/\$cleanName';
+      final outPath = '${dir.path}/$cleanName';
       File(outPath).writeAsBytesSync(srtBytes);
       widget.onSubtitleFilePicked?.call(outPath);
       if (mounted) setState(() => _onlineLoading = false);
-      if (mounted) _showInfoSnackbar('✓ Subtitle loaded: \$cleanName');
+      if (mounted) _showInfoSnackbar('✓ Subtitle loaded: $cleanName');
     } catch (e) {
       if (mounted) setState(() { _onlineLoading = false; _onlineError = 'Download failed: try again.'; });
     }
