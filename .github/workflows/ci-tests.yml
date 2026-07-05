@@ -3,9 +3,6 @@ name: "RaddFlix CI"
 on:
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   # ── Job 1: Live API health check (informational — never blocks build) ────
   api-tests:
@@ -13,9 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
 
@@ -46,7 +43,7 @@ jobs:
           echo "Tests: $PASSED passed, $FAILED failed, $WARNED warned"
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: "api-test-results-${{ github.run_number }}"
           path: /tmp/test_output.txt
@@ -63,7 +60,7 @@ jobs:
     timeout-minutes: 10
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dart-lang/setup-dart@v1
         with:
@@ -96,7 +93,7 @@ jobs:
 
       - name: Upload Dart test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: "jazzdrive-dart-results-${{ github.run_number }}"
           path: /tmp/dart_out.txt
@@ -108,7 +105,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: subosito/flutter-action@v2
         with:
@@ -144,9 +141,9 @@ jobs:
     timeout-minutes: 60
     needs: [flutter-analyze]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           java-version: "17"
           distribution: "temurin"
@@ -199,7 +196,7 @@ jobs:
           echo "**File:** \`$NAME\`" >> $GITHUB_STEP_SUMMARY
           echo "**Size:** $(du -sh $NAME | cut -f1)" >> $GITHUB_STEP_SUMMARY
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: "${{ steps.apk.outputs.apk_name }}"
           path: "${{ steps.apk.outputs.apk_name }}"
