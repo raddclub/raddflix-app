@@ -26,11 +26,11 @@ class DebugLogger {
         '${now.minute.toString().padLeft(2, "0")}'
         '${now.second.toString().padLeft(2, "0")}';
     if (_initialized) {
-      _write('INIT', '--- re-init marker sid=$_sessionId ---');
+      _write('INIT', '--- re-init marker ---');
       return;
     }
     _initialized = true;
-    _write('INIT', '=== RaddFlix Session Start sid=$_sessionId ${now.toString().substring(0, 19)} ===');
+    _write('INIT', '=== App Start ${now.toString().substring(0, 19)} ===');
     try {
       final tmp  = Directory.systemTemp;
       _logPath   = '${tmp.path}/raddflix_debug.log';
@@ -41,7 +41,7 @@ class DebugLogger {
         try { if (old.existsSync()) old.deleteSync(); f.renameSync(old.path); } catch (_) { f.deleteSync(); }
       }
       _sink = f.openWrite(mode: FileMode.append);
-      _sink?.writeln('[${_ts()}] [INIT] === Session Start sid=$_sessionId ===');
+      _sink?.writeln('[${_ts()}] [INIT] === Session Start ===');
       // Auto-flush every 30 s — ensures log is flushed even if app crashes
       _autoFlushTimer?.cancel();
       _autoFlushTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
@@ -141,32 +141,64 @@ class DebugLogger {
 
   // ── Share / clipboard ────────────────────────────────────────────────────
 
+  /// Copies a sanitised diagnostics summary to clipboard.
+  /// Never exposes raw log lines, service names, or internal identifiers.
   static Future<void> copyToClipboard() async {
-    await Clipboard.setData(ClipboardData(text: _buffer.join('\n')));
+    await Clipboard.setData(ClipboardData(text: _sanitisedReport()));
   }
 
   static Future<void> flush() async {
     try { await _sink?.flush(); } catch (_) {}
   }
 
+  /// Shares a sanitised diagnostics report only — never the raw log file.
   static Future<void> share() async {
     try {
-      await flush();
-      if (_logPath != null && File(_logPath!).existsSync()) {
-        await Share.shareXFiles(
-          [XFile(_logPath!)],
-          subject: 'RaddFlix Debug Log sid=$_sessionId',
-          text: 'Debug log from RaddFlix — please send to support.',
-        );
-        return;
-      }
-    } catch (_) {}
-    try {
-      await Share.share(_buffer.join('\n'), subject: 'RaddFlix Debug Log');
+      await Share.share(
+        _sanitisedReport(),
+        subject: 'RaddFlix Diagnostics Report',
+      );
     } catch (_) {}
   }
 
   static Future<void> shareLogs() => share();
+
+  /// Builds a sanitised diagnostics report suitable for clipboard / share.
+  /// Contains only: entry count, error count, and last ≤10 error messages
+  /// with all internal service/provider names stripped.
+  static String _sanitisedReport() {
+    final errorEntries = _buffer.where((e) {
+      final upper = e.toUpperCase();
+      return upper.contains('] [ERR/') || upper.contains('] [CRASH/');
+    }).toList();
+
+    final buf = StringBuffer();
+    buf.writeln('RaddFlix Diagnostics Report');
+    buf.writeln('Generated: ${DateTime.now().toString().substring(0, 19)}');
+    buf.writeln('Log entries this session: ${_buffer.length}');
+    buf.writeln('Errors this session: ${errorEntries.length}');
+    buf.writeln('');
+    if (errorEntries.isEmpty) {
+      buf.writeln('No errors recorded.');
+    } else {
+      buf.writeln('Recent errors (last ${errorEntries.length > 10 ? 10 : errorEntries.length}):');
+      final recent = errorEntries.length > 10
+          ? errorEntries.sublist(errorEntries.length - 10)
+          : errorEntries;
+      for (final e in recent) {
+        buf.writeln(_stripInternalNames(e));
+      }
+    }
+    return buf.toString();
+  }
+
+  /// Strips known internal service/provider names from a log line.
+  static String _stripInternalNames(String line) => line
+      .replaceAll(RegExp(r'jazzdrive', caseSensitive: false), 'stream-provider')
+      .replaceAll(RegExp(r'oracle', caseSensitive: false), 'content-server')
+      .replaceAll(RegExp(r'validationkey', caseSensitive: false), '[token]')
+      .replaceAll(RegExp(r'jsessionid', caseSensitive: false), '[session]')
+      .replaceAll(RegExp(r'xor', caseSensitive: false), 'enc');
 
   // ── Internal ─────────────────────────────────────────────────────────────
 

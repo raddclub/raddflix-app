@@ -103,7 +103,7 @@ class PosterService {
       DebugLogger.log('POSTER', 'Saved poster for title $titleId');
       return file.path;
     } catch (e) {
-      DebugLogger.logError('POSTER', 'Download failed for title $titleId from $url', e);
+      DebugLogger.logError('POSTER', 'Poster download failed for title $titleId', e);
       try { await file.delete(); } catch (_) {}
       return null;
     }
@@ -121,9 +121,9 @@ class PosterService {
       await _dio.download(jdUrl, file.path);
       // Persist path so UI picks it up on next app launch
       await LocalDb.savePosterPath(titleId, file.path);
-      DebugLogger.log('POSTER', 'Saved JazzDrive poster for title $titleId');
+      DebugLogger.log('POSTER', 'Saved poster for title $titleId');
     } catch (e) {
-      DebugLogger.logError('POSTER', 'JazzDrive poster save failed for $titleId', e);
+      DebugLogger.logError('POSTER', 'Poster save failed for $titleId', e);
       try { await file.delete(); } catch (_) {}
     }
   }

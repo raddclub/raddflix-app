@@ -241,7 +241,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       if (f.type == 'Shows')  results = raw.where((r) => r.item.isShow).toList();
 
       if (mounted) setState(() { _results = results; _loading = false; });
-      DebugLogger.log('SEARCH', 'results ${results.length} q="${_ctrl.text.trim()}" type=${f.type} genre=${f.genre} lang=${f.language}');
       if (_ctrl.text.trim().isNotEmpty) await _saveToHistory(_ctrl.text.trim());
     } catch (_) {
       if (mounted) setState(() { _results = []; _loading = false; });
@@ -249,7 +248,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   }
 
   void _applyFilter(_FilterState f) {
-    DebugLogger.logTap('Search', 'filter type=${f.type} genre=${f.genre} year=${f.year} lang=${f.language} rating=${f.minRating} free=${f.isFree}');
     setState(() => _filters = f);
     _doSearch();
   }

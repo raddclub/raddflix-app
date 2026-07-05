@@ -58,7 +58,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   @override
   void initState() {
     super.initState();
-    DebugLogger.logLifecycle('ShowDetail', 'initState id=${widget.item.id} title="${widget.item.title}" type=${widget.item.mediaType}');
+    DebugLogger.logLifecycle('ShowDetail', 'initState id=${widget.item.id} type=${widget.item.mediaType}');
     _seasonTab = null;
     _loadEpisodes();
     // Phase 46 ANIM-46-02: wait 300ms so typewriter doesn't compete with Hero/OpenContainer
@@ -112,7 +112,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     }
 
     if (mounted) {
-      DebugLogger.log('DETAIL', '_loadEpisodes done: ${eps.length} eps, ${seasonNums.length} seasons, resumeIdx=$resumeIdx for id=${widget.item.id}');
+      DebugLogger.log('DETAIL', 'Episodes loaded: ${eps.length} eps, ${seasonNums.length} seasons, resumeIdx=$resumeIdx');
       // H-01: dispose the old TabController BEFORE setState — disposing inside
       // setState risks destroying a controller the framework still reads during
       // the current build phase, causing a 'disposed controller' assertion.
@@ -261,7 +261,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
 
     // Mark this episode as "now playing" so the tile shows the indicator;
     // clear it when the player route pops (user exits or PiP closes).
-    DebugLogger.logFeature('PlayEpisode', 'id=${widget.item.id} title="${widget.item.title}" epIdx=$episodeIndex S$_selectedSeason fileId=${fileId ?? "null"} local=${localPath != null}');
+    DebugLogger.logFeature('PlayEpisode', 'id=${widget.item.id} epIdx=$episodeIndex S$_selectedSeason local=${localPath != null}');
     if (mounted) setState(() => _nowPlayingIdx = episodeIndex); // Fix #14: guard against back-navigation race
     await Navigator.pushNamed(
       context,
@@ -282,7 +282,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   }
 
   void _playMovie() {
-    DebugLogger.logFeature('PlayMovie', 'id=${widget.item.id} title="${widget.item.title}" fileId=${widget.item.fileId ?? "null"}');
+    DebugLogger.logFeature('PlayMovie', 'id=${widget.item.id}');
     final fileId = widget.item.fileId;
     final shareUrl = widget.item.shareUrl;
     if (fileId == null && (shareUrl == null || shareUrl.isEmpty)) {

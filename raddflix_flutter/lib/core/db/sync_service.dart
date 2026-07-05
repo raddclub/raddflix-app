@@ -23,7 +23,7 @@ class SyncService {
     try {
       return await _syncFromOracle();
     } catch (e) {
-      DebugLogger.logError('SYNC', 'Oracle sync failed', e);
+      DebugLogger.logError('SYNC', 'Catalog sync failed', e);
       return const SyncResult(
         success: false,
         itemsSynced: 0,
@@ -61,8 +61,8 @@ class SyncService {
     final needsFullSync = lastSyncTs == 0 || serverVersion.forcedTs > localVersion;
     if (needsFullSync) {
       DebugLogger.log('SYNC', lastSyncTs == 0
-          ? 'First sync — running full catalog sync'
-          : 'Admin force-bump detected (forcedTs=${serverVersion.forcedTs} > local=$localVersion) — running full sync');
+          ? 'First run — starting full catalog download'
+          : 'Server update detected — running full sync');
       final fullResult = await CatalogApi.syncFull();
       items = fullResult.items;
       await _persistItems(items);
@@ -88,7 +88,7 @@ class SyncService {
       await LocalDb.setLastSyncTimestamp(nowTs2);
     }
 
-    DebugLogger.log('SYNC', 'Oracle sync complete: ${items.length} item(s)');
+    DebugLogger.log('SYNC', 'Catalog sync complete: ${items.length} item(s)');
     unawaited(JazzDriveService.warmTopFreeItems(8));
     return SyncResult(
       success: true,

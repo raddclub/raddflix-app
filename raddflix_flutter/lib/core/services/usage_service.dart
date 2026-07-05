@@ -53,8 +53,6 @@ class UsageService {
     if (seconds <= 0) return;
     final bytes = _estimateBytes(seconds: seconds, quality: quality);
     await LocalDb.addPendingUsage(bytes: bytes);
-    DebugLogger.log('USAGE',
-        'Watch session: ${seconds}s @ $quality → ${(bytes / 1024 / 1024).toStringAsFixed(1)} MB');
     flushPending().ignore();
   }
 
@@ -65,8 +63,6 @@ class UsageService {
   static Future<void> addDownloadBytes({required int bytes}) async {
     if (bytes <= 0) return;
     await LocalDb.addPendingUsage(bytes: bytes);
-    DebugLogger.log('USAGE',
-        'Download counted: ${(bytes / 1024 / 1024).toStringAsFixed(1)} MB');
     flushPending().ignore();
   }
 
@@ -93,8 +89,6 @@ class UsageService {
       final data = resp.data as Map<String, dynamic>? ?? {};
       if (data['ok'] == true) {
         await LocalDb.clearPendingUsage();
-        DebugLogger.log('USAGE',
-            'Flushed ${(pending / 1024 / 1024).toStringAsFixed(1)} MB to server');
         final quota = data['quota'] as Map<String, dynamic>?;
         if (quota != null) {
           await LocalDb.cacheQuota(quota);

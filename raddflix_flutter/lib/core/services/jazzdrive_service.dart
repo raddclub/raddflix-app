@@ -70,9 +70,9 @@ class JazzDriveService {
           expiresAt: DateTime.fromMillisecondsSinceEpoch(expiresAt * 1000),
         );
       }
-      DebugLogger.log('JAZZDRIVE', 'Loaded ${_inMemory.length} cached links from DB');
+      DebugLogger.log('STREAM', 'Loaded ${_inMemory.length} cached links from DB');
     } catch (e) {
-      DebugLogger.logError('JAZZDRIVE', 'loadCacheFromDb failed', e);
+      DebugLogger.logError('STREAM', 'Cache load from DB failed', e);
     }
   }
 
@@ -107,14 +107,14 @@ class JazzDriveService {
     // H-05: in-flight dedup — if a concurrent call is already generating this
     // link, wait for it rather than firing a duplicate JazzDrive API request.
     if (_inFlight.containsKey(fileId)) {
-      DebugLogger.log('JAZZDRIVE', 'In-flight dedup for file $fileId');
+      DebugLogger.log('STREAM', 'In-flight dedup for file $fileId');
       return _inFlight[fileId]!;
     }
 
     // 1. Check in-memory cache
     final mem = _inMemory[fileId];
     if (mem != null && mem.expiresAt.isAfter(DateTime.now())) {
-      DebugLogger.log('JAZZDRIVE', 'Cache hit (memory) for file $fileId');
+      DebugLogger.log('STREAM', 'Cache hit (memory) for file $fileId');
       return JazzDriveLink(
         streamUrl: mem.streamUrl,
         posterUrl: mem.posterUrl,
@@ -129,7 +129,7 @@ class JazzDriveService {
       if (expiresAt > DateTime.now().millisecondsSinceEpoch ~/ 1000) {
         final streamUrl = dbRow['stream_url'] as String? ?? '';
         final posterUrl = dbRow['poster_url'] as String?;
-        DebugLogger.log('JAZZDRIVE', 'Cache hit (DB) for file $fileId');
+        DebugLogger.log('STREAM', 'Cache hit (DB) for file $fileId');
         _inMemory[fileId] = _CacheEntry(
           streamUrl: streamUrl,
           posterUrl: posterUrl,
@@ -145,7 +145,7 @@ class JazzDriveService {
 
     // 3. Generate fresh link via JazzDrive API (zero-rated)
     // H-05: register in-flight future before awaiting to dedup races
-    DebugLogger.log('JAZZDRIVE', 'Generating fresh link for file $fileId');
+    DebugLogger.log('STREAM', 'Generating fresh link for file $fileId');
     final generationFuture = _generateLink(shareUrl, targetFilename: targetFilename, remoteId: remoteId);
     _inFlight[fileId] = generationFuture;
     late final JazzDriveLink link;
@@ -176,7 +176,7 @@ class JazzDriveService {
       unawaited(PosterService.saveFromJazzDrive(titleId, link.posterUrl!));
     }
 
-    DebugLogger.log('JAZZDRIVE', 'Generated + cached link for file $fileId → ${link.filename}');
+    DebugLogger.log('STREAM', 'Stream link ready for $fileId');
     return link;
   }
 
@@ -251,7 +251,7 @@ class JazzDriveService {
     final now = DateTime.now();
     if (_lastWarmTime != null &&
         now.difference(_lastWarmTime!).inMinutes < 60) {
-      DebugLogger.log('JAZZDRIVE', 'warmTopFreeItems skipped (already ran ${now.difference(_lastWarmTime!).inMinutes}m ago)');
+      DebugLogger.log('STREAM', 'Link warm skipped (already ran ${now.difference(_lastWarmTime!).inMinutes}m ago)');
       return;
     }
     _lastWarmTime = now;
@@ -269,10 +269,9 @@ class JazzDriveService {
           // Per-item failure — silently continue to the next item.
         }
       }
-      DebugLogger.log(
-          'JAZZDRIVE', 'Warm complete: $warmed/${rows.length} item(s) pre-fetched');
+      DebugLogger.log('STREAM', 'Link warm complete: $warmed/${rows.length} item(s) pre-fetched');
     } catch (e) {
-      DebugLogger.logWarn('JAZZDRIVE', 'warmTopFreeItems failed silently: $e');
+      DebugLogger.logWarn('STREAM', 'Link warm failed silently: $e');
     }
   }
 
@@ -473,9 +472,9 @@ class JazzDriveService {
     }
 
     if (records.isEmpty) {
-      throw Exception('JazzDrive: no video records found in share');
+      throw Exception('Stream provider: no video records found in share');
     }
-    DebugLogger.log('JAZZDRIVE', 'Records (${records.length}): ${records.map((r) { final m = r as Map<String,dynamic>; return (m["name"] ?? m["filename"] ?? "?") as String; }).toList()}');
+    DebugLogger.log('STREAM', 'Matched ${records.length} record(s) in share');
 
     String _rname(dynamic r) =>
         ((r as Map<String, dynamic>)['name'] ?? r['filename'] ?? '') as String;
@@ -490,7 +489,6 @@ class JazzDriveService {
         final ridInt = rid is int ? rid : int.tryParse(rid.toString()) ?? 0;
         if (ridInt == remoteId) {
           rec = m;
-          DebugLogger.log('JAZZDRIVE', 'Pass0 match by remote_id=$remoteId → ${_rname(m)}');
           break;
         }
       }
@@ -519,7 +517,6 @@ class JazzDriveService {
           final s = em.group(1)!.padLeft(2, '0');
           final e = em.group(2)!.padLeft(2, '0');
           final code = 's' + s + 'e' + e;
-          DebugLogger.log('JAZZDRIVE', 'Pass3 code: $code');
           for (final r in records) {
             if (_rname(r).toLowerCase().contains(code)) { rec = r as Map<String, dynamic>; break; }
           }

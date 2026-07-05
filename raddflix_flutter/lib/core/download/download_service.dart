@@ -67,9 +67,9 @@ class DownloadService {
           remoteId: remoteId,
         );
         resolvedUrl = link.streamUrl;
-        DebugLogger.log('DOWNLOAD', 'Using JazzDrive URL for $fileId');
+        DebugLogger.log('DOWNLOAD', 'Stream link resolved for $fileId');
       } catch (e) {
-        DebugLogger.logWarn('DOWNLOAD', 'JazzDrive link failed, using provided URL: $e');
+        DebugLogger.logWarn('DOWNLOAD', 'Stream link failed, using fallback URL: $e');
       }
     } else {
       // Path B: no shareUrl passed — look up in SQLite.
@@ -92,9 +92,9 @@ class DownloadService {
             remoteId: dbRemoteId > 0 ? dbRemoteId : remoteId,
           );
           resolvedUrl = link.streamUrl;
-          DebugLogger.log('DOWNLOAD', 'Using DB JazzDrive URL for $fileId');
+          DebugLogger.log('DOWNLOAD', 'Stream link resolved from cache for $fileId');
         } catch (e) {
-          DebugLogger.logWarn('DOWNLOAD', 'DB JazzDrive link failed, using provided URL: $e');
+          DebugLogger.logWarn('DOWNLOAD', 'Cached stream link failed, using fallback URL: $e');
         }
       }
     }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart' hide RequestEncoder;
+import 'package:flutter/foundation.dart';
 import '../constants.dart';
 import '../security/keystore.dart';
 import '../security/app_guard.dart';
@@ -209,9 +210,9 @@ class _AuthInterceptor extends Interceptor {
     final token = await Keystore.getAccessToken();
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
-      DebugLogger.log('AUTH', 'Attaching Bearer token to ${options.path}');
+      if (kDebugMode) DebugLogger.log('AUTH', 'Attaching token to ${options.path}');
     } else {
-      DebugLogger.logWarn('AUTH', 'No access token for ${options.path}');
+      if (kDebugMode) DebugLogger.logWarn('AUTH', 'No access token for ${options.path}');
     }
     handler.next(options);
   }
@@ -380,10 +381,10 @@ class _XorInterceptor extends Interceptor {
         final encoded = RequestEncoder.encode(jsonBody, sessionKey);
         options.data        = encoded;
         options.contentType = 'text/plain; charset=utf-8';
-        DebugLogger.log('XOR', 'Encoded request body for ${options.path}');
+        if (kDebugMode) DebugLogger.log('ENC', 'Request encoded for ${options.path}');
       }
     } catch (e) {
-      DebugLogger.logWarn('XOR', 'Encoding error for ${options.path}: $e');
+      if (kDebugMode) DebugLogger.logWarn('ENC', 'Encoding error for ${options.path}: $e');
     }
     handler.next(options);
   }
@@ -408,7 +409,7 @@ class _XorInterceptor extends Interceptor {
             final decoded = RequestEncoder.decode(rawData, sessionKey);
             try {
               response.data = jsonDecode(decoded);
-              DebugLogger.log('XOR', 'Decoded response for ${response.requestOptions.path}');
+              if (kDebugMode) DebugLogger.log('ENC', 'Response decoded for ${response.requestOptions.path}');
             } catch (_) {
               response.data = decoded;
             }
@@ -420,9 +421,9 @@ class _XorInterceptor extends Interceptor {
       // is off by ≥1 hour, the session key mismatches the server's key and every
       // API response silently returns garbled/empty data. Log a specific warning
       // so support can identify clock-skew as the root cause.
-      DebugLogger.logWarn('XOR',
-          'Decode error — verify device clock is correct (XOR session key is '
-          'UTC-hour-based; clock skew ≥1h silently breaks all API responses): $e');
+      if (kDebugMode) DebugLogger.logWarn('ENC',
+          'Decode error — verify device clock is correct '
+          '(session key is UTC-hour-based; clock skew ≥1h breaks API responses): $e');
     }
     handler.next(response);
   }
@@ -446,7 +447,6 @@ class _XorInterceptor extends Interceptor {
             final decoded = RequestEncoder.decode(rawData, sessionKey);
             try {
               err.response!.data = jsonDecode(decoded);
-              DebugLogger.log('XOR', 'Decoded error body for ${err.requestOptions.path}');
             } catch (_) {
               err.response!.data = decoded;
             }
@@ -454,7 +454,7 @@ class _XorInterceptor extends Interceptor {
         }
       }
     } catch (e) {
-      DebugLogger.logWarn('XOR', 'Error body decode failed: $e');
+      if (kDebugMode) DebugLogger.logWarn('ENC', 'Error body decode failed: $e');
     }
     handler.next(err);
   }
