@@ -4450,9 +4450,14 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
         },
         onSyncChanged: (delta) => _adjustAudioSync(delta),
         onSWDecoderChanged: (v) {
-          try { _np.setProperty('hwdec', v ? 'no' : 'auto-safe'); } catch (_) {}
           setState(() => _useSWDecoder = v);
-          if (_playing) _showInfoSnackbar('Seek forward to fully apply the decoder change');
+          // Safety rule (MediaTek/Infinix black-screen): never change hwdec while playing.
+          // Apply immediately when paused/stopped; otherwise save state and notify the user.
+          if (!_playing) {
+            try { _np.setProperty('hwdec', v ? 'no' : 'auto-safe'); } catch (_) {}
+          } else {
+            _showInfoSnackbar('Decoder preference saved — will apply on next file or after pause');
+          }
         },
         onChannelModeChanged: (filterStr) {
           setState(() {
