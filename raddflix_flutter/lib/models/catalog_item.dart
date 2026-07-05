@@ -101,7 +101,7 @@ class CatalogItem {
       shareUrl:    json['share_url'] as String?,
       posterPath:  null,  // local only — set by LocalDb
       language:    json['language'] as String?,
-      isNew:       json['is_new'] as bool?,
+      isNew:       json['is_new'] == true || json['is_new'] == 1, // E2 fix: tolerant parse; 'as bool?' throws TypeError when server sends int 1/0
       watchProgress: (json['watch_progress'] as num?)?.toDouble(),
       isUploading: json['is_uploading'] as bool?,
       status:      json['status'] as String?,

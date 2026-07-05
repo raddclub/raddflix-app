@@ -212,9 +212,15 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     final allEps = _currentEpisodes; // still used for bounds-check against current season
     if (episodeIndex >= allEps.length) return;
     final ep = allEps[episodeIndex];
-    // All-seasons list, always ascending (season → episode number)
+    // All-seasons list, always ascending (season → episode number).
+    // A1 fix: if the show is free at title level, propagate is_free=1 into every
+    // episode map so _openMediaForEpisode() (which reads ep['is_free'] directly)
+    // inherits the correct free status during in-player Next/Prev navigation.
     final allSeasonsEps = _episodes
         .where((e) => (e['file_id']?.toString() ?? '').isNotEmpty)
+        .map((e) => widget.item.isFree
+            ? (Map<String, dynamic>.from(e)..['is_free'] = 1)
+            : e)
         .toList()
       ..sort((a, b) {
         final sc = (a['season'] as int? ?? 1).compareTo(b['season'] as int? ?? 1);

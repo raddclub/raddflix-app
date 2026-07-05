@@ -859,6 +859,10 @@ class LocalDb {
         'language':   item.language,
         'status':     item.status,
         'is_ongoing': (item.isOngoing ?? false) ? 1 : 0,
+        // E1 fix: include poster_path so ConflictAlgorithm.replace doesn't wipe the
+        // locally-cached poster file path on every full sync. Without this, every
+        // forced sync sets poster_path=NULL and the app re-fetches all poster images.
+        'poster_path': item.posterPath,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
