@@ -210,6 +210,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // Audio
   double _audioSync = 0.0;
   bool _useSWDecoder = false;
+  String _currentAudioCodec = '';
 
   // ── AI Dub state (Phase 59) ──────────────────────────────────────────────
   String? _dubbedWavPathUr;     // cached path for Urdu dub WAV
@@ -649,12 +650,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             if (!mounted) return;
             try {
               final codec = (await _np.getProperty('audio-codec-name') ?? '').toLowerCase();
-              if (['eac3', 'ac3', 'dts', 'dca', 'truehd', 'mlp'].any(codec.contains)) {
-                if (!_useSWDecoder) {
-                  try { _np.setProperty('hwdec', 'no'); } catch (_) {}
-                  if (mounted) setState(() => _useSWDecoder = true);
-                  _showInfoSnackbar('EAC3/DTS audio detected — using software decoder');
-                }
+              const advCodecs = ['eac3', 'ac3', 'dts', 'dca', 'truehd', 'mlp'];
+              final detected = advCodecs.firstWhere((c) => codec.contains(c), orElse: () => '');
+              if (mounted) setState(() => _currentAudioCodec = detected.isNotEmpty ? detected : codec);
+              if (detected.isNotEmpty && !_useSWDecoder) {
+                try { _np.setProperty('hwdec', 'no'); } catch (_) {}
+                if (mounted) setState(() => _useSWDecoder = true);
+                final name = {
+                  'eac3': 'E-AC-3 (Dolby Digital+)', 'ac3': 'AC-3 (Dolby Digital)',
+                  'dts': 'DTS', 'dca': 'DTS-HD', 'truehd': 'Dolby TrueHD', 'mlp': 'MLP/TrueHD',
+                }[detected] ?? detected.toUpperCase();
+                _showInfoSnackbar('$name — using software decoder for full fidelity');
               }
             } catch (_) {}
           });
@@ -3201,12 +3207,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 ),
               ),
 
-            // Video info button
-            _RaddIconBtn(
-              icon: Icons.info_outline_rounded,
-              size: 19,
-              onTap: _showVideoInfoDialog,
-            ),
 
           ],
         ),
@@ -4198,46 +4198,46 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     Widget _buildPortraitQuickActions() {
+      // Each button is Expanded+Center so they share width equally and never overflow
       return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _buildPortraitActionBtn(
+          Expanded(child: Center(child: _buildPortraitActionBtn(
             _realSubtitleTracks.isNotEmpty
                 ? Icons.subtitles_rounded
                 : Icons.subtitles_off_rounded,
             'CC',
             _openSubtitlePanel,
             active: _realSubtitleTracks.isNotEmpty,
-          ),
-          _buildPortraitActionBtn(
+          ))),
+          Expanded(child: Center(child: _buildPortraitActionBtn(
             Icons.headphones_rounded,
             'Audio',
             _openAudioPanel,
             active: _realAudioTracks.length > 1,
-          ),
-          _buildPortraitActionBtn(
+          ))),
+          Expanded(child: Center(child: _buildPortraitActionBtn(
             Icons.equalizer_rounded,
             'EQ',
             _openAudioEffectPanel,
             active: _eqEnabled,
-          ),
-          _buildPortraitActionBtn(
+          ))),
+          Expanded(child: Center(child: _buildPortraitActionBtn(
             Icons.speed_rounded,
             _speed == 1.0 ? '1×' : '${_speed.toStringAsFixed(1)}×',
             _cycleSpeed,
             active: _speed != 1.0,
-          ),
-          _buildPortraitActionBtn(
+          ))),
+          Expanded(child: Center(child: _buildPortraitActionBtn(
             Icons.loop_rounded,
             'Loop',
             _toggleLoop,
             active: _loopEnabled,
-          ),
-          _buildPortraitActionBtn(
+          ))),
+          Expanded(child: Center(child: _buildPortraitActionBtn(
             Icons.settings_rounded,
             'More',
             _openSettingsPanel,
-          ),
+          ))),
         ],
       );
     }
@@ -4450,11 +4450,9 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
         },
         onSyncChanged: (delta) => _adjustAudioSync(delta),
         onSWDecoderChanged: (v) {
-          if (!_playing && !_player.state.playing &&
-              _player.state.duration == Duration.zero) {
-            try { _np.setProperty('hwdec', v ? 'no' : 'auto-safe'); } catch (_) {}
-          }
+          try { _np.setProperty('hwdec', v ? 'no' : 'auto-safe'); } catch (_) {}
           setState(() => _useSWDecoder = v);
+          if (_playing) _showInfoSnackbar('Seek forward to fully apply the decoder change');
         },
         onChannelModeChanged: (filterStr) {
           setState(() {
@@ -4466,7 +4464,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
         },
         initialChannelModeIdx: _channelModeIdx,
         isPlaying: _playing,
-        currentCodec: _useSWDecoder ? null : null, // populated by EAC3 detector via _useSWDecoder
+        currentCodec: _currentAudioCodec.isNotEmpty ? _currentAudioCodec : null,
         onClose: () => Navigator.of(context).pop(),
         isDubMode: _isDubMode,           // P60
         dubActiveLang: _dubActiveLang,   // P60
@@ -5309,6 +5307,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
         onLongPressSpeedChanged: (v) { setState(() => _longPressSpeedEnabled = v); _savePrefs(); },
         onSwipeSeekChanged: (v) { setState(() => _swipeSeekEnabled = v); _savePrefs(); },
         onSwipeBVChanged: (v) { setState(() => _swipeBVEnabled = v); _savePrefs(); },
+        onVideoInfo: _showVideoInfoDialog,
         voiceCommandsEnabled: _voiceCommandsEnabled,
         onVoiceCommandsChanged: (v) async {
           if (v) {
@@ -7055,57 +7054,58 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
       children: [
         Container(
           color: const Color(0xFF252525),
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(4, 10, 8, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
-                onPressed: widget.onClose,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+              // Title row
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
+                    onPressed: widget.onClose,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Audio Effect',
+                      style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+                ],
               ),
-              const SizedBox(width: 8),
-              const Text('Audio Effect', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-              const Spacer(),
-              // Tab switcher
-              GestureDetector(
-                onTap: () => setState(() => _tab = 0),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text('Presets',
-                      style: TextStyle(
-                        color: _tab == 0 ? Colors.white : Colors.white54,
-                        fontSize: 13,
-                        fontWeight: _tab == 0 ? FontWeight.bold : FontWeight.normal,
-                      )),
+              // Tab row — separate line so it never overflows on narrow portrait sheets
+              Padding(
+                padding: const EdgeInsets.only(left: 12, bottom: 6),
+                child: Row(
+                  children: [
+                    for (final entry in [
+                      (label: 'Presets', idx: 0),
+                      (label: 'Equalizer', idx: 1),
+                      (label: 'Lab', idx: 2),
+                    ])
+                      GestureDetector(
+                        onTap: () => setState(() => _tab = entry.idx),
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 20, top: 4, bottom: 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(entry.label,
+                                  style: TextStyle(
+                                    color: _tab == entry.idx ? Colors.white : Colors.white54,
+                                    fontSize: 13,
+                                    fontWeight: _tab == entry.idx ? FontWeight.bold : FontWeight.normal,
+                                  )),
+                              const SizedBox(height: 4),
+                              if (_tab == entry.idx)
+                                Container(height: 2, width: 32, color: Colors.white),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              GestureDetector(
-                onTap: () => setState(() => _tab = 1),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text('Equalizer',
-                      style: TextStyle(
-                        color: _tab == 1 ? Colors.white : Colors.white54,
-                        fontSize: 13,
-                        fontWeight: _tab == 1 ? FontWeight.bold : FontWeight.normal,
-                      )),
-                ),
-              ),
-              // P8: Lab tab
-              GestureDetector(
-                onTap: () => setState(() => _tab = 2),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text('Lab',
-                      style: TextStyle(
-                        color: _tab == 2 ? Colors.white : Colors.white54,
-                        fontSize: 13,
-                        fontWeight: _tab == 2 ? FontWeight.bold : FontWeight.normal,
-                      )),
-                ),
-              ),
-              const SizedBox(width: 4),
             ],
           ),
         ),
@@ -7770,6 +7770,8 @@ class _SettingsPanel extends StatefulWidget {
   // Voice commands
   final bool voiceCommandsEnabled;
   final void Function(bool) onVoiceCommandsChanged;
+  // Video info (optional — shows in Style tab)
+  final VoidCallback? onVideoInfo;
 
   const _SettingsPanel({
     required this.showRemainingTime,
@@ -7811,6 +7813,7 @@ class _SettingsPanel extends StatefulWidget {
     required this.onSwipeBVChanged,
     required this.voiceCommandsEnabled,
     required this.onVoiceCommandsChanged,
+    this.onVideoInfo,
   });
 
   @override
@@ -7929,6 +7932,28 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // Video info shortcut (replaces the old top-bar info button)
+        if (widget.onVideoInfo != null) ...[
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.info_outline_rounded, color: Colors.white70, size: 20),
+            ),
+            title: const Text('Video information',
+                style: TextStyle(color: Colors.white, fontSize: 14)),
+            subtitle: const Text('Resolution, codec, stream details',
+                style: TextStyle(color: Colors.white38, fontSize: 11)),
+            trailing: const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
+            onTap: widget.onVideoInfo,
+          ),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 8),
+        ],
         // P14: Accent colour picker
         const Text('Accent colour', style: TextStyle(color: Colors.white70, fontSize: 12)),
         const SizedBox(height: 10),
@@ -8451,14 +8476,17 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
 
               const Divider(color: Colors.white12),
 
-              // SW decoder toggle (P57-04: disabled during playback)
+              // SW decoder toggle — always enabled; handles DTS/EAC-3/TrueHD/MLP
               SwitchListTile(
                 title: const Text('Use SW audio decoder', style: TextStyle(color: Colors.white, fontSize: 14)),
-                subtitle: widget.isPlaying
-                    ? const Text('Stop playback to apply', style: TextStyle(color: Colors.orange, fontSize: 11))
-                    : null,
+                subtitle: Text(
+                  widget.isPlaying
+                      ? 'Seek forward to fully apply'
+                      : 'Required for DTS, EAC-3, TrueHD, MLP',
+                  style: const TextStyle(color: Colors.white54, fontSize: 11),
+                ),
                 value: _useSW,
-                onChanged: widget.isPlaying ? null : (v) {
+                onChanged: (v) {
                   setState(() => _useSW = v);
                   widget.onSWDecoderChanged(v);
                 },
