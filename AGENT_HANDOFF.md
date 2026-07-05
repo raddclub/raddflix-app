@@ -5,6 +5,17 @@
 
 ## Current State (2026-07-05)
 
+### Rebrand zero-rating copy — hide JazzDrive/Oracle from UI (2026-07-05)
+`subscription_screen.dart`'s "JazzDrive CDN" line and `debug_diagnostics_screen.dart`'s
+`'Oracle Server'`/`'JazzDrive API'` check labels were the only user-visible strings
+naming internal infrastructure. Subscription copy now attributes zero-rating to
+RaddFlix ("RaddFlix is 100% data-free on Jazz"); diagnostics labels renamed to
+`'Content Server'`/`'Stream Service'` (screen stays intentionally ungated per prior
+note below — labels renamed instead of adding new gating). Jazz SIM requirement
+copy, and SIMOSA/JazzCash/Easypaisa payment copy, left untouched by design. Full-repo
+grep confirms zero JazzDrive/Oracle occurrences in any `Text()`/`SnackBar`/label
+reachable by a user. Commit `f3f6453`.
+
 ### Logger secret stripping — final gap closed (2026-07-05)
 `DebugLogger.logApi()` previously wrote raw request/response bodies (and the
 `onError` path's embedded response preview) straight into the shareable log

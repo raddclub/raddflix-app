@@ -73,4 +73,5 @@
 - Session 2026-07-04 — Test suite: all files run; SSL cert fix for Dart test in Nix env
 - Session 2026-07-04 — Correct wrong info: TTL 110min, validationkey must NOT appear in CDN URL
 - Session 2026-07-05 — Logger Secret Stripping (final gap closed)
+- Session 2026-07-05 — Rebrand Zero-Rating Copy (hide JazzDrive)
 

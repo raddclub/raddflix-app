@@ -88,6 +88,7 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 | Test suite — complete run | All 4 test files executed: JS logic 27/27, Dart logic 69/69, Integration 71/71, JazzDrive Dart 0/8 (MED-1011 — Oracle session expired, not a code bug). SSL cert fix applied to `jazzdrive_dart_test.dart` for Nix/Replit Dart | `2ce6ab4` | ✅ DONE |
 | Correct wrong info — TTL & validationkey | Fixed: `constants.dart` TTL 180min→110min; `jazzdrive_dart_test.dart` validationkey direction inverted (was claiming vk MUST be in URL, production says DO NOT add); `logic_tests.dart`/`run_tests.js`/`README.md`/`local_db.dart` stale 6h/180min references | `5d37e39`, `19fa4cf` | ✅ DONE |
 | Logger secret stripping — final gap closed | `DebugLogger.logApi()` req/resp/error bodies now redacted via `_redactBody()` (validationkey, k= tokens, JSESSIONID, Authorization/Bearer, access_token/refresh_token) before truncation/storage; verified no unredacted secret patterns reach any log call | `015bcea` | ✅ DONE |
+| Rebrand zero-rating copy (hide JazzDrive) | `subscription_screen.dart` "JazzDrive CDN" line now attributes zero-rating to RaddFlix; `debug_diagnostics_screen.dart` "Oracle Server"/"JazzDrive API" check labels renamed to "Content Server"/"Stream Service", `JAZZDRIVE` log filter renamed to `STREAM`; Jazz SIM requirement copy and SIMOSA/JazzCash/Easypaisa payment copy left untouched; global grep confirms zero JazzDrive/Oracle occurrences in any `Text()`/`SnackBar`/label visible to users | `f3f6453` | ✅ DONE |
 
 ---
 
