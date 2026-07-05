@@ -188,7 +188,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Row(children: [
             // Phase 45 ANIM-45-05: shake+scale burst on download completion
-            const Icon(AppIcons.downloadDone, color: Colors.white, size: 18)
+            Icon(AppIcons.downloadDone, color: Colors.white, size: 18)
                 .animate()
                 .shake(duration: 400.ms)
                 .scale(begin: const Offset(1.0, 1.0),
@@ -261,12 +261,12 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             child: const Text('All'),
           ),
           IconButton(
-            icon: const Icon(AppIcons.lock, color: AppColors.primary),
+            icon: Icon(AppIcons.lock, color: AppColors.primary),
             tooltip: 'Add to Vault',
             onPressed: _selected.isEmpty ? null : _addSelectedToVault,
           ),
           IconButton(
-            icon: const Icon(AppIcons.trash, color: AppColors.error),
+            icon: Icon(AppIcons.trash, color: AppColors.error),
             onPressed: _selected.isEmpty ? null : () => _bulkDelete(),
           ),
         ] else ...[
@@ -276,7 +276,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             tooltip: 'Toggle view',
           ),
           PopupMenuButton<_SortMode>(
-            icon: const Icon(AppIcons.sort),
+            icon: Icon(AppIcons.sort),
             tooltip: 'Sort',
             onSelected: (s) { setState(() => _sort = s); _savePrefs(); },
             itemBuilder: (_) => [
@@ -473,7 +473,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 borderRadius: BorderRadius.circular(AppRadius.round),
                 boxShadow: AppShadows.primary,
               ),
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(AppIcons.gridView, color: Colors.white, size: 16),
                 SizedBox(width: 6),
                 Text('Browse Content', style: TextStyle(
@@ -909,7 +909,7 @@ class _DownloadCardState extends State<_DownloadCard> {
                 width: 40, height: 40,
                 decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black54,
                     border: Border.all(color: Colors.white30)),
-                child: const Icon(AppIcons.play, color: Colors.white, size: 24))),
+                child: Icon(AppIcons.play, color: Colors.white, size: 24))),
             // Download widget.progress bar
             if (widget.isActive || (!widget.isComplete && widget.statusStr != 'failed'))
               Positioned(bottom: 0, left: 0, right: 0,
@@ -1313,7 +1313,7 @@ class _ShowGroupState extends State<_ShowGroup> {
                             color: isSel ? AppColors.primary
                                 : RaddTheme.of(context).textMuted, width: 1.5)),
                       child: isSel
-                          ? const Icon(AppIcons.check, color: Colors.white, size: 11)
+                          ? Icon(AppIcons.check, color: Colors.white, size: 11)
                           : null),
                 ]),
               ),

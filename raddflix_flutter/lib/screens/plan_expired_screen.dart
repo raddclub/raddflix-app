@@ -91,7 +91,7 @@ class PlanExpiredScreen extends StatelessWidget {
                         )
                       ],
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(AppIcons.crown,

@@ -149,7 +149,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           borderRadius: BorderRadius.circular(AppRadius.sm),
                           border: Border.all(color: AppColors.error.withOpacity(0.3))),
                       child: Row(children: [
-                        const Icon(AppIcons.errorIcon, color: AppColors.error, size: 18),
+                        Icon(AppIcons.errorIcon, color: AppColors.error, size: 18),
                         const SizedBox(width: 10),
                         Expanded(child: Text(_error!, style: const TextStyle(color: AppColors.error, fontSize: 13))),
                       ]),

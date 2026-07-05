@@ -168,7 +168,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
           width: 36, height: 36,
           decoration: BoxDecoration(
             color: Colors.white10, borderRadius: BorderRadius.circular(8)),
-          child: const Icon(AppIcons.back,
+          child: Icon(AppIcons.back,
               color: Colors.white70, size: 18),
         ),
       ),

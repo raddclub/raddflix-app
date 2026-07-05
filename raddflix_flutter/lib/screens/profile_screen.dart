@@ -753,7 +753,7 @@ class _ThemeTrailing extends ConsumerWidget {
 class _ThemePicker extends ConsumerWidget {
   const _ThemePicker();
   // Standard themes shown as list rows
-  static const _standard = [
+  static final _standard = [
     (JazzTheme.dark,   AppIcons.moon,   'Dark',   'Deep dark — easy on the eyes'),
     (JazzTheme.amoled, AppIcons.device,  'AMOLED', 'Pure black — zero drain on OLED'),
     (JazzTheme.light,  AppIcons.sun,       'Light',  'Bright background for daylight'),
@@ -833,7 +833,7 @@ class _ThemePicker extends ConsumerWidget {
                   Text(opt.$4, style: TextStyle(color: t.textMuted, fontSize: 12)),
                 ])),
                 if (sel)
-                  const Icon(AppIcons.successIcon, color: AppColors.primary, size: 20),
+                  Icon(AppIcons.successIcon, color: AppColors.primary, size: 20),
               ]),
             ),
           );
@@ -887,7 +887,7 @@ class _ThemePicker extends ConsumerWidget {
                         width: 18, height: 18,
                         decoration: const BoxDecoration(
                             color: AppColors.primary, shape: BoxShape.circle),
-                        child: const Icon(AppIcons.check, color: Colors.white, size: 12),
+                        child: Icon(AppIcons.check, color: Colors.white, size: 12),
                       )),
                 ]),
               ),

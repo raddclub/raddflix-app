@@ -19,7 +19,7 @@ class NotificationBell extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             IconButton(
-              icon: const Icon(AppIcons.notification, size: 24),
+              icon: Icon(AppIcons.notification, size: 24),
               tooltip: 'Notifications',
               onPressed: () => _showNotificationSheet(context),
             ),
@@ -84,7 +84,7 @@ class _NotificationSheet extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 10, 12, 12),
               child: Row(children: [
-                const Icon(AppIcons.notification, color: AppColors.primary, size: 20),
+                Icon(AppIcons.notification, color: AppColors.primary, size: 20),
                 const SizedBox(width: 8),
                 Text('Notifications',
                     style: TextStyle(color: t.textPrimary,
@@ -148,7 +148,7 @@ class _NotificationCard extends StatelessWidget {
   final AppNotification notif;
   const _NotificationCard({required this.notif});
 
-  static const _icons = {
+  static final _icons = {
     'new_content':  (AppIcons.movie, AppColors.info),
     'promo':        (AppIcons.gift, AppColors.success),
     'renewal':      (AppIcons.timerIcon, AppColors.warning),

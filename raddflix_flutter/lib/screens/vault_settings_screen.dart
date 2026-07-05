@@ -232,7 +232,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
         backgroundColor: t.surface,
         title: Text('Vault Settings', style: TextStyle(color: t.textPrimary)),
         leading: IconButton(
-          icon: const Icon(AppIcons.back, size: 18),
+          icon: Icon(AppIcons.back, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
       ),

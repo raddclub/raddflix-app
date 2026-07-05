@@ -209,12 +209,12 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
         scrolledUnderElevation: 0,
         leading: _selectMode
             ? IconButton(
-                icon: const Icon(AppIcons.close),
+                icon: Icon(AppIcons.close),
                 onPressed: () => setState(() { _selected.clear(); _selectMode = false; }),
               )
             : (isRoot
                 ? IconButton(
-                    icon: const Icon(AppIcons.lock),
+                    icon: Icon(AppIcons.lock),
                     tooltip: 'Lock vault',
                     onPressed: () {
                       VaultService.lock();
@@ -248,7 +248,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
         actions: _selectMode
             ? [
                 IconButton(
-                    icon: const Icon(AppIcons.trash, color: Colors.red),
+                    icon: Icon(AppIcons.trash, color: Colors.red),
                     onPressed: _deleteSelected),
                 if (_selected.length == 1)
                   IconButton(
@@ -330,7 +330,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
           ? FloatingActionButton.extended(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
-              icon: const Icon(AppIcons.add),
+              icon: Icon(AppIcons.add),
               label: const Text('Add'),
               onPressed: _showAddMenu,
             )

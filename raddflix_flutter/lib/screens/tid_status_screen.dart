@@ -156,7 +156,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
         elevation: 0,
         leading: _status != _TidStatus.approved
             ? IconButton(
-                icon: const Icon(AppIcons.back, size: 18),
+                icon: Icon(AppIcons.back, size: 18),
                 onPressed: () => Navigator.pop(context),
               )
             : null,
@@ -370,7 +370,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
         ),
         if (_errorMsg != null) ...[
           const SizedBox(width: 8),
-          const Icon(AppIcons.wifiOff, size: 14, color: AppColors.error),
+          Icon(AppIcons.wifiOff, size: 14, color: AppColors.error),
         ],
       ],
     );
@@ -383,7 +383,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
         _countdownTimer?.cancel();
         _poll();
       },
-      icon: const Icon(AppIcons.refresh, size: 18),
+      icon: Icon(AppIcons.refresh, size: 18),
       label: const Text('Check Now'),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.primary,
@@ -410,7 +410,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
           ));
         }
       },
-      icon: const Icon(AppIcons.chat, size: 18, color: Color(0xFF25D366)),
+      icon: Icon(AppIcons.chat, size: 18, color: Color(0xFF25D366)),
       label: const Text('Contact Support on WhatsApp'),
       style: TextButton.styleFrom(foregroundColor: const Color(0xFF25D366)),
     );
@@ -430,7 +430,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
             Navigator.of(context).popUntil((route) => route.isFirst);
           }
         },
-        icon: const Icon(AppIcons.playCircleFill),
+        icon: Icon(AppIcons.playCircleFill),
         label: const Text('Start Watching', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
@@ -460,7 +460,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
             ));
           }
         },
-        icon: const Icon(AppIcons.support),
+        icon: Icon(AppIcons.support),
         label: const Text('Contact Support via WhatsApp'),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.error,

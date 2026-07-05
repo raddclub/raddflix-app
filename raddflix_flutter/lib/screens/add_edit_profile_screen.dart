@@ -240,7 +240,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
                       ? [BoxShadow(color: c.withOpacity(0.6), blurRadius: 10, spreadRadius: 1)]
                       : [],
                 ),
-                child: selected ? const Icon(AppIcons.check, color: Colors.white, size: 18) : null,
+                child: selected ? Icon(AppIcons.check, color: Colors.white, size: 18) : null,
               ),
             );
           }).toList()),
@@ -316,7 +316,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
                   style: TextStyle(color: t.textMuted, fontSize: 12)),
               trailing: _pin != null
                   ? IconButton(
-                      icon: const Icon(AppIcons.close, size: 18),
+                      icon: Icon(AppIcons.close, size: 18),
                       color: t.textMuted,
                       onPressed: () => setState(() => _pin = null),
                     )
@@ -331,7 +331,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
               width: double.infinity,
               child: TextButton.icon(
                 onPressed: _delete,
-                icon: const Icon(AppIcons.trash, color: Color(0xFFEF4444), size: 18),
+                icon: Icon(AppIcons.trash, color: Color(0xFFEF4444), size: 18),
                 label: const Text('Delete Profile',
                     style: TextStyle(color: Color(0xFFEF4444), fontSize: 14, fontWeight: FontWeight.w600)),
               ),

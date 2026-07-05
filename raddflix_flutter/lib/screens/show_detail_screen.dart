@@ -580,7 +580,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                               const _Dot(),
                             ],
                             if (item.displayRating.isNotEmpty) ...[
-                              const Icon(AppIcons.starFill, color: Color(0xFFFFB800), size: 14),
+                              Icon(AppIcons.starFill, color: Color(0xFFFFB800), size: 14),
                               const SizedBox(width: 3),
                               Text(item.displayRating, style: const TextStyle(color: Colors.white70, fontSize: 13)),
                               const _Dot(),
@@ -705,7 +705,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                               HapticFeedback.mediumImpact();
                               _playMovie();
                             },
-                            icon: const Icon(AppIcons.play, size: 22),
+                            icon: Icon(AppIcons.play, size: 22),
                             label: const Text('Play Now', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
@@ -882,7 +882,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                   });
                                 }
                               },
-                              icon: const Icon(AppIcons.playCircle, size: 20),
+                              icon: Icon(AppIcons.playCircle, size: 20),
                               label: Text(
                                 'Resume S${season.toString().padLeft(2,'0')}E${epNum.toString().padLeft(2,'0')} · $pct%',
                                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
@@ -971,7 +971,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                           strokeWidth: 1.5,
                                           valueColor: AlwaysStoppedAnimation(AppColors.primary)))
                                   : Row(mainAxisSize: MainAxisSize.min, children: [
-                                      const Icon(AppIcons.cloudDownload,
+                                      Icon(AppIcons.cloudDownload,
                                           size: 14, color: AppColors.primary),
                                       const SizedBox(width: 4),
                                       const Text('Season', style: TextStyle(
@@ -1315,7 +1315,7 @@ class _EpisodeTile extends StatelessWidget {
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
-                                  children: const [
+                                  children: [
                                     Icon(AppIcons.equalizer,
                                         color: AppColors.primary, size: 9),
                                     SizedBox(width: 3),
@@ -1336,7 +1336,7 @@ class _EpisodeTile extends StatelessWidget {
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
-                                  children: const [
+                                  children: [
                                     Icon(AppIcons.downloadDone, color: AppColors.success, size: 9),
                                     SizedBox(width: 3),
                                     Text('OFFLINE', style: TextStyle(
@@ -1367,7 +1367,7 @@ class _EpisodeTile extends StatelessWidget {
                                   border: Border.all(color: const Color(0xFFFFB300).withOpacity(0.4)),
                                 ),
                                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                  const Icon(AppIcons.lock, size: 8, color: Color(0xFFFFB300)),
+                                  Icon(AppIcons.lock, size: 8, color: Color(0xFFFFB300)),
                                   const SizedBox(width: 3),
                                   const Text('PREMIUM', style: TextStyle(
                                     color: Color(0xFFFFB300), fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5,
@@ -1434,7 +1434,7 @@ class _EpisodeTile extends StatelessWidget {
                     HapticFeedback.mediumImpact();
                     onTap();
                   },
-                  icon: const Icon(AppIcons.play, size: 18),
+                  icon: Icon(AppIcons.play, size: 18),
                   label: const Text('Play', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -1668,7 +1668,7 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
                     color: Colors.orange.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(AppIcons.shield,
+                  child: Icon(AppIcons.shield,
                       color: Colors.orange, size: 20),
                 ),
                 const SizedBox(width: 12),
@@ -1685,7 +1685,7 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(AppIcons.close),
+                  icon: Icon(AppIcons.close),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -1740,7 +1740,7 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
             child: SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                icon: const Icon(AppIcons.trash, size: 18),
+                icon: Icon(AppIcons.trash, size: 18),
                 label: const Text('Clear all statuses'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.orange,
@@ -1770,7 +1770,7 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
             child: SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                icon: const Icon(AppIcons.check, size: 18),
+                icon: Icon(AppIcons.check, size: 18),
                 label: const Text('Done'),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
@@ -2006,7 +2006,7 @@ class _ComingSoonBanner extends StatelessWidget {
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: AppColors.primary.withOpacity(0.3)),
               ),
-              child: const Center(
+              child: Center(
                 child: Icon(AppIcons.clock,
                     color: AppColors.primary, size: 30),
               ),

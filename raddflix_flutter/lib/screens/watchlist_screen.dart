@@ -91,7 +91,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                     fontSize: 14,
                   )),
               trailing: selected
-                  ? const Icon(AppIcons.check, color: AppColors.primary, size: 18)
+                  ? Icon(AppIcons.check, color: AppColors.primary, size: 18)
                   : null,
               onTap: () {
                 setState(() => _sortBy = s);

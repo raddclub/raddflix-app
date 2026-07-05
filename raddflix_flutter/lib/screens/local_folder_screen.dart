@@ -1231,7 +1231,7 @@ class _VideoGridCard extends StatelessWidget {
                   color: selected ? AppColors.primary : Colors.black45,
                   border: Border.all(color: Colors.white70, width: 1.5),
                 ),
-                child: selected ? const Icon(AppIcons.check,
+                child: selected ? Icon(AppIcons.check,
                     color: Colors.white, size: 14) : null)),
         ]),
       ),

@@ -327,7 +327,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                               color: AppColors.primary.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(9),
                             ),
-                            child: const Icon(AppIcons.lock,
+                            child: Icon(AppIcons.lock,
                                 size: 18, color: AppColors.primary),
                           ),
                           const SizedBox(width: 12),
@@ -496,7 +496,7 @@ class _ColorPickerSheet extends StatelessWidget {
                       : [],
                 ),
                 child: isSelected
-                    ? const Icon(AppIcons.check,
+                    ? Icon(AppIcons.check,
                           color: Colors.white, size: 24)
                     : null,
               ),
@@ -592,7 +592,7 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
               color: AppColors.primary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(AppIcons.lock,
+            child: Icon(AppIcons.lock,
                 size: 18, color: AppColors.primary),
           ),
           const SizedBox(width: 12),

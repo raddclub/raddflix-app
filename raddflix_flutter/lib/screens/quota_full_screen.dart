@@ -70,7 +70,7 @@ import '../core/design/app_icons.dart';
                     color: AppColors.error.withOpacity(0.07),
                     border: Border.all(
                         color: AppColors.error.withOpacity(0.2), width: 2)),
-                  child: const Icon(AppIcons.dataSaver,
+                  child: Icon(AppIcons.dataSaver,
                       color: AppColors.error, size: 42),
                 ),
                 const SizedBox(height: 20),
@@ -115,7 +115,7 @@ import '../core/design/app_icons.dart';
                         BoxShadow(color: AppColors.primary.withOpacity(0.4),
                             blurRadius: 20, offset: const Offset(0, 8)),
                       ]),
-                    child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                       Icon(AppIcons.crown, color: Colors.white, size: 20),
                       SizedBox(width: 10),
                       Text('Renew or Upgrade Plan',

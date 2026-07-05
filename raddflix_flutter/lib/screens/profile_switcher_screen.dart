@@ -228,7 +228,7 @@ class _ProfileTile extends StatelessWidget {
                   shape: BoxShape.circle,
                   color: Colors.black.withOpacity(0.4),
                 ),
-                child: const Center(
+                child: Center(
                   child: Icon(AppIcons.edit, color: Colors.white, size: 26),
                 ),
               ),

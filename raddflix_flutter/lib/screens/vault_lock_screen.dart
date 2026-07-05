@@ -175,7 +175,7 @@ class _VaultLockScreenState extends State<VaultLockScreen>
                 children: [
                   if (Navigator.of(context).canPop())
                     IconButton(
-                      icon: const Icon(AppIcons.close, color: Colors.white54),
+                      icon: Icon(AppIcons.close, color: Colors.white54),
                       onPressed: () => Navigator.of(context).pop(),
                     )
                   else
@@ -197,7 +197,7 @@ class _VaultLockScreenState extends State<VaultLockScreen>
                             blurRadius: 20, spreadRadius: 2,
                           )],
                         ),
-                        child: const Icon(AppIcons.lock, color: Colors.white, size: 26),
+                        child: Icon(AppIcons.lock, color: Colors.white, size: 26),
                       ).animate().scale(duration: 600.ms, curve: Curves.elasticOut),
                       const SizedBox(height: 10),
                       Text(
@@ -340,7 +340,7 @@ class _VaultLockScreenState extends State<VaultLockScreen>
                               // user explicitly enabled it in Vault Settings.
                               return _biometricAvailable && _biometricEnabled && !widget.isSetup
                                   ? _NumKey(
-                                      child: const Icon(AppIcons.fingerprint,
+                                      child: Icon(AppIcons.fingerprint,
                                           color: Colors.white, size: 28),
                                       onTap: _tryBiometric,
                                     )
@@ -348,7 +348,7 @@ class _VaultLockScreenState extends State<VaultLockScreen>
                             }
                             if (k == '⌫') {
                               return _NumKey(
-                                child: const Icon(AppIcons.backspace,
+                                child: Icon(AppIcons.backspace,
                                     color: Colors.white, size: 22),
                                 onTap: _onBackspace,
                                 onLongPress: () => setState(() {
@@ -436,7 +436,7 @@ class _LockedOutTimerState extends State<_LockedOutTimer> {
     final mins = _remaining.inMinutes;
     final secs = _remaining.inSeconds % 60;
     return Column(children: [
-      const Icon(AppIcons.timerIcon, color: Colors.white38, size: 48),
+      Icon(AppIcons.timerIcon, color: Colors.white38, size: 48),
       const SizedBox(height: 12),
       Text(
         '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}',

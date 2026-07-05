@@ -323,7 +323,7 @@ class _ForceUpdateScreen extends StatelessWidget {
                           blurRadius: 24, offset: const Offset(0, 10),
                         )],
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(AppIcons.downloadAction, color: Colors.white, size: 20),

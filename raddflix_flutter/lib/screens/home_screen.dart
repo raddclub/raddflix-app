@@ -209,7 +209,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       actions: [
         const NotificationBell(),
         IconButton(
-          icon: const Icon(AppIcons.search, size: 26),
+          icon: Icon(AppIcons.search, size: 26),
           onPressed: () { DebugLogger.logTap('Home', 'searchIcon'); Navigator.of(context).pushNamed(AppRoutes.search); },
         ),
         if (user != null)
@@ -780,7 +780,7 @@ class _HeroCardState extends ConsumerState<_HeroCard>
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(AppIcons.starFill, color: Colors.amber, size: 10),
+                    Icon(AppIcons.starFill, color: Colors.amber, size: 10),
                     const SizedBox(width: 3),
                     Text(item.displayRating, style: const TextStyle(
                         color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
@@ -858,7 +858,7 @@ class _HeroCardState extends ConsumerState<_HeroCard>
     final item = widget.item; // Phase 48: shorthand; was a direct field in StatelessWidget
     final placeholder = DecoratedBox(
       decoration: const BoxDecoration(color: AppColors.card),
-      child: const Center(child: Icon(AppIcons.movie, color: AppColors.textMuted, size: 48)),
+      child: Center(child: Icon(AppIcons.movie, color: AppColors.textMuted, size: 48)),
     );
 
     // 1. Local file (permanent cached poster — zero network, instant load)
@@ -917,7 +917,7 @@ class _UpdateDialog extends StatelessWidget {
               color: AppColors.primary.withOpacity(0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(AppIcons.systemUpdate, size: 32, color: AppColors.primary),
+            child: Icon(AppIcons.systemUpdate, size: 32, color: AppColors.primary),
           ),
           const SizedBox(height: 16),
           Text('Update Required', style: TextStyle(
@@ -932,7 +932,7 @@ class _UpdateDialog extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              icon: const Icon(AppIcons.downloadAction, size: 18),
+              icon: Icon(AppIcons.downloadAction, size: 18),
               label: const Text('Update Now'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -1053,7 +1053,7 @@ class _ContentSection extends StatelessWidget {
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white24, width: 0.5),
                           ),
-                          child: const Icon(AppIcons.close,
+                          child: Icon(AppIcons.close,
                               size: 13, color: Colors.white70),
                         ),
                       ),
@@ -1168,7 +1168,7 @@ class _CategoryChip extends StatelessWidget {
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (isSelected) ...[
-            const Icon(AppIcons.check, size: 11, color: Colors.white),
+            Icon(AppIcons.check, size: 11, color: Colors.white),
             const SizedBox(width: 4),
           ],
           Text(label, style: TextStyle(
@@ -1309,7 +1309,7 @@ class _RecommendCard extends StatelessWidget {
                   decoration: BoxDecoration(color: Colors.black54,
                       borderRadius: BorderRadius.circular(4)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(AppIcons.starFill, color: Colors.amber, size: 10),
+                    Icon(AppIcons.starFill, color: Colors.amber, size: 10),
                     const SizedBox(width: 2),
                     Text(rating.toStringAsFixed(1), style: const TextStyle(
                         color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600)),

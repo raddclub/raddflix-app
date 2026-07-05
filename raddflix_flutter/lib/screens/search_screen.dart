@@ -344,7 +344,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(AppIcons.history, size: 14, color: AppColors.primary),
+          Icon(AppIcons.history, size: 14, color: AppColors.primary),
           const SizedBox(width: 6),
           Text('Recent Searches', style: TextStyle(
               color: t.textPrimary, fontSize: 13, fontWeight: FontWeight.w800)),

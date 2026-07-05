@@ -226,7 +226,7 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
                             ),
                           ),
                           // Play icon overlay
-                          const Positioned.fill(
+                          Positioned.fill(
                             child: Center(
                               child: Icon(AppIcons.playCircleFill,
                                   color: Colors.white70, size: 36),
@@ -243,7 +243,7 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
                                   color: Colors.black54,
                                   borderRadius: BorderRadius.circular(11),
                                 ),
-                                child: const Icon(AppIcons.close,
+                                child: Icon(AppIcons.close,
                                     size: 14, color: Colors.white70),
                               ),
                             ),
@@ -298,7 +298,7 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
 
   Widget _posterFallback() => Container(
     color: const Color(0xFF2A2A2A),
-    child: const Center(
+    child: Center(
       child: Icon(AppIcons.movieFill, color: Colors.white24, size: 40),
     ),
   );

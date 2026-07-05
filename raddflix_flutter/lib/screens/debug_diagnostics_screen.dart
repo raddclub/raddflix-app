@@ -284,7 +284,7 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
         backgroundColor: const Color(0xFF0A0A1A),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(AppIcons.back, size: 18),
+          icon: Icon(AppIcons.back, size: 18),
           onPressed: () => Navigator.of(context).pop()),
         title: Row(children: [
           Container(
@@ -311,7 +311,7 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
                     ? const Padding(padding: EdgeInsets.only(right: 16),
                         child: Center(child: SizedBox(width: 18, height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange))))
-                    : IconButton(icon: const Icon(AppIcons.refresh, color: Colors.orange),
+                    : IconButton(icon: Icon(AppIcons.refresh, color: Colors.orange),
                         tooltip: 'Re-run checks', onPressed: _runAll);
               }
               return Row(mainAxisSize: MainAxisSize.min, children: [
@@ -322,7 +322,7 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
                   tooltip: _autoScroll ? 'Auto-scroll ON' : 'Paused',
                   onPressed: () => setState(() => _autoScroll = !_autoScroll)),
                 IconButton(
-                  icon: const Icon(AppIcons.share, color: Colors.orange, size: 20),
+                  icon: Icon(AppIcons.share, color: Colors.orange, size: 20),
                   tooltip: 'Share log file',
                   onPressed: DebugLogger.shareLogs),
               ]);
@@ -393,7 +393,7 @@ class _ChecksTab extends StatelessWidget {
                 foregroundColor: Colors.orange,
                 side: BorderSide(color: Colors.orange.withOpacity(0.4)),
                 padding: const EdgeInsets.symmetric(vertical: 12)),
-              icon: const Icon(AppIcons.copy, size: 16),
+              icon: Icon(AppIcons.copy, size: 16),
               label: const Text('Copy Report', style: TextStyle(fontSize: 13)),
               onPressed: () {
                 final txt = results.map((r) {
@@ -635,7 +635,7 @@ class _DiagResult {
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     if (hasWarn) ...[
-                      const Icon(AppIcons.warning, color: Colors.red, size: 11),
+                      Icon(AppIcons.warning, color: Colors.red, size: 11),
                       const SizedBox(width: 3),
                     ],
                     Text(label, style: TextStyle(

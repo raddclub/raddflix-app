@@ -335,7 +335,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
             ),
           ),
           ListTile(
-            leading: const Icon(AppIcons.lock, color: AppColors.primary),
+            leading: Icon(AppIcons.lock, color: AppColors.primary),
             title: const Text('Add to Vault'),
             subtitle: const Text('Import all videos from this folder'),
             onTap: () { Navigator.pop(context); _addFolderToVault(folder); },
@@ -406,7 +406,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
           ? FloatingActionButton.extended(
               onPressed: _resumeLastVideo,
               backgroundColor: AppColors.primary,
-              icon: const Icon(AppIcons.playCircleFill, color: Colors.white, size: 22),
+              icon: Icon(AppIcons.playCircleFill, color: Colors.white, size: 22),
               label: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -620,7 +620,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
               boxShadow: AppShadows.primary,
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(AppIcons.settings, size: 18, color: Colors.white),
+              Icon(AppIcons.settings, size: 18, color: Colors.white),
               const SizedBox(width: 8),
               const Text('Open Settings', style: TextStyle(color: Colors.white,
                   fontWeight: FontWeight.w700, fontSize: 14)),

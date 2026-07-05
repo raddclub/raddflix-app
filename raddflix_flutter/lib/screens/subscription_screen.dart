@@ -136,7 +136,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
         appBar: AppBar(
           title: const Text('Get RaddFlix', style: TextStyle(fontWeight: FontWeight.w800)),
           leading: IconButton(
-            icon: const Icon(AppIcons.back, size: 20),
+            icon: Icon(AppIcons.back, size: 20),
             onPressed: () => Navigator.of(context).pop()),
         ),
         body: state.loading && state.plans.isEmpty
@@ -263,7 +263,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                       border: Border.all(color: _methodsError != null ? AppColors.error.withOpacity(0.3) : t.border)),
                   child: Row(children: [
                     if (_methodsError != null) ...[
-                      const Icon(AppIcons.wifiOff, color: AppColors.error, size: 16),
+                      Icon(AppIcons.wifiOff, color: AppColors.error, size: 16),
                       const SizedBox(width: 8),
                     ],
                     Expanded(child: Text(
@@ -355,7 +355,7 @@ class _ActivePlanCard extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: AppColors.success.withOpacity(0.15)),
-            child: const Center(child: Icon(AppIcons.verified,
+            child: Center(child: Icon(AppIcons.verified,
                 color: AppColors.success, size: 20))),
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -448,7 +448,7 @@ class _JazzPartnerBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.round),
         border: Border.all(color: t.border)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(AppIcons.wifi, size: 14, color: AppColors.primary),
+        Icon(AppIcons.wifi, size: 14, color: AppColors.primary),
         const SizedBox(width: 6),
         Text('Zero-rated on Jazz SIM · No data deducted from your Jazz balance',
             style: TextStyle(color: t.textMuted, fontSize: 11)),
@@ -648,7 +648,7 @@ class _GuestWarning extends ConsumerWidget {
         border: Border.all(color: AppColors.primary.withOpacity(0.3))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(AppIcons.userCircle, color: AppColors.primary, size: 20),
+          Icon(AppIcons.userCircle, color: AppColors.primary, size: 20),
           const SizedBox(width: 8),
           const Text('Sign in to Subscribe',
               style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14)),
@@ -661,7 +661,7 @@ class _GuestWarning extends ConsumerWidget {
           child: OutlinedButton.icon(
             onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil(
                 AppRoutes.register, (r) => false),
-            icon: const Icon(AppIcons.personAdd, size: 16),
+            icon: Icon(AppIcons.personAdd, size: 16),
             label: const Text('Create Account', style: TextStyle(fontSize: 13)),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primary,
@@ -719,7 +719,7 @@ class _PayMethodCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadius.xs),
                 border: Border.all(color: AppColors.primary.withOpacity(0.2))),
               child: Row(children: [
-                const Icon(AppIcons.wallet,
+                Icon(AppIcons.wallet,
                     size: 16, color: AppColors.primary),
                 const SizedBox(width: 8),
                 Expanded(child: Text(method.accountNumber!,
@@ -733,7 +733,7 @@ class _PayMethodCard extends StatelessWidget {
                         content: Text('Account number copied! ✅'),
                         duration: Duration(seconds: 2)));
                   },
-                  child: const Icon(AppIcons.copy, size: 16, color: AppColors.primary)),
+                  child: Icon(AppIcons.copy, size: 16, color: AppColors.primary)),
               ]),
             ),
             if (method.instructions != null) ...[
@@ -763,7 +763,7 @@ class _SubmitButton extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.md),
         onTap: onTap,
-        child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(AppIcons.sendMessage, color: Colors.white, size: 18),
           SizedBox(width: 10),
           Text('Submit TID & Activate Plan',
@@ -787,7 +787,7 @@ class _ErrorCard extends StatelessWidget {
         border: Border.all(color: AppColors.error.withOpacity(0.25))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(AppIcons.wifiOff, color: AppColors.error, size: 18),
+          Icon(AppIcons.wifiOff, color: AppColors.error, size: 18),
           const SizedBox(width: 8),
           Expanded(child: Text(message,
               style: const TextStyle(color: AppColors.error,
@@ -797,7 +797,7 @@ class _ErrorCard extends StatelessWidget {
         SizedBox(width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: onRetry,
-            icon: const Icon(AppIcons.refresh, size: 16),
+            icon: Icon(AppIcons.refresh, size: 16),
             label: const Text('Try Again', style: TextStyle(fontSize: 13)),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primary,
@@ -812,7 +812,7 @@ class _ErrorCard extends StatelessWidget {
 class _WhyRaddFlix extends StatelessWidget {
   const _WhyRaddFlix();
 
-  static const _items = [
+  static final _items = [
     (AppIcons.wifi, 'Zero Jazz Data Cost',
         'Stream all day — RaddFlix is 100% data-free on Jazz. ZERO MB deducted from your Jazz balance.'),
     (AppIcons.downloadDone, 'Download for Offline',

@@ -121,7 +121,7 @@ class ContentCard extends StatelessWidget {
                   decoration: BoxDecoration(color: Colors.black54,
                       borderRadius: BorderRadius.circular(4)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(AppIcons.starFill, color: Colors.amber, size: 10),
+                    Icon(AppIcons.starFill, color: Colors.amber, size: 10),
                     const SizedBox(width: 2),
                     Text(item.displayRating,
                         style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600)),
@@ -440,7 +440,7 @@ class _DetailSheet extends StatelessWidget {
                                 fontSize: 12)),
                       ),
                     if (item.displayRating.isNotEmpty) ...[
-                      const Icon(AppIcons.starFill, color: Colors.amber, size: 13),
+                      Icon(AppIcons.starFill, color: Colors.amber, size: 13),
                       const SizedBox(width: 3),
                       Text(item.displayRating,
                           style: TextStyle(

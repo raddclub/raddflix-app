@@ -117,7 +117,7 @@ class _PinLockScreenState extends State<PinLockScreen>
           // Back button
           Row(children: [
             IconButton(
-              icon: const Icon(AppIcons.close, color: Colors.white54),
+              icon: Icon(AppIcons.close, color: Colors.white54),
               onPressed: () => Navigator.of(context).pop(false),
             ),
           ]),
@@ -201,7 +201,7 @@ class _PinLockScreenState extends State<PinLockScreen>
         ),
         child: Center(
           child: label == '⌫'
-              ? const Icon(AppIcons.backspace, color: Colors.white54, size: 22)
+              ? Icon(AppIcons.backspace, color: Colors.white54, size: 22)
               : Text(label,
                   style: const TextStyle(color: Colors.white,
                       fontSize: 26, fontWeight: FontWeight.w400)),
@@ -278,7 +278,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
           const SizedBox(height: 32),
           Row(children: [
             IconButton(
-              icon: const Icon(AppIcons.back, color: Colors.white54),
+              icon: Icon(AppIcons.back, color: Colors.white54),
               onPressed: () {
                 if (_confirming) setState(() { _confirming = false; _second = ''; });
                 else Navigator.of(context).pop(false);
@@ -339,7 +339,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
               color: Colors.white.withOpacity(0.07),
               shape: BoxShape.circle),
             child: Center(child: k == '⌫'
-              ? const Icon(AppIcons.backspace, color: Colors.white54, size: 22)
+              ? Icon(AppIcons.backspace, color: Colors.white54, size: 22)
               : Text(k, style: const TextStyle(color: Colors.white,
                     fontSize: 26, fontWeight: FontWeight.w400))),
           ),
