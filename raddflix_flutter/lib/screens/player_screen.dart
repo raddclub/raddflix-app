@@ -847,7 +847,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         return;
       }
     } catch (e) {
-      DebugLogger.logError('PLAYER', 'Stream resolution failed for $fileId', e);
+      DebugLogger.logError('PLAYER', 'Stream resolution failed', e);
       if (mounted) {
         setState(() {
           _isLinkLoading = false;
@@ -1009,7 +1009,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Silent by design — prefetch is a pure optimization. A failure here
       // just means the normal (slower) resolution path runs when the user
       // actually advances to this episode.
-      DebugLogger.logError('PLAYER', 'Prefetch failed for $fileId', e);
+      DebugLogger.logError('PLAYER', 'Prefetch failed', e);
     } finally {
       _prefetchInFlight = false;
     }
@@ -1160,7 +1160,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         return;
       }
     } catch (e) {
-      DebugLogger.logError('PLAYER', 'Episode stream failed for $fileId', e);
+      DebugLogger.logError('PLAYER', 'Episode stream failed', e);
       if (mounted) {
         setState(() { _isLinkLoading = false; _streamError = _friendlyError(e.toString()); });
         _startAutoRetry();

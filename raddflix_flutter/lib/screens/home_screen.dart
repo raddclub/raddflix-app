@@ -733,7 +733,7 @@ class _HeroCardState extends ConsumerState<_HeroCard>
     // Build the card widget (identical to old StatelessWidget.build, no renames needed)
     final card = GestureDetector(
       onTap: () {
-        DebugLogger.logTap('Home', 'heroCard', 'title="${item.title}" id=${item.id}');
+        DebugLogger.logTap('Home', 'heroCard');
         Navigator.of(context).pushNamed(AppRoutes.showDetail, arguments: item);
       },
       child: Container(

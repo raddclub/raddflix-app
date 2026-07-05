@@ -132,7 +132,7 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
         return;
       }
     }
-    DebugLogger.logTap('ResumeFab', 'play title="${d.title}"');
+    DebugLogger.logTap('ResumeFab', 'play');
     Navigator.of(context).pushNamed(
       AppRoutes.player,
       arguments: {
