@@ -76,4 +76,5 @@
 - Session 2026-07-05 — Rebrand Zero-Rating Copy (hide JazzDrive)
 - Session 2026-07-05 — CI Fix + Full UI Audit (4 fixes shipped)
 - Session 2026-07-05 — Portrait-Player-V1: YouTube/Netflix portrait layout for video player
+- Session 2026-07-05 — Player Panel Audit: panels responsive, info icon moved, codec display fixed, format support verified
 
