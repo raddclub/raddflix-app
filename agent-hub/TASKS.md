@@ -104,6 +104,31 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 
 ---
 
+## Bug Fix Batch — Free/Paid Gate, Subtitle Panel, AI Dub, Misc (2026-07-05)
+
+| Task | Summary | Commit(s) | Status |
+|---|---|---|---|
+| D1 — subtitle download broken | `player_screen.dart` `_downloadOnlineSubtitle`: `'\${dir.path}/\$cleanName'` — backslash escapes kill interpolation, file written to literal path `${dir.path}/…`. Fix: remove backslashes. Same on snackbar line. | — | ⏳ IN PROGRESS |
+| A1 — BUG-FREE-PLAYER | `player_screen.dart` `_openMediaForEpisode` only reads `ep['is_free']` — ignores show-level `isFree`. Fix in `show_detail_screen.dart` `_playEpisodeImpl`: normalize every episode in `allSeasonsEps` to `is_free=1` when `widget.item.isFree==true` before passing to player. | — | ⏳ IN PROGRESS |
+| A2 — BUG-RESUME-MOVIE | `resume_fab.dart` `_play`: `?? false` default when `resume_is_free` key absent (old installs). Fix: treat absent key as `true` (free) for movies already in prefs — no key means it predates the BUG-11 write; safer to let them through than lock them out. | — | ⏳ IN PROGRESS |
+| B1+B2 — dub panel blocks settings | `player_screen.dart` `_SubtitlePanel`: AI Dub section pinned ABOVE tabs consumes ~213 dp — hides all settings in landscape. Fix: move into its own `AI Dub` tab; show tab only when `onDubRequested != null`. | — | ⏳ IN PROGRESS |
+| C1 — TTS langResult=0 not caught | `subtitle_dubber.dart`: `langResult < 0` misses `0` (LANG_COUNTRY_AVAILABLE with no data). Add preflight: synthesize short string, check output file is non-empty. | — | ⏳ IN PROGRESS |
+| C2 — TTS preflight test | `subtitle_dubber.dart`: after `setLanguage()`, synth `'test'` to temp file; if absent or zero bytes → `LANG_NOT_INSTALLED`. | — | ⏳ IN PROGRESS |
+| C3 — TTS path fallback | `subtitle_dubber.dart`: try `getExternalStorageDirectory` then `getApplicationDocumentsDirectory` for clip lookup; already done — verify it covers all clip paths. | — | ⏳ IN PROGRESS |
+| C4 — TTS better error snackbar | `player_screen.dart`: when dub returns null and status ≠ LANG_NOT_INSTALLED, also show TTS install prompt instead of generic failure. | — | ⏳ IN PROGRESS |
+| C5 — In-panel TTS install hint | `player_screen.dart` `_buildDubSection`: add small hint below buttons: "Requires Google TTS Urdu/Hindi voice" with Settings deep-link. | — | ⏳ IN PROGRESS |
+| E1 — BUG-POSTER-WIPE | `local_db.dart` `upsertTitle`: `poster_path` missing from insert map — wiped to NULL on every full sync. Fix: add `'poster_path': item.posterPath`. | — | ⏳ IN PROGRESS |
+| E2 — BUG-IS_NEW-CAST | `catalog_item.dart`: `json['is_new'] as bool?` throws TypeError when server sends integer. Fix: `json['is_new'] == true \|\| json['is_new'] == 1`. | — | ⏳ IN PROGRESS |
+| E3 — BUG-MIXED-SEASON-DL | `show_detail_screen.dart` `_downloadCurrentSeason`: blanket gate blocks free episodes in mixed seasons. Fix: filter queue to free-only when unsubscribed instead of early-return. | — | ⏳ IN PROGRESS |
+| E4 — BUG-RESUME-MOUNTED | `show_detail_screen.dart`: cross-season resume uses `Future.microtask` — fires before rebuild, `_currentEpisodes` still old season, always returns -1. Fix: `addPostFrameCallback` + `mounted` guard. | — | ⏳ IN PROGRESS |
+| E5 — BUG-DL-ICON-DEAD-TERNARY | `show_detail_screen.dart` `_EpisodeTile`: `onDownload != null ? null : null` — disabled icon same color as enabled. Fix: use `t.textSecondary.withOpacity(0.35)` for disabled branch. | — | ⏳ IN PROGRESS |
+| E6 — BUG-SUB-NOT-REACTIVE | `show_detail_screen.dart` `_isSubscribed`: uses `ref.read` in build — PREMIUM lock badges don't clear when subscription activates. Fix: use `ref.watch`. | — | ⏳ IN PROGRESS |
+| E7 — BUG-EPISODE-BADGE | `show_detail_screen.dart`: episode badge shows list position (`realIdx`), not episode number. Fix: use `ep['episode']` value. | — | ⏳ IN PROGRESS |
+| E8 — BUG-GUEST-CTA | `show_detail_screen.dart` `_requireSub`: label 'Sign In' routes guest to paywall+register, not login. Fix: label 'Sign Up' and add login path. | — | ⏳ IN PROGRESS |
+| F1–F6 — zero-rated text cleanup | Remove/replace remaining JazzDrive/Oracle brand references in `subscription_screen.dart` (lines 188,192,543–551,438–457), `onboarding_screen.dart`, `settings_screen.dart`. | — | ⏳ IN PROGRESS |
+
+---
+
 ## Adding new work here
 
 1. Add a row with ⏳ IN PROGRESS *before* starting.
