@@ -15,7 +15,9 @@
 
 ## Open Tasks
 
-**None.** All logged work below is shipped and pushed.
+| Task | Description | Plan | Status |
+|---|---|---|---|
+| Portrait-Player-V1 | Fix video player portrait mode layout — YouTube/Netflix split (video top 38% + controls panel below), compact top bar, bottom-sheet settings panel, portrait-aware gesture zone, fix hardcoded offsets | [`PORTRAIT_PLAYER_PLAN.md`](PORTRAIT_PLAYER_PLAN.md) | ⏳ OPEN |
 
 ---
 
