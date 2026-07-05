@@ -67,7 +67,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
   Future<void> _setFakePin() async {
     final pin = await _showNewPinDialog(
         _hasFakePin ? 'Change Decoy PIN' : 'Set Decoy PIN',
-        'A fake vault opens with this PIN — shows empty vault to protect real content');
+        'A decoy vault opens with this PIN — shows an empty vault to protect real content');
     if (pin == null) return;
     await VaultService.setFakePin(pin);
     setState(() => _hasFakePin = pin.isNotEmpty);
@@ -288,7 +288,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
               title: 'Decoy PIN',
               subtitle: _hasFakePin
                   ? 'Active — shows empty vault'
-                  : 'Set a fake PIN that opens an empty vault',
+                  : 'Set a decoy PIN that opens an empty vault',
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                 if (_hasFakePin) Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
