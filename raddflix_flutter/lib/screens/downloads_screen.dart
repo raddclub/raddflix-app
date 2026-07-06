@@ -211,7 +211,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         onTap: (i) {
           if (i == 2) return;
           Navigator.of(context).popUntil((r) => r.isFirst);
-          if (i == 1) Navigator.of(context).pushNamed(AppRoutes.localMedia);
+          if (i == 1) Navigator.of(context).pushNamed(AppRoutes.search);
           else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.profile);
         },
       ),
@@ -239,7 +239,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       title: _selecting
           ? Text('${_selected.length} selected',
               style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700))
-          : Text(_activeFolder ?? 'Downloads',
+          : Text(_activeFolder ?? 'Library',
               style: const TextStyle(fontWeight: FontWeight.w800)),
       leading: IconButton(
         icon: Icon(_activeFolder != null || _selecting
@@ -270,6 +270,13 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             onPressed: _selected.isEmpty ? null : () => _bulkDelete(),
           ),
         ] else ...[
+          // On Device shortcut — Local files are part of the Library
+          if (_activeFolder == null && !_selecting)
+            IconButton(
+              icon: const Icon(Icons.phone_android_rounded, size: 22),
+              tooltip: 'On Device',
+              onPressed: () => Navigator.of(context).pushNamed(AppRoutes.localMedia),
+            ),
           IconButton(
             icon: Icon(_view == _ViewMode.grid ? AppIcons.listView : AppIcons.gridView),
             onPressed: () { setState(() => _view = _view == _ViewMode.grid ? _ViewMode.list : _ViewMode.grid); _savePrefs(); },

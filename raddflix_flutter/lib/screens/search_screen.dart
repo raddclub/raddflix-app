@@ -12,6 +12,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../core/db/local_db.dart';
+import '../widgets/bottom_nav.dart';
 import '../core/debug/debug_logger.dart';
 import '../providers/catalog_provider.dart';
 import '../models/catalog_item.dart';
@@ -311,6 +312,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
     return Scaffold(
       backgroundColor: t.bg,
+      bottomNavigationBar: RaddFlixBottomNav(
+        currentIndex: 1,
+        onTap: (i) {
+          if (i == 1) return;
+          Navigator.of(context).popUntil((r) => r.isFirst);
+          if (i == 2) Navigator.of(context).pushNamed(AppRoutes.downloads);
+          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.profile);
+        },
+      ),
       body: SafeArea(
         child: Column(children: [
           const OfflineBanner(),

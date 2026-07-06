@@ -164,13 +164,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         currentIndex: _navIndex,
         onTap: (i) {
           setState(() => _navIndex = i);
-          DebugLogger.logTap('Home', 'bottomNav tab=$i', i == 0 ? 'Home' : i == 1 ? 'LocalMedia' : i == 2 ? 'Downloads' : 'Profile');
+          DebugLogger.logTap('Home', 'bottomNav tab=$i', i == 0 ? 'Home' : i == 1 ? 'Search' : i == 2 ? 'Library' : 'Profile');
           // M-01: pop to root before pushing so tapping the same icon repeatedly
           // doesn't build an unbounded back-stack (e.g. Profile → Profile → …).
           if (i == 1 || i == 2 || i == 3) {
             Navigator.of(context).popUntil((route) => route.isFirst);
           }
-          if (i == 1) Navigator.of(context).pushNamed(AppRoutes.localMedia);
+          if (i == 1) Navigator.of(context).pushNamed(AppRoutes.search);
           else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.downloads);
           else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.profile);
         },
@@ -208,10 +208,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       ),
       actions: [
         const NotificationBell(),
-        IconButton(
-          icon: Icon(AppIcons.search, size: 26),
-          onPressed: () { DebugLogger.logTap('Home', 'searchIcon'); Navigator.of(context).pushNamed(AppRoutes.search); },
-        ),
         if (user != null)
           Padding(
             padding: const EdgeInsets.only(right: 12),

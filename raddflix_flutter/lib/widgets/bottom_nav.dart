@@ -42,14 +42,14 @@ class _RaddFlixBottomNavState extends ConsumerState<RaddFlixBottomNav> {
       iconFill: () => PhosphorIcons.house(PhosphorIconsStyle.fill),
     ),
     _NavItem(
-      label: 'Local',
-      icon:     () => PhosphorIcons.folder(),
-      iconFill: () => PhosphorIcons.folder(PhosphorIconsStyle.fill),
+      label: 'Search',
+      icon:     () => PhosphorIcons.magnifyingGlass(),
+      iconFill: () => PhosphorIcons.magnifyingGlass(PhosphorIconsStyle.fill),
     ),
     _NavItem(
-      label: 'Downloads',
-      icon:     () => PhosphorIcons.arrowCircleDown(),
-      iconFill: () => PhosphorIcons.arrowCircleDown(PhosphorIconsStyle.fill),
+      label: 'Library',
+      icon:     () => PhosphorIcons.files(),
+      iconFill: () => PhosphorIcons.files(PhosphorIconsStyle.fill),
     ),
     _NavItem(
       label: 'Profile',
@@ -223,7 +223,7 @@ class _NavButton extends StatelessWidget {
               duration: animConfig.fast,
               style: TextStyle(
                 color:       isActive ? AppColors.primary : t.textMuted,
-                fontSize:    9.5,
+                fontSize:    11.0,
                 fontWeight:  isActive ? FontWeight.w700 : FontWeight.w400,
                 letterSpacing: isActive ? 0.25 : 0.0,
               ),
