@@ -1,6 +1,12 @@
 # RaddFlix Library Screen — Unified Redesign Plan
 
-**Status:** Planned — ready for implementation  
+> ⚠️ **SUPERSEDED — 2026-07-06.** The product decision was made to keep Local and Download as
+> fully separate bottom-nav tabs (5-tab nav) instead of merging them into one "Library" shell
+> with a mode switcher. Do not implement this plan. See
+> `agent-hub/DOWNLOAD_TAB_REDESIGN_PLAN.md` for the current, active plan. This file is kept for
+> historical reference only (some competitive research below is still reused there).
+
+**Status:** ~~Planned — ready for implementation~~ SUPERSEDED, DO NOT IMPLEMENT
 **Task:** Unified Library Screen  
 **Research date:** 2026-07-06  
 **Author:** Agent (deep research session)
