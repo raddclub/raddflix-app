@@ -423,12 +423,13 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
             )
           : null,
       bottomNavigationBar: RaddFlixBottomNav(
-        currentIndex: 2, // Library tab stays active — Local is a sub-section of Library
+        currentIndex: 2,
         onTap: (i) {
-          if (i == 2) { Navigator.of(context).pop(); return; } // back to Library/Downloads
+          if (i == 2) return;
           Navigator.of(context).popUntil((r) => r.isFirst);
           if (i == 1) Navigator.of(context).pushNamed(AppRoutes.search);
-          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.profile);
+          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.downloads);
+          else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile);
         },
       ),
       body: SafeArea(

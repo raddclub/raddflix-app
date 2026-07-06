@@ -10,17 +10,21 @@ import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../providers/downloads_provider.dart';
 import '../core/debug/debug_logger.dart';
+import '../core/utils/episode_title_parser.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/download/download_storage_strip.dart';
+import '../widgets/download/active_download_ticker.dart';
 import '../services/thumb_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:disk_space_plus/disk_space_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-  import '../services/vault_service.dart';
+import '../services/vault_service.dart';
 import '../core/utils/anim_config.dart';
+import 'season_folder_screen.dart';
 
 enum _SortMode { name, size, date }
-enum _FilterMode { all, completed, downloading, failed }
+enum _Section { all, movies, tv }
 enum _ViewMode { grid, list }
 
 class DownloadsScreen extends ConsumerStatefulWidget {
@@ -32,22 +36,19 @@ class DownloadsScreen extends ConsumerStatefulWidget {
 class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   RaddTheme get t => RaddTheme.of(context);
 
-  _SortMode   _sort   = _SortMode.date;
-  _FilterMode _filter = _FilterMode.all;
-  _ViewMode   _view   = _ViewMode.grid;
-  bool _selecting     = false;
+  _SortMode _sort    = _SortMode.date;
+  _Section  _section = _Section.all;
+  _ViewMode _view    = _ViewMode.grid;
+  bool _selecting    = false;
   final Set<String> _selected = {};
-  String? _activeFolder;
 
   // Phase-40: disk space display + offline banner
   double? _freeMB;
   bool    _isOnline = true;
 
-  static const _folders = ['Movies', 'TV Shows', 'Dramas', 'Other'];
-
-  static const _kPrefsSort   = 'dl_sort_v2';
-  static const _kPrefsFilter = 'dl_filter_v2';
-  static const _kPrefsView   = 'dl_view_v2';
+  static const _kPrefsSort    = 'dl_sort_v2';
+  static const _kPrefsSection = 'dl_section_v1';
+  static const _kPrefsView    = 'dl_view_v2';
 
   @override
   void initState() {
@@ -65,20 +66,20 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     final p = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      _sort   = _SortMode.values.firstWhere(
+      _sort    = _SortMode.values.firstWhere(
           (e) => e.name == (p.getString(_kPrefsSort) ?? ''), orElse: () => _SortMode.date);
-      _filter = _FilterMode.values.firstWhere(
-          (e) => e.name == (p.getString(_kPrefsFilter) ?? ''), orElse: () => _FilterMode.all);
-      _view   = _ViewMode.values.firstWhere(
+      _section = _Section.values.firstWhere(
+          (e) => e.name == (p.getString(_kPrefsSection) ?? ''), orElse: () => _Section.all);
+      _view    = _ViewMode.values.firstWhere(
           (e) => e.name == (p.getString(_kPrefsView) ?? ''), orElse: () => _ViewMode.grid);
     });
   }
 
   Future<void> _savePrefs() async {
     final p = await SharedPreferences.getInstance();
-    await p.setString(_kPrefsSort,   _sort.name);
-    await p.setString(_kPrefsFilter, _filter.name);
-    await p.setString(_kPrefsView,   _view.name);
+    await p.setString(_kPrefsSort,    _sort.name);
+    await p.setString(_kPrefsSection, _section.name);
+    await p.setString(_kPrefsView,    _view.name);
   }
 
   void _refreshDiskSpace() {
@@ -121,47 +122,25 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
-  String _folderFor(Map m) {
-    // Prefer stored content_type if available (set at download time)
+  /// DOWNLOAD-TAB-V2: only two buckets now — Movies stay flat, everything
+  /// else (shows, anime, dramas, cartoons…) is grouped under TV Shows by
+  /// show → season. No more separate "Dramas"/"Other" folders.
+  bool _isMovie(Map m) {
     final ct = m['content_type'] as String?;
-    if (ct == 'show' || ct == 'series' || ct == 'tv') return 'TV Shows';
-    // BUG-FOLDER-01 FIX: handle legacy raw content_type values written before
-    // CatalogItem.mediaType normalisation locked values to 'show'/'movie'.
-    if (ct == 'anime' || ct == 'cartoon' || ct == 'donghua') return 'TV Shows';
-    if (ct == 'drama') return 'Dramas';
-    if (ct == 'movie') return 'Movies';
-    // Fallback: heuristic on title
+    if (ct == 'movie') return true;
+    if (ct == 'show' || ct == 'series' || ct == 'tv' ||
+        ct == 'anime' || ct == 'cartoon' || ct == 'donghua' || ct == 'drama') return false;
+    // Fallback heuristic on title when content_type wasn't recorded.
     final title = _title(m).toLowerCase();
-    if (title.contains('drama')) return 'Dramas';
     if (title.contains('episode') || title.contains('season') ||
         title.contains(' s0') || title.contains('ep ') ||
-        title.contains('series') || title.contains('show')) return 'TV Shows';
-    return 'Movies';
+        title.contains('series') || title.contains('show') ||
+        title.contains('drama')) return false;
+    return true;
   }
-
-  /// Extracts show title from episode titles like "Show Name S01E01".
-  String _showTitleFrom(String text) {
-    final m = RegExp(r'\s+[Ss]\d{2}[Ee]\d{2}').firstMatch(text);
-    if (m != null) return text.substring(0, m.start).trim();
-    return text;
-  }
-
-  /// Total stored bytes for all items in a named folder.
-  int _totalSizeForFolder(List<Map<String, dynamic>> all, String folder) =>
-      all.where((d) => _folderFor(d) == folder)
-          .fold<int>(0, (s, d) => s + _size(d));
 
   /// Poster URL stored at download time (may be null/empty).
   String? _posterUrl(Map m) => m['poster_url'] as String?;
-
-  List<Map<String, dynamic>> _applyFilter(List<Map<String, dynamic>> items) {
-    switch (_filter) {
-      case _FilterMode.completed:   return items.where((m) => _isComplete(m)).toList();
-      case _FilterMode.downloading: return items.where((m) => _isDownloading(m)).toList();
-      case _FilterMode.failed:      return items.where((m) => _isFailed(m)).toList();
-      default: return items;
-    }
-  }
 
   List<Map<String, dynamic>> _applySort(List<Map<String, dynamic>> items) {
     final copy = [...items];
@@ -207,26 +186,39 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       backgroundColor: null,
       appBar: _buildAppBar(state),
       bottomNavigationBar: RaddFlixBottomNav(
-        currentIndex: 2,
+        currentIndex: 3,
         onTap: (i) {
-          if (i == 2) return;
+          if (i == 3) return;
           Navigator.of(context).popUntil((r) => r.isFirst);
           if (i == 1) Navigator.of(context).pushNamed(AppRoutes.search);
-          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.profile);
+          else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.localMedia);
+          else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile);
         },
       ),
       body: Column(children: [
         if (!_isOnline) _buildOfflineBanner(),
-        _buildStorageBar(state),
-        _buildFilterRow(),
+        DownloadStorageStrip(
+          totalBytes:     state.downloads.fold<int>(0, (s, d) => s + _size(d)),
+          completedCount: state.downloads.where(_isComplete).length,
+          totalCount:     state.downloads.length,
+          activeCount:    state.downloads.where(_isDownloading).length,
+          freeMB:         _freeMB,
+        ),
+        ActiveDownloadTicker(
+          state: state,
+          titleFor: (id) {
+            final d = state.downloads.firstWhere((d) => _id(d) == id, orElse: () => {});
+            return _title(d);
+          },
+          onCancel: (id) => () => ref.read(downloadsProvider.notifier).cancelDownload(id).ignore(),
+        ),
+        _buildSectionRow(),
         const Divider(height: 1),
         Expanded(child: state.loading
             ? _buildLoadingShimmer()
             : state.downloads.isEmpty
                 ? _buildEmpty()
-                : _activeFolder == null
-                    ? _buildFolderView(state)
-                    : _buildItemsView(state)),
+                : _buildContent(state)),
       ]),
     );
   }
@@ -239,21 +231,14 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       title: _selecting
           ? Text('${_selected.length} selected',
               style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700))
-          : Text(_activeFolder ?? 'Library',
-              style: const TextStyle(fontWeight: FontWeight.w800)),
-      leading: IconButton(
-        icon: Icon(_activeFolder != null || _selecting
-            ? AppIcons.back : AppIcons.close, size: 20),
-        onPressed: () {
-          if (_selecting) {
-            setState(() { _selecting = false; _selected.clear(); });
-          } else if (_activeFolder != null) {
-            setState(() => _activeFolder = null);
-          } else {
-            Navigator.of(context).pop();
-          }
-        },
-      ),
+          : const Text('Download', style: TextStyle(fontWeight: FontWeight.w800)),
+      leading: _selecting
+          ? IconButton(
+              icon: Icon(AppIcons.close, size: 20),
+              onPressed: () => setState(() { _selecting = false; _selected.clear(); }),
+            )
+          : null,
+      automaticallyImplyLeading: false,
       actions: [
         if (_selecting) ...[
           TextButton(
@@ -270,13 +255,6 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             onPressed: _selected.isEmpty ? null : () => _bulkDelete(),
           ),
         ] else ...[
-          // On Device shortcut — Local files are part of the Library
-          if (_activeFolder == null && !_selecting)
-            IconButton(
-              icon: Icon(AppIcons.device, size: 22),
-              tooltip: 'On Device',
-              onPressed: () => Navigator.of(context).pushNamed(AppRoutes.localMedia),
-            ),
           IconButton(
             icon: Icon(_view == _ViewMode.grid ? AppIcons.listView : AppIcons.gridView),
             onPressed: () { setState(() => _view = _view == _ViewMode.grid ? _ViewMode.list : _ViewMode.grid); _savePrefs(); },
@@ -319,88 +297,21 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     );
   }
 
-  Widget _buildStorageBar(DownloadsState state) {
-    final totalBytes = state.downloads.fold<int>(0, (sum, d) => sum + _size(d));
-    final completed = state.downloads.where((d) => _isComplete(d)).length;
-    final active    = state.downloads.where((d) => _isDownloading(d)).length;
-    final freeStr   = _freeMB != null
-        ? (_freeMB! >= 1024
-            ? '${(_freeMB! / 1024).toStringAsFixed(1)} GB free'
-            : '${_freeMB!.toStringAsFixed(0)} MB free')
-        : null;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: t.border),
-      ),
-      child: Row(children: [
-        Container(
-          width: 40, height: 40,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.primary.withOpacity(0.12),
-            border: Border.all(color: AppColors.primary.withOpacity(0.25)),
-          ),
-          child: Icon(AppIcons.downloadDone, size: 20, color: AppColors.primary),
-        ),
-        SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Text(_fmtSize(totalBytes),
-                style: TextStyle(color: t.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
-            Text(' stored', style: TextStyle(color: t.textMuted, fontSize: 12)),
-            const Spacer(),
-            if (active > 0)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text('$active loading', style: TextStyle(
-                    color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
-              ),
-          ]),
-          SizedBox(height: 5),
-          Row(children: [
-            Text('${completed} done', style: TextStyle(color: t.textMuted, fontSize: 11)),
-            Text(' · ', style: TextStyle(color: t.textMuted)),
-            Text('${state.downloads.length} total', style: TextStyle(color: t.textMuted, fontSize: 11)),
-            if (freeStr != null) ...[
-              Text(' · ', style: TextStyle(color: t.textMuted)),
-              Text(freeStr, style: TextStyle(
-                  color: (_freeMB ?? 999) < 200
-                      ? AppColors.error
-                      : (_freeMB ?? 999) < 500
-                          ? AppColors.warning
-                          : t.textMuted,
-                  fontSize: 11, fontWeight: FontWeight.w500)),
-            ],
-          ]),
-        ])),
-      ]),
-    );
-  }
-
-  Widget _buildFilterRow() {
+  Widget _buildSectionRow() {
+    final labels = {_Section.all: 'All', _Section.movies: 'Movies', _Section.tv: 'TV Shows'};
     return SizedBox(
       height: 44,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-        children: _FilterMode.values.map((f) {
-          final selected = _filter == f;
-          final labels = {_FilterMode.all:'All', _FilterMode.completed:'Done',
-              _FilterMode.downloading:'Downloading', _FilterMode.failed:'Failed'};
+        children: _Section.values.map((s) {
+          final selected = _section == s;
           return GestureDetector(
-            onTap: () { setState(() => _filter = f); _savePrefs(); },
+            onTap: () { setState(() => _section = s); _savePrefs(); },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
               decoration: BoxDecoration(
                 gradient: selected ? AppColors.primaryGradient : null,
                 color: selected ? null : t.surface,
@@ -408,7 +319,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 border: Border.all(color: selected ? Colors.transparent : t.border),
                 boxShadow: selected ? [BoxShadow(color: AppColors.primary.withOpacity(0.35), blurRadius: 10, offset: const Offset(0,3))] : null,
               ),
-              child: Text(labels[f]!, style: TextStyle(
+              child: Text(labels[s]!, style: TextStyle(
                   color: selected ? Colors.white : t.textMuted,
                   fontSize: 12, fontWeight: selected ? FontWeight.w800 : FontWeight.w500)),
             ),
@@ -493,266 +404,181 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     );
   }
 
-  Widget _buildFolderView(DownloadsState state) {
-    // Phase 43: tier-aware stagger
-    final animConfig = ref.read(animConfigProvider);
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
+  /// DOWNLOAD-TAB-V2 main content: Movies flat grid/list + TV Shows grouped
+  /// by show, both scrollable in one CustomScrollView. Section pill filter
+  /// (_section) hides whichever bucket isn't wanted.
+  Widget _buildContent(DownloadsState state) {
+    final movies = _applySort(state.downloads.where(_isMovie).toList());
+    final tvItems = state.downloads.where((d) => !_isMovie(d)).toList();
+
+    final showGroups = <String, List<Map<String, dynamic>>>{};
+    for (final d in tvItems) {
+      final info = parseEpisodeTitle(_title(d));
+      showGroups.putIfAbsent(info.showTitle, () => []).add(d);
+    }
+    final showNames = showGroups.keys.toList()..sort();
+
+    final showMovies = _section != _Section.tv;
+    final showTv     = _section != _Section.movies;
+
+    if ((!showMovies || movies.isEmpty) && (!showTv || showNames.isEmpty)) {
+      return Center(child: Text(
+          _section == _Section.movies ? 'No movie downloads yet'
+              : _section == _Section.tv ? 'No TV show downloads yet'
+              : 'No downloads yet',
+          style: TextStyle(color: t.textMuted)));
+    }
+
+    return CustomScrollView(
       physics: const BouncingScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, childAspectRatio: 1.55, crossAxisSpacing: 12, mainAxisSpacing: 12),
-      itemCount: _folders.length,
-      itemBuilder: (_, i) {
-        final folder = _folders[i];
-        final count = state.downloads.where((d) => _folderFor(d) == folder).length;
-        final folderColor = _folderColor(folder, t.textMuted);
-        return RepaintBoundary(child: GestureDetector(
-          onTap: count > 0 ? () => setState(() => _activeFolder = folder) : null,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              color: t.surface,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              border: Border.all(
-                color: count > 0 ? folderColor.withOpacity(0.25) : t.border,
-                width: count > 0 ? 1.0 : 0.5,
-              ),
-              boxShadow: count > 0 ? [
-                BoxShadow(color: folderColor.withOpacity(0.08), blurRadius: 16, offset: const Offset(0, 4)),
-              ] : null,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: folderColor.withOpacity(count > 0 ? 0.14 : 0.06),
-                      border: Border.all(color: folderColor.withOpacity(count > 0 ? 0.3 : 0.1)),
-                    ),
-                    child: Icon(_folderIcon(folder),
-                        color: count > 0 ? folderColor : t.textMuted, size: 22),
-                  ),
-                  const Spacer(),
-                  if (count > 0) Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: folderColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(AppRadius.round),
-                    ),
-                    child: Text('$count', style: TextStyle(
-                        color: folderColor, fontSize: 12, fontWeight: FontWeight.w800))),
-                ]),
-                const Spacer(),
-                Text(folder, style: TextStyle(
-                    color: count > 0 ? t.textPrimary : t.textMuted,
-                    fontSize: 15, fontWeight: FontWeight.w700)),
-                SizedBox(height: 2),
-                Text(count == 0 ? 'Empty' : '$count video${count == 1 ? '' : 's'}',
-                    style: TextStyle(color: t.textMuted, fontSize: 11)),
-                if (count > 0) ...[SizedBox(height: 2),
-                  Text(_fmtSize(_totalSizeForFolder(state.downloads, folder)),
-                      style: TextStyle(color: t.textMuted, fontSize: 10))],
-              ]),
-            ),
+      slivers: [
+        if (showMovies && movies.isNotEmpty) ...[
+          SliverToBoxAdapter(child: _sectionHeader('Movies', movies.length)),
+          _view == _ViewMode.grid
+              ? _moviesGrid(movies, state)
+              : _moviesList(movies, state),
+        ],
+        if (showTv && showNames.isNotEmpty) ...[
+          SliverToBoxAdapter(child: _sectionHeader('TV Shows', showNames.length)),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            sliver: SliverList(delegate: SliverChildBuilderDelegate(
+              (_, i) {
+                final show = showNames[i];
+                final eps  = showGroups[show]!;
+                return _ShowSummaryCard(
+                  showName: show,
+                  episodes: eps,
+                  isComplete: _isComplete,
+                  isDownloading: _isDownloading,
+                  sizeOf: _size,
+                  posterUrl: _posterUrl(eps.first),
+                  fmtSize: _fmtSize,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => SeasonFolderScreen(showName: show))),
+                ).animate(delay: (i * 40).ms).fadeIn(duration: 280.ms);
+              },
+              childCount: showNames.length,
+            )),
           ),
-        ).animate(delay: animConfig.stagger(i))
-            .fadeIn(duration: animConfig.normal)
-            .slideY(begin: 0.06, end: 0, duration: animConfig.normal,
-                curve: AppCurves.enter));
-      },
+        ],
+      ],
     );
   }
 
-  Widget _buildItemsView(DownloadsState state) {
-    var items = state.downloads.where((d) => _folderFor(d) == _activeFolder!).toList();
-    items = _applyFilter(items);
-    items = _applySort(items);
+  Widget _sectionHeader(String label, int count) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+    child: Row(children: [
+      Icon(label == 'Movies' ? AppIcons.movieFill : AppIcons.liveTv,
+          size: 16, color: AppColors.primary),
+      const SizedBox(width: 6),
+      Text('$label ($count)', style: TextStyle(
+          color: t.textPrimary, fontSize: 14, fontWeight: FontWeight.w800)),
+    ]),
+  );
 
-    if (items.isEmpty) {
-      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(AppIcons.filter, color: t.textMuted, size: 48),
-        SizedBox(height: 12),
-        Text('No ${_filter.name} downloads in $_activeFolder',
-            style: TextStyle(color: t.textMuted)),
-      ]));
-    }
-
-    // TV Shows: group episodes by show title for a cleaner browsing experience
-    if (_activeFolder == 'TV Shows') return _groupedTvView(items, state);
-    return _view == _ViewMode.grid ? _gridView(items, state) : _listView(items, state);
-  }
-
-  Widget _groupedTvView(List<Map<String, dynamic>> items, DownloadsState state) {
-    // Group flat episode list by extracted show title
-    final groups = <String, List<Map<String, dynamic>>>{};
-    for (final d in items) {
-      groups.putIfAbsent(_showTitleFrom(_title(d)), () => []).add(d);
-    }
-    final showNames = groups.keys.toList()..sort();
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-      physics: const BouncingScrollPhysics(),
-      itemCount: showNames.length,
-      itemBuilder: (_, i) {
-        final show = showNames[i];
-        final eps  = groups[show]!;
-        eps.sort((a, b) => _title(a).compareTo(_title(b)));
-        final poster = _posterUrl(eps.first);
-        final total  = eps.fold<int>(0, (s, d) => s + _size(d));
-        final done   = eps.where(_isComplete).length;
-        final active = eps.where(_isDownloading).length;
-        return _ShowGroup(
-          showName:    show,
-          episodes:    eps,
-          posterUrl:   poster,
-          totalSize:   _fmtSize(total),
-          doneCount:   done,
-          totalCount:  eps.length,
-          activeCount: active,
-          activeProgress: state.activeProgress,
-          isSelecting: _selecting,
-          selected:    _selected,
-          onTapEp:     (d) {
-            final id = _id(d);
-            if (_selecting) {
-              setState(() {
-                _selected.contains(id) ? _selected.remove(id) : _selected.add(id);
-              });
-            } else if (_isComplete(d)) {
-              final doneEps = eps.where(_isComplete).toList();
-              final epIdx   = doneEps.indexOf(d as Map<String, dynamic>);
-              final epList  = doneEps.asMap().entries.map((e) => <String, dynamic>{
-                'file_id':    _id(e.value),
-                'local_path': _path(e.value),
-                'label':      _title(e.value),
-                'episode':    e.key,
-              }).toList();
-              DebugLogger.logFeature('PlayDownloaded', 'from DownloadsScreen');
-              Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
-                'file_id':      id,
-                'title':        _title(d),
-                'local_path':   _path(d),
-                'episodes':     epList,
-                'episode_index': epIdx < 0 ? 0 : epIdx,
-                'content_type': d['content_type'] as String? ?? 'show',
-                'is_free':      true, // local files bypass the player's subscription gate
-              });
-            }
-          },
-          onDeleteEp:  (d) => _deleteOne(_id(d), _title(d)),
-          onLongPress: (d) => setState(() {
-            _selecting = true; _selected.add(_id(d));
-          }),
-        ).animate(delay: (i * 50).ms).fadeIn(duration: 280.ms);
-      },
-    );
-  }
-
-  Widget _gridView(List<Map<String, dynamic>> items, DownloadsState state) {
-    // Phase 43: tier-aware stagger
+  SliverGrid _moviesGrid(List<Map<String, dynamic>> items, DownloadsState state) {
     final animConfig = ref.read(animConfigProvider);
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      physics: const BouncingScrollPhysics(),
+    return SliverGrid(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2, childAspectRatio: 0.72, crossAxisSpacing: 12, mainAxisSpacing: 12),
-      itemCount: items.length,
-      itemBuilder: (_, i) {
-        final d = items[i];
-        final id = _id(d);
-        final liveProgress = state.activeProgress[id];
-        final isActive = liveProgress != null;
-        return _DownloadCard(
-          title: _title(d),
-          sizeStr: _fmtSize(_size(d)),
-          statusStr: _status(d),
-          progress: liveProgress ?? _progress(d),
-          isActive: isActive,
-          isComplete: _isComplete(d),
-          isSelected: _selected.contains(id),
-          isSelecting: _selecting,
-          onTap: () {
-            if (_selecting) {
-              setState(() { _selected.contains(id) ? _selected.remove(id) : _selected.add(id); });
-            } else if (_isComplete(d)) {
-              // BUG-7 fix: include content_type so player doesn't default all downloads to 'series'.
-              Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
-                'file_id': id, 'title': _title(d), 'local_path': _path(d),
-                'content_type': d['content_type'] as String? ?? 'movie',
-                'is_free': true, // local files bypass the player's subscription gate
-              });
-            }
-          },
-          onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
-          onDelete: () => _deleteOne(id, _title(d)),
-          onCancel: () => ref.read(downloadsProvider.notifier).cancelDownload(id).ignore(),
-          onRetry:  () => ref.read(downloadsProvider.notifier).retryDownload(
-            fileId: id, titleText: _title(d),
-            posterUrl: _posterUrl(d), contentType: d['content_type'] as String?).ignore(),
-          speedLabel:    state.speedOf(id),
-          etaLabel:      state.etaOf(id),
-          queuePosition: state.queuePositionOf(id),
-          localPath: _path(d),
-          posterUrl: _posterUrl(d),
-        ).animate(delay: animConfig.stagger(i))
-            .fadeIn(duration: animConfig.normal)
-            .slideY(begin: 0.06, end: 0, duration: animConfig.normal,
-                curve: AppCurves.standard);
-      },
+      delegate: SliverChildBuilderDelegate(
+        (context, i) {
+          final d = items[i];
+          final id = _id(d);
+          final liveProgress = state.activeProgress[id];
+          final isActive = liveProgress != null;
+          return Padding(
+            padding: EdgeInsets.only(
+                left: i.isEven ? 16 : 0, right: i.isOdd ? 16 : 0,
+                bottom: 12, top: i < 2 ? 4 : 0),
+            child: _DownloadCard(
+              title: _title(d),
+              sizeStr: _fmtSize(_size(d)),
+              statusStr: _status(d),
+              progress: liveProgress ?? _progress(d),
+              isActive: isActive,
+              isComplete: _isComplete(d),
+              isSelected: _selected.contains(id),
+              isSelecting: _selecting,
+              onTap: () {
+                if (_selecting) {
+                  setState(() { _selected.contains(id) ? _selected.remove(id) : _selected.add(id); });
+                } else if (_isComplete(d)) {
+                  Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
+                    'file_id': id, 'title': _title(d), 'local_path': _path(d),
+                    'content_type': d['content_type'] as String? ?? 'movie',
+                    'is_free': true,
+                  });
+                }
+              },
+              onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
+              onDelete: () => _deleteOne(id, _title(d)),
+              onCancel: () => ref.read(downloadsProvider.notifier).cancelDownload(id).ignore(),
+              onRetry:  () => ref.read(downloadsProvider.notifier).retryDownload(
+                fileId: id, titleText: _title(d),
+                posterUrl: _posterUrl(d), contentType: d['content_type'] as String?).ignore(),
+              speedLabel:    state.speedOf(id),
+              etaLabel:      state.etaOf(id),
+              queuePosition: state.queuePositionOf(id),
+              localPath: _path(d),
+              posterUrl: _posterUrl(d),
+            ),
+          ).animate(delay: animConfig.stagger(i))
+              .fadeIn(duration: animConfig.normal)
+              .slideY(begin: 0.06, end: 0, duration: animConfig.normal, curve: AppCurves.standard);
+        },
+        childCount: items.length,
+      ),
     );
   }
 
-  Widget _listView(List<Map<String, dynamic>> items, DownloadsState state) {
-    // Phase 43: tier-aware stagger
+  SliverPadding _moviesList(List<Map<String, dynamic>> items, DownloadsState state) {
     final animConfig = ref.read(animConfigProvider);
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      physics: const BouncingScrollPhysics(),
-      itemCount: items.length,
-      itemBuilder: (_, i) {
-        final d = items[i];
-        final id = _id(d);
-        final liveProgress = state.activeProgress[id];
-        final isActive = liveProgress != null;
-        return _DownloadListTile(
-          title: _title(d),
-          sizeStr: _fmtSize(_size(d)),
-          statusStr: _status(d),
-          progress: liveProgress ?? _progress(d),
-          isActive: isActive,
-          isComplete: _isComplete(d),
-          isSelected: _selected.contains(id),
-          isSelecting: _selecting,
-          onTap: () {
-            if (_selecting) {
-              setState(() { _selected.contains(id) ? _selected.remove(id) : _selected.add(id); });
-            } else if (_isComplete(d)) {
-              // BUG-7 fix: include content_type so player doesn't default all downloads to 'series'.
-              Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
-                'file_id': id, 'title': _title(d), 'local_path': _path(d),
-                'content_type': d['content_type'] as String? ?? 'movie',
-                'is_free': true, // local files bypass the player's subscription gate
-              });
-            }
-          },
-          onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
-          onDelete: () => _deleteOne(id, _title(d)),
-          onCancel: () => ref.read(downloadsProvider.notifier).cancelDownload(id).ignore(),
-          onRetry:  () => ref.read(downloadsProvider.notifier).retryDownload(
-            fileId: id, titleText: _title(d),
-            posterUrl: _posterUrl(d), contentType: d['content_type'] as String?).ignore(),
-          speedLabel: state.speedOf(id),
-          etaLabel:   state.etaOf(id),
-          localPath: _path(d),
-          posterUrl: _posterUrl(d),
-        ).animate(delay: animConfig.stagger(i))
-            .fadeIn(duration: animConfig.normal)
-            .slideX(begin: 0.1, end: 0, duration: animConfig.normal,
-                curve: AppCurves.standard);
-      },
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      sliver: SliverList(delegate: SliverChildBuilderDelegate(
+        (context, i) {
+          final d = items[i];
+          final id = _id(d);
+          final liveProgress = state.activeProgress[id];
+          final isActive = liveProgress != null;
+          return _DownloadListTile(
+            title: _title(d),
+            sizeStr: _fmtSize(_size(d)),
+            statusStr: _status(d),
+            progress: liveProgress ?? _progress(d),
+            isActive: isActive,
+            isComplete: _isComplete(d),
+            isSelected: _selected.contains(id),
+            isSelecting: _selecting,
+            onTap: () {
+              if (_selecting) {
+                setState(() { _selected.contains(id) ? _selected.remove(id) : _selected.add(id); });
+              } else if (_isComplete(d)) {
+                Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
+                  'file_id': id, 'title': _title(d), 'local_path': _path(d),
+                  'content_type': d['content_type'] as String? ?? 'movie',
+                  'is_free': true,
+                });
+              }
+            },
+            onLongPress: () => setState(() { _selecting = true; _selected.add(id); }),
+            onDelete: () => _deleteOne(id, _title(d)),
+            onCancel: () => ref.read(downloadsProvider.notifier).cancelDownload(id).ignore(),
+            onRetry:  () => ref.read(downloadsProvider.notifier).retryDownload(
+              fileId: id, titleText: _title(d),
+              posterUrl: _posterUrl(d), contentType: d['content_type'] as String?).ignore(),
+            speedLabel: state.speedOf(id),
+            etaLabel:   state.etaOf(id),
+            localPath: _path(d),
+            posterUrl: _posterUrl(d),
+          ).animate(delay: animConfig.stagger(i))
+              .fadeIn(duration: animConfig.normal)
+              .slideX(begin: 0.1, end: 0, duration: animConfig.normal, curve: AppCurves.standard);
+        },
+        childCount: items.length,
+      )),
     );
   }
 
@@ -830,27 +656,93 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       setState(() { _selecting = false; _selected.clear(); });
     }
   }
+}
 
-  IconData _folderIcon(String name) {
-    switch (name) {
-      case 'Movies':   return AppIcons.movieFill;
-      case 'TV Shows': return AppIcons.liveTv;
-      case 'Dramas':   return AppIcons.liveTv;
-      default:         return AppIcons.localMediaFill;
-    }
-  }
+// ── TV show summary card (Download tab) ─────────────────────────────────────
+// Tapping opens SeasonFolderScreen — the show itself is no longer expandable
+// inline, matching how MoviBox/Amazon Prime keep the top-level list short.
+class _ShowSummaryCard extends StatelessWidget {
+  final String showName;
+  final List<Map<String, dynamic>> episodes;
+  final bool Function(Map) isComplete;
+  final bool Function(Map) isDownloading;
+  final int Function(Map) sizeOf;
+  final String? posterUrl;
+  final String Function(int) fmtSize;
+  final VoidCallback onTap;
 
-  Color _folderColor(String name, Color fallback) {
-    switch (name) {
-      case 'Movies':   return const Color(0xFFE8002D);
-      case 'TV Shows': return const Color(0xFF3B82F6);
-      case 'Dramas':   return const Color(0xFF8B5CF6);
-      default:         return fallback;
-    }
+  const _ShowSummaryCard({
+    required this.showName, required this.episodes, required this.isComplete,
+    required this.isDownloading, required this.sizeOf, this.posterUrl,
+    required this.fmtSize, required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final seasons = episodes.map((d) =>
+        parseEpisodeTitle(d['title_text'] as String? ?? '').seasonOrDefault).toSet().length;
+    final done   = episodes.where(isComplete).length;
+    final active = episodes.where(isDownloading).length;
+    final total  = episodes.fold<int>(0, (s, d) => s + sizeOf(d));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: t.border, width: 0.5),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(width: 52, height: 74,
+                child: (posterUrl != null && posterUrl!.isNotEmpty)
+                    ? CachedNetworkImage(imageUrl: posterUrl!, fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(color: t.card,
+                            child: Icon(AppIcons.tv, color: t.textMuted, size: 22)))
+                    : Container(color: t.card,
+                        child: Icon(AppIcons.tv, color: t.textMuted, size: 22))),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(showName, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: t.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              Wrap(spacing: 6, runSpacing: 4, children: [
+                Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(5)),
+                  child: Text('$seasons season${seasons == 1 ? '' : 's'}',
+                      style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700))),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(color: t.card, borderRadius: BorderRadius.circular(5)),
+                  child: Text('$done/${episodes.length} eps',
+                      style: TextStyle(color: t.textMuted, fontSize: 10, fontWeight: FontWeight.w700))),
+                if (active > 0)
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(color: const Color(0xFF22C55E).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(5)),
+                    child: Text('↓ $active', style: const TextStyle(
+                        color: Color(0xFF22C55E), fontSize: 10, fontWeight: FontWeight.w700))),
+              ]),
+              const SizedBox(height: 4),
+              Text(fmtSize(total), style: TextStyle(color: t.textMuted, fontSize: 10)),
+            ])),
+            Icon(AppIcons.caretRight, size: 18, color: t.textMuted),
+          ]),
+        ),
+      ),
+    );
   }
 }
 
-// ── Download Card (Grid) ────────────────────────���─────────────────────────────
+// ── Download Card (Grid) ─────────────────────────────────────────────────────
 class _DownloadCard extends StatefulWidget {
   final String title, sizeStr, statusStr, localPath;
   final String? posterUrl;
@@ -1151,209 +1043,6 @@ class _DownloadListTileState extends State<_DownloadListTile> {
     );
   }
 }
-
-// ── Grouped TV show row in Downloads screen ─────────────────────────────────
-class _ShowGroup extends StatefulWidget {
-  final String showName;
-  final List<Map<String, dynamic>> episodes;
-  final String? posterUrl;
-  final String totalSize;
-  final int doneCount, totalCount, activeCount;
-  final Map<String, double> activeProgress;
-  final bool isSelecting;
-  final Set<String> selected;
-  final void Function(Map) onTapEp;
-  final void Function(Map) onDeleteEp;
-  final void Function(Map) onLongPress;
-  const _ShowGroup({
-    required this.showName, required this.episodes, this.posterUrl,
-    required this.totalSize, required this.doneCount, required this.totalCount,
-    required this.activeCount, required this.activeProgress,
-    required this.isSelecting, required this.selected,
-    required this.onTapEp, required this.onDeleteEp, required this.onLongPress,
-  });
-  @override State<_ShowGroup> createState() => _ShowGroupState();
-}
-
-class _ShowGroupState extends State<_ShowGroup> {
-  bool _expanded = true;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: t.border, width: 0.5),
-        boxShadow: [BoxShadow(
-            color: Colors.black.withOpacity(0.07),
-            blurRadius: 14, offset: const Offset(0, 4))],
-      ),
-      child: Column(children: [
-        // ── Show header row ──────────────────────────────────────────────
-        InkWell(
-          onTap: () => setState(() => _expanded = !_expanded),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.md)),
-          child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-            // Poster
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: SizedBox(width: 50, height: 70,
-                child: (widget.posterUrl != null && widget.posterUrl!.isNotEmpty)
-                    ? CachedNetworkImage(imageUrl: widget.posterUrl!, fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) => Container(color: t.card,
-                            child: Icon(AppIcons.tv, color: t.textMuted, size: 22)))
-                    : Container(color: t.card,
-                        child: Icon(AppIcons.tv, color: t.textMuted, size: 22))),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(widget.showName, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: t.textPrimary, fontSize: 14,
-                      fontWeight: FontWeight.w700, height: 1.3)),
-              const SizedBox(height: 6),
-              Wrap(spacing: 6, runSpacing: 4, children: [
-                _pill('${widget.doneCount}/${widget.totalCount} eps', AppColors.primary),
-                _pill(widget.totalSize, t.textMuted),
-                if (widget.activeCount > 0)
-                  _pill('↓ ${widget.activeCount} loading', const Color(0xFF22C55E)),
-              ]),
-              const SizedBox(height: 8),
-              // Progress bar: X of Y episodes complete
-              ClipRRect(borderRadius: BorderRadius.circular(3),
-                child: LinearProgressIndicator(
-                  value: widget.totalCount > 0 ? widget.doneCount / widget.totalCount : 0.0,
-                  backgroundColor: t.card,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                      widget.doneCount == widget.totalCount
-                          ? const Color(0xFF22C55E) : AppColors.primary),
-                  minHeight: 4)),
-            ])),
-            const SizedBox(width: 8),
-            Icon(_expanded
-                ? AppIcons.caretUp
-                : AppIcons.caretDown,
-                color: t.textMuted, size: 22),
-          ])),
-        ),
-        // ── Episode rows ─────────────────────────────────────────────────
-        if (_expanded) ...[
-          Divider(height: 1, indent: 0, endIndent: 0, color: t.border.withOpacity(0.5)),
-          ...widget.episodes.asMap().entries.map((entry) {
-            final ep       = entry.value;
-            final id       = ep['file_id'] as String? ?? '';
-            final titleTxt = ep['title_text'] as String? ?? 'Unknown';
-            final status   = ep['status'] as String? ?? 'pending';
-            final isComp   = status == 'completed';
-            final isAct    = widget.activeProgress.containsKey(id);
-            final prog     = widget.activeProgress[id]
-                ?? (ep['progress'] as num?)?.toDouble() ?? 0.0;
-            final bytes    = ep['file_size'] as int? ?? 0;
-            final isSel    = widget.selected.contains(id);
-            return InkWell(
-              onTap:      () => widget.onTapEp(ep),
-              onLongPress: () => widget.onLongPress(ep),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                color: isSel ? AppColors.primary.withOpacity(0.07) : Colors.transparent,
-                child: Row(children: [
-                  // Status dot
-                  Container(
-                    width: 26, height: 26,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isComp
-                          ? AppColors.primary.withOpacity(0.12)
-                          : isAct
-                              ? const Color(0xFF22C55E).withOpacity(0.12)
-                              : status == 'failed'
-                                  ? AppColors.error.withOpacity(0.12)
-                                  : RaddTheme.of(context).card,
-                    ),
-                    child: Icon(
-                      isComp ? AppIcons.play
-                          : isAct ? AppIcons.cloudDownload
-                          : status == 'failed' ? AppIcons.errorIcon
-                          : AppIcons.hourglass,
-                      size: 14,
-                      color: isComp ? AppColors.primary
-                          : isAct ? const Color(0xFF22C55E)
-                          : status == 'failed' ? AppColors.error
-                          : RaddTheme.of(context).textMuted,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(_epCode(titleTxt),
-                        style: TextStyle(color: RaddTheme.of(context).textPrimary,
-                            fontSize: 12, fontWeight: FontWeight.w600)),
-                    if (isAct) ...[
-                      const SizedBox(height: 4),
-                      LinearProgressIndicator(value: prog,
-                          backgroundColor: RaddTheme.of(context).card,
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF22C55E)),
-                          minHeight: 2),
-                      const SizedBox(height: 2),
-                      Text('${(prog * 100).toStringAsFixed(0)}%',
-                          style: const TextStyle(color: Color(0xFF22C55E),
-                              fontSize: 10, fontWeight: FontWeight.w600)),
-                    ] else if (bytes > 0)
-                      Text(_fmtB(bytes),
-                          style: TextStyle(color: RaddTheme.of(context).textMuted, fontSize: 10)),
-                  ])),
-                  if (!widget.isSelecting)
-                    GestureDetector(
-                      onTap: () => widget.onDeleteEp(ep),
-                      child: Padding(padding: const EdgeInsets.all(6),
-                        child: Icon(AppIcons.trash,
-                            size: 16, color: RaddTheme.of(context).textMuted))),
-                  if (widget.isSelecting)
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 18, height: 18,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isSel ? AppColors.primary : Colors.transparent,
-                        border: Border.all(
-                            color: isSel ? AppColors.primary
-                                : RaddTheme.of(context).textMuted, width: 1.5)),
-                      child: isSel
-                          ? Icon(AppIcons.check, color: Colors.white, size: 11)
-                          : null),
-                ]),
-              ),
-            );
-          }),
-          const SizedBox(height: 6),
-        ],
-      ]),
-    );
-  }
-
-  Widget _pill(String text, Color color) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-    decoration: BoxDecoration(
-        color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(5)),
-    child: Text(text, style: TextStyle(
-        color: color, fontSize: 10, fontWeight: FontWeight.w700)));
-
-  /// Extract episode code (e.g. "S01E03") from full title_text.
-  String _epCode(String full) {
-    final m = RegExp(r'[Ss]\d{2}[Ee]\d{2}.*').firstMatch(full);
-    return m?.group(0) ?? full;
-  }
-
-  /// Compact file-size formatter for episode rows.
-  String _fmtB(int bytes) {
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
-}
-
-
 
 /// Small icon+label pill for the downloads empty state feature hints.
 class _FeaturePill extends StatelessWidget {

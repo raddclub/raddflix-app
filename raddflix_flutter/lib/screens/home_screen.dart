@@ -164,17 +164,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         currentIndex: _navIndex,
         onTap: (i) {
           setState(() => _navIndex = i);
-          DebugLogger.logTap('Home', 'bottomNav tab=$i', i == 0 ? 'Home' : i == 1 ? 'Search' : i == 2 ? 'Library' : 'Profile');
+          DebugLogger.logTap('Home', 'bottomNav tab=$i', i == 0 ? 'Home' : i == 1 ? 'Search' : i == 2 ? 'Local' : i == 3 ? 'Download' : 'Profile');
           // M-01: pop to root before pushing so tapping the same icon repeatedly
           // doesn't build an unbounded back-stack (e.g. Profile → Profile → …).
-          if (i == 1 || i == 2 || i == 3) {
+          if (i == 1 || i == 2 || i == 3 || i == 4) {
             Navigator.of(context).popUntil((route) => route.isFirst);
           }
           // Await so _navIndex resets to Home (0) when the user presses back,
           // preventing the indicator from staying on a non-Home tab.
           if (i == 1) Navigator.of(context).pushNamed(AppRoutes.search).then((_) { if (mounted) setState(() => _navIndex = 0); });
-          else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.downloads).then((_) { if (mounted) setState(() => _navIndex = 0); });
-          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.profile).then((_) { if (mounted) setState(() => _navIndex = 0); });
+          else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.localMedia).then((_) { if (mounted) setState(() => _navIndex = 0); });
+          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.downloads).then((_) { if (mounted) setState(() => _navIndex = 0); });
+          else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile).then((_) { if (mounted) setState(() => _navIndex = 0); });
         },
       ),
     );

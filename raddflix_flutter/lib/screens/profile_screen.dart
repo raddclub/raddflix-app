@@ -160,12 +160,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       child: Scaffold(
         backgroundColor: null,
         bottomNavigationBar: RaddFlixBottomNav(
-          currentIndex: 3,
+          currentIndex: 4,
           onTap: (i) {
-            if (i == 3) return;
+            if (i == 4) return;
             Navigator.of(context).popUntil((r) => r.isFirst);
             if (i == 1) Navigator.of(context).pushNamed(AppRoutes.search);
-            else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.downloads);
+            else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.localMedia);
+            else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.downloads);
           },
         ),
         body: CustomScrollView(

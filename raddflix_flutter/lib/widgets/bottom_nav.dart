@@ -47,9 +47,14 @@ class _RaddFlixBottomNavState extends ConsumerState<RaddFlixBottomNav> {
       iconFill: () => PhosphorIcons.magnifyingGlass(PhosphorIconsStyle.fill),
     ),
     _NavItem(
-      label: 'Library',
-      icon:     () => PhosphorIcons.files(),
-      iconFill: () => PhosphorIcons.files(PhosphorIconsStyle.fill),
+      label: 'Local',
+      icon:     () => PhosphorIcons.deviceMobile(),
+      iconFill: () => PhosphorIcons.deviceMobile(PhosphorIconsStyle.fill),
+    ),
+    _NavItem(
+      label: 'Download',
+      icon:     () => PhosphorIcons.downloadSimple(),
+      iconFill: () => PhosphorIcons.downloadSimple(PhosphorIconsStyle.fill),
     ),
     _NavItem(
       label: 'Profile',

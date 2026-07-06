@@ -317,8 +317,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         onTap: (i) {
           if (i == 1) return;
           Navigator.of(context).popUntil((r) => r.isFirst);
-          if (i == 2) Navigator.of(context).pushNamed(AppRoutes.downloads);
-          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.profile);
+          if (i == 2) Navigator.of(context).pushNamed(AppRoutes.localMedia);
+          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.downloads);
+          else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile);
         },
       ),
       body: SafeArea(
