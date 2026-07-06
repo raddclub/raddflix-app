@@ -3,10 +3,49 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
-## Current State (2026-07-05 — Player Panel Audit)
+## Current State (2026-07-06 — DOWNLOAD-TAB-V2)
 
-### Bottom Nav Redesign — 2026-07-06 (latest)
-Two commits: `405f250`, `00f71cb`.
+### DOWNLOAD-TAB-V2 — 2026-07-06 (latest)
+Commit: `094fd7d`. Full plan: `agent-hub/DOWNLOAD_TAB_REDESIGN_PLAN.md`.
+
+**What changed:**
+- **5 top-level tabs, no merged "Library"** — `bottom_nav.dart` now has Home,
+  Search, Local, Download, Profile (indices 0-4). This supersedes the prior
+  "Bottom Nav Redesign" entry below, which had merged Downloads+Local into a
+  single "Library" tab — that idea was dropped in favor of keeping both as
+  separate first-class destinations. All primary screens (`home_screen.dart`,
+  `search_screen.dart`, `profile_screen.dart`, `local_media_screen.dart`,
+  `downloads_screen.dart`) updated to the new index scheme and route names.
+- **`downloads_screen.dart` fully redesigned** — old 4-folder grid
+  (Movies/Shows/Dramas/Other with expandable inline groups) replaced with:
+  Movies flat grid/list + TV Shows section where every non-movie item
+  (shows, anime, dramas, cartoons) is grouped by show into a single "TV
+  Shows" bucket — tapping a show pushes the new `SeasonFolderScreen`.
+  Status pills (completed/downloading/failed) removed in favor of always-on
+  live indicators — a `DownloadStorageStrip` (total size/count/free space)
+  and `ActiveDownloadTicker` (per-item progress/speed/ETA) sit above the
+  content, plus inline failed-badges/retry icons on each card.
+- **`season_folder_screen.dart` (new)** — season grid (folder icon + done
+  count) → tapping a season shows its episode list. Episode rows support
+  swipe-to-delete (swipe left) and swipe-to-vault-prompt (swipe right);
+  Movies keep long-press multi-select instead (grid layout doesn't suit
+  Dismissible as well as a list does).
+- **`episode_title_parser.dart` (new, `core/utils/`)** — pure regex-based
+  parser (`parseEpisodeTitle()`) that extracts show title / season / episode
+  number from a download's `title_text` (e.g. "S05E02") to build the show →
+  season grouping. No schema change — this is derived purely from existing
+  title strings.
+- **Extracted widgets** — `widgets/download/download_storage_strip.dart` and
+  `widgets/download/active_download_ticker.dart`, pulled out of
+  `downloads_screen.dart` so the always-visible storage/progress UI can be
+  reused/tested independently.
+
+**New nav structure:** Home (0) · Search (1) · Local (2) · Download (3) · Profile (4)
+
+### Bottom Nav Redesign — 2026-07-06
+Two commits: `405f250`, `00f71cb`. **Superseded by DOWNLOAD-TAB-V2 above** —
+the merged "Library" tab this section describes no longer exists; kept here
+for historical context only.
 
 **What changed:**
 - **Tab 1: Local → Search** — `PhosphorIcons.magnifyingGlass` icon. Search was buried as an AppBar icon on Home only; now a primary nav destination reachable from every screen. Home AppBar search icon removed (no longer needed).
