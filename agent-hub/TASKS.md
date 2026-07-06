@@ -19,6 +19,7 @@
 |---|---|---|---|
 | DOWNLOAD-TAB-V2 | 5-tab bottom nav (Home/Search/Local/Download/Profile, drops merged-Library idea); redesign Download tab UX for simplicity (Netflix/MoviBox/1DM+/Amazon Prime/Snaptube/MX Player research); Download tab gets Movies section (flat) + TV Shows section grouped by show → per-season folders → episodes | See `agent-hub/DOWNLOAD_TAB_REDESIGN_PLAN.md` | ✅ DONE — `094fd7d` |
 | Portrait-Player-V1 | Fix video player portrait mode layout — YouTube/Netflix split (video top 38% + controls panel below), compact top bar, bottom-sheet settings panel, portrait-aware gesture zone, fix hardcoded offsets | `e851819`, `c1131ce` | ✅ DONE |
+| BUG-FREE-PLAY-01 | Free content wrongly showed subscription paywall on online play (worked fine after download). Root cause: `onGenerateRoute`'s `PageRouteBuilder` for `AppRoutes.player` never forwarded `settings:`, so `ModalRoute.of(context)?.settings.arguments` inside `PlayerScreen` always resolved to null — `is_free` was silently lost on every online play, treating all streamed content as paid. | `app.dart` — added `settings: settings` to the player `PageRouteBuilder` | ✅ DONE — `a9d90c5` |
 
 ---
 
