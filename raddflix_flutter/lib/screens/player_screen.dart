@@ -3891,7 +3891,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ═══════════════════════════════════════════════════════════════════════════
 
     Widget _buildPortraitLayout(BoxConstraints constraints) {
-      final double videoH = constraints.maxHeight * 0.38;
+      // Exact 16:9 height — eliminates black dead-band inside the video zone.
+      // Capped at 50% of screen height so controls always fit on tablet portrait.
+      final double videoH = (constraints.maxWidth * 9.0 / 16.0)
+          .clamp(0.0, constraints.maxHeight * 0.50);
       final Duration currentPos = _seekBarDelta != null
           ? Duration(milliseconds: (_seekBarDelta! * _duration.inMilliseconds).round())
           : _position;
@@ -3953,10 +3956,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
 
-                // Compact top bar (shown when controls visible)
+                // ── Persistent back button — always visible, never auto-hides ──
+                if (!_isLocked)
+                  Positioned(
+                    top: 0, left: 0,
+                    child: SafeArea(
+                      bottom: false,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 4, top: 2),
+                        child: _RaddIconBtn(
+                          icon: Icons.arrow_back_ios_new_rounded,
+                          size: 18,
+                          onTap: () => Navigator.of(context).pop(),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // ── Fade-in title bar: title + episode + rotate + PiP ──────────
                 if (!_isImmersive)
                   Positioned(
-                    top: 0, left: 0, right: 0,
+                    top: 0, left: 44, right: 0,
                     child: AnimatedOpacity(
                       opacity: _showControls && !_isLocked ? 1.0 : 0.0,
                       duration: const Duration(milliseconds: 280),
@@ -3970,19 +3990,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
 
-                // Shortcut sidebar (right edge of video zone)
-                if (!_isLocked && !_isImmersive)
-                  Positioned(
-                    right: 0, top: 0, bottom: 0,
-                    child: AnimatedOpacity(
-                      opacity: _panelOpen ? 0.0 : (_showControls ? 1.0 : 0.0),
-                      duration: const Duration(milliseconds: 280),
-                      child: IgnorePointer(
-                        ignoring: _panelOpen || !_showControls,
-                        child: _buildSidebar(videoConstraints),
-                      ),
-                    ),
-                  ),
+                // Sidebar suppressed in portrait — it covers video content and
+                // duplicates the quick actions row below. Landscape only.
 
                 // Brightness indicator
                 if (_showBrightnessIndicator && !_isImmersive)
@@ -4115,13 +4124,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
           ),
 
-          // ── Controls panel (bottom 62%) ────────────────────────────────────
+          // ── Controls panel (always visible below video) ────────────────────
           Expanded(
             child: Container(
               color: const Color(0xFF0D0D0D),
-              child: SingleChildScrollView(
-                child: _buildPortraitControlsPanel(constraints, currentPos),
-              ),
+              child: _buildPortraitControlsPanel(constraints, currentPos),
             ),
           ),
         ],
@@ -4129,16 +4136,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     Widget _buildPortraitTopBar() {
+      // Back button is always-visible separately (Positioned above this widget).
+      // This bar only handles title + episode badge + rotate + PiP (fade-in only).
       return Padding(
         padding: const EdgeInsets.fromLTRB(4, 4, 8, 4),
         child: Row(
           children: [
-            _RaddIconBtn(
-              icon: Icons.arrow_back_ios_new_rounded,
-              size: 18,
-              onTap: () => Navigator.of(context).pop(),
-            ),
-            const SizedBox(width: 6),
             Expanded(
               child: Text(
                 _currentTitle,
@@ -4182,15 +4185,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     Widget _buildPortraitControlsPanel(BoxConstraints constraints, Duration currentPos) {
+      // spaceEvenly distributes seek bar + transport + quick actions across the
+      // full available height — no dead space below on tall phones.
       return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             _buildHorizontalSeekBar(constraints, currentPos),
-            const SizedBox(height: 4),
-            _buildTransportRow(),
-            const SizedBox(height: 12),
+            _buildPortraitTransportRow(),
             _buildPortraitQuickActions(),
           ],
         ),
@@ -4228,13 +4231,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             active: _speed != 1.0,
           ))),
           Expanded(child: Center(child: _buildPortraitActionBtn(
-            Icons.loop_rounded,
-            'Loop',
-            _toggleLoop,
-            active: _loopEnabled,
+            Icons.lock_outline_rounded,
+            'Lock',
+            () => setState(() {
+              _isLocked = true;
+              _showControls = false;
+              _applySubtitleMargin(controlsVisible: false);
+            }),
           ))),
           Expanded(child: Center(child: _buildPortraitActionBtn(
-            Icons.settings_rounded,
+            Icons.more_horiz_rounded,
             'More',
             _openSettingsPanel,
           ))),
@@ -4274,6 +4280,78 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 color: active ? _accentColor : Colors.white54,
                 fontSize: 10,
                 fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Portrait-only transport row (no Lock / Immersive / Settings clutter)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    Widget _buildPortraitTransportRow() {
+      // Landscape transport row appends Lock/Immersive/Settings on the right.
+      // In portrait those live in the quick actions row — keep this row clean.
+      return SizedBox(
+        height: 56,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (_showSkipBtns)
+                  _RaddIconBtn(
+                    icon: Icons.replay_rounded,
+                    size: 24,
+                    onTap: () => _seekRelative(-_skipInterval),
+                  ),
+                if (_showPrevNextBtns)
+                  Opacity(
+                    opacity: _hasPrev ? 1.0 : 0.25,
+                    child: _RaddIconBtn(
+                      icon: Icons.skip_previous_rounded,
+                      size: 28,
+                      onTap: _hasPrev ? () => _playEpisodeAt(_currentEpIdx - 1) : null,
+                    ),
+                  ),
+                const Spacer(),
+                if (_showPrevNextBtns)
+                  Opacity(
+                    opacity: _hasNext ? 1.0 : 0.25,
+                    child: _RaddIconBtn(
+                      icon: Icons.skip_next_rounded,
+                      size: 28,
+                      onTap: _hasNext ? () => _playEpisodeAt(_currentEpIdx + 1) : null,
+                    ),
+                  ),
+                if (_showSkipBtns)
+                  _RaddIconBtn(
+                    icon: Icons.forward_rounded,
+                    size: 24,
+                    onTap: () => _seekRelative(_skipInterval),
+                  ),
+              ],
+            ),
+            // Play/pause — always pixel-centered via Stack
+            GestureDetector(
+              onTap: () { _player.playOrPause(); _scheduleHide(); },
+              child: Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.14),
+                  border: Border.all(
+                      color: Colors.white.withOpacity(0.40), width: 1.2),
+                ),
+                child: Icon(
+                  _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
               ),
             ),
           ],
