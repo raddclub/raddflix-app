@@ -145,6 +145,16 @@ class RaddFlixApp extends ConsumerWidget {
               ? rawEps.map((e) => Map<String, dynamic>.from(e as Map)).toList()
               : null;
           return PageRouteBuilder(
+            // BUG-FREE-PLAY-01 fix: PageRouteBuilder does NOT forward `settings`
+            // unless explicitly passed. PlayerScreen reads is_free (and other
+            // flags) via `ModalRoute.of(context)?.settings.arguments` at runtime
+            // (not just from the typed constructor params above), so omitting
+            // `settings: settings` here silently dropped 'is_free' on every
+            // online play — free content was wrongly treated as paid and sent
+            // to the subscription paywall. Downloaded/local playback never hit
+            // this path (it bypasses the route-args gate via localPath), which
+            // is why the bug only showed up for online streaming, not downloads.
+            settings: settings,
             pageBuilder: (_, __, ___) => PlayerScreen(
               fileId: args['file_id'] as String? ?? '',
               title: args['title'] as String? ?? '',
