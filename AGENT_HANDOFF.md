@@ -5,7 +5,22 @@
 
 ## Current State (2026-07-05 — Player Panel Audit)
 
-### Player Panel Audit — 2026-07-05 (latest)
+### Bottom Nav Redesign — 2026-07-06 (latest)
+Two commits: `405f250`, `00f71cb`.
+
+**What changed:**
+- **Tab 1: Local → Search** — `PhosphorIcons.magnifyingGlass` icon. Search was buried as an AppBar icon on Home only; now a primary nav destination reachable from every screen. Home AppBar search icon removed (no longer needed).
+- **Tab 2: Downloads → Library** — `PhosphorIcons.files` icon. Renamed to signal "all your offline content," not just in-progress downloads.
+- **Label font 9.5 → 11.0px** — accessibility fix (was below WCAG minimum).
+- **Search screen gets bottom nav** — `RaddFlixBottomNav(currentIndex: 1)` added to `SearchScreen` Scaffold; it was the only primary screen without one.
+- **Local Media stays reachable via Library** — `DownloadsScreen` AppBar gets an "On Device" button (`AppIcons.device`) that navigates to `LocalMediaScreen`. Local is no longer a top-level tab but remains easily accessible within Library context.
+- **LocalMediaScreen nav updated** — `currentIndex: 2` (Library stays highlighted); tapping Library tab pops back to Downloads/Library instead of doing a full popUntil+push.
+- **`_navIndex` drift fixed** — Home screen pushes now use `.then((_) => setState(() => _navIndex = 0))` so the capsule indicator resets correctly when user presses back from any tab.
+- **All screens updated** — `downloads_screen.dart`, `local_media_screen.dart`, `profile_screen.dart` all have their embedded bottom nav `onTap` routing updated (i==1 → search, not localMedia).
+
+**New nav structure:** Home (0) · Search (1) · Library (2) · Profile (3)
+
+### Player Panel Audit — 2026-07-05
 Full audit of all player panels + format support. Three commits: `303b9af`, `1bc5b7c`.
 
 **What changed:**
