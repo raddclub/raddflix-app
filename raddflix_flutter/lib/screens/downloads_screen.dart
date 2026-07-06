@@ -273,7 +273,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           // On Device shortcut — Local files are part of the Library
           if (_activeFolder == null && !_selecting)
             IconButton(
-              icon: const Icon(Icons.phone_android_rounded, size: 22),
+              icon: Icon(AppIcons.device, size: 22),
               tooltip: 'On Device',
               onPressed: () => Navigator.of(context).pushNamed(AppRoutes.localMedia),
             ),

@@ -170,9 +170,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           if (i == 1 || i == 2 || i == 3) {
             Navigator.of(context).popUntil((route) => route.isFirst);
           }
-          if (i == 1) Navigator.of(context).pushNamed(AppRoutes.search);
-          else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.downloads);
-          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.profile);
+          // Await so _navIndex resets to Home (0) when the user presses back,
+          // preventing the indicator from staying on a non-Home tab.
+          if (i == 1) Navigator.of(context).pushNamed(AppRoutes.search).then((_) { if (mounted) setState(() => _navIndex = 0); });
+          else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.downloads).then((_) { if (mounted) setState(() => _navIndex = 0); });
+          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.profile).then((_) { if (mounted) setState(() => _navIndex = 0); });
         },
       ),
     );
