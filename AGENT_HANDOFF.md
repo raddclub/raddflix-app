@@ -3,6 +3,21 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-06 — Portrait-Player-V2)
+
+### Portrait-Player-V2 — 2026-07-06 (latest)
+Commit: `896ec06`. Fixed 7 portrait player layout issues found in audit.
+
+**What changed:**
+- **16:9 exact video zone** — `videoH` changed from fixed `constraints.maxHeight * 0.38` to `(constraints.maxWidth * 9.0 / 16.0).clamp(0.0, constraints.maxHeight * 0.50)`. Eliminates the ~100px black dead-band that appeared inside the video zone on typical phones because the 38% container was always taller than the actual 16:9 video frame.
+- **Sidebar suppressed in portrait** — `_buildSidebar()` was rendering at the right edge of the video zone in portrait, obscuring content and duplicating the quick actions row below. Removed; replaced with comment.
+- **Persistent back button** — Back button extracted from the `AnimatedOpacity` fade block into a separate always-visible `Positioned(top:0, left:0)` widget (`if (!_isLocked)`). Users can always exit the player without needing to tap the video to reveal controls first.
+- **Fade-in title bar offset** — The remaining fade-in top bar (title + episode badge + rotate + PiP) is now `Positioned(left: 44)` so it never overlaps the persistent back button.
+- **New `_buildPortraitTransportRow()`** — Portrait-specific transport row: replay / prev-episode / play-pause (centered) / next-episode / forward-skip only. Landscape's Lock + Immersive + Settings utility buttons removed from this row — they cluttered the transport row and duplicated the quick actions.
+- **Lock moved to quick actions** — Replaced "Loop" slot in `_buildPortraitQuickActions` with "Lock". Quick actions are now: CC · Audio · EQ · Speed · Lock · More. Loop is accessible via the More (settings) panel.
+- **`spaceEvenly` controls panel** — `_buildPortraitControlsPanel` now uses `Column(mainAxisAlignment: MainAxisAlignment.spaceEvenly)`. Seek bar + transport + quick actions distribute naturally across the full panel height — no dead space below on tall phones.
+- **`SingleChildScrollView` removed** — Portrait controls panel no longer wrapped in scroll view; it's a direct child of `Expanded`. Controls fill the available space cleanly.
+
 ## Current State (2026-07-06 — DOWNLOAD-TAB-V2)
 
 ### DOWNLOAD-TAB-V2 — 2026-07-06 (latest)

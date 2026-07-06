@@ -78,4 +78,5 @@
 - Session 2026-07-05 — Portrait-Player-V1: YouTube/Netflix portrait layout for video player
 - Session 2026-07-05 — Player Panel Audit: panels responsive, info icon moved, codec display fixed, format support verified
 - Session 2026-07-06 — Bottom Nav Redesign: Search replaces Local in nav, Downloads renamed Library, On Device access via Library AppBar, label font fixed, _navIndex drift fixed
+- Session 2026-07-06 — Portrait-Player-V2: 7 layout issues fixed (16:9 video zone, sidebar removed, persistent back button, clean transport row, spaceEvenly controls, no scroll wrapper, Lock in quick actions)
 
