@@ -6,8 +6,18 @@ a Flutter Android app is the client.
 
 This file is the **single entry point** for any agent session (Replit or otherwise) picking up
 this project. Read it fully before touching code. If you find yourself about to create a new
-"NEXT_AGENT"/"HANDOFF"/"STATUS" file — don't. Update the canonical docs listed below instead.
-Doc sprawl from repeated one-off handoff files is exactly what this file replaces.
+"NEXT_AGENT"/"HANDOFF"/"STATUS"/"AUDIT"/"BRIEF" file — don't. Update the canonical docs listed
+below instead. Doc sprawl from repeated one-off handoff files is exactly what this file replaces.
+
+> **This is a hard rule, not a suggestion — it has been violated before.** A prior agent session
+> ignored this section and created ~15 one-off files (`NEXT_AGENT.md`, `HANDOFF_NEXT.md`,
+> `AGENT_STATUS.md`, `AUDIT_REPORT.md`, `PLAYER_AUDIT_v4.md`, etc.), plus a whole duplicate,
+> stale copy of the agent-hub tracking files inside `radd-hub/agent-hub/`. Nobody deleted them;
+> they just piled up in an `agent-hub/archive/` folder until the human had to ask an agent to
+> clean it all up manually. There is no more `archive/` folder — do not recreate one, and do not
+> "archive" a stray file as a way of not-quite-deleting it. If a one-off file like this exists or
+> gets created, delete it immediately (via `agent-hub/scripts/push.js`, never raw git commands
+> per Rule below) and fold anything worth keeping into the canonical docs instead.
 
 ## Note for agents reading this file
 
@@ -79,8 +89,10 @@ and wait for their actual task:
    use fallback approaches when something fails, without ever skipping verification or the
    "confirm before touching production" rule.
 
-Older one-off audit reports and superseded handoff files have been moved to `agent-hub/archive/`
-for reference — they are historical, not current. Do not treat anything in `archive/` as live state.
+Older one-off audit reports and superseded handoff files have been deleted (2026-07-06 cleanup).
+There is no `archive/` folder anymore — do not recreate one. If you think something is worth
+preserving "for reference," it belongs as a section in `agent-hub/memory/` (a topic file) or
+`AGENT_HANDOFF.md`, not as a standalone dated file.
 
 ## Working on this project — normal workflow
 
@@ -110,3 +122,17 @@ for reference — they are historical, not current. Do not treat anything in `ar
 5. If you learned a non-obvious, durable lesson, add/update an entry in `agent-hub/memory/`.
 
 Do this in the canonical files above — never create a new dated "handoff" or "status" file.
+
+## Before you end any session (mandatory self-audit)
+
+Run this check before your final message, every session:
+
+```bash
+find . -iname "*.md" -newer AGENT_HANDOFF.md -not -path "./node_modules/*"
+```
+
+Any file this turns up that is NOT one of the canonical docs listed above must be either:
+(a) merged into the relevant canonical doc, then deleted, or (b) deleted outright if it's a
+throwaway note. Never leave a new standalone `.md` file behind "just in case" — that habit is
+exactly what caused the doc-sprawl cleanup this rule was added after. If you're unsure whether
+something is worth keeping, ask the human — don't default to keeping it.
