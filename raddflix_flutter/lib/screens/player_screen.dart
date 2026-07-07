@@ -1535,6 +1535,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _labStereoWide = prefs.getBool('pref_lab_stereo_wide') ?? false;
       _labNoise = prefs.getBool('pref_lab_noise') ?? false;
       _channelModeIdx = prefs.getInt('pref_ch_mode') ?? 0;
+      _useSWDecoder   = prefs.getBool('pref_sw_dec') ?? false;
       // Sprint 2 keys
       _endAction           = prefs.getString('pref_end_action') ?? 'play_next';
       _silenceSkipEnabled  = prefs.getBool('pref_silence_skip') ?? false;
@@ -1637,6 +1638,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setBool('pref_lab_stereo_wide', _labStereoWide);
     await prefs.setBool('pref_lab_noise', _labNoise);
     await prefs.setInt('pref_ch_mode', _channelModeIdx);
+    await prefs.setBool('pref_sw_dec', _useSWDecoder);
     // Sprint 2 keys
     await prefs.setString('pref_end_action', _endAction);
     await prefs.setBool('pref_silence_skip', _silenceSkipEnabled);
@@ -4079,10 +4081,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
 
-                // Volume indicator
+                // Volume indicator — RIGHT side (volume swipe is right-half of screen)
                 if (_showVolumeIndicator && !_isImmersive)
                   Positioned(
-                    left: 20, top: 0, bottom: 0,
+                    right: 20, top: 0, bottom: 0,
                     child: Center(
                       child: _buildSideIndicator(
                         icon: _isMuted
