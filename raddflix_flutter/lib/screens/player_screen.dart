@@ -5933,63 +5933,69 @@ class _SubtitlePanel extends StatefulWidget {
 }
 
 class _SubtitlePanelState extends State<_SubtitlePanel> {
-  int _tab = 0; // 0=Open 1=Settings 2=Sync 3=Speed 4=Panel 5=Custom
+  // ── Tabs: 0=Tracks  1=Style  2=Position  3=Sync  4=Online  5=AI Dub ──────
+  int _tab = 0;
   late double _sync;
   late double _speed;
-  List<Map<String,dynamic>> _onlineResults = [];
-  bool _onlineLoading = false;
-  String _onlineError = '';
-  // Subtitle search improvements
-  late TextEditingController _searchController;
-  String _selectedLangCode = 'urd,hin'; // default: Urdu + Hindi for Pakistani content
-  bool _hasSearched = false;
-  String? _osToken; // cached XML-RPC session token
-  // Real subtitle style state
-  int _subFontIdx = 0;  // 0=Sans Serif 1=Serif 2=Monospace 3=Casual
-  double _subSize = 22.0;
-  double _subScale = 1.0;
-  bool _subBold = false;
-  Color _subColor = Colors.white;
-  Color _subBg = Colors.transparent;
-  double _subFade = 0.8;
-  // Panel tab
-  int _subAlignIdx = 1; // 0=Left 1=Center 2=Right
+
+  // ── Style ─────────────────────────────────────────────────────────────────
+  int    _subFontIdx   = 0;       // 0=Sans  1=Serif  2=Mono  3=Casual
+  double _subSize      = 22.0;
+  bool   _subBold      = false;
+  Color  _subColor     = Colors.white;
+  Color  _subBgColor   = Colors.transparent;
+  double _subOpacity   = 1.0;
+  int    _subShadowIdx = 1;       // 0=None  1=Outline  2=Drop Shadow  3=Box
+
+  // ── Position ──────────────────────────────────────────────────────────────
+  int    _subAlignX       = 1;    // 0=Left   1=Center   2=Right
+  int    _subAlignY       = 2;    // 0=Top    1=Center   2=Bottom
   double _subBottomMargin = 100.0;
-  bool _subFitToVideo = true;
-  // Customization tab state
-  int _subPositionIdx = 2;    // 0=Top 1=Center 2=Bottom  → sub-align-y
-  int _subShadowIdx = 1;      // 0=None 1=Outline 2=Shadow 3=Box
-  double _subOpacity = 1.0;   // 0.0–1.0 → sub-ass-style alpha
-  double _subEdgePadding = 16.0; // sub-margin-x
-  double _subLineSpacing = 1.2;  // sub-spacing
+  double _subEdgePadding  = 16.0;
+  bool   _subFitToVideo   = true;
 
-  static const _subFonts = ['Sans Serif', 'Serif', 'Monospace', 'Casual'];
-  static const _subAligns = ['Left', 'Center', 'Right'];
-  static const _subColorPresets = [
-    Colors.white, Colors.yellow, Color(0xFFFFD700),
-    Color(0xFF00FF00), Color(0xFF00FFFF), Colors.black,
-  ];
-  static const _subBgPresets = [
-    Colors.transparent, Colors.black87, Color(0x99000000),
-    Color(0x99FFFF00), Colors.black,
-  ];
+  // ── Online search ─────────────────────────────────────────────────────────
+  List<Map<String, dynamic>> _onlineResults = [];
+  bool    _onlineLoading   = false;
+  String  _onlineError     = '';
+  late    TextEditingController _searchController;
+  String  _selectedLangCode = 'urd,hin';
+  bool    _hasSearched = false;
+  String? _osToken;
 
-  void _showInfoSnackbar(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: Colors.black87,
-      duration: const Duration(seconds: 2),
-    ));
+  static const _subFonts     = ['Sans Serif', 'Serif', 'Monospace', 'Casual'];
+  static const _mpvFonts     = ['sans-serif', 'serif', 'monospace', 'sans-serif'];
+  static const _shadowLabels = ['None', 'Outline', 'Shadow', 'Box'];
+
+  // ── MPV colour helpers ────────────────────────────────────────────────────
+  //
+  // mpv colour format: #RRGGBBAA  (AA=00 → fully opaque, AA=FF → transparent)
+  //
+  /// Text colour — always fully opaque.
+  static String _toMpvColor(Color c) =>
+      '#${c.red.toRadixString(16).padLeft(2, '0')}'
+      '${c.green.toRadixString(16).padLeft(2, '0')}'
+      '${c.blue.toRadixString(16).padLeft(2, '0')}';
+
+  /// Background colour — supports partial/full transparency.
+  static String _toMpvBackColor(Color c) {
+    if (c.opacity == 0) return '#000000ff'; // fully transparent
+    final r  = c.red  .toRadixString(16).padLeft(2, '0');
+    final g  = c.green.toRadixString(16).padLeft(2, '0');
+    final b  = c.blue .toRadixString(16).padLeft(2, '0');
+    // mpv AA=00 → opaque. Flutter opacity 1.0 → AA=00, opacity 0.0 → AA=FF
+    final aa = ((1.0 - c.opacity) * 255).round()
+                   .toRadixString(16).padLeft(2, '0');
+    return '#$r$g$b$aa';
   }
 
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
-    _sync = widget.subSync;
+    _sync  = widget.subSync;
     _speed = widget.subSpeed;
     _searchController = TextEditingController(text: widget.title ?? '');
-    // Auto-search on open if we have a title and aren't viewing local files
     if ((widget.title ?? '').isNotEmpty && !widget.isLocal) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _fetchOnlineSubtitles(context);
@@ -6003,34 +6009,41 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     super.dispose();
   }
 
-  void _showColorPicker(BuildContext ctx, List<Color> presets, Color current, ValueChanged<Color> onPick) {
-    showDialog(
-      context: ctx,
-      builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1C1C),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        title: const Text('Pick Color', style: TextStyle(color: Colors.white, fontSize: 15)),
-        content: Wrap(
-          spacing: 12, runSpacing: 12,
-          children: presets.map((col) => GestureDetector(
-            onTap: () { onPick(col); Navigator.of(c).pop(); },
-            child: Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(
-                color: col,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: col == current ? Colors.white : Colors.white24,
-                  width: col == current ? 2.5 : 1,
-                ),
-              ),
-            ),
-          )).toList(),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.of(c).pop(),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white54)))],
-      ),
-    );
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  void _setProp(String prop, String val) =>
+      widget.onSubPropertyChanged(prop, val);
+
+  void _showInfoSnackbar(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: Colors.black87,
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  /// Apply shadow style + fix the "Box" mode using sub-back-color correctly.
+  void _applyShadow(int idx) {
+    setState(() => _subShadowIdx = idx);
+    HapticFeedback.selectionClick();
+    switch (idx) {
+      case 0: // None
+        _setProp('sub-shadow-offset', '0');
+        _setProp('sub-outline-size', '0');
+      case 1: // Outline
+        _setProp('sub-outline-size', '2');
+        _setProp('sub-shadow-offset', '0');
+      case 2: // Drop Shadow
+        _setProp('sub-shadow-offset', '3');
+        _setProp('sub-outline-size', '0.5');
+      case 3: // Box — force a visible background if none set yet
+        _setProp('sub-shadow-offset', '0');
+        _setProp('sub-outline-size', '0');
+        if (_subBgColor.opacity == 0) {
+          setState(() => _subBgColor = Colors.black87);
+          _setProp('sub-back-color', _toMpvBackColor(Colors.black87));
+        }
+    }
   }
 
 
@@ -6229,705 +6242,710 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     ];
   }
 
+  // ── Live subtitle preview ─────────────────────────────────────────────────
+  Widget _buildPreview() {
+    final shadows = <Shadow>[
+      if (_subShadowIdx == 1) ...[
+        const Shadow(color: Colors.black, blurRadius: 4, offset: Offset.zero),
+        const Shadow(color: Colors.black, blurRadius: 2, offset: Offset(1.5, 1.5)),
+        const Shadow(color: Colors.black, blurRadius: 2, offset: Offset(-1.5, -1.5)),
+      ],
+      if (_subShadowIdx == 2)
+        const Shadow(color: Colors.black54, blurRadius: 6, offset: Offset(2, 3)),
+    ];
+    final textStyle = TextStyle(
+      fontSize: (_subSize * 0.68).clamp(10.0, 28.0),
+      fontWeight: _subBold ? FontWeight.bold : FontWeight.normal,
+      color: _subColor.withOpacity(_subOpacity),
+      shadows: shadows,
+      height: 1.3,
+    );
+    final vAlign = _subAlignY == 0 ? Alignment.topCenter
+                 : _subAlignY == 1 ? Alignment.center
+                                   : Alignment.bottomCenter;
+    final hAlign = _subAlignX == 0 ? TextAlign.left
+                 : _subAlignX == 2 ? TextAlign.right : TextAlign.center;
+    final hasBg = _subBgColor.opacity > 0;
+    return Container(
+      height: 80,
+      margin: const EdgeInsets.only(bottom: 14),
+      clipBehavior: Clip.hardEdge,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [Color(0xFF0D1F35), Color(0xFF122012), Color(0xFF1F0D35)],
+        ),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Stack(children: [
+        Align(
+          alignment: vAlign,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Container(
+              padding: _subShadowIdx == 3
+                  ? const EdgeInsets.symmetric(horizontal: 10, vertical: 4)
+                  : EdgeInsets.zero,
+              decoration: BoxDecoration(
+                color: _subShadowIdx == 3
+                    ? (hasBg ? _subBgColor : Colors.black.withOpacity(0.78))
+                    : (hasBg ? _subBgColor : null),
+                borderRadius: _subShadowIdx == 3 ? BorderRadius.circular(3) : null,
+              ),
+              child: Text('نمونہ  Sample subtitle', style: textStyle,
+                  textAlign: hAlign, maxLines: 2, overflow: TextOverflow.ellipsis),
+            ),
+          ),
+        ),
+        const Positioned(top: 5, left: 8,
+          child: Text('PREVIEW', style: TextStyle(
+              color: Colors.white24, fontSize: 8, fontWeight: FontWeight.w700, letterSpacing: 1.4))),
+      ]),
+    );
+  }
+
+  // ── Tab helpers ────────────────────────────────────────────────────────────
+  static Widget _secLabel(String label) => Padding(
+    padding: const EdgeInsets.only(bottom: 6, top: 2),
+    child: Text(label, style: const TextStyle(
+        color: Colors.white54, fontSize: 11,
+        fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+  );
+
+  Widget _buildSliderRow({
+    required String label, required String valueLabel,
+    required double value, required double min, required double max,
+    required int divisions, required ValueChanged<double> onChanged,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        const Spacer(),
+        Text(valueLabel, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+      ]),
+      SliderTheme(
+        data: SliderTheme.of(context).copyWith(
+          trackHeight: 2.5,
+          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+          overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+        ),
+        child: Slider(value: value, min: min, max: max, divisions: divisions,
+            activeColor: Colors.white, inactiveColor: Colors.white24,
+            onChanged: onChanged),
+      ),
+    ]),
+  );
+
+  Widget _buildSwitchRow({required IconData icon, required String label,
+      required bool value, required ValueChanged<bool> onChanged}) =>
+    Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(children: [
+        Container(
+          width: 32, height: 32,
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.07),
+              borderRadius: BorderRadius.circular(7)),
+          child: Icon(icon, color: Colors.white54, size: 17),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 13))),
+        Switch(value: value, onChanged: onChanged,
+            activeColor: Colors.white,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+      ]),
+    );
+
+  Widget _buildColorRow({required List<Color> presets, required Color current,
+      required ValueChanged<Color> onPick}) =>
+    SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(children: presets.map((c) => Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: GestureDetector(
+          onTap: () { HapticFeedback.selectionClick(); onPick(c); },
+          child: Container(
+            width: 34, height: 34,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: c,
+              border: Border.all(
+                color: c == current ? Colors.white : Colors.white38,
+                width: c == current ? 2.5 : 1.2,
+              ),
+            ),
+            child: c == Colors.transparent
+                ? const Icon(Icons.block, color: Colors.white38, size: 16)
+                : c == current
+                    ? const Icon(Icons.check, color: Colors.white, size: 14)
+                    : null,
+          ),
+        ),
+      )).toList()),
+    );
+
+  Widget _buildSegment({required List<String> labels, required int selected,
+      required ValueChanged<int> onChanged}) =>
+    Row(children: List.generate(labels.length, (i) => Expanded(
+      child: Padding(
+        padding: EdgeInsets.only(right: i < labels.length - 1 ? 6 : 0),
+        child: GestureDetector(
+          onTap: () { HapticFeedback.selectionClick(); onChanged(i); },
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            decoration: BoxDecoration(
+              color: selected == i ? Colors.white.withOpacity(0.18) : Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: selected == i ? Colors.white60 : Colors.white12,
+                width: selected == i ? 1.5 : 1,
+              ),
+            ),
+            child: Text(labels[i],
+                style: TextStyle(color: selected == i ? Colors.white : Colors.white54,
+                    fontSize: 12, fontWeight: FontWeight.w500),
+                textAlign: TextAlign.center),
+          ),
+        ),
+      ),
+    )));
+
+  // ── Tab bodies ─────────────────────────────────────────────────────────────
+
+  Widget _buildTracksTab() => ListView(padding: const EdgeInsets.all(14), children: [
+    if (widget.embeddedTracks.isNotEmpty) ...[
+      _secLabel('Primary Track'),
+      ...widget.embeddedTracks.asMap().entries.map((e) => _SubTrackTile(
+        track: e.value, index: e.key,
+        selected: widget.selectedSubtitle == e.value,
+        accentColor: Colors.white,
+        onTap: () => widget.onSubtitleTrackSelected(e.value),
+      )),
+      _SubTrackTile(track: null, index: -1, label: 'Off',
+        selected: widget.selectedSubtitle == null,
+        accentColor: Colors.white,
+        onTap: () => widget.onSubtitleTrackSelected(null)),
+      const SizedBox(height: 10),
+      const Divider(color: Colors.white12, height: 1),
+      const SizedBox(height: 10),
+      _secLabel('Secondary — OST / Signs (top of screen)'),
+      const Padding(padding: EdgeInsets.only(bottom: 8),
+        child: Text('Song lyrics, signs, on-screen text shown above primary',
+            style: TextStyle(color: Colors.white38, fontSize: 11))),
+      ...widget.embeddedTracks.asMap().entries.map((e) => _SubTrackTile(
+        track: e.value, index: e.key,
+        selected: widget.selectedSecondSub == e.value,
+        accentColor: const Color(0xFF4A9EFF),
+        onTap: () => widget.onSecondSubSelected(e.value),
+      )),
+      _SubTrackTile(track: null, index: -1, label: 'Off',
+        selected: widget.selectedSecondSub == null,
+        accentColor: const Color(0xFF4A9EFF),
+        onTap: () => widget.onSecondSubSelected(null)),
+      const SizedBox(height: 10),
+      const Divider(color: Colors.white12, height: 1),
+      const SizedBox(height: 10),
+    ],
+    _secLabel('External File'),
+    const SizedBox(height: 2),
+    if (widget.currentFile != null)
+      Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF4A9EFF).withOpacity(0.4)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.subtitles_rounded, color: Color(0xFF4A9EFF), size: 18),
+          const SizedBox(width: 8),
+          Expanded(child: Text(widget.currentFile!.split('/').last,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              overflow: TextOverflow.ellipsis)),
+        ]),
+      ),
+    GestureDetector(
+      onTap: () async {
+        HapticFeedback.lightImpact();
+        final r = await FilePicker.platform.pickFiles(
+            type: FileType.custom, allowedExtensions: ['srt', 'vtt', 'ass', 'ssa']);
+        if (r != null && r.files.single.path != null)
+          widget.onSubtitleFilePicked?.call(r.files.single.path!);
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(color: Colors.white10,
+            borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white24)),
+        child: const Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.folder_open_rounded, color: Colors.white70, size: 28),
+          SizedBox(height: 6),
+          Text('Open from device',
+              style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+          SizedBox(height: 2),
+          Text('SRT · VTT · ASS · SSA',
+              style: TextStyle(color: Colors.white38, fontSize: 11)),
+        ]),
+      ),
+    ),
+  ]);
+
+  Widget _buildStyleTab() {
+    const textColors = [
+      Colors.white, Colors.yellow, Color(0xFFFFD700),
+      Color(0xFF00FF00), Color(0xFF00FFFF), Color(0xFFFF8C00), Colors.black,
+    ];
+    const bgColors = [
+      Colors.transparent, Colors.black87, Color(0x99000000),
+      Color(0xCC000000), Color(0x99FFFF00), Colors.black,
+    ];
+    return ListView(padding: const EdgeInsets.all(14), children: [
+      _buildPreview(),
+      _secLabel('Font'),
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: List.generate(_subFonts.length, (i) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: GestureDetector(
+            onTap: () { setState(() => _subFontIdx = i); HapticFeedback.selectionClick(); _setProp('sub-font', _mpvFonts[i]); },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: _subFontIdx == i ? Colors.white.withOpacity(0.18) : Colors.white.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _subFontIdx == i ? Colors.white60 : Colors.white24,
+                  width: _subFontIdx == i ? 1.5 : 1,
+                ),
+              ),
+              child: Text(_subFonts[i], style: TextStyle(
+                color: _subFontIdx == i ? Colors.white : Colors.white54,
+                fontSize: 12,
+                fontWeight: _subFontIdx == i ? FontWeight.w600 : FontWeight.normal,
+              )),
+            ),
+          ),
+        ))),
+      ),
+      const SizedBox(height: 14),
+      _buildSliderRow(
+        label: 'Size', valueLabel: '${_subSize.round()} pt',
+        value: _subSize, min: 12, max: 40, divisions: 28,
+        onChanged: (v) { setState(() => _subSize = v); _setProp('sub-font-size', v.round().toString()); },
+      ),
+      _buildSwitchRow(
+        icon: Icons.format_bold_rounded, label: 'Bold',
+        value: _subBold,
+        onChanged: (v) { setState(() => _subBold = v); HapticFeedback.selectionClick(); _setProp('sub-bold', v ? 'yes' : 'no'); },
+      ),
+      _buildSliderRow(
+        label: 'Opacity', valueLabel: '${(_subOpacity * 100).round()}%',
+        value: _subOpacity, min: 0.1, max: 1.0, divisions: 9,
+        onChanged: (v) { setState(() => _subOpacity = v); _setProp('sub-opacity', v.toStringAsFixed(2)); },
+      ),
+      const SizedBox(height: 8),
+      _secLabel('Text Colour'),
+      _buildColorRow(presets: textColors, current: _subColor, onPick: (c) {
+        setState(() => _subColor = c);
+        _setProp('sub-color', _toMpvColor(c));
+      }),
+      const SizedBox(height: 14),
+      _secLabel('Background'),
+      _buildColorRow(presets: bgColors, current: _subBgColor, onPick: (c) {
+        setState(() => _subBgColor = c);
+        _setProp('sub-back-color', _toMpvBackColor(c));
+      }),
+      const SizedBox(height: 14),
+      _secLabel('Shadow Style'),
+      _buildSegment(
+        labels: _shadowLabels,
+        selected: _subShadowIdx,
+        onChanged: _applyShadow,
+      ),
+      const SizedBox(height: 8),
+    ]);
+  }
+
+  Widget _buildPositionTab() => ListView(padding: const EdgeInsets.all(14), children: [
+    _buildPreview(),
+    _secLabel('Horizontal Alignment'),
+    _buildSegment(
+      labels: const ['Left', 'Center', 'Right'], selected: _subAlignX,
+      onChanged: (i) { setState(() => _subAlignX = i); _setProp('sub-align-x', ['left','center','right'][i]); },
+    ),
+    const SizedBox(height: 14),
+    _secLabel('Vertical Position'),
+    _buildSegment(
+      labels: const ['Top', 'Center', 'Bottom'], selected: _subAlignY,
+      onChanged: (i) { setState(() => _subAlignY = i); _setProp('sub-align-y', ['top','center','bottom'][i]); },
+    ),
+    const SizedBox(height: 14),
+    _buildSliderRow(
+      label: 'Bottom Margin', valueLabel: '${_subBottomMargin.round()} px',
+      value: _subBottomMargin, min: 0, max: 200, divisions: 40,
+      onChanged: (v) {
+        setState(() => _subBottomMargin = v);
+        _setProp('sub-margin-y', v.round().toString());
+        _setProp('_sub_margin_main', v.toStringAsFixed(1));
+      },
+    ),
+    _buildSliderRow(
+      label: 'Edge Padding', valueLabel: '${_subEdgePadding.round()} px',
+      value: _subEdgePadding, min: 0, max: 60, divisions: 12,
+      onChanged: (v) { setState(() => _subEdgePadding = v); _setProp('sub-margin-x', v.round().toString()); },
+    ),
+    _buildSwitchRow(
+      icon: Icons.fit_screen_rounded, label: 'Fit subtitles into video frame',
+      value: _subFitToVideo,
+      onChanged: (v) { setState(() => _subFitToVideo = v); HapticFeedback.selectionClick(); _setProp('sub-ass-scale-with-window', v ? 'yes' : 'no'); },
+    ),
+    const SizedBox(height: 8),
+  ]);
+
+  Widget _buildSyncTab() => ListView(padding: const EdgeInsets.all(20), children: [
+    _secLabel('Synchronisation'),
+    const Text('Shift subtitles earlier (−) or later (+) relative to audio',
+        style: TextStyle(color: Colors.white38, fontSize: 11)),
+    const SizedBox(height: 20),
+    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+      _BigStepBtn(label: '−0.5s', onTap: () { setState(() => _sync -= 0.5); widget.onSyncChanged(-0.5); HapticFeedback.selectionClick(); }),
+      const SizedBox(width: 6),
+      _BigStepBtn(label: '−0.1s', onTap: () { setState(() => _sync -= 0.1); widget.onSyncChanged(-0.1); HapticFeedback.selectionClick(); }),
+      const SizedBox(width: 16),
+      Container(
+        width: 76, height: 48,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Center(child: Text(
+          '${_sync >= 0 ? '+' : ''}${_sync.toStringAsFixed(1)}s',
+          style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+        )),
+      ),
+      const SizedBox(width: 16),
+      _BigStepBtn(label: '+0.1s', onTap: () { setState(() => _sync += 0.1); widget.onSyncChanged(0.1); HapticFeedback.selectionClick(); }),
+      const SizedBox(width: 6),
+      _BigStepBtn(label: '+0.5s', onTap: () { setState(() => _sync += 0.5); widget.onSyncChanged(0.5); HapticFeedback.selectionClick(); }),
+    ]),
+    Center(child: TextButton(
+      onPressed: () { final was = _sync; setState(() => _sync = 0); widget.onSyncChanged(-was); },
+      child: const Text('Reset', style: TextStyle(color: Colors.white54, fontSize: 12)),
+    )),
+    const SizedBox(height: 20),
+    const Divider(color: Colors.white12),
+    const SizedBox(height: 16),
+    _secLabel('Display Speed'),
+    const Text('Adjust subtitle timing rate relative to video speed',
+        style: TextStyle(color: Colors.white38, fontSize: 11)),
+    const SizedBox(height: 20),
+    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+      _BigStepBtn(label: '−10%', onTap: () { setState(() => _speed = (_speed - 0.1).clamp(0.5, 2.0)); widget.onSpeedChanged(_speed); HapticFeedback.selectionClick(); }),
+      const SizedBox(width: 24),
+      Container(
+        width: 76, height: 48,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Center(child: Text(
+          '${(_speed * 100).round()}%',
+          style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+        )),
+      ),
+      const SizedBox(width: 24),
+      _BigStepBtn(label: '+10%', onTap: () { setState(() => _speed = (_speed + 0.1).clamp(0.5, 2.0)); widget.onSpeedChanged(_speed); HapticFeedback.selectionClick(); }),
+    ]),
+    Center(child: TextButton(
+      onPressed: () { setState(() => _speed = 1.0); widget.onSpeedChanged(1.0); },
+      child: const Text('Reset to 100%', style: TextStyle(color: Colors.white54, fontSize: 12)),
+    )),
+  ]);
+
+  Widget _buildOnlineTab() {
+    if (widget.isLocal) {
+      return const Center(child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Text('Online search is not available for local files.',
+            style: TextStyle(color: Colors.white38, fontSize: 13), textAlign: TextAlign.center),
+      ));
+    }
+    return ListView(padding: const EdgeInsets.all(14), children: [
+      Row(children: [
+        Expanded(child: TextField(
+          controller: _searchController,
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+          decoration: InputDecoration(
+            hintText: 'Search by title…',
+            hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+            filled: true, fillColor: Colors.white10, isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+            prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 18),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(icon: const Icon(Icons.clear, color: Colors.white38, size: 16),
+                    onPressed: () => setState(() => _searchController.clear()),
+                    padding: EdgeInsets.zero)
+                : null,
+          ),
+          onSubmitted: (_) => _fetchOnlineSubtitles(context),
+        )),
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: _onlineLoading ? null : () => _fetchOnlineSubtitles(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: _onlineLoading ? Colors.white12 : Colors.white24,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: _onlineLoading
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Text('Search', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+        ),
+      ]),
+      const SizedBox(height: 10),
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: [
+          for (final lang in [
+            ('🇵🇰 Urdu', 'urd'), ('🇮🇳 Hindi', 'hin'), ('🇵🇰+🇮🇳', 'urd,hin'),
+            ('🇬🇧 English', 'eng'), ('🇸🇦 Arabic', 'ara'), ('🌍 All', ''),
+          ])
+            GestureDetector(
+              onTap: () { setState(() => _selectedLangCode = lang.$2); _fetchOnlineSubtitles(context); },
+              child: Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _selectedLangCode == lang.$2 ? const Color(0xFF4A9EFF) : Colors.white12,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(lang.$1, style: TextStyle(
+                  color: _selectedLangCode == lang.$2 ? Colors.white : Colors.white60,
+                  fontSize: 12,
+                  fontWeight: _selectedLangCode == lang.$2 ? FontWeight.w600 : FontWeight.normal,
+                )),
+              ),
+            ),
+        ]),
+      ),
+      const SizedBox(height: 12),
+      if (!_onlineLoading && _onlineError.isNotEmpty)
+        Row(children: [
+          Expanded(child: Text(_onlineError, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
+          TextButton(onPressed: () => _fetchOnlineSubtitles(context),
+              child: const Text('Retry', style: TextStyle(color: Color(0xFF4A9EFF), fontSize: 12))),
+        ]),
+      if (!_hasSearched && !_onlineLoading && _onlineError.isEmpty)
+        const Text('Auto-searching… or tap Search.',
+            style: TextStyle(color: Colors.white38, fontSize: 12)),
+      if (!_onlineLoading && _onlineResults.isNotEmpty) ...[
+        Text('${_onlineResults.length} subtitles found:',
+            style: const TextStyle(color: Colors.white54, fontSize: 11)),
+        const SizedBox(height: 8),
+        for (final r in _onlineResults)
+          GestureDetector(
+            onTap: () { HapticFeedback.lightImpact(); _downloadOnlineSubtitle(context, r); },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Row(children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text((r['SubFileName'] ?? '').replaceAll('.gz', ''),
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4A9EFF).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text((r['LanguageName'] ?? r['SubLanguageID'] ?? '').toUpperCase(),
+                          style: const TextStyle(color: Color(0xFF4A9EFF), fontSize: 9, fontWeight: FontWeight.w700)),
+                    ),
+                    const SizedBox(width: 6),
+                    Text('↓ ${r['SubDownloadsCnt'] ?? '0'}  •  ⭐ ${double.tryParse(r['SubRating'] ?? '0')?.toStringAsFixed(1) ?? '-'}',
+                        style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                  ]),
+                ])),
+                const SizedBox(width: 8),
+                const Icon(Icons.download_rounded, color: Colors.white54, size: 20),
+              ]),
+            ),
+          ),
+      ],
+      const SizedBox(height: 8),
+    ]);
+  }
+
+  // ── Main build ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final tabs = [
+      'Tracks', 'Style', 'Position', 'Sync',
+      if (!widget.isLocal) 'Online',
+      if (widget.onDubRequested != null) 'AI Dub',
+    ];
+    final tabName = _tab < tabs.length ? tabs[_tab] : '';
+
     return Column(
       children: [
-        // Header
+        // ── Header ────────────────────────────────────────────────────────────
         Container(
-          color: const Color(0xFF252525),
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
-                onPressed: widget.onClose,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-              const SizedBox(width: 8),
-              const Text('Subtitle',
-                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-        // Tabs — B1/B2 fix: 'AI Dub' is now a dedicated tab (index 6) rather than
-        // a pinned block above the tabs. The pinned block consumed ~213 dp of fixed
-        // height, leaving almost no room for settings in landscape mode. Moving it
-        // into a tab makes the full settings list reachable in all orientations.
-        // B2: the tab is only added when onDubRequested is non-null.
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            children: [
-              for (final tab in [
-                'Open', 'Settings', 'Synchronization', 'Speed', 'Panel', 'Customization',
-                if (widget.onDubRequested != null) 'AI Dub',
-              ])
-                GestureDetector(
-                  onTap: () => setState(() => _tab = [
-                    'Open', 'Settings', 'Synchronization', 'Speed', 'Panel', 'Customization',
-                    if (widget.onDubRequested != null) 'AI Dub',
-                  ].indexOf(tab)),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          color: const Color(0xFF1E1E1E),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 10, 8, 0),
+              child: Row(children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
+                  onPressed: widget.onClose,
+                  padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+                ),
+                const SizedBox(width: 6),
+                const Text('Subtitles',
+                    style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                if (widget.currentFile != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: _tab == [
-                        'Open', 'Settings', 'Synchronization', 'Speed', 'Panel', 'Customization',
-                        if (widget.onDubRequested != null) 'AI Dub',
-                      ].indexOf(tab)
-                          ? Colors.white24
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
+                      color: const Color(0xFF4A9EFF).withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(tab, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                    child: const Text('SRT',
+                        style: TextStyle(color: Color(0xFF4A9EFF),
+                            fontSize: 10, fontWeight: FontWeight.w700)),
                   ),
-                ),
-            ],
-          ),
-        ),
-
-        const Divider(color: Colors.white12, height: 1),
-
-        // Content
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // Subtitle file info
-              if (widget.currentFile != null) ...[
-                Text(widget.currentFile!,
-                    style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                const SizedBox(height: 4),
-                const Text('Add Translation',
-                    style: TextStyle(color: Color(0xFF4A9EFF), fontSize: 13)),
-                const SizedBox(height: 16),
-              ],
-
-              // ── Open tab: local file picker ──────────────────────────────────────
-              if (_tab == 0) ...[
-                // P57-02: Embedded subtitle track selector
-                if (widget.embeddedTracks.isNotEmpty) ...[
-                  const Text('Embedded Tracks',
-                      style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  for (int i = 0; i < widget.embeddedTracks.length; i++)
-                    RadioListTile<SubtitleTrack?>(
-                      dense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 0),
-                      value: widget.embeddedTracks[i],
-                      groupValue: widget.selectedSubtitle,
-                      onChanged: (t) => widget.onSubtitleTrackSelected(t),
-                      activeColor: Colors.white,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      title: Text(
-                        widget.embeddedTracks[i].language != null && widget.embeddedTracks[i].title != null
-                            ? '${widget.embeddedTracks[i].language} — ${widget.embeddedTracks[i].title}'
-                            : widget.embeddedTracks[i].language
-                                ?? widget.embeddedTracks[i].title
-                                ?? 'Track ${i + 1}',
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                    ),
-                  RadioListTile<SubtitleTrack?>(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 0),
-                    value: null,
-                    groupValue: widget.selectedSubtitle,
-                    onChanged: (_) => widget.onSubtitleTrackSelected(null),
-                    activeColor: Colors.white,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: const Text('Off', style: TextStyle(color: Colors.white, fontSize: 14)),
-                  ),
-                  const Divider(color: Colors.white12, height: 20),
-                  // P57-07: Secondary subtitle (OST / signs) — displayed at TOP via MPV secondary-sid
-                  const Text('Secondary Subtitle — OST / Signs (shown at top)',
-                      style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  const Text('Select a track to show at the top of the video (song lyrics, signs, on-screen text)',
-                      style: TextStyle(color: Colors.white38, fontSize: 11)),
-                  const SizedBox(height: 6),
-                  for (int i = 0; i < widget.embeddedTracks.length; i++)
-                    RadioListTile<SubtitleTrack?>(
-                      dense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 0),
-                      value: widget.embeddedTracks[i],
-                      groupValue: widget.selectedSecondSub,
-                      onChanged: (t) => widget.onSecondSubSelected(t),
-                      activeColor: const Color(0xFF4A9EFF),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      title: Text(
-                        widget.embeddedTracks[i].language != null && widget.embeddedTracks[i].title != null
-                            ? '${widget.embeddedTracks[i].language} — ${widget.embeddedTracks[i].title}'
-                            : widget.embeddedTracks[i].language
-                                ?? widget.embeddedTracks[i].title
-                                ?? 'Track ${i + 1}',
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                    ),
-                  RadioListTile<SubtitleTrack?>(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 0),
-                    value: null,
-                    groupValue: widget.selectedSecondSub,
-                    onChanged: (_) => widget.onSecondSubSelected(null),
-                    activeColor: const Color(0xFF4A9EFF),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: const Text('Off', style: TextStyle(color: Colors.white, fontSize: 14)),
-                  ),
-                  const Divider(color: Colors.white12, height: 20),
-                  const Text('External File',
-                      style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                ],
-                GestureDetector(
-                  onTap: () async {
-                    final result = await FilePicker.platform.pickFiles(
-                      type: FileType.custom,
-                      allowedExtensions: ['srt', 'vtt', 'ass', 'ssa'],
-                    );
-                    if (result != null && result.files.single.path != null) {
-                      widget.onSubtitleFilePicked?.call(result.files.single.path!);
-                    }
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white10,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                    child: const Column(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.folder_open_rounded, color: Colors.white70, size: 30),
-                      SizedBox(height: 8),
-                      Text('Open from device',
-                          style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
-                      SizedBox(height: 3),
-                      Text('SRT · VTT · ASS · SSA',
-                          style: TextStyle(color: Colors.white38, fontSize: 11)),
-                    ]),
-                  ),
-                ),
-              ],
-
-              if (_tab == 2) ...[
-                // Synchronization
-                const Text('Synchronization', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _SyncBtn(label: '−', onTap: () {
-                      setState(() => _sync -= 0.1);
-                      widget.onSyncChanged(-0.1);
-                    }),
-                    const SizedBox(width: 16),
-                    Text('${_sync.toStringAsFixed(1)}s',
-                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 16),
-                    _SyncBtn(label: '+', onTap: () {
-                      setState(() => _sync += 0.1);
-                      widget.onSyncChanged(0.1);
-                    }),
-                  ],
-                ),
-              ],
-
-              if (_tab == 3) ...[
-                // Speed
-                const Text('Speed', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _SyncBtn(label: '−', onTap: () => setState(() { _speed = (_speed - 0.1).clamp(0.5, 2.0); widget.onSpeedChanged(_speed); })),
-                    const SizedBox(width: 16),
-                    Text('${(_speed * 100).round()}%',
-                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 16),
-                    _SyncBtn(label: '+', onTap: () => setState(() { _speed = (_speed + 0.1).clamp(0.5, 2.0); widget.onSpeedChanged(_speed); })),
-                  ],
-                ),
-              ],
-
-              if (_tab == 1) ...[
-                  const Text('Text', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  const SizedBox(height: 8),
-                  // Font picker
-                  GestureDetector(
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (c) => AlertDialog(
-                          backgroundColor: const Color(0xFF1C1C1C),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          title: const Text('Subtitle Font', style: TextStyle(color: Colors.white)),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: List.generate(_subFonts.length, (i) => ListTile(
-                              dense: true,
-                              title: Text(_subFonts[i], style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: i == _subFontIdx ? FontWeight.bold : FontWeight.normal,
-                              )),
-                              trailing: i == _subFontIdx ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
-                              onTap: () {
-                                setState(() => _subFontIdx = i);
-                                const mpvFonts = ['sans-serif', 'serif', 'monospace', 'sans-serif'];
-                                widget.onSubPropertyChanged('sub-font', mpvFonts[i]);
-                                Navigator.of(c).pop();
-                              },
-                            )),
-                          ),
-                          actions: [TextButton(onPressed: () => Navigator.of(c).pop(),
-                              child: const Text('Cancel', style: TextStyle(color: Colors.white54)))],
-                        ),
-                      );
-                    },
-                    child: Row(children: [
-                      const Expanded(child: Text('Font', style: TextStyle(color: Colors.white, fontSize: 14))),
-                      Text(_subFonts[_subFontIdx], style: const TextStyle(color: Colors.white54, fontSize: 13)),
-                      const Icon(Icons.chevron_right, color: Colors.white38, size: 16),
-                    ]),
-                  ),
-                  const SizedBox(height: 12),
-                  // Size slider
-                  const Text('Size', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  Row(children: [
-                    Expanded(child: Slider(
-                      value: _subSize, min: 12, max: 40, divisions: 14,
-                      activeColor: Colors.white, inactiveColor: Colors.white24,
-                      onChanged: (v) { setState(() => _subSize = v); widget.onSubPropertyChanged('sub-font-size', v.round().toString()); },
-                    )),
-                    SizedBox(width: 32, child: Text('${_subSize.round()}', style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.right)),
-                  ]),
-                  const SizedBox(height: 4),
-                  // Scale slider
-                  const Text('Scale', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  Row(children: [
-                    Expanded(child: Slider(
-                      value: _subScale, min: 0.5, max: 2.0, divisions: 15,
-                      activeColor: Colors.white, inactiveColor: Colors.white24,
-                      onChanged: (v) { setState(() => _subScale = v); widget.onSubPropertyChanged('sub-scale', v.toStringAsFixed(2)); },
-                    )),
-                    SizedBox(width: 40, child: Text('${(_subScale * 100).round()}%', style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.right)),
-                  ]),
-                  const SizedBox(height: 4),
-                  // Bold toggle
-                  SwitchListTile(
-                    title: const Text('Bold', style: TextStyle(color: Colors.white, fontSize: 14)),
-                    value: _subBold,
-                    onChanged: (v) {
-                      setState(() => _subBold = v);
-                      widget.onSubPropertyChanged('sub-bold', v ? 'yes' : 'no');
-                    },
-                    activeColor: Colors.white,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  const SizedBox(height: 4),
-                  // Color picker
-                  GestureDetector(
-                    onTap: () => _showColorPicker(context, _subColorPresets, _subColor, (col) {
-                      setState(() => _subColor = col);
-                      final hex = '#'
-                          + col.red.toRadixString(16).padLeft(2, '0')
-                          + col.green.toRadixString(16).padLeft(2, '0')
-                          + col.blue.toRadixString(16).padLeft(2, '0');
-                      widget.onSubPropertyChanged('sub-color', hex);
-                    }),
-                    child: Row(children: [
-                      const Expanded(child: Text('Text color', style: TextStyle(color: Colors.white, fontSize: 14))),
-                      Container(
-                        width: 24, height: 24,
-                        decoration: BoxDecoration(
-                          color: _subColor,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white38),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Icon(Icons.chevron_right, color: Colors.white38, size: 16),
-                    ]),
-                  ),
-                  const SizedBox(height: 10),
-                  // Background picker
-                  GestureDetector(
-                    onTap: () => _showColorPicker(context, _subBgPresets, _subBg, (col) {
-                      setState(() => _subBg = col);
-                      if (col == Colors.transparent) {
-                        widget.onSubPropertyChanged('sub-back-color', '#00000000');
-                      } else {
-                        final hex = col.red.toRadixString(16).padLeft(2, '0')
-                            + col.green.toRadixString(16).padLeft(2, '0')
-                            + col.blue.toRadixString(16).padLeft(2, '0');
-                        widget.onSubPropertyChanged('sub-back-color', '#ff$hex');
-                      }
-                    }),
-                    child: Row(children: [
-                      const Expanded(child: Text('Background', style: TextStyle(color: Colors.white, fontSize: 14))),
-                      Container(
-                        width: 24, height: 24,
-                        decoration: BoxDecoration(
-                          color: _subBg == Colors.transparent ? Colors.transparent : _subBg,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white38),
-                        ),
-                        child: _subBg == Colors.transparent
-                            ? const Icon(Icons.block, color: Colors.white38, size: 14)
-                            : null,
-                      ),
-                      const SizedBox(width: 6),
-                      const Icon(Icons.chevron_right, color: Colors.white38, size: 16),
-                    ]),
-                  ),
-                  const SizedBox(height: 10),
-                  // Fade out slider
-                  const Text('Fade out', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  Row(children: [
-                    Expanded(child: Slider(
-                      value: _subFade, min: 0.0, max: 1.0, divisions: 10,
-                      activeColor: Colors.white, inactiveColor: Colors.white24,
-                      onChanged: (v) { setState(() => _subFade = v); widget.onSubPropertyChanged('sub-opacity', v.toStringAsFixed(2)); },
-                    )),
-                    SizedBox(width: 40, child: Text('${(_subFade * 100).round()}%', style: const TextStyle(color: Colors.white, fontSize: 13), textAlign: TextAlign.right)),
-                  ]),
-                ],
-                if (_tab == 4) ...[
-                  const Text('Layout', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  const SizedBox(height: 8),
-                  // Alignment
-                  const Text('Alignment', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: List.generate(_subAligns.length, (i) => Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() => _subAlignIdx = i);
-                          const _mpvAligns = ['left', 'center', 'right'];
-                          widget.onSubPropertyChanged('sub-align-x', _mpvAligns[i]);
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 6),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            color: _subAlignIdx == i ? Colors.white24 : Colors.white10,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(_subAligns[i],
-                            style: TextStyle(
-                              color: _subAlignIdx == i ? Colors.white : Colors.white54,
-                              fontSize: 13,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                    )),
-                  ),
-                  const SizedBox(height: 12),
-                  // Bottom margin
-                  const Text('Bottom margin', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                  Row(children: [
-                    Expanded(child: Slider(
-                      value: _subBottomMargin, min: 0, max: 200, divisions: 40,
-                      activeColor: Colors.white, inactiveColor: Colors.white24,
-                      onChanged: (v) => setState(() => _subBottomMargin = v),
-                      onChangeEnd: (v) {
-                        // Notify main state so _applySubtitleMargin has current base
-                        widget.onSubPropertyChanged('sub-margin-y', v.round().toString());
-                        widget.onSubPropertyChanged('_sub_margin_main', v.toStringAsFixed(1));
-                      },
-                    )),
-                    SizedBox(width: 36, child: Text('${_subBottomMargin.round()}px', style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.right)),
-                  ]),
-                  const SizedBox(height: 4),
-                  // Fit to video toggle
-                  SwitchListTile(
-                    title: const Text('Fit subtitles into video size', style: TextStyle(color: Colors.white, fontSize: 14)),
-                    value: _subFitToVideo,
-                    onChanged: (v) {
-                      setState(() => _subFitToVideo = v);
-                      widget.onSubPropertyChanged('sub-ass-scale-with-window', v ? 'yes' : 'no');
-                    },
-                    activeColor: Colors.white,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ],
-                if (_tab == 0 && !widget.isLocal) ...[
-                // ── Online Subtitle Search ─────────────────────────────────
-                const Text('Search Online', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                // Search field
-                Row(children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      decoration: InputDecoration(
-                        hintText: 'Enter title to search...',
-                        hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
-                        filled: true,
-                        fillColor: Colors.white10,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                        prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 18),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, color: Colors.white38, size: 16),
-                                onPressed: () => setState(() => _searchController.clear()),
-                                padding: EdgeInsets.zero,
-                              )
-                            : null,
-                      ),
-                      onSubmitted: (_) => _fetchOnlineSubtitles(context),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: _onlineLoading ? null : () => _fetchOnlineSubtitles(context),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: _onlineLoading ? Colors.white12 : Colors.white24,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: _onlineLoading
-                          ? const SizedBox(width: 16, height: 16,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Text('Search', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 10),
-                // Language chips
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(children: [
-                    for (final lang in [
-                      ('🇵🇰 Urdu', 'urd'),
-                      ('🇮🇳 Hindi', 'hin'),
-                      ('🇵🇰+🇮🇳', 'urd,hin'),
-                      ('🇬🇧 English', 'eng'),
-                      ('🇸🇦 Arabic', 'ara'),
-                      ('🌍 All', ''),
-                    ])
-                      GestureDetector(
-                        onTap: () {
-                          setState(() => _selectedLangCode = lang.$2);
-                          _fetchOnlineSubtitles(context);
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: _selectedLangCode == lang.$2
-                                ? const Color(0xFF4A9EFF)
-                                : Colors.white12,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(lang.$1,
-                              style: TextStyle(
-                                color: _selectedLangCode == lang.$2 ? Colors.white : Colors.white60,
-                                fontSize: 12,
-                                fontWeight: _selectedLangCode == lang.$2
-                                    ? FontWeight.w600
-                                    : FontWeight.normal,
-                              )),
-                        ),
-                      ),
-                  ]),
-                ),
-                const SizedBox(height: 12),
-                // Error state with retry
-                if (!_onlineLoading && _onlineError.isNotEmpty) ...[
-                  Row(children: [
-                    Expanded(child: Text(_onlineError,
-                        style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
-                    TextButton(
-                      onPressed: () => _fetchOnlineSubtitles(context),
-                      child: const Text('Retry', style: TextStyle(color: Color(0xFF4A9EFF), fontSize: 12)),
-                    ),
-                  ]),
-                  const SizedBox(height: 8),
-                ],
-                // Idle state — not yet searched
-                if (!_hasSearched && !_onlineLoading && _onlineError.isEmpty)
-                  const Text('Auto-searching... or tap Search.',
-                      style: TextStyle(color: Colors.white38, fontSize: 12)),
-                // Results
-                if (!_onlineLoading && _onlineResults.isNotEmpty) ...[
-                  Text('${_onlineResults.length} subtitles found:',
-                      style: const TextStyle(color: Colors.white54, fontSize: 11)),
-                  const SizedBox(height: 8),
-                  for (final r in _onlineResults)
+                const SizedBox(width: 8),
+              ]),
+            ),
+            // ── Underline tab bar ──────────────────────────────────────────────
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(left: 12),
+              child: Row(
+                children: [
+                  for (int i = 0; i < tabs.length; i++)
                     GestureDetector(
-                      onTap: () => _downloadOnlineSubtitle(context, r),
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2A2A2A),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white10),
-                        ),
-                        child: Row(children: [
-                          Expanded(child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                (r['SubFileName'] ?? '').replaceAll('.gz', ''),
-                                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                                maxLines: 2, overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              Row(children: [
-                                // Language badge
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF4A9EFF).withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    (r['LanguageName'] ?? r['SubLanguageID'] ?? '').toUpperCase(),
-                                    style: const TextStyle(color: Color(0xFF4A9EFF), fontSize: 9, fontWeight: FontWeight.w700),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  '↓ ${r['SubDownloadsCnt'] ?? '0'}  •  ⭐ ${double.tryParse(r['SubRating'] ?? '0')?.toStringAsFixed(1) ?? '-'}',
-                                  style: const TextStyle(color: Colors.white38, fontSize: 10),
-                                ),
-                              ]),
-                            ],
+                      onTap: () => setState(() => _tab = i),
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 20, top: 8, bottom: 0),
+                        child: Column(children: [
+                          Text(tabs[i], style: TextStyle(
+                            color: _tab == i ? Colors.white : Colors.white54,
+                            fontSize: 13,
+                            fontWeight: _tab == i ? FontWeight.w700 : FontWeight.normal,
                           )),
-                          const SizedBox(width: 8),
-                          const Icon(Icons.download_rounded, color: Colors.white54, size: 20),
+                          const SizedBox(height: 6),
+                          if (_tab == i)
+                            Container(height: 2, width: 28,
+                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(1))),
                         ]),
                       ),
                     ),
                 ],
-                const SizedBox(height: 8),
-              ],
-              // Customization tab (tab 5)
-              if (_tab == 5) ...[
-                const Text('Subtitle Style', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                const SizedBox(height: 12),
-                // Position (top / center / bottom)
-                const Text('Position', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    for (int i = 0; i < 3; i++) Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() => _subPositionIdx = i);
-                          const mpvY = ['top', 'center', 'bottom'];
-                          widget.onSubPropertyChanged('sub-align-y', mpvY[i]);
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 6),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            color: _subPositionIdx == i ? Colors.white24 : Colors.white10,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(const ['Top','Center','Bottom'][i],
-                            style: TextStyle(color: _subPositionIdx == i ? Colors.white : Colors.white54, fontSize: 13),
-                            textAlign: TextAlign.center),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Shadow style
-                const Text('Shadow', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    for (int i = 0; i < 4; i++) Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() => _subShadowIdx = i);
-                          const depths = ['0', '0', '3', '0'];
-                          const outlines = ['0', '1.5', '0', '0'];
-                          widget.onSubPropertyChanged('sub-shadow-offset', depths[i]);
-                          widget.onSubPropertyChanged('sub-outline-size', outlines[i]);
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 4),
-                          padding: const EdgeInsets.symmetric(vertical: 7),
-                          decoration: BoxDecoration(
-                            color: _subShadowIdx == i ? Colors.white24 : Colors.white10,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(const ['None','Outline','Shadow','Box'][i],
-                            style: TextStyle(color: _subShadowIdx == i ? Colors.white : Colors.white54, fontSize: 11),
-                            textAlign: TextAlign.center, maxLines: 1),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Opacity
-                const Text('Opacity', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                Row(children: [
-                  Expanded(child: Slider(
-                    value: _subOpacity, min: 0.1, max: 1.0, divisions: 9,
-                    activeColor: Colors.white, inactiveColor: Colors.white24,
-                    onChanged: (v) => setState(() { _subOpacity = v; _subFade = v; }),
-                    onChangeEnd: (v) {
-                      // sub-opacity is the correct property; sub-color must not be touched here
-                      widget.onSubPropertyChanged('sub-opacity', v.toStringAsFixed(2));
-                    },
-                  )),
-                  SizedBox(width: 40, child: Text('${(_subOpacity * 100).round()}%',
-                      style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.right)),
-                ]),
-                const SizedBox(height: 6),
-                // Edge padding
-                const Text('Edge padding', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                Row(children: [
-                  Expanded(child: Slider(
-                    value: _subEdgePadding, min: 0, max: 60, divisions: 12,
-                    activeColor: Colors.white, inactiveColor: Colors.white24,
-                    onChanged: (v) => setState(() => _subEdgePadding = v),
-                    onChangeEnd: (v) => widget.onSubPropertyChanged('sub-margin-x', v.round().toString()),
-                  )),
-                  SizedBox(width: 40, child: Text('${_subEdgePadding.round()} px',
-                      style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.right)),
-                ]),
-                const SizedBox(height: 6),
-                // Line spacing
-                const Text('Line spacing', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                Row(children: [
-                  Expanded(child: Slider(
-                    value: _subLineSpacing, min: 0.8, max: 2.5, divisions: 17,
-                    activeColor: Colors.white, inactiveColor: Colors.white24,
-                    onChanged: (v) => setState(() => _subLineSpacing = v),
-                    onChangeEnd: (v) => widget.onSubPropertyChanged('sub-spacing', v.toStringAsFixed(1)),
-                  )),
-                  SizedBox(width: 40, child: Text('${_subLineSpacing.toStringAsFixed(1)}×',
-                      style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.right)),
-                ]),
-              ],
-              // AI Dub tab (tab 6) — B1 fix: dub controls moved here from the
-              // pinned block above the tab row, which blocked all settings in
-              // landscape mode (~213 dp of fixed height with no scrolling).
-              if (_tab == 6 && widget.onDubRequested != null) ..._buildDubSection(context),
-            ],
-          ),
+              ),
+            ),
+            const SizedBox(height: 2),
+          ]),
         ),
+        const Divider(color: Colors.white12, height: 1),
+        // ── Body ──────────────────────────────────────────────────────────────
+        Expanded(child: switch (tabName) {
+          'Tracks'   => _buildTracksTab(),
+          'Style'    => _buildStyleTab(),
+          'Position' => _buildPositionTab(),
+          'Sync'     => _buildSyncTab(),
+          'Online'   => _buildOnlineTab(),
+          'AI Dub'   => ListView(padding: const EdgeInsets.all(14),
+                            children: _buildDubSection(context)),
+          _          => const SizedBox.shrink(),
+        }),
       ],
     );
   }
 }
+
+// Subtitle track tile helper
+class _SubTrackTile extends StatelessWidget {
+  final SubtitleTrack? track;
+  final int index;
+  final String? label;
+  final bool selected;
+  final Color accentColor;
+  final VoidCallback onTap;
+  const _SubTrackTile({required this.track, required this.index,
+      this.label, required this.selected, required this.accentColor,
+      required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    final name = label
+        ?? (track?.language != null && track?.title != null
+            ? '${track!.language} — ${track!.title}'
+            : track?.language ?? track?.title ?? 'Track ${index + 1}');
+    return InkWell(
+      onTap: () { HapticFeedback.selectionClick(); onTap(); },
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        child: Row(children: [
+          Container(
+            width: 20, height: 20,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: selected ? accentColor : Colors.transparent,
+              border: Border.all(
+                color: selected ? accentColor : Colors.white38,
+                width: selected ? 0 : 1.5,
+              ),
+            ),
+            child: selected ? const Icon(Icons.check, color: Colors.black, size: 13) : null,
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(name, style: TextStyle(
+            color: selected ? Colors.white : Colors.white70,
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+          ))),
+        ]),
+      ),
+    );
+  }
+}
+
+// Sync / speed step button helper
+class _BigStepBtn extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _BigStepBtn({required this.label, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+}
+
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  AUDIO TRACK PANEL
@@ -8078,24 +8096,28 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         // P14: Progress bar style
         const Text('Progress bar style', style: TextStyle(color: Colors.white70, fontSize: 12)),
         const SizedBox(height: 8),
-        for (int i = 0; i < pbStyles.length; i++)
-          GestureDetector(
-            onTap: () {
-              setState(() => _pbStyle = i);
-              widget.onProgressBarStyleChanged(i);
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(children: [
-                Icon(
-                  _pbStyle == i ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded,
-                  color: _pbStyle == i ? Colors.white : Colors.white38, size: 18),
-                const SizedBox(width: 8),
-                Text(pbStyles[i], style: TextStyle(
-                    color: _pbStyle == i ? Colors.white : Colors.white60, fontSize: 14)),
-              ]),
+        Wrap(
+          spacing: 8, runSpacing: 8,
+          children: List.generate(pbStyles.length, (i) => GestureDetector(
+            onTap: () { setState(() => _pbStyle = i); widget.onProgressBarStyleChanged(i); HapticFeedback.selectionClick(); },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: _pbStyle == i ? Colors.white.withOpacity(0.20) : Colors.white.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _pbStyle == i ? Colors.white60 : Colors.white12,
+                  width: _pbStyle == i ? 1.5 : 1,
+                ),
+              ),
+              child: Text(pbStyles[i], style: TextStyle(
+                color: _pbStyle == i ? Colors.white : Colors.white54,
+                fontSize: 12,
+                fontWeight: _pbStyle == i ? FontWeight.w600 : FontWeight.normal,
+              )),
             ),
-          ),
+          )),
+        ),
       ],
     );
   }
@@ -8223,171 +8245,129 @@ class _SettingsPanelState extends State<_SettingsPanel> {
 
   Widget _buildControlsTab() {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 20),
       children: [
-        const Divider(color: Colors.white12),
-        const SizedBox(height: 8),
-        // P12: Background audio
-        const Text('Background audio', style: TextStyle(color: Colors.white54, fontSize: 12)),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Continue audio in background',
-                      style: TextStyle(color: Colors.white, fontSize: 14)),
-                  Text('Audio plays when app is backgrounded',
-                      style: TextStyle(color: Colors.white38, fontSize: 11)),
-                ],
-              ),
-            ),
-            Switch(
-              value: _backgroundAudio,
-              onChanged: (v) {
-                setState(() => _backgroundAudio = v);
-                widget.onBackgroundAudioChanged(v);
-              },
-              activeColor: Colors.white,
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        const Divider(color: Colors.white12),
-        const SizedBox(height: 8),
-        const Text('Gestures', style: TextStyle(color: Colors.white54, fontSize: 12)),
-        const SizedBox(height: 4),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Double-tap seek', style: TextStyle(color: Colors.white, fontSize: 14)),
-          subtitle: const Text('Double-tap left/right to rewind/forward', style: TextStyle(color: Colors.white38, fontSize: 11)),
-          value: widget.doubleTapSeekEnabled,
-          onChanged: widget.onDoubleTapSeekChanged,
-          activeColor: Colors.white,
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Long press speed boost', style: TextStyle(color: Colors.white, fontSize: 14)),
-          subtitle: const Text('Hold to play at 2× speed', style: TextStyle(color: Colors.white38, fontSize: 11)),
-          value: widget.longPressSpeedEnabled,
-          onChanged: widget.onLongPressSpeedChanged,
-          activeColor: Colors.white,
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Swipe to seek', style: TextStyle(color: Colors.white, fontSize: 14)),
-          subtitle: const Text('Horizontal swipe jumps through video', style: TextStyle(color: Colors.white38, fontSize: 11)),
-          value: widget.swipeSeekEnabled,
-          onChanged: widget.onSwipeSeekChanged,
-          activeColor: Colors.white,
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Swipe brightness / volume', style: TextStyle(color: Colors.white, fontSize: 14)),
-          subtitle: const Text('Left edge: brightness  •  Right edge: volume', style: TextStyle(color: Colors.white38, fontSize: 11)),
-          value: widget.swipeBVEnabled,
-          onChanged: widget.onSwipeBVChanged,
-          activeColor: Colors.white,
-        ),
-        const Divider(color: Colors.white12),
-        const SizedBox(height: 8),
-        const Text('Voice Commands', style: TextStyle(color: Colors.white54, fontSize: 12)),
-        const SizedBox(height: 4),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Enable voice commands', style: TextStyle(color: Colors.white, fontSize: 14)),
-          subtitle: const Text('Say "Pause", "Play", "Forward 30" hands-free', style: TextStyle(color: Colors.white38, fontSize: 11)),
-          value: widget.voiceCommandsEnabled,
-          onChanged: widget.onVoiceCommandsChanged,
-          activeColor: Colors.white,
-        ),
+        _stgSection('Background', items: [
+          _stgSwitch(Icons.headphones_rounded,       'Continue audio in background',
+              'Audio plays when app is minimised',    _backgroundAudio,
+              (v) { setState(() => _backgroundAudio = v); widget.onBackgroundAudioChanged(v); }),
+        ]),
+        const SizedBox(height: 10),
+        _stgSection('Gestures', items: [
+          _stgSwitch(Icons.touch_app_rounded,         'Double-tap seek',
+              'Double-tap left/right to rewind/forward', widget.doubleTapSeekEnabled,
+              widget.onDoubleTapSeekChanged),
+          _stgSwitch(Icons.speed_rounded,             'Long press speed boost',
+              'Hold to play at 2× speed',             widget.longPressSpeedEnabled,
+              widget.onLongPressSpeedChanged),
+          _stgSwitch(Icons.swipe_rounded,             'Swipe to seek',
+              'Horizontal swipe jumps through video', widget.swipeSeekEnabled,
+              widget.onSwipeSeekChanged),
+          _stgSwitch(Icons.tune_rounded,              'Swipe brightness / volume',
+              'Left edge: brightness  •  Right edge: volume', widget.swipeBVEnabled,
+              widget.onSwipeBVChanged),
+        ]),
+        const SizedBox(height: 10),
+        _stgSection('Voice', items: [
+          _stgSwitch(Icons.mic_rounded,               'Voice commands',
+              'Say "Pause", "Play", "Forward 30" hands-free', widget.voiceCommandsEnabled,
+              widget.onVoiceCommandsChanged),
+        ]),
       ],
     );
   }
 
   Widget _buildNavigationTab() {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 20),
       children: [
-        const Text('Seek Speed (sec / swipe)', style: TextStyle(color: Colors.white54, fontSize: 12)),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: Slider(
-                value: _seekSwipeSec.clamp(30.0, 300.0),
-                min: 30, max: 300, divisions: 9,
-                activeColor: Colors.white,
-                inactiveColor: Colors.white24,
-                onChanged: (v) {
-                  setState(() => _seekSwipeSec = v);
-                  widget.onSeekSwipeSpeedChanged(v);
-                },
-              ),
-            ),
-            Text('${_seekSwipeSec.round()}s', style: const TextStyle(color: Colors.white, fontSize: 14)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        const Text('Move interval (seconds)', style: TextStyle(color: Colors.white54, fontSize: 12)),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: Slider(
-                value: _skipInterval.toDouble(),
-                min: 5, max: 60, divisions: 11,
-                activeColor: Colors.white,
-                inactiveColor: Colors.white24,
-                onChanged: (v) {
-                  setState(() => _skipInterval = v.round());
-                  widget.onSkipIntervalChanged(v.round());
-                },
-              ),
-            ),
-            Text('${_skipInterval}s', style: const TextStyle(color: Colors.white, fontSize: 14)),
-          ],
-        ),
-        const SizedBox(height: 16),
-        const Divider(color: Colors.white12),
-        const SizedBox(height: 8),
-        SwitchListTile(
-          title: const Text('Forward / backward buttons', style: TextStyle(color: Colors.white, fontSize: 14)),
-          subtitle: const Text('Show ±skip buttons in center controls', style: TextStyle(color: Colors.white38, fontSize: 11)),
-          value: _showSkipBtns,
-          onChanged: (v) {
-            setState(() => _showSkipBtns = v);
-            widget.onShowSkipBtnsChanged(v);
-          },
-          activeColor: Colors.white,
-          contentPadding: EdgeInsets.zero,
-        ),
-        SwitchListTile(
-          title: const Text('Previous / next episode buttons', style: TextStyle(color: Colors.white, fontSize: 14)),
-          subtitle: const Text('Show episode navigation arrows', style: TextStyle(color: Colors.white38, fontSize: 11)),
-          value: _showPrevNextBtns,
-          onChanged: (v) {
-            setState(() => _showPrevNextBtns = v);
-            widget.onShowPrevNextBtnsChanged(v);
-          },
-          activeColor: Colors.white,
-          contentPadding: EdgeInsets.zero,
-        ),
-        SwitchListTile(
-          title: const Text('Show position label while seeking', style: TextStyle(color: Colors.white, fontSize: 14)),
-          subtitle: const Text('Displays timestamp above seek bar during drag', style: TextStyle(color: Colors.white38, fontSize: 11)),
-          value: _showSeekPosition,
-          onChanged: (v) {
-            setState(() => _showSeekPosition = v);
-            widget.onShowSeekPositionChanged(v);
-          },
-          activeColor: Colors.white,
-          contentPadding: EdgeInsets.zero,
-        ),
+        _stgSection('Seek', items: [
+          _stgSliderRow('Swipe seek range', '${_seekSwipeSec.round()}s',
+              _seekSwipeSec.clamp(30.0, 300.0), 30, 300, 9,
+              (v) { setState(() => _seekSwipeSec = v); widget.onSeekSwipeSpeedChanged(v); }),
+          _stgSliderRow('Skip interval', '${_skipInterval}s',
+              _skipInterval.toDouble(), 5, 60, 11,
+              (v) { setState(() => _skipInterval = v.round()); widget.onSkipIntervalChanged(v.round()); }),
+        ]),
+        const SizedBox(height: 10),
+        _stgSection('Controls Visibility', items: [
+          _stgSwitch(Icons.skip_next_rounded,         'Forward / backward buttons',
+              'Show ±skip buttons in centre controls', _showSkipBtns,
+              (v) { setState(() => _showSkipBtns = v); widget.onShowSkipBtnsChanged(v); }),
+          _stgSwitch(Icons.queue_play_next_rounded,   'Previous / next episode',
+              'Episode navigation arrows',             _showPrevNextBtns,
+              (v) { setState(() => _showPrevNextBtns = v); widget.onShowPrevNextBtnsChanged(v); }),
+          _stgSwitch(Icons.access_time_rounded,       'Seek position label',
+              'Timestamp shown above bar while dragging', _showSeekPosition,
+              (v) { setState(() => _showSeekPosition = v); widget.onShowSeekPositionChanged(v); }),
+        ]),
       ],
     );
   }
+
+  // ── Section / row helpers ──────────────────────────────────────────────────
+  static Widget _stgSection(String label, {required List<Widget> items}) => Container(
+    margin: const EdgeInsets.only(bottom: 4),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.04),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.white10),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+        child: Text(label, style: const TextStyle(
+          color: Colors.white38, fontSize: 11,
+          fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+      ),
+      ...items,
+      const SizedBox(height: 4),
+    ]),
+  );
+
+  Widget _stgSwitch(IconData icon, String title, String subtitle, bool value,
+      ValueChanged<bool> onChanged) =>
+    Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: Row(children: [
+        Container(
+          width: 32, height: 32,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.07), borderRadius: BorderRadius.circular(7)),
+          child: Icon(icon, color: Colors.white54, size: 16),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(color: Colors.white, fontSize: 13)),
+          Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+        ])),
+        Switch(value: value, onChanged: onChanged, activeColor: Colors.white,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+      ]),
+    );
+
+  Widget _stgSliderRow(String label, String valueStr, double value,
+      double min, double max, int divisions, ValueChanged<double> onChanged) =>
+    Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          const Spacer(),
+          Text(valueStr, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        ]),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 2.5,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+          ),
+          child: Slider(value: value, min: min, max: max, divisions: divisions,
+              activeColor: Colors.white, inactiveColor: Colors.white24,
+              onChanged: onChanged),
+        ),
+      ]),
+    );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
