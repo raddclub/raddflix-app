@@ -958,6 +958,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _selectedSubtitle = null;
       _selectedSecondSub = null;
       _selectedAudio = null;
+      // Sync offsets are per-file — carrying over sub/audio delay from the
+      // previous episode immediately desyncs the next one.
+      _subSync = 0.0;
+      _audioSync = 0.0;
+      // Sub speed is also per-content; reset to natural rate between episodes.
+      _subSpeed = 1.0;
       // Reset the prefetch-trigger latch for the new episode; a stale
       // `_prefetchedFileId` from the previous one is fine — it's simply
       // ignored below if it doesn't match the episode we're opening.
@@ -976,6 +982,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _np.setProperty('sid', 'auto');
       _np.setProperty('secondary-sid', 'no');
       _np.setProperty('aid', 'auto');
+    } catch (_) {}
+    // Reset sync offsets and sub speed in MPV — these are session-level
+    // properties that survive loadfile and must be cleared explicitly.
+    try {
+      _np.setProperty('sub-delay', '0');
+      _np.setProperty('audio-delay', '0');
+      _np.setProperty('sub-speed', '1');
     } catch (_) {}
     _openMediaForEpisode(ep,
       localPath: (ep['local_path'] ?? ep['localPath'] ?? ep['download_path']) as String?,
@@ -1568,6 +1581,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _labNoise = prefs.getBool('pref_lab_noise') ?? false;
       _channelModeIdx = prefs.getInt('pref_ch_mode') ?? 0;
       _useSWDecoder   = prefs.getBool('pref_sw_dec') ?? false;
+      _subSpeed       = prefs.getDouble('pref_sub_speed') ?? 1.0;
       _prefSubLang    = prefs.getString('pref_sub_lang');
       _prefAudioLang  = prefs.getString('pref_audio_lang');
       // Sprint 2 keys
@@ -1673,6 +1687,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setBool('pref_lab_noise', _labNoise);
     await prefs.setInt('pref_ch_mode', _channelModeIdx);
     await prefs.setBool('pref_sw_dec', _useSWDecoder);
+    await prefs.setDouble('pref_sub_speed', _subSpeed);
     if (_prefSubLang != null)   await prefs.setString('pref_sub_lang',   _prefSubLang!);
     if (_prefAudioLang != null) await prefs.setString('pref_audio_lang', _prefAudioLang!);
     // Sprint 2 keys
@@ -3586,7 +3601,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
           // Duration / remaining
           GestureDetector(
-            onTap: () => setState(() => _showRemainingTime = !_showRemainingTime),
+            onTap: () { setState(() => _showRemainingTime = !_showRemainingTime); _savePrefs(); },
             child: SizedBox(
               width: 44,
               child: Text(
@@ -4562,6 +4577,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
         onSpeedChanged: (v) {
           setState(() => _subSpeed = v);
           try { _np.setProperty('sub-speed', v.toString()); } catch (_) {}
+          _savePrefs();
         },
         onSubPropertyChanged: (prop, val) {
           if (prop == '_sub_margin_main') {
@@ -5480,14 +5496,15 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
         showRemainingTime: _showRemainingTime,
         keepScreenOn: _keepScreenOn,
         skipInterval: _skipInterval,
-        onShowRemainingChanged: (v) => setState(() => _showRemainingTime = v),
+        onShowRemainingChanged: (v) { setState(() => _showRemainingTime = v); _savePrefs(); },
         onKeepScreenChanged: (v) {
           setState(() => _keepScreenOn = v);
           if (v) WakelockPlus.enable(); else WakelockPlus.disable();
+          _savePrefs();
         },
-        onSkipIntervalChanged: (v) => setState(() => _skipInterval = v),
+        onSkipIntervalChanged: (v) { setState(() => _skipInterval = v); _savePrefs(); },
         seekSwipeSec: _seekSwipeSec,
-        onSeekSwipeSpeedChanged: (v) => setState(() => _seekSwipeSec = v),
+        onSeekSwipeSpeedChanged: (v) { setState(() => _seekSwipeSec = v); _savePrefs(); },
         accentColorIdx: _accentColorIdx,
         progressBarStyle: _progressBarStyle,
         onAccentColorChanged: (i) { setState(() => _accentColorIdx = i); _savePrefs(); },
