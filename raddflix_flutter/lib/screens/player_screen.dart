@@ -1646,6 +1646,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _np.setProperty('speed', _speed.toStringAsFixed(4));
       } catch (_) {}
     }
+    // L6: re-apply subSpeed + videoRotation to MPV — Dart state was restored
+    // from prefs but MPV was never told, so video started at wrong rotation/speed
+    // until user manually toggled the control again.
+    if (_subSpeed != 1.0) {
+      try { _np.setProperty('sub-speed', _subSpeed.toStringAsFixed(4)); } catch (_) {}
+    }
+    if (_videoRotation != 0) {
+      try { _np.setProperty('video-rotate', _videoRotation.toString()); } catch (_) {}
+    }
   }
 
   Future<void> _savePrefs() async {
