@@ -3,6 +3,20 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-07 — J1 Player Bug Fixes)
+
+### J1 — 5 Player Bug Fixes — 2026-07-07 (latest)
+Commit: `cd75b25`.
+
+**What changed (`player_screen.dart`):**
+- **Bug 1 — Silence skip `_silenceInPipeline` not restored**: `_silenceSkipEnabled` was loaded from prefs but `_silenceInPipeline` (the flag that actually adds `lavfi=[silencedetect=...]` to the MPV AF chain) was always initialised to `false`. After restart the feature looked enabled in UI but did nothing until re-toggled. Fixed: `_silenceInPipeline = _silenceSkipEnabled` added after the prefs load.
+- **Bug 2 — Vivid / Smart Enhance not persisted**: `_smartEnhanceEnabled` had no SharedPreferences save or load. State was lost every restart. Fixed: `pref_vivid` added to `_loadPrefs` and `_savePrefs`.
+- **Bug 3 — Show skip buttons not persisted**: `_showSkipBtns` was toggled in Settings but reset to `true` every session. Fixed: `pref_skip_btns` added to both prefs blocks.
+- **Bug 4 — Show prev/next buttons not persisted**: Same pattern. Fixed: `pref_prev_next_btns` added.
+- **Bug 5 — Layout "compact" did nothing**: Claimed "smaller UI, condensed padding" but code only set `_showSkipBtns = true` (same as Default). Fixed: `isCompact` flag now drives real differences — `_buildBottomArea` uses `8px` side padding (vs `16px`), `6px` bottom padding (vs `10px`), zero gap between seek bar and transport row (vs `2px`), and `_buildTransportRow` is `44px` tall (vs `52px`).
+
+**Audit finding preserved here:** Cast feature (`cast_service.dart` + `cast_panel.dart`) exists as dead code — not wired into any player panel. Watch Party is UI + simulation only (no real WebSocket backend at `wss://party.raddflix.pk/ws`).
+
 ## Current State (2026-07-07 — I1 Audio Lab New Features)
 
 ### I1 — 4 New Audio Lab Features — 2026-07-07 (latest)
