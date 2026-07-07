@@ -836,7 +836,9 @@ def poster_push_job(job_id: str):
 
 @bp.route("/poster-push/job/<job_id>/stop", methods=["POST"])
 def poster_push_stop(job_id: str):
-    """POST /api/catalog/poster-push/job/<job_id>/stop  — gracefully stop a running job."""
+    """POST /api/catalog/poster-push/job/<job_id>/stop  — gracefully stop a running job (admin Basic auth required)."""
+    if not _check_admin_auth():
+        return jsonify({"error": "admin auth required (Basic)"}), 401
     job = _poster_push_jobs.get(job_id)
     if not job:
         return jsonify({"error": "job not found"}), 404
