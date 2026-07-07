@@ -579,6 +579,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _subs.addAll([
       _player.stream.playing.listen((v) {
         if (mounted) setState(() => _playing = v);
+        // K1: save position immediately on pause so a force-kill never loses more than the
+        // current second. The 10-second timer covers the playing case; this covers the rest.
+        if (!v) _saveWatchPos();
         // Usage tracking: start/stop 30-second heartbeat when play state changes
         if (_trackUsage) {
           if (v) _startUsageTimer();
