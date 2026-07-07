@@ -143,6 +143,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   List<SubtitleTrack> _subtitleTracks = [];
   SubtitleTrack? _selectedSubtitle;
   SubtitleTrack? _selectedSecondSub; // secondary-sid — OST / signs track
+  // Language preference — persisted; null = let MPV auto-select
+  String? _prefSubLang;
+  String? _prefAudioLang;
 
   // ── MX Layout State ──────────────────────────────────────────────────────────
   bool _isLocked = false;
@@ -648,6 +651,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           _audioTracks = tracks.audio;
           _subtitleTracks = tracks.subtitle;
         });
+        // Re-apply saved language preferences on every new file load.
+        // Uses microtask so MPV's own auto-selection settles first, then we
+        // override only when a matching language track is found.
+        Future.microtask(() {
+          if (!mounted) return;
+          if (_prefSubLang != null) {
+            final t = tracks.subtitle.where((s) =>
+                s.language == _prefSubLang &&
+                s.id != null && s.id != 'no').firstOrNull;
+            if (t != null) {
+              _player.setSubtitleTrack(t);
+              if (mounted) setState(() => _selectedSubtitle = t);
+            }
+          }
+          if (_prefAudioLang != null) {
+            final t = tracks.audio.where((a) =>
+                a.language == _prefAudioLang &&
+                a.id != null && a.id != 'auto').firstOrNull;
+            if (t != null) {
+              _player.setAudioTrack(t);
+              if (mounted) setState(() => _selectedAudio = t);
+            }
+          }
+        });
         // P57-05: EAC3/DTS auto SW decoder fallback
         // media_kit_libs_android_video bundles full ffmpeg so EAC3 decodes fine,
         // but Android MediaCodec (hwdec=auto-safe) can silently fail on EAC3/DTS
@@ -919,15 +946,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _abA = null;
       _abB = null;
       _abActive = false;
-      // BUG-SUB-CARRY-01: a manually-picked subtitle/secondary-subtitle track ID
-      // (e.g. sid=3) is an MPV *property*, not per-file state — it survives a
-      // loadfile/open of the next episode and gets blindly re-applied to that
-      // file's track list, which can pick the wrong (or a nonexistent) track.
-      // Reset the Dart-side selection here; the native `sid`/`secondary-sid`
-      // properties are reset to 'auto' just below so MPV re-picks the new
-      // episode's default/forced track once it loads.
+      // BUG-SUB-CARRY-01 / BUG-AUDIO-CARRY-01: a manually-picked track ID
+      // (e.g. sid=3, aid=2) is an MPV *property*, not per-file state — it
+      // survives a loadfile/open of the next episode and gets blindly
+      // re-applied to that file's track list, which can pick the wrong (or a
+      // nonexistent) track. Reset all three Dart-side selections here; the
+      // native sid/secondary-sid/aid properties are reset to auto/no just
+      // below so MPV re-picks the new episode's own default tracks.
+      // Language preference (_prefSubLang/_prefAudioLang) is re-applied in
+      // stream.tracks.listen once the new episode's track list arrives.
       _selectedSubtitle = null;
       _selectedSecondSub = null;
+      _selectedAudio = null;
       // Reset the prefetch-trigger latch for the new episode; a stale
       // `_prefetchedFileId` from the previous one is fine — it's simply
       // ignored below if it doesn't match the episode we're opening.
@@ -939,11 +969,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _np.setProperty('ab-loop-a', 'no');
       _np.setProperty('ab-loop-b', 'no');
     } catch (_) {}
-    // BUG-SUB-CARRY-01: reset subtitle track selection to auto so MPV re-picks
-    // the new episode's own default track instead of reapplying a stale index.
+    // BUG-SUB-CARRY-01 / BUG-AUDIO-CARRY-01: reset all track selections to
+    // auto/no so MPV re-picks each new episode's own default tracks instead
+    // of reapplying stale indices from the previous file.
     try {
       _np.setProperty('sid', 'auto');
       _np.setProperty('secondary-sid', 'no');
+      _np.setProperty('aid', 'auto');
     } catch (_) {}
     _openMediaForEpisode(ep,
       localPath: (ep['local_path'] ?? ep['localPath'] ?? ep['download_path']) as String?,
@@ -1536,6 +1568,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _labNoise = prefs.getBool('pref_lab_noise') ?? false;
       _channelModeIdx = prefs.getInt('pref_ch_mode') ?? 0;
       _useSWDecoder   = prefs.getBool('pref_sw_dec') ?? false;
+      _prefSubLang    = prefs.getString('pref_sub_lang');
+      _prefAudioLang  = prefs.getString('pref_audio_lang');
       // Sprint 2 keys
       _endAction           = prefs.getString('pref_end_action') ?? 'play_next';
       _silenceSkipEnabled  = prefs.getBool('pref_silence_skip') ?? false;
@@ -1639,6 +1673,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setBool('pref_lab_noise', _labNoise);
     await prefs.setInt('pref_ch_mode', _channelModeIdx);
     await prefs.setBool('pref_sw_dec', _useSWDecoder);
+    if (_prefSubLang != null)   await prefs.setString('pref_sub_lang',   _prefSubLang!);
+    if (_prefAudioLang != null) await prefs.setString('pref_audio_lang', _prefAudioLang!);
     // Sprint 2 keys
     await prefs.setString('pref_end_action', _endAction);
     await prefs.setBool('pref_silence_skip', _silenceSkipEnabled);
@@ -4558,7 +4594,15 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
         embeddedTracks: _realSubtitleTracks,
         selectedSubtitle: _selectedSubtitle,
         onSubtitleTrackSelected: (track) {
-          setState(() => _selectedSubtitle = track);
+          setState(() {
+            _selectedSubtitle = track;
+            // Remember the language so future episodes auto-select the same
+            // language. Only update when track has a real language code.
+            if (track != null && (track.language?.isNotEmpty ?? false)) {
+              _prefSubLang = track.language;
+            }
+          });
+          _savePrefs();
           if (track != null) {
             _player.setSubtitleTrack(track);
           } else {
@@ -4589,7 +4633,15 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
         audioSync: _audioSync,
         useSWDecoder: _useSWDecoder,
         onTrackSelected: (track) {
-          setState(() => _selectedAudio = track);
+          setState(() {
+            _selectedAudio = track;
+            // Remember the language so future episodes auto-select the same
+            // audio language. Only update when track has a real language code.
+            if (track != null && (track.language?.isNotEmpty ?? false)) {
+              _prefAudioLang = track.language;
+            }
+          });
+          _savePrefs();
           if (track != null) {
             _player.setAudioTrack(track);
           } else {
