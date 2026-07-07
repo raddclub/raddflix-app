@@ -939,7 +939,8 @@ function _updateFlixAcctCard(msisdn) {
 }
 
 async function deleteFlixAccount() {
-  if (!confirm('Delete the flix account? You will need to re-login via OTP after.')) return;
+  if (!window._armedDelFlixAcct) { window._armedDelFlixAcct = true; toast('⚠ Delete flix account? You will need to re-login via OTP after — click again to confirm', 4000); setTimeout(() => { window._armedDelFlixAcct = false; }, 4000); return; }
+  window._armedDelFlixAcct = false;
   try {
     await api('/upload/api/account', {method:'DELETE'});
     toast('Flix account deleted');
@@ -1001,7 +1002,9 @@ async function loadAccountsList() {
 }
 
 async function deleteAccountById(id, msisdn) {
-  if (!confirm('Delete account ' + (msisdn || id) + '?')) return;
+  const _armKey = '_armedDelAcct_' + id;
+  if (!window[_armKey]) { window[_armKey] = true; toast('⚠ Delete account ' + (msisdn || id) + '? — click again to confirm', 4000); setTimeout(() => { window[_armKey] = false; }, 4000); return; }
+  window[_armKey] = false;
   try {
     await api('/scan/api/accounts/' + id, {method:'DELETE'});
     toast('Account deleted');
