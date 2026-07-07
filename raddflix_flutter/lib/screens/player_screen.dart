@@ -1514,6 +1514,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _backgroundAudio  = prefs.getBool('pref_bgaudio') ?? false;
       _keepScreenOn = prefs.getBool('pref_screenon') ?? true;
       _showRemainingTime = prefs.getBool('pref_remaining') ?? false;
+      _showSeekPositionLabel = prefs.getBool('pref_seek_pos_label') ?? true; // J2: was never persisted
       // EQ + Lab + Reverb + Channel
       for (int i = 0; i < _eqBands.length; i++) {
         _eqBands[i] = prefs.getDouble('pref_eq_${i}') ?? 0.0;
@@ -1609,9 +1610,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setBool('pref_remaining', _showRemainingTime);
     await prefs.setBool('pref_night', _nightModeEnabled);
     await prefs.setDouble('pref_warmth', _nightWarmth);
-    await prefs.setBool('pref_vivid', _smartEnhanceEnabled);         // J1
-    await prefs.setBool('pref_skip_btns', _showSkipBtns);            // J1
-    await prefs.setBool('pref_prev_next_btns', _showPrevNextBtns);   // J1
+    await prefs.setBool('pref_vivid', _smartEnhanceEnabled);              // J1
+    await prefs.setBool('pref_skip_btns', _showSkipBtns);                 // J1
+    await prefs.setBool('pref_prev_next_btns', _showPrevNextBtns);        // J1
+    await prefs.setBool('pref_seek_pos_label', _showSeekPositionLabel);   // J2
     await prefs.setBool('pref_clock', _showClockInTitle);
     await prefs.setInt('pref_vrotate', _videoRotation);
     await prefs.setDouble('pref_balance', _audioBalance);
@@ -1757,6 +1759,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _toggleSmartEnhance() {
     setState(() => _smartEnhanceEnabled = !_smartEnhanceEnabled);
     _showInfoSnackbar(_smartEnhanceEnabled ? 'Vivid Mode on' : 'Vivid Mode off');
+    _savePrefs(); // J2: was missing — change was only saved on dispose()
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -5444,9 +5447,9 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
           _savePrefs();
         },
         initialBrightness: _brightness,
-        onShowSkipBtnsChanged: (v) => setState(() => _showSkipBtns = v),
-        onShowPrevNextBtnsChanged: (v) => setState(() => _showPrevNextBtns = v),
-        onShowSeekPositionChanged: (v) => setState(() => _showSeekPositionLabel = v),
+        onShowSkipBtnsChanged: (v) { setState(() => _showSkipBtns = v); _savePrefs(); }, // J2
+        onShowPrevNextBtnsChanged: (v) { setState(() => _showPrevNextBtns = v); _savePrefs(); }, // J2
+        onShowSeekPositionChanged: (v) { setState(() => _showSeekPositionLabel = v); _savePrefs(); }, // J2
         showSkipBtns: _showSkipBtns,
         showPrevNextBtns: _showPrevNextBtns,
         showSeekPosition: _showSeekPositionLabel,
