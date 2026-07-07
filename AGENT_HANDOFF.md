@@ -3,6 +3,49 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-07 — M1/M2 Template Rule-38 + N1/N2 Debug Rule-21 Fixes)
+
+### M1 — Flask Templates confirm()/prompt() Elimination — 2026-07-07
+Commit: `fb6992f` → 9 templates.
+
+**What changed:**
+- Rule 38 bans `confirm()`/`prompt()` in Flask templates (Cloudflare blocks them).
+- Found 20 call sites across 9 templates: `admin.html`, `scan.html`, `library.html`, `bots.html`, `db_mgmt.html`, `home.html`, `stream.html`, `proxy_pool_page.html`, `_proxy_pool_panel.html`.
+- All 20 replaced with the arm+fire toast pattern: first click warns ("⚠ ... click again to confirm"), second click within 4s fires the action. Arms tracked via `window._armed*` flags with `setTimeout` auto-clear.
+
+### M2 — upload.html confirm() Elimination — 2026-07-07
+Commit: `1ddbceb` → `upload.html`.
+
+**What changed:**
+- Two `confirm()` calls missed in M1: `deleteFlixAccount()` and `deleteAccountById()`.
+- Both replaced with arm+fire toast pattern matching scan.html style.
+- `deleteAccountById` uses per-id arm key (`_armedDelAcct_${id}`) so multiple rows can be armed independently.
+
+### N1 — Profile Screen Escaped-Dollar Bug + kDebugMode Gating — 2026-07-07
+Commit: `49a3b8e` → `profile_screen.dart`, `subscription_screen.dart`, `word_dict.dart`, `player_screen.dart`.
+
+**What changed:**
+- `profile_screen.dart`: `'v\${info.version}'` and `'\$e'` escape sequences (same class as L1 audio-label bug) — `_appVersion` showed the literal string `v${info.version}` in the UI; error catch blocks printed literal `$e`. Fixed: remove backslashes.
+- All 6 bare `debugPrint()`/`print()` calls in these 4 files now gated by `if (kDebugMode)` (Rule 21 — stripped from release APK).
+- `player_screen.dart` AudioLab logging (`_applyAllAf` success/error) gated.
+- `word_dict.dart` saved-words error logging gated.
+- `subscription_screen.dart` payment-methods error logging gated.
+
+### N2 — local_db + subtitle_dubber bare print() Gating — 2026-07-07
+Commit: `db54b45` → `local_db.dart`, `subtitle_dubber.dart`.
+
+**What changed:**
+- Two intentional `print()` calls (had `// ignore: avoid_print` comments) gated with `if (kDebugMode)`.
+- Added `import 'package:flutter/foundation.dart' show kDebugMode;` to both files (neither previously imported `foundation.dart`).
+- `print()` calls preserved in-place with `// ignore: avoid_print` comment kept on same line.
+
+### Summary: All Rule 38 + Rule 21 violations resolved
+- **Rule 38 (confirm/prompt):** 22 call sites across 10 templates — 100% eliminated.
+- **Rule 21 (bare debug calls):** 9 bare calls across 6 files — 100% gated.
+- No unresolved bugs found in async-setState audit, Timer disposal audit, hard-cast audit, or escaped-dollar sweep.
+
+---
+
 ## Current State (2026-07-07 — L6 MPV Startup Restore)
 
 ### L6 — MPV Startup Restore — 2026-07-07 (latest)
