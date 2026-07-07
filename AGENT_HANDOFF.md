@@ -3,6 +3,25 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-07 — L3 Audio Carry-Over + Language Preference)
+
+### L3 — BUG-AUDIO-CARRY-01 + Language Preference Persistence — 2026-07-07 (latest)
+Commit: `b896632`.
+
+**What changed (`player_screen.dart`):**
+
+- **BUG-AUDIO-CARRY-01 — Audio track carries over to next episode**: The `_playEpisodeAt` episode-change block already reset subtitle track state (`_selectedSubtitle = null`, `_selectedSecondSub = null`, MPV `sid → auto`, `secondary-sid → no`) as BUG-SUB-CARRY-01 fix. But `_selectedAudio` was never cleared and `aid` was never reset to `auto`. On episode N the user might have audio track #2 (Urdu). Episode N+1 has a different layout where track #2 is English — MPV re-applied `aid=2` and picked the wrong language silently. Fixed: added `_selectedAudio = null` to the Dart reset block and `_np.setProperty('aid', 'auto')` to the MPV property reset block.
+
+- **Language preference not persisted**: When a user explicitly picked "English" audio or subtitles in the panel, that preference was lost every episode change (reset to MPV auto) and on app restart. There was no mechanism to re-apply it. Fixed with two new state vars:
+  - `String? _prefSubLang` — preferred subtitle language code; `null` = let MPV auto-select
+  - `String? _prefAudioLang` — preferred audio language code; `null` = let MPV auto-select
+  - Saved to `pref_sub_lang` / `pref_audio_lang` in `_savePrefs`, loaded in `_loadPrefs`
+  - Updated in `onSubtitleTrackSelected` / `onTrackSelected` callbacks when user picks a track with a non-empty `language` field (selecting "None" does not update the preference)
+  - Re-applied in `stream.tracks.listen` via `Future.microtask` — after each new file's track list arrives, finds first matching-language track and selects it; falls back silently if no match (MPV's own auto-selection unchanged)
+  - Added `_savePrefs()` call to both panel callbacks — neither previously called `_savePrefs()` at all, so the track selection wasn't triggering a prefs write
+
+**SharedPreferences keys added:** `pref_sub_lang`, `pref_audio_lang`
+
 ## Current State (2026-07-07 — L2 Portrait Volume Fix + SW Decoder Persistence)
 
 ### L2 — Portrait Volume Indicator + SW Decoder Persistence — 2026-07-07 (latest)
