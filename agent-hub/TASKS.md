@@ -146,3 +146,4 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 
 | G1 — SUBTITLE-PANEL-REWRITE | `player_screen.dart` `_SubtitlePanelState`: fix `sub-back-color` hex format, Box shadow, dual opacity, 5-tab layout, live preview, `_toMpvColor`/`_toMpvBackColor` helpers, `_SubTrackTile`+`_BigStepBtn`. | `778f17c` | ✅ DONE |
 | G2 — SETTINGS-PANEL-POLISH | `player_screen.dart` `_SettingsPanelState`: progress bar style chips (Wrap), Controls/Navigation card sections with icon rows. | `778f17c` | ✅ DONE |
+| H1 — AUDIO-LAB-BUGFIX | `player_screen.dart` `_AudioEffectPanel`: Audio Lab is a mockup — Lab/EQ/Preset changes have no audible effect. 8 root-cause bugs identified. A1 logging, A2/A3 merged EQ, A4 vocal-remover clip, A5 MPV sync, A6 verify all-off, A7 silencedetect. | — | ⏳ IN PROGRESS (2026-07-07) |
