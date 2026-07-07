@@ -6077,6 +6077,67 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         if (mounted) _fetchOnlineSubtitles(context);
       });
     }
+    // Load saved subtitle style/position settings and re-apply to MPV
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadSubPrefs();
+    });
+  }
+
+  Future<void> _loadSubPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final fontIdx    = prefs.getInt('pref_sub_font_idx')    ?? 0;
+    final size       = prefs.getDouble('pref_sub_size')     ?? 22.0;
+    final bold       = prefs.getBool('pref_sub_bold')       ?? false;
+    final colorVal   = prefs.getInt('pref_sub_color')       ?? Colors.white.value;
+    final bgColorVal = prefs.getInt('pref_sub_bg_color')    ?? Colors.transparent.value;
+    final opacity    = prefs.getDouble('pref_sub_opacity')  ?? 1.0;
+    final shadowIdx  = prefs.getInt('pref_sub_shadow')      ?? 1;
+    final alignX     = prefs.getInt('pref_sub_align_x')     ?? 1;
+    final alignY     = prefs.getInt('pref_sub_align_y')     ?? 2;
+    final edgePad    = prefs.getDouble('pref_sub_edge_pad') ?? 16.0;
+    final fitToVideo = prefs.getBool('pref_sub_fit')        ?? true;
+    setState(() {
+      _subFontIdx   = fontIdx;
+      _subSize      = size;
+      _subBold      = bold;
+      _subColor     = Color(colorVal);
+      _subBgColor   = Color(bgColorVal);
+      _subOpacity   = opacity;
+      _subShadowIdx = shadowIdx;
+      _subAlignX    = alignX;
+      _subAlignY    = alignY;
+      _subEdgePadding  = edgePad;
+      _subFitToVideo   = fitToVideo;
+    });
+    if (!mounted) return;
+    // Re-apply all saved settings to MPV so the live video matches prefs
+    _setProp('sub-font',                  _mpvFonts[fontIdx]);
+    _setProp('sub-font-size',             size.round().toString());
+    _setProp('sub-bold',                  bold ? 'yes' : 'no');
+    _setProp('sub-color',                 _toMpvColor(Color(colorVal)));
+    _setProp('sub-back-color',            _toMpvBackColor(Color(bgColorVal)));
+    _setProp('sub-opacity',               opacity.toStringAsFixed(2));
+    _setProp('sub-align-x',              ['left','center','right'][alignX]);
+    _setProp('sub-align-y',              ['top','center','bottom'][alignY]);
+    _setProp('sub-margin-x',              edgePad.round().toString());
+    _setProp('sub-ass-scale-with-window', fitToVideo ? 'yes' : 'no');
+    _applyShadow(shadowIdx);
+  }
+
+  Future<void> _saveSubPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('pref_sub_font_idx',    _subFontIdx);
+    await prefs.setDouble('pref_sub_size',      _subSize);
+    await prefs.setBool('pref_sub_bold',        _subBold);
+    await prefs.setInt('pref_sub_color',        _subColor.value);
+    await prefs.setInt('pref_sub_bg_color',     _subBgColor.value);
+    await prefs.setDouble('pref_sub_opacity',   _subOpacity);
+    await prefs.setInt('pref_sub_shadow',       _subShadowIdx);
+    await prefs.setInt('pref_sub_align_x',      _subAlignX);
+    await prefs.setInt('pref_sub_align_y',      _subAlignY);
+    await prefs.setDouble('pref_sub_edge_pad',  _subEdgePadding);
+    await prefs.setBool('pref_sub_fit',         _subFitToVideo);
   }
 
   @override
@@ -6119,6 +6180,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         _setProp('sub-back-color', _toMpvBackColor(Colors.black87));
       }
     }
+    _saveSubPrefs();
   }
 
 
@@ -6584,7 +6646,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         child: Row(children: List.generate(_subFonts.length, (i) => Padding(
           padding: const EdgeInsets.only(right: 8),
           child: GestureDetector(
-            onTap: () { setState(() => _subFontIdx = i); HapticFeedback.selectionClick(); _setProp('sub-font', _mpvFonts[i]); },
+            onTap: () { setState(() => _subFontIdx = i); HapticFeedback.selectionClick(); _setProp('sub-font', _mpvFonts[i]); _saveSubPrefs(); },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
@@ -6608,29 +6670,31 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       _buildSliderRow(
         label: 'Size', valueLabel: '${_subSize.round()} pt',
         value: _subSize, min: 12, max: 40, divisions: 28,
-        onChanged: (v) { setState(() => _subSize = v); _setProp('sub-font-size', v.round().toString()); },
+        onChanged: (v) { setState(() => _subSize = v); _setProp('sub-font-size', v.round().toString()); _saveSubPrefs(); },
       ),
       _buildSwitchRow(
         icon: Icons.format_bold_rounded, label: 'Bold',
         value: _subBold,
-        onChanged: (v) { setState(() => _subBold = v); HapticFeedback.selectionClick(); _setProp('sub-bold', v ? 'yes' : 'no'); },
+        onChanged: (v) { setState(() => _subBold = v); HapticFeedback.selectionClick(); _setProp('sub-bold', v ? 'yes' : 'no'); _saveSubPrefs(); },
       ),
       _buildSliderRow(
         label: 'Opacity', valueLabel: '${(_subOpacity * 100).round()}%',
         value: _subOpacity, min: 0.1, max: 1.0, divisions: 9,
-        onChanged: (v) { setState(() => _subOpacity = v); _setProp('sub-opacity', v.toStringAsFixed(2)); },
+        onChanged: (v) { setState(() => _subOpacity = v); _setProp('sub-opacity', v.toStringAsFixed(2)); _saveSubPrefs(); },
       ),
       const SizedBox(height: 8),
       _secLabel('Text Colour'),
       _buildColorRow(presets: textColors, current: _subColor, onPick: (c) {
         setState(() => _subColor = c);
         _setProp('sub-color', _toMpvColor(c));
+        _saveSubPrefs();
       }),
       const SizedBox(height: 14),
       _secLabel('Background'),
       _buildColorRow(presets: bgColors, current: _subBgColor, onPick: (c) {
         setState(() => _subBgColor = c);
         _setProp('sub-back-color', _toMpvBackColor(c));
+        _saveSubPrefs();
       }),
       const SizedBox(height: 14),
       _secLabel('Shadow Style'),
@@ -6648,13 +6712,13 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     _secLabel('Horizontal Alignment'),
     _buildSegment(
       labels: const ['Left', 'Center', 'Right'], selected: _subAlignX,
-      onChanged: (i) { setState(() => _subAlignX = i); _setProp('sub-align-x', ['left','center','right'][i]); },
+      onChanged: (i) { setState(() => _subAlignX = i); _setProp('sub-align-x', ['left','center','right'][i]); _saveSubPrefs(); },
     ),
     const SizedBox(height: 14),
     _secLabel('Vertical Position'),
     _buildSegment(
       labels: const ['Top', 'Center', 'Bottom'], selected: _subAlignY,
-      onChanged: (i) { setState(() => _subAlignY = i); _setProp('sub-align-y', ['top','center','bottom'][i]); },
+      onChanged: (i) { setState(() => _subAlignY = i); _setProp('sub-align-y', ['top','center','bottom'][i]); _saveSubPrefs(); },
     ),
     const SizedBox(height: 14),
     _buildSliderRow(
@@ -6664,17 +6728,18 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         setState(() => _subBottomMargin = v);
         _setProp('sub-margin-y', v.round().toString());
         _setProp('_sub_margin_main', v.toStringAsFixed(1));
+        _saveSubPrefs();
       },
     ),
     _buildSliderRow(
       label: 'Edge Padding', valueLabel: '${_subEdgePadding.round()} px',
       value: _subEdgePadding, min: 0, max: 60, divisions: 12,
-      onChanged: (v) { setState(() => _subEdgePadding = v); _setProp('sub-margin-x', v.round().toString()); },
+      onChanged: (v) { setState(() => _subEdgePadding = v); _setProp('sub-margin-x', v.round().toString()); _saveSubPrefs(); },
     ),
     _buildSwitchRow(
       icon: Icons.fit_screen_rounded, label: 'Fit subtitles into video frame',
       value: _subFitToVideo,
-      onChanged: (v) { setState(() => _subFitToVideo = v); HapticFeedback.selectionClick(); _setProp('sub-ass-scale-with-window', v ? 'yes' : 'no'); },
+      onChanged: (v) { setState(() => _subFitToVideo = v); HapticFeedback.selectionClick(); _setProp('sub-ass-scale-with-window', v ? 'yes' : 'no'); _saveSubPrefs(); },
     ),
     const SizedBox(height: 8),
   ]);
@@ -8635,8 +8700,8 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
                       Expanded(
                         child: Text(
                           (widget.tracks[i].language != null && widget.tracks[i].title != null)
-                              ? "\${widget.tracks[i].language} (\${widget.tracks[i].title})"
-                              : widget.tracks[i].language ?? widget.tracks[i].title ?? "Audio track \${i + 1}",
+                              ? '${widget.tracks[i].language} (${widget.tracks[i].title})'
+                              : widget.tracks[i].language ?? widget.tracks[i].title ?? 'Audio track ${i + 1}',
                           style: const TextStyle(color: Colors.white, fontSize: 14),
                         ),
                       ),
