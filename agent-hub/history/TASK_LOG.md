@@ -83,3 +83,4 @@
 
 - Session 2026-07-07 — Subtitle Panel Full Rewrite + Settings Panel Polish (G1, G2)
 - Session 2026-07-07 — H1 Audio Lab Bugfix: A1 logging (_applyAllAf), A2+A3 merged EQ chain (no double-equalizer), A4 vocal-remover 0.5x scale (no clip), A5 postFrameCallback MPV sync on panel open. A6 verified OK. Commit e283978.
+- Session 2026-07-07 — H1 verification: static simulation found firstMatch bug (Bass Boost gains dropped when Dialogue also on). Fixed to allMatches summing. Commit 9ee224d. All 25 scenarios pass.

@@ -146,4 +146,4 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 
 | G1 — SUBTITLE-PANEL-REWRITE | `player_screen.dart` `_SubtitlePanelState`: fix `sub-back-color` hex format, Box shadow, dual opacity, 5-tab layout, live preview, `_toMpvColor`/`_toMpvBackColor` helpers, `_SubTrackTile`+`_BigStepBtn`. | `778f17c` | ✅ DONE |
 | G2 — SETTINGS-PANEL-POLISH | `player_screen.dart` `_SettingsPanelState`: progress bar style chips (Wrap), Controls/Navigation card sections with icon rows. | `778f17c` | ✅ DONE |
-| H1 — AUDIO-LAB-BUGFIX | `player_screen.dart` `_AudioEffectPanel`: Audio Lab bugs fixed — A1 logging, A2/A3 merged EQ (no double-equalizer), A4 vocal-remover 0.5× scale (no clipping), A5 postFrameCallback MPV sync on panel open. A6 verified correct. | `e283978` | ✅ DONE |
+| H1 — AUDIO-LAB-BUGFIX | `player_screen.dart` `_AudioEffectPanel`: A1 logging, A2/A3 merged EQ (allMatches sum, no double-equalizer), A4 vocal-remover 0.5× scale, A5 MPV sync on open, A6 verified, Lab EQ coupling fix. Final commit: `9ee224d`. | `9ee224d` | ✅ DONE |

@@ -17,6 +17,7 @@ Commits: `9d0970e` (TASKS.md), `e283978` (player_screen.dart).
 - **A6 verified** — `_applyLabAf()` correctly emits `''` when all toggles are off (`parts.isEmpty ? '' : parts.join(',')` — no fix needed).
 - **A7 (silencedetect)** — `lavfi=[silencedetect=...]` left in chain; A1 logging will surface any MPV errors in the next test session.
 - **Lab EQ coupling fix** — code-review found that merging Lab EQ gains into the main chain silenced Dialogue/Bass Boost when the EQ toggle was off. Fixed: condition changed from `if (_eqEnabled)` to `if (_eqEnabled || labEqGains.any((v) => v != 0))`. Commit `33a8a95`.
+- **allMatches fix** — static simulation revealed that `firstMatch` silently dropped Bass Boost gains when Dialogue Boost was simultaneously on (both produce a separate `equalizer=` segment). Changed to `allMatches` with gain summing so Dialogue+Bass gains are always merged correctly. Commit `9ee224d`.
 
 ## Current State (2026-07-06 — Portrait-Player-V2)
 
