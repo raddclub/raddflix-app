@@ -6026,23 +6026,22 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   void _applyShadow(int idx) {
     setState(() => _subShadowIdx = idx);
     HapticFeedback.selectionClick();
-    switch (idx) {
-      case 0: // None
-        _setProp('sub-shadow-offset', '0');
-        _setProp('sub-outline-size', '0');
-      case 1: // Outline
-        _setProp('sub-outline-size', '2');
-        _setProp('sub-shadow-offset', '0');
-      case 2: // Drop Shadow
-        _setProp('sub-shadow-offset', '3');
-        _setProp('sub-outline-size', '0.5');
-      case 3: // Box — force a visible background if none set yet
-        _setProp('sub-shadow-offset', '0');
-        _setProp('sub-outline-size', '0');
-        if (_subBgColor.opacity == 0) {
-          setState(() => _subBgColor = Colors.black87);
-          _setProp('sub-back-color', _toMpvBackColor(Colors.black87));
-        }
+    if (idx == 0) {        // None
+      _setProp('sub-shadow-offset', '0');
+      _setProp('sub-outline-size', '0');
+    } else if (idx == 1) { // Outline
+      _setProp('sub-outline-size', '2');
+      _setProp('sub-shadow-offset', '0');
+    } else if (idx == 2) { // Drop Shadow
+      _setProp('sub-shadow-offset', '3');
+      _setProp('sub-outline-size', '0.5');
+    } else if (idx == 3) { // Box — opaque background, no shadow/outline
+      _setProp('sub-shadow-offset', '0');
+      _setProp('sub-outline-size', '0');
+      if (_subBgColor.opacity == 0) {
+        setState(() => _subBgColor = Colors.black87);
+        _setProp('sub-back-color', _toMpvBackColor(Colors.black87));
+      }
     }
   }
 
