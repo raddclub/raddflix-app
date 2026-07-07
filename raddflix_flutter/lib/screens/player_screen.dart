@@ -200,6 +200,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _labNorm = false;
   bool _labBass = false;
   double _labBassLevel = 0.5;
+  bool _labDialogueOnly = false;  // I1: keep centre-channel sum → mutes music/SFX
+  bool _labCompress = false;      // I1: soft compressor → tames explosions for late-night
+  bool _labStereoWide = false;    // I1: extrastereo → wider soundstage for headphones
+  bool _labNoise = false;         // I1: afftdn spectral denoising → cleans noisy streams
   String _reverbPreset = 'None';
 
   // Subtitle
@@ -1519,6 +1523,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _labNorm = prefs.getBool('pref_lab_norm') ?? false;
       _labBass = prefs.getBool('pref_lab_bass') ?? false;
       _labBassLevel = prefs.getDouble('pref_lab_bass_level') ?? 0.5;
+      _labDialogueOnly = prefs.getBool('pref_lab_dialogue_only') ?? false;
+      _labCompress = prefs.getBool('pref_lab_compress') ?? false;
+      _labStereoWide = prefs.getBool('pref_lab_stereo_wide') ?? false;
+      _labNoise = prefs.getBool('pref_lab_noise') ?? false;
       _channelModeIdx = prefs.getInt('pref_ch_mode') ?? 0;
       // Sprint 2 keys
       _endAction           = prefs.getString('pref_end_action') ?? 'play_next';
@@ -1553,13 +1561,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
       // Rebuild lab AF string from loaded lab state
       final labParts = <String>[];
-      if (_labVocal)    labParts.add('pan=stereo|c0=c0-c1|c1=c1-c0');
-      if (_labDialogue) labParts.add('equalizer=0:0:0:0:0:0:3:4:2:0');
-      if (_labNorm)     labParts.add('dynaudnorm');
+      // A4 fix: use 0.5 scale to prevent 2× amplitude clipping (matches _applyLabAf)
+      if (_labVocal)        labParts.add('pan=stereo|c0=0.5*c0-0.5*c1|c1=0.5*c1-0.5*c0');
+      if (_labDialogue)     labParts.add('equalizer=0:0:0:0:0:0:3:4:2:0');
+      if (_labNorm)         labParts.add('dynaudnorm');
       if (_labBass) {
         final db = (_labBassLevel * 12).round().clamp(1, 12);
         labParts.add('equalizer=$db:$db:0:0:0:0:0:0:0:0');
       }
+      if (_labDialogueOnly) labParts.add('pan=stereo|c0=0.5*c0+0.5*c1|c1=0.5*c0+0.5*c1');
+      if (_labCompress)     labParts.add('acompressor=threshold=0.089:ratio=9:attack=200:release=1000');
+      if (_labStereoWide)   labParts.add('extrastereo=m=2.5');
+      if (_labNoise)        labParts.add('afftdn=nf=-25');
       _currentLabAf = labParts.isEmpty ? '' : labParts.join(',');
       // Rebuild channel mode AF from loaded index
       const chFilters = ['', 'pan=stereo|c0=0.5*c0+0.5*c1|c1=0.5*c0+0.5*c1', 'pan=stereo|c0=c0|c1=c0', 'pan=stereo|c0=c1|c1=c1'];
@@ -1607,6 +1620,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setBool('pref_lab_norm', _labNorm);
     await prefs.setBool('pref_lab_bass', _labBass);
     await prefs.setDouble('pref_lab_bass_level', _labBassLevel);
+    await prefs.setBool('pref_lab_dialogue_only', _labDialogueOnly);
+    await prefs.setBool('pref_lab_compress', _labCompress);
+    await prefs.setBool('pref_lab_stereo_wide', _labStereoWide);
+    await prefs.setBool('pref_lab_noise', _labNoise);
     await prefs.setInt('pref_ch_mode', _channelModeIdx);
     // Sprint 2 keys
     await prefs.setString('pref_end_action', _endAction);
@@ -4640,13 +4657,17 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
           _currentLabAf = afStr;
           _applyAllAf(); // EQ + reverb + lab all stack
         },
-        onLabStateChanged: (vocal, dialogue, norm, bass, bassLevel) {
+        onLabStateChanged: (vocal, dialogue, norm, bass, bassLevel, dialogueOnly, compress, stereoWide, noise) {
           setState(() {
             _labVocal = vocal;
             _labDialogue = dialogue;
             _labNorm = norm;
             _labBass = bass;
             _labBassLevel = bassLevel;
+            _labDialogueOnly = dialogueOnly;
+            _labCompress = compress;
+            _labStereoWide = stereoWide;
+            _labNoise = noise;
           });
           _savePrefs();
         },
@@ -4655,6 +4676,10 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
         labNorm: _labNorm,
         labBass: _labBass,
         labBassLevel: _labBassLevel,
+        labDialogueOnly: _labDialogueOnly,
+        labCompress: _labCompress,
+        labStereoWide: _labStereoWide,
+        labNoise: _labNoise,
         initialReverbPreset: _reverbPreset,
         audioBalance: _audioBalance,
         onBalanceChanged: _applyBalance,
@@ -7092,7 +7117,7 @@ class _AudioEffectPanel extends StatefulWidget {
   final void Function(bool) onEqEnabledChanged;
   final void Function(String?) onReverbChanged;
   final void Function(String) onLabAfChanged;
-  final void Function(bool vocal, bool dialogue, bool norm, bool bass, double bassLevel) onLabStateChanged;
+  final void Function(bool vocal, bool dialogue, bool norm, bool bass, double bassLevel, bool dialogueOnly, bool compress, bool stereoWide, bool noise) onLabStateChanged;
   final double audioBalance;
   final void Function(double) onBalanceChanged;
   // Lab initial state (persisted across panel reopens)
@@ -7101,6 +7126,10 @@ class _AudioEffectPanel extends StatefulWidget {
   final bool labNorm;
   final bool labBass;
   final double labBassLevel;
+  final bool labDialogueOnly;
+  final bool labCompress;
+  final bool labStereoWide;
+  final bool labNoise;
   final String initialReverbPreset;
   final VoidCallback onClose;
 
@@ -7121,6 +7150,10 @@ class _AudioEffectPanel extends StatefulWidget {
     this.labNorm = false,
     this.labBass = false,
     this.labBassLevel = 0.5,
+    this.labDialogueOnly = false,
+    this.labCompress = false,
+    this.labStereoWide = false,
+    this.labNoise = false,
     this.initialReverbPreset = 'None',
     required this.onClose,
   });
@@ -7140,6 +7173,10 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
   late bool _labNorm;
   late bool _labBass;
   late double _labBassLevel;
+  late bool _labDialogueOnly;
+  late bool _labCompress;
+  late bool _labStereoWide;
+  late bool _labNoise;
 
   void _applyLabAf() {
     final parts = <String>[];
@@ -7158,8 +7195,17 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
       // boosting the low bands (31Hz, 62Hz) by db amount
       parts.add('equalizer=$db:$db:0:0:0:0:0:0:0:0');
     }
+    // I1: Dialogue Only — keep centre-channel sum (L+R), mutes music/SFX in stereo field
+    if (_labDialogueOnly) parts.add('pan=stereo|c0=0.5*c0+0.5*c1|c1=0.5*c0+0.5*c1');
+    // I1: Night Audio — soft compressor tames explosions for late-night watching
+    if (_labCompress) parts.add('acompressor=threshold=0.089:ratio=9:attack=200:release=1000');
+    // I1: Stereo Widener — enhance stereo separation (best with headphones)
+    if (_labStereoWide) parts.add('extrastereo=m=2.5');
+    // I1: Noise Reduction — spectral denoising for old films / noisy streams
+    if (_labNoise) parts.add('afftdn=nf=-25');
     widget.onLabAfChanged(parts.isEmpty ? '' : parts.join(','));
-    widget.onLabStateChanged(_labVocal, _labDialogue, _labNorm, _labBass, _labBassLevel);
+    widget.onLabStateChanged(_labVocal, _labDialogue, _labNorm, _labBass, _labBassLevel,
+        _labDialogueOnly, _labCompress, _labStereoWide, _labNoise);
   }
 
   static const _presetNames = ['Original', 'Treble Boost', 'Bass Boost', 'Clarity', 'Movie', 'Music'];
@@ -7183,6 +7229,10 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
     _labNorm = widget.labNorm;
     _labBass = widget.labBass;
     _labBassLevel = widget.labBassLevel;
+    _labDialogueOnly = widget.labDialogueOnly;
+    _labCompress = widget.labCompress;
+    _labStereoWide = widget.labStereoWide;
+    _labNoise = widget.labNoise;
     // A5: Force MPV to re-apply the full filter chain when the panel opens so
     // MPV live state matches whatever the UI sliders are showing.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -7359,6 +7409,34 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                     ]),
                   ),
                 ],
+                _LabToggleRow(
+                  icon: Icons.hearing_rounded,
+                  title: 'Dialogue Only',
+                  subtitle: 'Isolates centre-channel speech — mutes music & SFX',
+                  enabled: _labDialogueOnly,
+                  onChanged: (v) { setState(() => _labDialogueOnly = v); _applyLabAf(); },
+                ),
+                _LabToggleRow(
+                  icon: Icons.nightlight_round,
+                  title: 'Night Audio',
+                  subtitle: 'Soft compressor — tames explosions for late-night',
+                  enabled: _labCompress,
+                  onChanged: (v) { setState(() => _labCompress = v); _applyLabAf(); },
+                ),
+                _LabToggleRow(
+                  icon: Icons.spatial_audio_rounded,
+                  title: 'Stereo Widener',
+                  subtitle: 'Expands stereo image — best with headphones',
+                  enabled: _labStereoWide,
+                  onChanged: (v) { setState(() => _labStereoWide = v); _applyLabAf(); },
+                ),
+                _LabToggleRow(
+                  icon: Icons.noise_aware_rounded,
+                  title: 'Noise Reduction',
+                  subtitle: 'Spectral denoising — cleans up old films & noisy streams',
+                  enabled: _labNoise,
+                  onChanged: (v) { setState(() => _labNoise = v); _applyLabAf(); },
+                ),
                 const SizedBox(height: 12),
                 Container(
                   margin: const EdgeInsets.only(top: 8),
