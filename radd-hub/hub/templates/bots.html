@@ -373,7 +373,8 @@ async function waCmd(cmd){
   catch(e){toast('Failed: '+e.message);}
 }
 async function waRelink(){
-  if(!confirm('This will wipe the WhatsApp session and restart the bot. Continue?')) return;
+  if(!window._armed_waRelink){ window._armed_waRelink=true; toast('⚠ Wipe WhatsApp session and restart bot? — click again to confirm',4000); setTimeout(()=>{window._armed_waRelink=false;},4000); return; }
+  window._armed_waRelink=false;
   try{await api(WA+'/relink',{method:'POST'});toast('Re-link triggered');_startWaPolling();}
   catch(e){toast('Failed: '+e.message);}
 }
@@ -452,7 +453,8 @@ async function sendBroadcast(){
   if(!msg){toast('Enter a message first');return;}
   const roles=[];if(chkV)roles.push('verified');if(chkA)roles.push('admins');
   if(!roles.length){toast('Select at least one role');return;}
-  if(!confirm('Send broadcast to all '+roles.join(' + ')+' users?')) return;
+  if(!window._armed_bcast){ window._armed_bcast=true; toast('⚠ Send broadcast to all '+roles.join(' + ')+' users? — click again to confirm',4000); setTimeout(()=>{window._armed_bcast=false;},4000); return; }
+  window._armed_bcast=false;
   if(st) st.textContent='Sending…';
   try{
     const d=await api('/api/whatsapp/broadcast',{method:'POST',body:{message:msg,roles}});

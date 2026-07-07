@@ -297,7 +297,9 @@
   };
 
   window.ppRemove = async function(id) {
-    if (!confirm('Remove this proxy?')) return;
+    const _armKey = '_armed_ppRemove_' + id;
+    if(!window[_armKey]){ window[_armKey]=true; toast('⚠ Remove this proxy? — click again to confirm',4000); setTimeout(()=>{window[_armKey]=false;},4000); return; }
+    window[_armKey]=false;
     await api('/settings/api/pool/remove/' + id, 'DELETE');
     ppLoad();
   };
@@ -343,7 +345,8 @@
   };
 
   window.ppResetDead = async function() {
-    if (!confirm('Re-enable all disabled proxies and queue them for re-testing?')) return;
+    if(!window._armed_ppResetDead){ window._armed_ppResetDead=true; toast('⚠ Re-enable all disabled proxies and queue for re-testing? — click again to confirm',4000); setTimeout(()=>{window._armed_ppResetDead=false;},4000); return; }
+    window._armed_ppResetDead=false;
     const btn = document.getElementById('pp-btn-reset');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Resetting…'; }
     try {

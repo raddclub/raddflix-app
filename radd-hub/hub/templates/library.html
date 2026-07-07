@@ -666,7 +666,8 @@ async function quickTogglePublish(id, btn){
 // ── Publish All / Unpublish All ───────────────────────────────────────────
 async function publishAll(){
   const btn=document.getElementById('pub-all-btn');
-  if(!confirm('Publish ALL titles that have a JazzDrive file link?')) return;
+  if(!window._armed_publishAll){ window._armed_publishAll=true; toast('⚠ Publish ALL titles with a file link? — click again to confirm',4000); setTimeout(()=>{window._armed_publishAll=false;},4000); return; }
+  window._armed_publishAll=false;
   if(btn){ btn.textContent='⏳ Publishing…'; btn.disabled=true; }
   try{
     const d=await fetch('/library/api/titles/publish-all',{method:'POST'}).then(r=>r.json());
@@ -677,7 +678,8 @@ async function publishAll(){
 }
 async function unpublishAll(){
   const btn=document.getElementById('unpub-all-btn');
-  if(!confirm('Unpublish ALL titles? They will be hidden from the app.')) return;
+  if(!window._armed_unpublishAll){ window._armed_unpublishAll=true; toast('⚠ Unpublish ALL titles (hidden from app)? — click again to confirm',4000); setTimeout(()=>{window._armed_unpublishAll=false;},4000); return; }
+  window._armed_unpublishAll=false;
   if(btn){ btn.textContent='⏳ Hiding…'; btn.disabled=true; }
   try{
     const d=await fetch('/library/api/titles/unpublish-all',{method:'POST'}).then(r=>r.json());
@@ -981,8 +983,10 @@ async function deleteTitle() {
   if (!_currentTitle) return;
   const id = _currentTitle.id;
   const name = _currentTitle.title;
-  const deleteFiles = confirm(`Delete "${name}" and ALL its files? Click Cancel to keep files (orphan them).`);
-  if (!confirm(`⚠️ Are you sure you want to delete "${name}"? This cannot be undone.`)) return;
+  const _armKey = '_armed_delTitle_' + id;
+  if (!window[_armKey]) { window[_armKey] = true; toast('⚠ Delete "' + name + '" and all its files? — click again to confirm', 4000); setTimeout(() => { window[_armKey] = false; }, 4000); return; }
+  window[_armKey] = false;
+  const deleteFiles = true;
   try {
     const d = await fetch(`/library/api/title/${id}/delete`, {
       method:'POST', headers:{'Content-Type':'application/json'},

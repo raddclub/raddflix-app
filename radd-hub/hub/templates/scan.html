@@ -1014,7 +1014,9 @@ function hideLogs() {
 
 async function clearScanLog() {
   if (!_scanAcct) return;
-  if (!confirm('Delete all saved log entries for this account from the database?')) return;
+  const _armKey = '_armed_clearlog_' + _scanAcct;
+  if (!window[_armKey]) { window[_armKey] = true; toast('⚠ Delete all log entries for this account? — click again to confirm', 4000); setTimeout(() => { window[_armKey] = false; }, 4000); return; }
+  window[_armKey] = false;
   try {
     const r = await fetch('/scan/api/accounts/' + _scanAcct + '/log', {method: 'DELETE',
       headers: {'X-Requested-With': 'XMLHttpRequest'}});
@@ -1533,12 +1535,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function clearCookies(id, msisdn, btn) {
-  if (!confirm(
-    'Clear session cookies for ' + msisdn + '?\n\n' +
-    'This removes JSESSIONID and validation_key only.\n' +
-    'Your refresh_token is kept so the app can try a silent re-login automatically.\n\n' +
-    'Use this when the session is stale/dead but you do NOT want to fully log out.'
-  )) return;
+  const _armKey = '_armed_clearCookies_' + id;
+  if (!window[_armKey]) { window[_armKey] = true; toast('⚠ Clear cookies for ' + msisdn + '? (keeps refresh_token) — click again to confirm', 4000); setTimeout(() => { window[_armKey] = false; }, 4000); return; }
+  window[_armKey] = false;
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = 'Clearing…';
   try {
@@ -1560,7 +1559,9 @@ async function clearCookies(id, msisdn, btn) {
 }
 
 async function logoutAcct(id, msisdn, btn) {
-  if (!confirm('Log out ' + msisdn + ' from JazzDrive?\n\nThis clears all session tokens. You will need to re-login with OTP to use this account again.')) return;
+  const _armKey = '_armed_logoutAcct_' + id;
+  if (!window[_armKey]) { window[_armKey] = true; toast('⚠ Log out ' + msisdn + '? Clears all tokens — OTP needed to re-login. Click again to confirm', 4000); setTimeout(() => { window[_armKey] = false; }, 4000); return; }
+  window[_armKey] = false;
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = 'Logging out…';
   try {

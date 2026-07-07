@@ -449,8 +449,10 @@ async function tidApprove(id){
 }
 
 async function tidReject(id){
-  const note = window.prompt('Reason for rejection (optional, press OK to skip):');
-  if(note === null) return;
+  const _armKey = '_armed_tidReject_' + id;
+  if(!window[_armKey]){ window[_armKey]=true; toast('⚠ Reject this payment? — click again to confirm (note will be blank)',4000); setTimeout(()=>{window[_armKey]=false;},4000); return; }
+  window[_armKey]=false;
+  const note = '';
   const okBtn  = document.getElementById('tid-ok-'+id);
   const errBtn = document.getElementById('tid-err-'+id);
   if(okBtn)  okBtn.disabled=true;

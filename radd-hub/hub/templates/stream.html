@@ -603,7 +603,9 @@ async function jobAction(id, action){
   catch(e){ toast('Failed: '+e.message); }
 }
 async function removeJob(id){
-  if(!confirm('Remove this job?')) return;
+  const _armKey = '_armed_removeJob_' + id;
+  if(!window[_armKey]){ window[_armKey]=true; toast('⚠ Remove this job? — click again to confirm',4000); setTimeout(()=>{window[_armKey]=false;},4000); return; }
+  window[_armKey]=false;
   try{ await api('/stream/api/queue/'+id,{method:'DELETE'}); setTimeout(refresh,300); }
   catch(e){ toast('Failed: '+e.message); }
 }
@@ -936,7 +938,9 @@ async function addSchedule(){
   }catch(e){ res.innerHTML=`<div class="badge b-err">${e.message}</div>`; }
 }
 async function deleteSchedule(id){
-  if(!confirm('Delete this schedule?')) return;
+  const _armKey = '_armed_delSchedule_' + id;
+  if(!window[_armKey]){ window[_armKey]=true; toast('⚠ Delete this schedule? — click again to confirm',4000); setTimeout(()=>{window[_armKey]=false;},4000); return; }
+  window[_armKey]=false;
   await api('/api/schedule/delete',{method:'POST',body:{id}});
   loadSchedules();
 }
