@@ -1,1 +1,1 @@
-- [JS replace $-pattern trap](js-replace-dollar-pattern.md) — `$'` in JS replacement string inserts file suffix; use `() => NEW` form or `$$` escaping when Dart code contains `$`
+- [Dart $ in Edit tool new_string](dart-dollar-edit-escape.md) — use Python str.replace() for Dart edits with $ chars; JS Edit tool expands $' as file-suffix.
