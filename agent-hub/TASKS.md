@@ -144,5 +144,5 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 4. If a task is blocked or intentionally not automated (e.g. needs human judgment, touches
    production), mark it ⚠️ OPEN with a one-line reason instead of silently dropping it.
 
-| G1 — SUBTITLE-PANEL-REWRITE | `player_screen.dart` `_SubtitlePanelState`: fix `sub-back-color` hex format (was `#ff000000` opaque-red bug), fix Box shadow mode, collapse dual opacity vars, 5-tab layout (Tracks/Style/Position/Sync/Online), live Flutter preview, `_toMpvColor`/`_toMpvBackColor` helpers, `_SubTrackTile`+`_BigStepBtn` helper classes. | `778f17c` | ⏳ BUILD |
-| G2 — SETTINGS-PANEL-POLISH | `player_screen.dart` `_SettingsPanelState`: progress bar style → chip wrap (`Wrap` widget), Controls/Navigation tabs → `_stgSection`+`_stgSwitch`+`_stgSliderRow` helpers with icon containers and card grouping. | `778f17c` | ⏳ BUILD |
+| G1 — SUBTITLE-PANEL-REWRITE | `player_screen.dart` `_SubtitlePanelState`: fix `sub-back-color` hex format, Box shadow, dual opacity, 5-tab layout, live preview, `_toMpvColor`/`_toMpvBackColor` helpers, `_SubTrackTile`+`_BigStepBtn`. | `778f17c` | ✅ DONE |
+| G2 — SETTINGS-PANEL-POLISH | `player_screen.dart` `_SettingsPanelState`: progress bar style chips (Wrap), Controls/Navigation card sections with icon rows. | `778f17c` | ✅ DONE |
