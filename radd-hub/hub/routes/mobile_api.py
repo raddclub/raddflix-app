@@ -45,6 +45,9 @@ _login_ip_window: dict = {}   # ip → list[float] — in-memory cache layer
 _LOGIN_RATE_WINDOW = 900      # 15-minute sliding window
 _LOGIN_RATE_MAX    = 10       # max attempts per window per IP
 
+_otp_attempts: dict = {}      # phone → int — wrong OTP guess counter (O3 brute-force guard)
+_OTP_MAX_ATTEMPTS  = 5        # burn OTP after this many wrong guesses
+
 # BUG-S14 fix: also persist to DB so rate limit survives server restarts
 _RATE_TABLE_DDL = (
     "CREATE TABLE IF NOT EXISTS login_rate_log "
@@ -511,9 +514,19 @@ def device_switch_verify():
         return jsonify({"error": "OTP has expired. Please request a new one."}), 400
 
     if not _hmac.compare_digest(stored_hash, _hash_password(otp_code)):
-        return jsonify({"error": "Incorrect OTP. Check the code and try again."}), 401
+        # O3: track wrong attempts; burn OTP after _OTP_MAX_ATTEMPTS to block brute-force
+        attempts = _otp_attempts.get(phone, 0) + 1
+        _otp_attempts[phone] = attempts
+        if attempts >= _OTP_MAX_ATTEMPTS:
+            del _otp_attempts[phone]
+            with db.conn() as c:
+                c.execute("DELETE FROM settings WHERE k=?", (f"dsw_otp_{phone}",))
+            return jsonify({"error": "Too many incorrect attempts. Please request a new OTP."}), 429
+        remaining = _OTP_MAX_ATTEMPTS - attempts
+        return jsonify({"error": f"Incorrect OTP. {remaining} attempt{'s' if remaining != 1 else ''} remaining."}), 401
 
-    # OTP valid — reset device and issue fresh tokens
+    # OTP valid — clear attempt counter, reset device, issue fresh tokens
+    _otp_attempts.pop(phone, None)
     now = int(time.time())
     with db.conn() as c:
         user = c.execute("SELECT * FROM app_users WHERE phone=?", (phone,)).fetchone()
