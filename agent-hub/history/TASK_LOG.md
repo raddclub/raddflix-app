@@ -80,3 +80,5 @@
 - Session 2026-07-06 — Bottom Nav Redesign: Search replaces Local in nav, Downloads renamed Library, On Device access via Library AppBar, label font fixed, _navIndex drift fixed
 - Session 2026-07-06 — Portrait-Player-V2: 7 layout issues fixed (16:9 video zone, sidebar removed, persistent back button, clean transport row, spaceEvenly controls, no scroll wrapper, Lock in quick actions)
 
+
+- Session 2026-07-07 — Subtitle Panel Full Rewrite + Settings Panel Polish (G1, G2)

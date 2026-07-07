@@ -143,3 +143,6 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
    `agent-hub/history/TASK_LOG.md`, not into this file — this file stays a one-line-per-item index.
 4. If a task is blocked or intentionally not automated (e.g. needs human judgment, touches
    production), mark it ⚠️ OPEN with a one-line reason instead of silently dropping it.
+
+| G1 — SUBTITLE-PANEL-REWRITE | `player_screen.dart` `_SubtitlePanelState`: fix `sub-back-color` hex format (was `#ff000000` opaque-red bug), fix Box shadow mode, collapse dual opacity vars, 5-tab layout (Tracks/Style/Position/Sync/Online), live Flutter preview, `_toMpvColor`/`_toMpvBackColor` helpers, `_SubTrackTile`+`_BigStepBtn` helper classes. | `778f17c` | ⏳ BUILD |
+| G2 — SETTINGS-PANEL-POLISH | `player_screen.dart` `_SettingsPanelState`: progress bar style → chip wrap (`Wrap` widget), Controls/Navigation tabs → `_stgSection`+`_stgSwitch`+`_stgSliderRow` helpers with icon containers and card grouping. | `778f17c` | ⏳ BUILD |
