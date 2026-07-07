@@ -3314,7 +3314,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // overlays the Stack. No fixed-width SizedBox = no RenderFlex overflow when
       // all optional buttons are active simultaneously.
       return SizedBox(
-        height: _layoutPreset == 'compact' ? 44 : 52, // J1: compact shrinks row height
+        height: _layoutPreset == 'compact' ? 48 : 52, // J1: compact uses 48 (Material min) vs default 52
         child: Stack(
           alignment: Alignment.center,
           children: [
