@@ -1795,7 +1795,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     // A2+A3: Always emit equalizer= when EQ is enabled (even all-zero) so MPV
     // explicitly clears any previous non-zero state instead of leaving stale gains.
-    if (_eqEnabled) {
+    // Also emit when Lab has EQ gains (Dialogue/Bass Boost) so those effects work
+    // even when the main EQ toggle is off.
+    if (_eqEnabled || labEqGains.any((v) => v != 0)) {
       final b = _eqBands;
       final g = [
         b[0].round() + labEqGains[0],  b[0].round() + labEqGains[1],   // 31.25, 62.5 → 60Hz
