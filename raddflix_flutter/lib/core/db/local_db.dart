@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:sqflite_sqlcipher/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -1167,8 +1168,7 @@ class LocalDb {
     final deleted = await db.delete('stream_cache',
         where: 'expires_at <= ?', whereArgs: [nowTs]);
     if (deleted > 0) {
-      // ignore: avoid_print
-      print('[LocalDb] Cleaned $deleted expired stream cache entries');
+      if (kDebugMode) print('[LocalDb] Cleaned $deleted expired stream cache entries'); // ignore: avoid_print
     }
   }
 

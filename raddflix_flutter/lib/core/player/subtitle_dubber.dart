@@ -6,6 +6,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -222,8 +223,7 @@ class SubtitleDubber {
         clips.add(_AudioClip(entry.start, entry.end, bytes.sublist(header['dataOffset']!)));
       } catch (e) {
         // Fix #11: log instead of silently swallowing — helps debug bad SRT/WAV.
-        // ignore: avoid_print
-        print('[SubtitleDubber] clip $i synthesis error: $e');
+        if (kDebugMode) print('[SubtitleDubber] clip $i synthesis error: $e'); // ignore: avoid_print
         continue;
       }
     }
