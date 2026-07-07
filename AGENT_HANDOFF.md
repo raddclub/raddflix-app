@@ -3,6 +3,20 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-07 — H1 Audio Lab Bugfix)
+
+### H1 — Audio Lab Bugfix — 2026-07-07 (latest)
+Commits: `9d0970e` (TASKS.md), `e283978` (player_screen.dart).
+
+**What changed (`player_screen.dart`):**
+- **A1 — `_applyAllAf()` logging** — replaced bare `catch (_) {}` with `debugPrint('[AudioLab] af set: ...')` on success and `debugPrint('[AudioLab] _applyAllAf ERROR: ...')` on failure. MPV errors are now visible in `flutter logs`.
+- **A2+A3 — Merged EQ chain** — `_buildMergedAfString()` now extracts any `equalizer=` segment from `_currentLabAf` (Dialogue Boost / Bass Boost gains), adds its 10 values to the main EQ gains (clamped ±12), and emits a single `equalizer=` filter. The Lab chain has its `equalizer=` segment stripped before appending. Eliminates double-equalizer conflict that made main EQ sliders appear to do nothing when Lab effects were on.
+- **A2 — Always emit `equalizer=` when enabled** — removed the `g.any((v) => v != 0)` guard. Even all-zero bands now emit `equalizer=0:0:0:0:0:0:0:0:0:0` so MPV explicitly clears any previous non-zero state.
+- **A4 — Vocal Remover clip fix** — changed `pan=stereo|c0=c0-c1|c1=c1-c0` → `pan=stereo|c0=0.5*c0-0.5*c1|c1=0.5*c1-0.5*c0`. The 0.5 scale prevents 2× amplitude clipping on loud content.
+- **A5 — MPV sync on panel open** — `_AudioEffectPanelState.initState()` now calls `widget.onEqEnabledChanged(widget.eqEnabled)` via `addPostFrameCallback` so MPV is immediately synced to the panel's current state on open.
+- **A6 verified** — `_applyLabAf()` correctly emits `''` when all toggles are off (`parts.isEmpty ? '' : parts.join(',')` — no fix needed).
+- **A7 (silencedetect)** — `lavfi=[silencedetect=...]` left in chain; A1 logging will surface any MPV errors in the next test session.
+
 ## Current State (2026-07-06 — Portrait-Player-V2)
 
 ### Portrait-Player-V2 — 2026-07-06 (latest)
