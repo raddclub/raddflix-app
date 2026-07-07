@@ -1784,13 +1784,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // and merge into the main EQ chain to prevent a double-equalizer conflict.
     // Two equalizer filters in the same af chain cause the main EQ sliders to appear
     // to do nothing when Dialogue or Bass Boost is active.
+    // A3 fix: use allMatches so gains from ALL Lab equalizer segments are summed.
+    // If only firstMatch is used, Bass Boost gains are silently dropped when
+    // Dialogue Boost is also on (they each emit a separate equalizer= segment).
     List<int> labEqGains = List.filled(10, 0);
-    final labEqMatch = RegExp(r'equalizer=([\d:.\-]+)').firstMatch(_currentLabAf);
-    if (labEqMatch != null) {
-      final rawGains = labEqMatch.group(1)!.split(':');
-      // Normalize to exactly 10 entries (pad with 0 or truncate) to avoid RangeError
+    for (final m in RegExp(r'equalizer=([\d:.\-]+)').allMatches(_currentLabAf)) {
+      final rawGains = m.group(1)!.split(':');
       final parsed = rawGains.map((s) => int.tryParse(s) ?? 0).toList();
-      labEqGains = List.generate(10, (i) => i < parsed.length ? parsed[i] : 0);
+      for (int i = 0; i < 10; i++) {
+        labEqGains[i] += i < parsed.length ? parsed[i] : 0;
+      }
     }
 
     // A2+A3: Always emit equalizer= when EQ is enabled (even all-zero) so MPV
