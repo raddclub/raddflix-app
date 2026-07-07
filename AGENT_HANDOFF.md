@@ -3,6 +3,19 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-07 — I1 Audio Lab New Features)
+
+### I1 — 4 New Audio Lab Features — 2026-07-07 (latest)
+Commit: `6e4da14`.
+
+**What changed (`player_screen.dart`):**
+- **Dialogue Only** — `pan=stereo|c0=0.5*c0+0.5*c1|c1=0.5*c0+0.5*c1`. The opposite of Vocal Remover — keeps the centre-channel sum (L+R), which isolates speech panned dead-centre and attenuates music/SFX spread across the stereo field.
+- **Night Audio** — `acompressor=threshold=0.089:ratio=9:attack=200:release=1000`. Soft compressor that tames loud explosions/action peaks for late-night watching without crushing quiet dialogue.
+- **Stereo Widener** — `extrastereo=m=2.5`. Enhances stereo separation — best with headphones.
+- **Noise Reduction** — `afftdn=nf=-25`. Spectral denoising — cleans up old films, noisy streams, and low-quality encodes.
+- **Vocal Remover `_loadPrefs` consistency fix** — the AF rebuild in `_loadPrefs` was still using the pre-A4 unscaled formula `pan=stereo|c0=c0-c1|c1=c1-c0`. Fixed to match `_applyLabAf`'s `0.5*` scale so prefs-restored state matches the live toggle.
+- All 4 new features wired through all 7 touch points: state vars, loadPrefs restore, loadPrefs AF rebuild, savePrefs, onLabStateChanged call site + widget props, `_AudioEffectPanel` class (typedef, fields, constructor), `_AudioEffectPanelState` (late vars, `_applyLabAf`, `initState`, 4 new `_LabToggleRow` widgets).
+
 ## Current State (2026-07-07 — H1 Audio Lab Bugfix)
 
 ### H1 — Audio Lab Bugfix — 2026-07-07 (latest)
