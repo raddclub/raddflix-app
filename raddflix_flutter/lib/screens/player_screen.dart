@@ -1501,14 +1501,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _skipInterval = prefs.getInt('pref_skip') ?? 10;
       _nightModeEnabled = prefs.getBool('pref_night') ?? false;
       _nightWarmth = prefs.getDouble('pref_warmth') ?? 0.4;
+      _smartEnhanceEnabled = prefs.getBool('pref_vivid') ?? false; // J1: was never persisted
       _showClockInTitle = prefs.getBool('pref_clock') ?? true;
       _videoRotation = prefs.getInt('pref_vrotate') ?? 0;
       _audioBalance = prefs.getDouble('pref_balance') ?? 0.0;
       _seekSwipeSec = prefs.getDouble('pref_swipe') ?? 120.0;
       _accentColorIdx = prefs.getInt('pref_accent') ?? 0;
       _progressBarStyle = prefs.getInt('pref_pbstyle') ?? 0;
-      _oneHandedMode = prefs.getBool('pref_onehanded') ?? false;
-      _backgroundAudio = prefs.getBool('pref_bgaudio') ?? false;
+      _oneHandedMode    = prefs.getBool('pref_onehanded') ?? false;
+      _showSkipBtns     = prefs.getBool('pref_skip_btns') ?? true;     // J1: was never persisted
+      _showPrevNextBtns = prefs.getBool('pref_prev_next_btns') ?? true; // J1: was never persisted
+      _backgroundAudio  = prefs.getBool('pref_bgaudio') ?? false;
       _keepScreenOn = prefs.getBool('pref_screenon') ?? true;
       _showRemainingTime = prefs.getBool('pref_remaining') ?? false;
       // EQ + Lab + Reverb + Channel
@@ -1532,6 +1535,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _endAction           = prefs.getString('pref_end_action') ?? 'play_next';
       _silenceSkipEnabled  = prefs.getBool('pref_silence_skip') ?? false;
       _silenceSkipThreshold= prefs.getDouble('pref_silence_thr') ?? 1.5;
+      _silenceInPipeline   = _silenceSkipEnabled; // J1: restore pipeline flag — was left false after restart
       _layoutPreset        = prefs.getString('pref_layout') ?? 'default';
       _voiceCommandsEnabled= prefs.getBool('pref_voice_cmd') ?? false;
       _doubleTapSeekEnabled= prefs.getBool('pref_gest_dtap') ?? true;
@@ -1605,6 +1609,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setBool('pref_remaining', _showRemainingTime);
     await prefs.setBool('pref_night', _nightModeEnabled);
     await prefs.setDouble('pref_warmth', _nightWarmth);
+    await prefs.setBool('pref_vivid', _smartEnhanceEnabled);         // J1
+    await prefs.setBool('pref_skip_btns', _showSkipBtns);            // J1
+    await prefs.setBool('pref_prev_next_btns', _showPrevNextBtns);   // J1
     await prefs.setBool('pref_clock', _showClockInTitle);
     await prefs.setInt('pref_vrotate', _videoRotation);
     await prefs.setDouble('pref_balance', _audioBalance);
@@ -3281,15 +3288,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ═══════════════════════════════════════════════════════════════════════════
 
     Widget _buildBottomArea(BoxConstraints constraints, Duration currentPos) {
+      // J1: compact layout actually reduces chrome density
+      final isCompact = _layoutPreset == 'compact';
       return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: EdgeInsets.fromLTRB(isCompact ? 8 : 16, 0, isCompact ? 8 : 16, isCompact ? 6 : 10),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // ── Seek bar row ────────────────────────────────────────────────────
             _buildHorizontalSeekBar(constraints, currentPos),
 
-            const SizedBox(height: 2),
+            SizedBox(height: isCompact ? 0 : 2),
 
             // ── Transport controls: prev · skip· play/pause · skip · next ────────
             _buildTransportRow(),
@@ -3305,7 +3314,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // overlays the Stack. No fixed-width SizedBox = no RenderFlex overflow when
       // all optional buttons are active simultaneously.
       return SizedBox(
-        height: 52,
+        height: _layoutPreset == 'compact' ? 44 : 52, // J1: compact shrinks row height
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -5251,7 +5260,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
               for (final item in [
                 ('default', Icons.dashboard_rounded,    'Default',  'Full controls, skip buttons, progress overlay'),
                 ('cinema',  Icons.theaters_rounded,      'Cinema',   'Minimal chrome — skip buttons hidden until tap'),
-                ('compact', Icons.fit_screen_rounded,   'Compact',  'Smaller UI, condensed seek bar padding'),
+                ('compact', Icons.fit_screen_rounded,   'Compact',  'Smaller UI — tighter padding, shorter transport row'),
               ])
                 GestureDetector(
                   onTap: () {
