@@ -217,6 +217,26 @@ Commits: `5d37e39`, `19fa4cf`
 ### Open Tasks
 None — awaiting next task.
 
+### What was done 2026-07-07 — Subtitle Panel Full Rewrite + Settings Polish
+
+**G1 — Subtitle Panel Full Rewrite** (`778f17c`)
+Root-cause bugs all fixed in one pass:
+1. `sub-back-color` hex format was `#ff000000` (opaque red in MPV) → new `_toMpvBackColor()` helper emits correct `#RRGGBBAA` where `AA=00`=opaque, `AA=FF`=transparent.
+2. "Box" shadow mode was identical to "None" → now explicitly sets `sub-back-color` to `Colors.black87` if no background is set.
+3. Dual opacity state (`_subFade` + `_subOpacity`) both writing `sub-opacity` → collapsed to single `_subOpacity`.
+4. 7 fragile tabs with repeated `.indexOf()` → 5 clean tabs: Tracks | Style | Position | Sync | Online (+ AI Dub when available).
+5. No live preview → `_buildPreview()` renders a Flutter widget showing exact font/size/bold/colour/shadow/position before the user closes the panel.
+6. `_applyShadow` switch illegal fall-through → fixed as if/else chain.
+
+New helper classes: `_SubTrackTile`, `_BigStepBtn` (below the state class).
+MPV colour helpers: `_toMpvColor(Color)` → `#RRGGBB`, `_toMpvBackColor(Color)` → `#RRGGBBAA`.
+
+**G2 — Settings Panel Polish** (`778f17c`)
+- Progress bar style: radio list → `Wrap` of pill chips (easier to scan, all 11 styles visible at once).
+- Controls tab: `_stgSection` card + `_stgSwitch` rows (icon container + two-line label).
+- Navigation tab: same card treatment + `_stgSliderRow` for seek/skip sliders.
+- Build triggered: https://github.com/raddclub/raddflix-app/actions/runs/28860032110
+
 ### What was added 2026-07-03 — MPV-Native Player Upgrades
 1. **Native A-B loop** — replaced Dart position-listener seek with MPV's own `ab-loop-a`/`ab-loop-b`/`ab-loop-count` properties via new `_syncNativeAbLoop()`; frame-accurate, zero per-tick Dart overhead. Dart state now UI-only.
 2. **Near-gapless episode transitions** — `_prefetchNextEpisode()` resolves the next episode's stream link ~20s before the current one ends (once per episode); `_openMediaForEpisode()` has a fast path that uses the cached URL directly, skipping the network round-trip when the user advances.
