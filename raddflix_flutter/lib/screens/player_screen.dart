@@ -4701,6 +4701,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
         selectedMode: _zoomMode,
         onModeSelected: (mode) {
           setState(() => _zoomMode = mode);
+          _savePrefs();
           if (mode == 4) {
             _showInfoSnackbar('Pinch the video to set a custom zoom level');
           }

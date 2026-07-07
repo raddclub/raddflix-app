@@ -3,6 +3,39 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-07 — L4/L5 Sync Reset + SubSpeed + SavePrefs Gaps)
+
+### L5 — ZoomMode Save Gap — 2026-07-07 (latest)
+Commit: pending → `player_screen.dart`.
+
+**What changed:**
+- `_openZoomPanel` callback: `setState(() => _zoomMode = mode)` was called but `_savePrefs()` was never called after. Zoom mode preference (fit / fill / stretch / custom pinch) was lost on every app restart — MPV reverted to default fit. Added `_savePrefs()` immediately after the setState.
+
+### L4 — Sync Reset + SubSpeed Persistence + SavePrefs Gaps — 2026-07-07
+Commit: `68562849`.
+
+**What changed (`player_screen.dart`):**
+
+**1. Sub/Audio sync bleed between episodes:**
+`_subSync` and `_audioSync` were never reset in `_playEpisodeAt`. MPV's `sub-delay` and `audio-delay` properties persist across `loadfile` calls — so episode N+1 inherited episode N's manual sync offset, which immediately desynced it. Fixed:
+- Dart reset block: `_subSync = 0.0; _audioSync = 0.0; _subSpeed = 1.0`
+- MPV reset block: `setProperty('sub-delay','0')`, `setProperty('audio-delay','0')`, `setProperty('sub-speed','1')`
+
+**2. `_subSpeed` not persisted:**
+Subtitle speed (0.5–2.0×) had no `pref_sub_speed` key in `_loadPrefs`/`_savePrefs` — reset to 1.0 on every restart. Added `pref_sub_speed` key to both. Added `_savePrefs()` call to `onSpeedChanged` callback in `_openSubtitlePanel` (which was also missing it).
+
+**3. `_showRemainingTime` seek-bar tap not saved:**
+The GestureDetector on the duration label toggled `_showRemainingTime` via `setState` but never called `_savePrefs()`. Added `_savePrefs()`.
+
+**4. Settings panel missing `_savePrefs()` calls:**
+Four callbacks in `_openSettingsPanel` only did `setState` — value was written to disk only on `dispose()`, meaning it was lost on force-kill:
+- `onShowRemainingChanged` → added `_savePrefs()`
+- `onKeepScreenChanged` → added `_savePrefs()`
+- `onSkipIntervalChanged` → added `_savePrefs()`
+- `onSeekSwipeSpeedChanged` → added `_savePrefs()`
+
+**SharedPreferences key added:** `pref_sub_speed`
+
 ## Current State (2026-07-07 — L3 Audio Carry-Over + Language Preference)
 
 ### L3 — BUG-AUDIO-CARRY-01 + Language Preference Persistence — 2026-07-07 (latest)
