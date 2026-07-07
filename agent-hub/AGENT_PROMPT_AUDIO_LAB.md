@@ -83,7 +83,9 @@ String _buildMergedAfString() {
   final labEqMatch = RegExp(r'equalizer=([\d:.\-]+)').firstMatch(_currentLabAf);
   if (labEqMatch != null) {
     final rawGains = labEqMatch.group(1)!.split(':');
-    labEqGains = rawGains.map((s) => int.tryParse(s) ?? 0).toList();
+    // Normalize to exactly 10 entries (pad with 0 or truncate) to avoid RangeError
+    final parsed = rawGains.map((s) => int.tryParse(s) ?? 0).toList();
+    labEqGains = List.generate(10, (i) => i < parsed.length ? parsed[i] : 0);
   }
 
   // Main EQ — merge with Lab EQ, clamp to valid MPV range
@@ -123,13 +125,15 @@ String _buildMergedAfString() {
 
 ---
 
-### 🔴 Fix Third — EQ Not Cleared When All Bands Reset to Zero (TASK A2)
+### 🔴 Fix Third — EQ Not Cleared When All Bands Reset to Zero (TASK A2, verify after A1 logs)
 
 **File:** `player_screen.dart` around line 1793
 
-**Problem:** When EQ is enabled but all sliders are at 0, the old code skips adding `equalizer` to the filter string. MPV keeps the previous non-zero EQ filter running.
+**Problem:** When EQ is enabled but all sliders are at 0, the old code skips adding `equalizer` to the filter string. In some libmpv builds, MPV keeps the previous non-zero EQ filter running rather than clearing it when it disappears from the `af` string.
 
-**Fix:** Always include `equalizer` when EQ is enabled (the merged logic in TASK A3 already handles this — just make sure `_eqEnabled=true` always produces an `equalizer=` line, even if all gains are 0).
+**Verify first:** After adding A1 logging, drag all EQ sliders to 0 and check the `[AudioLab] af set:` log line. If `equalizer` is absent from that string and audio still sounds boosted, apply the fix below.
+
+**Fix:** The merged logic in TASK A3 already handles this by always emitting `equalizer=` when `_eqEnabled=true` (even when all gains are 0). If A3 is implemented correctly, A2 requires no extra code — just confirm via logs.
 
 ---
 
