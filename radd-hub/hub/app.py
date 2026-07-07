@@ -375,6 +375,8 @@ def create_app() -> Flask:
     def _e500(e):
         app.logger.error('500: %s', e)
         return _ej({'error': 'internal server error'}), 500
+    @app.errorhandler(ValueError)
+    def _eVal(e): return _ej({'error': 'invalid parameter', 'detail': str(e)}), 400
     @app.errorhandler(Exception)
     def _eAny(e):
         app.logger.error('Exception: %s', type(e).__name__)
