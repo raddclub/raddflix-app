@@ -15,6 +15,9 @@ Commit: `cd75b25`.
 - **Bug 4 — Show prev/next buttons not persisted**: Same pattern. Fixed: `pref_prev_next_btns` added.
 - **Bug 5 — Layout "compact" did nothing**: Claimed "smaller UI, condensed padding" but code only set `_showSkipBtns = true` (same as Default). Fixed: `isCompact` flag now drives real differences — `_buildBottomArea` uses `8px` side padding (vs `16px`), `6px` bottom padding (vs `10px`), zero gap between seek bar and transport row (vs `2px`), and `_buildTransportRow` is `48px` tall (Material tap-target minimum) vs default `52px`. (Initial fix used 44px; code review flagged accessibility risk — corrected to 48px in follow-up commit `52e99b29`.)
 
+**K1 — Save on Pause — 2026-07-07**
+Added `if (!v) _saveWatchPos();` inside `_player.stream.playing.listen` callback. Position is now saved the moment the user pauses — previously only saved every 10 seconds during playback, on background, on dispose, and on episode change. Frame thumbnails were checked (not in code) and not created per user instruction. Commit `5408c98`.
+
 **J2 follow-up (same session):** Code-trace of J1 fixes found 4 more bugs. `_toggleSmartEnhance()` was missing `_savePrefs()` (Vivid state only saved on `dispose()` — force-kill lost it). Three Settings panel callbacks (`onShowSkipBtnsChanged`, `onShowPrevNextBtnsChanged`, `onShowSeekPositionChanged`) also only called `setState`, not `_savePrefs()`. And `_showSeekPositionLabel` had no prefs key at all — it was always resetting to `true`. Fixed in commit `26232d7` — added `_savePrefs()` to all three callbacks + `_toggleSmartEnhance()`, added `pref_seek_pos_label` load/save.
 
 **Audit finding preserved here:** Cast feature (`cast_service.dart` + `cast_panel.dart`) exists as dead code — not wired into any player panel. Watch Party is UI + simulation only (no real WebSocket backend at `wss://party.raddflix.pk/ws`).
