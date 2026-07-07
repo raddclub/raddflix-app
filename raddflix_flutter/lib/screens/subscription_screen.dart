@@ -80,7 +80,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
         _methodsLoading = false;
         _methodsError = 'Could not load payment methods. Check your connection.';
       });
-      debugPrint('[SubscriptionScreen] _fetchMethods error: $e');
+      if (kDebugMode) debugPrint('[SubscriptionScreen] _fetchMethods error: $e');
     }
   }
 

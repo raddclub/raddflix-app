@@ -140,7 +140,7 @@ class WordDict {
       final list = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
       _saved = list.map(SavedWord.fromJson).toList();
     } catch (e) {
-      debugPrint('WordDict: failed to load saved words: $e');
+      if (kDebugMode) debugPrint('WordDict: failed to load saved words: $e');
     }
     _savedLoaded = true;
   }
@@ -151,7 +151,7 @@ class WordDict {
       await prefs.setString('radd_saved_words',
           jsonEncode(_saved.map((s) => s.toJson()).toList()));
     } catch (e) {
-      debugPrint('WordDict: failed to persist: $e');
+      if (kDebugMode) debugPrint('WordDict: failed to persist: $e');
     }
   }
 }

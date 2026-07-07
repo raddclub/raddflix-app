@@ -1996,9 +1996,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final filterStr = _buildMergedAfString();
     try {
       _np.setProperty('af', filterStr);
-      debugPrint('[AudioLab] af set: $filterStr');
+      if (kDebugMode) debugPrint('[AudioLab] af set: $filterStr');
     } catch (e) {
-      debugPrint('[AudioLab] _applyAllAf ERROR: $e | filter: $filterStr');
+      if (kDebugMode) debugPrint('[AudioLab] _applyAllAf ERROR: $e | filter: $filterStr');
     }
   }
 

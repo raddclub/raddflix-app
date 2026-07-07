@@ -74,9 +74,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     // PackageInfo / SubscriptionApi failures in the debug console.
     try {
       final info = await PackageInfo.fromPlatform();
-      if (mounted) setState(() => _appVersion = 'v\${info.version}');
+      if (mounted) setState(() => _appVersion = 'v${info.version}');
     } catch (e) {
-      debugPrint('[ProfileScreen] PackageInfo error: \$e');
+      if (kDebugMode) debugPrint('[ProfileScreen] PackageInfo error: $e');
     }
     try {
       final status = await SubscriptionApi.getStatus();
@@ -110,7 +110,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         }
       }
     } catch (e) {
-      debugPrint('[ProfileScreen] SubscriptionApi error: \$e');
+      if (kDebugMode) debugPrint('[ProfileScreen] SubscriptionApi error: $e');
     }
   }
 
