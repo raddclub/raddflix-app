@@ -1779,22 +1779,45 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   // so EQ + Reverb + Lab stack correctly instead of overwriting each other.
   String _buildMergedAfString() {
     final parts = <String>[];
-    // EQ chain — only if enabled and at least one band non-zero
+
+    // A3: Extract any equalizer contribution from Lab (Dialogue Boost / Bass Boost)
+    // and merge into the main EQ chain to prevent a double-equalizer conflict.
+    // Two equalizer filters in the same af chain cause the main EQ sliders to appear
+    // to do nothing when Dialogue or Bass Boost is active.
+    List<int> labEqGains = List.filled(10, 0);
+    final labEqMatch = RegExp(r'equalizer=([\d:.\-]+)').firstMatch(_currentLabAf);
+    if (labEqMatch != null) {
+      final rawGains = labEqMatch.group(1)!.split(':');
+      // Normalize to exactly 10 entries (pad with 0 or truncate) to avoid RangeError
+      final parsed = rawGains.map((s) => int.tryParse(s) ?? 0).toList();
+      labEqGains = List.generate(10, (i) => i < parsed.length ? parsed[i] : 0);
+    }
+
+    // A2+A3: Always emit equalizer= when EQ is enabled (even all-zero) so MPV
+    // explicitly clears any previous non-zero state instead of leaving stale gains.
     if (_eqEnabled) {
       final b = _eqBands;
       final g = [
-        b[0].round(), b[0].round(),   // 31.25, 62.5 → 60Hz
-        b[1].round(), b[1].round(),   // 125, 250 → 230Hz
-        b[2].round(), b[2].round(),   // 500, 1000 → 910Hz
-        b[3].round(), b[3].round(),   // 2000, 4000 → 3600Hz
-        b[4].round(), b[4].round(),   // 8000, 16000 → 14000Hz
-      ];
-      if (g.any((v) => v != 0)) parts.add('equalizer=${g.join(':')}');
+        b[0].round() + labEqGains[0],  b[0].round() + labEqGains[1],   // 31.25, 62.5 → 60Hz
+        b[1].round() + labEqGains[2],  b[1].round() + labEqGains[3],   // 125, 250 → 230Hz
+        b[2].round() + labEqGains[4],  b[2].round() + labEqGains[5],   // 500, 1000 → 910Hz
+        b[3].round() + labEqGains[6],  b[3].round() + labEqGains[7],   // 2000, 4000 → 3600Hz
+        b[4].round() + labEqGains[8],  b[4].round() + labEqGains[9],   // 8000, 16000 → 14000Hz
+      ].map((v) => v.clamp(-12, 12)).toList();
+      parts.add('equalizer=${g.join(':')}');
     }
+
     // Reverb chain (aecho)
     if (_currentReverbAf.isNotEmpty) parts.add(_currentReverbAf);
-    // Lab chain (pan, dynaudnorm, etc.)
-    if (_currentLabAf.isNotEmpty) parts.add(_currentLabAf);
+
+    // A3: Lab chain — strip the equalizer segment already merged above so it
+    // does not produce a second equalizer filter in the chain.
+    final labAfClean = _currentLabAf
+        .replaceAll(RegExp(r'equalizer=[^,]+(,|$)'), '')
+        .replaceAll(RegExp(r'^,|,' + r'$'), '')
+        .trim();
+    if (labAfClean.isNotEmpty) parts.add(labAfClean);
+
     if (_currentChannelModeAf.isNotEmpty) parts.add(_currentChannelModeAf);
     if (_currentBalanceAf.isNotEmpty) parts.add(_currentBalanceAf);
     // Silence detection — must be last (detection filter, not audio transform)
@@ -1870,8 +1893,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     ]),
   );
 
+  // A1: Log the filter string so a developer running `flutter logs` can confirm
+  // what is actually reaching MPV — the previous bare catch hid all errors.
   void _applyAllAf() {
-    try { _np.setProperty('af', _buildMergedAfString()); } catch (_) {}
+    final filterStr = _buildMergedAfString();
+    try {
+      _np.setProperty('af', filterStr);
+      debugPrint('[AudioLab] af set: $filterStr');
+    } catch (e) {
+      debugPrint('[AudioLab] _applyAllAf ERROR: $e | filter: $filterStr');
+    }
   }
 
   // Push current playback state to the Android media notification service.
@@ -7108,7 +7139,8 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
   void _applyLabAf() {
     final parts = <String>[];
     // Vocal remover: phase-cancel center channel (works on stereo content)
-    if (_labVocal) parts.add('pan=stereo|c0=c0-c1|c1=c1-c0');
+    // A4: Scale by 0.5 to prevent 2x amplitude clipping when channels are subtracted.
+    if (_labVocal) parts.add('pan=stereo|c0=0.5*c0-0.5*c1|c1=0.5*c1-0.5*c0');
     // Dialogue boost: 10-band equalizer boosting speech-clarity range 2-5kHz
     // MPV equalizer filter syntax: gain values for each of 10 bands
     if (_labDialogue) parts.add('equalizer=0:0:0:0:0:0:3:4:2:0');
@@ -7146,6 +7178,11 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
     _labNorm = widget.labNorm;
     _labBass = widget.labBass;
     _labBassLevel = widget.labBassLevel;
+    // A5: Force MPV to re-apply the full filter chain when the panel opens so
+    // MPV live state matches whatever the UI sliders are showing.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onEqEnabledChanged(widget.eqEnabled);
+    });
   }
 
   @override
