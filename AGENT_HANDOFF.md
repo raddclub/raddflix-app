@@ -13,7 +13,7 @@ Commit: `cd75b25`.
 - **Bug 2 — Vivid / Smart Enhance not persisted**: `_smartEnhanceEnabled` had no SharedPreferences save or load. State was lost every restart. Fixed: `pref_vivid` added to `_loadPrefs` and `_savePrefs`.
 - **Bug 3 — Show skip buttons not persisted**: `_showSkipBtns` was toggled in Settings but reset to `true` every session. Fixed: `pref_skip_btns` added to both prefs blocks.
 - **Bug 4 — Show prev/next buttons not persisted**: Same pattern. Fixed: `pref_prev_next_btns` added.
-- **Bug 5 — Layout "compact" did nothing**: Claimed "smaller UI, condensed padding" but code only set `_showSkipBtns = true` (same as Default). Fixed: `isCompact` flag now drives real differences — `_buildBottomArea` uses `8px` side padding (vs `16px`), `6px` bottom padding (vs `10px`), zero gap between seek bar and transport row (vs `2px`), and `_buildTransportRow` is `44px` tall (vs `52px`).
+- **Bug 5 — Layout "compact" did nothing**: Claimed "smaller UI, condensed padding" but code only set `_showSkipBtns = true` (same as Default). Fixed: `isCompact` flag now drives real differences — `_buildBottomArea` uses `8px` side padding (vs `16px`), `6px` bottom padding (vs `10px`), zero gap between seek bar and transport row (vs `2px`), and `_buildTransportRow` is `48px` tall (Material tap-target minimum) vs default `52px`. (Initial fix used 44px; code review flagged accessibility risk — corrected to 48px in follow-up commit `52e99b29`.)
 
 **Audit finding preserved here:** Cast feature (`cast_service.dart` + `cast_panel.dart`) exists as dead code — not wired into any player panel. Watch Party is UI + simulation only (no real WebSocket backend at `wss://party.raddflix.pk/ws`).
 
