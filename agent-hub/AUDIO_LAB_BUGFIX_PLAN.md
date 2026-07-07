@@ -28,7 +28,7 @@ Every bug below breaks one or more links in that chain.
 ```dart
 if (g.any((v) => v != 0)) parts.add('equalizer=${g.join(':')}');
 ```
-When the user drags all 5 sliders back to 0, the condition is false and the filter is **not added** to `parts`. That is correct so far. But MPV keeps whatever `af` string was set previously — setting `af` to a string that doesn't include `equalizer` does NOT remove the old equalizer instance from the running pipeline in all MPV builds. The fix is to explicitly include `equalizer=0:0:0:0:0:0:0:0:0:0` (flat) when EQ is enabled but all bands are zero, so MPV has a neutral reference rather than a stale boosted one.
+When the user drags all 5 sliders back to 0, the condition is false and the filter is **not added** to `parts`. That is correct so far. But in practice (verify via runtime logs after TASK A1), MPV may keep the previous non-zero EQ filter running when the new `af` string omits `equalizer` entirely — observed in some libmpv builds. Confirm with logs before applying the fix below. The fix is to explicitly include `equalizer=0:0:0:0:0:0:0:0:0:0` (flat) when EQ is enabled but all bands are zero, so MPV has a neutral reference rather than a stale boosted one.
 
 **Fix:**
 ```dart
@@ -189,8 +189,8 @@ onLabAfChanged: (afStr) {
 
 ```
 TASK A1 — Add debug logging to _applyAllAf()            [30 min]  ← do this first
-TASK A2 — Fix silent EQ-clear bug (BUG-01)              [30 min]
-TASK A3 — Merge dual equalizer filters (BUG-02/04)      [90 min]  ← highest impact
+TASK A3 — Merge dual equalizer filters (BUG-02/04)      [90 min]  ← highest impact, do before A2
+TASK A2 — Fix silent EQ-clear bug (BUG-01)              [30 min]  ← verify via runtime logs first
 TASK A4 — Fix Vocal Remover clipping (BUG-05)           [15 min]
 TASK A5 — Force MPV sync on panel open (BUG-06)         [30 min]
 TASK A6 — Verify _applyLabAf returns '' when all off    [20 min]
