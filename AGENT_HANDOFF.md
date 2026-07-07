@@ -3,6 +3,17 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-07 — L1 Audio Panel + Subtitle Style Persistence)
+
+### L1 — Audio Panel Interpolation + Subtitle Style Persistence — 2026-07-07 (latest)
+Commit: `7d2c77e`.
+
+**What changed (`player_screen.dart`):**
+- **Bug 1 — Audio track labels showing literal template strings**: Lines 8638-8639 used double-quoted strings with escaped `\${}` (e.g. `"\${widget.tracks[i].language}"`) which Dart renders as literal text, not interpolated values. Fixed to single-quoted proper Dart interpolation. Audio track names now display correctly — this also resolves the "no audio" issue (users were accidentally selecting "Disable" because all track names appeared as garbled template strings).
+- **Bug 2 — Subtitle style/position settings never persisted**: `_SubtitlePanelState` had 11 style/position state vars (`_subFontIdx`, `_subSize`, `_subBold`, `_subColor`, `_subBgColor`, `_subOpacity`, `_subShadowIdx`, `_subAlignX`, `_subAlignY`, `_subEdgePadding`, `_subFitToVideo`) initialised to hardcoded defaults and never saved. Every time the subtitle panel was opened (new widget instance), all settings reset to defaults even if the user had customised them. Fixed: added `_loadSubPrefs()` + `_saveSubPrefs()` methods to `_SubtitlePanelState`. `_loadSubPrefs()` is called via `addPostFrameCallback` in `initState` — it reads all 11 vars from SharedPreferences, does a `setState`, then re-applies every value to MPV (so live video immediately matches saved prefs). `_saveSubPrefs()` is called from all 13 `onChanged` handler sites: font chip tap, size slider, bold switch, opacity slider, text-color pick, bg-color pick, shadow style selector (inside `_applyShadow`), horizontal align, vertical position, bottom-margin slider, edge-padding slider, fit-to-video switch.
+
+**SharedPreferences keys added:** `pref_sub_font_idx`, `pref_sub_size`, `pref_sub_bold`, `pref_sub_color`, `pref_sub_bg_color`, `pref_sub_opacity`, `pref_sub_shadow`, `pref_sub_align_x`, `pref_sub_align_y`, `pref_sub_edge_pad`, `pref_sub_fit`.
+
 ## Current State (2026-07-07 — J1 Player Bug Fixes)
 
 ### J1 — 5 Player Bug Fixes — 2026-07-07 (latest)
