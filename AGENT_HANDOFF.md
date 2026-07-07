@@ -3,6 +3,19 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-07 — L2 Portrait Volume Fix + SW Decoder Persistence)
+
+### L2 — Portrait Volume Indicator + SW Decoder Persistence — 2026-07-07 (latest)
+Commit: `bb324c1`.
+
+**What changed (`player_screen.dart`):**
+- **Bug 1 — Portrait volume indicator on wrong side**: In `_buildPortraitLayout`, both the brightness indicator and the volume indicator were `Positioned(left: 20, ...)`. The gesture system correctly assigns brightness to left-half swipes and volume to right-half swipes (`_dragIntent = isLeftSide ? 'brightness' : 'volume'`), but both indicators rendered on the left — so they always overlapped, and the volume indicator appeared on the side where the user wasn't swiping. Fixed: volume indicator in portrait changed to `Positioned(right: 20, ...)`. Note: the landscape layout intentionally keeps volume also on the left (sidebar on the right leaves no room), so only the portrait copy was changed.
+- **Bug 2 — SW decoder toggle not persisted**: `_useSWDecoder` (the manual software-decoder toggle in the Audio Track panel, used for EAC-3/DTS fallback) lived in `_PlayerScreenState` but was never written to or read from SharedPreferences — it always started `false`. If a user manually enabled SW decode for a problematic codec, it would reset on every app restart. Fixed: added `pref_sw_dec` to both `_loadPrefs` and `_savePrefs`.
+
+**Panel persistence audit result**: Full audit confirms all other player panels (EQ/10-band, EQ enabled, reverb preset, channel mode, speed, all Audio Lab toggles, silence-skip, silence threshold, sidebar order) are state vars in main `_PlayerScreenState` and ARE correctly saved/loaded via `_savePrefs()`/`_loadPrefs()`. No other panel-level state leak exists.
+
+**SharedPreferences key added:** `pref_sw_dec`.
+
 ## Current State (2026-07-07 — L1 Audio Panel + Subtitle Style Persistence)
 
 ### L1 — Audio Panel Interpolation + Subtitle Style Persistence — 2026-07-07 (latest)
