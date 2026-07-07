@@ -3,6 +3,18 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-07 — L6 MPV Startup Restore)
+
+### L6 — MPV Startup Restore — 2026-07-07 (latest)
+Commit: `16de119` → `player_screen.dart`.
+
+**What changed:**
+- `_loadPrefs` correctly restored `_subSpeed` and `_videoRotation` from SharedPreferences into Dart state, but never pushed those values to MPV. On every app restart the UI showed the saved subtitle speed / rotation, but MPV ran at `sub-speed=1.0` and `video-rotate=0` — the user had to manually touch the control once to resync MPV to the visible setting.
+- Fixed: added guarded `setProperty` calls after the existing speed restore block — `_np.setProperty('sub-speed', ...)` when `_subSpeed != 1.0`, and `_np.setProperty('video-rotate', ...)` when `_videoRotation != 0`. Both wrapped in `try/catch` so a cold-start before the player is ready doesn't crash.
+- `_zoomMode` verified Flutter-only (`BoxFit` switch on the `Video` widget) — no MPV property needed, already correct.
+
+---
+
 ## Current State (2026-07-07 — L4/L5 Sync Reset + SubSpeed + SavePrefs Gaps)
 
 ### L5 — ZoomMode Save Gap — 2026-07-07 (latest)
