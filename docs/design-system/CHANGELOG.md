@@ -15,4 +15,10 @@
 ## 2026-07-08 — Implementation Plan added
 - Added `IMPLEMENTATION_PLAN.md`: maps every token and component from v1.0 to the existing Flutter codebase (current files to modify, create-vs-refactor decisions, dependencies, complexity, breaking changes, recommended safest order). Planning only — no code changed.
 
+## 2026-07-08 — Player architecture correction (docs error, not a code change)
+- **Corrected a factual error in `09-migration-guide.md` and `IMPLEMENTATION_PLAN.md`.** Both previously described the Player as 24-50 external sheet/panel files under `widgets/player/`. A live import trace against the actual `raddflix_flutter` code found this was wrong: the app author had already removed those files from active use.
+- **Verified real architecture:** the live Player UI is **7 private classes defined inline inside `player_screen.dart`** (`_SubtitlePanel`, `_AudioTrackPanel`, `_VideoZoomPanel`, `_AudioEffectPanel`, `_QuickShortcutsPanel`, `_SettingsPanel`, `_SidebarCustomizerPanel`), plus 2 externally-hosted sheets (`color_picker_sheet.dart`, `theme_picker_sheet.dart`) used by the separate `PlayerSettingsScreen`, plus 2 shared non-panel helpers (`seek_bar_painter.dart`, `binge_guard.dart`).
+- **~47 files in `widgets/player/`** (full list in `09-migration-guide.md`) are confirmed dead code — never imported by `player_screen.dart` or any live screen. Left on disk as leftovers from an earlier architecture. Not part of the Player consolidation scope; tracked separately as a delete/audit task.
+- No app code changed to produce this correction — docs only. See `agent-hub/TASKS.md` (PLAYER-DOCS-CORRECTION) and `agent-hub/history/TASK_LOG.md` for the task-tracking side of this fix.
+
 <!-- Add new entries above this line, newest first. Record principle overrides, token changes, and structural revisions here — not routine implementation progress, which belongs in ROADMAP.md. -->

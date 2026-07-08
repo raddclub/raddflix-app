@@ -94,6 +94,18 @@ There is no `archive/` folder anymore — do not recreate one. If you think some
 preserving "for reference," it belongs as a section in `agent-hub/memory/` (a topic file) or
 `AGENT_HANDOFF.md`, not as a standalone dated file.
 
+## Design system docs — Player architecture correction (read before touching the Player)
+
+`docs/design-system/` contains a frozen v1.0 UI/UX design system plus an `IMPLEMENTATION_PLAN.md`
+mapping it to this codebase — docs-only, no app code from that work has shipped yet. **Do not trust
+older mental models of the Player's file layout.** A 2026-07-08 live import trace found the Player
+is NOT ~24-50 external `widgets/player/*.dart` sheet/panel files as earlier drafts claimed — it's
+7 private classes defined inline inside `player_screen.dart`, plus 2 live external sheets used by
+`PlayerSettingsScreen`, plus 2 shared helpers. ~47 files in `widgets/player/` are dead code, never
+imported anywhere. Full corrected inventory: `docs/design-system/09-migration-guide.md`
+("Player — corrected 2026-07-08" section). Open follow-up tasks: `PLAYER-DEAD-CODE-CLEANUP` and
+`PLAYER-CONSOLIDATION` in `agent-hub/TASKS.md` — read those before starting any Player work.
+
 ## Working on this project — normal workflow
 
 - Work from a real local clone of `raddclub/raddflix-app` (checked out into the workspace) and edit

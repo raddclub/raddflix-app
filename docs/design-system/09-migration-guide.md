@@ -14,15 +14,25 @@ Maps existing Flutter widgets to their redesigned counterparts, so implementatio
 | `PinLockScreen` numpad | `RaddLockPad` | Replace |
 | `VaultLockScreen` numpad | `RaddLockPad` (source of truth for styling) | Promote to shared component |
 | `SettingsScreen` list | `SettingsRow` in unified hub | Refactor |
-| `PlayerSettingsScreen` (indigo palette, 35+ flat options) | Split into Settings hub "Playback" section + Player "More" sheet Playback tab | Split & refactor |
+| `PlayerSettingsScreen` (indigo palette, 35+ flat options — **live**, separate pre-playback settings screen) | Split into Settings hub "Playback" section + Player "More" sheet Playback tab | Split & refactor |
 | `VaultSettingsScreen` | Settings hub "Privacy & Vault" section | Refactor (routing only, logic unchanged) |
-| `eq_panel`, `audio_lab_panel`, `audio_mixer_sheet`, `video_enhance_panel` | One `RaddSheet` "Audio & Video" tab with internal sections | Merge |
-| `speed_picker_sheet`, `speed_presets_sheet` | One control in "Playback" tab | Merge |
-| Player sidebar (`_buildSidebar`, up to 20 slots) | "Extras" tab, default 5-6 shown, rest under "Customize" | Replace default surface, keep logic |
-| `bookmark_panel`, `scene_bookmarks_panel` | One "Bookmarks" entry in Extras tab | Merge |
-| `jump_to_panel`, `jump_to_sheet` | One "Jump To" entry in Extras tab | Merge |
+
+### Player — corrected 2026-07-08 (see `agent-hub/history/TASK_LOG.md` "Player docs correction")
+
+Earlier drafts of this guide (and `IMPLEMENTATION_PLAN.md`) described the Player as 24 external sheet/panel files. **That was wrong.** A file-by-file import trace against the live `raddflix_flutter` code on 2026-07-08 found the real architecture is very different — the app author had already stripped those external files out of active use. Corrected rows below.
+
+| Existing (verified live) | Redesigned target | Action |
+|---|---|---|
+| `_SubtitlePanel`, `_AudioTrackPanel`, `_VideoZoomPanel`, `_AudioEffectPanel` (private classes **inline inside** `player_screen.dart`) | One `RaddSheet` "Audio & Video" tab with internal sections (subtitles / audio track / zoom / EQ+lab as sub-sections) | Extract from inline classes into `RaddSheet`, then merge |
+| `_QuickShortcutsPanel`, `_SettingsPanel` (inline in `player_screen.dart`) | "Playback" / "Extras" tabs | Extract + merge |
+| `_SidebarCustomizerPanel` (inline in `player_screen.dart`) | "Extras" tab → "Customize" entry | Extract + refactor |
+| Player sidebar (up to 20 slots, driven by `_SidebarCustomizerPanel`'s order list) | "Extras" tab, default 5-6 shown, rest under "Customize" | Replace default surface, keep logic |
+| `color_picker_sheet.dart`, `theme_picker_sheet.dart` (**live** — imported by `PlayerSettingsScreen`, not by `player_screen.dart`) | Settings hub "Playback" section (theme/accent picker) | Reuse, re-host under Settings hub |
+| **~47 files in `lib/widgets/player/`** (`eq_panel`, `audio_lab_panel`, `audio_lab_sheet`, `audio_mixer_sheet`, `video_enhance_panel`, `video_enhance_suite`, `speed_picker_sheet`, `speed_presets_sheet`, `bookmark_panel`, `scene_bookmarks_panel`, `jump_to_panel`, `jump_to_sheet`, `cinematic_settings_sheet`, `player_hud_settings_sheet`, `quick_settings_panel`, `sleep_timer_sheet`, `silence_skip_sheet`, `smart_enhance_sheet`, `end_action_sheet`, `screenshot_share_sheet`, `gesture_map_sheet`, `sync_panel`, `word_definition_sheet`, `subtitle_overlay`, `ambilight_glow_border`, `cinematic_overlay`, `controls_background`, `ab_loop_panel`, `cast_panel`, `chapter_seek_bar`, `clip_trimmer`, `dual_subtitle_overlay`, `eq_visualizer`, `gesture_hint_overlay`, `immersive_overlay`, `intro_skip_editor`, `karaoke_overlay`, `media_info_overlay`, `network_speed_overlay`, `pip_overlay`, `playback_info_overlay`, `rage_skip_panel`, `reaction_stamps_overlay`, `track_badges`, `transparent_player_layer`, `zoom_crop_overlay`, `zoom_focus_overlay`) | N/A — **dead code, not part of the live app** (verified: none are imported by `player_screen.dart`, and only a dead sub-chain rooted at the never-imported `quick_settings_panel.dart` references a few of each other) | **Do not migrate.** Separate cleanup task: confirm-then-delete (see `TASKS.md` PLAYER-DOCS-CORRECTION) |
+| `binge_guard.dart` | N/A — logic helper, referenced by `core/player/player_prefs.dart`, not a UI panel | Leave as-is, out of scope for `RaddSheet` consolidation |
+| `seek_bar_painter.dart` | N/A — shared painter, used by `player_screen.dart` + `player_settings_screen.dart` | Leave as-is |
 | Generic `AlertDialog` usages (if any) | `RaddSheet` | Replace |
-| Ad hoc bottom-sheet styling per player panel | `RaddSheet` shared shell | Replace shell, keep internal content widgets |
+| Ad hoc bottom-sheet styling per inline player panel | `RaddSheet` shared shell | Replace shell, keep internal content widgets |
 | Hardcoded padding/font-weight literals across screens | `RaddSpace` / `RaddType` tokens | Refactor incrementally, screen by screen |
 | `home_screen.dart`, `show_detail_screen.dart` monoliths | Componentized per Volume V wireframes | Refactor (split into sub-widgets matching wireframe sections) |
 
