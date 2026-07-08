@@ -6484,6 +6484,57 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
             const SizedBox(height: 4),
             const Text('Generates on-device voice dub from this subtitle',
                 style: TextStyle(color: Colors.white38, fontSize: 11)),
+            const SizedBox(height: 10),
+            // C5: explicit up-front hint — first-time use of a language often
+            // needs its Android TTS voice pack installed first. Surfacing this
+            // before the user taps (rather than only after a failure) avoids a
+            // confusing silent-feeling wait followed by an error snackbar.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.withOpacity(0.25)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Icon(Icons.download_for_offline_outlined, color: Colors.amber, size: 15),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'First time in a language? Install its voice pack first.',
+                      style: TextStyle(color: Colors.amber, fontSize: 10.5, height: 1.3),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    onTap: () {
+                      try {
+                        const AndroidIntent(
+                          action: 'com.android.settings.TTS_SETTINGS',
+                        ).launch();
+                      } catch (_) {
+                        try {
+                          const AndroidIntent(
+                            action: 'android.settings.SETTINGS',
+                          ).launch();
+                        } catch (_) {}
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withOpacity(0.16),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text('Install',
+                          style: TextStyle(color: Colors.amber, fontSize: 10.5, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 12),
             Row(children: [
               Expanded(child: _DubLangBtn(
