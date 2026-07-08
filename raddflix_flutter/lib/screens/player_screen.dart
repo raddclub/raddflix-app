@@ -4582,78 +4582,85 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
 }
 
     void _openSubtitlePanel() {
-      _openRightPanel(_SubtitlePanel(
-        isLocal: _isLocal,
-        subSync: _subSync,
-        subSpeed: _subSpeed,
-        currentFile: _currentSubFile,
-        onSyncChanged: (delta) => _adjustSubSync(delta),
-        onSpeedChanged: (v) {
-          setState(() => _subSpeed = v);
-          try { _np.setProperty('sub-speed', v.toString()); } catch (_) {}
-          _savePrefs();
-        },
-        onSubPropertyChanged: (prop, val) {
-          if (prop == '_sub_margin_main') {
-            // Internal signal — update main state so _applySubtitleMargin
-            // uses the user's latest base value.
-            setState(() => _subBottomMarginMain = double.tryParse(val) ?? _subBottomMarginMain);
+      setState(() => _panelOpen = true);
+      RaddSheet.show<void>(
+        context,
+        style: RaddSheetStyle.list,
+        title: 'Subtitles',
+        maxHeightFraction: 0.90,
+        listBuilder: (_) => _SubtitlePanel(
+          isLocal: _isLocal,
+          subSync: _subSync,
+          subSpeed: _subSpeed,
+          currentFile: _currentSubFile,
+          onSyncChanged: (delta) => _adjustSubSync(delta),
+          onSpeedChanged: (v) {
+            setState(() => _subSpeed = v);
+            try { _np.setProperty('sub-speed', v.toString()); } catch (_) {}
             _savePrefs();
-          } else {
-            try {
-              // Force ASS style override FIRST so that the property change below
-              // immediately takes effect on ASS-format subs (embedded or SRT→ASS).
-              if (prop == 'sub-font-size'    || prop == 'sub-font'          ||
-                  prop == 'sub-bold'        || prop == 'sub-color'        ||
-                  prop == 'sub-back-color'  || prop == 'sub-scale'        ||
-                  prop == 'sub-opacity'     || prop == 'sub-outline-size' ||
-                  prop == 'sub-shadow-offset') {
-                _np.setProperty('sub-ass-override', 'force');
-              }
-              _np.setProperty(prop, val);
-            } catch (_) {}
-          }
-        },
-        onClose: () => Navigator.of(context).pop(),
-        title: _currentTitle,
-        onSubtitleFilePicked: (path) {
-          setState(() => _currentSubFile = path);
-          try { _np.setProperty('sub-file', path); } catch (_) {}
-        },
-        // P57-02: embedded track selector
-        embeddedTracks: _realSubtitleTracks,
-        selectedSubtitle: _selectedSubtitle,
-        onSubtitleTrackSelected: (track) {
-          setState(() {
-            _selectedSubtitle = track;
-            // Remember the language so future episodes auto-select the same
-            // language. Only update when track has a real language code.
-            if (track != null && (track.language?.isNotEmpty ?? false)) {
-              _prefSubLang = track.language;
-            }
-          });
-          _savePrefs();
-          if (track != null) {
-            _player.setSubtitleTrack(track);
-          } else {
-            try { _np.setProperty('sid', 'no'); } catch (_) {}
-          }
-        },
-        // P57-07: secondary subtitle (OST/signs at top)
-        selectedSecondSub: _selectedSecondSub,
-        onSecondSubSelected: (track) {
-          setState(() => _selectedSecondSub = track);
-          try {
-            if (track != null) {
-              _np.setProperty('secondary-sid', track.id!);
-              _np.setProperty('secondary-sub-visibility', 'yes');
+          },
+          onSubPropertyChanged: (prop, val) {
+            if (prop == '_sub_margin_main') {
+              // Internal signal — update main state so _applySubtitleMargin
+              // uses the user's latest base value.
+              setState(() => _subBottomMarginMain = double.tryParse(val) ?? _subBottomMarginMain);
+              _savePrefs();
             } else {
-              _np.setProperty('secondary-sid', 'no');
+              try {
+                // Force ASS style override FIRST so that the property change below
+                // immediately takes effect on ASS-format subs (embedded or SRT→ASS).
+                if (prop == 'sub-font-size'    || prop == 'sub-font'          ||
+                    prop == 'sub-bold'        || prop == 'sub-color'        ||
+                    prop == 'sub-back-color'  || prop == 'sub-scale'        ||
+                    prop == 'sub-opacity'     || prop == 'sub-outline-size' ||
+                    prop == 'sub-shadow-offset') {
+                  _np.setProperty('sub-ass-override', 'force');
+                }
+                _np.setProperty(prop, val);
+              } catch (_) {}
             }
-          } catch (_) {}
-        },
-        onDubRequested: _startDubGeneration,  // P59
-      ));
+          },
+          onClose: () => Navigator.of(context).pop(),
+          title: _currentTitle,
+          onSubtitleFilePicked: (path) {
+            setState(() => _currentSubFile = path);
+            try { _np.setProperty('sub-file', path); } catch (_) {}
+          },
+          // P57-02: embedded track selector
+          embeddedTracks: _realSubtitleTracks,
+          selectedSubtitle: _selectedSubtitle,
+          onSubtitleTrackSelected: (track) {
+            setState(() {
+              _selectedSubtitle = track;
+              // Remember the language so future episodes auto-select the same
+              // language. Only update when track has a real language code.
+              if (track != null && (track.language?.isNotEmpty ?? false)) {
+                _prefSubLang = track.language;
+              }
+            });
+            _savePrefs();
+            if (track != null) {
+              _player.setSubtitleTrack(track);
+            } else {
+              try { _np.setProperty('sid', 'no'); } catch (_) {}
+            }
+          },
+          // P57-07: secondary subtitle (OST/signs at top)
+          selectedSecondSub: _selectedSecondSub,
+          onSecondSubSelected: (track) {
+            setState(() => _selectedSecondSub = track);
+            try {
+              if (track != null) {
+                _np.setProperty('secondary-sid', track.id!);
+                _np.setProperty('secondary-sub-visibility', 'yes');
+              } else {
+                _np.setProperty('secondary-sid', 'no');
+              }
+            } catch (_) {}
+          },
+          onDubRequested: _startDubGeneration,  // P59
+        ),
+      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
     void _openAudioPanel() {
@@ -4748,65 +4755,72 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
     }
 
     void _openAudioEffectPanel() {
-      _openRightPanel(_AudioEffectPanel(
-        selectedPreset: _selectedPreset,
-        eqBands: _eqBands,
-        eqEnabled: _eqEnabled,
-        onPresetSelected: _applyPreset,
-        onEqBandChanged: (i, v) {
-          setState(() { _eqBands[i] = v; _selectedPreset = -1; });
-          _applyCustomEq();
-          _savePrefs();
-        },
-        onEqEnabledChanged: (v) {
-          setState(() => _eqEnabled = v);
-          _applyAllAf(); // merged pipeline — reverb/lab still active if enabled
-          _savePrefs();
-        },
-        onReverbChanged: (preset) {
-          setState(() => _reverbPreset = preset ?? 'None');
-          switch (preset) {
-            case 'Small Room':  _currentReverbAf = 'aecho=0.8:0.9:30:0.4'; break;
-            case 'Hall':        _currentReverbAf = 'aecho=0.8:0.88:60:0.4'; break;
-            case 'Cathedral':   _currentReverbAf = 'aecho=0.8:0.88:120:0.5'; break;
-            case 'Stadium':     _currentReverbAf = 'aecho=0.8:0.9:180:0.6'; break;
-            default:            _currentReverbAf = '';
-          }
-          _applyAllAf(); // EQ + reverb + lab now all stack correctly
-          _savePrefs();
-        },
-        onLabAfChanged: (afStr) {
-          _currentLabAf = afStr;
-          _applyAllAf(); // EQ + reverb + lab all stack
-        },
-        onLabStateChanged: (vocal, dialogue, norm, bass, bassLevel, dialogueOnly, compress, stereoWide, noise) {
-          setState(() {
-            _labVocal = vocal;
-            _labDialogue = dialogue;
-            _labNorm = norm;
-            _labBass = bass;
-            _labBassLevel = bassLevel;
-            _labDialogueOnly = dialogueOnly;
-            _labCompress = compress;
-            _labStereoWide = stereoWide;
-            _labNoise = noise;
-          });
-          _savePrefs();
-        },
-        labVocal: _labVocal,
-        labDialogue: _labDialogue,
-        labNorm: _labNorm,
-        labBass: _labBass,
-        labBassLevel: _labBassLevel,
-        labDialogueOnly: _labDialogueOnly,
-        labCompress: _labCompress,
-        labStereoWide: _labStereoWide,
-        labNoise: _labNoise,
-        initialReverbPreset: _reverbPreset,
-        audioBalance: _audioBalance,
-        onBalanceChanged: _applyBalance,
-        onClose: () => Navigator.of(context).pop(),
-      ));
+      setState(() => _panelOpen = true);
+      RaddSheet.show<void>(
+        context,
+        style: RaddSheetStyle.list,
+        title: 'Audio Effect',
+        maxHeightFraction: 0.90,
+        listBuilder: (_) => _AudioEffectPanel(
+          selectedPreset: _selectedPreset,
+          eqBands: _eqBands,
+          eqEnabled: _eqEnabled,
+          onPresetSelected: _applyPreset,
+          onEqBandChanged: (i, v) {
+            setState(() { _eqBands[i] = v; _selectedPreset = -1; });
+            _applyCustomEq();
+            _savePrefs();
+          },
+          onEqEnabledChanged: (v) {
+            setState(() => _eqEnabled = v);
+            _applyAllAf(); // merged pipeline — reverb/lab still active if enabled
+            _savePrefs();
+          },
+          onReverbChanged: (preset) {
+            setState(() => _reverbPreset = preset ?? 'None');
+            switch (preset) {
+              case 'Small Room':  _currentReverbAf = 'aecho=0.8:0.9:30:0.4'; break;
+              case 'Hall':        _currentReverbAf = 'aecho=0.8:0.88:60:0.4'; break;
+              case 'Cathedral':   _currentReverbAf = 'aecho=0.8:0.88:120:0.5'; break;
+              case 'Stadium':     _currentReverbAf = 'aecho=0.8:0.9:180:0.6'; break;
+              default:            _currentReverbAf = '';
+            }
+            _applyAllAf(); // EQ + reverb + lab now all stack correctly
+            _savePrefs();
+          },
+          onLabAfChanged: (afStr) {
+            _currentLabAf = afStr;
+            _applyAllAf(); // EQ + reverb + lab all stack
+          },
+          onLabStateChanged: (vocal, dialogue, norm, bass, bassLevel, dialogueOnly, compress, stereoWide, noise) {
+            setState(() {
+              _labVocal = vocal;
+              _labDialogue = dialogue;
+              _labNorm = norm;
+              _labBass = bass;
+              _labBassLevel = bassLevel;
+              _labDialogueOnly = dialogueOnly;
+              _labCompress = compress;
+              _labStereoWide = stereoWide;
+              _labNoise = noise;
+            });
+            _savePrefs();
+          },
+          labVocal: _labVocal,
+          labDialogue: _labDialogue,
+          labNorm: _labNorm,
+          labBass: _labBass,
+          labBassLevel: _labBassLevel,
+          labDialogueOnly: _labDialogueOnly,
+          labCompress: _labCompress,
+          labStereoWide: _labStereoWide,
+          labNoise: _labNoise,
+          initialReverbPreset: _reverbPreset,
+          audioBalance: _audioBalance,
+          onBalanceChanged: _applyBalance,
+          onClose: () => Navigator.of(context).pop(),
+        ),
+      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
     void _openMoreMenu() {
@@ -5522,84 +5536,98 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
     }
 
     void _openSidebarCustomizer() {
-      _openRightPanel(_SidebarCustomizerPanel(
-        currentOrder: List<String>.from(_sidebarOrder),
-        allIds: List<String>.from(_allSidebarIds),
-        onOrderChanged: (newOrder) {
-          setState(() => _sidebarOrder = newOrder);
-          _savePrefs();
-        },
-        onClose: () => Navigator.of(context).pop(),
-      ));
+      setState(() => _panelOpen = true);
+      RaddSheet.show<void>(
+        context,
+        style: RaddSheetStyle.list,
+        title: 'Sidebar Shortcuts',
+        maxHeightFraction: 0.90,
+        listBuilder: (_) => _SidebarCustomizerPanel(
+          currentOrder: List<String>.from(_sidebarOrder),
+          allIds: List<String>.from(_allSidebarIds),
+          onOrderChanged: (newOrder) {
+            setState(() => _sidebarOrder = newOrder);
+            _savePrefs();
+          },
+          onClose: () => Navigator.of(context).pop(),
+        ),
+      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
     void _openSettingsPanel() {
-      _openRightPanel(_SettingsPanel(
-        showRemainingTime: _showRemainingTime,
-        keepScreenOn: _keepScreenOn,
-        skipInterval: _skipInterval,
-        onShowRemainingChanged: (v) { setState(() => _showRemainingTime = v); _savePrefs(); },
-        onKeepScreenChanged: (v) {
-          setState(() => _keepScreenOn = v);
-          if (v) WakelockPlus.enable(); else WakelockPlus.disable();
-          _savePrefs();
-        },
-        onSkipIntervalChanged: (v) { setState(() => _skipInterval = v); _savePrefs(); },
-        seekSwipeSec: _seekSwipeSec,
-        onSeekSwipeSpeedChanged: (v) { setState(() => _seekSwipeSec = v); _savePrefs(); },
-        accentColorIdx: _accentColorIdx,
-        progressBarStyle: _progressBarStyle,
-        onAccentColorChanged: (i) { setState(() => _accentColorIdx = i); _savePrefs(); },
-        onProgressBarStyleChanged: (s) { setState(() => _progressBarStyle = s); _savePrefs(); },
-        backgroundAudio: _backgroundAudio,
-        onBackgroundAudioChanged: (v) { setState(() => _backgroundAudio = v); _savePrefs(); },
-        nightModeEnabled: _nightModeEnabled,
-        nightWarmth: _nightWarmth,
-        onNightModeToggle: (v) { setState(() => _nightModeEnabled = v); _savePrefs(); },
-        onNightWarmthChanged: (v) { setState(() => _nightWarmth = v); _savePrefs(); },
-        showClockInTitle: _showClockInTitle,
-        onClockToggle: (v) {
-          setState(() { _showClockInTitle = v; _clockStr = _fmtClock(); });
-          _savePrefs();
-        },
-        initialBrightness: _brightness,
-        onShowSkipBtnsChanged: (v) { setState(() => _showSkipBtns = v); _savePrefs(); }, // J2
-        onShowPrevNextBtnsChanged: (v) { setState(() => _showPrevNextBtns = v); _savePrefs(); }, // J2
-        onShowSeekPositionChanged: (v) { setState(() => _showSeekPositionLabel = v); _savePrefs(); }, // J2
-        showSkipBtns: _showSkipBtns,
-        showPrevNextBtns: _showPrevNextBtns,
-        showSeekPosition: _showSeekPositionLabel,
-        onRotateVideo: () { Navigator.of(context).pop(); _rotateVideo(); },
-        onClose: () => Navigator.of(context).pop(),
-        doubleTapSeekEnabled: _doubleTapSeekEnabled,
-        longPressSpeedEnabled: _longPressSpeedEnabled,
-        swipeSeekEnabled: _swipeSeekEnabled,
-        swipeBVEnabled: _swipeBVEnabled,
-        onDoubleTapSeekChanged: (v) { setState(() => _doubleTapSeekEnabled = v); _savePrefs(); },
-        onLongPressSpeedChanged: (v) { setState(() => _longPressSpeedEnabled = v); _savePrefs(); },
-        onSwipeSeekChanged: (v) { setState(() => _swipeSeekEnabled = v); _savePrefs(); },
-        onSwipeBVChanged: (v) { setState(() => _swipeBVEnabled = v); _savePrefs(); },
-        onVideoInfo: _showVideoInfoDialog,
-        voiceCommandsEnabled: _voiceCommandsEnabled,
-        onVoiceCommandsChanged: (v) async {
-          if (v) {
-            final granted = await VoiceCommandsService.instance.requestPermission();
-            if (!granted) {
-              _showInfoSnackbar('Microphone permission required for voice commands');
-              return;
+      setState(() => _panelOpen = true);
+      RaddSheet.show<void>(
+        context,
+        style: RaddSheetStyle.list,
+        title: 'Settings',
+        maxHeightFraction: 0.90,
+        listBuilder: (_) => _SettingsPanel(
+          showRemainingTime: _showRemainingTime,
+          keepScreenOn: _keepScreenOn,
+          skipInterval: _skipInterval,
+          onShowRemainingChanged: (v) { setState(() => _showRemainingTime = v); _savePrefs(); },
+          onKeepScreenChanged: (v) {
+            setState(() => _keepScreenOn = v);
+            if (v) WakelockPlus.enable(); else WakelockPlus.disable();
+            _savePrefs();
+          },
+          onSkipIntervalChanged: (v) { setState(() => _skipInterval = v); _savePrefs(); },
+          seekSwipeSec: _seekSwipeSec,
+          onSeekSwipeSpeedChanged: (v) { setState(() => _seekSwipeSec = v); _savePrefs(); },
+          accentColorIdx: _accentColorIdx,
+          progressBarStyle: _progressBarStyle,
+          onAccentColorChanged: (i) { setState(() => _accentColorIdx = i); _savePrefs(); },
+          onProgressBarStyleChanged: (s) { setState(() => _progressBarStyle = s); _savePrefs(); },
+          backgroundAudio: _backgroundAudio,
+          onBackgroundAudioChanged: (v) { setState(() => _backgroundAudio = v); _savePrefs(); },
+          nightModeEnabled: _nightModeEnabled,
+          nightWarmth: _nightWarmth,
+          onNightModeToggle: (v) { setState(() => _nightModeEnabled = v); _savePrefs(); },
+          onNightWarmthChanged: (v) { setState(() => _nightWarmth = v); _savePrefs(); },
+          showClockInTitle: _showClockInTitle,
+          onClockToggle: (v) {
+            setState(() { _showClockInTitle = v; _clockStr = _fmtClock(); });
+            _savePrefs();
+          },
+          initialBrightness: _brightness,
+          onShowSkipBtnsChanged: (v) { setState(() => _showSkipBtns = v); _savePrefs(); }, // J2
+          onShowPrevNextBtnsChanged: (v) { setState(() => _showPrevNextBtns = v); _savePrefs(); }, // J2
+          onShowSeekPositionChanged: (v) { setState(() => _showSeekPositionLabel = v); _savePrefs(); }, // J2
+          showSkipBtns: _showSkipBtns,
+          showPrevNextBtns: _showPrevNextBtns,
+          showSeekPosition: _showSeekPositionLabel,
+          onRotateVideo: () { Navigator.of(context).pop(); _rotateVideo(); },
+          onClose: () => Navigator.of(context).pop(),
+          doubleTapSeekEnabled: _doubleTapSeekEnabled,
+          longPressSpeedEnabled: _longPressSpeedEnabled,
+          swipeSeekEnabled: _swipeSeekEnabled,
+          swipeBVEnabled: _swipeBVEnabled,
+          onDoubleTapSeekChanged: (v) { setState(() => _doubleTapSeekEnabled = v); _savePrefs(); },
+          onLongPressSpeedChanged: (v) { setState(() => _longPressSpeedEnabled = v); _savePrefs(); },
+          onSwipeSeekChanged: (v) { setState(() => _swipeSeekEnabled = v); _savePrefs(); },
+          onSwipeBVChanged: (v) { setState(() => _swipeBVEnabled = v); _savePrefs(); },
+          onVideoInfo: _showVideoInfoDialog,
+          voiceCommandsEnabled: _voiceCommandsEnabled,
+          onVoiceCommandsChanged: (v) async {
+            if (v) {
+              final granted = await VoiceCommandsService.instance.requestPermission();
+              if (!granted) {
+                _showInfoSnackbar('Microphone permission required for voice commands');
+                return;
+              }
+              VoiceCommandsService.instance.start();
+              _voiceSub = VoiceCommandsService.instance.commandStream.listen(_onVoiceCommand);
+              // Fix #6: STT engine is not yet wired — be transparent about it.
+              _showInfoSnackbar('🎤 Voice commands are in development — stay tuned!');
+            } else {
+              _voiceSub?.cancel();
+              VoiceCommandsService.instance.stop();
             }
-            VoiceCommandsService.instance.start();
-            _voiceSub = VoiceCommandsService.instance.commandStream.listen(_onVoiceCommand);
-            // Fix #6: STT engine is not yet wired — be transparent about it.
-            _showInfoSnackbar('🎤 Voice commands are in development — stay tuned!');
-          } else {
-            _voiceSub?.cancel();
-            VoiceCommandsService.instance.stop();
-          }
-          setState(() => _voiceCommandsEnabled = v);
-          _savePrefs();
-        },
-      ));
+            setState(() => _voiceCommandsEnabled = v);
+            _savePrefs();
+          },
+        ),
+      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
     // Feature 24: Picture-in-Picture
@@ -7053,66 +7081,34 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
 
     return Column(
       children: [
-        // ── Header ────────────────────────────────────────────────────────────
-        Container(
-          color: const Color(0xFF1E1E1E),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 10, 8, 0),
-              child: Row(children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
-                  onPressed: widget.onClose,
-                  padding: EdgeInsets.zero, constraints: const BoxConstraints(),
-                ),
-                const SizedBox(width: 6),
-                const Text('Subtitles',
-                    style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-                const Spacer(),
-                if (widget.currentFile != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4A9EFF).withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text('SRT',
-                        style: TextStyle(color: Color(0xFF4A9EFF),
-                            fontSize: 10, fontWeight: FontWeight.w700)),
+        // ── Tab bar (title provided by RaddSheet) ─────────────────────────────
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.only(left: 12),
+          child: Row(
+            children: [
+              for (int i = 0; i < tabs.length; i++)
+                GestureDetector(
+                  onTap: () => setState(() => _tab = i),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 20, top: 8, bottom: 0),
+                    child: Column(children: [
+                      Text(tabs[i], style: TextStyle(
+                        color: _tab == i ? Colors.white : Colors.white54,
+                        fontSize: 13,
+                        fontWeight: _tab == i ? FontWeight.w700 : FontWeight.normal,
+                      )),
+                      const SizedBox(height: 6),
+                      if (_tab == i)
+                        Container(height: 2, width: 28,
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(1))),
+                    ]),
                   ),
-                const SizedBox(width: 8),
-              ]),
-            ),
-            // ── Underline tab bar ──────────────────────────────────────────────
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(left: 12),
-              child: Row(
-                children: [
-                  for (int i = 0; i < tabs.length; i++)
-                    GestureDetector(
-                      onTap: () => setState(() => _tab = i),
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 20, top: 8, bottom: 0),
-                        child: Column(children: [
-                          Text(tabs[i], style: TextStyle(
-                            color: _tab == i ? Colors.white : Colors.white54,
-                            fontSize: 13,
-                            fontWeight: _tab == i ? FontWeight.w700 : FontWeight.normal,
-                          )),
-                          const SizedBox(height: 6),
-                          if (_tab == i)
-                            Container(height: 2, width: 28,
-                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(1))),
-                        ]),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 2),
-          ]),
+                ),
+            ],
+          ),
         ),
+        const SizedBox(height: 2),
         const Divider(color: Colors.white12, height: 1),
         // ── Body ──────────────────────────────────────────────────────────────
         Expanded(child: switch (tabName) {
@@ -7383,60 +7379,36 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
-          color: const Color(0xFF252525),
-          padding: const EdgeInsets.fromLTRB(4, 10, 8, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+        // Tab row (title provided by RaddSheet)
+        Padding(
+          padding: const EdgeInsets.only(left: 12, bottom: 6, top: 4),
+          child: Row(
             children: [
-              // Title row
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
-                    onPressed: widget.onClose,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
+              for (final entry in [
+                (label: 'Presets', idx: 0),
+                (label: 'Equalizer', idx: 1),
+                (label: 'Lab', idx: 2),
+              ])
+                GestureDetector(
+                  onTap: () => setState(() => _tab = entry.idx),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 20, top: 4, bottom: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(entry.label,
+                            style: TextStyle(
+                              color: _tab == entry.idx ? Colors.white : Colors.white54,
+                              fontSize: 13,
+                              fontWeight: _tab == entry.idx ? FontWeight.bold : FontWeight.normal,
+                            )),
+                        const SizedBox(height: 4),
+                        if (_tab == entry.idx)
+                          Container(height: 2, width: 32, color: Colors.white),
+                      ],
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  const Text('Audio Effect',
-                      style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              // Tab row — separate line so it never overflows on narrow portrait sheets
-              Padding(
-                padding: const EdgeInsets.only(left: 12, bottom: 6),
-                child: Row(
-                  children: [
-                    for (final entry in [
-                      (label: 'Presets', idx: 0),
-                      (label: 'Equalizer', idx: 1),
-                      (label: 'Lab', idx: 2),
-                    ])
-                      GestureDetector(
-                        onTap: () => setState(() => _tab = entry.idx),
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 20, top: 4, bottom: 4),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(entry.label,
-                                  style: TextStyle(
-                                    color: _tab == entry.idx ? Colors.white : Colors.white54,
-                                    fontSize: 13,
-                                    fontWeight: _tab == entry.idx ? FontWeight.bold : FontWeight.normal,
-                                  )),
-                              const SizedBox(height: 4),
-                              if (_tab == entry.idx)
-                                Container(height: 2, width: 32, color: Colors.white),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
                 ),
-              ),
             ],
           ),
         ),
@@ -8191,54 +8163,35 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
-          color: const Color(0xFF252525),
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        // Tab bar (title provided by RaddSheet)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+          child: Row(
             children: [
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
-                    onPressed: widget.onClose,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text('Settings', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-                ],
-              ),
-
-              // Tab bar
-              Row(
-                children: [
-                  for (final tab in ['Style', 'Screen', 'Controls', 'Navigation'])
-                    GestureDetector(
-                      onTap: () => setState(() => _tab = ['Style', 'Screen', 'Controls', 'Navigation'].indexOf(tab)),
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 16, top: 8, bottom: 0),
-                        child: Column(
-                          children: [
-                            Text(tab,
-                                style: TextStyle(
-                                  color: _tab == ['Style', 'Screen', 'Controls', 'Navigation'].indexOf(tab)
-                                      ? Colors.white
-                                      : Colors.white54,
-                                  fontSize: 13,
-                                  fontWeight: _tab == ['Style', 'Screen', 'Controls', 'Navigation'].indexOf(tab)
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                )),
-                            const SizedBox(height: 6),
-                            if (_tab == ['Style', 'Screen', 'Controls', 'Navigation'].indexOf(tab))
-                              Container(height: 2, width: 40, color: Colors.white),
-                          ],
-                        ),
-                      ),
+              for (final tab in ['Style', 'Screen', 'Controls', 'Navigation'])
+                GestureDetector(
+                  onTap: () => setState(() => _tab = ['Style', 'Screen', 'Controls', 'Navigation'].indexOf(tab)),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 16, top: 8, bottom: 0),
+                    child: Column(
+                      children: [
+                        Text(tab,
+                            style: TextStyle(
+                              color: _tab == ['Style', 'Screen', 'Controls', 'Navigation'].indexOf(tab)
+                                  ? Colors.white
+                                  : Colors.white54,
+                              fontSize: 13,
+                              fontWeight: _tab == ['Style', 'Screen', 'Controls', 'Navigation'].indexOf(tab)
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            )),
+                        const SizedBox(height: 6),
+                        if (_tab == ['Style', 'Screen', 'Controls', 'Navigation'].indexOf(tab))
+                          Container(height: 2, width: 40, color: Colors.white),
+                      ],
                     ),
-                ],
-              ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -9006,27 +8959,13 @@ class _SidebarCustomizerPanelState extends State<_SidebarCustomizerPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header
-        Container(
-          color: const Color(0xFF252525),
-          padding: const EdgeInsets.fromLTRB(12, 14, 8, 10),
+        // Hint row (title 'Sidebar Shortcuts' provided by RaddSheet)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
           child: Row(children: [
-            IconButton(
-              icon: const Icon(Icons.chevron_left, color: Colors.white, size: 24),
-              onPressed: widget.onClose,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-            const SizedBox(width: 6),
-            const Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Sidebar Shortcuts',
-                    style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-                Text('Drag to reorder • tap × to hide',
-                    style: TextStyle(color: Colors.white38, fontSize: 10)),
-              ]),
-            ),
-            // Count badge
+            const Text('Drag to reorder • tap × to hide',
+                style: TextStyle(color: Colors.white38, fontSize: 10)),
+            const Spacer(),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
