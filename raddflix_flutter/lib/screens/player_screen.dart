@@ -46,6 +46,7 @@ import '../providers/subscription_provider.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import '../core/player/subtitle_dubber.dart';
+import '../design_system/components/radd_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Widget
@@ -4710,18 +4711,35 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
     }
 
     void _openZoomPanel() {
-      _openRightPanel(_VideoZoomPanel(
-        selectedMode: _zoomMode,
-        onModeSelected: (mode) {
-          setState(() => _zoomMode = mode);
-          _savePrefs();
-          if (mode == 4) {
-            _showInfoSnackbar('Pinch the video to set a custom zoom level');
-          }
-          Navigator.of(context).pop();
-        },
-        onClose: () => Navigator.of(context).pop(),
-      ));
+      const modes = ['Fit to screen', 'Stretch', 'Crop', '100%', 'Pinch & Zoom'];
+      setState(() => _panelOpen = true);
+      RaddSheet.show<void>(
+        context,
+        style: RaddSheetStyle.list,
+        title: 'Video Zoom',
+        listBuilder: (_) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (int i = 0; i < modes.length; i++)
+              RadioListTile<int>(
+                value: i,
+                groupValue: _zoomMode,
+                onChanged: (v) {
+                  if (v == null) return;
+                  setState(() => _zoomMode = v);
+                  _savePrefs();
+                  Navigator.of(context).pop();
+                  if (v == 4) {
+                    _showInfoSnackbar('Pinch the video to set a custom zoom level');
+                  }
+                },
+                title: Text(modes[i], style: const TextStyle(color: Colors.white, fontSize: 14)),
+                activeColor: Colors.white,
+                controlAffinity: ListTileControlAffinity.trailing,
+              ),
+          ],
+        ),
+      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
     void _openAudioEffectPanel() {
@@ -7213,60 +7231,6 @@ class _AudioTrackPanel extends StatefulWidget {
 
   @override
   State<_AudioTrackPanel> createState() => _AudioTrackPanelState();
-}
-
-class _VideoZoomPanel extends StatelessWidget {
-  final int selectedMode;
-  final void Function(int) onModeSelected;
-  final VoidCallback onClose;
-
-  const _VideoZoomPanel({
-    required this.selectedMode,
-    required this.onModeSelected,
-    required this.onClose,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const modes = ['Fit to screen', 'Stretch', 'Crop', '100%', 'Pinch & Zoom'];
-    return Column(
-      children: [
-        Container(
-          color: const Color(0xFF252525),
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
-                onPressed: onClose,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-              const SizedBox(width: 8),
-              const Text('Video zoom', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-
-        Expanded(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              for (int i = 0; i < modes.length; i++)
-                RadioListTile<int>(
-                  value: i,
-                  groupValue: selectedMode,
-                  onChanged: (v) => v != null ? onModeSelected(v) : null,
-                  title: Text(modes[i], style: const TextStyle(color: Colors.white, fontSize: 14)),
-                  activeColor: Colors.white,
-                  controlAffinity: ListTileControlAffinity.trailing,
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

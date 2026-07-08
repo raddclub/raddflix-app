@@ -11,6 +11,7 @@ import '../elevation/radd_elevation.dart';
 import '../radius/radd_radius.dart';
 import '../spacing/radd_space.dart';
 import '../motion/radd_motion.dart';
+import '../typography/radd_type.dart';
 
 enum RaddSheetStyle { list, tabbed }
 
