@@ -50,6 +50,6 @@ Update this table as each component ships — it becomes the single source of tr
 | RaddChip | ❌ | 0 screens | Planned |
 | RaddLockPad | ❌ | 0 screens | Planned |
 | SettingsRow | ❌ | 0 screens | Planned |
-| Token layer (Type/Space/Radius/Elevation/Motion) | ❌ | — | Planned |
+| Token layer (Type/Space/Radius/Elevation/Motion) | ✅ | 0 screens | Production |
 
 Status legend: ❌ Planned · 🚧 In Progress · ✅ Production.

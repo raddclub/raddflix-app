@@ -165,6 +165,12 @@ class AppColors {
   static const Color layoutDeep     = Color(0xFF0D0D1A); // Layout designer scaffold bg
   static const Color layoutPanel    = Color(0xFF12121E); // Layout designer header/footer panel
   static const Color layoutSheet    = Color(0xFF1E1E2E); // Layout designer bottom sheet
+
+  // ── Semantic — Volume II (accent.dataFree, protected color) ────────────────
+  /// Reserved EXCLUSIVELY for zero-rated/data-free indicators. Never use for
+  /// success, online, active, or downloaded states — see Volume I, Protected
+  /// Colors, and `AI_RULES.md` rule 7.
+  static const Color dataFree = Color(0xFF3DDC97);
 }
 
 // ── Shadows ───────────────────────────────────────────────────────────────────

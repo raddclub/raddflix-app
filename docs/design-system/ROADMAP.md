@@ -3,7 +3,7 @@
 This bridges the design documentation (v1.0, frozen) and actual implementation. Update the checkboxes as work lands; this is the live tracker, not a memory-dependent status.
 
 - [x] **Phase 1 — Documentation** — all 12 volumes written and frozen at v1.0.
-- [ ] **Phase 2 — Theme Tokens** — `RaddType`, `RaddSpace`, `RaddRadius`, `RaddElevation`, semantic colors (incl. `accent.dataFree`), motion tokens (Volumes II, III).
+- [x] **Phase 2 — Theme Tokens** — `RaddType`, `RaddSpace`, `RaddRadius`, `RaddElevation`, semantic colors (incl. `accent.dataFree`), motion tokens (Volumes II, III). Additive only — no screens migrated yet, existing `AppRadius`/`AppColors`/`AppDurations` untouched.
 - [ ] **Phase 3 — Shared Components** — `RaddButton`, `RaddCard`, `RaddSheet`, `RaddBanner`, `RaddTextField`, `RaddChip`, `RaddLockPad`, `SettingsRow` (Volumes IV, VIII). Update the Component Status Dashboard in `07-developer-guidelines.md` as each ships.
 - [ ] **Phase 4 — Home** — On Air hero, signal-green card badges, componentized rails (Volume V).
 - [ ] **Phase 5 — Search** — mood chips, unchanged core search/filter UX.

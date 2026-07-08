@@ -21,4 +21,12 @@
 - **~47 files in `widgets/player/`** (full list in `09-migration-guide.md`) are confirmed dead code — never imported by `player_screen.dart` or any live screen. Left on disk as leftovers from an earlier architecture. Not part of the Player consolidation scope; tracked separately as a delete/audit task.
 - No app code changed to produce this correction — docs only. See `agent-hub/TASKS.md` (PLAYER-DOCS-CORRECTION) and `agent-hub/history/TASK_LOG.md` for the task-tracking side of this fix.
 
+## 2026-07-08 — Phase 2 implementation: Theme Tokens
+- Implemented the token layer per Volume VII Build Order: `lib/design_system/spacing/radd_space.dart`, `radius/radd_radius.dart`, `typography/radd_type.dart`, `motion/radd_motion.dart`, `elevation/radd_elevation.dart`.
+- `RaddType` exposed as a `BuildContext` extension so styles inherit the active brand font from `JazzThemeData.build()` rather than hardcoding a font family in the token layer.
+- `RaddMotion` wraps the existing `AnimConfig` tier system rather than duplicating its device-tier gating logic.
+- Added semantic color getters (`signalPrimary`, `signalPrimaryGlow`, `accentDataFree`, `accentWarning`, `accentError`) to the existing `RaddColors` `BuildContext` extension, plus `AppColors.dataFree` (`#3DDC97`, protected — see AI_RULES.md rule 7).
+- 100% additive: legacy `AppRadius`/`AppColors`/`AppDurations`/`AppCurves` in `core/constants.dart` are untouched and still used by existing screens — no visual or behavioral change to the shipped app from this change alone.
+- Component Status Dashboard (`07-developer-guidelines.md`) and `ROADMAP.md` updated to reflect Phase 2 done; Phase 3 (`RaddButton`, `RaddCard`, `RaddSheet`, etc.) can now consume these tokens.
+
 <!-- Add new entries above this line, newest first. Record principle overrides, token changes, and structural revisions here — not routine implementation progress, which belongs in ROADMAP.md. -->

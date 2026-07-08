@@ -10,6 +10,7 @@
 
 import 'package:flutter/material.dart';
 import 'radd_theme.dart';
+import '../constants.dart' show AppColors;
 
 extension RaddColors on BuildContext {
   // ── Quick access to the full token set ────────────────────────────────────
@@ -28,4 +29,16 @@ extension RaddColors on BuildContext {
   Color get raddBorder        => t.border;
 
   LinearGradient get raddHeroGradient => t.heroGradient;
+
+  // ── Semantic layer (Volume II) ────────────────────────────────────────────
+  // The one "always on" interactive hue — CTAs, active states, live indicators.
+  // Theme variants change background mood only; this stays constant.
+  Color get signalPrimary     => AppColors.primary;
+  Color get signalPrimaryGlow => AppColors.primaryGlow;
+
+  /// Reserved EXCLUSIVELY for zero-rated/data-free indicators — never success,
+  /// online, active, or downloaded states. See AI_RULES.md rule 7.
+  Color get accentDataFree => AppColors.dataFree;
+  Color get accentWarning  => AppColors.warning;
+  Color get accentError    => AppColors.error;
 }
