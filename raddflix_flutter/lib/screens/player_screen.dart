@@ -1381,7 +1381,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _scheduleHide() {
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(seconds: 4), () {
+    // Volume X: HUD auto-hides after 3s of inactivity.
+    _hideTimer = Timer(const Duration(seconds: 3), () {
       if (mounted && _playing) {
         setState(() => _showControls = false);
         _applySubtitleMargin(controlsVisible: false);
@@ -4494,7 +4495,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     //  Panels (right-side slide-in / bottom-sheet in portrait)
     // ═══════════════════════════════════════════════════════════════════════════
 
-void _openRightPanel(Widget content, {double widthFactor = 0.55}) {
+// Volume X: any sheet/panel over the video surface must stay ≤40% of the
+// viewport so it never dominates or blocks the frame.
+void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
   final bool isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
   setState(() => _panelOpen = true);
   if (isPortrait) {
