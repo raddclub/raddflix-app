@@ -3,6 +3,40 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-07 — O1/O2/O3 Flask Security Audit + Fixes)
+
+### Flask Route Security Audit — COMPLETE — 2026-07-07
+
+**Audit coverage:**
+- All `request.json['key']` hard-subscripts → 0 found; every route uses `get_json(silent=True) or {}` ✅
+- f-string SQL injection → all safe: `{order}` only "DESC"/"ASC", `sort_clause` uses `_SORT_MAP`, `{name}` validated vs `ALL_TABLES`, `{tbl}` from hardcoded `RESET_TABLES` ✅
+- SSRF → `brand_studio.py` fetches GitHub API with hardcoded `_GITHUB_API`/`_GITHUB_REPO` URL templates ✅
+- Open redirects → `subscriptions.py` uses `url_for` only ✅
+- DB editor (admin) uses user-supplied column names but is `@auth.login_required`-gated — intentional risk ✅
+- File uploads → `upload.py` uses `secure_filename`, configurable `max_size_gb` ✅
+- Login rate limiting → `_login_rate_check()` DB-backed per-IP, sliding 15-min window ✅
+- CSRF → all admin routes use HTTP Basic Auth (`@auth.login_required`), not sessions — CSRF inapplicable ✅
+- Intentionally public (documented): `/ping`, `/config`, `/queue/status`, `/poster-push/status`, `/poster-push/job/<job_id>` (read-only polling)
+
+**Three bugs fixed:**
+
+### O1 — Flask ValueError → 400 — 2026-07-07
+Commit: `a2943fd` → `radd-hub/hub/app.py`.
+
+All 35 `int(request.args.get())` calls would raise `ValueError` on malformed params, bubbling as 500. Added global `@app.errorhandler(ValueError)` returning 400 with JSON body.
+
+### O2 — poster-push stop auth — 2026-07-07
+Commit: `20765be` → `radd-hub/hub/routes/catalog_api.py`.
+
+`POST /api/catalog/poster-push/job/<job_id>/stop` had no auth guard despite docstring saying "admin auth required". Job IDs are Unix timestamps (guessable) — any caller could cancel running poster upload jobs. Added `if not _check_admin_auth(): return 401`.
+
+### O3 — OTP brute-force guard — 2026-07-07
+Commit: `bcbd41f` → `radd-hub/hub/routes/mobile_api.py`.
+
+`POST /api/auth/device-switch/verify` had no attempt counter. A 6-digit OTP with 10-minute validity (600 s) left 1,000,000 combinations open to brute-force — wrong guesses did not consume the OTP. Added `_otp_attempts` dict (in-memory, phone-keyed): 5 wrong guesses burns the OTP record from DB and returns 429, forcing the user to re-request. Correct guess clears the counter. Matches `_login_ip_window` pattern already present for login rate-limiting.
+
+---
+
 ## Current State (2026-07-07 — M1/M2 Template Rule-38 + N1/N2 Debug Rule-21 Fixes)
 
 ### M1 — Flask Templates confirm()/prompt() Elimination — 2026-07-07
