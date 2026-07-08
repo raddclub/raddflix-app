@@ -3,6 +3,31 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-08 — PLAYER-CONSOLIDATION Complete)
+
+### PLAYER-CONSOLIDATION — ALL 7 PANELS DONE — 2026-07-08
+
+All 7 inline player panel classes in `player_screen.dart` now open via `RaddSheet.show()`.
+
+**Steps 1–3** (commits `d9da81f`, `dae6c3c`, `663f475`):
+- `_VideoZoomPanel` removed; `_openZoomPanel` → `RaddSheet.show`
+- `_AudioTrackPanel` header stripped; `_openAudioPanel` → `RaddSheet.show`
+- `_QuickShortcutsPanel` header stripped; `_openMoreMenu` → `RaddSheet.show`
+
+**Steps 4–7** (commit `777df5a`):
+- `_SubtitlePanel`, `_AudioEffectPanel`, `_SettingsPanel`, `_SidebarCustomizerPanel` — title row + back-button stripped from each `build()`; internal tab bars preserved.
+- All 4 matching call sites converted from `_openRightPanel(Panel(...))` to `RaddSheet.show(style: list, title: '...', maxHeightFraction: 0.90, listBuilder: (_) => Panel(...))`.
+- `_openRightPanel()` now has zero callers in the main player flow (legacy landscape path intact).
+- Bounded-height: confirmed safe — RaddSheet's `ConstrainedBox(maxHeight: 0.85×screen)` gives `Flexible` a finite budget; inner `Column(mainAxisSize.max)` fills it; `Expanded` children (EQ sliders, ListViews, `ReorderableListView`) resolve correctly.
+
+**CI check (Rule 46):** Run `28964526692` triggered on commit `777df5a` — check conclusion before next Flutter-touching work.
+
+**Open items (not this task):**
+- ⚠️ Flask `/me` endpoint needs `is_admin` field — requires Oracle approval before touching production.
+- ⚠️ C5: TTS install hint in dub panel — deferred.
+
+---
+
 ## Current State (2026-07-08 — Q1 Docs Correctness Pass + Oracle Re-sync)
 
 ### Q1 — Docs correctness pass — 2026-07-08 (latest)
