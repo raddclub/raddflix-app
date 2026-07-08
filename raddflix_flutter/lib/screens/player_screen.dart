@@ -4810,56 +4810,61 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
     }
 
     void _openMoreMenu() {
-      _openRightPanel(_QuickShortcutsPanel(
-        isLocked: _isLocked,
-        isMuted: _isMuted,
-        loopEnabled: _loopEnabled,
-        smartEnhanceEnabled: _smartEnhanceEnabled,
-        isOneHanded: _oneHandedMode,
-        sleepTimerMinutes: _sleepTimerMinutes,
-        sleepTimerEnd: _sleepTimerEnd,
-        speed: _speed,
-        abA: _abA,
-        abB: _abB,
-        abActive: _abActive,
-        isRotateLocked: _orientMode != 0,
-        onRotate: () { Navigator.of(context).pop(); _cycleOrientation(); },
-        onLockToggle: () { Navigator.of(context).pop(); setState(() => _isLocked = true); },
-        onMuteToggle: () { Navigator.of(context).pop(); _toggleMute(); },
-        onLoopToggle: () { Navigator.of(context).pop(); _toggleLoop(); },
-        onSmartEnhanceToggle: () { Navigator.of(context).pop(); _toggleSmartEnhance(); },
-        onOneHandedToggle: () {
-          Navigator.of(context).pop();
-          setState(() => _oneHandedMode = !_oneHandedMode);
-          _savePrefs();
-        },
-        onSleepTimer: (mins) { Navigator.of(context).pop(); _setSleepTimer(mins); },
-        onSpeedSelected: (s) { Navigator.of(context).pop(); _setSpeed(s); },
-        onAudioEffect: () { Navigator.of(context).pop(); _openAudioEffectPanel(); },
-        onSettingsOpen: () { Navigator.of(context).pop(); _openSettingsPanel(); },
-        onAbSet: () { Navigator.of(context).pop(); _handleAbRepeat(); },
-        onFrameStep: () {
-          Navigator.of(context).pop();
-          try { _np.command(['frame-step']); } catch (_) {}
-        },
-        onClose: () => Navigator.of(context).pop(),
-        // Extended shortcuts
-        onJumpTo:         () { Navigator.of(context).pop(); _showJumpToDialog(context); },
-        onSpeedPresets:   () { Navigator.of(context).pop(); _showSpeedPresetsSheet(context); },
-        onEndAction:      () { Navigator.of(context).pop(); _showEndActionSheet(context); },
-        onScreenshot:     () { Navigator.of(context).pop(); _takeScreenshot(); },
-        onScreenshotWithSubtitles: () { Navigator.of(context).pop(); _takeScreenshot(withSubtitles: true); },
-        onWatchParty:     () { Navigator.of(context).pop(); _showWatchPartyDialog(context); },
-        onSilenceSkip:    () { Navigator.of(context).pop(); _showSilenceSkipSheet(context); },
-        onZoomCrop:       () { Navigator.of(context).pop(); _showZoomCropSheet(context); },
-        onGestureMap:     () { Navigator.of(context).pop(); _showGestureMapSheet(context); },
-        onSkipEditor:     () { Navigator.of(context).pop(); _showSkipEditorSheet(context); },
-        onLayoutDesigner: () { Navigator.of(context).pop(); _showLayoutDesignerSheet(context); },
-        silenceSkipEnabled: _silenceSkipEnabled,
-        endAction: _endAction,
-        onPiP: () { Navigator.of(context).pop(); _enterPiP(); },
-        onSidebarEdit: () { Navigator.of(context).pop(); _openSidebarCustomizer(); },
-      ));
+      setState(() => _panelOpen = true);
+      RaddSheet.show<void>(
+        context,
+        style: RaddSheetStyle.list,
+        title: 'More',
+        listBuilder: (_) => _QuickShortcutsPanel(
+          isLocked: _isLocked,
+          isMuted: _isMuted,
+          loopEnabled: _loopEnabled,
+          smartEnhanceEnabled: _smartEnhanceEnabled,
+          isOneHanded: _oneHandedMode,
+          sleepTimerMinutes: _sleepTimerMinutes,
+          sleepTimerEnd: _sleepTimerEnd,
+          speed: _speed,
+          abA: _abA,
+          abB: _abB,
+          abActive: _abActive,
+          isRotateLocked: _orientMode != 0,
+          onRotate: () { Navigator.of(context).pop(); _cycleOrientation(); },
+          onLockToggle: () { Navigator.of(context).pop(); setState(() => _isLocked = true); },
+          onMuteToggle: () { Navigator.of(context).pop(); _toggleMute(); },
+          onLoopToggle: () { Navigator.of(context).pop(); _toggleLoop(); },
+          onSmartEnhanceToggle: () { Navigator.of(context).pop(); _toggleSmartEnhance(); },
+          onOneHandedToggle: () {
+            Navigator.of(context).pop();
+            setState(() => _oneHandedMode = !_oneHandedMode);
+            _savePrefs();
+          },
+          onSleepTimer: (mins) { Navigator.of(context).pop(); _setSleepTimer(mins); },
+          onSpeedSelected: (s) { Navigator.of(context).pop(); _setSpeed(s); },
+          onAudioEffect: () { Navigator.of(context).pop(); _openAudioEffectPanel(); },
+          onSettingsOpen: () { Navigator.of(context).pop(); _openSettingsPanel(); },
+          onAbSet: () { Navigator.of(context).pop(); _handleAbRepeat(); },
+          onFrameStep: () {
+            Navigator.of(context).pop();
+            try { _np.command(['frame-step']); } catch (_) {}
+          },
+          // Extended shortcuts
+          onJumpTo:         () { Navigator.of(context).pop(); _showJumpToDialog(context); },
+          onSpeedPresets:   () { Navigator.of(context).pop(); _showSpeedPresetsSheet(context); },
+          onEndAction:      () { Navigator.of(context).pop(); _showEndActionSheet(context); },
+          onScreenshot:     () { Navigator.of(context).pop(); _takeScreenshot(); },
+          onScreenshotWithSubtitles: () { Navigator.of(context).pop(); _takeScreenshot(withSubtitles: true); },
+          onWatchParty:     () { Navigator.of(context).pop(); _showWatchPartyDialog(context); },
+          onSilenceSkip:    () { Navigator.of(context).pop(); _showSilenceSkipSheet(context); },
+          onZoomCrop:       () { Navigator.of(context).pop(); _showZoomCropSheet(context); },
+          onGestureMap:     () { Navigator.of(context).pop(); _showGestureMapSheet(context); },
+          onSkipEditor:     () { Navigator.of(context).pop(); _showSkipEditorSheet(context); },
+          onLayoutDesigner: () { Navigator.of(context).pop(); _showLayoutDesignerSheet(context); },
+          silenceSkipEnabled: _silenceSkipEnabled,
+          endAction: _endAction,
+          onPiP: () { Navigator.of(context).pop(); _enterPiP(); },
+          onSidebarEdit: () { Navigator.of(context).pop(); _openSidebarCustomizer(); },
+        ),
+      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
     void _handleAbRepeat() {
@@ -7747,7 +7752,7 @@ class _QuickShortcutsPanel extends StatefulWidget {
   final VoidCallback onSettingsOpen;
   final VoidCallback onAbSet;
   final VoidCallback onFrameStep;
-  final VoidCallback onClose;
+  final VoidCallback? onClose;
   // Extended shortcuts
   final VoidCallback onJumpTo;
   final VoidCallback onSpeedPresets;
@@ -7790,7 +7795,7 @@ class _QuickShortcutsPanel extends StatefulWidget {
     required this.onSettingsOpen,
     required this.onAbSet,
     required this.onFrameStep,
-    required this.onClose,
+    this.onClose,
     required this.onJumpTo,
     required this.onSpeedPresets,
     required this.onEndAction,
@@ -7858,31 +7863,10 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
       }
     }
 
-    return Column(
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      shrinkWrap: true,
       children: [
-        Container(
-          color: const Color(0xFF252525),
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
-                onPressed: widget.onClose,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-              const SizedBox(width: 8),
-              const Text('More', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-
-        const Divider(color: Colors.white12, height: 1),
-
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(12),
-            children: [
               const Padding(
                 padding: EdgeInsets.only(bottom: 8, top: 4),
                 child: Text('Quick Shortcuts', style: TextStyle(color: Colors.white54, fontSize: 12)),
@@ -7970,9 +7954,6 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
               ),
 
             ],
-          ),
-        ),
-      ],
     );
   }
 
