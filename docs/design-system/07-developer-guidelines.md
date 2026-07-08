@@ -42,14 +42,14 @@ Update this table as each component ships — it becomes the single source of tr
 
 | Component | Status | Used In | Ready |
 |---|---|---|---|
-| RaddButton | ❌ | 0 screens | Planned |
-| RaddCard | ❌ | 0 screens | Planned |
-| RaddSheet | ❌ | 0 screens | Planned |
-| RaddBanner | ❌ | 0 screens | Planned |
-| RaddTextField | ❌ | 0 screens | Planned |
-| RaddChip | ❌ | 0 screens | Planned |
-| RaddLockPad | ❌ | 0 screens | Planned |
-| SettingsRow | ❌ | 0 screens | Planned |
+| RaddButton | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
+| RaddCard | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
+| RaddSheet | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
+| RaddBanner | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
+| RaddTextField | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
+| RaddChip | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
+| RaddLockPad | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
+| SettingsRow | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
 | Token layer (Type/Space/Radius/Elevation/Motion) | ✅ | 0 screens | Production |
 
 Status legend: ❌ Planned · 🚧 In Progress · ✅ Production.

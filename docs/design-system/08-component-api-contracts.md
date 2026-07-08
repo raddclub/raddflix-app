@@ -104,4 +104,71 @@ RaddCard(
 - *Animation:* slide down/up 220ms `Tune`.
 - *Theme tokens used:* fixed per-variant palette from Volume IV — never an arbitrary color.
 
-The same seven-section template applies to `RaddLockPad`, `SettingsRow`, `RaddTextField`, and `RaddChip` when they're implemented — write their contracts here as each one is built.
+## RaddChip
+
+**Properties**
+| Name | Type | Default |
+|---|---|---|
+| `label` | `String` | required |
+| `active` | `bool` | `false` |
+| `isDataFreeVariant` | `bool` | `false` — the deliberate "Free tonight" exception, uses `accent.dataFree` instead of `signal.primary` when active |
+| `onTap` | `VoidCallback?` | `null` |
+
+**Behavior**
+- *Accessibility:* `Semantics(button: true, selected: active, label: label)`.
+- *Animation:* fill/text color transition via `Tune`, 200ms.
+- *Theme tokens used:* `glass`, `signal.primary`, `accent.dataFree`, `pill` radius, `RaddType.label`.
+
+## RaddLockPad
+
+**Properties**
+| Name | Type | Default |
+|---|---|---|
+| `pinLength` | `int` | `4` |
+| `accent` | `RaddLockPadAccent` (standard/vault) | `standard` |
+| `onSubmit` | `ValueChanged<String>` | required — called once `pinLength` digits are entered |
+| `errorText` | `String?` | `null` |
+| `showBiometric` | `bool` | `false` |
+| `onBiometricTap` | `VoidCallback?` | `null` |
+
+**Behavior**
+- *Accessibility:* each key is a 64×64dp circular hit target (exceeds the 44×48dp minimum).
+- *Animation:* elastic scale-in (1.1×) on key press, 120ms.
+- *Theme tokens used:* `signal.primary` (standard) or purple→crimson gradient (vault) — same geometry both skins.
+
+## SettingsRow
+
+**Properties**
+| Name | Type | Default |
+|---|---|---|
+| `icon` | `PhosphorIconData` | required |
+| `label` | `String` | required |
+| `trailing` | `SettingsRowTrailing` (none/chevron/switchControl/valueText) | `chevron` |
+| `valueText` | `String?` | `null`, required if `trailing == valueText` |
+| `switchValue` / `onSwitchChanged` | `bool` / `ValueChanged<bool>?` | `false` / `null` |
+| `onTap` | `VoidCallback?` | `null` |
+| `enabled` | `bool` | `true` |
+
+**Behavior**
+- *Disabled:* opacity 40%, `onTap`/`onSwitchChanged` ignored.
+- *Accessibility:* `Semantics(label: "$label, $valueText")` when a value is shown, so screen readers get the current state, not just the row purpose.
+- *Theme tokens used:* `RaddSpace.md`, `signal.primary` (active switch), fixed 56dp height.
+
+## RaddTextField
+
+**Properties**
+| Name | Type | Default |
+|---|---|---|
+| `controller` | `TextEditingController?` | `null` |
+| `label` / `hint` | `String?` | `null` |
+| `errorText` | `String?` | `null` |
+| `obscureText` | `bool` | `false` |
+| `onChanged` | `ValueChanged<String>?` | `null` |
+| `enabled` | `bool` | `true` |
+
+**Behavior**
+- *Error state:* border → `accent.error`, helper text below in `accent.error`.
+- *Focus state:* border → `signal.primary` at 1.5px.
+- *Theme tokens used:* `md` radius, `surface`, `border`, `RaddType.body`/`caption`.
+
+Every `Radd*` primitive above still needs a widget test (default/disabled/loading/accessibility) before flipping to Production status per Volume VII — see the Component Status Dashboard.

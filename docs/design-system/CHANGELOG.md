@@ -29,4 +29,11 @@
 - 100% additive: legacy `AppRadius`/`AppColors`/`AppDurations`/`AppCurves` in `core/constants.dart` are untouched and still used by existing screens — no visual or behavioral change to the shipped app from this change alone.
 - Component Status Dashboard (`07-developer-guidelines.md`) and `ROADMAP.md` updated to reflect Phase 2 done; Phase 3 (`RaddButton`, `RaddCard`, `RaddSheet`, etc.) can now consume these tokens.
 
+## 2026-07-08 — Phase 3 implementation: Shared Components
+- Implemented `lib/design_system/components/`: `RaddButton`, `RaddCard`, `RaddSheet`, `RaddBanner`, `RaddTextField`, `RaddChip`, `RaddLockPad`, `SettingsRow` — matching the Volume IV catalog and Volume VIII API contracts.
+- Wrote the 4 previously-missing Volume VIII contracts (`RaddChip`, `RaddLockPad`, `SettingsRow`, `RaddTextField`) into `08-component-api-contracts.md`.
+- `RaddSheet` includes a static open guard so a second `RaddSheet.show` call dismisses the first instead of stacking (Volume X rule). `RaddBanner` ships a `raddBannerPriority` map for call-site queuing (error > subscription > offline > rest).
+- **Important caveat:** this Replit environment has no Flutter SDK installed (only a Dart-Tools module, which lacks the `material`/`widgets` libraries), so none of these components have been compiled or run through a widget test yet — only manually checked for brace/paren/bracket balance. Component Status Dashboard marks all eight 🚧 In Progress, not ✅ Production, until a real `flutter analyze`/`flutter test` pass (e.g. via CI or a local machine) confirms them.
+- 100% additive: no existing screen imports or renders any of these yet — zero behavior change to the shipped app.
+
 <!-- Add new entries above this line, newest first. Record principle overrides, token changes, and structural revisions here — not routine implementation progress, which belongs in ROADMAP.md. -->
