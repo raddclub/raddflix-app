@@ -46,10 +46,12 @@ Update this table as each component ships — it becomes the single source of tr
 | RaddCard | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
 | RaddSheet | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
 | RaddBanner | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
-| RaddTextField | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
+| RaddTextField | 🚧 | **3 screens** — `login_screen.dart`, `register_screen.dart`, `subscription_screen.dart` (verified 2026-07-08 audit) | Actually in production use already; still needs a real widget-test/device pass before flipping to ✅ |
 | RaddChip | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
 | RaddLockPad | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
 | SettingsRow | 🚧 | 0 screens | Built, needs widget tests + real-device check before Production |
-| Token layer (Type/Space/Radius/Elevation/Motion) | ✅ | 0 screens | Production |
+| Token layer (Type/Space/Radius/Elevation/Motion) | ✅ | 0 screens outside `design_system/` itself | Production per Phase 2 sign-off, but zero real screens/widgets consume it yet — see `TASKS.md` DS-AUDIT-2026-07-08 |
 
 Status legend: ❌ Planned · 🚧 In Progress · ✅ Production.
+
+**Correction (2026-07-08 full-app audit):** this dashboard previously listed `RaddTextField` at "0 screens," which was inaccurate — it was already wired into 3 live screens. See `TASKS.md` DS-AUDIT-2026-07-08 for the full audit of docs-vs-reality across every volume (motion-token value mismatch, Player HUD/interaction-rule violations, 0% screen migration elsewhere).
