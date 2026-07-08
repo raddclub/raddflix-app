@@ -1,5 +1,5 @@
 # agent-hub/RULES.md — Non-Negotiable Agent Rules
-Last updated: 2026-07-04 (added Rule 42 — mandatory auto-commit after every file change)
+Last updated: 2026-07-08 (added Rules 43-46 — deploy verification gaps found during a full audit)
 
 ## Startup (every session, no exceptions)
 1. Read `AGENT_PROMPT.md` (repo root) — the single entry point, links everything below.
@@ -194,3 +194,36 @@ Current v2 method list: `log`, `logError`, `logWarn`, `logApi`, `logState`, `log
 Always push commits SEQUENTIALLY with ≥1.2s delay between each push.
 Parallel PUT requests to the GitHub Contents API create branch tree SHA conflicts
 (second push cannot resolve parent commit SHA while first is in-flight).
+
+---
+
+## Deploy Verification Rules (added 2026-07-08 — after catching a real gap)
+
+**Rule 43: `kDebugMode` needs an explicit import — Rule 21 gating alone is not enough.**
+Any file using `if (kDebugMode)` must have `import 'package:flutter/foundation.dart' show kDebugMode;`.
+`package:flutter/material.dart` does not reliably re-export it. This has broken 2 separate CI builds
+(`28886249595`, `28886554849`) silently — nobody noticed until a 3rd session checked run status.
+**After adding any `kDebugMode` gate, grep the file for the foundation.dart import before pushing —
+don't rely on visual review.**
+
+**Rule 44: Oracle does not auto-deploy — redeploy against FINAL HEAD, not mid-session HEAD.**
+`push_to_oracle.sh` only updates the server when explicitly run. If a session makes multiple commits
+to `main` after an earlier Oracle deploy (even "docs-only" commits, since those can bundle a real
+code file), the server is now stale relative to `main` and nobody notices unless someone diffs commit
+SHAs. **Always run `push_to_oracle.sh` one final time at the end of a session that touched
+`radd-hub/**`, and confirm via SSH `git rev-parse HEAD` that it equals the GitHub `main` SHA —
+do not trust an earlier mid-session deploy.**
+
+**Rule 45: There are two `hub/` directories — a dead one at repo root, and the real one at `radd-hub/hub/`.**
+This affects more than template pushes (see Rule 39) — it also breaks SSH verification commands on
+Oracle, since the server's git checkout mirrors this same repo layout and both directories exist
+there too. A `grep`/`cat`/`diff` against bare `hub/...` on Oracle will silently return content from
+the DEAD copy, giving a false sense that a fix is missing or present. **Confirm which file is live by
+checking the supervisor config's `directory=` value first** (`sudo cat /etc/supervisor/conf.d/*.conf`)
+— for `raddflix_radd` it is `/opt/jazzmax/radd-hub`, so the live file is always under
+`radd-hub/hub/...`, never bare `hub/...`.
+
+**Rule 46: A successful `git push` / GitHub Actions trigger does not mean the build succeeded.**
+After any push touching `raddflix_flutter/**`, fetch the actual workflow run status via the GitHub
+API (`GET /repos/.../actions/workflows/build-apk.yml/runs`) and check `conclusion == "success"`.
+Do not consider Flutter-touching work complete just because the push itself returned 200.

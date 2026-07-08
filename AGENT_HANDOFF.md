@@ -3,6 +3,40 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-08 — Q1 Docs Correctness Pass + Oracle Re-sync)
+
+### Q1 — Docs correctness pass — 2026-07-08 (latest)
+Docs-only, no app code changed. Triggered by a full re-verification session that found real gaps.
+
+**Bug caught: Oracle was 1 commit behind `main`.** After the O1/O2/O3 deploy earlier in the day, two
+more commits landed on `main` (the P1 build-fix + its docs) but nobody redeployed Oracle afterward.
+Fixed by re-running `push_to_oracle.sh` against final HEAD; confirmed via SSH that Oracle's
+`git rev-parse HEAD` now matches GitHub `main` exactly, then live-smoke-tested O1 (malformed param →
+400), O2 (poster-push stop → 401 without auth), and O3 (bad OTP → clean 400) directly against the
+running server, not just via code inspection.
+
+**Also caught while verifying:** a wrong-path false negative — grepping `hub/app.py` on Oracle
+returned nothing because there's a dead, unused `hub/` directory at the repo root (mirrored onto the
+Oracle checkout too) separate from the real `radd-hub/hub/` that the `raddflix_radd` service actually
+runs (confirmed via the supervisor config's `directory=` line). Re-ran the checks against the correct
+path and got clean matches.
+
+**Doc fixes made (`AGENT_PROMPT.md`, `agent-hub/RULES.md`, `.agents/PROJECT_RULES.md`):**
+- Reconciled a real contradiction: `AGENT_PROMPT.md` told agents to "commit/push with normal git
+  commands," while `RULES.md`/`PROJECT_RULES.md` said "no git commands, ever." Clarified: read-only
+  local git (`status`/`log`/`diff`/`rev-parse`) is fine and expected for self-checks; the actual push
+  to `main` always goes through `auto_commit.sh` (GitHub Trees API) — never a raw `git push`.
+- Added Rule 43 (`kDebugMode` requires an explicit `foundation.dart` import — gating alone isn't
+  enough, this already broke 2 CI builds).
+- Added Rule 44 (Oracle does not auto-deploy; redeploy against final session HEAD, not a mid-session
+  snapshot, and verify the SHA matches afterward).
+- Added Rule 45 (dead `hub/` dir at repo root vs. real `radd-hub/hub/` — also trips up Oracle SSH
+  checks, not just GitHub template pushes as the older Rule 39 implied).
+- Added Rule 46 (a successful push/workflow trigger ≠ a successful build — always check the GitHub
+  Actions run `conclusion` field before considering Flutter work done).
+
+---
+
 ## Current State (2026-07-08 — P1 APK Build Break Fix + Deploy Verification)
 
 ### P1 — APK build break fix (N1 regression) — 2026-07-08

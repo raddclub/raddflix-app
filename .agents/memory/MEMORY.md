@@ -3,3 +3,5 @@
 - [Dart escaped-dollar string bug](dart-escaped-dollar.md) — \$e / \${} in single-quoted Dart strings produces literal text; same class as L1 audio-label bug; affects profile_screen version display and error catch logging.
 - [Flask security audit results](flask-security-audit.md) — full audit complete; 3 bugs fixed (O1/O2/O3); audit scope + intentionally-public routes documented here.
 - [kDebugMode gating needs explicit import](kdebugmode-import-gotcha.md) — gating debugPrint with kDebugMode broke the release APK build for 2 files that lacked `flutter/foundation.dart` import; always verify a Flutter compile after this kind of edit, not just a visual diff.
+- [Oracle deploy staleness](oracle-deploy-staleness.md) — Oracle never auto-deploys; a mid-session deploy misses later commits — redeploy against final HEAD before ending any session touching backend code.
+- [Dead hub/ dir path trap](dead-hub-dir-path-trap.md) — a leftover unused `hub/` dir at repo root (mirrored on Oracle) silently returns wrong content for bare `hub/...` paths; always use `radd-hub/hub/...`.

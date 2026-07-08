@@ -96,10 +96,14 @@ preserving "for reference," it belongs as a section in `agent-hub/memory/` (a to
 
 ## Working on this project — normal workflow
 
-- Work from a real local clone of `raddclub/raddflix-app` (checked out into the workspace), edit files
-  with normal file-editing tools, and commit/push with normal `git` commands. Do not use an in-memory
-  "read from GitHub, patch a string, push back" pattern — it hides diffs from the person you're working
-  with and makes mistakes hard to catch.
+- Work from a real local clone of `raddclub/raddflix-app` (checked out into the workspace) and edit
+  files with normal file-editing tools. **Read-only local `git` commands are fine and expected**
+  (`git status`, `git log`, `git diff`, `git rev-parse HEAD`) — use them to check your own working
+  tree state. What you must NOT do is `git commit` / `git push` to GitHub directly, or an in-memory
+  "read from GitHub, patch a string, push back" pattern — the actual push to `main` always goes
+  through `auto_commit.sh` (GitHub Trees API), so every commit is atomic and auditable. There is no
+  `origin` remote configured locally on purpose — this forces the API path. Verify sync state against
+  GitHub with the REST API (`curl` + `GITHUB_TOKEN`), not `git fetch origin`.
 - **For EVERY file change — follow the 3-step workflow (Rule 42):**
   1. `bash log_pending.sh "message" file1 [file2...]` — logs intent BEFORE editing
   2. Edit the file(s)
@@ -112,6 +116,26 @@ preserving "for reference," it belongs as a section in `agent-hub/memory/` (a to
   `GITHUB_TOKEN` (Replit Secret). Never print these values.
 - Oracle health check: `ssh -i <key> ubuntu@92.4.95.252 "curl -s http://localhost:5000/healthz"` →
   expect `{"ok":true,"version":"3.0.0"}`.
+- **Oracle does NOT auto-deploy on push.** `push_to_oracle.sh` is the only thing that updates the
+  live server, and it only runs when a human/agent explicitly runs it. If a session makes several
+  commits to `main` that touch `radd-hub/**` (including a "just docs" commit that also happens to
+  bundle a code file), a mid-session `push_to_oracle.sh` run does NOT cover commits made *after* it.
+  **Run `push_to_oracle.sh` once more at the very end of the session** (against final HEAD) rather
+  than trusting an earlier run — then confirm with `ssh ... "cd /opt/jazzmax && git rev-parse HEAD"`
+  that it matches the GitHub `main` SHA exactly.
+- **After ANY push that touches `raddflix_flutter/**`**, check the actual GitHub Actions run status
+  via the API before calling the work done — do not assume a successful push means a successful
+  build. CI failures are silent otherwise (this has happened twice — see `agent-hub/RULES.md`
+  Rule 40 and the `kdebugmode-import-gotcha` memory file):
+  ```bash
+  curl -s -H "Authorization: token $GITHUB_TOKEN" \
+    "https://api.github.com/repos/raddclub/raddflix-app/actions/workflows/build-apk.yml/runs?per_page=1"
+  ```
+- **There are TWO `hub/` directories in this repo: a dead one at the repo root, and the real one at
+  `radd-hub/hub/`.** This trips up path-based greps/edits both in the local clone AND on the Oracle
+  server (which mirrors the same repo layout). Always target `radd-hub/hub/...` — never bare `hub/...`.
+  Verify which file is actually live by checking the supervisor config's `directory=` value
+  (`/opt/jazzmax/radd-hub`), not by guessing from the path that "looks right."
 
 ## Task tracking (mandatory every session)
 
