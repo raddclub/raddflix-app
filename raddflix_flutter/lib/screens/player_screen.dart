@@ -4620,7 +4620,6 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
               } catch (_) {}
             }
           },
-          onClose: () => Navigator.of(context).pop(),
           title: _currentTitle,
           onSubtitleFilePicked: (path) {
             setState(() => _currentSubFile = path);
@@ -4818,7 +4817,6 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
           initialReverbPreset: _reverbPreset,
           audioBalance: _audioBalance,
           onBalanceChanged: _applyBalance,
-          onClose: () => Navigator.of(context).pop(),
         ),
       ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
@@ -5549,7 +5547,6 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
             setState(() => _sidebarOrder = newOrder);
             _savePrefs();
           },
-          onClose: () => Navigator.of(context).pop(),
         ),
       ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
@@ -5597,7 +5594,6 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
           showPrevNextBtns: _showPrevNextBtns,
           showSeekPosition: _showSeekPositionLabel,
           onRotateVideo: () { Navigator.of(context).pop(); _rotateVideo(); },
-          onClose: () => Navigator.of(context).pop(),
           doubleTapSeekEnabled: _doubleTapSeekEnabled,
           longPressSpeedEnabled: _longPressSpeedEnabled,
           swipeSeekEnabled: _swipeSeekEnabled,
@@ -6115,7 +6111,6 @@ class _SubtitlePanel extends StatefulWidget {
   final void Function(double) onSyncChanged;
   final void Function(double) onSpeedChanged;
   final void Function(String prop, String val) onSubPropertyChanged;
-  final VoidCallback onClose;
   final String? title;
   final void Function(String)? onSubtitleFilePicked;
   final void Function(String lang)? onDubRequested; // P59
@@ -6134,7 +6129,6 @@ class _SubtitlePanel extends StatefulWidget {
     required this.onSyncChanged,
     required this.onSpeedChanged,
     required this.onSubPropertyChanged,
-    required this.onClose,
     this.title,
     this.onSubtitleFilePicked,
     this.onDubRequested,
@@ -7266,7 +7260,6 @@ class _AudioEffectPanel extends StatefulWidget {
   final bool labStereoWide;
   final bool labNoise;
   final String initialReverbPreset;
-  final VoidCallback onClose;
 
   const _AudioEffectPanel({
     required this.selectedPreset,
@@ -7290,7 +7283,6 @@ class _AudioEffectPanel extends StatefulWidget {
     this.labStereoWide = false,
     this.labNoise = false,
     this.initialReverbPreset = 'None',
-    required this.onClose,
   });
 
   @override
@@ -8064,7 +8056,6 @@ class _SettingsPanel extends StatefulWidget {
   final bool showSeekPosition;
   // Video rotate shortcut
   final VoidCallback onRotateVideo;
-  final VoidCallback onClose;
   // Gesture toggles
   final bool doubleTapSeekEnabled;
   final bool longPressSpeedEnabled;
@@ -8109,7 +8100,6 @@ class _SettingsPanel extends StatefulWidget {
     required this.showPrevNextBtns,
     required this.showSeekPosition,
     required this.onRotateVideo,
-    required this.onClose,
     required this.doubleTapSeekEnabled,
     required this.longPressSpeedEnabled,
     required this.swipeSeekEnabled,
@@ -8884,13 +8874,11 @@ class _SidebarCustomizerPanel extends StatefulWidget {
   final List<String> currentOrder;
   final List<String> allIds;
   final void Function(List<String>) onOrderChanged;
-  final VoidCallback onClose;
 
   const _SidebarCustomizerPanel({
     required this.currentOrder,
     required this.allIds,
     required this.onOrderChanged,
-    required this.onClose,
   });
 
   @override
