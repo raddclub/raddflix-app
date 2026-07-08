@@ -3,6 +3,22 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-08 — P1 APK Build Break Fix + Deploy Verification)
+
+### P1 — APK build break fix (N1 regression) — 2026-07-08
+Commit: `8fd8fdf` → `player_screen.dart`, `subscription_screen.dart`.
+
+The N1 session (2026-07-07) gated bare `debugPrint()` calls with `if (kDebugMode)` in 4 files, but only 2 of them (`profile_screen.dart`, `word_dict.dart`) already imported `package:flutter/foundation.dart`. `player_screen.dart` and `subscription_screen.dart` did not — `kDebugMode` was an undefined getter, causing `Target kernel_snapshot failed: Exception` and failing the release build. This broke the last 2 push-triggered GitHub Actions APK builds (`28886249595`, `28886554849`) without being noticed, since nobody checked CI run status after those pushes.
+
+Fixed by adding `import 'package:flutter/foundation.dart' show kDebugMode;` to both files. Verified fix by triggering a fresh workflow run (`28935996207`) — completed successfully, produced `RaddFlix-1.0.0+3-build1488.apk` (58.4 MB).
+
+**Full deploy verification this session:**
+- GitHub: latest commit `8fd8fdf` confirmed live on `main`.
+- Oracle (92.4.95.252): pulled latest, restarted `raddflix_radd` service, `/api/app/version` responding `{"ok":true,"version":"1.0.0"}`.
+- APK: GitHub Actions build succeeded, artifact `RaddFlix-1.0.0+3-build1488.apk` available.
+
+---
+
 ## Current State (2026-07-07 — O1/O2/O3 Flask Security Audit + Fixes)
 
 ### Flask Route Security Audit — COMPLETE — 2026-07-07
