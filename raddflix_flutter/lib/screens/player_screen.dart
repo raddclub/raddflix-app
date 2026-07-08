@@ -4657,57 +4657,62 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
     }
 
     void _openAudioPanel() {
-      _openRightPanel(_AudioTrackPanel(
-        tracks: _realAudioTracks,
-        selectedTrack: _selectedAudio,
-        audioSync: _audioSync,
-        useSWDecoder: _useSWDecoder,
-        onTrackSelected: (track) {
-          setState(() {
-            _selectedAudio = track;
-            // Remember the language so future episodes auto-select the same
-            // audio language. Only update when track has a real language code.
-            if (track != null && (track.language?.isNotEmpty ?? false)) {
-              _prefAudioLang = track.language;
+      setState(() => _panelOpen = true);
+      RaddSheet.show<void>(
+        context,
+        style: RaddSheetStyle.list,
+        title: 'Audio Track',
+        listBuilder: (_) => _AudioTrackPanel(
+          tracks: _realAudioTracks,
+          selectedTrack: _selectedAudio,
+          audioSync: _audioSync,
+          useSWDecoder: _useSWDecoder,
+          onTrackSelected: (track) {
+            setState(() {
+              _selectedAudio = track;
+              // Remember the language so future episodes auto-select the same
+              // audio language. Only update when track has a real language code.
+              if (track != null && (track.language?.isNotEmpty ?? false)) {
+                _prefAudioLang = track.language;
+              }
+            });
+            _savePrefs();
+            if (track != null) {
+              _player.setAudioTrack(track);
+            } else {
+              try { _np.setProperty('aid', 'no'); } catch (_) {}
             }
-          });
-          _savePrefs();
-          if (track != null) {
-            _player.setAudioTrack(track);
-          } else {
-            try { _np.setProperty('aid', 'no'); } catch (_) {}
-          }
-        },
-        onSyncChanged: (delta) => _adjustAudioSync(delta),
-        onSWDecoderChanged: (v) {
-          setState(() => _useSWDecoder = v);
-          // Safety rule (MediaTek/Infinix black-screen): never change hwdec while playing.
-          // Apply immediately when paused/stopped; otherwise save state and notify the user.
-          if (!_playing) {
-            try { _np.setProperty('hwdec', v ? 'no' : 'auto-safe'); } catch (_) {}
-          } else {
-            _showInfoSnackbar('Decoder preference saved — will apply on next file or after pause');
-          }
-        },
-        onChannelModeChanged: (filterStr) {
-          setState(() {
-            _currentChannelModeAf = filterStr;
-            _channelModeIdx = (_channelModeIdx + 1) % 4;
-          });
-          _applyAllAf();
-          _savePrefs();
-        },
-        initialChannelModeIdx: _channelModeIdx,
-        isPlaying: _playing,
-        currentCodec: _currentAudioCodec.isNotEmpty ? _currentAudioCodec : null,
-        onClose: () => Navigator.of(context).pop(),
-        isDubMode: _isDubMode,           // P60
-        dubActiveLang: _dubActiveLang,   // P60
-        onRemoveDub: () {                // P60
-          _disableDubMode();
-          Navigator.of(context).pop();
-        },
-      ));
+          },
+          onSyncChanged: (delta) => _adjustAudioSync(delta),
+          onSWDecoderChanged: (v) {
+            setState(() => _useSWDecoder = v);
+            // Safety rule (MediaTek/Infinix black-screen): never change hwdec while playing.
+            // Apply immediately when paused/stopped; otherwise save state and notify the user.
+            if (!_playing) {
+              try { _np.setProperty('hwdec', v ? 'no' : 'auto-safe'); } catch (_) {}
+            } else {
+              _showInfoSnackbar('Decoder preference saved — will apply on next file or after pause');
+            }
+          },
+          onChannelModeChanged: (filterStr) {
+            setState(() {
+              _currentChannelModeAf = filterStr;
+              _channelModeIdx = (_channelModeIdx + 1) % 4;
+            });
+            _applyAllAf();
+            _savePrefs();
+          },
+          initialChannelModeIdx: _channelModeIdx,
+          isPlaying: _playing,
+          currentCodec: _currentAudioCodec.isNotEmpty ? _currentAudioCodec : null,
+          isDubMode: _isDubMode,           // P60
+          dubActiveLang: _dubActiveLang,   // P60
+          onRemoveDub: () {                // P60
+            _disableDubMode();
+            Navigator.of(context).pop();
+          },
+        ),
+      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
     void _openZoomPanel() {
@@ -7206,7 +7211,7 @@ class _AudioTrackPanel extends StatefulWidget {
   final int initialChannelModeIdx;
   final bool isPlaying; // P57-04: disable SW decoder toggle during playback
   final String? currentCodec; // P57-06: show codec badge on active track
-  final VoidCallback onClose;
+  final VoidCallback? onClose;
   final bool isDubMode;        // P60: dub active indicator
   final String dubActiveLang;  // P60: 'ur-PK' or 'hi-IN'
   final VoidCallback? onRemoveDub; // P60: tap to disable dub
@@ -7223,7 +7228,7 @@ class _AudioTrackPanel extends StatefulWidget {
     this.initialChannelModeIdx = 0,
     this.isPlaying = false,
     this.currentCodec,
-    required this.onClose,
+    this.onClose,
     this.isDubMode = false,
     this.dubActiveLang = 'ur-PK',
     this.onRemoveDub,
@@ -8659,30 +8664,10 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return ListView(
+      padding: EdgeInsets.zero,
+      shrinkWrap: true,
       children: [
-        // Header
-        Container(
-          color: const Color(0xFF252525),
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left, color: Colors.white, size: 26),
-                onPressed: widget.onClose,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-              const SizedBox(width: 8),
-              const Text('Audio Track', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-
-        Expanded(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
               // P60: Dub active indicator + one-tap remove
               if (widget.isDubMode)
                 Container(
@@ -8851,9 +8836,6 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
                 ),
               ),
             ],
-          ),
-        ),
-      ],
     );
   }
 }
