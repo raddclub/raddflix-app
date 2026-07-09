@@ -3,6 +3,25 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-09 — UI-UX-AUDIT-2026-07-09 Complete)
+
+### UI-UX-AUDIT-2026-07-09 — Full UI/UX & design-system audit — 2026-07-09
+
+Produced `docs/AUDIT_UI_UX_REPORT.md`: a full audit of `raddflix_flutter` against `docs/design-system/`. Docs only — no app code changed.
+
+**Headline finding:** the token layer (`RaddSpace`/`RaddRadius`/`RaddType`/`RaddElevation`/`RaddMotion`/semantic colors) is 100% spec-compliant, and all 8 shared components (`RaddButton`, `RaddCard`, `RaddSheet`, `RaddBanner`, `RaddTextField`, `RaddChip`, `RaddLockPad`, `SettingsRow`) are built — but adoption is effectively zero: `RaddButton`/`RaddCard` have **0** usages anywhere in `lib/screens`+`lib/widgets`, `RaddSheet` has 1 (inside `player_screen.dart`), `RaddTextField` has 3 (login/register). 31 of 33 screens are still on the legacy `AppColors`/`AppRadius` system or raw literals (410 hardcoded `Color()`, 2,563 `Colors.*` across screens+widgets combined; 38 files still reference `AppColors.*` directly).
+
+Report includes: per-category scorecard (/100), design-system compliance table, 33-row screen-by-screen table, component audit (incl. duplicate `content_card.dart`/`simosa_card.dart`, 3 separate badge classes, duplicate `layout_designer_screen.dart`), UX/visual audit, gap-analysis table, prioritized roadmap (Critical/High/Medium/Low/Future), missing-features list, top-20 highest-impact improvements, final verdict.
+
+**Reconfirms from PLAYER-DOCS-CORRECTION session:** ~47 files in `lib/widgets/player/` remain confirmed dead code; live player is 7 inline panel classes in `player_screen.dart` + 2 external sheets.
+
+**Open items surfaced by this audit (not yet scoped as tasks):**
+- Component layer has never been compiled/tested (no Flutter SDK in this environment) — recommended as the critical blocking item before any screen migration work consumes these components.
+- Player HUD violates documented "40% surface"/"5-control" rules (previously known, reconfirmed).
+- "Browse-before-signup" onboarding flow specified in design docs is missing app-wide.
+
+---
+
 ## Current State (2026-07-08 — PLAYER-CONSOLIDATION Complete)
 
 ### PLAYER-CONSOLIDATION — ALL 7 PANELS DONE — 2026-07-08
