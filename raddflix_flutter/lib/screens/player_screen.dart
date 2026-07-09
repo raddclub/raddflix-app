@@ -48,6 +48,7 @@ import 'package:android_intent_plus/android_intent.dart';
 import '../core/player/subtitle_dubber.dart';
 import '../design_system/components/radd_sheet.dart';
 import '../design_system/radius/radd_radius.dart';
+import '../design_system/spacing/radd_space.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Widget
@@ -2634,7 +2635,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const Icon(Icons.zoom_in_rounded, color: Colors.white70, size: 16),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: RaddSpace.sm),
                               Text(
                                 '${_pinchScale.toStringAsFixed(1)}×',
                                 style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
@@ -2667,7 +2668,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.zoom_out_rounded, color: AppColors.orange, size: 14),
-                            SizedBox(width: 4),
+                            SizedBox(width: RaddSpace.xs),
                             Text('Reset zoom', style: TextStyle(color: AppColors.orange, fontSize: 11, fontWeight: FontWeight.w500)),
                           ],
                         ),
@@ -2710,7 +2711,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                       .fadeOut(duration: 180.ms);
                                 }),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: RaddSpace.xs),
                               Text(
                                 _seekFlashLeft ? '−$_skipInterval s' : '+$_skipInterval s',
                                 style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
@@ -2747,7 +2748,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           CircularProgressIndicator(color: Colors.white),
-                          SizedBox(height: 16),
+                          SizedBox(height: RaddSpace.md),
                           Text('Loading stream…',
                               style: TextStyle(color: Colors.white70, fontSize: 14)),
                         ],
@@ -2787,7 +2788,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               style: const TextStyle(color: Colors.white,
                                   fontSize: 18, fontWeight: FontWeight.bold),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: RaddSpace.sm),
                             Text(_streamError!,
                                 style: const TextStyle(color: Colors.white60, fontSize: 13),
                                 textAlign: TextAlign.center),
@@ -2806,10 +2807,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                   children: [
                                     Text('• Disconnect WiFi, use Jazz mobile data',
                                         style: TextStyle(color: Colors.white70, fontSize: 12)),
-                                    SizedBox(height: 4),
+                                    SizedBox(height: RaddSpace.xs),
                                     Text('• Ensure Jazz SIM is active in slot 1',
                                         style: TextStyle(color: Colors.white70, fontSize: 12)),
-                                    SizedBox(height: 4),
+                                    SizedBox(height: RaddSpace.xs),
                                     Text('• Toggle airplane mode off/on, then retry',
                                         style: TextStyle(color: Colors.white70, fontSize: 12)),
                                   ],
@@ -2889,7 +2890,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                     style: TextStyle(color: Colors.white70, fontSize: 13)),
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: RaddSpace.sm),
                             GestureDetector(
                               onTap: () => _playEpisodeAt(_currentEpIdx + 1),
                               child: Container(
@@ -3197,7 +3198,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               onTap: () => Navigator.of(context).pop(),
             ),
 
-            const SizedBox(width: 4),
+            const SizedBox(width: RaddSpace.xs),
 
             // Title + episode counter badge
             Expanded(
@@ -3236,7 +3237,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             ),
 
-            const SizedBox(width: 4),
+            const SizedBox(width: RaddSpace.xs),
 
             // P2: Zoom badge
             if (_zoomMode != 0)
@@ -3432,7 +3433,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     onTap: () => _seekRelative(_skipInterval),
                   ),
                 // Utility buttons — always shown, right of nav
-                const SizedBox(width: 4),
+                const SizedBox(width: RaddSpace.xs),
                 _RaddIconBtn(
                   icon: Icons.lock_outline_rounded,
                   size: 19,
@@ -3836,7 +3837,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
           // ── Sidebar body ────────────────────────────────────────────────
           if (_sidebarExpanded) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: RaddSpace.xs),
             Flexible(
               child: Container(
                 width: 64,
@@ -3985,7 +3986,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           children: [
             const SizedBox(height: 10),
             Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(height: 8),
+            const SizedBox(height: RaddSpace.sm),
             // Vertical bar — fills bottom-to-top like MX Player
             Expanded(
               child: Padding(
@@ -4004,7 +4005,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: RaddSpace.sm),
             Text(
               label,
               style: const TextStyle(
@@ -4203,7 +4204,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     child: const Center(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         CircularProgressIndicator(color: Colors.white),
-                        SizedBox(height: 16),
+                        SizedBox(height: RaddSpace.md),
                         Text('Loading stream…',
                             style: TextStyle(color: Colors.white70, fontSize: 14)),
                       ]),
@@ -4216,11 +4217,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     color: Colors.black87,
                     child: Center(
                       child: Padding(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(RaddSpace.md),
                         child: Column(mainAxisSize: MainAxisSize.min, children: [
                           const Icon(Icons.error_outline_rounded,
                               color: Colors.redAccent, size: 36),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: RaddSpace.sm),
                           Text(_streamError!,
                               style: const TextStyle(color: Colors.white70, fontSize: 12),
                               textAlign: TextAlign.center,
@@ -4243,7 +4244,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                 _openMedia(_currentFileId);
                               },
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: RaddSpace.sm),
                             TextButton(
                               onPressed: () => Navigator.of(context).pop(),
                               child: const Text('Back',
@@ -4407,7 +4408,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               child: Icon(icon,
                   color: active ? _accentColor : Colors.white70, size: 20),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: RaddSpace.xs),
             Text(
               label,
               style: TextStyle(
@@ -5031,7 +5032,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('When video ends…', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
+              const SizedBox(height: RaddSpace.xs),
               const Text('Applies to every video in this session', style: TextStyle(color: Colors.white38, fontSize: 12)),
               const SizedBox(height: 12),
               for (final pair in [
@@ -5097,7 +5098,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                   ],
                 ),
                 if (_silenceSkipEnabled) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: RaddSpace.md),
                   Row(children: [
                     const Text('Silence threshold  ', style: TextStyle(color: Colors.white70, fontSize: 13)),
                     Text(
@@ -5152,7 +5153,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Zoom & Crop', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
+                const SizedBox(height: RaddSpace.xs),
                 const Text('Aspect ratio override', style: TextStyle(color: Colors.white38, fontSize: 12)),
                 const SizedBox(height: 14),
                 Wrap(
@@ -5209,7 +5210,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text('Gesture Map', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
+                const SizedBox(height: RaddSpace.xs),
                 const Text('Toggle each gesture on or off', style: TextStyle(color: Colors.white38, fontSize: 12)),
                 const SizedBox(height: 12),
                 SwitchListTile(
@@ -5274,7 +5275,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                     activeColor: Colors.white,
                   ),
                 ]),
-                const SizedBox(height: 16),
+                const SizedBox(height: RaddSpace.md),
                 const Text('INTRO', style: TextStyle(color: Colors.white54, fontSize: 11, letterSpacing: 1)),
                 const SizedBox(height: 6),
                 Row(children: [
@@ -5292,7 +5293,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: RaddSpace.sm),
                   Expanded(
                     child: GestureDetector(
                       onTap: () { setState(() => _introEnd = _position); setSt(() {}); _savePrefs(); _showInfoSnackbar('Intro end: ${_formatDuration(_position)}'); },
@@ -5307,7 +5308,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: RaddSpace.sm),
                   GestureDetector(
                     onTap: () { setState(() { _introStart = null; _introEnd = null; }); setSt(() {}); _savePrefs(); },
                     child: const Icon(Icons.close_rounded, color: Colors.white38, size: 20),
@@ -5331,7 +5332,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: RaddSpace.sm),
                   GestureDetector(
                     onTap: () { setState(() => _outroStart = null); setSt(() {}); _savePrefs(); },
                     child: const Icon(Icons.close_rounded, color: Colors.white38, size: 20),
@@ -6454,7 +6455,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   List<Widget> _buildDubSection(BuildContext context) {
     final hasDub = widget.onDubRequested != null;
     return [
-      const SizedBox(height: 4),
+      const SizedBox(height: RaddSpace.xs),
       Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
@@ -6478,11 +6479,11 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                 child: const Text('AI', style: TextStyle(color: Color(0xFF4A9EFF),
                     fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: RaddSpace.sm),
               const Text('Auto Dubbing', style: TextStyle(color: Colors.white,
                   fontSize: 14, fontWeight: FontWeight.w700)),
             ]),
-            const SizedBox(height: 4),
+            const SizedBox(height: RaddSpace.xs),
             const Text('Generates on-device voice dub from this subtitle',
                 style: TextStyle(color: Colors.white38, fontSize: 11)),
             const SizedBox(height: 10),
@@ -6501,7 +6502,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const Icon(Icons.download_for_offline_outlined, color: Colors.amber, size: 15),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: RaddSpace.sm),
                   const Expanded(
                     child: Text(
                       'First time in a language? Install its voice pack first.',
@@ -6562,7 +6563,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
           ],
         ),
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: RaddSpace.md),
     ];
   }
 
@@ -6606,7 +6607,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         Align(
           alignment: vAlign,
           child: Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(RaddSpace.sm),
             child: Container(
               padding: _subShadowIdx == 3
                   ? const EdgeInsets.symmetric(horizontal: 10, vertical: 4)
@@ -6784,7 +6785,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         ),
         child: Row(children: [
           const Icon(Icons.subtitles_rounded, color: Color(0xFF4A9EFF), size: 18),
-          const SizedBox(width: 8),
+          const SizedBox(width: RaddSpace.sm),
           Expanded(child: Text(widget.currentFile!.split('/').last,
               style: const TextStyle(color: Colors.white70, fontSize: 12),
               overflow: TextOverflow.ellipsis)),
@@ -6869,7 +6870,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         value: _subOpacity, min: 0.1, max: 1.0, divisions: 9,
         onChanged: (v) { setState(() => _subOpacity = v); _setProp('sub-opacity', v.toStringAsFixed(2)); _saveSubPrefs(); },
       ),
-      const SizedBox(height: 8),
+      const SizedBox(height: RaddSpace.sm),
       _secLabel('Text Colour'),
       _buildColorRow(presets: textColors, current: _subColor, onPick: (c) {
         setState(() => _subColor = c);
@@ -6890,7 +6891,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         selected: _subShadowIdx,
         onChanged: _applyShadow,
       ),
-      const SizedBox(height: 8),
+      const SizedBox(height: RaddSpace.sm),
     ]);
   }
 
@@ -6928,7 +6929,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       value: _subFitToVideo,
       onChanged: (v) { setState(() => _subFitToVideo = v); HapticFeedback.selectionClick(); _setProp('sub-ass-scale-with-window', v ? 'yes' : 'no'); _saveSubPrefs(); },
     ),
-    const SizedBox(height: 8),
+    const SizedBox(height: RaddSpace.sm),
   ]);
 
   Widget _buildSyncTab() => ListView(padding: const EdgeInsets.all(20), children: [
@@ -6940,7 +6941,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       _BigStepBtn(label: '−0.5s', onTap: () { setState(() => _sync -= 0.5); widget.onSyncChanged(-0.5); HapticFeedback.selectionClick(); }),
       const SizedBox(width: 6),
       _BigStepBtn(label: '−0.1s', onTap: () { setState(() => _sync -= 0.1); widget.onSyncChanged(-0.1); HapticFeedback.selectionClick(); }),
-      const SizedBox(width: 16),
+      const SizedBox(width: RaddSpace.md),
       Container(
         width: 76, height: 48,
         decoration: BoxDecoration(
@@ -6952,7 +6953,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
           style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
         )),
       ),
-      const SizedBox(width: 16),
+      const SizedBox(width: RaddSpace.md),
       _BigStepBtn(label: '+0.1s', onTap: () { setState(() => _sync += 0.1); widget.onSyncChanged(0.1); HapticFeedback.selectionClick(); }),
       const SizedBox(width: 6),
       _BigStepBtn(label: '+0.5s', onTap: () { setState(() => _sync += 0.5); widget.onSyncChanged(0.5); HapticFeedback.selectionClick(); }),
@@ -6963,14 +6964,14 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     )),
     const SizedBox(height: 20),
     const Divider(color: Colors.white12),
-    const SizedBox(height: 16),
+    const SizedBox(height: RaddSpace.md),
     _secLabel('Display Speed'),
     const Text('Adjust subtitle timing rate relative to video speed',
         style: TextStyle(color: Colors.white38, fontSize: 11)),
     const SizedBox(height: 20),
     Row(mainAxisAlignment: MainAxisAlignment.center, children: [
       _BigStepBtn(label: '−10%', onTap: () { setState(() => _speed = (_speed - 0.1).clamp(0.5, 2.0)); widget.onSpeedChanged(_speed); HapticFeedback.selectionClick(); }),
-      const SizedBox(width: 24),
+      const SizedBox(width: RaddSpace.lg),
       Container(
         width: 76, height: 48,
         decoration: BoxDecoration(
@@ -6982,7 +6983,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
           style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
         )),
       ),
-      const SizedBox(width: 24),
+      const SizedBox(width: RaddSpace.lg),
       _BigStepBtn(label: '+10%', onTap: () { setState(() => _speed = (_speed + 0.1).clamp(0.5, 2.0)); widget.onSpeedChanged(_speed); HapticFeedback.selectionClick(); }),
     ]),
     Center(child: TextButton(
@@ -6994,7 +6995,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   Widget _buildOnlineTab() {
     if (widget.isLocal) {
       return const Center(child: Padding(
-        padding: EdgeInsets.all(32),
+        padding: EdgeInsets.all(RaddSpace.xl),
         child: Text('Online search is not available for local files.',
             style: TextStyle(color: Colors.white38, fontSize: 13), textAlign: TextAlign.center),
       ));
@@ -7019,7 +7020,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
           ),
           onSubmitted: (_) => _fetchOnlineSubtitles(context),
         )),
-        const SizedBox(width: 8),
+        const SizedBox(width: RaddSpace.sm),
         GestureDetector(
           onTap: _onlineLoading ? null : () => _fetchOnlineSubtitles(context),
           child: Container(
@@ -7073,7 +7074,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       if (!_onlineLoading && _onlineResults.isNotEmpty) ...[
         Text('${_onlineResults.length} subtitles found:',
             style: const TextStyle(color: Colors.white54, fontSize: 11)),
-        const SizedBox(height: 8),
+        const SizedBox(height: RaddSpace.sm),
         for (final r in _onlineResults)
           GestureDetector(
             onTap: () { HapticFeedback.lightImpact(); _downloadOnlineSubtitle(context, r); },
@@ -7089,7 +7090,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                   Text((r['SubFileName'] ?? '').replaceAll('.gz', ''),
                       style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
                       maxLines: 2, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: RaddSpace.xs),
                   Row(children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -7105,13 +7106,13 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
                         style: const TextStyle(color: Colors.white38, fontSize: 10)),
                   ]),
                 ])),
-                const SizedBox(width: 8),
+                const SizedBox(width: RaddSpace.sm),
                 const Icon(Icons.download_rounded, color: Colors.white54, size: 20),
               ]),
             ),
           ),
       ],
-      const SizedBox(height: 8),
+      const SizedBox(height: RaddSpace.sm),
     ]);
   }
 
@@ -7446,7 +7447,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                               fontSize: 13,
                               fontWeight: _tab == entry.idx ? FontWeight.bold : FontWeight.normal,
                             )),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: RaddSpace.xs),
                         if (_tab == entry.idx)
                           Container(height: 2, width: 32, color: Colors.white),
                       ],
@@ -7462,7 +7463,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
         if (_tab == 0)
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(RaddSpace.md),
               child: GridView.count(
                 crossAxisCount: 3,
                 childAspectRatio: 1.8,
@@ -7543,7 +7544,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                   onChanged: (v) { setState(() => _labBass = v); _applyLabAf(); },
                 ),
                 if (_labBass) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: RaddSpace.xs),
                   Padding(
                     padding: const EdgeInsets.only(left: 52),
                     child: Row(children: [
@@ -7604,7 +7605,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                   child: const Row(
                     children: [
                       Icon(Icons.info_outline_rounded, color: AppColors.orange, size: 14),
-                      SizedBox(width: 8),
+                      SizedBox(width: RaddSpace.sm),
                       Expanded(
                         child: Text(
                           'Lab, EQ and Reverb now stack — all active together.',
@@ -7635,7 +7636,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const SizedBox(width: 16),
+                    const SizedBox(width: RaddSpace.md),
                     Text(
                       widget.audioBalance.abs() < 0.02
                           ? 'Center'
@@ -7712,12 +7713,12 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                                   ['60Hz', '230Hz', '910Hz', '3.6k', '14k'][i],
                                   style: const TextStyle(color: Colors.white54, fontSize: 10),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: RaddSpace.xs),
                                 Text(
                                   '${_bands[i] >= 0 ? '+' : ''}${_bands[i].round()}',
                                   style: const TextStyle(color: Colors.white70, fontSize: 10),
                                 ),
-                                const SizedBox(height: 8),
+                                const SizedBox(height: RaddSpace.sm),
                               ],
                             ),
                           ),
@@ -7900,7 +7901,7 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
                 ],
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: RaddSpace.sm),
 
               // Row 2 of shortcuts
               _ShortcutGrid(
@@ -7916,7 +7917,7 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
                 ],
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: RaddSpace.sm),
 
               // Row 3 — advanced
               _ShortcutGrid(
@@ -7928,7 +7929,7 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
                 ],
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: RaddSpace.sm),
               const Padding(
                 padding: EdgeInsets.only(top: 8, bottom: 6),
                 child: Text('Features', style: TextStyle(color: Colors.white54, fontSize: 12)),
@@ -7945,7 +7946,7 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
                 ],
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: RaddSpace.sm),
 
               // Row 5 — audio & silence
               _ShortcutGrid(
@@ -7957,7 +7958,7 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
                 ],
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: RaddSpace.sm),
 
               // Row 6 — video & layout
               _ShortcutGrid(
@@ -8058,7 +8059,7 @@ class _ShortcutGrid extends StatelessWidget {
             child: Column(
               children: [
                 Icon(item.icon, color: Colors.white, size: 20),
-                const SizedBox(height: 4),
+                const SizedBox(height: RaddSpace.xs),
                 Text(item.label, style: const TextStyle(color: Colors.white70, fontSize: 10),
                     textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
               ],
@@ -8260,7 +8261,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
       'Dots', 'Minimal',                   // 9-10
     ];
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(RaddSpace.md),
       children: [
         // Video info shortcut (replaces the old top-bar info button)
         if (widget.onVideoInfo != null) ...[
@@ -8282,7 +8283,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             onTap: widget.onVideoInfo,
           ),
           const Divider(color: Colors.white12),
-          const SizedBox(height: 8),
+          const SizedBox(height: RaddSpace.sm),
         ],
         // P14: Accent colour picker
         const Text('Accent colour', style: TextStyle(color: Colors.white70, fontSize: 12)),
@@ -8310,7 +8311,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                               : null,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: RaddSpace.xs),
                       Text(accentNames[i],
                           style: TextStyle(
                               color: _accentIdx == i ? Colors.white : Colors.white38,
@@ -8324,7 +8325,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         const SizedBox(height: 20),
         // P14: Progress bar style
         const Text('Progress bar style', style: TextStyle(color: Colors.white70, fontSize: 12)),
-        const SizedBox(height: 8),
+        const SizedBox(height: RaddSpace.sm),
         Wrap(
           spacing: 8, runSpacing: 8,
           children: List.generate(pbStyles.length, (i) => GestureDetector(
@@ -8353,10 +8354,10 @@ class _SettingsPanelState extends State<_SettingsPanel> {
 
   Widget _buildScreenTab() {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(RaddSpace.md),
       children: [
         const Text('Display', style: TextStyle(color: Colors.white54, fontSize: 12)),
-        const SizedBox(height: 8),
+        const SizedBox(height: RaddSpace.sm),
 
         SwitchListTile(
           title: const Text('Show Remaining Time', style: TextStyle(color: Colors.white, fontSize: 14)),
@@ -8381,9 +8382,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         ),
 
         const Divider(color: Colors.white12),
-        const SizedBox(height: 8),
+        const SizedBox(height: RaddSpace.sm),
         const Text('Status bar in player', style: TextStyle(color: Colors.white70, fontSize: 12)),
-        const SizedBox(height: 4),
+        const SizedBox(height: RaddSpace.xs),
 
         SwitchListTile(
           title: const Text('Show clock / time', style: TextStyle(color: Colors.white, fontSize: 14)),
@@ -8393,9 +8394,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           contentPadding: EdgeInsets.zero,
         ),
         const Divider(color: Colors.white12),
-        const SizedBox(height: 8),
+        const SizedBox(height: RaddSpace.sm),
         const Text('Screen brightness', style: TextStyle(color: Colors.white70, fontSize: 12)),
-        const SizedBox(height: 4),
+        const SizedBox(height: RaddSpace.xs),
         Row(
           children: [
             const Icon(Icons.brightness_low_rounded, color: Colors.white38, size: 18),
@@ -8550,7 +8551,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           fontWeight: FontWeight.w700, letterSpacing: 0.6)),
       ),
       ...items,
-      const SizedBox(height: 4),
+      const SizedBox(height: RaddSpace.xs),
     ]),
   );
 
@@ -8696,7 +8697,7 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
               // Track list
               if (widget.tracks.isEmpty)
                 const Padding(
-                  padding: EdgeInsets.all(16),
+                  padding: EdgeInsets.all(RaddSpace.md),
                   child: Text('No audio tracks found.', style: TextStyle(color: Colors.white54)),
                 ),
 
@@ -8785,7 +8786,7 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
 
               // AV Sync
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(RaddSpace.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -8798,10 +8799,10 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
                           setState(() => _sync -= 0.1);
                           widget.onSyncChanged(-0.1);
                         }),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: RaddSpace.md),
                         Text('${_sync.toStringAsFixed(1)}s',
                             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: RaddSpace.md),
                         _SyncBtn(label: '+', onTap: () {
                           setState(() => _sync += 0.1);
                           widget.onSyncChanged(0.1);
@@ -9043,12 +9044,12 @@ class _SidebarCustomizerPanelState extends State<_SidebarCustomizerPanel> {
                       GestureDetector(
                         onTap: () => _remove(id),
                         child: Container(
-                          padding: const EdgeInsets.all(4),
+                          padding: const EdgeInsets.all(RaddSpace.xs),
                           child: const Icon(Icons.close_rounded,
                               color: Colors.white38, size: 16),
                         ),
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: RaddSpace.xs),
                       // Drag handle
                       ReorderableDragStartListener(
                         index: i,
@@ -9096,7 +9097,7 @@ class _SidebarCustomizerPanelState extends State<_SidebarCustomizerPanel> {
                       trailing: GestureDetector(
                         onTap: () => _add(id),
                         child: Container(
-                          padding: const EdgeInsets.all(4),
+                          padding: const EdgeInsets.all(RaddSpace.xs),
                           child: const Icon(Icons.add_circle_outline_rounded,
                               color: Colors.white60, size: 20),
                         ),
@@ -9138,7 +9139,7 @@ class _DubLangBtn extends StatelessWidget {
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(flag, style: const TextStyle(fontSize: 22)),
-          const SizedBox(height: 4),
+          const SizedBox(height: RaddSpace.xs),
           Text(label, style: const TextStyle(color: Colors.white,
               fontSize: 13, fontWeight: FontWeight.w700)),
           Text(sublabel, style: TextStyle(color: color.withOpacity(0.8), fontSize: 10)),
@@ -9223,7 +9224,7 @@ class _DubProgressCard extends StatelessWidget {
           Text(totalLines > 0 ? 'Line $currentLine of $totalLines' : statusText,
               style: const TextStyle(color: Colors.white38, fontSize: 12)),
         ]),
-        const SizedBox(height: 8),
+        const SizedBox(height: RaddSpace.sm),
         Text(statusText,
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white24, fontSize: 11)),
