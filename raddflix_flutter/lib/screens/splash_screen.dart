@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/theme/radd_theme.dart';
+import '../core/theme/radd_colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
@@ -142,7 +143,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   center: Alignment.center,
                   radius: 0.8,
                   colors: [
-                    AppColors.primary.withOpacity(0.12),
+                    context.signalPrimary.withOpacity(0.12),
                     _splashBg,
                   ],
                 ),
@@ -157,7 +158,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(colors: [
-                  AppColors.primary.withOpacity(0.10),
+                  context.signalPrimary.withOpacity(0.10),
                   Colors.transparent,
                 ]),
               ),
@@ -171,7 +172,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(colors: [
-                  AppColors.primary.withOpacity(0.07),
+                  context.signalPrimary.withOpacity(0.07),
                   Colors.transparent,
                 ]),
               ),
@@ -224,7 +225,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             boxShadow: [
               ...AppShadows.glow,
               BoxShadow(
-                color: AppColors.primary.withOpacity(0.18),
+                color: context.signalPrimary.withOpacity(0.18),
                 blurRadius: 50,
                 spreadRadius: 4,
               ),
@@ -267,7 +268,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             ),
             children: [
               TextSpan(text: 'Radd', style: TextStyle(color: t.textPrimary)),
-              TextSpan(text: 'Flix', style: TextStyle(color: AppColors.primary)),
+              TextSpan(text: 'Flix', style: TextStyle(color: context.signalPrimary)),
             ],
           ),
         )
@@ -322,7 +323,7 @@ class _ThreeDotsLoaderState extends State<_ThreeDotsLoader>
             margin: const EdgeInsets.symmetric(horizontal: 3),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.primary.withOpacity(
+              color: context.signalPrimary.withOpacity(
                   0.3 + 0.7 * (i % 2 == 0 ? anim.value : 1 - anim.value)),
             ),
           ),
