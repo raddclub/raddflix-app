@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/radius/radd_radius.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:local_auth/local_auth.dart';
@@ -329,7 +330,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
             padding: EdgeInsets.all(RaddSpace.md),
             decoration: BoxDecoration(
               color: AppColors.primary.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: RaddRadius.mdRadius,
               border: Border.all(color: AppColors.primary.withOpacity(0.2)),
             ),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -434,7 +435,7 @@ class _SettingTile extends StatelessWidget {
         width: 36, height: 36,
         decoration: BoxDecoration(
           color: t.border,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: RaddRadius.smRadius,
         ),
         child: Icon(icon, color: titleColor ?? t.textPrimary, size: 20),
       ),
