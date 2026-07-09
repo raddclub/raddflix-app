@@ -3,48 +3,38 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
-## Current State (2026-07-09 — UI-UX-MIGRATION Phase 2 in progress — HANDED OFF to new agent/account)
+## Current State (2026-07-09 — Phase 2 COMPLETE, Phase 3 next)
 
-### UI-UX-MIGRATION — Phase 2 in progress — 2026-07-09
+### UI-UX-MIGRATION — Phase 2 complete — 2026-07-09
 
 **Start here if you're a fresh agent/account picking this up:** read `AGENT_PROMPT.md` →
 this section → `agent-hub/UI_UX_MIGRATION_PLAN.md`, then do the first unchecked checkbox in the
 earliest open phase of that plan file. The plan file is the single source of truth for
 progress — this section just orients you.
 
-Executing the `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` roadmap phase-by-phase, since a prior
-session's audit+blueprint were docs-only. Progress so far, all pushed and CI-green
-(`build-apk.yml` — this environment has no Flutter SDK, so that workflow is the only real
-compile/test signal; never assume a push is safe without checking its run):
+Executing the `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` roadmap phase-by-phase. **Phase 2 is
+now ✅ COMPLETE.** All items done (CI pending on `6457ab2`):
 
-- Phase 2, item 1: `pin_lock_screen.dart` (`PinLockScreen` + `PinSetupScreen`) migrated onto
-  the shared `RaddLockPad` component.
-- Phase 2, item 2: `vault_lock_screen.dart` migrated onto `RaddLockPad` (vault accent), bespoke
-  numpad/shake code removed.
-- Along the way, fixed a real pre-existing bug: `radd_lock_pad.dart` was missing its `RaddType`
-  import, so it would have failed to compile the moment anyone used it — it had zero call sites
-  before this effort (see the earlier audit's finding that all `Radd*` components/tokens have
-  zero adoption outside `lib/design_system/`).
-- A post-migration code review caught two regressions (PIN mismatch flow wiping the wrong
-  field; stale error text not clearing on new digit entry) — both fixed, including adding a new
-  `RaddLockPad.onChanged` hook that any future consumer of the component should use for
-  clearing caller-owned error state (fires on every digit/backspace, before `onSubmit`).
-- One accepted, documented tradeoff: going "back" during PIN confirm now always restarts the
-  first-PIN entry from scratch, because `RaddLockPad` has no prefill/resume support for
-  partial digit entry. Not a bug — a consequence of the shared-component approach.
+- Phase 2, item 1: `pin_lock_screen.dart` + `PinSetupScreen` migrated onto `RaddLockPad`.
+- Phase 2, item 2: `vault_lock_screen.dart` migrated onto `RaddLockPad` (vault accent).
+- Phase 2, code review: two regressions caught and fixed (`d8bfcd7`). New `RaddLockPad.onChanged`
+  hook added — future consumers must use it to clear caller-owned error state.
+- Phase 2, ContentCard token pass: `content_card.dart` radius tokens migrated from `AppRadius.*`
+  to `RaddRadius.*` (`6457ab2`). Full call-site consolidation onto `RaddCard` deferred to
+  Phase 4/5 (ContentCard has features RaddCard lacks). `SimosaCard` intentionally excluded.
+- Phase 2, player dead-code: CLOSED per TASKS.md `PLAYER-DEAD-CODE-CLEANUP` — user declined
+  deletion. Files are intentionally-parked unshipped features.
 
-**Next unchecked item:** Phase 2's `ContentCard`/`SimosaCard` duplication → consolidate onto
-`RaddCard` (start with the 2 `SimosaCard` usages), then confirm/delete dead files under
-`lib/widgets/player/`. Full detail and the rest of the phases are in
-`agent-hub/UI_UX_MIGRATION_PLAN.md` — do not duplicate that detail here.
+**Next work:** Phase 3 (auth + small screens token pass — `login_screen.dart`,
+`register_screen.dart`, `watchlist_screen.dart`, `history_screen.dart`, `splash_screen.dart`,
+`settings_screen.dart`). Phase 3 is NOT blocked — start at the first `[ ]` item in that section
+of `agent-hub/UI_UX_MIGRATION_PLAN.md`. Phase 4 (player) is also unblocked from the dead-code
+prerequisite but is high-risk — do not start Phase 4 before Phase 3 is proven.
 
-**Workflow reminders for whoever picks this up:** this repo requires
-`log_pending.sh` → edit → `auto_commit.sh` per code file (sequential, no batching, no local
-`git commit`/`push` — see `agent-hub/RULES.md` Rule 42). Docs-only changes use
-`push_to_github.sh` instead. If `git status`/`git log` looks stale or push fails with
-"behind origin", the local `.git` ref just hasn't caught up with the last API-based push —
-`git fetch && git reset --mixed origin/main` before retrying (see
-`.agents/memory/nested-repo-git-stripped.md` for why).
+**Workflow reminders:** `log_pending.sh` → edit → `auto_commit.sh` per code file (sequential,
+no batching, no local `git commit`/`push` — see `agent-hub/RULES.md` Rule 42). After any
+push touching `raddflix_flutter/**`, verify the `build-apk.yml` CI run is green before
+marking work done (Rule 40/46).
 
 ---
 

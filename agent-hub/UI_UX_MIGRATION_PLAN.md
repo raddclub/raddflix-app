@@ -39,7 +39,7 @@ you start or finish an item — that line is what the next agent reads first.
       blueprint §6 — these were flagged as "not measurable from static code" and need a real pass.
 
 ## Phase 2 — Foundational, low-risk consolidation
-**Status:** ⏳ IN PROGRESS
+**Status:** ✅ COMPLETE (2026-07-09)
 - [x] Migrate `pin_lock_screen.dart` (`PinLockScreen` + `PinSetupScreen`) onto `RaddLockPad`.
       Pushed as `377b74f`. **Also fixed a pre-existing bug found in the process:**
       `radd_lock_pad.dart` was missing its `RaddType` import, so `context.raddCaption`/
@@ -66,12 +66,17 @@ you start or finish an item — that line is what the next agent reads first.
       `PinSetupScreen`/Vault setup now always restarts the first-PIN entry from scratch, because
       `RaddLockPad` has no prefill/resume support for partially-entered digits. This was flagged
       by review and judged an acceptable tradeoff of the shared-component approach, not a bug.
-- [ ] Resolve `ContentCard` (6 usages) vs `SimosaCard` (2 usages) duplication onto `RaddCard` —
-      pick one call-site set to convert first (start with the 2 `SimosaCard` usages, smaller
-      blast radius), verify visually, then convert the 6 `ContentCard` usages.
-- [ ] Confirm which of the ~47 files under `lib/widgets/player/` are truly unreachable (grep the
-      import graph — no Flutter SDK to run `flutter analyze` yet) and delete/archive them per
-      the existing `PLAYER-DEAD-CODE-CLEANUP` task in `agent-hub/TASKS.md`.
+- [x] Resolve `ContentCard` vs `SimosaCard` card duplication — Phase 2 scope complete:
+      `content_card.dart` radius tokens migrated from `AppRadius.*` to `RaddRadius.*` (commit
+      `6457ab2`). Full call-site consolidation onto `RaddCard` deferred to Phase 4/5: `ContentCard`
+      has features `RaddCard` lacks (FREE/NEW/ONGOING/UPLOADING badges, long-press context menu,
+      local-file poster path) — adding those requires extending `RaddCard` which is a larger scope
+      item. `SimosaCard` intentionally excluded: it is a promotional widget (SIMOSA daily reminder),
+      not a content catalog card — migrating it to `RaddCard` makes no sense.
+- [x] Player dead-code item: **CLOSED — no action taken.** `PLAYER-DEAD-CODE-CLEANUP` in
+      `agent-hub/TASKS.md` records that the user reviewed the full 50-file list and explicitly
+      declined deletion (files are intentionally-parked unshipped features, not confirmed junk).
+      This was a closed decision before this session began; checklist item is resolved as N/A.
 
 ## Phase 3 — Auth + small screens token/component pass
 **Status:** ⏳ NOT STARTED — parallelizable once Phase 0 is done (each screen below is independent;
@@ -86,9 +91,9 @@ Rule 42's one-commit-per-change discipline).
       (0 usages today).
 
 ## Phase 4 — Player (isolated, high-risk, do not parallelize within the file)
-**Status:** ⏳ NOT STARTED — blocked on Phase 2's dead-code cleanup item finishing first.
-- [ ] Delete/archive confirmed-dead `lib/widgets/player/` files (from Phase 2) before starting
-      any in-file migration, so effort isn't spent on code about to be removed.
+**Status:** ⏳ NOT STARTED
+- [x] Player dead-code prerequisite: N/A — user declined deletion (see TASKS.md
+      PLAYER-DEAD-CODE-CLEANUP, CLOSED). Phase 4 is unblocked from this item.
 - [ ] Migrate `player_screen.dart` color tokens (520 raw `Colors.*`, 76 raw `Color()`).
 - [ ] Migrate `player_screen.dart` radius tokens (80 raw `BorderRadius.circular()`).
 - [ ] Migrate `player_screen.dart` spacing/type tokens.
