@@ -341,11 +341,11 @@ class _PinEntrySheetState extends State<_PinEntrySheet> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: filled
-                    ? (_shake ? const AppColors.error : AppColors.primary)
+                    ? (_shake ? AppColors.error : AppColors.primary)
                     : Colors.transparent,
                 border: Border.all(
                     color: filled
-                        ? (_shake ? const AppColors.error : AppColors.primary)
+                        ? (_shake ? AppColors.error : AppColors.primary)
                         : t.border, width: 1.5),
               ),
             );
