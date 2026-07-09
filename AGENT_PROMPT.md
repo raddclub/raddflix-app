@@ -89,6 +89,32 @@ and wait for their actual task:
    use fallback approaches when something fails, without ever skipping verification or the
    "confirm before touching production" rule.
 
+## UI/UX design-system migration — active, multi-session effort (started 2026-07-09)
+
+This is the current largest body of work on the project and is explicitly designed to survive
+being picked up by a different agent, a different Replit account, or a session that hit its usage
+limit mid-task. **If you are being asked to "continue the UI/UX work" or "fix the design system,"
+this section is your entry point — do not restart the analysis, it is already done:**
+
+1. Read `docs/AUDIT_UI_UX_REPORT.md` — the original evidence-gathering audit (what's wrong, why).
+2. Read `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` — the full analysis turned into a roadmap
+   (readiness dashboard, screen-by-screen compliance matrix, token mapping tables, design-debt
+   inventory, phased plan). Treat this as background/rationale, not a checklist.
+3. Read `agent-hub/UI_UX_MIGRATION_PLAN.md` — **the actual checklist.** Phases 0–7, each with
+   checkboxes. Find the first phase with any unchecked `[ ]` item and continue there. Do not
+   jump ahead to a later phase while an earlier one has open items, except where that file
+   explicitly marks a phase as parallelizable.
+4. Follow Rule 42 (`log_pending.sh` → edit → `auto_commit.sh`) for every single file change in
+   this effort, same as any other code change in this repo — no exceptions for "it's just a
+   token swap." Check a box in `UI_UX_MIGRATION_PLAN.md` only after the push has succeeded and,
+   for any `raddflix_flutter/**` change, the GitHub Actions build is confirmed green.
+5. If `agent-hub/UNPUSHED.txt` has content when your session starts, run `bash recover_push.sh`
+   before doing anything else — a previous agent's edit may not have landed yet.
+6. This is intentionally a long-running, many-session effort (estimated 3-4 months of work per
+   the blueprint's phased roadmap) — do not try to compress it into one session, and do not
+   create a new "progress so far" file. The checkboxes in `UI_UX_MIGRATION_PLAN.md` ARE the
+   progress record; keep them current and nothing else is needed for a clean handoff.
+
 Older one-off audit reports and superseded handoff files have been deleted (2026-07-06 cleanup).
 There is no `archive/` folder anymore — do not recreate one. If you think something is worth
 preserving "for reference," it belongs as a section in `agent-hub/memory/` (a topic file) or
