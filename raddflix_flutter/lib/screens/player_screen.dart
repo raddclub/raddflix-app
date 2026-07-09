@@ -2660,14 +2660,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.72),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                          border: Border.all(color: AppColors.orange.withOpacity(0.5)),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.zoom_out_rounded, color: Colors.orange, size: 14),
+                            Icon(Icons.zoom_out_rounded, color: AppColors.orange, size: 14),
                             SizedBox(width: 4),
-                            Text('Reset zoom', style: TextStyle(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.w500)),
+                            Text('Reset zoom', style: TextStyle(color: AppColors.orange, fontSize: 11, fontWeight: FontWeight.w500)),
                           ],
                         ),
                       ),
@@ -2796,9 +2796,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Colors.orange.withOpacity(0.08),
+                                  color: AppColors.orange.withOpacity(0.08),
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                                  border: Border.all(color: AppColors.orange.withOpacity(0.3)),
                                 ),
                                 child: const Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3329,12 +3329,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   margin: const EdgeInsets.only(right: 4),
                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.2),
+                    color: AppColors.orange.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(5),
-                    border: Border.all(color: Colors.orange.withOpacity(0.6), width: 0.8),
+                    border: Border.all(color: AppColors.orange.withOpacity(0.6), width: 0.8),
                   ),
                   child: Text('${_videoRotation}deg',
-                      style: const TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+                      style: const TextStyle(color: AppColors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
                 ),
               ),
 
@@ -6539,7 +6539,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
             Row(children: [
               Expanded(child: _DubLangBtn(
                 flag: '🇵🇰', label: 'Urdu', sublabel: 'ur-PK',
-                color: const Color(0xFF00A651),
+                color: AppColors.jazzGreen,
                 onTap: hasDub ? () => widget.onDubRequested!('ur-PK') : null,
               )),
               const SizedBox(width: 10),
@@ -7596,18 +7596,18 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                   margin: const EdgeInsets.only(top: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.12),
+                    color: AppColors.orange.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    border: Border.all(color: AppColors.orange.withOpacity(0.3)),
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.info_outline_rounded, color: Colors.orange, size: 14),
+                      Icon(Icons.info_outline_rounded, color: AppColors.orange, size: 14),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Lab, EQ and Reverb now stack — all active together.',
-                          style: TextStyle(color: Colors.orange, fontSize: 12),
+                          style: TextStyle(color: AppColors.orange, fontSize: 12),
                         ),
                       ),
                     ],
@@ -8429,7 +8429,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           subtitle: const Text('Warm filter — reduces blue light', style: TextStyle(color: Colors.white38, fontSize: 11)),
           value: widget.nightModeEnabled,
           onChanged: widget.onNightModeToggle,
-          activeColor: Colors.orange,
+          activeColor: AppColors.orange,
         ),
         if (widget.nightModeEnabled) ...[
           Padding(
@@ -8442,10 +8442,10 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                   const Icon(Icons.wb_sunny_outlined, color: Colors.white38, size: 16),
                   Expanded(child: Slider(
                     value: widget.nightWarmth, min: 0.1, max: 1.0, divisions: 9,
-                    activeColor: Colors.orange, inactiveColor: Colors.white24,
+                    activeColor: AppColors.orange, inactiveColor: Colors.white24,
                     onChanged: widget.onNightWarmthChanged,
                   )),
-                  const Icon(Icons.wb_sunny_rounded, color: Colors.orange, size: 16),
+                  const Icon(Icons.wb_sunny_rounded, color: AppColors.orange, size: 16),
                 ]),
               ],
             ),
@@ -9170,7 +9170,7 @@ class _DubProgressCard extends StatelessWidget {
     final isUrdu   = lang == 'ur-PK';
     final flag     = isUrdu ? '🇵🇰' : '🇮🇳';
     final langName = isUrdu ? 'Urdu' : 'Hindi';
-    final barColor = isUrdu ? const Color(0xFF00A651) : const Color(0xFFFF9933);
+    final barColor = isUrdu ? AppColors.jazzGreen : const Color(0xFFFF9933);
     final pct      = (progress * 100).round();
 
     return Container(
