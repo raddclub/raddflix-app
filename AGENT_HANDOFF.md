@@ -3,6 +3,37 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-09 — MIGRATION-BLUEPRINT-2026-07-09 Complete)
+
+### MIGRATION-BLUEPRINT-2026-07-09 — Design System Migration Blueprint — 2026-07-09
+
+Follow-on to the same-day UI/UX audit, requested after external review feedback asked for a screen-by-screen compliance matrix, token mapping table, design-debt inventory, journey/heuristic review, and a phased execution plan rather than another descriptive audit.
+
+Produced `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` (new file, does not modify the earlier audit report). Contents:
+- Release Readiness Dashboard — overall estimate ~15–20% (tokens/components exist and are spec-correct but have ~0–2% adoption at call sites).
+- 33-screen compliance matrix with per-file `AppColors`/`Color()`/`Colors.*`/`Radd*` counts and an evidence-based visual-match %.
+- Before/after token mapping tables for colors, radius, spacing, typography, and motion.
+- Design-debt inventory table with counts per category (2,563 raw `Colors.*`, 603 `AppColors.*`, 372 raw `Color()`, 963 raw `EdgeInsets.*`, 94 raw `TextStyle(`, 197 raw `Duration(milliseconds..)`, 92 raw `Curves.*`, ~200+ raw `BorderRadius.circular()`).
+- 12 user-journey reviews (onboarding, auth, home→browsing, search→details, details→player, player, downloads→player, library, settings, subscription, profile).
+- UX heuristic evaluation — explicitly flags which heuristics (accessibility, discoverability, feedback/error handling, responsiveness-at-breakpoints) were NOT measurable from static code and need a dedicated pass.
+- Dedicated player-experience section (9,280-line file, only screen with real component adoption, also largest raw-literal surface in the app).
+- 8-phase roadmap: Phase 0 (unblock — get Flutter SDK/tests running, none available in this environment), Phase 1 (fill heuristic gaps), Phase 2 (RaddLockPad + card-duplication consolidation, lowest risk), Phase 3 (auth + small screens, establishes pattern), Phase 4 (player, isolated), Phase 5 (remaining large screens), Phase 6 (onboarding rebuild — it's a missing *flow*, not a styling gap), Phase 7 (re-audit against same grep queries to prove readiness moved).
+- Component migration plan (which screens should adopt each of the 8 `Radd*` components) and a per-screen visual-consistency checklist for use as Definition-of-Done during migration.
+- Beyond-spec modernization ideas listed but explicitly kept out of migration scope (hero motion, skeleton shimmer, wider `RaddSignalNumeral` use, TV/foldable, AI discovery).
+
+**Key structural finding surfaced by this pass:** `RaddColors` (the `BuildContext` extension used by new code) reads directly from `AppColors` under the hood (`lib/core/theme/radd_colors.dart`) — they are not two competing value systems. Most color migration is therefore a mechanical call-site swap (same value, different accessor), not a value-reconciliation exercise. This should make Phase 3/5 color migration meaningfully faster than the parallel-systems framing in the original audit implied.
+
+Also newly confirmed: `RaddSpace`, `RaddRadius`, `RaddType`, `RaddMotion`, and `RaddLockPad` all have **zero** direct call sites anywhere in `lib/screens` or `lib/widgets` — the token layer is fully built and spec-correct but fully unconsumed outside `lib/design_system/` itself.
+
+Docs only — no app code changed. All figures in the blueprint are grep-verified against the current source tree, not estimated.
+
+**Open items surfaced by this blueprint (not yet scoped as individually tracked tasks):**
+- Phase 0 (Flutter SDK/build tooling to actually compile and test the `Radd*` components) has no owner yet — recommended as the literal first step before any migration work begins.
+- Motion tokens (`RaddMotion`) currently define curves only, no durations — a token-layer gap, not just an adoption gap; needs a design decision before Duration literals can be migrated.
+- Two screens (Subscription, Profile) have no Volume V wireframe to migrate toward — flagged for design to produce one.
+
+---
+
 ## Current State (2026-07-09 — UI-UX-AUDIT-2026-07-09 Complete)
 
 ### UI-UX-AUDIT-2026-07-09 — Full UI/UX & design-system audit — 2026-07-09
