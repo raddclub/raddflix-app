@@ -150,8 +150,12 @@ Migrate in this order (highest raw-literal count first, per blueprint §2/§4):
       `SizedBox(4/8/16/24)`→`RaddSpace.xs/sm/md/lg`. Kept: `Colors.white*/black*/transparent`
       (overlay), `Color(0xFFF97316)` (progress-badge orange — distinct from `AppColors.orange`
       0xFFF9800, no exact token).
-- [ ] `search_screen.dart` (46 `Colors.*`, 33 `AppColors.*`) — also adopt `RaddSheet` for filters
-      (currently no detected `RaddSheet`/`showModalBottomSheet` match).
+- [x] `search_screen.dart` (46 `Colors.*`, 33 `AppColors.*`) — color+spacing done in a5b7fd6:
+      `Colors.green`→`AppColors.success`, `Colors.blue`→`AppColors.info`,
+      `SizedBox(4/8/16)`→`RaddSpace.xs/sm/md`. RaddSheet adoption deferred: filters are an
+      inline-expanding panel (`_showFilters` bool), not a modal — there's no existing
+      `showModalBottomSheet` to convert. Introducing one would be a UX/structural change, not a
+      mechanical token pass; flag to design if a bottom-sheet filter UX is wanted.
 - [ ] `profile_screen.dart` (44 `Colors.*`, 36 `AppColors.*`, 29 raw `Color()` — highest literal
       count in the app) — flag to design: no Volume V wireframe exists; get one before/while
       migrating.

@@ -247,3 +247,10 @@ Phase 4 ✅ COMPLETE. Phase 5 (large screens: show_detail, local_folder, home, e
 - `SizedBox(height/width: 4/8/16/24)` → `RaddSpace.xs/sm/md/lg`
 - Kept: `Colors.white*/black*/transparent` (overlay), `Color(0xFFF97316)` (progress badge —
   distinct from `AppColors.orange` 0xFFF9800, no exact token). Completes Phase 5 item 5.
+
+**Commit a5b7fd6 — search_screen.dart color+spacing pass:**
+- Added `import '../design_system/spacing/radd_space.dart'`
+- `Colors.green` → `AppColors.success`, `Colors.blue` → `AppColors.info`
+- `SizedBox(height/width: 4/8/16)` → `RaddSpace.xs/sm/md`
+- RaddSheet adoption deferred (see plan note — no existing modal to convert; filters are an
+  inline panel). Completes Phase 5 item 6 (mechanical scope).
