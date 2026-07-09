@@ -129,8 +129,13 @@ requires PM input on section membership before code changes.
 ## Phase 5 — Remaining large screens (parallelizable once Phase 3's pattern is proven)
 **Status:** ⏳ NOT STARTED
 Migrate in this order (highest raw-literal count first, per blueprint §2/§4):
-- [ ] `show_detail_screen.dart` (93 `Colors.*`, 59 `AppColors.*`, 13 raw `Color()`)
-- [ ] `local_folder_screen.dart` (71 `Colors.*`, 51 `AppColors.*`)
+- [x] `show_detail_screen.dart` (93 `Colors.*`, 59 `AppColors.*`, 13 raw `Color()`) — done in
+      commits 9914bf2 (color) + 12d0c63 (spacing); radius pass n/a (already partially migrated,
+      remaining values off-scale). See TASK_LOG.md for detail.
+- [x] `local_folder_screen.dart` (71 `Colors.*`, 51 `AppColors.*`) — color+radius done in an
+      earlier commit (6b7c3fb) that shipped a build break (fixed in 9daff07); spacing pass done
+      in 1ae4355. Remaining `Colors.white/black/transparent` are intentional poster-overlay
+      colors with no token. See TASK_LOG.md for detail.
 - [ ] `subscription_screen.dart` (61 `Colors.*`, 52 `AppColors.*`) — flag to design: no Volume V
       wireframe exists for this screen; get one before/while migrating.
 - [ ] `home_screen.dart` (71 `Colors.*`, 33 `AppColors.*`, 3 raw `Color()`)

@@ -197,3 +197,35 @@ Three commits, all CI green. File: 9,280 lines — high-risk phase, done careful
 - File split: warranted (9,280 lines) but scoped as future architectural task.
 
 Phase 4 ✅ COMPLETE. Phase 5 (large screens: show_detail, local_folder, home, etc.) is next.
+
+**Commit 9914bf2 — show_detail_screen.dart color pass:**
+- `Colors.green*` → `AppColors.success` (unifies with existing success-badge usages in same file)
+- `Color(0xFF3B82F6)`→`AppColors.info`, `Color(0xFFF59E0B)`→`AppColors.warning`,
+  `Color(0xFF22C55E)`→`AppColors.success`, `Color(0xFFEF4444)`→`AppColors.error`,
+  `Color(0xFF1A1A2E)`→`AppColors.card` (exact value matches)
+- Kept: `Colors.white*/black*/transparent` (overlay/text-on-poster, no exact token),
+  `Color(0xFFFFB800)` (star rating gold), `Color(0xFFFFB300)` (premium/lock badge amber) —
+  neither matches an existing AppColors value.
+- Note: file already had partial `RaddRadius` usage from an earlier pass — radius pass skipped,
+  remaining raw `BorderRadius.circular()` values (2/4/5/6/10/14/18/20) don't match the 8/12/16
+  scale.
+
+**Commit 12d0c63 — show_detail_screen.dart spacing pass:**
+- Added `import '../design_system/spacing/radd_space.dart'`
+- `SizedBox(height/width: 4/8/16/32)` and `EdgeInsets.all(8)` → `RaddSpace.xs/sm/md/lg`
+- Remaining raw values (2/5/6/9/10/12/13/15/20/24/28/60) have no token — kept.
+
+**Commit 9daff07 — build-break hotfix (local_folder_screen.dart):**
+- A prior, uncommitted-to-plan session's Phase 5 pass on `local_folder_screen.dart` (commit
+  6b7c3fb) shipped a broken build: `_menuTile` referenced the ambient `context` instead of its
+  own `ctx` parameter (undefined getter on `_VideoListTile`), and a `const Text(...)` referenced
+  `context.accentError` inside a const context (extension getters aren't compile-time constant).
+  Fixed both; CI green again on 9daff07. Flagged so the next agent doesn't re-diagnose this if
+  they pick up `local_folder_screen.dart` next.
+
+**Commit 1ae4355 — local_folder_screen.dart spacing pass:**
+- Added `import '../design_system/spacing/radd_space.dart'`
+- `SizedBox(height/width: 4/8/16)` and `EdgeInsets.all(8)` → `RaddSpace.xs/sm/md`
+- Completes Phase 5 item 2 (color+radius were already done in 6b7c3fb, pre-existing this
+  session). Remaining `Colors.white/black/transparent` are intentional poster-overlay colors —
+  no token match, consistent with the kept-list pattern from Phase 4.
