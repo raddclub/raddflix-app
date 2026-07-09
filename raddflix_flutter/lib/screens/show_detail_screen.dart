@@ -742,8 +742,8 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                 }
                               },
                               icon: isDownloading
-                                ? const SizedBox(width: 18, height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: context.signalPrimary))
+                                ? SizedBox(width: 18, height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: context.signalPrimary))  // was const SizedBox — removed const: context.* is runtime
                                 : Icon(
                                     isDownloaded
                                       ? AppIcons.downloadDone
@@ -963,7 +963,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                 border: Border.all(color: context.signalPrimary.withOpacity(0.3)),
                               ),
                               child: _isDownloadingAll
-                                  ? const SizedBox(width: 13, height: 13,
+                                  ? SizedBox(width: 13, height: 13,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 1.5,
                                           valueColor: AlwaysStoppedAnimation(context.signalPrimary)))
@@ -971,7 +971,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                       Icon(AppIcons.cloudDownload,
                                           size: 14, color: context.signalPrimary),
                                       const SizedBox(width: 4),
-                                      const Text('Season', style: TextStyle(
+                                      Text('Season', style: TextStyle(
                                           color: context.signalPrimary,
                                           fontSize: 11, fontWeight: FontWeight.w700)),
                                     ]),
@@ -1454,7 +1454,7 @@ class _EpisodeTile extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: isDownloaded ? null : isDownloading ? null : onDownload,
                   icon: isDownloading
-                    ? const SizedBox(width: 14, height: 14,
+                    ? SizedBox(width: 14, height: 14,
                         child: CircularProgressIndicator(strokeWidth: 2, color: context.signalPrimary))
                     : Icon(
                         isDownloaded
