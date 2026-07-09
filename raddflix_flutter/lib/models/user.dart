@@ -30,6 +30,7 @@ class AppUser {
   final String? email;
   final String avatarColor;
   final String avatarEmoji;
+  final bool isAdmin;
 
   const AppUser({
     required this.id,
@@ -45,6 +46,7 @@ class AppUser {
     this.email,
     this.avatarColor = '#8B002D',
     this.avatarEmoji = '',
+    this.isAdmin = false,
   });
 
   factory AppUser.guest() {
@@ -75,6 +77,7 @@ class AppUser {
       avatarColor: (userData['avatar_color'] as String?)?.isNotEmpty == true
           ? userData['avatar_color'] as String : '#8B002D',
       avatarEmoji: userData['avatar_emoji'] as String? ?? '',
+      isAdmin: _parseBool(userData['is_admin']),
     );
   }
 

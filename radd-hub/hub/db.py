@@ -368,7 +368,8 @@ _DDL = [
         device_bound_at INTEGER,
         is_active       INTEGER DEFAULT 1,
         created_at      INTEGER DEFAULT (strftime('%s','now')),
-        last_login_at   INTEGER
+        last_login_at   INTEGER,
+        is_admin        INTEGER DEFAULT 0
     )""",
     "CREATE INDEX IF NOT EXISTS idx_app_users_phone ON app_users(phone)",
 
@@ -560,6 +561,8 @@ def init_db() -> None:
             "ALTER TABLE plans ADD COLUMN badge TEXT",
             "ALTER TABLE plans ADD COLUMN color TEXT",
             "ALTER TABLE plans ADD COLUMN features_json TEXT",
+            # app_users — mobile app admin flag (gates "Server Downloads" in-app)
+            "ALTER TABLE app_users ADD COLUMN is_admin INTEGER DEFAULT 0",
             "INSERT INTO titles_fts(titles_fts) VALUES('rebuild')",
             # P3.5 cleanup — drop legacy/duplicate columns from titles.
             # Order matters: drop triggers first so SQLite allows DROP COLUMN;
@@ -606,7 +609,7 @@ _CRITICAL_SCHEMA = {
     ],
     "app_users": [
         "id", "phone", "is_active", "created_at",
-        "device_id", "device_name", "last_login_at",
+        "device_id", "device_name", "last_login_at", "is_admin",
     ],
     "titles": [
         "is_published", "updated_at", "media_type",

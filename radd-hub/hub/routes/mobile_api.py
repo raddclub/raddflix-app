@@ -613,7 +613,7 @@ def me(_user_id, _phone):
     with db.conn() as c:
         user = c.execute(
             "SELECT id, phone, device_name, is_active, created_at, last_login_at, "
-            "display_name, email, avatar_color, avatar_emoji "
+            "display_name, email, avatar_color, avatar_emoji, is_admin "
             "FROM app_users WHERE id=?", (_user_id,)
         ).fetchone()
     if not user:
@@ -632,6 +632,7 @@ def me(_user_id, _phone):
         "email":        user.get("email") or "",
         "avatar_color": user.get("avatar_color") or "#8B002D",
         "avatar_emoji": user.get("avatar_emoji") or "",
+        "is_admin":     1 if user.get("is_admin") else 0,
     })
 
 
