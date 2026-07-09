@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/animated_empty_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -286,7 +287,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       ),
       child: Row(children: [
         Icon(AppIcons.wifiOff, size: 16, color: AppColors.error),
-        const SizedBox(width: 8),
+        const SizedBox(width: RaddSpace.sm),
         const Expanded(child: Text('You are offline. Downloads are paused.',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
         GestureDetector(
@@ -331,7 +332,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
 
   Widget _buildLoadingShimmer() {
     return GridView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(RaddSpace.md),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2, childAspectRatio: 0.72, crossAxisSpacing: 12, mainAxisSpacing: 12),
       itemCount: 6,
@@ -364,11 +365,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
               child: AnimatedCloudDownIcon(size: 52, color: AppColors.primary.withOpacity(0.75)),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: RaddSpace.lg),
           Text('No Downloads Yet',
               style: TextStyle(color: t.textPrimary,
                   fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-          const SizedBox(height: 8),
+          const SizedBox(height: RaddSpace.sm),
           Text(
             'Save movies and shows to watch offline — no internet needed.',
             textAlign: TextAlign.center,
@@ -378,7 +379,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           // Feature pills
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             _FeaturePill(icon: AppIcons.wifiOff, label: 'Works offline', t: t),
-            const SizedBox(width: 8),
+            const SizedBox(width: RaddSpace.sm),
             _FeaturePill(icon: AppIcons.lightning, label: 'Fast resume', t: t),
           ]),
           const SizedBox(height: 28),
@@ -726,12 +727,12 @@ class _ShowSummaryCard extends StatelessWidget {
                       style: TextStyle(color: t.textMuted, fontSize: 10, fontWeight: FontWeight.w700))),
                 if (active > 0)
                   Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(color: const Color(0xFF22C55E).withOpacity(0.12),
+                    decoration: BoxDecoration(color: AppColors.success.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(5)),
                     child: Text('↓ $active', style: const TextStyle(
-                        color: Color(0xFF22C55E), fontSize: 10, fontWeight: FontWeight.w700))),
+                        color: AppColors.success, fontSize: 10, fontWeight: FontWeight.w700))),
               ]),
-              const SizedBox(height: 4),
+              const SizedBox(height: RaddSpace.xs),
               Text(fmtSize(total), style: TextStyle(color: t.textMuted, fontSize: 10)),
             ])),
             Icon(AppIcons.caretRight, size: 18, color: t.textMuted),
@@ -851,7 +852,7 @@ class _DownloadCardState extends State<_DownloadCard> {
               Text(widget.title, maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: t.textPrimary, fontSize: 11,
                       fontWeight: FontWeight.w600, height: 1.3)),
-              SizedBox(height: 4),
+              SizedBox(height: RaddSpace.xs),
               Row(children: [
                 if (widget.isActive)
                   Flexible(child: Text(
@@ -981,11 +982,11 @@ class _DownloadListTileState extends State<_DownloadListTile> {
             Text(widget.title, maxLines: 2, overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: t.textPrimary, fontSize: 13,
                     fontWeight: FontWeight.w600, height: 1.3)),
-            SizedBox(height: 4),
+            SizedBox(height: RaddSpace.xs),
             Row(children: [
               Text(widget.sizeStr, style: TextStyle(color: t.textMuted, fontSize: 11)),
               if (widget.statusStr == 'failed') ...[
-                SizedBox(width: 8),
+                SizedBox(width: RaddSpace.sm),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                     decoration: BoxDecoration(color: AppColors.error.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(3)),
