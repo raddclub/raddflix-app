@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/radius/radd_radius.dart';
 import '../core/constants.dart';
 import '../core/api/auth_api.dart';
 import '../providers/auth_provider.dart';
@@ -747,7 +748,7 @@ class _PwField extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: t.bg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: RaddRadius.mdRadius,
         border: Border.all(color: t.border),
       ),
       child: TextField(
