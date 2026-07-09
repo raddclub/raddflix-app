@@ -12,6 +12,7 @@ import '../services/local_media_service.dart';
 import 'local_folder_screen.dart';
 import '../widgets/bottom_nav.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import '../widgets/animated_empty_icons.dart';
 import '../core/db/local_db.dart';
 import '../services/vault_service.dart';
@@ -237,9 +238,9 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Row(children: [
         _filterChip(t, _WatchFilter.all,        'All',      AppIcons.localMediaFill),
-        const SizedBox(width: 8),
+        const SizedBox(width: RaddSpace.sm),
         _filterChip(t, _WatchFilter.inProgress, 'Watching', AppIcons.playCircle),
-        const SizedBox(width: 8),
+        const SizedBox(width: RaddSpace.sm),
         _filterChip(t, _WatchFilter.watched,    'Watched',  AppIcons.successIcon),
       ]),
     );
@@ -340,7 +341,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
             subtitle: const Text('Import all videos from this folder'),
             onTap: () { Navigator.pop(context); _addFolderToVault(folder); },
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: RaddSpace.sm),
         ]),
       ),
     );
@@ -467,7 +468,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(AppIcons.videoLibrary, size: 11, color: AppColors.primary),
-              const SizedBox(width: 4),
+              const SizedBox(width: RaddSpace.xs),
               Text('$_totalFiles',
                   style: TextStyle(color: t.textMuted, fontSize: 11, fontWeight: FontWeight.w600)),
             ]),
@@ -602,7 +603,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
           decoration: BoxDecoration(shape: BoxShape.circle,
               color: AppColors.error.withOpacity(0.1)),
           child: Icon(AppIcons.folderX, color: AppColors.error, size: 40)),
-        const SizedBox(height: 24),
+        const SizedBox(height: RaddSpace.lg),
         Text('Storage Permission Required',
             style: TextStyle(color: t.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
             textAlign: TextAlign.center),
@@ -622,7 +623,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(AppIcons.settings, size: 18, color: Colors.white),
-              const SizedBox(width: 8),
+              const SizedBox(width: RaddSpace.sm),
               const Text('Open Settings', style: TextStyle(color: Colors.white,
                   fontWeight: FontWeight.w700, fontSize: 14)),
             ]),
@@ -722,7 +723,7 @@ class _SortSheetState extends State<_SortSheet> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               )),
-              const SizedBox(height: 16),
+              const SizedBox(height: RaddSpace.md),
               // Header
               Row(children: [
                 Text('Sort & View', style: TextStyle(color: t.textPrimary,
@@ -801,7 +802,7 @@ class _SortSheetState extends State<_SortSheet> {
           ),
           child: Column(children: [
             Icon(icon, color: active ? AppColors.primary : t.textMuted, size: 22),
-            const SizedBox(height: 4),
+            const SizedBox(height: RaddSpace.xs),
             Text(label, style: TextStyle(
                 color: active ? AppColors.primary : t.textMuted,
                 fontSize: 12, fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
@@ -871,7 +872,7 @@ class _FolderListTile extends StatelessWidget {
   Widget _statusBadge(RaddTheme t) {
     if (isWatched) return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(color: const Color(0xFF22C55E).withOpacity(0.9), borderRadius: BorderRadius.circular(4)),
+      decoration: BoxDecoration(color: AppColors.success.withOpacity(0.9), borderRadius: BorderRadius.circular(4)),
       child: const Text('WATCHED', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.3)));
     if (isInProgress && progress > 0) return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -938,7 +939,7 @@ class _FolderListTile extends StatelessWidget {
                 Text(folder.name, maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: TextStyle(color: t.textPrimary,
                         fontSize: 14, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
+                const SizedBox(height: RaddSpace.xs),
                 Row(children: [
                   // Count badge
                   Container(
@@ -955,7 +956,7 @@ class _FolderListTile extends StatelessWidget {
                   ),
                   // Mixed indicator
                   if (type == 'mixed') ...[
-                    const SizedBox(width: 4),
+                    const SizedBox(width: RaddSpace.xs),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                       decoration: BoxDecoration(
@@ -1009,7 +1010,7 @@ class _FolderGridCard extends StatelessWidget {
   Widget _statusBadge() {
     if (isWatched) return Positioned(top: 4, left: 4, child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-      decoration: BoxDecoration(color: const Color(0xFF22C55E).withOpacity(0.9), borderRadius: BorderRadius.circular(4)),
+      decoration: BoxDecoration(color: AppColors.success.withOpacity(0.9), borderRadius: BorderRadius.circular(4)),
       child: const Text('✓ WATCHED', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800))));
     if (isInProgress && progress > 0) return Positioned(top: 4, left: 4, child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
