@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../core/theme/radd_colors.dart';
+import '../design_system/radius/radd_radius.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -90,7 +92,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
-                    colors: [AppColors.primary.withOpacity(0.16), Colors.transparent],
+                    colors: [context.signalPrimary.withOpacity(0.16), Colors.transparent],
                   ),
                 ),
               ),
@@ -102,7 +104,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
-                    colors: [AppColors.primary.withOpacity(0.08), Colors.transparent],
+                    colors: [context.signalPrimary.withOpacity(0.08), Colors.transparent],
                   ),
                 ),
               ),
@@ -202,8 +204,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             style: TextStyle(color: t.textMuted, fontSize: 14),
                             children: [
                               TextSpan(text: 'Register',
-                                  style: const TextStyle(
-                                      color: AppColors.primary, fontWeight: FontWeight.w700)),
+                                  style: TextStyle(
+                                      color: context.signalPrimary, fontWeight: FontWeight.w700)),
                             ],
                           ),
                         ),
@@ -324,7 +326,7 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.warningDark.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: RaddRadius.mdRadius,
         border: Border.all(color: AppColors.warningDark.withOpacity(0.4), width: 1),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -389,8 +391,8 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
               width: double.infinity,
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: AppColors.primary.withOpacity(0.6)),
-                  foregroundColor: AppColors.primary,
+                  side: BorderSide(color: context.signalPrimary.withOpacity(0.6)),
+                  foregroundColor: context.signalPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 10),
                 ),
                 onPressed: _otpLoading ? null : _requestOtp,
@@ -415,8 +417,8 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
               width: double.infinity,
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: AppColors.primary.withOpacity(0.6)),
-                  foregroundColor: AppColors.primary,
+                  side: BorderSide(color: context.signalPrimary.withOpacity(0.6)),
+                  foregroundColor: context.signalPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 10),
                 ),
                 onPressed: _otpLoading ? null : _verifyOtp,
@@ -436,7 +438,7 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
           if (_otpError != null) ...[
             const SizedBox(height: 8),
             Text(_otpError!,
-                style: const TextStyle(color: AppColors.error, fontSize: 12)),
+                style: TextStyle(color: context.accentError, fontSize: 12)),
           ],
         ],
         // ── END OTP HOOK ────────────────────────────────────────────────────
@@ -474,7 +476,7 @@ class _Logo extends StatelessWidget {
             style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -1.5, height: 1),
             children: [
               TextSpan(text: 'Radd', style: TextStyle(color: t.textPrimary)),
-              TextSpan(text: 'Flix', style: TextStyle(color: AppColors.primary)),
+              TextSpan(text: 'Flix', style: TextStyle(color: context.signalPrimary)),
             ],
           ),
         ),
@@ -493,16 +495,16 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.error.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(color: AppColors.error.withOpacity(0.3), width: 1),
+        color: context.accentError.withOpacity(0.1),
+        borderRadius: RaddRadius.smRadius,
+        border: Border.all(color: context.accentError.withOpacity(0.3), width: 1),
       ),
       child: Row(
         children: [
-          Icon(AppIcons.errorIcon, color: AppColors.error, size: 18),
+          Icon(AppIcons.errorIcon, color: context.accentError, size: 18),
           const SizedBox(width: 10),
           Expanded(child: Text(message,
-              style: const TextStyle(color: AppColors.error, fontSize: 13))),
+              style: TextStyle(color: context.accentError, fontSize: 13))),
         ],
       ),
     );
@@ -520,15 +522,15 @@ class _GradientButton extends StatelessWidget {
     return Container(
       height: 54,
       decoration: BoxDecoration(
-        gradient: onTap != null ? AppColors.primaryGradient : null,
-        color: onTap == null ? AppColors.primary.withOpacity(0.4) : null,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        gradient: onTap != null ? context.signalPrimaryGradient : null,
+        color: onTap == null ? context.signalPrimary.withOpacity(0.4) : null,
+        borderRadius: RaddRadius.mdRadius,
         boxShadow: onTap != null ? AppShadows.primary : null,
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: RaddRadius.mdRadius,
           onTap: onTap,
           child: Center(
             child: Text(label,
