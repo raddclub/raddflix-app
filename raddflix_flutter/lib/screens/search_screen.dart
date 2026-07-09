@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/animated_empty_icons.dart';
 import '../widgets/offline_banner.dart';
@@ -334,7 +335,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           ),
           if (_filters.hasAny)
             _buildActiveFilterBar(),
-          const SizedBox(height: 4),
+          const SizedBox(height: RaddSpace.xs),
           if (!showResultsArea && _history.isNotEmpty)
             _buildHistorySection(),
           Expanded(
@@ -398,7 +399,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         ),
         const SizedBox(height: 12),
         Divider(height: 1, color: t.border.withOpacity(0.4)),
-        const SizedBox(height: 4),
+        const SizedBox(height: RaddSpace.xs),
       ]),
     );
   }
@@ -675,11 +676,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             label: 'Free Only',
             icon: AppIcons.tag,
             active: _filters.isFree == true,
-            color: Colors.green,
+            color: AppColors.success,
             onTap: () => _applyFilter(
               _filters.copyWith(isFree: _filters.isFree == true ? null : true)),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: RaddSpace.sm),
           // Premium toggle
           _toggleChip(
             label: 'Premium',
@@ -689,7 +690,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             onTap: () => _applyFilter(
               _filters.copyWith(isFree: _filters.isFree == false ? null : false)),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: RaddSpace.sm),
           // Offline toggle
           _toggleChip(
             label: 'Downloaded',
@@ -731,7 +732,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(icon, size: 13, color: active ? Colors.white : t.textMuted),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: RaddSpace.xs),
                   Text(label, style: TextStyle(
                     fontSize: 12, color: active ? Colors.white : t.textMuted,
                     fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
@@ -866,7 +867,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                 ? Center(child: AnimatedSearchIcon(size: 44, color: t.textMuted.withOpacity(0.7)))
                 : Icon(AppIcons.filter, size: 36, color: t.textMuted.withOpacity(0.6)),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: RaddSpace.md),
           Text(
             hasQuery
                 ? 'No results for'
@@ -891,7 +892,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                 style: TextStyle(color: t.textPrimary,
                     fontSize: 18, fontWeight: FontWeight.w800)),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: RaddSpace.md),
           // Suggestions
           if (hasQuery) ...[
             Text('Try a different title, actor name, or shorter keywords.',
@@ -987,7 +988,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               );
             }).toList()),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: RaddSpace.sm),
         ],
 
         // ── Trending ───────────────────────────────────────────────────────
@@ -1030,7 +1031,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                     Text(e.key, style: TextStyle(
                         color: t.textPrimary, fontSize: 14,
                         fontWeight: FontWeight.w800, letterSpacing: -0.2)),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: RaddSpace.sm),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                       decoration: BoxDecoration(
@@ -1106,7 +1107,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                         borderRadius: BorderRadius.circular(3))),
               ],
             )),
-            const SizedBox(width: 16),
+            const SizedBox(width: RaddSpace.md),
           ]),
         ),
       ),
@@ -1165,7 +1166,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 13, color: active ? color : t.textMuted),
-        const SizedBox(width: 4),
+        const SizedBox(width: RaddSpace.xs),
         Text(label, style: TextStyle(
           fontSize: 12, color: active ? color : t.textMuted,
           fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
@@ -1243,12 +1244,12 @@ class _SearchResultTile extends StatelessWidget {
                   _metaTag('★ ${item.rating!.toStringAsFixed(1)}', t,
                       color: Colors.amber[700]!),
                 if (item.isFree)
-                  _metaTag('FREE', t, color: Colors.green, border: true),
+                  _metaTag('FREE', t, color: AppColors.success, border: true),
                 _metaTag(item.isMovie ? 'Movie' : 'Show', t,
                     color: t.textMuted),
                 if (item.statusLabel.isNotEmpty && item.statusLabel != 'Released')
                   _metaTag(item.statusLabel, t,
-                      color: item.isOngoing == true ? Colors.blue : t.textMuted),
+                      color: item.isOngoing == true ? AppColors.info : t.textMuted),
               ]),
               // Description snippet (highlighted matches)
               if (hasSnippet) ...[
