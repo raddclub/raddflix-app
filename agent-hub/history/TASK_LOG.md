@@ -144,3 +144,22 @@ Six screens received a color + radius token pass:
 - This is the same pattern as ContentCard/RaddCard — design system component needs extension first
 
 CI queued/running on all 6 commits as of session end. Run IDs: b1722c5 (re-run), 39256ca→8a84428 (Phase 3).
+
+## 2026-07-09 — Phase 3 CI fix: context.signalPrimaryGradient does not exist
+
+Bootstrap session: cloned repo, read canonical docs, found Phase 3 CI failures on commits
+`8a84428` (login_screen.dart) and `329738b` (register_screen.dart).
+
+**Root cause:** the prior session introduced `context.signalPrimaryGradient` in both files.
+This getter does not exist on BuildContext — `RaddColors` extension defines no gradient getter.
+CI error: `The getter 'signalPrimaryGradient' isn't defined for the class 'BuildContext'`.
+
+**Fix (commit `4ee0215`):** replaced both occurrences with `AppColors.primaryGradient` — the
+static const LinearGradient used consistently throughout the rest of the codebase. Both files
+already import `'../core/constants.dart'` (which defines `AppColors`), so no import change needed.
+CI run on `4ee0215` confirmed **green**.
+
+**Durable lesson:** `RaddColors` (the BuildContext extension) has no gradient getter. Any gradient
+using the primary color must use `AppColors.primaryGradient` directly — not a context extension.
+
+Phase 3 is now ✅ COMPLETE with CI green. Phase 4 (player_screen.dart token migration) is next.

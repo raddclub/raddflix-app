@@ -3,39 +3,40 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
-## Current State (2026-07-09 — Phase 2 COMPLETE, Phase 3 next)
+## Current State (2026-07-09 — Phase 3 COMPLETE + CI confirmed green)
 
-### UI-UX-MIGRATION — Phase 2 complete — 2026-07-09
+### UI-UX-MIGRATION — Phase 3 complete — 2026-07-09
 
 **Start here if you're a fresh agent/account picking this up:** read `AGENT_PROMPT.md` →
 this section → `agent-hub/UI_UX_MIGRATION_PLAN.md`, then do the first unchecked checkbox in the
 earliest open phase of that plan file. The plan file is the single source of truth for
 progress — this section just orients you.
 
-Executing the `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` roadmap phase-by-phase. **Phase 2 is
-now ✅ COMPLETE.** All items done (CI pending on `6457ab2`):
+Executing the `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` roadmap phase-by-phase. **Phases 2
+and 3 are now ✅ COMPLETE with CI confirmed green.**
 
-- Phase 2, item 1: `pin_lock_screen.dart` + `PinSetupScreen` migrated onto `RaddLockPad`.
-- Phase 2, item 2: `vault_lock_screen.dart` migrated onto `RaddLockPad` (vault accent).
-- Phase 2, code review: two regressions caught and fixed (`d8bfcd7`). New `RaddLockPad.onChanged`
-  hook added — future consumers must use it to clear caller-owned error state.
-- Phase 2, ContentCard token pass: `content_card.dart` radius tokens migrated from `AppRadius.*`
-  to `RaddRadius.*` (`6457ab2`). Full call-site consolidation onto `RaddCard` deferred to
-  Phase 4/5 (ContentCard has features RaddCard lacks). `SimosaCard` intentionally excluded.
-- Phase 2, player dead-code: CLOSED per TASKS.md `PLAYER-DEAD-CODE-CLEANUP` — user declined
-  deletion. Files are intentionally-parked unshipped features.
+**Phase 2 summary** (all CI green):
+- `pin_lock_screen.dart` + `PinSetupScreen` migrated onto `RaddLockPad` (`377b74f`, `d8bfcd7`).
+- `vault_lock_screen.dart` migrated onto `RaddLockPad` vault accent (`ecf82eb`).
+- `RaddLockPad.onChanged` hook added — future consumers must use it to clear caller-owned error state.
+- `content_card.dart` radius tokens migrated `AppRadius.*` → `RaddRadius.*` (`6457ab2`).
+- Player dead-code: CLOSED — user declined deletion; files are intentionally-parked features.
 
-**Phase 3 also complete (CI pending):** Token pass done across all 6 auth + small screens
-(`login`, `register`, `watchlist`, `history`, `splash`, `settings`). Commits `39256ca`→`8a84428`.
-`SettingsRow` adoption + taxonomy change deferred to Phase 4/5 — `SettingsRow` lacks `subtitle`
-and `iconColor` params (same story as ContentCard/RaddCard); taxonomy restructure needs PM input.
+**Phase 3 summary** (all CI green as of `4ee0215`):
+- Token pass across 6 screens: `login`, `register`, `watchlist`, `history`, `splash`, `settings`.
+- `AppColors.primary/error/warning` → `context.signalPrimary/accentError/accentWarning`.
+- `BorderRadius.circular(AppRadius.sm/md)` → `RaddRadius.smRadius/mdRadius`.
+- **Bug caught in CI:** prior session introduced `context.signalPrimaryGradient` (non-existent
+  on BuildContext) in `login_screen.dart` + `register_screen.dart`. Fixed in `4ee0215` with
+  `AppColors.primaryGradient` — the correct pattern used everywhere else in the codebase.
+  **Lesson: `RaddColors` BuildContext extension has no gradient getter — always use `AppColors.primaryGradient` directly.**
+- `SettingsRow` adoption + taxonomy change deferred to Phase 4/5 (component lacks `subtitle`/`iconColor` params).
 
 **Next work: Phase 4** — player screen token migration (`player_screen.dart`, 9,280 lines).
-This is the high-risk phase. Do NOT start until CI is confirmed green on the Phase 3 commits.
-Phase 4 is unblocked from all prerequisites. Start at the first `[ ]` item in Phase 4 of
-`agent-hub/UI_UX_MIGRATION_PLAN.md`. Strongly recommend doing Phase 4 in separate sub-commits
-per token type (colors first, then radius, then spacing/type) — the file is too large to migrate
-in one pass without risking conflicts.
+Phase 4 is now unblocked (Phase 3 CI confirmed green). Start at the first `[ ]` item in
+Phase 4 of `agent-hub/UI_UX_MIGRATION_PLAN.md`. Do Phase 4 in separate sub-commits per
+token type (colors first, then radius, then spacing/type) — the file is too large to migrate
+in one pass safely.
 
 **Workflow reminders:** `log_pending.sh` → edit → `auto_commit.sh` per code file (sequential,
 no batching, no local `git commit`/`push` — see `agent-hub/RULES.md` Rule 42). After any
