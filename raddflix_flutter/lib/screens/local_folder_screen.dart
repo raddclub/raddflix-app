@@ -240,7 +240,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
           TextButton(onPressed: () => Navigator.pop(context, false),
               child: Text('Cancel', style: TextStyle(color: t.textMuted))),
           TextButton(onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete', style: TextStyle(color: context.accentError,
+              child: Text('Delete', style: TextStyle(color: context.accentError,
                   fontWeight: FontWeight.w700))),
         ],
       ),
@@ -1068,9 +1068,9 @@ class _VideoListTile extends StatelessWidget {
       VoidCallback onPressed, {bool isDestructive = false}) {
     final t = RaddTheme.of(ctx);
     return ListTile(
-      leading: Icon(icon, color: isDestructive ? context.accentError : t.textSecondary, size: 22),
+      leading: Icon(icon, color: isDestructive ? ctx.accentError : t.textSecondary, size: 22),
       title: Text(label, style: TextStyle(
-          color: isDestructive ? context.accentError : t.textPrimary, fontSize: 15)),
+          color: isDestructive ? ctx.accentError : t.textPrimary, fontSize: 15)),
       onTap: onPressed,
       dense: true,
     );
