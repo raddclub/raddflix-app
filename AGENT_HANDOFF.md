@@ -3,6 +3,51 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-09 — UI-UX-MIGRATION Phase 2 in progress — HANDED OFF to new agent/account)
+
+### UI-UX-MIGRATION — Phase 2 in progress — 2026-07-09
+
+**Start here if you're a fresh agent/account picking this up:** read `AGENT_PROMPT.md` →
+this section → `agent-hub/UI_UX_MIGRATION_PLAN.md`, then do the first unchecked checkbox in the
+earliest open phase of that plan file. The plan file is the single source of truth for
+progress — this section just orients you.
+
+Executing the `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` roadmap phase-by-phase, since a prior
+session's audit+blueprint were docs-only. Progress so far, all pushed and CI-green
+(`build-apk.yml` — this environment has no Flutter SDK, so that workflow is the only real
+compile/test signal; never assume a push is safe without checking its run):
+
+- Phase 2, item 1: `pin_lock_screen.dart` (`PinLockScreen` + `PinSetupScreen`) migrated onto
+  the shared `RaddLockPad` component.
+- Phase 2, item 2: `vault_lock_screen.dart` migrated onto `RaddLockPad` (vault accent), bespoke
+  numpad/shake code removed.
+- Along the way, fixed a real pre-existing bug: `radd_lock_pad.dart` was missing its `RaddType`
+  import, so it would have failed to compile the moment anyone used it — it had zero call sites
+  before this effort (see the earlier audit's finding that all `Radd*` components/tokens have
+  zero adoption outside `lib/design_system/`).
+- A post-migration code review caught two regressions (PIN mismatch flow wiping the wrong
+  field; stale error text not clearing on new digit entry) — both fixed, including adding a new
+  `RaddLockPad.onChanged` hook that any future consumer of the component should use for
+  clearing caller-owned error state (fires on every digit/backspace, before `onSubmit`).
+- One accepted, documented tradeoff: going "back" during PIN confirm now always restarts the
+  first-PIN entry from scratch, because `RaddLockPad` has no prefill/resume support for
+  partial digit entry. Not a bug — a consequence of the shared-component approach.
+
+**Next unchecked item:** Phase 2's `ContentCard`/`SimosaCard` duplication → consolidate onto
+`RaddCard` (start with the 2 `SimosaCard` usages), then confirm/delete dead files under
+`lib/widgets/player/`. Full detail and the rest of the phases are in
+`agent-hub/UI_UX_MIGRATION_PLAN.md` — do not duplicate that detail here.
+
+**Workflow reminders for whoever picks this up:** this repo requires
+`log_pending.sh` → edit → `auto_commit.sh` per code file (sequential, no batching, no local
+`git commit`/`push` — see `agent-hub/RULES.md` Rule 42). Docs-only changes use
+`push_to_github.sh` instead. If `git status`/`git log` looks stale or push fails with
+"behind origin", the local `.git` ref just hasn't caught up with the last API-based push —
+`git fetch && git reset --mixed origin/main` before retrying (see
+`.agents/memory/nested-repo-git-stripped.md` for why).
+
+---
+
 ## Current State (2026-07-09 — MIGRATION-BLUEPRINT-2026-07-09 Complete)
 
 ### MIGRATION-BLUEPRINT-2026-07-09 — Design System Migration Blueprint — 2026-07-09
