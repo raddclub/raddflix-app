@@ -52,6 +52,20 @@ you start or finish an item — that line is what the next agent reads first.
       Dropped one minor feature in the process: long-press-backspace-to-clear-all — `RaddLockPad`
       doesn't expose that hook. Low-value edge affordance; add to `RaddLockPad` later only if a
       user actually asks for it back. CI build `29016623850` confirmed **green**.
+- [x] Post-migration code review (`code-review` skill) on the two items above caught two real
+      regressions, fixed in `d8bfcd7` (CI build `29017432437` green):
+      1. `PinSetupScreen` mismatch handling had regressed to wiping the first-entered PIN and
+         exiting the confirm step, instead of only re-prompting for the confirm PIN. Fixed to
+         match original behavior.
+      2. Both lock screens left stale error text on screen while the user was already typing a
+         new attempt (previously cleared on first new digit). Added a `RaddLockPad.onChanged`
+         hook (fires on every digit/backspace, before submit) and wired both screens to clear
+         their error state on it. **This hook is new — any future `RaddLockPad` consumer should
+         use it for the same reason, not roll their own workaround.**
+      One accepted, documented behavior change remains: going "back" from the confirm step in
+      `PinSetupScreen`/Vault setup now always restarts the first-PIN entry from scratch, because
+      `RaddLockPad` has no prefill/resume support for partially-entered digits. This was flagged
+      by review and judged an acceptable tradeoff of the shared-component approach, not a bug.
 - [ ] Resolve `ContentCard` (6 usages) vs `SimosaCard` (2 usages) duplication onto `RaddCard` —
       pick one call-site set to convert first (start with the 2 `SimosaCard` usages, smaller
       blast radius), verify visually, then convert the 6 `ContentCard` usages.
