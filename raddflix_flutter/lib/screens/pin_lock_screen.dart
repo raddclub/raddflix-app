@@ -14,6 +14,7 @@ import '../core/design/app_icons.dart';
 import '../core/theme/radd_colors.dart';
 import '../design_system/components/radd_lock_pad.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/typography/radd_type.dart';
 
 const _kPinKey = 'radd_history_pin';
 
