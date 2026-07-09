@@ -254,3 +254,12 @@ Phase 4 ✅ COMPLETE. Phase 5 (large screens: show_detail, local_folder, home, e
 - `SizedBox(height/width: 4/8/16)` → `RaddSpace.xs/sm/md`
 - RaddSheet adoption deferred (see plan note — no existing modal to convert; filters are an
   inline panel). Completes Phase 5 item 6 (mechanical scope).
+
+**Commit c262ab4 — profile_screen.dart color+spacing pass:**
+- Added `import '../design_system/spacing/radd_space.dart'`
+- `Color(0xFF22C55E)`→`AppColors.success`, `Color(0xFF3B82F6)`→`AppColors.info`,
+  `Colors.orange`→`AppColors.orange` (exact values)
+- `EdgeInsets.all(16)` and `SizedBox(height/width: 4/8/32)` → `RaddSpace.xs/sm/md/lg`
+- Kept: 14 theme-swatch `Color(0xFF...)` pairs (JazzTheme picker — intentionally distinct per
+  theme, not brand tokens), `Color(0xFF7C5CFF)`/`Color(0xFFFFB300)` (no exact token). Completes
+  Phase 5 item 7 (mechanical scope; visual redesign still needs a wireframe per plan note).

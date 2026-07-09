@@ -156,9 +156,14 @@ Migrate in this order (highest raw-literal count first, per blueprint §2/§4):
       inline-expanding panel (`_showFilters` bool), not a modal — there's no existing
       `showModalBottomSheet` to convert. Introducing one would be a UX/structural change, not a
       mechanical token pass; flag to design if a bottom-sheet filter UX is wanted.
-- [ ] `profile_screen.dart` (44 `Colors.*`, 36 `AppColors.*`, 29 raw `Color()` — highest literal
-      count in the app) — flag to design: no Volume V wireframe exists; get one before/while
-      migrating.
+- [x] `profile_screen.dart` (44 `Colors.*`, 36 `AppColors.*`, 29 raw `Color()` — highest literal
+      count in the app) — color+spacing done in c262ab4: `Color(0xFF22C55E)`→`AppColors.success`,
+      `Color(0xFF3B82F6)`→`AppColors.info`, `Colors.orange`→`AppColors.orange` (exact matches),
+      `EdgeInsets.all(16)`/`SizedBox(4/8/32)`→`RaddSpace.xs/sm/md/lg`. Kept: the 14 theme-swatch
+      `Color(0xFF...)` pairs (JazzTheme picker background/accent per theme — intentionally
+      distinct hex values, not brand tokens), `Color(0xFF7C5CFF)`/`Color(0xFFFFB300)` (no exact
+      token), `Colors.white*/transparent`. Wireframe flag still stands for any future *visual*
+      redesign — not needed for this mechanical token pass.
 - [ ] `downloads_screen.dart` (60 `Colors.*`, 40 `AppColors.*`)
 - [ ] `vault_screen.dart`, `vault_settings_screen.dart`, `season_folder_screen.dart`,
       `edit_profile_screen.dart`, `add_edit_profile_screen.dart`, `profile_switcher_screen.dart`,
