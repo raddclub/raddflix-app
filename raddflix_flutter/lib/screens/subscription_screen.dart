@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -155,7 +156,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     final isGuest = ref.watch(authProvider).user?.isGuest == true;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(RaddSpace.md),
       physics: const BouncingScrollPhysics(),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
@@ -197,7 +198,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
             message: 'Could not load plans',
             onRetry: () => ref.read(subscriptionProvider.notifier).loadPlans(),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: RaddSpace.sm),
         ] else if (state.plans.isEmpty)
           ..._shimmerPlans()
         else
@@ -263,7 +264,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                   child: Row(children: [
                     if (_methodsError != null) ...[
                       Icon(AppIcons.wifiOff, color: AppColors.error, size: 16),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: RaddSpace.sm),
                     ],
                     Expanded(child: Text(
                       _methodsError ?? 'Loading payment methods...',
@@ -298,7 +299,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
               prefixIcon: AppIcons.receipt,
             ).animate().fadeIn(duration: 300.ms),
             if (_tidError != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: RaddSpace.sm),
               Text(_tidError!,
                   style: const TextStyle(color: AppColors.error, fontSize: 12))
                   .animate().fadeIn(duration: 200.ms).shakeX(hz: 3, amount: 4),
@@ -309,7 +310,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
           ],
         ],
 
-        const SizedBox(height: 32),
+        const SizedBox(height: RaddSpace.lg),
         const _WhyRaddFlix(),
         const SizedBox(height: 40),
       ]),
@@ -362,7 +363,7 @@ class _ActivePlanCard extends StatelessWidget {
               Flexible(child: Text('Active: ${status.planName}',
                   style: TextStyle(color: t.textPrimary,
                       fontSize: 15, fontWeight: FontWeight.w700))),
-              const SizedBox(width: 8),
+              const SizedBox(width: RaddSpace.sm),
               TierBadge(plan: status.planName),
             ]),
             if (status.expiryLabel != null)
@@ -384,7 +385,7 @@ class _ActivePlanCard extends StatelessWidget {
             ),
         ]),
         if (status.monthlyLimitGb > 0) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: RaddSpace.md),
           // GB usage bar
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text('${status.monthlyUsedGb.toStringAsFixed(1)} GB used',
@@ -462,7 +463,7 @@ class _PlanCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(RaddSpace.md),
         decoration: BoxDecoration(
           color: isSelected ? accentColor.withOpacity(0.07) : t.surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
@@ -521,10 +522,10 @@ class _PlanCard extends StatelessWidget {
             ],
             // F3 fix: removed jazzSavingsMsg Jazz-specific promotional text
             if (isRenewal) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: RaddSpace.sm),
               Row(children: [
                 Icon(AppIcons.arrowsSync, size: 13, color: AppColors.primary),
-                const SizedBox(width: 4),
+                const SizedBox(width: RaddSpace.xs),
                 Text('Tap to renew this plan',
                     style: TextStyle(color: AppColors.primary,
                         fontSize: 11, fontWeight: FontWeight.w600)),
@@ -609,7 +610,7 @@ class _GuestWarning extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = RaddTheme.of(context);
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(RaddSpace.md),
       decoration: BoxDecoration(
         color: AppColors.primary.withOpacity(0.07),
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -617,11 +618,11 @@ class _GuestWarning extends ConsumerWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(AppIcons.userCircle, color: AppColors.primary, size: 20),
-          const SizedBox(width: 8),
+          const SizedBox(width: RaddSpace.sm),
           const Text('Sign in to Subscribe',
               style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14)),
         ]),
-        const SizedBox(height: 8),
+        const SizedBox(height: RaddSpace.sm),
         Text('Create a free RaddFlix account to subscribe. Guest users cannot make payments.',
             style: TextStyle(color: t.textMuted, fontSize: 13, height: 1.5)),
         const SizedBox(height: 12),
@@ -689,7 +690,7 @@ class _PayMethodCard extends StatelessWidget {
               child: Row(children: [
                 Icon(AppIcons.wallet,
                     size: 16, color: AppColors.primary),
-                const SizedBox(width: 8),
+                const SizedBox(width: RaddSpace.sm),
                 Expanded(child: Text(method.accountNumber!,
                     style: const TextStyle(color: AppColors.primary,
                         fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 0.5))),
@@ -705,7 +706,7 @@ class _PayMethodCard extends StatelessWidget {
               ]),
             ),
             if (method.instructions != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: RaddSpace.sm),
               Text(method.instructions!, style: TextStyle(
                   color: t.textMuted, fontSize: 12, height: 1.5)),
             ],
@@ -748,7 +749,7 @@ class _ErrorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(RaddSpace.md),
       decoration: BoxDecoration(
         color: AppColors.error.withOpacity(0.08),
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -756,7 +757,7 @@ class _ErrorCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(AppIcons.wifiOff, color: AppColors.error, size: 18),
-          const SizedBox(width: 8),
+          const SizedBox(width: RaddSpace.sm),
           Expanded(child: Text(message,
               style: const TextStyle(color: AppColors.error,
                   fontSize: 13, fontWeight: FontWeight.w600))),
