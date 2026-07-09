@@ -263,3 +263,10 @@ Phase 4 ✅ COMPLETE. Phase 5 (large screens: show_detail, local_folder, home, e
 - Kept: 14 theme-swatch `Color(0xFF...)` pairs (JazzTheme picker — intentionally distinct per
   theme, not brand tokens), `Color(0xFF7C5CFF)`/`Color(0xFFFFB300)` (no exact token). Completes
   Phase 5 item 7 (mechanical scope; visual redesign still needs a wireframe per plan note).
+
+**Commit bb68f02 — downloads_screen.dart color+spacing pass:**
+- Added `import '../design_system/spacing/radd_space.dart'`
+- `Color(0xFF22C55E)` → `AppColors.success` (exact value)
+- `EdgeInsets.all(16)` and `SizedBox(height/width: 4/8/24)` → `RaddSpace.xs/sm/md/lg`
+- Kept: `Colors.white*/black*/transparent` (thumbnail overlay, no token). Completes Phase 5
+  item 8.

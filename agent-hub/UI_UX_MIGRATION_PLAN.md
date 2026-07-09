@@ -164,7 +164,10 @@ Migrate in this order (highest raw-literal count first, per blueprint §2/§4):
       distinct hex values, not brand tokens), `Color(0xFF7C5CFF)`/`Color(0xFFFFB300)` (no exact
       token), `Colors.white*/transparent`. Wireframe flag still stands for any future *visual*
       redesign — not needed for this mechanical token pass.
-- [ ] `downloads_screen.dart` (60 `Colors.*`, 40 `AppColors.*`)
+- [x] `downloads_screen.dart` (60 `Colors.*`, 40 `AppColors.*`) — color+spacing done in bb68f02:
+      `Color(0xFF22C55E)`→`AppColors.success` (exact match); `EdgeInsets.all(16)`,
+      `SizedBox(4/8/24)`→`RaddSpace.xs/sm/md/lg`. Kept: `Colors.white*/black*/transparent`
+      (overlay on thumbnails, no token).
 - [ ] `vault_screen.dart`, `vault_settings_screen.dart`, `season_folder_screen.dart`,
       `edit_profile_screen.dart`, `add_edit_profile_screen.dart`, `profile_switcher_screen.dart`,
       `tid_status_screen.dart`, `admin_queue_screen.dart`, `actor_screen.dart`,
