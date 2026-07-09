@@ -13,6 +13,7 @@ import '../core/debug/debug_logger.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/radius/radd_radius.dart';
 import '../core/utils/episode_title_parser.dart';
 import '../providers/downloads_provider.dart';
 import '../services/vault_service.dart';
@@ -113,7 +114,7 @@ class _SeasonFolderScreenState extends ConsumerState<SeasonFolderScreen> {
           child: Container(
             decoration: BoxDecoration(
               color: t.surface,
-              borderRadius: BorderRadius.circular(AppRadius.md),
+              borderRadius: RaddRadius.mdRadius,
               border: Border.all(color: t.border),
             ),
             child: Padding(
@@ -181,14 +182,14 @@ class _SeasonFolderScreenState extends ConsumerState<SeasonFolderScreen> {
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.only(left: 20),
             decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(AppRadius.sm)),
+                borderRadius: RaddRadius.smRadius),
             child: Icon(AppIcons.lock, color: AppColors.primary),
           ),
           secondaryBackground: Container(
             alignment: Alignment.centerRight,
             padding: const EdgeInsets.only(right: 20),
             decoration: BoxDecoration(color: AppColors.error.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(AppRadius.sm)),
+                borderRadius: RaddRadius.smRadius),
             child: Icon(AppIcons.trash, color: AppColors.error),
           ),
           confirmDismiss: (direction) async {
@@ -204,11 +205,11 @@ class _SeasonFolderScreenState extends ConsumerState<SeasonFolderScreen> {
             margin: const EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(
               color: isSel ? AppColors.primary.withOpacity(0.08) : t.surface,
-              borderRadius: BorderRadius.circular(AppRadius.sm),
+              borderRadius: RaddRadius.smRadius,
               border: Border.all(color: isSel ? AppColors.primary : t.border, width: isSel ? 1.5 : 0.5),
             ),
             child: InkWell(
-              borderRadius: BorderRadius.circular(AppRadius.sm),
+              borderRadius: RaddRadius.smRadius,
               onTap: () {
                 if (_selecting) {
                   setState(() { isSel ? _selected.remove(id) : _selected.add(id); });
@@ -241,7 +242,7 @@ class _SeasonFolderScreenState extends ConsumerState<SeasonFolderScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isComp ? AppColors.primary.withOpacity(0.12)
-                          : isAct ? const Color(0xFF22C55E).withOpacity(0.12)
+                          : isAct ? AppColors.success.withOpacity(0.12)
                           : status == 'failed' ? AppColors.error.withOpacity(0.12)
                           : t.card,
                     ),
@@ -252,7 +253,7 @@ class _SeasonFolderScreenState extends ConsumerState<SeasonFolderScreen> {
                           : AppIcons.hourglass,
                       size: 15,
                       color: isComp ? AppColors.primary
-                          : isAct ? const Color(0xFF22C55E)
+                          : isAct ? AppColors.success
                           : status == 'failed' ? AppColors.error
                           : t.textMuted,
                     ),
@@ -265,14 +266,14 @@ class _SeasonFolderScreenState extends ConsumerState<SeasonFolderScreen> {
                       const SizedBox(height: 5),
                       ClipRRect(borderRadius: BorderRadius.circular(3),
                         child: LinearProgressIndicator(value: prog, backgroundColor: t.card,
-                            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF22C55E)),
+                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.success),
                             minHeight: 3)),
                       const SizedBox(height: 3),
                       Text(
                         '${(prog * 100).toStringAsFixed(0)}%'
                         '${state.speedOf(id).isNotEmpty ? "  ${state.speedOf(id)}" : ""}'
                         '${state.etaOf(id).isNotEmpty ? "  ${state.etaOf(id)}" : ""}',
-                        style: const TextStyle(color: Color(0xFF22C55E), fontSize: 10, fontWeight: FontWeight.w600)),
+                        style: TextStyle(color: AppColors.success, fontSize: 10, fontWeight: FontWeight.w600)),
                     ] else
                       Text(_fmtSize(_size(d)), style: TextStyle(color: t.textMuted, fontSize: 11)),
                   ])),
