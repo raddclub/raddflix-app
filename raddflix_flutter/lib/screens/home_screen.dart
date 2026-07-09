@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -307,7 +308,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                   SizedBox(width: 10, height: 10,
                     child: CircularProgressIndicator(strokeWidth: 1.5,
                         valueColor: AlwaysStoppedAnimation(AppColors.primary))),
-                  SizedBox(width: 8),
+                  SizedBox(width: RaddSpace.sm),
                   Text('Syncing catalog…', style: TextStyle(color: AppColors.primary,
                       fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.1)),
                 ]),
@@ -349,7 +350,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           ),
         ),
 
-        const SliverToBoxAdapter(child: SizedBox(height: 8)),
+        const SliverToBoxAdapter(child: SizedBox(height: RaddSpace.sm)),
 
         // SIMOSA daily MB reminder (Phase 9)
         const SliverToBoxAdapter(child: SimosaCard()),
@@ -430,18 +431,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                 child: Column(children: [
                   Icon(AppIcons.filmSlate,
                       color: t.textMuted.withOpacity(0.4), size: 64),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: RaddSpace.md),
                   Text('No content yet',
                       style: TextStyle(color: t.textPrimary, fontSize: 18,
                           fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: RaddSpace.sm),
                   Text('Pull down to sync the catalog',
                       style: TextStyle(color: t.textMuted, fontSize: 13)),
                 ]),
               )),
         ] else
           SliverPadding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(RaddSpace.md),
             sliver: filtered.isEmpty
                 ? SliverToBoxAdapter(
                     child: Center(child: Padding(
@@ -486,7 +487,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                   ),
           ),
 
-        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        const SliverToBoxAdapter(child: SizedBox(height: RaddSpace.lg)),
         // Phase 47 ANIM-47-04: extra clearance so last card isn't hidden behind nav bar
         const SliverToBoxAdapter(child: SizedBox(height: 72)),
       ],
@@ -538,7 +539,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                         Container(height: 8, width: double.infinity,
                             decoration: BoxDecoration(color: t.surfaceHigh,
                                 borderRadius: BorderRadius.circular(4))),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: RaddSpace.xs),
                         Container(height: 6, width: 50,
                             decoration: BoxDecoration(color: t.surfaceHigh,
                                 borderRadius: BorderRadius.circular(3))),
@@ -591,7 +592,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           ]),
         ),
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: RaddSpace.md),
       // Category chips row skeleton
       Shimmer.fromColors(
         baseColor: t.surface, highlightColor: t.surfaceHigh,
@@ -608,11 +609,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           ),
         ),
       ),
-      const SizedBox(height: 8),
+      const SizedBox(height: RaddSpace.sm),
       // Two full content sections
       section(),
       section(),
-      const SizedBox(height: 24),
+      const SizedBox(height: RaddSpace.lg),
     ]);
   }
 }
@@ -825,7 +826,7 @@ class _HeroCardState extends ConsumerState<_HeroCard>
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Icon(AppIcons.add, color: Colors.white, size: 16),
-                        SizedBox(width: 4),
+                        SizedBox(width: RaddSpace.xs),
                         Text('My List', style: TextStyle(color: Colors.white,
                             fontSize: 12, fontWeight: FontWeight.w600)),
                       ]),
@@ -909,7 +910,7 @@ class _UpdateDialog extends StatelessWidget {
         backgroundColor: t.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const SizedBox(height: 8),
+          const SizedBox(height: RaddSpace.sm),
           Container(
             width: 64, height: 64,
             decoration: BoxDecoration(
@@ -918,10 +919,10 @@ class _UpdateDialog extends StatelessWidget {
             ),
             child: Icon(AppIcons.systemUpdate, size: 32, color: AppColors.primary),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: RaddSpace.md),
           Text('Update Required', style: TextStyle(
               color: t.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
+          const SizedBox(height: RaddSpace.sm),
           Text(
             'A new version of RaddFlix is available. Please update to keep streaming.',
             textAlign: TextAlign.center,
@@ -988,7 +989,7 @@ class _ContentSection extends StatelessWidget {
           Text(title, style: TextStyle(color: t.textPrimary,
               fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
           if (count != null) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: RaddSpace.sm),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
@@ -1095,7 +1096,7 @@ class _ContentSection extends StatelessWidget {
                       fontSize: 14, fontWeight: FontWeight.w600),
                 )),
               ]),
-              SizedBox(height: 16),
+              SizedBox(height: RaddSpace.md),
               Row(children: [
                 Expanded(child: GestureDetector(
                   onTap: () => Navigator.pop(context),
@@ -1168,7 +1169,7 @@ class _CategoryChip extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (isSelected) ...[
             Icon(AppIcons.check, size: 11, color: Colors.white),
-            const SizedBox(width: 4),
+            const SizedBox(width: RaddSpace.xs),
           ],
           Text(label, style: TextStyle(
             color: isSelected ? Colors.white : t.textMuted,
