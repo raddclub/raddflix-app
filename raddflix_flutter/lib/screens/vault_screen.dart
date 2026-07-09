@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/radius/radd_radius.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
@@ -293,7 +294,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
                       color: t.surface,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: RaddRadius.mdRadius,
                       border: Border.all(color: t.border),
                     ),
                     child: Row(children: [
@@ -376,7 +377,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
             duration: AppDurations.fast,
             decoration: BoxDecoration(
               color: selected ? AppColors.primary.withOpacity(0.15) : t.surface,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: RaddRadius.mdRadius,
               border: Border.all(
                 color: selected ? AppColors.primary : t.border,
                 width: selected ? 2 : 1,
