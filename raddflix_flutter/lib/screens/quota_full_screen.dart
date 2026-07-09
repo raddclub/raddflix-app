@@ -3,6 +3,7 @@ import '../core/design/app_icons.dart';
   import 'package:intl/intl.dart';
   import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
+  import '../design_system/radius/radd_radius.dart';
   import 'package:url_launcher/url_launcher.dart';
   import '../core/constants.dart';
 
@@ -111,7 +112,7 @@ import '../design_system/spacing/radd_space.dart';
                       gradient: const LinearGradient(
                         colors: [AppColors.primary, AppColors.primaryLight],
                         begin: Alignment.centerLeft, end: Alignment.centerRight),
-                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderRadius: RaddRadius.mdRadius,
                       boxShadow: [
                         BoxShadow(color: AppColors.primary.withOpacity(0.4),
                             blurRadius: 20, offset: const Offset(0, 8)),
@@ -133,7 +134,7 @@ import '../design_system/spacing/radd_space.dart';
                     padding: EdgeInsets.all(RaddSpace.md),
                     decoration: BoxDecoration(
                       color: t.card,
-                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderRadius: RaddRadius.mdRadius,
                       border: Border.all(color: t.cardBorder)),
                     child: Column(children: [
                       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -175,7 +176,7 @@ import '../design_system/spacing/radd_space.dart';
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     decoration: BoxDecoration(
                       color: t.card,
-                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderRadius: RaddRadius.mdRadius,
                       border: Border.all(color: t.cardBorder)),
                     child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                       const Text('🔥', style: TextStyle(fontSize: 17)),

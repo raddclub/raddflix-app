@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/radius/radd_radius.dart';
 import '../core/constants.dart';
 
 /// Task 6.9 — shown when an offline file is opened but the subscription
@@ -83,7 +84,7 @@ class PlanExpiredScreen extends StatelessWidget {
                         begin: Alignment.centerLeft,
                         end: Alignment.centerRight,
                       ),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: RaddRadius.mdRadius,
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.primary.withOpacity(0.4),
