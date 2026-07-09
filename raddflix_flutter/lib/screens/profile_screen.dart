@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -315,7 +316,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ),
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
                             Icon(AppIcons.edit, size: 11, color: t.textMuted),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: RaddSpace.xs),
                             Text('Add your name',
                                 style: TextStyle(color: t.textMuted, fontSize: 11,
                                     fontWeight: FontWeight.w500)),
@@ -324,7 +325,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ).animate(delay: 160.ms).fadeIn(),
                     ],
                   ],
-                  const SizedBox(height: 8),
+                  const SizedBox(height: RaddSpace.sm),
                   TierBadge(
                     plan: _remotePlan ?? user?.planName ?? 'FREE',
                   ).animate(delay: 150.ms).fadeIn(duration: 300.ms),
@@ -338,7 +339,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.all(RaddSpace.md),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [AppColors.primary.withOpacity(0.18), const Color(0x0A8B002D), AppColors.primary.withOpacity(0.08)],
@@ -514,7 +515,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _divider(),
                     _SectionTile(
                       icon: AppIcons.history,
-                      iconColor: const Color(0xFF22C55E),
+                      iconColor: AppColors.success,
                       label: 'Watch History',
                       onTap: () { DebugLogger.logTap('Profile', 'history'); Navigator.of(context).pushNamed(AppRoutes.history); },
                     ),
@@ -531,17 +532,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _divider(),
                     _SectionTile(
                       icon: _hasInternet ? AppIcons.wifi : AppIcons.wifiOff,
-                      iconColor: _hasInternet ? const Color(0xFF22C55E) : AppColors.error,
+                      iconColor: _hasInternet ? AppColors.success : AppColors.error,
                       label: 'Network',
                       trailing: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: (_hasInternet ? const Color(0xFF22C55E) : AppColors.error).withOpacity(0.12),
+                          color: (_hasInternet ? AppColors.success : AppColors.error).withOpacity(0.12),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(_hasInternet ? 'Online' : 'Offline',
                             style: TextStyle(
-                              color: _hasInternet ? const Color(0xFF22C55E) : AppColors.error,
+                              color: _hasInternet ? AppColors.success : AppColors.error,
                               fontSize: 11, fontWeight: FontWeight.w700,
                             )),
                       ),
@@ -559,7 +560,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _divider(),
                     _SectionTile(
                       icon: AppIcons.users,
-                      iconColor: const Color(0xFF3B82F6),
+                      iconColor: AppColors.info,
                       label: 'Switch Profile',
                       trailing: activeProfile != null
                           ? Text(activeProfile.name, style: TextStyle(
@@ -614,7 +615,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _divider(),
                     _SectionTile(
                       icon: AppIcons.bugReport,
-                      iconColor: Colors.orange,
+                      iconColor: AppColors.orange,
                       label: 'Debug Logs',
                       onTap: () => Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) => const DebugDiagnosticsScreen())),
@@ -628,7 +629,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       onTap: _loggingOut ? null : _logout,
                     ),
                   ]),
-                  SizedBox(height: 32),
+                  SizedBox(height: RaddSpace.lg),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
@@ -878,7 +879,7 @@ class _ThemePicker extends ConsumerWidget {
           }).toList(),
         ),
 
-        const SizedBox(height: 8),
+        const SizedBox(height: RaddSpace.sm),
       ]),
     );
   }
@@ -960,7 +961,7 @@ class _StatsCard extends StatelessWidget {
             ]),
           ),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(RaddSpace.md),
             decoration: BoxDecoration(
               color: t.surface,
               borderRadius: BorderRadius.circular(AppRadius.md),
@@ -983,7 +984,7 @@ class _StatsCard extends StatelessWidget {
                       _StatDivider(),
                       _StatTile(
                         icon: AppIcons.successIcon,
-                        iconColor: const Color(0xFF22C55E),
+                        iconColor: AppColors.success,
                         label: 'Completed',
                         value: completed > 0 ? '$completed' : '—',
                         countTarget: completed > 0 ? completed : null,
@@ -994,7 +995,7 @@ class _StatsCard extends StatelessWidget {
                     Row(children: [
                       _StatTile(
                         icon: AppIcons.downloadAction,
-                        iconColor: const Color(0xFF3B82F6),
+                        iconColor: AppColors.info,
                         label: 'Downloads',
                         value: dlCount > 0 ? '$dlCount (${_fmtBytes(dlBytes)})' : '—',
                         countTarget: dlCount > 0 ? dlCount : null,
