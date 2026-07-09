@@ -145,7 +145,11 @@ Migrate in this order (highest raw-literal count first, per blueprint §2/§4):
       `Colors.white/black/transparent/amber` (overlay/rating star, no token),
       `Color(0xCC000000)`/`Color(0xF5000000)` (poster gradient scrim),
       `Color(0xFF2A2A2A)` (shimmer highlight) — none match an AppColors value.
-- [ ] `local_media_screen.dart` (55 `Colors.*`, 33 `AppColors.*`, 6 raw `Color()`)
+- [x] `local_media_screen.dart` (55 `Colors.*`, 33 `AppColors.*`, 6 raw `Color()`) — color+
+      spacing done in 1af63fb: `Color(0xFF22C55E)`→`AppColors.success` (exact match);
+      `SizedBox(4/8/16/24)`→`RaddSpace.xs/sm/md/lg`. Kept: `Colors.white*/black*/transparent`
+      (overlay), `Color(0xFFF97316)` (progress-badge orange — distinct from `AppColors.orange`
+      0xFFF9800, no exact token).
 - [ ] `search_screen.dart` (46 `Colors.*`, 33 `AppColors.*`) — also adopt `RaddSheet` for filters
       (currently no detected `RaddSheet`/`showModalBottomSheet` match).
 - [ ] `profile_screen.dart` (44 `Colors.*`, 36 `AppColors.*`, 29 raw `Color()` — highest literal

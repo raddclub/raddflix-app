@@ -240,3 +240,10 @@ Phase 4 ✅ COMPLETE. Phase 5 (large screens: show_detail, local_folder, home, e
 - Added `import '../design_system/spacing/radd_space.dart'`
 - `SizedBox(height/width: 4/8/16/24)` and `EdgeInsets.all(16)` → `RaddSpace.xs/sm/md/lg`
 - Color+radius were already mostly migrated (pre-existing). Completes Phase 5 item 4.
+
+**Commit 1af63fb — local_media_screen.dart color+spacing pass:**
+- Added `import '../design_system/spacing/radd_space.dart'`
+- `Color(0xFF22C55E)` → `AppColors.success` (exact value)
+- `SizedBox(height/width: 4/8/16/24)` → `RaddSpace.xs/sm/md/lg`
+- Kept: `Colors.white*/black*/transparent` (overlay), `Color(0xFFF97316)` (progress badge —
+  distinct from `AppColors.orange` 0xFFF9800, no exact token). Completes Phase 5 item 5.
