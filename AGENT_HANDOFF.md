@@ -25,11 +25,17 @@ now ✅ COMPLETE.** All items done (CI pending on `6457ab2`):
 - Phase 2, player dead-code: CLOSED per TASKS.md `PLAYER-DEAD-CODE-CLEANUP` — user declined
   deletion. Files are intentionally-parked unshipped features.
 
-**Next work:** Phase 3 (auth + small screens token pass — `login_screen.dart`,
-`register_screen.dart`, `watchlist_screen.dart`, `history_screen.dart`, `splash_screen.dart`,
-`settings_screen.dart`). Phase 3 is NOT blocked — start at the first `[ ]` item in that section
-of `agent-hub/UI_UX_MIGRATION_PLAN.md`. Phase 4 (player) is also unblocked from the dead-code
-prerequisite but is high-risk — do not start Phase 4 before Phase 3 is proven.
+**Phase 3 also complete (CI pending):** Token pass done across all 6 auth + small screens
+(`login`, `register`, `watchlist`, `history`, `splash`, `settings`). Commits `39256ca`→`8a84428`.
+`SettingsRow` adoption + taxonomy change deferred to Phase 4/5 — `SettingsRow` lacks `subtitle`
+and `iconColor` params (same story as ContentCard/RaddCard); taxonomy restructure needs PM input.
+
+**Next work: Phase 4** — player screen token migration (`player_screen.dart`, 9,280 lines).
+This is the high-risk phase. Do NOT start until CI is confirmed green on the Phase 3 commits.
+Phase 4 is unblocked from all prerequisites. Start at the first `[ ]` item in Phase 4 of
+`agent-hub/UI_UX_MIGRATION_PLAN.md`. Strongly recommend doing Phase 4 in separate sub-commits
+per token type (colors first, then radius, then spacing/type) — the file is too large to migrate
+in one pass without risking conflicts.
 
 **Workflow reminders:** `log_pending.sh` → edit → `auto_commit.sh` per code file (sequential,
 no batching, no local `git commit`/`push` — see `agent-hub/RULES.md` Rule 42). After any

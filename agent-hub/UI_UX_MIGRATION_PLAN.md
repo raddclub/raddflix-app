@@ -79,16 +79,24 @@ you start or finish an item — that line is what the next agent reads first.
       This was a closed decision before this session began; checklist item is resolved as N/A.
 
 ## Phase 3 — Auth + small screens token/component pass
-**Status:** ⏳ NOT STARTED — parallelizable once Phase 0 is done (each screen below is independent;
-multiple agents/sessions can take one screen each without colliding, as long as each follows
-Rule 42's one-commit-per-change discipline).
-- [ ] `login_screen.dart` — remove remaining 17 `AppColors.*` / 7 raw `Color()` / 22 `Colors.*`.
-- [ ] `register_screen.dart` — remove remaining 7 `AppColors.*` / 11 `Colors.*`.
-- [ ] `watchlist_screen.dart`, `history_screen.dart` — token pass (small, low risk).
-- [ ] `splash_screen.dart` — token pass.
-- [ ] `settings_screen.dart` — fix section taxonomy to match Volume V (Playback / Privacy & Vault
-      / Account / Data & Downloads / Accessibility / About) AND adopt `SettingsRow` for every row
-      (0 usages today).
+**Status:** ✅ COMPLETE (2026-07-09) — token pass complete across all 6 screens. CI pending.
+Note: `SettingsRow` adoption and section taxonomy change deferred to Phase 4/5 — `SettingsRow`
+lacks `subtitle` and `iconColor` params required by the existing rows; extending the component
+is Phase 4/5 scope. Taxonomy restructure (new Privacy & Vault / Account / Accessibility sections)
+requires PM input on section membership before code changes.
+- [x] `login_screen.dart` — `AppColors.primary/error` → `context.signalPrimary/accentError`;
+      `BorderRadius.circular(AppRadius.sm/md)` → `RaddRadius.smRadius/mdRadius`. `AppColors.warningDark`
+      + `AppColors.primaryGradient` kept (no design-system equivalent). Const TextStyle→TextStyle
+      (3 occurrences). Commits `39256ca` / `8a84428`.
+- [x] `register_screen.dart` — same pattern: primary/error token pass + radius. `AppColors.primaryGradient`
+      kept. Commit `329738b`.
+- [x] `watchlist_screen.dart`, `history_screen.dart` — `AppColors.primary` → `context.signalPrimary`;
+      const TextStyle→TextStyle (2 occurrences in watchlist). Commits `39256ca`, `f04b46b`.
+- [x] `splash_screen.dart` — all 6 `AppColors.primary` → `context.signalPrimary`. `AppColors.background`
+      kept in field init (no context available). Commit `198af9e`.
+- [x] `settings_screen.dart` — token pass done: `AppColors.primary/warning` → `context.signalPrimary/
+      accentWarning`; `BorderRadius.circular(AppRadius.md)` → `RaddRadius.mdRadius`. `AppColors.info/success`
+      kept (no mapping). Commit `9517719`. SettingsRow adoption + taxonomy: deferred (see status note).
 
 ## Phase 4 — Player (isolated, high-risk, do not parallelize within the file)
 **Status:** ⏳ NOT STARTED

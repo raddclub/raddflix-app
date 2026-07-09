@@ -124,3 +124,23 @@ session. Phase 4's matching prerequisite item also marked N/A.
 reading the TASKS.md CLOSED note. The deletion was immediately reverted in commit `b1722c5`
 (all 50 files restored from pre-deletion tree). No net change to the files. This is documented
 here so future agents know the history if the commit log looks confusing.
+
+## 2026-07-09 — Phase 3: Auth + small screens token pass
+
+Six screens received a color + radius token pass:
+
+| Screen | Commits | Token changes | Kept as-is |
+|---|---|---|---|
+| `history_screen.dart` | `39256ca` | `AppColors.primary` → `context.signalPrimary` | `AppColors.error` in const TextStyles |
+| `splash_screen.dart` | `198af9e` | All 6 `AppColors.primary` → `context.signalPrimary` | `AppColors.background` in field init (no context) |
+| `watchlist_screen.dart` | `f04b46b` | All `AppColors.primary` → `context.signalPrimary`; const TextStyle→TextStyle (2 occurrences) | `AppRadius.xl/round` (no RaddRadius equivalent) |
+| `settings_screen.dart` | `9517719` | `AppColors.primary/warning`→`context.*`; `AppRadius.md`→`RaddRadius.mdRadius` | `AppColors.info/success` (no mapping) |
+| `register_screen.dart` | `329738b` | primary/error→context.*; radius sm/md→RaddRadius | `AppColors.primaryGradient` |
+| `login_screen.dart` | `8a84428` | primary/error→context.*; radius sm/md→RaddRadius; const TextStyle→TextStyle (3) | `AppColors.warningDark/primaryGradient` |
+
+`SettingsRow` adoption + section taxonomy change deferred to Phase 4/5:
+- `SettingsRow` lacks `subtitle` and `iconColor` parameters; direct adoption would cause visual regression
+- Section taxonomy restructure requires PM input (new Privacy & Vault / Account / Accessibility sections)
+- This is the same pattern as ContentCard/RaddCard — design system component needs extension first
+
+CI queued/running on all 6 commits as of session end. Run IDs: b1722c5 (re-run), 39256ca→8a84428 (Phase 3).
