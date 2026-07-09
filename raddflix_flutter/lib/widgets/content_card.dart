@@ -4,6 +4,7 @@ import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/radius/radd_radius.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
@@ -31,11 +32,11 @@ class ContentCard extends StatelessWidget {
           : (details) => _showQuickActions(context, details.globalPosition),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
+          borderRadius: RaddRadius.smRadius,
           boxShadow: AppShadows.soft,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
+          borderRadius: RaddRadius.smRadius,
           child: Stack(fit: StackFit.expand, children: [
             // Poster
             _buildPoster(context),
@@ -188,7 +189,7 @@ class ContentCard extends StatelessWidget {
         ),
         color: RaddTheme.of(context).surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: RaddRadius.mdRadius,
           side: BorderSide(color: RaddTheme.of(context).border),
         ),
         elevation: 12,
@@ -247,7 +248,7 @@ class ShimmerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
     return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.sm),
+      borderRadius: RaddRadius.smRadius,
       child: Shimmer.fromColors(
         baseColor:      t.shimmerBase,
         highlightColor: t.shimmerHighlight,
@@ -589,14 +590,14 @@ class _SheetBtn extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: useGradient ? AppColors.primaryGradient : null,
         color: useGradient ? null : t.card,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: RaddRadius.mdRadius,
         border: useGradient ? null : Border.all(color: t.border, width: 1.5),
         boxShadow: useGradient ? AppShadows.primary : null,
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: RaddRadius.mdRadius,
           onTap: onTap,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
