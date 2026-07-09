@@ -623,12 +623,12 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.2),
-                                  border: Border.all(color: Colors.green.withOpacity(0.6)),
+                                  color: AppColors.success.withOpacity(0.2),
+                                  border: Border.all(color: AppColors.success.withOpacity(0.6)),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: const Text('FREE', style: TextStyle(
-                                  color: Colors.green, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1,
+                                  color: AppColors.success, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1,
                                 )),
                               ),
                             ],
@@ -1268,7 +1268,7 @@ class _EpisodeTile extends StatelessWidget {
                           width: 44, height: 44,
                           decoration: BoxDecoration(
                             color: completed
-                                ? Colors.green.withOpacity(0.15)
+                                ? AppColors.success.withOpacity(0.15)
                                 : watched
                                     ? context.signalPrimary.withOpacity(0.15)
                                     : t.border,
@@ -1276,7 +1276,7 @@ class _EpisodeTile extends StatelessWidget {
                           ),
                           child: Center(
                             child: completed
-                                ? Icon(AppIcons.successIcon, color: Colors.green, size: 20)
+                                ? Icon(AppIcons.successIcon, color: AppColors.success, size: 20)
                                 : Text(
                                     '${index + 1}',
                                     style: TextStyle(
@@ -1350,11 +1350,11 @@ class _EpisodeTile extends StatelessWidget {
                                 margin: const EdgeInsets.only(left: 8),
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.15),
+                                  color: AppColors.success.withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text('FREE', style: TextStyle(
-                                  color: Colors.green, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5,
+                                  color: AppColors.success, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5,
                                 )),
                               )
                             else if (isLocked)
@@ -1379,7 +1379,7 @@ class _EpisodeTile extends StatelessWidget {
                                 margin: const EdgeInsets.only(left: 4),
                                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF1A1A2E),
+                                  color: AppColors.card,
                                   borderRadius: BorderRadius.circular(5),
                                   border: Border.all(color: AppColors.info.withOpacity(0.4)),
                                 ),
@@ -1408,7 +1408,7 @@ class _EpisodeTile extends StatelessWidget {
                           ),
                         ] else if (completed) ...[
                           const SizedBox(height: 4),
-                          Text('Watched', style: TextStyle(color: Colors.green, fontSize: 11)),
+                          Text('Watched', style: TextStyle(color: AppColors.success, fontSize: 11)),
                         ],
                       ],
                     ),
@@ -1535,9 +1535,9 @@ class _EpisodeUnavailableTile extends StatelessWidget {
     final isUploading  = statusOverride == 'uploading';
     final hasOverride  = isComingSoon || isUploading;
     final accent = isUploading
-        ? const Color(0xFF3B82F6)
+        ? AppColors.info
         : isComingSoon
-            ? const Color(0xFFF59E0B)
+            ? AppColors.warning
             : t.textSecondary;
     final statusText = isUploading
         ? 'Uploading now...'
@@ -1722,13 +1722,13 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
                       const SizedBox(width: 5),
                       _AdminChip(
                         label: 'Soon', icon: AppIcons.clock,
-                        color: const Color(0xFFF59E0B),
+                        color: AppColors.warning,
                         selected: cur == 'coming_soon',
                         onTap: () => _set(epNum, 'coming_soon')),
                       const SizedBox(width: 5),
                       _AdminChip(
                         label: 'Uploading', icon: AppIcons.cloudUpload,
-                        color: const Color(0xFF3B82F6),
+                        color: AppColors.info,
                         selected: cur == 'uploading',
                         onTap: () => _set(epNum, 'uploading')),
                     ],
@@ -2110,9 +2110,9 @@ class _StatusPill extends StatelessWidget {
 
   Color get _color {
     switch (status) {
-      case 'ongoing':   return const Color(0xFF22C55E);
-      case 'completed': return const Color(0xFF3B82F6);
-      case 'cancelled': return const Color(0xFFEF4444);
+      case 'ongoing':   return AppColors.success;
+      case 'completed': return AppColors.info;
+      case 'cancelled': return AppColors.error;
       default:          return AppColors.textMuted;
     }
   }
