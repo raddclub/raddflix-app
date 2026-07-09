@@ -229,3 +229,9 @@ Phase 4 ✅ COMPLETE. Phase 5 (large screens: show_detail, local_folder, home, e
 - Completes Phase 5 item 2 (color+radius were already done in 6b7c3fb, pre-existing this
   session). Remaining `Colors.white/black/transparent` are intentional poster-overlay colors —
   no token match, consistent with the kept-list pattern from Phase 4.
+
+**Commit 90462aa — subscription_screen.dart spacing pass:**
+- Added `import '../design_system/spacing/radd_space.dart'`
+- `SizedBox(height/width: 4/8/16/32)` and `EdgeInsets.all(16)` → `RaddSpace.xs/sm/md/lg`
+- Color+radius were already fully migrated (pre-existing) — only raw `Colors.white/transparent`
+  remain (intentional, no token). Completes Phase 5 item 3.

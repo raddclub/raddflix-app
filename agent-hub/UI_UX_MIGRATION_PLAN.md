@@ -136,8 +136,10 @@ Migrate in this order (highest raw-literal count first, per blueprint §2/§4):
       earlier commit (6b7c3fb) that shipped a build break (fixed in 9daff07); spacing pass done
       in 1ae4355. Remaining `Colors.white/black/transparent` are intentional poster-overlay
       colors with no token. See TASK_LOG.md for detail.
-- [ ] `subscription_screen.dart` (61 `Colors.*`, 52 `AppColors.*`) — flag to design: no Volume V
-      wireframe exists for this screen; get one before/while migrating.
+- [x] `subscription_screen.dart` (61 `Colors.*`, 52 `AppColors.*`) — color+radius were already
+      fully migrated (no raw `Colors.*`/`Color()` left besides intentional white/transparent);
+      spacing pass done in commit 90462aa. Wireframe flag still stands for any future *visual*
+      redesign of this screen — not needed for this mechanical token pass.
 - [ ] `home_screen.dart` (71 `Colors.*`, 33 `AppColors.*`, 3 raw `Color()`)
 - [ ] `local_media_screen.dart` (55 `Colors.*`, 33 `AppColors.*`, 6 raw `Color()`)
 - [ ] `search_screen.dart` (46 `Colors.*`, 33 `AppColors.*`) — also adopt `RaddSheet` for filters
