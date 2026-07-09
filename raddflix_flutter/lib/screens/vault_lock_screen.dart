@@ -3,6 +3,7 @@ import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
+import '../design_system/components/radd_lock_pad.dart';
 import '../services/vault_service.dart';
 
 class VaultLockScreen extends StatefulWidget {
@@ -12,8 +13,7 @@ class VaultLockScreen extends StatefulWidget {
   State<VaultLockScreen> createState() => _VaultLockScreenState();
 }
 
-class _VaultLockScreenState extends State<VaultLockScreen>
-    with SingleTickerProviderStateMixin {
+class _VaultLockScreenState extends State<VaultLockScreen> {
   String _pin = '';
   String _confirmPin = '';
   bool _confirming = false;
@@ -27,20 +27,9 @@ class _VaultLockScreenState extends State<VaultLockScreen>
   int _expectedPinLength = 6;
   int _pinLengthChoice = 6;
 
-  late AnimationController _shakeCtrl;
-  late Animation<double> _shakeAnim;
-
   @override
   void initState() {
     super.initState();
-    _shakeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
-    _shakeAnim = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: -12.0), weight: 1),
-      TweenSequenceItem(tween: Tween(begin: -12.0, end: 12.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 12.0, end: -8.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: -8.0, end: 8.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 8.0, end: 0.0), weight: 1),
-    ]).animate(_shakeCtrl);
     _init();
   }
 
@@ -75,32 +64,20 @@ class _VaultLockScreenState extends State<VaultLockScreen>
     if (ok) Navigator.of(context).pushReplacementNamed(AppRoutes.vault);
   }
 
-  void _onKey(String digit) {
+  /// Called by `RaddLockPad` once the active field (PIN, or confirm-PIN
+  /// during setup) reaches `_expectedPinLength` digits.
+  Future<void> _onLockPadSubmit(String code) async {
     if (_loading) return;
     if (_lockedUntil != null && DateTime.now().isBefore(_lockedUntil!)) return;
-    final current = _confirming ? _confirmPin : _pin;
-    if (current.length >= _expectedPinLength) return;
     setState(() {
       _error = false;
       if (_confirming) {
-        _confirmPin = _confirmPin + digit;
+        _confirmPin = code;
       } else {
-        _pin = _pin + digit;
+        _pin = code;
       }
     });
-    if (!_confirming && _pin.length == _expectedPinLength) _submit();
-    if (_confirming && _confirmPin.length == _expectedPinLength) _submit();
-  }
-
-  void _onBackspace() {
-    setState(() {
-      _error = false;
-      if (_confirming && _confirmPin.isNotEmpty) {
-        _confirmPin = _confirmPin.substring(0, _confirmPin.length - 1);
-      } else if (!_confirming && _pin.isNotEmpty) {
-        _pin = _pin.substring(0, _pin.length - 1);
-      }
-    });
+    await _submit();
   }
 
   Future<void> _submit() async {
@@ -150,18 +127,10 @@ class _VaultLockScreenState extends State<VaultLockScreen>
   void _shake(String msg) {
     HapticFeedback.heavyImpact();
     setState(() { _error = true; _errorMsg = msg; });
-    _shakeCtrl.forward(from: 0);
-  }
-
-  @override
-  void dispose() {
-    _shakeCtrl.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final current = _confirming ? _confirmPin : _pin;
     final isLocked = _lockedUntil != null && DateTime.now().isBefore(_lockedUntil!);
 
     return Scaffold(
@@ -228,51 +197,6 @@ class _VaultLockScreenState extends State<VaultLockScreen>
 
             const Spacer(),
 
-            AnimatedBuilder(
-              animation: _shakeAnim,
-              builder: (_, child) => Transform.translate(
-                offset: Offset(_shakeAnim.value, 0),
-                child: child,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(_expectedPinLength, (i) {
-                  final filled = i < current.length;
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    margin: const EdgeInsets.symmetric(horizontal: 8),
-                    width: filled ? 16 : 14,
-                    height: filled ? 16 : 14,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _error
-                          ? Colors.red
-                          : filled
-                              ? const Color(0xFF7C5CFF)
-                              : Colors.white24,
-                      boxShadow: filled && !_error
-                          ? [const BoxShadow(
-                              color: Color(0x807C5CFF),
-                              blurRadius: 8, spreadRadius: 1,
-                            )]
-                          : null,
-                    ),
-                  );
-                }),
-              ),
-            ),
-
-            if (_error) ...[
-              const SizedBox(height: 12),
-              Text(
-                _errorMsg,
-                style: const TextStyle(color: Colors.redAccent, fontSize: 13),
-                textAlign: TextAlign.center,
-              ).animate().shakeX(),
-            ],
-
-            const Spacer(),
-
             if (widget.isSetup && !_confirming)
               Padding(
                 padding: const EdgeInsets.only(bottom: 20),
@@ -319,55 +243,18 @@ class _VaultLockScreenState extends State<VaultLockScreen>
               ),
 
             if (!isLocked)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40),
-                child: Column(
-                  children: [
-                    for (final row in [
-                      ['1','2','3'],
-                      ['4','5','6'],
-                      ['7','8','9'],
-                      ['bio','0','⌫'],
-                    ])
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: row.map((k) {
-                            if (k == 'bio') {
-                              // FIX-VAULT-05: show fingerprint button ONLY when
-                              // BOTH available (hardware exists + enrolled) AND
-                              // user explicitly enabled it in Vault Settings.
-                              return _biometricAvailable && _biometricEnabled && !widget.isSetup
-                                  ? _NumKey(
-                                      child: Icon(AppIcons.fingerprint,
-                                          color: Colors.white, size: 28),
-                                      onTap: _tryBiometric,
-                                    )
-                                  : const SizedBox(width: 80, height: 64);
-                            }
-                            if (k == '⌫') {
-                              return _NumKey(
-                                child: Icon(AppIcons.backspace,
-                                    color: Colors.white, size: 22),
-                                onTap: _onBackspace,
-                                onLongPress: () => setState(() {
-                                  _pin = ''; _confirmPin = '';
-                                }),
-                              );
-                            }
-                            return _NumKey(
-                              child: Text(k, style: const TextStyle(
-                                color: Colors.white, fontSize: 26,
-                                fontWeight: FontWeight.w300,
-                              )),
-                              onTap: () => _onKey(k),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                  ],
-                ),
+              // RaddLockPad manages the dot row + numpad + its own entered-digits
+              // state; `key` is bumped whenever the active field or expected
+              // length changes so the pad's internal buffer resets cleanly.
+              RaddLockPad(
+                key: ValueKey('$_confirming-$_expectedPinLength'),
+                pinLength: _expectedPinLength,
+                accent: RaddLockPadAccent.vault,
+                onSubmit: _onLockPadSubmit,
+                errorText: _error ? _errorMsg : null,
+                showBiometric:
+                    _biometricAvailable && _biometricEnabled && !widget.isSetup,
+                onBiometricTap: _tryBiometric,
               )
             else
               _LockedOutTimer(until: _lockedUntil!, onExpired: () {
@@ -377,30 +264,6 @@ class _VaultLockScreenState extends State<VaultLockScreen>
             const SizedBox(height: 32),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _NumKey extends StatelessWidget {
-  final Widget child;
-  final VoidCallback onTap;
-  final VoidCallback? onLongPress;
-  const _NumKey({required this.child, required this.onTap, this.onLongPress});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () { HapticFeedback.lightImpact(); onTap(); },
-      onLongPress: onLongPress,
-      child: Container(
-        width: 80, height: 64,
-        decoration: BoxDecoration(
-          color: const Color(0xFF12151E),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF1E2530)),
-        ),
-        child: Center(child: child),
       ),
     );
   }
