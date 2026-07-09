@@ -20,6 +20,11 @@ class RaddLockPad extends StatefulWidget {
   final bool showBiometric;
   final VoidCallback? onBiometricTap;
 
+  /// Fires on every digit press/backspace, before [pinLength] is reached.
+  /// Use this to clear caller-owned error/mismatch state as soon as the user
+  /// starts a new attempt, instead of waiting for the next [onSubmit].
+  final ValueChanged<String>? onChanged;
+
   const RaddLockPad({
     super.key,
     this.pinLength = 4,
@@ -28,6 +33,7 @@ class RaddLockPad extends StatefulWidget {
     this.errorText,
     this.showBiometric = false,
     this.onBiometricTap,
+    this.onChanged,
   });
 
   @override
@@ -47,6 +53,7 @@ class _RaddLockPadState extends State<RaddLockPad> {
   void _tap(String digit) {
     if (_entered.length >= widget.pinLength) return;
     setState(() => _entered += digit);
+    widget.onChanged?.call(_entered);
     if (_entered.length == widget.pinLength) {
       final code = _entered;
       widget.onSubmit(code);
@@ -59,6 +66,7 @@ class _RaddLockPadState extends State<RaddLockPad> {
   void _backspace() {
     if (_entered.isEmpty) return;
     setState(() => _entered = _entered.substring(0, _entered.length - 1));
+    widget.onChanged?.call(_entered);
   }
 
   @override

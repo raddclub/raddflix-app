@@ -255,6 +255,9 @@ class _VaultLockScreenState extends State<VaultLockScreen> {
                 showBiometric:
                     _biometricAvailable && _biometricEnabled && !widget.isSetup,
                 onBiometricTap: _tryBiometric,
+                onChanged: (_) {
+                  if (_error) setState(() => _error = false);
+                },
               )
             else
               _LockedOutTimer(until: _lockedUntil!, onExpired: () {

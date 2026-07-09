@@ -107,6 +107,9 @@ class _PinLockScreenState extends State<PinLockScreen> {
               accent: RaddLockPadAccent.standard,
               onSubmit: _loading ? (_) {} : _onSubmit,
               errorText: _wrong ? 'Incorrect PIN' : null,
+              onChanged: (_) {
+                if (_wrong) setState(() => _wrong = false);
+              },
             ),
             const Spacer(),
           ],
@@ -143,11 +146,10 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
     }
     if (code != _first) {
       HapticFeedback.mediumImpact();
-      setState(() {
-        _confirming = false;
-        _first = '';
-        _mismatch = true;
-      });
+      // Stay on the confirm step and keep the original PIN — only the
+      // confirm attempt was wrong. `RaddLockPad` clears its own entered
+      // digits after `onSubmit`, so no manual reset is needed here.
+      setState(() => _mismatch = true);
       return;
     }
     await PinLockService.instance.setPin(_first);
@@ -168,9 +170,13 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
                 icon: Icon(AppIcons.back, color: t.textSecondary),
                 onPressed: () {
                   if (_confirming) {
+                    // `RaddLockPad` has no prefill support, so returning to
+                    // the first-entry step means re-entering the PIN from
+                    // scratch — there is no way to resume a partial entry.
                     setState(() {
                       _confirming = false;
                       _first = '';
+                      _mismatch = false;
                     });
                   } else {
                     Navigator.of(context).pop(false);
@@ -197,6 +203,9 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
               accent: RaddLockPadAccent.standard,
               onSubmit: _onSubmit,
               errorText: _mismatch ? "PINs didn't match — try again" : null,
+              onChanged: (_) {
+                if (_mismatch) setState(() => _mismatch = false);
+              },
             ),
             const Spacer(),
           ],
