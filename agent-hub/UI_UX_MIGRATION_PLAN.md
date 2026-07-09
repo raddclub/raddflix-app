@@ -41,6 +41,13 @@ you start or finish an item — that line is what the next agent reads first.
 ## Phase 2 — Foundational, low-risk consolidation
 **Status:** ⏳ IN PROGRESS
 - [x] Migrate `pin_lock_screen.dart` (`PinLockScreen` + `PinSetupScreen`) onto `RaddLockPad`.
+      Pushed as `377b74f`. **Also fixed a pre-existing bug found in the process:**
+      `radd_lock_pad.dart` was missing its `RaddType` import, so `context.raddCaption`/
+      `raddTitle` failed to compile even inside the component itself — this had never been
+      caught because the component had 0 usages before this migration (confirms blueprint
+      Phase 0 concern). Fixed in `6369f4f`. CI build `build-apk.yml` run `29015714331`
+      confirmed **green** on this commit — the first real compile check the component/screen
+      pairing has ever had.
 - [ ] Migrate `vault_lock_screen.dart` onto `RaddLockPad`.
 - [ ] Resolve `ContentCard` (6 usages) vs `SimosaCard` (2 usages) duplication onto `RaddCard` —
       pick one call-site set to convert first (start with the 2 `SimosaCard` usages, smaller
