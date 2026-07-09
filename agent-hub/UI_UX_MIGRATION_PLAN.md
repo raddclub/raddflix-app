@@ -140,7 +140,11 @@ Migrate in this order (highest raw-literal count first, per blueprint §2/§4):
       fully migrated (no raw `Colors.*`/`Color()` left besides intentional white/transparent);
       spacing pass done in commit 90462aa. Wireframe flag still stands for any future *visual*
       redesign of this screen — not needed for this mechanical token pass.
-- [ ] `home_screen.dart` (71 `Colors.*`, 33 `AppColors.*`, 3 raw `Color()`)
+- [x] `home_screen.dart` (71 `Colors.*`, 33 `AppColors.*`, 3 raw `Color()`) — color+radius were
+      already mostly migrated (pre-existing); spacing pass done in 6c85262. Kept:
+      `Colors.white/black/transparent/amber` (overlay/rating star, no token),
+      `Color(0xCC000000)`/`Color(0xF5000000)` (poster gradient scrim),
+      `Color(0xFF2A2A2A)` (shimmer highlight) — none match an AppColors value.
 - [ ] `local_media_screen.dart` (55 `Colors.*`, 33 `AppColors.*`, 6 raw `Color()`)
 - [ ] `search_screen.dart` (46 `Colors.*`, 33 `AppColors.*`) — also adopt `RaddSheet` for filters
       (currently no detected `RaddSheet`/`showModalBottomSheet` match).
