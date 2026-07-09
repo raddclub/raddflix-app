@@ -48,7 +48,10 @@ you start or finish an item — that line is what the next agent reads first.
       Phase 0 concern). Fixed in `6369f4f`. CI build `build-apk.yml` run `29015714331`
       confirmed **green** on this commit — the first real compile check the component/screen
       pairing has ever had.
-- [ ] Migrate `vault_lock_screen.dart` onto `RaddLockPad`.
+- [x] Migrate `vault_lock_screen.dart` onto `RaddLockPad` (vault accent). Pushed as `ecf82eb`.
+      Dropped one minor feature in the process: long-press-backspace-to-clear-all — `RaddLockPad`
+      doesn't expose that hook. Low-value edge affordance; add to `RaddLockPad` later only if a
+      user actually asks for it back. CI build `29016623850` confirmed **green**.
 - [ ] Resolve `ContentCard` (6 usages) vs `SimosaCard` (2 usages) duplication onto `RaddCard` —
       pick one call-site set to convert first (start with the 2 `SimosaCard` usages, smaller
       blast radius), verify visually, then convert the 6 `ContentCard` usages.
