@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/radius/radd_radius.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import '../core/constants.dart';
@@ -257,7 +258,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
       padding: EdgeInsets.all(RaddSpace.md),
       decoration: BoxDecoration(
         color: t.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: RaddRadius.mdRadius,
         border: Border.all(color: t.divider),
       ),
       child: Column(
@@ -306,7 +307,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
       padding: EdgeInsets.all(RaddSpace.md),
       decoration: BoxDecoration(
         color: t.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: RaddRadius.mdRadius,
         border: Border.all(color: t.divider),
       ),
       child: Column(
@@ -437,7 +438,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: RaddRadius.mdRadius),
         ),
       ),
     );
@@ -467,7 +468,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
           backgroundColor: AppColors.error,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: RaddRadius.mdRadius),
         ),
       ),
     );
@@ -483,7 +484,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
           foregroundColor: t.textSecondary,
           side: BorderSide(color: t.divider),
           padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: RaddRadius.mdRadius),
         ),
         child: const Text('Try Again'),
       ),
