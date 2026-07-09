@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../core/theme/radd_colors.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api/history_api.dart';
@@ -144,7 +145,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
-                color: AppColors.primary,
+                color: context.signalPrimary,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
