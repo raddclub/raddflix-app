@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/radius/radd_radius.dart';
 import '../core/constants.dart';
 import '../models/profile.dart';
 import '../providers/profile_provider.dart';
@@ -203,7 +204,7 @@ class _ProfileTile extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: AppColors.success,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: RaddRadius.smRadius,
                     border: Border.all(color: t.bg, width: 2),
                   ),
                   child: const Text('KIDS', style: TextStyle(color: Colors.white,
