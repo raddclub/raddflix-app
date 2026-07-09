@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../core/theme/radd_colors.dart';
+import '../design_system/radius/radd_radius.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -88,7 +90,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             Positioned(top: -120, right: -80,
               child: Container(width: 280, height: 280,
                 decoration: BoxDecoration(shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [AppColors.primary.withOpacity(0.12), Colors.transparent])))),
+                  gradient: RadialGradient(colors: [context.signalPrimary.withOpacity(0.12), Colors.transparent])))),
             SafeArea(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -145,22 +147,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     const SizedBox(height: 14),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          border: Border.all(color: AppColors.error.withOpacity(0.3))),
+                      decoration: BoxDecoration(color: context.accentError.withOpacity(0.1),
+                          borderRadius: RaddRadius.smRadius,
+                          border: Border.all(color: context.accentError.withOpacity(0.3))),
                       child: Row(children: [
-                        Icon(AppIcons.errorIcon, color: AppColors.error, size: 18),
+                        Icon(AppIcons.errorIcon, color: context.accentError, size: 18),
                         const SizedBox(width: 10),
-                        Expanded(child: Text(_error!, style: const TextStyle(color: AppColors.error, fontSize: 13))),
+                        Expanded(child: Text(_error!, style: TextStyle(color: context.accentError, fontSize: 13))),
                       ]),
                     ).animate().fadeIn(duration: 250.ms).shakeX(hz: 3, amount: 4),
                   ],
                   const SizedBox(height: 28),
                   Container(height: 52,
-                    decoration: BoxDecoration(gradient: AppColors.primaryGradient,
-                        borderRadius: BorderRadius.circular(AppRadius.md), boxShadow: AppShadows.primary),
+                    decoration: BoxDecoration(gradient: context.signalPrimaryGradient,
+                        borderRadius: RaddRadius.mdRadius, boxShadow: AppShadows.primary),
                     child: Material(color: Colors.transparent,
-                      child: InkWell(borderRadius: BorderRadius.circular(AppRadius.md),
+                      child: InkWell(borderRadius: RaddRadius.mdRadius,
                         onTap: _loading ? null : _register,
                         child: Center(child: Text('Create Account',
                             style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700))))))
@@ -177,7 +179,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         text: 'Already have an account? ',
                         style: TextStyle(color: t.textMuted, fontSize: 14),
                         children: [TextSpan(text: 'Sign In',
-                            style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700))])),
+                            style: TextStyle(color: context.signalPrimary, fontWeight: FontWeight.w700))])),
                   )).animate(delay: 400.ms).fadeIn(duration: 300.ms),
                   const SizedBox(height: 40),
                 ]),
