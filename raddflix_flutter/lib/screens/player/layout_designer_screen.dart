@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/constants.dart';
 import '../../design_system/spacing/radd_space.dart';
+import '../../design_system/radius/radd_radius.dart';
 import '../../core/player/layout_config.dart';
 import '../../core/player/player_prefs.dart';
 
@@ -309,7 +310,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: Colors.white10,
-                    borderRadius: BorderRadius.circular(8)),
+                    borderRadius: RaddRadius.smRadius),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     const Icon(Icons.open_in_full_rounded,
                         color: Colors.white70, size: 14),
@@ -331,7 +332,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
                     color: selected.visible
                         ? widget.prefs.accentColor.withOpacity(0.2)
                         : Colors.white10,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: RaddRadius.smRadius,
                     border: Border.all(
                       color: selected.visible
                           ? widget.prefs.accentColor
