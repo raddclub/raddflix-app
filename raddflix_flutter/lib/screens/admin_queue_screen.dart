@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/radius/radd_radius.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
 import '../core/api/api_client.dart';
@@ -192,7 +193,7 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   color: t.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  borderRadius: RaddRadius.mdRadius,
                   border: Border.all(color: t.border),
                 ),
                 child: Row(
@@ -324,7 +325,7 @@ class _JobCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: t.surface,
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: RaddRadius.mdRadius,
           border: Border.all(
             color: isActive
                 ? statusColor.withOpacity(0.35)
