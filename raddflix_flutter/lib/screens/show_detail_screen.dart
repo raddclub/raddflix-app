@@ -4,6 +4,7 @@ import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import '../core/theme/radd_colors.dart';
 import '../design_system/radius/radd_radius.dart';
+import '../design_system/spacing/radd_space.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -649,7 +650,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(height: 4),
+                  SizedBox(height: RaddSpace.xs),
 
                   // Genres
                   if (item.genres != null && item.genres!.isNotEmpty) ...[
@@ -667,7 +668,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                             fontWeight: FontWeight.w500)),
                       )).toList(),
                     ).animate().fadeIn(delay: 100.ms),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: RaddSpace.md),
                   ],
 
                   // Description — plain expandable text (typewriter animation removed)
@@ -678,7 +679,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
 
                   // Cast & crew strip (TMDB — hidden when API key absent)
                   CastRail(item: item),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: RaddSpace.md),
 
                   // ── MOVIE: Play + Download buttons ─────────────────────────
                   if (isMovie) ...[
@@ -781,7 +782,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                         ),
                       ],
                     ]).animate().fadeIn(delay: 200.ms).slideY(begin: 0.3),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: RaddSpace.lg),
                   ],
 
                   // ── Watchlist toggle button ───────────────────────────────────
@@ -822,7 +823,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                               color: inWatchlist ? context.signalPrimary : t.textSecondary,
                               size: 20,
                             ),
-                            SizedBox(width: 8),
+                            SizedBox(width: RaddSpace.sm),
                             Text(
                               inWatchlist ? 'In Watchlist' : 'Add to Watchlist',
                               style: TextStyle(
@@ -836,7 +837,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                       ),
                     );
                   }).animate().fadeIn(delay: 250.ms),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: RaddSpace.md),
 
                   // ── SHOW: Season Tabs + Episodes ───────────────────────────
                   if (!isMovie) ...[
@@ -893,7 +894,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                 elevation: 0,
                               ),
                             ),
-                            SizedBox(height: 16),
+                            SizedBox(height: RaddSpace.md),
                           ],
                         );
                       }),
@@ -970,7 +971,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                   : Row(mainAxisSize: MainAxisSize.min, children: [
                                       Icon(AppIcons.cloudDownload,
                                           size: 14, color: context.signalPrimary),
-                                      const SizedBox(width: 4),
+                                      const SizedBox(width: RaddSpace.xs),
                                       Text('Season', style: TextStyle(
                                           color: context.signalPrimary,
                                           fontSize: 11, fontWeight: FontWeight.w700)),
@@ -1010,7 +1011,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: _seasons.length,
-                          separatorBuilder: (_, __) => SizedBox(width: 8),
+                          separatorBuilder: (_, __) => SizedBox(width: RaddSpace.sm),
                           itemBuilder: (_, i) {
                             final s = _seasons[i];
                             final selected = s == _selectedSeason;
@@ -1044,7 +1045,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                         ),
                       ).animate().fadeIn(delay: 200.ms),
 
-                    if (_seasons.length > 1) const SizedBox(height: 16),
+                    if (_seasons.length > 1) const SizedBox(height: RaddSpace.md),
                   ],
                 ],
               ),
@@ -1407,7 +1408,7 @@ class _EpisodeTile extends StatelessWidget {
                             style: TextStyle(color: t.textSecondary, fontSize: 11),
                           ),
                         ] else if (completed) ...[
-                          const SizedBox(height: 4),
+                          const SizedBox(height: RaddSpace.xs),
                           Text('Watched', style: TextStyle(color: AppColors.success, fontSize: 11)),
                         ],
                       ],
@@ -1446,7 +1447,7 @@ class _EpisodeTile extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: RaddSpace.sm),
             // Download button
             Expanded(
               child: SizedBox(
@@ -1665,7 +1666,7 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: EdgeInsets.all(RaddSpace.sm),
                   decoration: BoxDecoration(
                     color: AppColors.orange.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(10),
@@ -1714,7 +1715,7 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
                       Expanded(child: Text(lbl, style: TextStyle(
                         color: t.textPrimary,
                         fontWeight: FontWeight.w600, fontSize: 14))),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: RaddSpace.sm),
                       _AdminChip(
                         label: 'None', icon: AppIcons.block,
                         color: t.textSecondary, selected: cur == null,
@@ -1875,7 +1876,7 @@ class _MoreLikeThisSection extends StatelessWidget {
             decoration: BoxDecoration(
                 color: context.signalPrimary,
                 borderRadius: BorderRadius.circular(2))),
-          const SizedBox(width: 8),
+          const SizedBox(width: RaddSpace.sm),
           Text('More Like This',
               style: TextStyle(
                   color: t.textPrimary,
@@ -1954,7 +1955,7 @@ class _MoreLikeThisSection extends StatelessWidget {
           },
         ),
       ),
-      const SizedBox(height: 8),
+      const SizedBox(height: RaddSpace.sm),
     ]);
   }
 
@@ -2013,7 +2014,7 @@ class _ComingSoonBanner extends StatelessWidget {
                     color: context.signalPrimary, size: 30),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: RaddSpace.md),
             Text(
               'Coming Soon',
               style: TextStyle(
@@ -2023,7 +2024,7 @@ class _ComingSoonBanner extends StatelessWidget {
                 letterSpacing: 0.2,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: RaddSpace.sm),
             Text(
               hasCount
                   ? 'Season $season has $episodeCount episode${episodeCount == 1 ? "" : "s"} — '
@@ -2070,7 +2071,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: t.textSecondary, height: 1.5, fontSize: 14),
             ),
-            SizedBox(height: 4),
+            SizedBox(height: RaddSpace.xs),
             Text('Read more', style: TextStyle(color: context.signalPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
           ],
         ),
@@ -2081,7 +2082,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
               widget.text,
               style: TextStyle(color: t.textSecondary, height: 1.5, fontSize: 14),
             ),
-            SizedBox(height: 4),
+            SizedBox(height: RaddSpace.xs),
             Text('Show less', style: TextStyle(color: context.signalPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
           ],
         ),
