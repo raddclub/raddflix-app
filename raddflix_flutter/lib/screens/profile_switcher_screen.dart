@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import '../core/constants.dart';
 import '../models/profile.dart';
 import '../providers/profile_provider.dart';
@@ -52,7 +53,7 @@ class _ProfileSwitcherScreenState extends ConsumerState<ProfileSwitcherScreen> {
     if (!ok) {
       setState(() => _switching = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Incorrect PIN'), backgroundColor: Color(0xFFEF4444)),
+        const SnackBar(content: Text('Incorrect PIN'), backgroundColor: AppColors.error),
       );
       return;
     }
@@ -111,7 +112,7 @@ class _ProfileSwitcherScreenState extends ConsumerState<ProfileSwitcherScreen> {
                       style: TextStyle(color: t.textPrimary, fontSize: 28,
                           fontWeight: FontWeight.w800))
                       .animate().fadeIn(duration: 300.ms).slideY(begin: 0.15, end: 0),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: RaddSpace.sm),
                   Text(_managing ? 'Tap a profile to edit it' : 'Select a profile to continue',
                       style: TextStyle(color: t.textMuted, fontSize: 14))
                       .animate(delay: 60.ms).fadeIn(),
@@ -201,7 +202,7 @@ class _ProfileTile extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF22C55E),
+                    color: AppColors.success,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: t.bg, width: 2),
                   ),
@@ -213,7 +214,7 @@ class _ProfileTile extends StatelessWidget {
               Positioned(
                 top: -2, right: -2,
                 child: Container(
-                  padding: const EdgeInsets.all(4),
+                  padding: EdgeInsets.all(RaddSpace.xs),
                   decoration: BoxDecoration(
                     color: t.surface, shape: BoxShape.circle,
                     border: Border.all(color: t.bg, width: 2),
@@ -328,7 +329,7 @@ class _PinEntrySheetState extends State<_PinEntrySheet> {
         const SizedBox(height: 10),
         Text('Enter PIN for ${widget.profile.name}',
             style: TextStyle(color: t.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 24),
+        const SizedBox(height: RaddSpace.lg),
         AnimatedContainer(
           duration: const Duration(milliseconds: 80),
           transform: Matrix4.translationValues(_shake ? 8 : 0, 0, 0),
@@ -340,11 +341,11 @@ class _PinEntrySheetState extends State<_PinEntrySheet> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: filled
-                    ? (_shake ? const Color(0xFFEF4444) : AppColors.primary)
+                    ? (_shake ? const AppColors.error : AppColors.primary)
                     : Colors.transparent,
                 border: Border.all(
                     color: filled
-                        ? (_shake ? const Color(0xFFEF4444) : AppColors.primary)
+                        ? (_shake ? const AppColors.error : AppColors.primary)
                         : t.border, width: 1.5),
               ),
             );

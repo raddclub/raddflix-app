@@ -5,6 +5,7 @@ library layout_designer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../design_system/spacing/radd_space.dart';
 import '../../core/player/layout_config.dart';
 import '../../core/player/player_prefs.dart';
 
@@ -182,7 +183,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
           if (_isDirty)
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFE8002D),
+                backgroundColor: AppColors.primary,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               ),
               onPressed: _save,
@@ -217,7 +218,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.movie_creation_outlined,
                   color: Colors.white10, size: 80),
-              SizedBox(height: 8),
+              SizedBox(height: RaddSpace.sm),
               Text('Layout Preview',
                   style: TextStyle(color: Colors.white12, fontSize: 13)),
             ]),
@@ -293,7 +294,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
             Row(children: [
               Icon(_controlIcons[selected.id] ?? Icons.circle,
                   color: widget.prefs.accentColor, size: 18),
-              const SizedBox(width: 8),
+              const SizedBox(width: RaddSpace.sm),
               Text(
                 _controlLabels[selected.id] ?? selected.id,
                 style: const TextStyle(color: Colors.white,
@@ -311,7 +312,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     const Icon(Icons.open_in_full_rounded,
                         color: Colors.white70, size: 14),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: RaddSpace.xs),
                     Text(
                       _sizeName(selected.size),
                       style: const TextStyle(color: Colors.white70, fontSize: 12),
@@ -319,7 +320,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
                   ]),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: RaddSpace.sm),
               // Visibility toggle
               GestureDetector(
                 onTap: () => _toggleVisible(selected.id),
@@ -343,7 +344,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
                       color: selected.visible
                           ? widget.prefs.accentColor : Colors.white38,
                       size: 14),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: RaddSpace.xs),
                     Text(
                       selected.visible ? 'Visible' : 'Hidden',
                       style: TextStyle(

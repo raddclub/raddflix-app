@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
@@ -120,7 +121,7 @@ class ActorScreen extends StatelessWidget {
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Icon(AppIcons.info,
                           size: 15, color: t.textMuted),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: RaddSpace.sm),
                       Expanded(
                         child: Text(bio,
                             style: TextStyle(color: t.textSecondary,
@@ -174,7 +175,7 @@ class ActorScreen extends StatelessWidget {
                   ),
                 ),
               ),
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            const SliverToBoxAdapter(child: SizedBox(height: RaddSpace.lg)),
           ]);
         },
       ),

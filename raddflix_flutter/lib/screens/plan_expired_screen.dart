@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import '../core/constants.dart';
 
 /// Task 6.9 — shown when an offline file is opened but the subscription
@@ -50,7 +51,7 @@ class PlanExpiredScreen extends StatelessWidget {
                   child: Icon(AppIcons.lock,
                       color: AppColors.primary, size: 46),
                 ),
-                SizedBox(height: 32),
+                SizedBox(height: RaddSpace.lg),
                 Text(
                   'Plan Expired',
                   style: TextStyle(

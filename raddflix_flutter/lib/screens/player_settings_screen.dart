@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design_system/spacing/radd_space.dart';
 import '../core/player/player_prefs.dart';
 import '../core/player/player_theme.dart';
 import '../widgets/player/seek_bar_painter.dart';
@@ -196,7 +197,7 @@ class _State extends State<PlayerSettingsScreen> {
             icon: const Icon(Icons.restore_rounded, size: 16),
             label: const Text('Reset all player settings'),
             style: OutlinedButton.styleFrom(foregroundColor: Colors.redAccent,
-                side: const BorderSide(color: Colors.red, width: 0.5),
+                side: const BorderSide(color: AppColors.error, width: 0.5),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))))),
       ]),
@@ -254,7 +255,7 @@ class _State extends State<PlayerSettingsScreen> {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
           if (sub != null) Text(sub, style: const TextStyle(color: Colors.white38, fontSize: 11))])),
-        if (trail != null) trail, const SizedBox(width: 8),
+        if (trail != null) trail, const SizedBox(width: RaddSpace.sm),
         const Icon(Icons.chevron_right_rounded, color: Colors.white24, size: 20)])));
 
   Widget _choices(IconData icon, String label, List<String> choices, List<String> labels,
@@ -263,7 +264,7 @@ class _State extends State<PlayerSettingsScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [Icon(icon, color: Colors.white38, size: 18), const SizedBox(width: 12),
           Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13))]),
-        const SizedBox(height: 8),
+        const SizedBox(height: RaddSpace.sm),
         Wrap(spacing: 6, runSpacing: 6, children: List.generate(choices.length, (i) {
           final sel = value == choices[i];
           return GestureDetector(onTap: () => onC(choices[i]),

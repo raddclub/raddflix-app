@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:local_auth/local_auth.dart';
@@ -101,7 +102,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
   void _toast(String msg, {bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: error ? Colors.red : AppColors.primary,
+      backgroundColor: error ? AppColors.error : AppColors.primary,
       behavior: SnackBarBehavior.floating,
     ));
   }
@@ -120,14 +121,14 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
         title: Text(title, style: TextStyle(color: t.textPrimary)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(hint, style: TextStyle(color: t.textSecondary, fontSize: 13)),
-          const SizedBox(height: 16),
+          const SizedBox(height: RaddSpace.md),
           _pinField(ctrl1, 'Current PIN'),
           const SizedBox(height: 10),
           _pinField(ctrl2, 'New PIN (${VaultService.minPinLength}–${VaultService.maxPinLength} digits)'),
           const SizedBox(height: 10),
           _pinField(ctrl3, 'Confirm New PIN'),
           if (_localError != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: RaddSpace.sm),
             Text(_localError!, style: const TextStyle(color: AppColors.error, fontSize: 12)),
           ],
         ]),
@@ -171,10 +172,10 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
         title: Text(title, style: TextStyle(color: t.textPrimary)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(hint, style: TextStyle(color: t.textSecondary, fontSize: 12)),
-          const SizedBox(height: 16),
+          const SizedBox(height: RaddSpace.md),
           _pinField(ctrl, 'PIN (leave empty to remove)'),
           if (_localError != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: RaddSpace.sm),
             Text(_localError!, style: const TextStyle(color: AppColors.error, fontSize: 12)),
           ],
         ]),
@@ -237,7 +238,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(RaddSpace.md),
         children: [
           // Security section
           _SectionHeader(label: 'Security'),
@@ -278,7 +279,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
             ),
           ]).animate().fadeIn(delay: 50.ms),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: RaddSpace.md),
 
           // Privacy section
           _SectionHeader(label: 'Privacy'),
@@ -299,14 +300,14 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
                   child: const Text('ON', style: TextStyle(
                       color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w700)),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: RaddSpace.sm),
                 Icon(AppIcons.caretRight, color: t.textSecondary.withOpacity(0.4)),
               ]),
               onTap: _setFakePin,
             ),
           ]).animate().fadeIn(delay: 100.ms),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: RaddSpace.md),
 
           // Danger zone
           _SectionHeader(label: 'Danger Zone'),
@@ -321,11 +322,11 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
             ),
           ]).animate().fadeIn(delay: 150.ms),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: RaddSpace.lg),
 
           // Info card
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(RaddSpace.md),
             decoration: BoxDecoration(
               color: AppColors.primary.withOpacity(0.08),
               borderRadius: BorderRadius.circular(12),
@@ -374,7 +375,7 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
               if (mounted) Navigator.pop(context);
             },
           )),
-          const SizedBox(height: 8),
+          const SizedBox(height: RaddSpace.sm),
         ]),
       ),
     );

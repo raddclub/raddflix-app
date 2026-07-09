@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import '../core/constants.dart';
@@ -171,30 +172,30 @@ class _TidStatusScreenState extends State<TidStatusScreen>
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
-              const SizedBox(height: 16),
+              const SizedBox(height: RaddSpace.md),
               _buildStatusIcon(),
-              const SizedBox(height: 24),
+              const SizedBox(height: RaddSpace.lg),
               _buildStatusTitle(),
-              const SizedBox(height: 8),
+              const SizedBox(height: RaddSpace.sm),
               _buildStatusSubtitle(),
-              const SizedBox(height: 32),
+              const SizedBox(height: RaddSpace.lg),
               _buildPaymentSummaryCard(),
               const SizedBox(height: 20),
               _buildTimeline(),
-              const SizedBox(height: 24),
+              const SizedBox(height: RaddSpace.lg),
               if (_status == _TidStatus.pending) ...[
                 _buildPollIndicator(),
                 const SizedBox(height: 20),
                 _buildManualRefresh(),
-                const SizedBox(height: 16),
+                const SizedBox(height: RaddSpace.md),
                 _buildWhatsAppButton(),
               ],
               if (_status == _TidStatus.approved) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: RaddSpace.sm),
                 _buildStartWatchingButton(),
               ],
               if (_status == _TidStatus.rejected) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: RaddSpace.sm),
                 _buildContactSupportButton(),
                 const SizedBox(height: 12),
                 _buildTryAgainButton(),
@@ -253,7 +254,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   Widget _buildPaymentSummaryCard() {
     final t = RaddTheme.of(context);
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(RaddSpace.md),
       decoration: BoxDecoration(
         color: t.surface,
         borderRadius: BorderRadius.circular(14),
@@ -278,7 +279,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
                   letterSpacing: 1.2,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: RaddSpace.sm),
               GestureDetector(
                 onTap: () {
                   Clipboard.setData(ClipboardData(text: widget.tid));
@@ -302,7 +303,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
   Widget _buildTimeline() {
     final t = RaddTheme.of(context);
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(RaddSpace.md),
       decoration: BoxDecoration(
         color: t.surface,
         borderRadius: BorderRadius.circular(14),
@@ -315,7 +316,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
             'Payment Progress',
             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: RaddSpace.md),
           _TimelineStep(
             icon: AppIcons.sendMessage,
             label: 'TID Submitted',
@@ -369,7 +370,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
           style: TextStyle(color: t.textSecondary, fontSize: 13),
         ),
         if (_errorMsg != null) ...[
-          const SizedBox(width: 8),
+          const SizedBox(width: RaddSpace.sm),
           Icon(AppIcons.wifiOff, size: 14, color: AppColors.error),
         ],
       ],
@@ -494,7 +495,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
       case _TidStatus.pending:
         return AppColors.primary;
       case _TidStatus.approved:
-        return const Color(0xFF22C55E);
+        return AppColors.success;
       case _TidStatus.rejected:
         return AppColors.error;
     }
@@ -579,7 +580,7 @@ class _TimelineStep extends StatelessWidget {
     final t = RaddTheme.of(context);
 
     final Color color = isDone
-        ? const Color(0xFF22C55E)
+        ? AppColors.success
         : isFailed
             ? AppColors.error
             : isActive

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import '../core/constants.dart';
 import '../core/api/auth_api.dart';
 import '../providers/auth_provider.dart';
@@ -258,7 +259,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 ),
               ).animate(delay: 130.ms).fadeIn(),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: RaddSpace.lg),
 
               // ── Fields ─────────────────────────────────────────────────
               Padding(
@@ -278,13 +279,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       child: Row(children: [
                         Icon(AppIcons.errorIcon,
                             color: AppColors.error, size: 16),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: RaddSpace.sm),
                         Expanded(child: Text(_error!,
                             style: TextStyle(color: AppColors.error,
                                 fontSize: 13))),
                       ]),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: RaddSpace.md),
                   ],
 
                   _FieldCard(children: [
@@ -310,7 +311,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     ),
                   ]),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: RaddSpace.lg),
 
                   // ── Change Password ──────────────────────────────────
                   _FieldCard(children: [
@@ -348,7 +349,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     ),
                   ]),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: RaddSpace.lg),
 
                   // ── Save button ──────────────────────────────────────
                   SizedBox(
@@ -503,7 +504,7 @@ class _ColorPickerSheet extends StatelessWidget {
             );
           }).toList(),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: RaddSpace.sm),
       ]),
     );
   }
@@ -558,7 +559,7 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Password changed successfully'),
-            backgroundColor: Color(0xFF22C55E),
+            backgroundColor: AppColors.success,
           ),
         );
       }
@@ -711,7 +712,7 @@ class _Field extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: TextStyle(color: t.textMuted, fontSize: 11,
               fontWeight: FontWeight.w600, letterSpacing: 0.4)),
-          const SizedBox(height: 4),
+          const SizedBox(height: RaddSpace.xs),
           TextField(
             controller: ctrl,
             keyboardType: keyboardType,

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
@@ -99,7 +100,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
           TextButton(onPressed: () => Navigator.pop(context, false),
               child: Text('Cancel', style: TextStyle(color: t.textSecondary))),
           TextButton(onPressed: () => Navigator.pop(context, true),
-              child: Text('Delete', style: TextStyle(color: Colors.red))),
+              child: Text('Delete', style: TextStyle(color: AppColors.error))),
         ],
       ),
     );
@@ -228,7 +229,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
             : Row(children: [
                 if (!isRoot) ...[
                   Icon(AppIcons.localMediaFill, color: AppColors.primary, size: 20),
-                  SizedBox(width: 8),
+                  SizedBox(width: RaddSpace.sm),
                 ],
                 if (isRoot)
                   RichText(text: TextSpan(
@@ -248,7 +249,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
         actions: _selectMode
             ? [
                 IconButton(
-                    icon: Icon(AppIcons.trash, color: Colors.red),
+                    icon: Icon(AppIcons.trash, color: AppColors.error),
                     onPressed: _deleteSelected),
                 if (_selected.length == 1)
                   IconButton(
@@ -288,7 +289,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
               children: [
                 if (isRoot && _totalSize > 0)
                   Container(
-                    margin: const EdgeInsets.all(16),
+                    margin: EdgeInsets.all(RaddSpace.md),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
                       color: t.surface,
@@ -312,10 +313,10 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
                       ? Center(
                           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                             Icon(AppIcons.unlock, size: 64, color: t.border),
-                            SizedBox(height: 16),
+                            SizedBox(height: RaddSpace.md),
                             Text('Vault is empty', style: TextStyle(
                                 color: t.textSecondary, fontSize: 16)),
-                            SizedBox(height: 8),
+                            SizedBox(height: RaddSpace.sm),
                             Text('Add files using the + button below',
                                 style: TextStyle(color: t.textSecondary, fontSize: 13)),
                           ]).animate().fadeIn(),
@@ -383,17 +384,17 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
             ),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               if (selected)
-                Icon(AppIcons.successIcon, color: Color(0xFF7C5CFF), size: 40)
+                Icon(AppIcons.successIcon, color: const Color(0xFF7C5CFF), size: 40)
               else
                 Icon(f.icon, color: f.isFolder ? AppColors.primary : t.textSecondary, size: 40),
-              SizedBox(height: 8),
+              SizedBox(height: RaddSpace.sm),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Text(f.name, maxLines: 2, overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: TextStyle(color: t.textPrimary, fontSize: 11, fontWeight: FontWeight.w500)),
               ),
-              SizedBox(height: 4),
+              SizedBox(height: RaddSpace.xs),
               Text(f.displaySize, style: TextStyle(color: t.textSecondary, fontSize: 10)),
             ]),
           ),
@@ -427,13 +428,13 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
               Navigator.pop(context);
               await _restoreToGallery(f);
             }),
-          _SheetTile(icon: AppIcons.trash, label: 'Delete', color: Colors.red,
+          _SheetTile(icon: AppIcons.trash, label: 'Delete', color: AppColors.error,
               onTap: () async {
                 Navigator.pop(context);
                 await VaultService.deleteVaultFile(f.path);
                 await _load();
               }),
-          SizedBox(height: 8),
+          SizedBox(height: RaddSpace.sm),
         ]),
       ),
     );
@@ -555,7 +556,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
           _SheetTile(icon: AppIcons.folder2, label: 'Add Folder',
               subtitle: 'Import all videos from a folder',
               onTap: () => _importVideoFolder()),
-          const SizedBox(height: 8),
+          const SizedBox(height: RaddSpace.sm),
         ]),
       ),
     );
@@ -626,7 +627,7 @@ class _FileListTileState extends State<_FileListTile> {
             AnimatedSwitcher(
               duration: AppDurations.fast,
               child: widget.selected
-                  ? Icon(AppIcons.successIcon, color: Color(0xFF7C5CFF), size: 40, key: ValueKey('check'))
+                  ? Icon(AppIcons.successIcon, color: const Color(0xFF7C5CFF), size: 40, key: ValueKey('check'))
                   : SizedBox(key: const ValueKey('icon'), width: 44, height: 44, child: iconWidget),
             ),
             SizedBox(width: 14),

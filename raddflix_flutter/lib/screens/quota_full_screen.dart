@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
   import 'package:intl/intl.dart';
   import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
   import 'package:url_launcher/url_launcher.dart';
   import '../core/constants.dart';
 
@@ -60,7 +61,7 @@ import '../core/design/app_icons.dart';
                     ],
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: RaddSpace.lg),
 
                 // Icon
                 Container(
@@ -129,7 +130,7 @@ import '../core/design/app_icons.dart';
                 // GB usage bar (shown below CTA so it doesn't push CTA off-screen)
                 if (limit > 0) ...[
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.all(RaddSpace.md),
                     decoration: BoxDecoration(
                       color: t.card,
                       borderRadius: BorderRadius.circular(AppRadius.md),
@@ -143,7 +144,7 @@ import '../core/design/app_icons.dart';
                             style: TextStyle(color: t.textMuted,
                                 fontSize: 12, fontWeight: FontWeight.w600)),
                       ]),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: RaddSpace.sm),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(5),
                         child: LinearProgressIndicator(
@@ -152,13 +153,13 @@ import '../core/design/app_icons.dart';
                           valueColor: const AlwaysStoppedAnimation(AppColors.error),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: RaddSpace.sm),
                       if (resetLabel.isNotEmpty)
                         Text('🔄 Resets on $resetLabel',
                             style: TextStyle(color: t.textMuted, fontSize: 12)),
                     ]),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: RaddSpace.md),
                 ],
 
                 // SIMOSA promo (Jazz's earn-free-MB app — external only)
@@ -178,7 +179,7 @@ import '../core/design/app_icons.dart';
                       border: Border.all(color: t.cardBorder)),
                     child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                       const Text('🔥', style: TextStyle(fontSize: 17)),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: RaddSpace.sm),
                       Text('Earn Free MB on Jazz via SIMOSA',
                           style: TextStyle(color: t.textPrimary,
                               fontWeight: FontWeight.w700, fontSize: 14)),
@@ -192,13 +193,13 @@ import '../core/design/app_icons.dart';
                     textAlign: TextAlign.center,
                     style: TextStyle(color: t.textMuted, fontSize: 10)),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: RaddSpace.md),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
                   child: Text('Go Back',
                       style: TextStyle(color: t.textMuted, fontSize: 14)),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: RaddSpace.md),
               ],
             ),
           ),

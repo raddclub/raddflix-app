@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import '../core/constants.dart';
 import '../models/profile.dart';
 import '../providers/profile_provider.dart';
@@ -103,7 +104,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
           TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete', style: TextStyle(color: Color(0xFFEF4444))),
+            child: const Text('Delete', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -188,11 +189,11 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
               ),
               child: Row(children: [
                 Icon(AppIcons.errorIcon, color: AppColors.error, size: 16),
-                const SizedBox(width: 8),
+                const SizedBox(width: RaddSpace.sm),
                 Expanded(child: Text(_error!, style: TextStyle(color: AppColors.error, fontSize: 13))),
               ]),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: RaddSpace.md),
           ],
 
           // ── Name field ────────────────────────────────────────────────
@@ -278,7 +279,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
             }).toList()),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: RaddSpace.lg),
 
           // ── Kids profile toggle ───────────────────────────────────────
           Container(
@@ -287,7 +288,7 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
             child: SwitchListTile(
               value: _isKids,
               onChanged: (v) => setState(() => _isKids = v),
-              activeColor: const Color(0xFF22C55E),
+              activeColor: AppColors.success,
               title: Text('Kids Profile', style: TextStyle(color: t.textPrimary, fontSize: 14,
                   fontWeight: FontWeight.w600)),
               subtitle: Text('Hides the Private Vault and adult content sections',
@@ -331,14 +332,14 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
               width: double.infinity,
               child: TextButton.icon(
                 onPressed: _delete,
-                icon: Icon(AppIcons.trash, color: Color(0xFFEF4444), size: 18),
+                icon: Icon(AppIcons.trash, color: AppColors.error, size: 18),
                 label: const Text('Delete Profile',
-                    style: TextStyle(color: Color(0xFFEF4444), fontSize: 14, fontWeight: FontWeight.w600)),
+                    style: TextStyle(color: AppColors.error, fontSize: 14, fontWeight: FontWeight.w600)),
               ),
             ),
           ],
 
-          const SizedBox(height: 32),
+          const SizedBox(height: RaddSpace.lg),
         ]),
       ),
     );
@@ -395,7 +396,7 @@ class _SetPinSheetState extends State<_SetPinSheet> {
             style: TextStyle(color: t.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
         if (_error != null) ...[
           const SizedBox(height: 6),
-          Text(_error!, style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12)),
+          Text(_error!, style: const TextStyle(color: AppColors.error, fontSize: 12)),
         ],
         const SizedBox(height: 20),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(4, (i) {
@@ -410,7 +411,7 @@ class _SetPinSheetState extends State<_SetPinSheet> {
             ),
           );
         })),
-        const SizedBox(height: 24),
+        const SizedBox(height: RaddSpace.lg),
         _AddProfilePinPad(onTap: _tap, onBackspace: _backspace),
       ]),
     );

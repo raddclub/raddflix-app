@@ -12,6 +12,7 @@ import '../core/constants.dart';
 import '../core/debug/debug_logger.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import '../core/utils/episode_title_parser.dart';
 import '../providers/downloads_provider.dart';
 import '../services/vault_service.dart';
@@ -98,7 +99,7 @@ class _SeasonFolderScreenState extends ConsumerState<SeasonFolderScreen> {
     final seasons = bySeason.keys.toList()..sort();
 
     return GridView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(RaddSpace.md),
       physics: const BouncingScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2, childAspectRatio: 1.55, crossAxisSpacing: 12, mainAxisSpacing: 12),
@@ -116,7 +117,7 @@ class _SeasonFolderScreenState extends ConsumerState<SeasonFolderScreen> {
               border: Border.all(color: t.border),
             ),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(RaddSpace.md),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   Container(

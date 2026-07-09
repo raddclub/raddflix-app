@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/spacing/radd_space.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
 import '../core/api/api_client.dart';
@@ -135,7 +136,7 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
                     color: t.textMuted, size: 22),
                 onPressed: _load,
               ),
-              SizedBox(width: 8),
+              SizedBox(width: RaddSpace.sm),
             ],
           ),
 
@@ -382,7 +383,7 @@ class _JobCard extends StatelessWidget {
                 minHeight: 4,
               ),
             ),
-            SizedBox(height: 4),
+            SizedBox(height: RaddSpace.xs),
             Text('${progress.toStringAsFixed(1)}%',
                 style: TextStyle(color: statusColor,
                     fontSize: 10, fontWeight: FontWeight.w600)),
