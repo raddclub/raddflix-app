@@ -159,7 +159,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ],
                   const SizedBox(height: 28),
                   Container(height: 52,
-                    decoration: BoxDecoration(gradient: context.signalPrimaryGradient,
+                    decoration: BoxDecoration(gradient: AppColors.primaryGradient,
                         borderRadius: RaddRadius.mdRadius, boxShadow: AppShadows.primary),
                     child: Material(color: Colors.transparent,
                       child: InkWell(borderRadius: RaddRadius.mdRadius,

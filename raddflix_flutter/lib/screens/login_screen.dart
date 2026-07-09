@@ -522,7 +522,7 @@ class _GradientButton extends StatelessWidget {
     return Container(
       height: 54,
       decoration: BoxDecoration(
-        gradient: onTap != null ? context.signalPrimaryGradient : null,
+        gradient: onTap != null ? AppColors.primaryGradient : null,
         color: onTap == null ? context.signalPrimary.withOpacity(0.4) : null,
         borderRadius: RaddRadius.mdRadius,
         boxShadow: onTap != null ? AppShadows.primary : null,
