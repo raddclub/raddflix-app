@@ -6,6 +6,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../core/theme/radd_theme.dart';
+import '../core/theme/radd_colors.dart';
+import '../design_system/radius/radd_radius.dart';
 import '../models/local_video.dart';
 import '../services/local_media_service.dart';
 import '../services/vault_service.dart';
@@ -238,7 +240,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
           TextButton(onPressed: () => Navigator.pop(context, false),
               child: Text('Cancel', style: TextStyle(color: t.textMuted))),
           TextButton(onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete', style: TextStyle(color: AppColors.error,
+              child: const Text('Delete', style: TextStyle(color: context.accentError,
                   fontWeight: FontWeight.w700))),
         ],
       ),
@@ -293,7 +295,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
                   fontSize: 16, fontWeight: FontWeight.w700))),
           if (_selected.isNotEmpty) ...[
             IconButton(
-              icon: Icon(AppIcons.trash, color: AppColors.error),
+              icon: Icon(AppIcons.trash, color: context.accentError),
               onPressed: _deleteSelected,
             ),
             IconButton(
@@ -307,7 +309,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
               else _selected.addAll(sorted.map((v) => v.filePath));
             }),
             child: Text(_selected.length == sorted.length ? 'Deselect All' : 'Select All',
-                style: TextStyle(color: AppColors.primary, fontSize: 13)),
+                style: TextStyle(color: context.signalPrimary, fontSize: 13)),
           ),
         ]),
       );
@@ -378,12 +380,12 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
     return PopupMenuItem(
       value: val,
       child: Row(children: [
-        Icon(icon, color: active ? AppColors.primary : t.textMuted, size: 18),
+        Icon(icon, color: active ? context.signalPrimary : t.textMuted, size: 18),
         const SizedBox(width: 10),
         Text(label, style: TextStyle(
-            color: active ? AppColors.primary : t.textPrimary, fontSize: 14,
+            color: active ? context.signalPrimary : t.textPrimary, fontSize: 14,
             fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
-        if (active) ...[const Spacer(), Icon(AppIcons.check, color: AppColors.primary, size: 16)],
+        if (active) ...[const Spacer(), Icon(AppIcons.check, color: context.signalPrimary, size: 16)],
       ]),
     );
   }
@@ -429,9 +431,9 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
           const SizedBox(width: 3),
           Text('$videoCount', style: TextStyle(color: t.textMuted, fontSize: 12)),
           const SizedBox(width: 8),
-          Icon(AppIcons.music, size: 13, color: AppColors.primary),
+          Icon(AppIcons.music, size: 13, color: context.signalPrimary),
           const SizedBox(width: 3),
-          Text('$audioCount', style: TextStyle(color: AppColors.primary, fontSize: 12)),
+          Text('$audioCount', style: TextStyle(color: context.signalPrimary, fontSize: 12)),
         ] else
           Text('${sorted.length} ${audioCount == sorted.length ? 'tracks' : 'files'}  •  $sizeStr',
               style: TextStyle(color: t.textMuted, fontSize: 12)),
@@ -461,9 +463,9 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: active ? AppColors.primary : t.surface,
+          color: active ? context.signalPrimary : t.surface,
           borderRadius: BorderRadius.circular(AppRadius.round),
-          border: Border.all(color: active ? AppColors.primary : t.border),
+          border: Border.all(color: active ? context.signalPrimary : t.border),
         ),
         child: Text(label, style: TextStyle(
           color: active ? Colors.white : t.textMuted,
@@ -546,7 +548,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 10, 12, 6),
                 child: Row(children: [
-                  Icon(AppIcons.tv, size: 16, color: AppColors.primary),
+                  Icon(AppIcons.tv, size: 16, color: context.signalPrimary),
                   const SizedBox(width: 8),
                   Expanded(child: Text(
                     group.seriesName.isEmpty ? 'Series' : group.seriesName,
@@ -557,11 +559,11 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.12),
+                      color: context.signalPrimary.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text('$epCount eps',
-                        style: TextStyle(color: AppColors.primary,
+                        style: TextStyle(color: context.signalPrimary,
                             fontSize: 10, fontWeight: FontWeight.w700)),
                   ),
                   const SizedBox(width: 6),
@@ -794,14 +796,14 @@ class _FolderSortSheetState extends State<_FolderSortSheet> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 11),
           decoration: BoxDecoration(
-            color: active ? AppColors.primary.withOpacity(0.15) : t.card,
+            color: active ? context.signalPrimary.withOpacity(0.15) : t.card,
             borderRadius: BorderRadius.circular(AppRadius.sm),
-            border: Border.all(color: active ? AppColors.primary : t.border, width: 1.5),
+            border: Border.all(color: active ? context.signalPrimary : t.border, width: 1.5),
           ),
           child: Column(children: [
-            Icon(icon, color: active ? AppColors.primary : t.textMuted, size: 20),
+            Icon(icon, color: active ? context.signalPrimary : t.textMuted, size: 20),
             const SizedBox(height: 4),
-            Text(label, style: TextStyle(color: active ? AppColors.primary : t.textMuted,
+            Text(label, style: TextStyle(color: active ? context.signalPrimary : t.textMuted,
                 fontSize: 11, fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
           ]),
         ),
@@ -816,14 +818,14 @@ class _FolderSortSheetState extends State<_FolderSortSheet> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
-          color: active ? AppColors.primary.withOpacity(0.15) : t.card,
+          color: active ? context.signalPrimary.withOpacity(0.15) : t.card,
           borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(color: active ? AppColors.primary : t.border, width: 1.5),
+          border: Border.all(color: active ? context.signalPrimary : t.border, width: 1.5),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, color: active ? AppColors.primary : t.textMuted, size: 15),
+          Icon(icon, color: active ? context.signalPrimary : t.textMuted, size: 15),
           const SizedBox(width: 5),
-          Text(label, style: TextStyle(color: active ? AppColors.primary : t.textSecondary,
+          Text(label, style: TextStyle(color: active ? context.signalPrimary : t.textSecondary,
               fontSize: 12, fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
         ]),
       ),
@@ -838,14 +840,14 @@ class _FolderSortSheetState extends State<_FolderSortSheet> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: active ? AppColors.primary.withOpacity(0.15) : t.card,
+            color: active ? context.signalPrimary.withOpacity(0.15) : t.card,
             borderRadius: BorderRadius.circular(AppRadius.sm),
-            border: Border.all(color: active ? AppColors.primary : t.border, width: 1.5),
+            border: Border.all(color: active ? context.signalPrimary : t.border, width: 1.5),
           ),
           child: Column(children: [
-            Icon(icon, color: active ? AppColors.primary : t.textMuted, size: 18),
+            Icon(icon, color: active ? context.signalPrimary : t.textMuted, size: 18),
             const SizedBox(height: 3),
-            Text(label, style: TextStyle(color: active ? AppColors.primary : t.textMuted,
+            Text(label, style: TextStyle(color: active ? context.signalPrimary : t.textMuted,
                 fontSize: 10, fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
           ]),
         ),
@@ -860,14 +862,14 @@ class _FolderSortSheetState extends State<_FolderSortSheet> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 11),
         decoration: BoxDecoration(
-          color: active ? AppColors.primary.withOpacity(0.15) : t.card,
+          color: active ? context.signalPrimary.withOpacity(0.15) : t.card,
           borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(color: active ? AppColors.primary : t.border, width: 1.5),
+          border: Border.all(color: active ? context.signalPrimary : t.border, width: 1.5),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, color: active ? AppColors.primary : t.textMuted, size: 16),
+          Icon(icon, color: active ? context.signalPrimary : t.textMuted, size: 16),
           const SizedBox(width: 6),
-          Text(label, style: TextStyle(color: active ? AppColors.primary : t.textSecondary,
+          Text(label, style: TextStyle(color: active ? context.signalPrimary : t.textSecondary,
               fontSize: 13, fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
         ]),
       ),
@@ -894,7 +896,7 @@ class _VideoListTile extends StatelessWidget {
       onTap: onTap,
       onLongPress: onLongPress,
       child: Container(
-        color: selected ? AppColors.primary.withOpacity(0.12) : Colors.transparent,
+        color: selected ? context.signalPrimary.withOpacity(0.12) : Colors.transparent,
         padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
         child: Row(children: [
           if (selecting)
@@ -905,9 +907,9 @@ class _VideoListTile extends StatelessWidget {
                 width: 22, height: 22,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: selected ? AppColors.primary : Colors.transparent,
+                  color: selected ? context.signalPrimary : Colors.transparent,
                   border: Border.all(
-                      color: selected ? AppColors.primary : t.textMuted, width: 2),
+                      color: selected ? context.signalPrimary : t.textMuted, width: 2),
                 ),
                 child: selected ? Icon(AppIcons.check, color: Colors.white, size: 14) : null,
               ),
@@ -920,12 +922,12 @@ class _VideoListTile extends StatelessWidget {
                 width: 116, height: 68,
                 child: video.isAudio
                     ? Container(
-                        color: AppColors.primary.withOpacity(0.08),
+                        color: context.signalPrimary.withOpacity(0.08),
                         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Icon(AppIcons.music, color: AppColors.primary, size: 28),
+                          Icon(AppIcons.music, color: context.signalPrimary, size: 28),
                           if (video.durationMs > 0)
                             Text(video.formattedDuration,
-                                style: TextStyle(color: AppColors.primary,
+                                style: TextStyle(color: context.signalPrimary,
                                     fontSize: 10, fontWeight: FontWeight.w600)),
                         ]),
                       )
@@ -954,7 +956,7 @@ class _VideoListTile extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.85),
+                    color: context.signalPrimary.withOpacity(0.85),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: const Text('AUDIO', style: TextStyle(color: Colors.white,
@@ -966,7 +968,7 @@ class _VideoListTile extends StatelessWidget {
             children: [
               Text(video.title, maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: selected ? AppColors.primary : t.textPrimary,
+                    color: selected ? context.signalPrimary : t.textPrimary,
                     fontSize: 13, fontWeight: FontWeight.w600, height: 1.35)),
               const SizedBox(height: 5),
               Row(children: [
@@ -976,7 +978,7 @@ class _VideoListTile extends StatelessWidget {
                 ],
                 if (video.isVideo && video.resolution.isNotEmpty) ...[
                   _badge(video.resolution,
-                      video.isHighRes ? AppColors.primary : t.textMuted),
+                      video.isHighRes ? context.signalPrimary : t.textMuted),
                   const SizedBox(width: 5),
                 ],
                 Text(video.formattedSize,
@@ -1022,7 +1024,7 @@ class _VideoListTile extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
           child: Row(children: [
-            ClipRRect(borderRadius: BorderRadius.circular(8),
+            ClipRRect(borderRadius: RaddRadius.smRadius,
               child: SizedBox(width: 72, height: 44,
                 child: thumb != null
                     ? Image.memory(thumb!, fit: BoxFit.cover)
@@ -1030,7 +1032,7 @@ class _VideoListTile extends StatelessWidget {
                         child: Icon(video.isAudio
                             ? AppIcons.music
                             : AppIcons.videoCamera,
-                            color: video.isAudio ? AppColors.primary : t.textMuted)))),
+                            color: video.isAudio ? context.signalPrimary : t.textMuted)))),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(video.title, maxLines: 2, overflow: TextOverflow.ellipsis,
@@ -1066,9 +1068,9 @@ class _VideoListTile extends StatelessWidget {
       VoidCallback onPressed, {bool isDestructive = false}) {
     final t = RaddTheme.of(ctx);
     return ListTile(
-      leading: Icon(icon, color: isDestructive ? AppColors.error : t.textSecondary, size: 22),
+      leading: Icon(icon, color: isDestructive ? context.accentError : t.textSecondary, size: 22),
       title: Text(label, style: TextStyle(
-          color: isDestructive ? AppColors.error : t.textPrimary, fontSize: 15)),
+          color: isDestructive ? context.accentError : t.textPrimary, fontSize: 15)),
       onTap: onPressed,
       dense: true,
     );
@@ -1096,7 +1098,7 @@ class _VideoListTile extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Could not add to vault: $e'),
-          backgroundColor: AppColors.error,
+          backgroundColor: context.accentError,
         ));
       }
     }
@@ -1123,7 +1125,7 @@ class _VideoListTile extends StatelessWidget {
           ]),
         actions: [TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('Close', style: TextStyle(color: AppColors.primary)),
+          child: Text('Close', style: TextStyle(color: context.signalPrimary)),
         )],
       ),
     );
@@ -1164,12 +1166,12 @@ class _VideoGridCard extends StatelessWidget {
         child: Stack(fit: StackFit.expand, children: [
           video.isAudio
               ? Container(
-                  color: AppColors.primary.withOpacity(0.08),
+                  color: context.signalPrimary.withOpacity(0.08),
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(AppIcons.music, color: AppColors.primary, size: 36),
+                    Icon(AppIcons.music, color: context.signalPrimary, size: 36),
                     const SizedBox(height: 4),
                     Text(video.formattedDuration,
-                        style: TextStyle(color: AppColors.primary,
+                        style: TextStyle(color: context.signalPrimary,
                             fontSize: 11, fontWeight: FontWeight.w600)),
                   ]))
               : thumb != null
@@ -1202,7 +1204,7 @@ class _VideoGridCard extends StatelessWidget {
                   const SizedBox(width: 4),
                 ],
                 if (video.isAudio) ...[
-                  _smallBadge('AUDIO', AppColors.primary),
+                  _smallBadge('AUDIO', context.signalPrimary),
                   const SizedBox(width: 4),
                 ],
                 Text(video.formattedSize,
@@ -1228,7 +1230,7 @@ class _VideoGridCard extends StatelessWidget {
                 width: 22, height: 22,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: selected ? AppColors.primary : Colors.black45,
+                  color: selected ? context.signalPrimary : Colors.black45,
                   border: Border.all(color: Colors.white70, width: 1.5),
                 ),
                 child: selected ? Icon(AppIcons.check,
