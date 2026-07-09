@@ -47,6 +47,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import '../core/player/subtitle_dubber.dart';
 import '../design_system/components/radd_sheet.dart';
+import '../design_system/radius/radd_radius.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Widget
@@ -2659,7 +2660,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.72),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: RaddRadius.mdRadius,
                           border: Border.all(color: AppColors.orange.withOpacity(0.5)),
                         ),
                         child: const Row(
@@ -2864,7 +2865,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.88),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: RaddRadius.mdRadius,
                           border: Border.all(color: Colors.white12),
                         ),
                         child: Row(
@@ -2882,7 +2883,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                                 decoration: BoxDecoration(
                                   border: Border.all(color: Colors.white24),
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: RaddRadius.smRadius,
                                 ),
                                 child: const Text('Cancel',
                                     style: TextStyle(color: Colors.white70, fontSize: 13)),
@@ -2896,7 +2897,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                     horizontal: 14, vertical: 7),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: RaddRadius.smRadius,
                                 ),
                                 child: const Text('Play Now',
                                     style: TextStyle(
@@ -3129,7 +3130,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.68),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: RaddRadius.lgRadius,
           border: Border.all(color: Colors.white12),
         ),
         child: Column(
@@ -3165,7 +3166,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: Colors.white10,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: RaddRadius.smRadius,
                 ),
                 child: Text(
                   _oneHandedLeft ? '✋' : '🤚',
@@ -4395,7 +4396,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 color: active
                     ? _accentColor.withOpacity(0.18)
                     : Colors.white.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: RaddRadius.mdRadius,
                 border: Border.all(
                   color: active
                       ? _accentColor.withOpacity(0.55)
@@ -4940,7 +4941,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: Colors.white12,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: RaddRadius.smRadius,
                       ),
                       child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
                     ),
@@ -5282,7 +5283,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                       onTap: () { setState(() => _introStart = _position); setSt(() {}); _savePrefs(); _showInfoSnackbar('Intro start: ${_formatDuration(_position)}'); },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(8)),
+                        decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: RaddRadius.smRadius),
                         alignment: Alignment.center,
                         child: Column(children: [
                           const Text('Start', style: TextStyle(color: Colors.white38, fontSize: 11)),
@@ -5297,7 +5298,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                       onTap: () { setState(() => _introEnd = _position); setSt(() {}); _savePrefs(); _showInfoSnackbar('Intro end: ${_formatDuration(_position)}'); },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(8)),
+                        decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: RaddRadius.smRadius),
                         alignment: Alignment.center,
                         child: Column(children: [
                           const Text('End', style: TextStyle(color: Colors.white38, fontSize: 11)),
@@ -5321,7 +5322,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                       onTap: () { setState(() => _outroStart = _position); setSt(() {}); _savePrefs(); _showInfoSnackbar('Outro skip from: ${_formatDuration(_position)}'); },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(8)),
+                        decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: RaddRadius.smRadius),
                         alignment: Alignment.center,
                         child: Column(children: [
                           const Text('Skip from', style: TextStyle(color: Colors.white38, fontSize: 11)),
@@ -6493,7 +6494,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.amber.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: RaddRadius.smRadius,
                 border: Border.all(color: Colors.amber.withOpacity(0.25)),
               ),
               child: Row(
@@ -6719,7 +6720,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
             padding: const EdgeInsets.symmetric(vertical: 9),
             decoration: BoxDecoration(
               color: selected == i ? Colors.white.withOpacity(0.18) : Colors.white.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: RaddRadius.smRadius,
               border: Border.all(
                 color: selected == i ? Colors.white60 : Colors.white12,
                 width: selected == i ? 1.5 : 1,
@@ -6778,7 +6779,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: RaddRadius.smRadius,
           border: Border.all(color: const Color(0xFF4A9EFF).withOpacity(0.4)),
         ),
         child: Row(children: [
@@ -7008,7 +7009,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
             hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
             filled: true, fillColor: Colors.white10, isDense: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+            border: OutlineInputBorder(borderRadius: RaddRadius.smRadius, borderSide: BorderSide.none),
             prefixIcon: const Icon(Icons.search, color: Colors.white38, size: 18),
             suffixIcon: _searchController.text.isNotEmpty
                 ? IconButton(icon: const Icon(Icons.clear, color: Colors.white38, size: 16),
@@ -7025,7 +7026,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: _onlineLoading ? Colors.white12 : Colors.white24,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: RaddRadius.smRadius,
             ),
             child: _onlineLoading
                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
@@ -7190,7 +7191,7 @@ class _SubTrackTile extends StatelessWidget {
             : track?.language ?? track?.title ?? 'Track ${index + 1}');
     return InkWell(
       onTap: () { HapticFeedback.selectionClick(); onTap(); },
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: RaddRadius.smRadius,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
         child: Row(children: [
@@ -7231,7 +7232,7 @@ class _BigStepBtn extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.10),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: RaddRadius.smRadius,
           border: Border.all(color: Colors.white24),
         ),
         child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
@@ -7479,7 +7480,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                           color: _preset == i
                               ? const Color(0xFF3A6ECC).withOpacity(0.6)
                               : const Color(0xFF2A2A2A),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: RaddRadius.smRadius,
                           border: Border.all(
                             color: _preset == i ? const Color(0xFF4A7EDD) : Colors.transparent,
                             width: 1.5,
@@ -7597,7 +7598,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: AppColors.orange.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: RaddRadius.smRadius,
                     border: Border.all(color: AppColors.orange.withOpacity(0.3)),
                   ),
                   child: const Row(
@@ -8052,7 +8053,7 @@ class _ShortcutGrid extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
               color: item.active ? Colors.white.withOpacity(0.15) : const Color(0xFF2A2A2A),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: RaddRadius.smRadius,
             ),
             child: Column(
               children: [
@@ -8269,7 +8270,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
               width: 36, height: 36,
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: RaddRadius.smRadius,
               ),
               child: const Icon(Icons.info_outline_rounded, color: Colors.white70, size: 20),
             ),
@@ -8538,7 +8539,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     margin: const EdgeInsets.only(bottom: 4),
     decoration: BoxDecoration(
       color: Colors.white.withOpacity(0.04),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: RaddRadius.mdRadius,
       border: Border.all(color: Colors.white10),
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -8856,7 +8857,7 @@ class _LabToggleRow extends StatelessWidget {
             width: 36, height: 36,
             decoration: BoxDecoration(
               color: enabled ? Colors.white.withOpacity(0.14) : Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: RaddRadius.smRadius,
             ),
             child: Icon(icon, color: enabled ? Colors.white : Colors.white38, size: 18),
           ),
@@ -9204,7 +9205,7 @@ class _DubProgressCard extends StatelessWidget {
 
         // Progress bar
         ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: RaddRadius.smRadius,
           child: LinearProgressIndicator(
             value: progress,
             minHeight: 8,
