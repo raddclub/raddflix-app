@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../core/theme/radd_colors.dart';
+import '../design_system/radius/radd_radius.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -329,7 +331,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   void _showQuotaError(BuildContext ctx, String msg) {
     ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: AppColors.error,
+      backgroundColor: context.accentError,
       behavior: SnackBarBehavior.floating,
       duration: const Duration(seconds: 6),
       action: SnackBarAction(
@@ -373,7 +375,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         content: Text(isGuest
             ? 'Create a free account to access this content'
             : 'Subscribe to access paid content'),
-        backgroundColor: AppColors.primary,
+        backgroundColor: context.signalPrimary,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 4),
         action: SnackBarAction(
@@ -497,7 +499,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
       backgroundColor: null,
       body: RefreshIndicator(
         onRefresh: _loadEpisodes,
-        color: AppColors.primary,
+        color: context.signalPrimary,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics()),
@@ -513,7 +515,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: Colors.black45,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: RaddRadius.mdRadius,
                 ),
                 child: Icon(AppIcons.back, size: 18, color: Colors.white),
               ),
@@ -600,14 +602,14 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.2),
-                                border: Border.all(color: AppColors.primary.withOpacity(0.6)),
+                                color: context.signalPrimary.withOpacity(0.2),
+                                border: Border.all(color: context.signalPrimary.withOpacity(0.6)),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
                                 isMovie ? 'MOVIE' : 'SERIES',
                                 style: TextStyle(
-                                  color: AppColors.primary, fontSize: 10,
+                                  color: context.signalPrimary, fontSize: 10,
                                   fontWeight: FontWeight.w700, letterSpacing: 1,
                                 ),
                               ),
@@ -656,12 +658,12 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                       children: _parseGenres(item.genres!).map((g) => Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.08),
+                          color: context.signalPrimary.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppColors.primary.withOpacity(0.22)),
+                          border: Border.all(color: context.signalPrimary.withOpacity(0.22)),
                         ),
                         child: Text(g, style: TextStyle(
-                            color: AppColors.primary.withOpacity(0.9), fontSize: 12,
+                            color: context.signalPrimary.withOpacity(0.9), fontSize: 12,
                             fontWeight: FontWeight.w500)),
                       )).toList(),
                     ).animate().fadeIn(delay: 100.ms),
@@ -685,7 +687,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                       // Phase 45: _GlowPulse wraps Play button — pulsing glow on primary CTA
                       Expanded(
                         child: _GlowPulse(
-                          color: AppColors.primary,
+                          color: context.signalPrimary,
                           maxBlur: animConfig.tierLevel >= 2 ? 22.0 : 14.0,
                           borderRadius: BorderRadius.circular(14),
                           child: ElevatedButton.icon(
@@ -696,7 +698,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                             icon: Icon(AppIcons.play, size: 22),
                             label: const Text('Play Now', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
+                              backgroundColor: context.signalPrimary,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 15),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -741,7 +743,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                               },
                               icon: isDownloading
                                 ? const SizedBox(width: 18, height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: context.signalPrimary))
                                 : Icon(
                                     isDownloaded
                                       ? AppIcons.downloadDone
@@ -769,7 +771,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                             // Phase 45 ANIM-45-04: glow pulses while download is in-flight
                             return isDownloading
                                 ? _GlowPulse(
-                                    color: AppColors.primary,
+                                    color: context.signalPrimary,
                                     maxBlur: 12.0,
                                     borderRadius: BorderRadius.circular(14),
                                     child: dlBtn,
@@ -803,11 +805,11 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         decoration: BoxDecoration(
                           color: inWatchlist
-                              ? AppColors.primary.withOpacity(0.12)
+                              ? context.signalPrimary.withOpacity(0.12)
                               : t.surface,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: inWatchlist ? AppColors.primary : t.border,
+                            color: inWatchlist ? context.signalPrimary : t.border,
                           ),
                         ),
                         child: Row(
@@ -817,14 +819,14 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                               inWatchlist
                                   ? AppIcons.bookmarkFill
                                   : AppIcons.bookmark,
-                              color: inWatchlist ? AppColors.primary : t.textSecondary,
+                              color: inWatchlist ? context.signalPrimary : t.textSecondary,
                               size: 20,
                             ),
                             SizedBox(width: 8),
                             Text(
                               inWatchlist ? 'In Watchlist' : 'Add to Watchlist',
                               style: TextStyle(
-                                color: inWatchlist ? AppColors.primary : t.textSecondary,
+                                color: inWatchlist ? context.signalPrimary : t.textSecondary,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -883,11 +885,11 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                               ),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
+                                backgroundColor: context.signalPrimary,
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
+                                    borderRadius: RaddRadius.mdRadius),
                                 elevation: 0,
                               ),
                             ),
@@ -929,12 +931,12 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: Colors.orange.withOpacity(0.2),
+                                    color: AppColors.orange.withOpacity(0.2),
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: Colors.orange.withOpacity(0.6)),
+                                    border: Border.all(color: AppColors.orange.withOpacity(0.6)),
                                   ),
                                   child: const Text('ADMIN', style: TextStyle(
-                                    color: Colors.orange, fontSize: 9,
+                                    color: AppColors.orange, fontSize: 9,
                                     fontWeight: FontWeight.w800, letterSpacing: 1,
                                   )),
                                 ),
@@ -956,21 +958,21 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                               duration: const Duration(milliseconds: 200),
                               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                               decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                                color: context.signalPrimary.withOpacity(0.12),
+                                borderRadius: RaddRadius.smRadius,
+                                border: Border.all(color: context.signalPrimary.withOpacity(0.3)),
                               ),
                               child: _isDownloadingAll
                                   ? const SizedBox(width: 13, height: 13,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 1.5,
-                                          valueColor: AlwaysStoppedAnimation(AppColors.primary)))
+                                          valueColor: AlwaysStoppedAnimation(context.signalPrimary)))
                                   : Row(mainAxisSize: MainAxisSize.min, children: [
                                       Icon(AppIcons.cloudDownload,
-                                          size: 14, color: AppColors.primary),
+                                          size: 14, color: context.signalPrimary),
                                       const SizedBox(width: 4),
                                       const Text('Season', style: TextStyle(
-                                          color: AppColors.primary,
+                                          color: context.signalPrimary,
                                           fontSize: 11, fontWeight: FontWeight.w700)),
                                     ]),
                             ),
@@ -991,7 +993,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                       : AppIcons.arrowUp,
                                   key: ValueKey(_sortAscending),
                                   size: 18,
-                                  color: AppColors.primary,
+                                  color: context.signalPrimary,
                                 ),
                               ),
                             ),
@@ -1021,10 +1023,10 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                 duration: AppDurations.fast,
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: selected ? AppColors.primary : t.surface,
+                                  color: selected ? context.signalPrimary : t.surface,
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: selected ? AppColors.primary : t.border,
+                                    color: selected ? context.signalPrimary : t.border,
                                   ),
                                 ),
                                 child: Text(
@@ -1236,10 +1238,10 @@ class _EpisodeTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           child: Ink(
             decoration: BoxDecoration(
-              color: isNowPlaying ? AppColors.primary.withOpacity(0.06) : t.surface,
+              color: isNowPlaying ? context.signalPrimary.withOpacity(0.06) : t.surface,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: isNowPlaying ? AppColors.primary.withOpacity(0.55) : t.border,
+                color: isNowPlaying ? context.signalPrimary.withOpacity(0.55) : t.border,
                 width: isNowPlaying ? 1.5 : 1.0,
               ),
             ),
@@ -1252,13 +1254,13 @@ class _EpisodeTile extends StatelessWidget {
                       ? Container(
                           width: 44, height: 44,
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.18),
+                            color: context.signalPrimary.withOpacity(0.18),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.primary.withOpacity(0.4)),
+                            border: Border.all(color: context.signalPrimary.withOpacity(0.4)),
                           ),
                           child: Center(
                             child: Icon(AppIcons.equalizer,
-                                color: AppColors.primary, size: 22),
+                                color: context.signalPrimary, size: 22),
                           ),
                         ).animate(onPlay: (c) => c.repeat(reverse: true))
                          .scaleXY(begin: 0.92, end: 1.0, duration: 700.ms, curve: Curves.easeInOut)
@@ -1268,7 +1270,7 @@ class _EpisodeTile extends StatelessWidget {
                             color: completed
                                 ? Colors.green.withOpacity(0.15)
                                 : watched
-                                    ? AppColors.primary.withOpacity(0.15)
+                                    ? context.signalPrimary.withOpacity(0.15)
                                     : t.border,
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -1278,7 +1280,7 @@ class _EpisodeTile extends StatelessWidget {
                                 : Text(
                                     '${index + 1}',
                                     style: TextStyle(
-                                      color: watched ? AppColors.primary : t.textSecondary,
+                                      color: watched ? context.signalPrimary : t.textSecondary,
                                       fontWeight: FontWeight.w700, fontSize: 15,
                                     ),
                                   ),
@@ -1308,17 +1310,17 @@ class _EpisodeTile extends StatelessWidget {
                                 margin: const EdgeInsets.only(left: 8),
                                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.15),
+                                  color: context.signalPrimary.withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(AppIcons.equalizer,
-                                        color: AppColors.primary, size: 9),
+                                        color: context.signalPrimary, size: 9),
                                     SizedBox(width: 3),
                                     Text('NOW PLAYING', style: TextStyle(
-                                      color: AppColors.primary, fontSize: 9,
+                                      color: context.signalPrimary, fontSize: 9,
                                       fontWeight: FontWeight.w800, letterSpacing: 0.5,
                                     )),
                                   ],
@@ -1395,7 +1397,7 @@ class _EpisodeTile extends StatelessWidget {
                             child: LinearProgressIndicator(
                               value: progress,
                               backgroundColor: t.border,
-                              valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                              valueColor: AlwaysStoppedAnimation(context.signalPrimary),
                               minHeight: 3,
                             ),
                           ),
@@ -1435,7 +1437,7 @@ class _EpisodeTile extends StatelessWidget {
                   icon: Icon(AppIcons.play, size: 18),
                   label: const Text('Play', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: context.signalPrimary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     elevation: 0,
@@ -1453,7 +1455,7 @@ class _EpisodeTile extends StatelessWidget {
                   onPressed: isDownloaded ? null : isDownloading ? null : onDownload,
                   icon: isDownloading
                     ? const SizedBox(width: 14, height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                        child: CircularProgressIndicator(strokeWidth: 2, color: context.signalPrimary))
                     : Icon(
                         isDownloaded
                           ? AppIcons.downloadDone
@@ -1594,7 +1596,7 @@ class _EpisodeUnavailableTile extends StatelessWidget {
                   ),
                   if (onLongPress != null)
                     Icon(AppIcons.edit,
-                        color: Colors.orange.withOpacity(0.7), size: 16),
+                        color: AppColors.orange.withOpacity(0.7), size: 16),
                 ],
               ),
             ),
@@ -1665,11 +1667,11 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.15),
+                    color: AppColors.orange.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(AppIcons.shield,
-                      color: Colors.orange, size: 20),
+                      color: AppColors.orange, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1743,11 +1745,11 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
                 icon: Icon(AppIcons.trash, size: 18),
                 label: const Text('Clear all statuses'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.orange,
-                  side: const BorderSide(color: Colors.orange),
+                  foregroundColor: AppColors.orange,
+                  side: const BorderSide(color: AppColors.orange),
                   padding: const EdgeInsets.symmetric(vertical: 11),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                      borderRadius: RaddRadius.mdRadius),
                 ),
                 onPressed: () async {
                   for (final ep in widget.gaps) {
@@ -1773,10 +1775,10 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
                 icon: Icon(AppIcons.check, size: 18),
                 label: const Text('Done'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
+                  backgroundColor: context.signalPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                      borderRadius: RaddRadius.mdRadius),
                 ),
                 onPressed: () => Navigator.pop(context),
               ),
@@ -1805,7 +1807,7 @@ class _AdminChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
         decoration: BoxDecoration(
           color: selected ? color.withOpacity(0.2) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: RaddRadius.smRadius,
           border: Border.all(
             color: selected ? color : color.withOpacity(0.3),
             width: selected ? 1.5 : 1.0,
@@ -1871,7 +1873,7 @@ class _MoreLikeThisSection extends StatelessWidget {
             width: 3,
             height: 18,
             decoration: BoxDecoration(
-                color: AppColors.primary,
+                color: context.signalPrimary,
                 borderRadius: BorderRadius.circular(2))),
           const SizedBox(width: 8),
           Text('More Like This',
@@ -1985,14 +1987,14 @@ class _ComingSoonBanner extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         decoration: BoxDecoration(
           color: t.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+          borderRadius: RaddRadius.lgRadius,
+          border: Border.all(color: context.signalPrimary.withOpacity(0.25)),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              AppColors.primary.withOpacity(0.06),
-              AppColors.primary.withOpacity(0.02),
+              context.signalPrimary.withOpacity(0.06),
+              context.signalPrimary.withOpacity(0.02),
             ],
           ),
         ),
@@ -2002,13 +2004,13 @@ class _ComingSoonBanner extends StatelessWidget {
             Container(
               width: 64, height: 64,
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.12),
+                color: context.signalPrimary.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                border: Border.all(color: context.signalPrimary.withOpacity(0.3)),
               ),
               child: Center(
                 child: Icon(AppIcons.clock,
-                    color: AppColors.primary, size: 30),
+                    color: context.signalPrimary, size: 30),
               ),
             ),
             const SizedBox(height: 16),
@@ -2069,7 +2071,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
               style: TextStyle(color: t.textSecondary, height: 1.5, fontSize: 14),
             ),
             SizedBox(height: 4),
-            Text('Read more', style: TextStyle(color: AppColors.primary, fontSize: 13, fontWeight: FontWeight.w600)),
+            Text('Read more', style: TextStyle(color: context.signalPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
           ],
         ),
         secondChild: Column(
@@ -2080,7 +2082,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
               style: TextStyle(color: t.textSecondary, height: 1.5, fontSize: 14),
             ),
             SizedBox(height: 4),
-            Text('Show less', style: TextStyle(color: AppColors.primary, fontSize: 13, fontWeight: FontWeight.w600)),
+            Text('Show less', style: TextStyle(color: context.signalPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
