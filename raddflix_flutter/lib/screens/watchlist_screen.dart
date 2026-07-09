@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../core/theme/radd_colors.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants.dart';
@@ -83,15 +84,15 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
             final (label, icon) = labels[s]!;
             return ListTile(
               leading: Icon(icon,
-                  color: selected ? AppColors.primary : t.textMuted, size: 20),
+                  color: selected ? context.signalPrimary : t.textMuted, size: 20),
               title: Text(label,
                   style: TextStyle(
-                    color: selected ? AppColors.primary : t.textPrimary,
+                    color: selected ? context.signalPrimary : t.textPrimary,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
                     fontSize: 14,
                   )),
               trailing: selected
-                  ? Icon(AppIcons.check, color: AppColors.primary, size: 18)
+                  ? Icon(AppIcons.check, color: context.signalPrimary, size: 18)
                   : null,
               onTap: () {
                 setState(() => _sortBy = s);
@@ -137,10 +138,10 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(AppIcons.sort, size: 15,
-                      color: AppColors.primary),
+                      color: context.signalPrimary),
                   const SizedBox(width: 4),
                   Text(_sortLabel,
-                      style: const TextStyle(color: AppColors.primary,
+                      style: TextStyle(color: context.signalPrimary,
                           fontSize: 11, fontWeight: FontWeight.w700)),
                 ]),
               ),
@@ -152,11 +153,11 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.12),
+                    color: context.signalPrimary.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text('${state.items.length}',
-                      style: const TextStyle(color: AppColors.primary,
+                      style: TextStyle(color: context.signalPrimary,
                           fontSize: 13, fontWeight: FontWeight.w700)),
                 ),
               ),
@@ -165,7 +166,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
         ],
       ),
       body: state.loading
-          ? Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? Center(child: CircularProgressIndicator(color: context.signalPrimary))
           : state.items.isEmpty
               ? _buildEmpty(context)
               : _buildGrid(context, ref, _sorted(state.items)),
@@ -200,7 +201,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
-              color: AppColors.primary,
+              color: context.signalPrimary,
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Text('Browse Content',
