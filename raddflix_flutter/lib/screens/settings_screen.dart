@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/theme/radd_theme.dart';
+import '../core/theme/radd_colors.dart';
+import '../design_system/radius/radd_radius.dart';
 import '../core/constants.dart';
 import '../core/debug/debug_logger.dart';
 import '../providers/catalog_provider.dart';
@@ -186,7 +188,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     label: 'Clear Image Cache',
                     subtitle: 'Frees cached poster and thumbnail images',
                     onTap: _clearImageCache,
-                    iconColor: AppColors.warning,
+                    iconColor: context.accentWarning,
                   ),
                   _divider(t),
                   _SettingsTile(
@@ -195,7 +197,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     label: 'Manage Downloads',
                     subtitle: 'View, delete and manage downloaded content',
                     onTap: () => Navigator.of(context).pushNamed(AppRoutes.downloads),
-                    iconColor: AppColors.primary,
+                    iconColor: context.signalPrimary,
                   ),
                 ]),
                 const SizedBox(height: 20),
@@ -208,13 +210,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     label: _syncing ? 'Syncing…' : 'Refresh Catalog',
                     subtitle: 'Force download the latest movies and shows',
                     onTap: _syncing ? null : _syncNow,
-                    iconColor: AppColors.primary,
+                    iconColor: context.signalPrimary,
                     trailing: _syncing
                         ? SizedBox(
                             width: 18, height: 18,
                             child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation(AppColors.primary)))
+                                valueColor: AlwaysStoppedAnimation(context.signalPrimary)))
                         : null,
                   ),
                 ]),
@@ -290,7 +292,7 @@ class _SettingsSection extends StatelessWidget {
       Container(
         decoration: BoxDecoration(
           color: t.surface,
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: RaddRadius.mdRadius,
           border: Border.all(color: t.border.withOpacity(0.7)),
         ),
         child: Column(children: children),
@@ -368,7 +370,7 @@ class _SettingsSwitch extends StatelessWidget {
       subtitle: subtitle != null
           ? Text(subtitle!, style: TextStyle(color: t.textMuted, fontSize: 12))
           : null,
-      trailing: Switch(value: value, onChanged: onChanged, activeColor: AppColors.primary),
+      trailing: Switch(value: value, onChanged: onChanged, activeColor: context.signalPrimary),
     );
   }
 }
