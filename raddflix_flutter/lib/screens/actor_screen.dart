@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/radius/radd_radius.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
@@ -115,7 +116,7 @@ class ActorScreen extends StatelessWidget {
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: t.surface,
-                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderRadius: RaddRadius.mdRadius,
                       border: Border.all(color: t.border),
                     ),
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -244,7 +245,7 @@ class _Shimmer extends StatelessWidget {
                   child: Container(
                     decoration: BoxDecoration(
                       color: t.surface,
-                      borderRadius: BorderRadius.circular(AppRadius.md))),
+                      borderRadius: RaddRadius.mdRadius)),
                 ),
               ),
             )),
