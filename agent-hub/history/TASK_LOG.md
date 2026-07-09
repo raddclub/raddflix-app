@@ -163,3 +163,37 @@ CI run on `4ee0215` confirmed **green**.
 using the primary color must use `AppColors.primaryGradient` directly — not a context extension.
 
 Phase 3 is now ✅ COMPLETE with CI green. Phase 4 (player_screen.dart token migration) is next.
+
+## 2026-07-09 — Phase 4: player_screen.dart token migration (all CI green)
+
+Three commits, all CI green. File: 9,280 lines — high-risk phase, done carefully one token type per commit.
+
+**Commit d91cfd8 — color pass:**
+- `Colors.orange` (15) → `AppColors.orange` (exact value `Color(0xFFFF9800)`)
+- `Color(0xFF00A651)` (2) → `AppColors.jazzGreen` (exact value)
+- Kept: `Colors.white/white38/white70/...` (intentional video-overlay colors), `Colors.black*`,
+  `Colors.amber`, `Colors.redAccent`, most `Color(0xFF...)` hex values — player-specific accents
+  (EQ, AI/dub indicators, etc.) with no exact design-token equivalent.
+
+**Commit 164aca4 — radius pass:**
+- Added `import '../design_system/radius/radd_radius.dart'`
+- `BorderRadius.circular(8)` (20) → `RaddRadius.smRadius`
+- `BorderRadius.circular(12)` (4) → `RaddRadius.mdRadius`
+- `BorderRadius.circular(16)` (1) → `RaddRadius.lgRadius`
+- 25 total replacements. Values 5/6/7/10/14/20/22/24/40 have no token — kept.
+
+**Commit 969e0c3 — spacing pass:**
+- Added `import '../design_system/spacing/radd_space.dart'`
+- SizedBox(h/w: 4/8/16/24/32) and EdgeInsets.all(4/8/16/24/32) → RaddSpace.xs/sm/md/lg/xl
+- 81 total replacements. Values 2/3/5/6/10/12/14/20/28 have no token — kept.
+- Type tokens deferred: player TextStyles are pixel-level control sizing (10/11/14/20px) outside
+  the RaddType scale (12/13/15/18/24/34). Changing them would alter visual layout of controls.
+
+**HUD compliance (static-code check):**
+- Auto-hide ✅ 3s timer (Volume X compliant)
+- 40% surface rule: pre-existing violation — `_openRightPanel` uses `initialChildSize: 0.62`
+  portrait bottom sheet; 7 main panels via `RaddSheet.show()` use `maxHeightFraction: 0.90`.
+  Full re-measurement needs Phase 1 (Flutter SDK + live device).
+- File split: warranted (9,280 lines) but scoped as future architectural task.
+
+Phase 4 ✅ COMPLETE. Phase 5 (large screens: show_detail, local_folder, home, etc.) is next.

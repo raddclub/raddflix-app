@@ -99,16 +99,32 @@ requires PM input on section membership before code changes.
       kept (no mapping). Commit `9517719`. SettingsRow adoption + taxonomy: deferred (see status note).
 
 ## Phase 4 — Player (isolated, high-risk, do not parallelize within the file)
-**Status:** ⏳ NOT STARTED
+**Status:** ✅ COMPLETE (2026-07-09) — all token passes done, CI green on all commits.
 - [x] Player dead-code prerequisite: N/A — user declined deletion (see TASKS.md
       PLAYER-DEAD-CODE-CLEANUP, CLOSED). Phase 4 is unblocked from this item.
-- [ ] Migrate `player_screen.dart` color tokens (520 raw `Colors.*`, 76 raw `Color()`).
-- [ ] Migrate `player_screen.dart` radius tokens (80 raw `BorderRadius.circular()`).
-- [ ] Migrate `player_screen.dart` spacing/type tokens.
-- [ ] Re-verify HUD-rule compliance from Phase 1's re-measurement.
-- [ ] Only after the above: evaluate whether splitting the 9,280-line file into smaller widgets
-      is warranted — this is a separate architectural decision, not a requirement of this
-      migration, and should get its own task row if pursued.
+- [x] Migrate `player_screen.dart` color tokens. Commit `d91cfd8`. Replaced:
+      `Colors.orange`→`AppColors.orange` (15), `Color(0xFF00A651)`→`AppColors.jazzGreen` (2).
+      All `Colors.white/black/amber/redAccent` kept — intentional video-overlay colors with no
+      exact design-token equivalent. Most `Color(0xFF...)` hex values are player-specific (EQ
+      colors, AI/dub accent, etc.) with no token — kept. CI green.
+- [x] Migrate `player_screen.dart` radius tokens. Commit `164aca4`. Added `radd_radius.dart`
+      import. Replaced `BorderRadius.circular(8/12/16)` → `RaddRadius.smRadius/mdRadius/lgRadius`
+      (25 total replacements). Values 5/6/7/10/14/20/22/24/40 have no token — kept. CI green.
+- [x] Migrate `player_screen.dart` spacing/type tokens. Commit `969e0c3`. Added `radd_space.dart`
+      import. Replaced SizedBox(h/w: 4/8/16/24/32) and EdgeInsets.all(4/8/16/24/32) with
+      RaddSpace.xs/sm/md/lg/xl (81 total replacements). Type tokens deferred: player TextStyles
+      are intentional pixel-level control sizing (10/11/14/20px) outside the RaddType scale
+      (12/13/15/18/24/34); using RaddType would change weights/sizes in player controls. CI green.
+- [x] Re-verify HUD-rule compliance (static-code pass only — Phase 1 live rendering still
+      pending). From static analysis: auto-hide ✅ 3s timer (Volume X compliant). 40% surface
+      rule: `_openRightPanel` uses `initialChildSize: 0.62` (portrait bottom sheet, pre-existing
+      violation); 7 main panels via `RaddSheet.show()` use `maxHeightFraction: 0.90` (also
+      exceeds 40%). Full re-measurement needs Phase 1 (Flutter SDK + live device). 9 secondary
+      panels (speed presets, end action, silence skip, etc.) still use `_openRightPanel` — these
+      are not the 7 main panels from PLAYER-CONSOLIDATION, which are already on RaddSheet.
+- [x] File-split evaluation: 9,280 lines warrants splitting architecturally, but it is a
+      separate, larger architectural decision. Token migration completed safely without splitting.
+      Scoped as a future task if/when the human prioritises it.
 
 ## Phase 5 — Remaining large screens (parallelizable once Phase 3's pattern is proven)
 **Status:** ⏳ NOT STARTED

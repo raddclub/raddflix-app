@@ -3,40 +3,29 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
-## Current State (2026-07-09 — Phase 3 COMPLETE + CI confirmed green)
+## Current State (2026-07-09 — Phase 4 COMPLETE + Phase 5 in progress)
 
-### UI-UX-MIGRATION — Phase 3 complete — 2026-07-09
+### UI-UX-MIGRATION — Phase 4 complete, Phase 5 in progress — 2026-07-09
 
 **Start here if you're a fresh agent/account picking this up:** read `AGENT_PROMPT.md` →
 this section → `agent-hub/UI_UX_MIGRATION_PLAN.md`, then do the first unchecked checkbox in the
 earliest open phase of that plan file. The plan file is the single source of truth for
 progress — this section just orients you.
 
-Executing the `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` roadmap phase-by-phase. **Phases 2
-and 3 are now ✅ COMPLETE with CI confirmed green.**
+Executing the `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` roadmap phase-by-phase. **Phases 2,
+3, and 4 are now ✅ COMPLETE with CI confirmed green. Phase 5 is in progress.**
 
-**Phase 2 summary** (all CI green):
-- `pin_lock_screen.dart` + `PinSetupScreen` migrated onto `RaddLockPad` (`377b74f`, `d8bfcd7`).
-- `vault_lock_screen.dart` migrated onto `RaddLockPad` vault accent (`ecf82eb`).
-- `RaddLockPad.onChanged` hook added — future consumers must use it to clear caller-owned error state.
-- `content_card.dart` radius tokens migrated `AppRadius.*` → `RaddRadius.*` (`6457ab2`).
-- Player dead-code: CLOSED — user declined deletion; files are intentionally-parked features.
+**Phase 4 summary** (player_screen.dart, 9,280 lines — all CI green):
+- Color pass (`d91cfd8`): `Colors.orange`→`AppColors.orange` (15), `Color(0xFF00A651)`→`AppColors.jazzGreen` (2). `Colors.white*/black*/amber/redAccent` kept (intentional video-overlay / no exact token).
+- Radius pass (`164aca4`): added `radd_radius.dart`. `BorderRadius.circular(8/12/16)` → `RaddRadius.smRadius/mdRadius/lgRadius` (25 replacements). Values 5/6/7/10/14/20/22/24/40 kept.
+- Spacing pass (`969e0c3`): added `radd_space.dart`. SizedBox/EdgeInsets.all(4/8/16/24/32) → `RaddSpace.xs/sm/md/lg/xl` (81 replacements). Type tokens deferred (player sizes 10/11/14/20px outside RaddType scale).
+- HUD check: auto-hide ✅ (3s, Volume X). 40% surface: pre-existing violation in `_openRightPanel` (62% initial height) + RaddSheet calls (90%); needs Phase 1 live measurement to resolve.
 
-**Phase 3 summary** (all CI green as of `4ee0215`):
-- Token pass across 6 screens: `login`, `register`, `watchlist`, `history`, `splash`, `settings`.
-- `AppColors.primary/error/warning` → `context.signalPrimary/accentError/accentWarning`.
-- `BorderRadius.circular(AppRadius.sm/md)` → `RaddRadius.smRadius/mdRadius`.
-- **Bug caught in CI:** prior session introduced `context.signalPrimaryGradient` (non-existent
-  on BuildContext) in `login_screen.dart` + `register_screen.dart`. Fixed in `4ee0215` with
-  `AppColors.primaryGradient` — the correct pattern used everywhere else in the codebase.
-  **Lesson: `RaddColors` BuildContext extension has no gradient getter — always use `AppColors.primaryGradient` directly.**
-- `SettingsRow` adoption + taxonomy change deferred to Phase 4/5 (component lacks `subtitle`/`iconColor` params).
+**Phase 5 in progress** — first screen: `show_detail_screen.dart` (commit pending CI).
+Migration order (highest literal count first): show_detail → local_folder → subscription →
+home → local_media → search → profile → downloads → remaining screens.
 
-**Next work: Phase 4** — player screen token migration (`player_screen.dart`, 9,280 lines).
-Phase 4 is now unblocked (Phase 3 CI confirmed green). Start at the first `[ ]` item in
-Phase 4 of `agent-hub/UI_UX_MIGRATION_PLAN.md`. Do Phase 4 in separate sub-commits per
-token type (colors first, then radius, then spacing/type) — the file is too large to migrate
-in one pass safely.
+**Next unchecked item:** first `[ ]` in Phase 5 of `agent-hub/UI_UX_MIGRATION_PLAN.md`.
 
 **Workflow reminders:** `log_pending.sh` → edit → `auto_commit.sh` per code file (sequential,
 no batching, no local `git commit`/`push` — see `agent-hub/RULES.md` Rule 42). After any
