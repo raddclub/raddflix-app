@@ -8,6 +8,7 @@ import '../core/constants.dart';
 import '../core/theme/radd_theme.dart';
 import '../core/theme/radd_colors.dart';
 import '../design_system/radius/radd_radius.dart';
+import '../design_system/spacing/radd_space.dart';
 import '../models/local_video.dart';
 import '../services/local_media_service.dart';
 import '../services/vault_service.dart';
@@ -337,7 +338,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
               else _searchFocus.requestFocus();
             });
           },
-          constraints: const BoxConstraints(), padding: const EdgeInsets.all(8),
+          constraints: const BoxConstraints(), padding: EdgeInsets.all(RaddSpace.sm),
         ),
         // Layout toggle
         IconButton(
@@ -346,13 +347,13 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
               color: t.textSecondary, size: 22),
           onPressed: () => setState(() => _layout = _layout == _LayoutMode.list
               ? _LayoutMode.grid : _LayoutMode.list),
-          constraints: const BoxConstraints(), padding: const EdgeInsets.all(8),
+          constraints: const BoxConstraints(), padding: EdgeInsets.all(RaddSpace.sm),
         ),
         // Sort & filter sheet
         IconButton(
           icon: Icon(AppIcons.sort, color: t.textSecondary, size: 22),
           onPressed: _showSortSheet,
-          constraints: const BoxConstraints(), padding: const EdgeInsets.all(8),
+          constraints: const BoxConstraints(), padding: EdgeInsets.all(RaddSpace.sm),
         ),
         // More
         PopupMenuButton<String>(
@@ -430,7 +431,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
           Icon(AppIcons.videoCamera, size: 13, color: t.textMuted),
           const SizedBox(width: 3),
           Text('$videoCount', style: TextStyle(color: t.textMuted, fontSize: 12)),
-          const SizedBox(width: 8),
+          const SizedBox(width: RaddSpace.sm),
           Icon(AppIcons.music, size: 13, color: context.signalPrimary),
           const SizedBox(width: 3),
           Text('$audioCount', style: TextStyle(color: context.signalPrimary, fontSize: 12)),
@@ -441,12 +442,12 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
         // Type filter pills
         if (widget.folder.isMixedFolder) ...[
           _typePill(_TypeFilter.all,   'All'),
-          const SizedBox(width: 4),
+          const SizedBox(width: RaddSpace.xs),
           _typePill(_TypeFilter.video, '🎬'),
-          const SizedBox(width: 4),
+          const SizedBox(width: RaddSpace.xs),
           _typePill(_TypeFilter.audio, '🎵'),
         ],
-        const SizedBox(width: 8),
+        const SizedBox(width: RaddSpace.sm),
         if (_loadingThumbs)
           SizedBox(width: 12, height: 12,
             child: CircularProgressIndicator(strokeWidth: 1.5,
@@ -549,7 +550,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 10, 12, 6),
                 child: Row(children: [
                   Icon(AppIcons.tv, size: 16, color: context.signalPrimary),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: RaddSpace.sm),
                   Expanded(child: Text(
                     group.seriesName.isEmpty ? 'Series' : group.seriesName,
                     style: TextStyle(color: RaddTheme.of(context).textPrimary,
@@ -710,7 +711,7 @@ class _FolderSortSheetState extends State<_FolderSortSheet> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               )),
-              const SizedBox(height: 16),
+              const SizedBox(height: RaddSpace.md),
               // Header
               Row(children: [
                 Text('Sort & View', style: TextStyle(color: t.textPrimary,
@@ -765,9 +766,9 @@ class _FolderSortSheetState extends State<_FolderSortSheet> {
               const SizedBox(height: 10),
               Row(children: [
                 _filterBtn(t, _TypeFilter.all,   AppIcons.gridView,            'All Files'),
-                const SizedBox(width: 8),
+                const SizedBox(width: RaddSpace.sm),
                 _filterBtn(t, _TypeFilter.video, AppIcons.videoCamera,        'Videos'),
-                const SizedBox(width: 8),
+                const SizedBox(width: RaddSpace.sm),
                 _filterBtn(t, _TypeFilter.audio, AppIcons.music,      'Audio'),
               ]),
               const SizedBox(height: 18),
@@ -802,7 +803,7 @@ class _FolderSortSheetState extends State<_FolderSortSheet> {
           ),
           child: Column(children: [
             Icon(icon, color: active ? context.signalPrimary : t.textMuted, size: 20),
-            const SizedBox(height: 4),
+            const SizedBox(height: RaddSpace.xs),
             Text(label, style: TextStyle(color: active ? context.signalPrimary : t.textMuted,
                 fontSize: 11, fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
           ]),
@@ -991,7 +992,7 @@ class _VideoListTile extends StatelessWidget {
               icon: Icon(AppIcons.more, color: t.textMuted, size: 20),
               onPressed: () => _showVideoMenu(context),
               constraints: const BoxConstraints(),
-              padding: const EdgeInsets.all(8),
+              padding: EdgeInsets.all(RaddSpace.sm),
             ),
         ]),
       ),
@@ -1059,7 +1060,7 @@ class _VideoListTile extends StatelessWidget {
         _menuTile(context, AppIcons.share, 'Share', () { Navigator.pop(context); }),
         _menuTile(context, AppIcons.trash, 'Delete',
             () { Navigator.pop(context); }, isDestructive: true),
-        const SizedBox(height: 8),
+        const SizedBox(height: RaddSpace.sm),
       ])),
     );
   }
@@ -1169,7 +1170,7 @@ class _VideoGridCard extends StatelessWidget {
                   color: context.signalPrimary.withOpacity(0.08),
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(AppIcons.music, color: context.signalPrimary, size: 36),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: RaddSpace.xs),
                     Text(video.formattedDuration,
                         style: TextStyle(color: context.signalPrimary,
                             fontSize: 11, fontWeight: FontWeight.w600)),
@@ -1197,15 +1198,15 @@ class _VideoGridCard extends StatelessWidget {
               Row(children: [
                 if (video.hasSrt) ...[
                   _smallBadge('SRT', AppColors.info),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: RaddSpace.xs),
                 ],
                 if (video.isVideo && video.resolution.isNotEmpty) ...[
                   _smallBadge(video.resolution, Colors.white54),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: RaddSpace.xs),
                 ],
                 if (video.isAudio) ...[
                   _smallBadge('AUDIO', context.signalPrimary),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: RaddSpace.xs),
                 ],
                 Text(video.formattedSize,
                     style: const TextStyle(color: Colors.white54, fontSize: 9)),
