@@ -2984,6 +2984,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         child: GestureDetector(
           onTap: () {
             setState(() => _showControls = true);
+            _applySubtitleMargin(controlsVisible: true);
             _scheduleHide();
           },
           child: Container(
@@ -3000,6 +3001,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       onTap: () => setState(() {
                         _isLocked = false;
                         _showControls = true;
+                        _applySubtitleMargin(controlsVisible: true);
                         _scheduleHide();
                       }),
                       child: Container(
@@ -3158,7 +3160,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             _RaddIconBtn(
               icon: _isLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
               size: 20,
-              onTap: () => setState(() { _isLocked = !_isLocked; _showControls = true; }),
+              onTap: () => setState(() {
+                _isLocked = !_isLocked;
+                _showControls = true;
+                _applySubtitleMargin(controlsVisible: true);
+              }),
             ),
             const SizedBox(height: 6),
             _RaddIconBtn(
@@ -3705,7 +3711,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           label: 'Lock',
           active: false,
           available: true,
-          onTap: () => setState(() { _isLocked = true; _showControls = false; }),
+          onTap: () => setState(() {
+            _isLocked = true;
+            _showControls = false;
+            _applySubtitleMargin(controlsVisible: false);
+          }),
         ),
         'immersive': (
           icon: Icons.theaters_rounded,
@@ -4041,25 +4051,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ═══════════════════════════════════════════════════════════════════════════
 
     Widget _buildPortraitLayout(BoxConstraints constraints) {
-      // Exact 16:9 height — eliminates black dead-band inside the video zone.
-      // Capped at 50% of screen height so controls always fit on tablet portrait.
-      final double videoH = (constraints.maxWidth * 9.0 / 16.0)
-          .clamp(0.0, constraints.maxHeight * 0.50);
+      // Full-bleed video — video surface fills the entire screen (TikTok/YouTube
+      // Shorts style) instead of being confined to a fixed top zone. Controls are
+      // a floating, auto-hiding overlay on top, not a permanent panel that eats
+      // half the screen.
       final Duration currentPos = _seekBarDelta != null
           ? Duration(milliseconds: (_seekBarDelta! * _duration.inMilliseconds).round())
           : _position;
       final BoxConstraints videoConstraints = BoxConstraints(
         maxWidth: constraints.maxWidth,
-        maxHeight: videoH,
+        maxHeight: constraints.maxHeight,
       );
 
-      return Column(
-        children: [
-          // ── Video zone (top 38%) ────────────────────────────────────────────
-          SizedBox(
-            width: constraints.maxWidth,
-            height: videoH,
-            child: Stack(
+      return SizedBox(
+        width: constraints.maxWidth,
+        height: constraints.maxHeight,
+        child: Stack(
               children: [
                 // Video surface
                 Positioned.fill(child: RepaintBoundary(child: _buildVideoSurface())),
@@ -4270,18 +4277,38 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       ),
                     ),
                   ),
+
+                // ── Floating bottom controls overlay (TikTok/Shorts style) ──────
+                // Not a fixed panel — sits on top of the full-bleed video, fades
+                // with the rest of the controls, and lets the video show through
+                // above the gradient instead of permanently occupying screen space.
+                if (!_isImmersive)
+                  Positioned(
+                    left: 0, right: 0, bottom: 0,
+                    child: AnimatedOpacity(
+                      opacity: _showControls && !_isLocked ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 280),
+                      child: IgnorePointer(
+                        ignoring: !_showControls || _isLocked,
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Colors.transparent, Color(0xE6000000)],
+                              stops: [0.0, 0.35],
+                            ),
+                          ),
+                          child: SafeArea(
+                            top: false,
+                            child: _buildPortraitControlsPanel(constraints, currentPos),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
-          ),
-
-          // ── Controls panel (always visible below video) ────────────────────
-          Expanded(
-            child: Container(
-              color: const Color(0xFF0D0D0D),
-              child: _buildPortraitControlsPanel(constraints, currentPos),
-            ),
-          ),
-        ],
       );
     }
 
@@ -4335,15 +4362,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     Widget _buildPortraitControlsPanel(BoxConstraints constraints, Duration currentPos) {
-      // spaceEvenly distributes seek bar + transport + quick actions across the
-      // full available height — no dead space below on tall phones.
+      // Floating overlay over full-bleed video — sizes to its content instead of
+      // stretching to fill a fixed panel height (TikTok/Shorts style controls).
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          mainAxisSize: MainAxisSize.min,
           children: [
             _buildHorizontalSeekBar(constraints, currentPos),
+            const SizedBox(height: 4),
             _buildPortraitTransportRow(),
+            const SizedBox(height: 4),
             _buildPortraitQuickActions(),
           ],
         ),
