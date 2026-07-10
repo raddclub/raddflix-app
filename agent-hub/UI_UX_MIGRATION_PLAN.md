@@ -253,6 +253,30 @@ stale; build verified green on GitHub Actions (final commit `1a66dd4`).
 
 ---
 
+## Full-phase re-audit (2026-07-10, post-Phase-6)
+
+Re-verified every phase's claims against the actual code (not just the checkboxes here), prompted
+by the missing-import bug found while building Phase 6.
+
+- **Confirmed and fixed:** the "missing `radd_type.dart` import" bug (context.radd*/signalPrimary/
+  accent* extension getters called without importing the file that defines them) existed in 5 more
+  design-system components beyond the 2 fixed during Phase 6 — `radd_banner.dart`,
+  `radd_text_field.dart`, `settings_row.dart` (the other 3 — `radd_button.dart`, `radd_sheet.dart`,
+  `radd_lock_pad.dart` — already had the import). These 3 are currently unused (0 call sites), so
+  CI never caught them; fixed proactively so the next screen to adopt them doesn't hit the same
+  build break Phase 6 hit. Build-verified green (commits `dcdc859`, `610f1d3`, `d1be8e3`).
+- **Player consolidation (Phase 4) claims verified correct:** all 7 `RaddSheet.show()` call sites
+  present and working; `_openRightPanel` remains for 8 *secondary* sheets exactly as documented
+  (not falsely claimed dead); J2 `_savePrefs()` call sites, K1 pause-save, and BUG-FREE-PLAY-01's
+  `settings:` forwarding in `app.dart` all independently re-confirmed present in the code.
+- **Phase 5 raw-literal "exceptions" spot-checked, not regressions:** an initial broad grep for
+  remaining `Color(0x...)`/`Colors.*`/`BorderRadius.circular(<n>)`/raw `Duration(...)` across
+  "migrated" screens looked alarming, but every sample checked (show_detail_screen.dart rating-
+  star/lock-badge colors, tid_status_screen.dart WhatsApp green, login_screen.dart device-conflict
+  amber) is either an intentionally-kept off-scale/no-token-match value already documented above,
+  or a screen/token category (motion, mostly) that was never actually in Phase 4/5's claimed scope
+  in the first place — not a false completion claim. No code changes needed here.
+
 ## Notes for the next agent (any session, any account)
 
 - This plan assumes no Flutter SDK in this Replit — every change here has been done via careful
