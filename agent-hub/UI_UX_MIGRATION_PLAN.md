@@ -40,15 +40,18 @@ shipped); item 1 and the live-device portions of item 3 still need a Flutter SDK
       `railItemDelay` (40ms), `lockKeyDuration` (220ms), `bottomNavDuration` (180ms),
       `emptyStateDelay` (400ms). Also fixed two wrong curves: `sheetEnter` was `easeOutCubic`
       → now `Cubic(0.16, 1.0, 0.3, 1.0)` per spec; `sheetExit` was `easeInCubic` → now
-      `Cubic(0.4, 0.0, 1.0, 1.0)` per spec. `RaddSheet` now uses `RaddMotion.tuneDuration`
-      (was hardcoded 200ms literal); `RaddCard` uses `RaddMotion.cardPressDown` (was hardcoded
-      120ms literal). CI pending on `d3d793c` + `730d47d` — verify green before next Flutter work.
+      `Cubic(0.4, 0.0, 1.0, 1.0)` per spec. All raw `Duration(milliseconds: ...)` literals across
+      design-system components replaced with named constants: `RaddSheet` → `tuneDuration`;
+      `RaddCard` + `RaddButton` → `cardPressDown`; `RaddChip` → `tuneDuration`; `RaddLockPad` key
+      → `lockKeyDuration` (corrected from 120ms to spec's 220ms). CI green on `d3d793c` + `730d47d`;
+      pending on `9b8d2a6` + `1ac96b8` (close button + token sweep) — verify before next Flutter work.
 
-- [x] **Accessibility (code-fixable subset)** — DONE (`730d47d`).
-      `RaddSheet`: close `GestureDetector` now wrapped in `Semantics(label: 'Close $title',
-      button: true)` — was completely unlabelled. Added `FocusScope` around sheet content for
-      focus trap (Volume VI: "RaddSheet traps focus while open"). Added `SemanticsService.announce`
-      on `initState` to announce sheet title to screen readers.
+- [x] **Accessibility (code-fixable subset)** — DONE (`730d47d`, `9b8d2a6`).
+      `RaddSheet` close button: switched from `GestureDetector + Icon` wrapped in manual
+      `Semantics` → `IconButton(tooltip: 'Close $title')` which is natively focusable,
+      has a built-in 48×48 touch target, and exposes tooltip as semantic label (`9b8d2a6`).
+      Added `FocusScope` around sheet content (Volume VI focus-trap). Added `SemanticsService.
+      announce` on `initState` to announce sheet title on open.
       Pre-existing ✅ items confirmed: `RaddBanner` already calls `SemanticsService.announce`;
       `RaddButton` (icon variant) already requires tooltip + Semantics label; `RaddCard` already
       has `Semantics(label: "$title, $variant[, data-free]", button: true)`.

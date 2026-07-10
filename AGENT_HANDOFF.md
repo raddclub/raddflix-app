@@ -30,12 +30,18 @@
   spec's single "⋯ More". Panel heights (62% + 90%) exceed 40% spec — needs PM decision.
 - Full details in `agent-hub/UI_UX_MIGRATION_PLAN.md` Phase 1.
 
-**CI status:** runs `d3d793c` and `730d47d` were `in_progress` as of 2026-07-10T11:23. Verify
-green before next Flutter-touching work (Rule 46). Docs commit (`push_to_github.sh`) pushed
-separately — does not trigger a Flutter build.
+**Code-review fixes (after initial push):** `9b8d2a6` and `1ac96b8` pushed to address two
+review findings: (a) close button switched from `GestureDetector` + manual `Semantics` to
+native `IconButton` with `tooltip` (48×48 target, inherent focus); (b) motion-token consistency
+sweep across `RaddButton`, `RaddChip`, `RaddLockPad` — all raw Duration literals now replaced.
+`RaddLockPad` key duration corrected from 120ms → 220ms (`lockKeyDuration`, spec-exact).
 
-**Next:** confirm CI green → finish Phase 1 item 1 live measurement → then Phase 6 (onboarding
-rebuild, currently blocked pending Phase 3 production validation per plan file).
+**CI status:** `d3d793c` + `730d47d` confirmed ✅ green. `9b8d2a6` + `1ac96b8` in-progress as
+of 2026-07-10; verify green before next Flutter-touching work (Rule 46).
+
+**Next:** confirm CI green on `9b8d2a6`/`1ac96b8` → finish Phase 1 item 1 live measurement →
+then Phase 6 (onboarding rebuild, currently blocked pending Phase 3 production validation per
+plan file).
 
 **Workflow reminders:** `log_pending.sh` → edit → `auto_commit.sh` per code file (sequential,
 no batching, no local `git commit`/`push` — see `agent-hub/RULES.md` Rule 42). After any
