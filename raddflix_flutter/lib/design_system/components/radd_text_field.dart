@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/radd_colors.dart';
 import '../radius/radd_radius.dart';
 import '../spacing/radd_space.dart';
+import '../typography/radd_type.dart';
 
 class RaddTextField extends StatefulWidget {
   final TextEditingController? controller;
