@@ -11,6 +11,7 @@ import '../../core/theme/radd_colors.dart';
 import '../motion/radd_motion.dart';
 import '../radius/radd_radius.dart';
 import '../spacing/radd_space.dart';
+import '../typography/radd_type.dart';
 
 enum RaddCardVariant {
   movie,
