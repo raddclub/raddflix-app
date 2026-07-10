@@ -11,6 +11,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/theme/radd_colors.dart';
 import '../spacing/radd_space.dart';
+import '../typography/radd_type.dart';
 
 enum RaddBannerVariant {
   offline,
