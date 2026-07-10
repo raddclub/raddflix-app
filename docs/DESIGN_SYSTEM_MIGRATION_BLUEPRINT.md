@@ -9,18 +9,32 @@
 
 ## 1. Release Readiness Dashboard
 
-| Dimension | Current State | Target State | % Complete | Primary Blocker |
-|---|---|---|---|---|
-| Design tokens (space/radius/type/motion/elevation) | Built, spec-accurate, **zero direct call sites** in screens/widgets (`RaddSpace.`, `RaddRadius.`, `RaddType.`, `RaddMotion.`, `RaddElevation.` all = 0 hits outside `lib/design_system/` and `lib/core/theme/`) | Referenced directly wherever a screen sets spacing/radius/type/motion | 0% (usable, unused) | Not compiled/tested — see §7 |
-| Shared components (`RaddButton`, `RaddCard`, `RaddSheet`, `RaddBanner`, `RaddTextField`, `RaddChip`, `RaddLockPad`, `SettingsRow`) | Built; usage: `RaddButton`/`RaddCard` 0, `RaddSheet` 1 (in `player_screen.dart`), `RaddTextField` 3 (login/register), `RaddLockPad` 0, `RaddChip`/`RaddBanner`/`SettingsRow` 0 | Used everywhere the design doc specifies that primitive | ~2% | Not compiled/tested; no migration work started |
-| Screen compliance (see §2 matrix) | 2 of 33 screens (login, register) touch new components at all; 0 of 33 fully match their Volume V wireframe | All screens match their documented wireframe | ~4% (weighted by screen traffic, roughly) | Sequencing — see §8 phased plan |
-| Design debt (raw literals) | 603 `AppColors.*`, 2,563 `Colors.*`, 372 `Color(0x...)` literals, 963 raw `EdgeInsets.*`, 94 raw `TextStyle(`, 197 raw `Duration(milliseconds...)`, 92 raw `Curves.*`, 80+ `BorderRadius.circular()` call sites — see §4 | 0 raw literals outside the token/theme layer itself | 0% | Same as above |
-| User journeys (§5) | Functionally complete but visually inconsistent screen-to-screen; onboarding does not implement the documented 3-step reciprocity flow | Journeys visually and structurally match Volume V | Auth/Home/Search/Details: functional, ~40% visual match. Onboarding: structurally different from spec (0% flow match) | Onboarding rebuild is a scoped, isolated task |
-| UX heuristics (§6) | Mixed — see scorecard | Consistent, accessible, low-cognitive-load | ~55% (qualitative, evidence-backed per heuristic) | Consistency (biggest single gap) |
-| Player experience | Functionally rich (9,280 lines, most feature-dense screen in app) but violates documented HUD rules and carries large amounts of dead sibling code | Matches Volume V "Player" wireframe (minimal collapsed HUD, gesture zones, 3-tab sheet) | ~60% functional / ~30% visual-spec match | Needs a dedicated, isolated task — see §8 Phase 4 |
-| **Overall readiness to call this "on-brand, release-ready UI"** | | | **~15–20%** | Token/component adoption is the fulcrum — nearly everything else depends on it |
+> **Last updated: 2026-07-10 (Phase 7 re-audit).** Original baseline: 2026-07-09.
+> Grep methodology: all counts run against `raddflix_flutter/lib/` excluding `lib/design_system/`
+> and `lib/core/`. Where baseline and current used different methods this is noted explicitly —
+> do not compare those rows numerically.
 
-**How to read the 15–20% figure:** the design system is fully specified and fully implemented as a library (tokens + components exist and are spec-correct), but essentially unconsumed by the app (0–2% adoption at call sites). That gap — not missing design work — is the single largest blocker to a "release-ready" score.
+| Dimension | Baseline (2026-07-09) | Current (2026-07-10) | Δ | Primary Remaining Blocker |
+|---|---|---|---|---|
+| **Design tokens — space/radius** | 0 usages in screens/widgets | **RaddSpace: 265 hits · RaddRadius: 67 hits** (screens/ only) | +332 call sites | `RaddType` and `RaddMotion` still 0 in screens |
+| **Design tokens — color (via context extension)** | ~0 `context.signalPrimary`/`context.t.*` in screens | **125 hits** (screens/) | +125 | Raw `Colors.*` / `AppColors.*` still dominant |
+| **Design tokens — motion/type** | 0 in screens | 0 in screens | 0 | Phase 6+ work; `RaddMotion` constants now defined and used inside DS components |
+| **Shared components** | `RaddSheet` 1 · `RaddTextField` 3 · all others 0 | **`RaddSheet` 14 · `RaddTextField` 10 · `RaddLockPad` 6** · `RaddButton`/`RaddCard`/`RaddChip`/`RaddBanner`/`SettingsRow` still 0 | 3/8 components have adoption | 5 core UI components still completely unused in app screens |
+| **Screen compliance** (§10 DoD) | 2/33 screens touch any `Radd*` component | All 33 screens had ≥1 token pass (color/spacing/radius); **0/33 at full §10 DoD** (no `RaddButton`/`RaddCard`) | 0→33 partial, 0 full | `RaddButton`/`RaddCard` adoption is the next fulcrum |
+| **Design debt — `Colors.*`** | 2,563 | **2,305** | **−258 (−10.1%)** | Remaining ~2,300 are mostly intentional overlays + player screen |
+| **Design debt — `AppColors.*`** | 603 | **524** | **−79 (−13.1%)** | Remaining 524 are scattered across un-migrated screen areas |
+| **Design debt — `Color(0x...)`** | 372 | **325** | **−47 (−12.6%)** | Off-scale / custom palette values; need case-by-case token proposal |
+| **Design debt — `Duration(ms...)`** | 197 | **195** | **−2 (−1%)** | All DS components now use `RaddMotion` constants; remaining 195 are in screen files not yet migrated |
+| **Design debt — `Curves.*`** | 92 | **92** | 0 | Screen-level migration not yet started |
+| **Design debt — `EdgeInsets.*`** | 963 (app-wide) | 584 (screens/ only) | ⚠ methodology gap — not directly comparable; screens/ was not isolated in baseline | Spacing pass done across all 33 screens but off-scale values remain |
+| **Design debt — `BorderRadius.circular`** | ~200+ (app-wide) | 198 (screens/ only) | ⚠ methodology gap — see above | Off-scale radius values (not 8/12/16/999) remain; need token proposal or design sign-off |
+| **Design debt — `TextStyle(`** | 94 (stricter grep method) | 817 (screens/ only, broader method) | ⚠ methodology gap — not comparable; type-token migration has not started | Typography pass is the largest un-started debt category |
+| **User journeys** | Auth ~40% visual · Onboarding 0% flow | Auth ~50% visual (token passes done) · Onboarding **0% flow** (not started) | +~10% auth visual | Onboarding rebuild (Phase 6) — new feature, not migration |
+| **UX heuristics** | ~55% | ~58% | +3% | Accessibility: `RaddSheet` now has focus trap + `IconButton` close + `SemanticsService.announce`; TalkBack audit still needed on device |
+| **Player experience** | ~60% functional / ~30% visual | ~60% functional / ~32% visual | +2% | Panel height violations (62–90% vs 40% spec), transport-row extras vs spec; need PM decision |
+| **Overall readiness** | **~15–20%** | **~25–30%** | **+~10%** | `RaddButton`/`RaddCard` adoption + typography pass + Onboarding rebuild (Phase 6) |
+
+**How to read the +10% overall:** the token/component library was 0% consumed at Phases 0–1 baseline. Phases 2–5 + Phase 1 drove the uplift: all 33 screens now use spacing and radius tokens; color debt reduced ~10–13% across all three color categories; 3 of 8 shared components have real adoption. The remaining 70% gap is dominated by two things: (1) `RaddButton` and `RaddCard` are still completely unused in app screens despite being fully built, and (2) typography tokens (`context.radd*` text styles) have zero screen adoption — the largest single un-started debt category by impact.
 
 ---
 

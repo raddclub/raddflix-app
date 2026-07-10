@@ -19,6 +19,69 @@
 
 ## Session index (title only — full detail in the linked archive)
 
+### July 2026 — Session 11 (2026-07-10) — Phase 1 + Phase 7 (this session)
+
+**Task:** UI-UX-MIGRATION Phase 1 (investigation gaps) + Phase 7 (final readiness re-audit).
+
+**Phase 1 — code-fixable items completed:**
+
+*RaddMotion duration token gap (commits `d3d793c`, `730d47d`, `1ac96b8` — all CI green):*
+- Added 11 missing duration constants to `radd_motion.dart` from Volume III §table:
+  `tuneDuration` 200ms, `sheetEnterDuration` 260ms, `sheetExitDuration` 200ms,
+  `cardPressDown` 120ms, `cardPressUp` 160ms, `heroDuration` 320ms, `railItemDuration` 240ms,
+  `railItemDelay` 40ms, `lockKeyDuration` 220ms, `bottomNavDuration` 180ms, `emptyStateDelay` 400ms.
+- Corrected two wrong curves: `sheetEnter` `easeOutCubic` → `Cubic(0.16,1,0.3,1)`;
+  `sheetExit` `easeInCubic` → `Cubic(0.4,0,1,1)`. These had been wrong since the file was written.
+- Swept all raw `Duration(milliseconds:...)` literals out of design-system components:
+  `RaddSheet` → `tuneDuration`; `RaddCard`/`RaddButton` → `cardPressDown`; `RaddChip` → `tuneDuration`;
+  `RaddLockPad` key → `lockKeyDuration` (also corrected from 120ms → 220ms per spec — the key
+  animation was running at card-press speed, not lock-key spring speed).
+
+*Accessibility code-fixable subset (commits `730d47d`, `9b8d2a6` — all CI green):*
+- `RaddSheet` close button: `GestureDetector+Icon+manual Semantics` → `IconButton(tooltip:)` —
+  natively focusable, 48×48 touch target, proper screen-reader label.
+- `RaddSheet`: added `FocusScope` focus trap + `SemanticsService.announce` on sheet open.
+- Pre-existing ✅ confirmed: `RaddBanner` announce, `RaddButton` icon tooltip, `RaddCard` Semantics.
+
+*Phase 1 items still needing live device:*
+- Player HUD: center third clear ✅ and 3s auto-hide ✅ from static code. Panel height
+  violations (62–90% vs 40% spec) and transport-row extras (Lock/Immersive/Settings vs spec's
+  "⋯ More") need PM decision — not removable without product sign-off.
+- TalkBack focus-order audit, `_RaddIconBtn` touch targets, caption-on-by-default: need device.
+
+**Phase 7 — Design debt re-audit (2026-07-10):**
+
+Grep re-run against `raddflix_flutter/lib/` (excl. `design_system/`, `core/`):
+
+| Category | Baseline (2026-07-09) | Now (2026-07-10) | Δ |
+|---|---|---|---|
+| `Colors.*` | 2,563 | 2,305 | **−258 (−10.1%)** |
+| `AppColors.*` | 603 | 524 | **−79 (−13.1%)** |
+| `Color(0x...)` | 372 | 325 | **−47 (−12.6%)** |
+| `Duration(ms...)` | 197 | 195 | **−2 (−1%)** |
+| `Curves.*` | 92 | 92 | 0 |
+| `RaddSpace` in screens/ | 0 | 265 | **+265 new** |
+| `RaddRadius` in screens/ | 0 | 67 | **+67 new** |
+| `context.signal*/context.t.*` in screens/ | ~0 | 125 | **+125 new** |
+| `RaddSheet` usages | 1 | 14 | **+13** |
+| `RaddLockPad` usages | 0 | 6 | **+6** |
+| `RaddTextField` usages | 3 | 10 | **+7** |
+| `RaddButton`/`RaddCard`/`RaddChip`/`RaddBanner` usages | 0 each | 0 each | 0 |
+
+Note: `EdgeInsets.*`, `BorderRadius.circular()`, `TextStyle(` baselines used a different
+grep scope — those rows have a methodology gap and are not compared numerically above. See
+`docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` §1 for the full updated dashboard with flags.
+
+**Overall Release Readiness: ~15–20% → ~25–30% (+~10%).**
+Remaining gap dominated by: (1) `RaddButton`/`RaddCard` still 0 usages in screens;
+(2) typography tokens (`context.radd*`) still 0 screen adoption; (3) Onboarding rebuild
+(Phase 6) not started.
+
+**Next open work:** Phase 6 — onboarding rebuild (new feature). Phases 1/7 are the only
+remaining non-complete items; Phase 1's open sub-item needs a real device.
+
+---
+
 ### June 2026 — see [`2026-06.md`](2026-06.md)
 
 - Session 2026-06-29 — Phase 37: UI Bug Fixes

@@ -3,6 +3,36 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-10 — Phase 7 COMPLETE, Phase 6 next)
+
+### Phases 1 (partial) + 7 — complete — 2026-07-10
+
+**Phase 7 (final audit) is complete.** All §4 grep queries re-run; dashboard updated in-place
+in `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md §1`. Overall readiness: **~25–30%** (was ~15–20%).
+
+**Design debt delta (key numbers):**
+- `Colors.*`: 2,563 → 2,305 (−258, −10.1%)
+- `AppColors.*`: 603 → 524 (−79, −13.1%)
+- `Color(0x...)`: 372 → 325 (−47, −12.6%)
+- `RaddSpace` in screens: 0 → 265 new usages
+- `RaddRadius` in screens: 0 → 67 new usages
+- `RaddSheet`/`RaddLockPad`/`RaddTextField` now have real adoption (14/6/10 usages)
+- `RaddButton`, `RaddCard`, `RaddChip`, `RaddBanner`, `SettingsRow`: still 0 in screens
+
+**Phases complete:** 2, 3, 4, 5, 7 ✅. Phase 1 mostly done (one live-device item open).
+
+**Next:** Phase 6 — onboarding rebuild. Replacing the generic `PageView` carousel with the
+Volume V 3-step reciprocity flow (genre taste → starter watchlist → save/signup, progress bar
+opens at ~25%). This is a new feature build, not a migration. Before starting, the agent
+should confirm: (a) what API provides genre/content data for the taste-capture step, and
+(b) where `onboarding_screen.dart` is routed from (what triggers onboarding vs. going straight
+to home for returning users).
+
+**Workflow reminders:** `log_pending.sh` → edit → `auto_commit.sh` per code file. After any
+push touching `raddflix_flutter/**`, verify `build-apk.yml` CI is green (Rule 40/46).
+
+---
+
 ## Current State (2026-07-10 — Phase 1 IN PROGRESS)
 
 ### UI-UX-MIGRATION — Phase 1 partially complete — 2026-07-10
