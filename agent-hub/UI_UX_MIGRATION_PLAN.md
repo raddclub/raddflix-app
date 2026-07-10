@@ -224,7 +224,7 @@ Migrate in this order (highest raw-literal count first, per blueprint §2/§4):
 
 ## Phase 6 — Onboarding rebuild (new feature, not a migration)
 **Status:** ✅ COMPLETE (2026-07-10) — Phase 3 was already ✅ complete, so the stated block was
-stale; build verified green on GitHub Actions (commit `5eae5ca`).
+stale; build verified green on GitHub Actions (final commit `1a66dd4`).
 - [x] Built the documented 3-step reciprocity flow (genre taste capture → starter watchlist build
       → save/signup) per Volume V, replacing the generic `PageView` marketing carousel.
       Progress bar opens at 25%, never 0%, per the design doc's stated behavioral intent.
@@ -232,6 +232,13 @@ stale; build verified green on GitHub Actions (commit `5eae5ca`).
       `providers/profile_provider.dart`. Also fixed a latent compile bug uncovered by first real
       usage of `RaddChip`/`RaddCard`: both were missing the `radd_type.dart` import needed for the
       `context.raddLabel`/`raddCaption` extension getters they call.
+- [x] Post-build code review caught two functional gaps, both fixed and build-verified:
+      (1) splash screen now routes unauthenticated first-run users to `AppRoutes.onboarding`
+      (gated on `onboardingSeenKey`) instead of always going straight to login — the flow was
+      built but unreachable; (2) `consumePendingOnboardingItems()` now resolves the active
+      profile itself (awaiting `load()` if needed) instead of trusting a possibly-stale
+      `state.active`, which could otherwise silently write picks to the wrong profile via
+      `LocalDb`'s default-profile-1 fallback.
 
 ## Phase 7 — Final polish & readiness re-audit
 **Status:** ✅ COMPLETE (2026-07-10)
