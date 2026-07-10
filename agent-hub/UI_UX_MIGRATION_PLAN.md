@@ -127,7 +127,7 @@ requires PM input on section membership before code changes.
       Scoped as a future task if/when the human prioritises it.
 
 ## Phase 5 — Remaining large screens (parallelizable once Phase 3's pattern is proven)
-**Status:** ⏳ NOT STARTED
+**Status:** ✅ COMPLETE (2026-07-09)
 Migrate in this order (highest raw-literal count first, per blueprint §2/§4):
 - [x] `show_detail_screen.dart` (93 `Colors.*`, 59 `AppColors.*`, 13 raw `Color()`) — done in
       commits 9914bf2 (color) + 12d0c63 (spacing); radius pass n/a (already partially migrated,
@@ -168,12 +168,20 @@ Migrate in this order (highest raw-literal count first, per blueprint §2/§4):
       `Color(0xFF22C55E)`→`AppColors.success` (exact match); `EdgeInsets.all(16)`,
       `SizedBox(4/8/24)`→`RaddSpace.xs/sm/md/lg`. Kept: `Colors.white*/black*/transparent`
       (overlay on thumbnails, no token).
-- [ ] `vault_screen.dart`, `vault_settings_screen.dart`, `season_folder_screen.dart`,
+- [x] `vault_screen.dart`, `vault_settings_screen.dart`, `season_folder_screen.dart`,
       `edit_profile_screen.dart`, `add_edit_profile_screen.dart`, `profile_switcher_screen.dart`,
       `tid_status_screen.dart`, `admin_queue_screen.dart`, `actor_screen.dart`,
-      `plan_expired_screen.dart`, `quota_full_screen.dart`, `layout_designer_screen.dart` (both
-      copies — confirm which is live first), `player_settings_screen.dart` — remaining screens,
-      lower literal counts, can go in any order.
+      `plan_expired_screen.dart`, `quota_full_screen.dart`, `layout_designer_screen.dart`,
+      `player_settings_screen.dart` — remaining screens done (2026-07-09 session); see
+      `agent-hub/TASKS.md` V1–V12 for the full commit list. Also fixed a **pre-existing CI break**
+      from an earlier session (commit `45a5f1cd`, not this pass): missing `AppColors` import in
+      `player_settings_screen.dart`/`layout_designer_screen.dart`, invalid
+      `const AppColors.error` syntax in `profile_switcher_screen.dart` — fixed in `64ec457`.
+      Confirmed `screens/player/layout_designer_screen.dart` is the live copy (imported by
+      `app.dart`); `screens/layout_designer_screen.dart` is dead/unreferenced code, left as-is.
+      `add_edit_profile_screen.dart` and `player_settings_screen.dart` had no exact-scale
+      radius/color literals to migrate (reviewed, no-op). Every commit's CI build confirmed
+      green individually. Phase 5 is now complete.
 
 ## Phase 6 — Onboarding rebuild (new feature, not a migration)
 **Status:** ⏳ NOT STARTED — blocked on Phase 3 (prove `RaddCard`/`RaddButton`/`RaddChip` in
