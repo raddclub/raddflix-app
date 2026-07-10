@@ -3,6 +3,47 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-10 — Phase 1 IN PROGRESS)
+
+### UI-UX-MIGRATION — Phase 1 partially complete — 2026-07-10
+
+**Two of three Phase 1 items done; one still needs live device.**
+
+**Item 2 — RaddMotion duration tokens (DONE, commits `d3d793c` + `730d47d`, CI pending):**
+- Added all missing duration constants to `radd_motion.dart` from Volume III §table:
+  `tuneDuration` (200ms), `sheetEnterDuration` (260ms), `sheetExitDuration` (200ms),
+  `cardPressDown` (120ms), `cardPressUp` (160ms), `heroDuration` (320ms),
+  `railItemDuration` (240ms), `railItemDelay` (40ms), `lockKeyDuration` (220ms),
+  `bottomNavDuration` (180ms), `emptyStateDelay` (400ms).
+- Fixed two wrong curves: `sheetEnter` → `Cubic(0.16, 1.0, 0.3, 1.0)` (was `easeOutCubic`);
+  `sheetExit` → `Cubic(0.4, 0.0, 1.0, 1.0)` (was `easeInCubic`).
+- Updated `RaddSheet` (tuneDuration) and `RaddCard` (cardPressDown) to consume spec constants.
+
+**Item 3 — Accessibility code-fixable subset (DONE, commit `730d47d`, CI pending):**
+- `RaddSheet` close button: added `Semantics(label: 'Close $title', button: true)`.
+- `RaddSheet`: added `FocusScope` focus trap + `SemanticsService.announce` on open.
+- Pre-existing coverage confirmed: `RaddBanner`, `RaddButton`, `RaddCard` already compliant.
+- Still open: TalkBack focus-order audit, `_RaddIconBtn` touch-target check, caption defaults.
+
+**Item 1 — HUD footprint (static analysis complete, live device still needed):**
+- Center third ✅ clear; auto-hide ✅ 3s. Transport has 3 extras (Lock/Immersive/Settings) vs
+  spec's single "⋯ More". Panel heights (62% + 90%) exceed 40% spec — needs PM decision.
+- Full details in `agent-hub/UI_UX_MIGRATION_PLAN.md` Phase 1.
+
+**CI status:** runs `d3d793c` and `730d47d` were `in_progress` as of 2026-07-10T11:23. Verify
+green before next Flutter-touching work (Rule 46). Docs commit (`push_to_github.sh`) pushed
+separately — does not trigger a Flutter build.
+
+**Next:** confirm CI green → finish Phase 1 item 1 live measurement → then Phase 6 (onboarding
+rebuild, currently blocked pending Phase 3 production validation per plan file).
+
+**Workflow reminders:** `log_pending.sh` → edit → `auto_commit.sh` per code file (sequential,
+no batching, no local `git commit`/`push` — see `agent-hub/RULES.md` Rule 42). After any
+push touching `raddflix_flutter/**`, verify the `build-apk.yml` CI run is green before
+marking work done (Rule 40/46).
+
+---
+
 ## Current State (2026-07-09 — Phases 2–5 COMPLETE)
 
 ### UI-UX-MIGRATION — Phase 5 complete — 2026-07-09

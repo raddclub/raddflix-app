@@ -30,16 +30,49 @@ you start or finish an item — that line is what the next agent reads first.
       that workflow does have a working Flutter toolchain even though this Replit doesn't.
 
 ## Phase 1 — Investigation gaps
-**Status:** ⏳ NOT STARTED — **next up.** Phases 0/2/3/4/5 are complete; a preflight safety check
-(`preflight_check.sh`, see Rule 47 in `agent-hub/RULES.md`) was also added to `auto_commit.sh`
-2026-07-10 to catch the two mistake classes that broke CI before — unrelated to this phase's
-scope but worth knowing about before your first push.
-- [ ] Confirm current Player HUD footprint against the Volume V "center third kept clear" rule
-      (re-measure, don't assume the earlier audit's read is still accurate).
-- [ ] Decide and document duration tokens for `RaddMotion` (currently curves-only — a token-layer
-      gap per blueprint §3.5). Needs a design decision, not just code.
-- [ ] Scoped pass on accessibility, responsiveness-at-breakpoints, and error/feedback UX per
-      blueprint §6 — these were flagged as "not measurable from static code" and need a real pass.
+**Status:** ⏳ IN PROGRESS (2026-07-10) — items 2 and 3 partially done (code-fixable parts
+shipped); item 1 and the live-device portions of item 3 still need a Flutter SDK / real device.
+
+- [x] **RaddMotion duration tokens gap** — DONE (commits `d3d793c`, `730d47d`).
+      Added all missing duration constants from Volume III §table: `tuneDuration` (200ms),
+      `sheetEnterDuration` (260ms), `sheetExitDuration` (200ms), `cardPressDown` (120ms),
+      `cardPressUp` (160ms), `heroDuration` (320ms), `railItemDuration` (240ms),
+      `railItemDelay` (40ms), `lockKeyDuration` (220ms), `bottomNavDuration` (180ms),
+      `emptyStateDelay` (400ms). Also fixed two wrong curves: `sheetEnter` was `easeOutCubic`
+      → now `Cubic(0.16, 1.0, 0.3, 1.0)` per spec; `sheetExit` was `easeInCubic` → now
+      `Cubic(0.4, 0.0, 1.0, 1.0)` per spec. `RaddSheet` now uses `RaddMotion.tuneDuration`
+      (was hardcoded 200ms literal); `RaddCard` uses `RaddMotion.cardPressDown` (was hardcoded
+      120ms literal). CI pending on `d3d793c` + `730d47d` — verify green before next Flutter work.
+
+- [x] **Accessibility (code-fixable subset)** — DONE (`730d47d`).
+      `RaddSheet`: close `GestureDetector` now wrapped in `Semantics(label: 'Close $title',
+      button: true)` — was completely unlabelled. Added `FocusScope` around sheet content for
+      focus trap (Volume VI: "RaddSheet traps focus while open"). Added `SemanticsService.announce`
+      on `initState` to announce sheet title to screen readers.
+      Pre-existing ✅ items confirmed: `RaddBanner` already calls `SemanticsService.announce`;
+      `RaddButton` (icon variant) already requires tooltip + Semantics label; `RaddCard` already
+      has `Semantics(label: "$title, $variant[, data-free]", button: true)`.
+      **Still open (needs live device):** TalkBack focus-order audit across dense screens (Player
+      Settings, Search filters); touch-target audit for `_RaddIconBtn` in player (visual size is
+      `icon+20`dp, may fall below 44dp for size=19 icons); caption-on-by-default + audio
+      description toggle (Volume VI requirements not yet implemented anywhere in the app).
+
+- [ ] **Player HUD footprint** — static-code analysis complete; live-device measurement still needed.
+      Static findings (2026-07-10):
+      - Center third: ✅ CLEAR — `_buildCenterControls()` returns `SizedBox.shrink()`.
+      - Auto-hide: ✅ 3s — confirmed in `_scheduleHide()` (Volume X compliant).
+      - Transport row: up to 7 tappable elements — skip-back, prev, **play/pause**, next,
+        skip-forward (spec nav) + Lock, Immersive, Settings (extras vs. Volume V wireframe).
+        Volume V shows only "⋯ More (top-right)" as the single extra control; the three utility
+        buttons in the transport row exceed that. Deferring — removing them is a UX decision,
+        not a mechanical token pass; needs PM sign-off.
+      - Panel height: `_openRightPanel` at `initialChildSize: 0.62` (62%), all 7 main panels via
+        `RaddSheet.show(maxHeightFraction: 0.90)` — both exceed the Volume V "40% surface" spec.
+        Pre-existing known violation; resolving it requires a design decision on how panels lay
+        out on small-phone screens. Flag for Phase 6/PM input.
+      **To complete this item:** measure actual pixel heights on a real device (or emulator with
+      a 360dp-wide screen) to confirm whether any control intrudes on the "center third" in
+      practice, and whether 90% RaddSheet on a small phone leaves the spec-required video visible.
 
 ## Phase 2 — Foundational, low-risk consolidation
 **Status:** ✅ COMPLETE (2026-07-09)
