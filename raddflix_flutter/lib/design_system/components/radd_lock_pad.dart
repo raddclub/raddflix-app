@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/theme/radd_colors.dart';
+import '../motion/radd_motion.dart';
 import '../spacing/radd_space.dart';
 import '../typography/radd_type.dart';
 
@@ -157,7 +158,7 @@ class _RaddLockPadKeyState extends State<_RaddLockPadKey> {
       onTap: widget.onTap,
       child: AnimatedScale(
         scale: _pressed ? 1.1 : 1.0,
-        duration: const Duration(milliseconds: 120),
+        duration: RaddMotion.lockKeyDuration, // Volume III: 220ms spring — more playful (was 120ms)
         curve: Curves.elasticOut,
         child: Container(
           width: 64,

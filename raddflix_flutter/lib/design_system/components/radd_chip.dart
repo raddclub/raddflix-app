@@ -38,7 +38,7 @@ class RaddChip extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: RaddMotion.tuneDuration, // Volume III spec-exact (was hardcoded 200ms)
           curve: RaddMotion.tune,
           height: 36,
           padding: const EdgeInsets.symmetric(horizontal: 16),

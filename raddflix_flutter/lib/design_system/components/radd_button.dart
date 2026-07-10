@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../core/theme/radd_colors.dart';
+import '../motion/radd_motion.dart';
 import '../radius/radd_radius.dart';
 import '../spacing/radd_space.dart';
 import '../typography/radd_type.dart';
@@ -150,7 +151,7 @@ class _RaddButtonState extends State<RaddButton> {
 
     Widget button = AnimatedScale(
       scale: _pressed ? 0.97 : 1.0,
-      duration: const Duration(milliseconds: 120),
+      duration: RaddMotion.cardPressDown, // Volume III spec-exact (was hardcoded 120ms)
       curve: Curves.easeOutCubic,
       child: Opacity(
         opacity: _isDisabled && !showLoading ? 0.4 : 1.0,
