@@ -96,21 +96,32 @@ being picked up by a different agent, a different Replit account, or a session t
 limit mid-task. **If you are being asked to "continue the UI/UX work" or "fix the design system,"
 this section is your entry point — do not restart the analysis, it is already done:**
 
+**Status as of 2026-07-10: Phases 0 (partially, see below), 2, 3, 4, 5 are ✅ COMPLETE — the
+mechanical color/radius/spacing token migration across every screen and the player is done, CI
+green on every commit. Next unstarted phase is Phase 1 (investigation gaps), then Phase 6
+(onboarding rebuild), then Phase 7 (final polish/re-audit).** Do not redo Phases 2-5 or re-derive
+their findings — read `agent-hub/UI_UX_MIGRATION_PLAN.md` for the full per-screen record.
+
 1. Read `docs/AUDIT_UI_UX_REPORT.md` — the original evidence-gathering audit (what's wrong, why).
 2. Read `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` — the full analysis turned into a roadmap
    (readiness dashboard, screen-by-screen compliance matrix, token mapping tables, design-debt
    inventory, phased plan). Treat this as background/rationale, not a checklist.
 3. Read `agent-hub/UI_UX_MIGRATION_PLAN.md` — **the actual checklist.** Phases 0–7, each with
-   checkboxes. Find the first phase with any unchecked `[ ]` item and continue there. Do not
-   jump ahead to a later phase while an earlier one has open items, except where that file
-   explicitly marks a phase as parallelizable.
+   checkboxes. Find the first phase with any unchecked `[ ]` item and continue there — that is
+   Phase 1 right now. Do not jump ahead to a later phase while an earlier one has open items,
+   except where that file explicitly marks a phase as parallelizable.
 4. Follow Rule 42 (`log_pending.sh` → edit → `auto_commit.sh`) for every single file change in
    this effort, same as any other code change in this repo — no exceptions for "it's just a
    token swap." Check a box in `UI_UX_MIGRATION_PLAN.md` only after the push has succeeded and,
    for any `raddflix_flutter/**` change, the GitHub Actions build is confirmed green.
-5. If `agent-hub/UNPUSHED.txt` has content when your session starts, run `bash recover_push.sh`
+5. `auto_commit.sh` now runs `preflight_check.sh` automatically on every push touching a `.dart`
+   file (added 2026-07-10, see Rule 47 in `agent-hub/RULES.md`) — it blocks the two mistake
+   patterns that broke CI in earlier sessions (missing design-token imports, invalid
+   `const SomeStaticClass.field` syntax). This is a heuristic, not a compiler; CI is still the
+   real check (Rule 46). `SKIP_PREFLIGHT=1` bypasses it for a genuine false positive only.
+6. If `agent-hub/UNPUSHED.txt` has content when your session starts, run `bash recover_push.sh`
    before doing anything else — a previous agent's edit may not have landed yet.
-6. This is intentionally a long-running, many-session effort (estimated 3-4 months of work per
+7. This is intentionally a long-running, many-session effort (estimated 3-4 months of work per
    the blueprint's phased roadmap) — do not try to compress it into one session, and do not
    create a new "progress so far" file. The checkboxes in `UI_UX_MIGRATION_PLAN.md` ARE the
    progress record; keep them current and nothing else is needed for a clean handoff.

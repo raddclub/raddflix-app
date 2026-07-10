@@ -30,7 +30,10 @@ you start or finish an item — that line is what the next agent reads first.
       that workflow does have a working Flutter toolchain even though this Replit doesn't.
 
 ## Phase 1 — Investigation gaps
-**Status:** ⏳ NOT STARTED
+**Status:** ⏳ NOT STARTED — **next up.** Phases 0/2/3/4/5 are complete; a preflight safety check
+(`preflight_check.sh`, see Rule 47 in `agent-hub/RULES.md`) was also added to `auto_commit.sh`
+2026-07-10 to catch the two mistake classes that broke CI before — unrelated to this phase's
+scope but worth knowing about before your first push.
 - [ ] Confirm current Player HUD footprint against the Volume V "center third kept clear" rule
       (re-measure, don't assume the earlier audit's read is still accurate).
 - [ ] Decide and document duration tokens for `RaddMotion` (currently curves-only — a token-layer
