@@ -131,6 +131,16 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     final ids = prefs.getStringList(AppConstants.onboardingPendingItemsKey);
     if (ids == null || ids.isEmpty) return;
 
+    // Resolve the active profile ourselves rather than trusting state.active,
+    // which may not have been populated yet if this races with the splash
+    // screen's own profile load — falling through to LocalDb.addToWatchlist's
+    // default-profile-1 fallback would silently write to the wrong profile.
+    if (state.active == null || state.loading) {
+      await load();
+    }
+    final activeProfileId = state.active?.id;
+    if (activeProfileId == null) return;
+
     final db = await LocalDb.instance;
     for (final idStr in ids) {
       final id = int.tryParse(idStr);
@@ -150,7 +160,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
           posterPath: row['poster_path'] as String?,
           shareUrl: row['share_url'] as String?,
         ),
-        profileId: state.active?.id,
+        profileId: activeProfileId,
       );
     }
     await prefs.remove(AppConstants.onboardingPendingItemsKey);
