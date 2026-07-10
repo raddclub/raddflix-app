@@ -9,7 +9,6 @@ import 'core/theme/theme_provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/brand_theme_provider.dart';
 import 'screens/splash_screen.dart';
-import 'screens/onboarding_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
@@ -97,7 +96,6 @@ class RaddFlixApp extends ConsumerWidget {
       initialRoute: AppRoutes.splash,
       routes: {
         AppRoutes.splash:       (_) => const SplashScreen(),
-        AppRoutes.onboarding:   (_) => const OnboardingScreen(),
         AppRoutes.login:        (_) => const LoginScreen(),
         AppRoutes.register:     (_) => const RegisterScreen(),
         AppRoutes.home:         (_) => const HomeScreen(),
