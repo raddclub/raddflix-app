@@ -3,9 +3,9 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
-## Current State (2026-07-09 — Phase 4 COMPLETE + Phase 5 in progress)
+## Current State (2026-07-09 — Phases 2–5 COMPLETE)
 
-### UI-UX-MIGRATION — Phase 4 complete, Phase 5 in progress — 2026-07-09
+### UI-UX-MIGRATION — Phase 5 complete — 2026-07-09
 
 **Start here if you're a fresh agent/account picking this up:** read `AGENT_PROMPT.md` →
 this section → `agent-hub/UI_UX_MIGRATION_PLAN.md`, then do the first unchecked checkbox in the
@@ -13,7 +13,9 @@ earliest open phase of that plan file. The plan file is the single source of tru
 progress — this section just orients you.
 
 Executing the `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` roadmap phase-by-phase. **Phases 2,
-3, and 4 are now ✅ COMPLETE with CI confirmed green. Phase 5 is in progress.**
+3, 4, and 5 are now ✅ COMPLETE with CI confirmed green. Next open phase is Phase 6
+(onboarding rebuild), which is blocked pending Phase 3 production validation per the plan file
+— check `agent-hub/UI_UX_MIGRATION_PLAN.md` Phase 1 for any open investigation items first.**
 
 **Phase 4 summary** (player_screen.dart, 9,280 lines — all CI green):
 - Color pass (`d91cfd8`): `Colors.orange`→`AppColors.orange` (15), `Color(0xFF00A651)`→`AppColors.jazzGreen` (2). `Colors.white*/black*/amber/redAccent` kept (intentional video-overlay / no exact token).
@@ -21,11 +23,20 @@ Executing the `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` roadmap phase-by-phase
 - Spacing pass (`969e0c3`): added `radd_space.dart`. SizedBox/EdgeInsets.all(4/8/16/24/32) → `RaddSpace.xs/sm/md/lg/xl` (81 replacements). Type tokens deferred (player sizes 10/11/14/20px outside RaddType scale).
 - HUD check: auto-hide ✅ (3s, Volume X). 40% surface: pre-existing violation in `_openRightPanel` (62% initial height) + RaddSheet calls (90%); needs Phase 1 live measurement to resolve.
 
-**Phase 5 in progress** — first screen: `show_detail_screen.dart` (commit pending CI).
-Migration order (highest literal count first): show_detail → local_folder → subscription →
-home → local_media → search → profile → downloads → remaining screens.
+**Phase 5 complete** (all remaining large screens, highest-literal-count first): show_detail →
+local_folder → subscription → home → local_media → search → profile → downloads →
+vault_screen/vault_settings/season_folder/edit_profile/add_edit_profile/profile_switcher/
+tid_status/admin_queue/actor/plan_expired/quota_full/layout_designer/player_settings. See
+`agent-hub/TASKS.md` (rows V1–V12) and `agent-hub/UI_UX_MIGRATION_PLAN.md` Phase 5 for the
+full commit list and kept/off-scale rationale per file. Also fixed a pre-existing CI break
+(from an earlier commit, not this pass) in `player_settings_screen.dart`,
+`layout_designer_screen.dart`, and `profile_switcher_screen.dart` — see commit `64ec457`.
+Confirmed `screens/player/layout_designer_screen.dart` is the live copy (imported by
+`app.dart`); `screens/layout_designer_screen.dart` is dead/unreferenced code, left untouched.
 
-**Next unchecked item:** first `[ ]` in Phase 5 of `agent-hub/UI_UX_MIGRATION_PLAN.md`.
+**Next unchecked item:** first `[ ]` in Phase 1 (investigation gaps) of
+`agent-hub/UI_UX_MIGRATION_PLAN.md` — Phase 6 (onboarding rebuild) is blocked on Phase 3
+production validation, so Phase 1's open items are the next actionable work.
 
 **Workflow reminders:** `log_pending.sh` → edit → `auto_commit.sh` per code file (sequential,
 no batching, no local `git commit`/`push` — see `agent-hub/RULES.md` Rule 42). After any
