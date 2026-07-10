@@ -40,6 +40,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       await ref.read(authProvider.notifier).login(
           phone: _phone.text.trim(), password: _pass.text);
       if (!mounted) return;
+      // BUG-REGISTER-01: auth_provider.login() handles errors internally and
+      // never throws — must explicitly check state after the call (same fix
+      // already applied to login_screen.dart for the same root cause).
+      final s = ref.read(authProvider);
+      if (s.isDeviceConflict) {
+        setState(() { _error = 'Account already active on another device. Contact support.'; _loading = false; });
+        return;
+      }
+      if (s.error != null) {
+        setState(() { _error = s.error; _loading = false; });
+        return;
+      }
       await navigateAfterAuth(context, ref);
     } on DioException catch (e) {
       final _errData = e.response?.data;
