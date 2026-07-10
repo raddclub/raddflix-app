@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../core/theme/radd_colors.dart';
+import '../motion/radd_motion.dart';
 import '../radius/radd_radius.dart';
 import '../spacing/radd_space.dart';
 
@@ -173,7 +174,8 @@ class _RaddCardState extends State<RaddCard> {
         onTap: widget.onTap,
         child: AnimatedScale(
           scale: _pressed ? 0.96 : 1.0,
-          duration: const Duration(milliseconds: 120),
+          // Use spec-exact cardPressDown duration instead of a raw literal (Volume III).
+          duration: RaddMotion.cardPressDown,
           curve: Curves.easeOutCubic,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

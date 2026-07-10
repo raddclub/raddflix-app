@@ -6,6 +6,7 @@
 // automatically via a static route-aware guard.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import '../../core/theme/radd_colors.dart';
 import '../elevation/radd_elevation.dart';
 import '../radius/radd_radius.dart';
@@ -91,53 +92,71 @@ class _RaddSheetState extends State<RaddSheet> with SingleTickerProviderStateMix
   late int _tabIndex = widget.initialTab;
 
   @override
+  void initState() {
+    super.initState();
+    // Accessibility: announce sheet to screen readers (Volume VI).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      SemanticsService.announce(widget.title, TextDirection.ltr);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = context.t;
     final media = MediaQuery.of(context);
 
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: media.size.height * widget.maxHeightFraction),
-      child: RaddElevation.blurWrap(
-        sigma: RaddElevation.sheetBlurSigma,
-        child: Container(
-          decoration: RaddElevation.sheet(context),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Drag handle — excluded from semantics, purely visual affordance.
-                ExcludeSemantics(
-                  child: Container(
-                    margin: const EdgeInsets.only(top: 12, bottom: 4),
-                    width: 32,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: t.textMuted,
-                      borderRadius: RaddRadius.pillRadius,
+    // Accessibility (Volume VI): trap focus inside the sheet while it is open
+    // so TalkBack/VoiceOver does not reach content beneath the scrim.
+    return FocusScope(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: media.size.height * widget.maxHeightFraction),
+        child: RaddElevation.blurWrap(
+          sigma: RaddElevation.sheetBlurSigma,
+          child: Container(
+            decoration: RaddElevation.sheet(context),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Drag handle — excluded from semantics, purely visual affordance.
+                  ExcludeSemantics(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 12, bottom: 4),
+                      width: 32,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: t.textMuted,
+                        borderRadius: RaddRadius.pillRadius,
+                      ),
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md, vertical: RaddSpace.sm),
-                  child: Row(
-                    children: [
-                      Expanded(child: Text(widget.title, style: context.raddTitle.copyWith(color: t.textPrimary))),
-                      if (widget.dismissible)
-                        GestureDetector(
-                          onTap: () {
-                            widget.onDismiss?.call();
-                            Navigator.of(context).maybePop();
-                          },
-                          child: Icon(Icons.close, size: 20, color: t.textMuted),
-                        ),
-                    ],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md, vertical: RaddSpace.sm),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(widget.title, style: context.raddTitle.copyWith(color: t.textPrimary))),
+                        if (widget.dismissible)
+                          // Accessibility: label the close button for screen readers.
+                          Semantics(
+                            label: 'Close ${widget.title}',
+                            button: true,
+                            child: GestureDetector(
+                              onTap: () {
+                                widget.onDismiss?.call();
+                                Navigator.of(context).maybePop();
+                              },
+                              child: Icon(Icons.close, size: 20, color: t.textMuted),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                if (widget.style == RaddSheetStyle.tabbed && widget.tabs != null)
-                  _buildTabBar(context),
-                Flexible(child: _buildBody(context)),
-              ],
+                  if (widget.style == RaddSheetStyle.tabbed && widget.tabs != null)
+                    _buildTabBar(context),
+                  Flexible(child: _buildBody(context)),
+                ],
+              ),
             ),
           ),
         ),
@@ -181,7 +200,8 @@ class _RaddSheetState extends State<RaddSheet> with SingleTickerProviderStateMix
   Widget _buildBody(BuildContext context) {
     if (widget.style == RaddSheetStyle.tabbed && widget.tabs != null) {
       return AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
+        // Use spec-exact Tune duration instead of a raw literal (Volume III).
+        duration: RaddMotion.tuneDuration,
         switchInCurve: RaddMotion.tune,
         child: Padding(
           key: ValueKey(_tabIndex),
