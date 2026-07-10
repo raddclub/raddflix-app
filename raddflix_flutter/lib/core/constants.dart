@@ -7,8 +7,6 @@ class AppConstants {
   /// Runtime-mutable: updated by RemoteConfig.fetch() on every app start.
   static String apiBaseUrl = 'http://92.4.95.252';
 
-  static const String onboardingSeenKey = 'jm_onboarding_seen';
-  static const String onboardingPendingItemsKey = 'jm_onboarding_pending_items';
 
   static const Duration accessTokenValidity = Duration(days: 7);
   static const Duration refreshTokenValidity = Duration(days: 90);
@@ -335,7 +333,6 @@ class AppRadius {
 // ── Routes ────────────────────────────────────────────────────────────────────
 class AppRoutes {
   static const String splash       = '/';
-  static const String onboarding   = '/onboarding';
   static const String login        = '/login';
   static const String register     = '/register';
   static const String home         = '/home';
@@ -364,7 +361,6 @@ class StorageKeys {
   static const String refreshToken     = 'jm_refresh_token';
   static const String userId           = 'jm_user_id';
   static const String deviceId         = 'jm_device_id';
-  static const String onboardingSeen   = 'jm_onboarding_seen';
   static const String isGuest          = 'jm_is_guest';
   static const String cachedUserPhone  = 'jm_cached_phone';
   static const String cachedUserId     = 'jm_cached_user_id';
