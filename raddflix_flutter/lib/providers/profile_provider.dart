@@ -121,7 +121,6 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     }
     await load();
   }
-}
 
   /// Consumes item IDs saved by the Phase 6 onboarding flow (before the user
   /// had an account) and adds them to the now-active profile's watchlist.
