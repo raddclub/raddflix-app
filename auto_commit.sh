@@ -36,6 +36,13 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
   exit 0
 fi
 
+if [ "${SKIP_PREFLIGHT:-0}" != "1" ]; then
+  if ! bash "$REPO_ROOT/preflight_check.sh" "$@"; then
+    echo "  ❌ Aborting push — preflight_check.sh found a known-bad pattern (see above)." >&2
+    exit 1
+  fi
+fi
+
 echo ""; echo "  → Committing: $COMMIT_MSG"; echo "    Files: $*"; echo ""
 
 node --input-type=module - "$COMMIT_MSG" "$REPO_ROOT" "$PENDING_LOG" "$@" <<'ENDNODE'

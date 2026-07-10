@@ -227,3 +227,18 @@ checking the supervisor config's `directory=` value first** (`sudo cat /etc/supe
 After any push touching `raddflix_flutter/**`, fetch the actual workflow run status via the GitHub
 API (`GET /repos/.../actions/workflows/build-apk.yml/runs`) and check `conclusion == "success"`.
 Do not consider Flutter-touching work complete just because the push itself returned 200.
+
+**Rule 47: `auto_commit.sh` now runs `preflight_check.sh` automatically before every push that
+touches a `.dart` file — do not bypass it without a reason.** (Added 2026-07-10 after a session
+found `AppColors`-import and `const AppColors.error` mistakes from an earlier commit that had
+gone unnoticed until a later session's CI check.) `preflight_check.sh` is a heuristic, not a real
+compiler (no Flutter/Dart SDK is available in this environment — see Phase 0), so it only catches
+the two known repeat-mistake classes: (1) a design-token class (`AppColors`, `AppRadius`,
+`RaddRadius`, `RaddSpace`, `RaddTheme`, `RaddType`, `RaddMotion`, `AppIcons`, `AppConstants`,
+`AppRoutes`) referenced without its corresponding import, and (2) `const SomeStaticOnlyClass.x`
+where the class has no const constructor (only static fields). `auto_commit.sh` aborts the push
+if either pattern is found. `SKIP_PREFLIGHT=1 bash auto_commit.sh ...` bypasses it for a genuine
+false positive — state why in the commit message when you do. **This does not replace Rule 46** —
+CI is still the only real compiler check; this just avoids paying for a red build on mistakes we
+already know how to catch for free. When adding a new `Radd*`/`App*` token class to the design
+system, add it to the `REQUIRES_IMPORT` map in `preflight_check.sh` too.
