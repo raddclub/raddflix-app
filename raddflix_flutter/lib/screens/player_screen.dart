@@ -4685,7 +4685,10 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                   subtitleFontFamily: fontNames[fontIdx.clamp(0, fontNames.length - 1)],
                   subtitleFontSize: size,
                   subtitleBold: bold,
-                  subtitleTextColorValue: color.value,
+                  // Bake the panel's separate text-opacity slider into the
+                  // color's alpha channel, since PlayerPrefs has no distinct
+                  // text-opacity field.
+                  subtitleTextColorValue: color.withOpacity(opacity).value,
                   subtitleBackgroundColorValue: bgColor.value,
                   subtitleBackgroundOpacity: bgColor.opacity,
                 ));
