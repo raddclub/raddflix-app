@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants.dart';
 import '../core/db/local_db.dart';
+import '../models/catalog_item.dart';
 import '../models/profile.dart';
 
 const int kMaxProfiles = 5;
@@ -119,6 +120,41 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       await prefs.remove(StorageKeys.activeProfileId);
     }
     await load();
+  }
+}
+
+  /// Consumes item IDs saved by the Phase 6 onboarding flow (before the user
+  /// had an account) and adds them to the now-active profile's watchlist.
+  /// Clears the pending list on success so it only runs once per install.
+  /// Safe to call every splash boot — no-ops instantly once the list is empty.
+  Future<void> consumePendingOnboardingItems() async {
+    final prefs = await SharedPreferences.getInstance();
+    final ids = prefs.getStringList(AppConstants.onboardingPendingItemsKey);
+    if (ids == null || ids.isEmpty) return;
+
+    final db = await LocalDb.instance;
+    for (final idStr in ids) {
+      final id = int.tryParse(idStr);
+      if (id == null) continue;
+      final rows = await db.query('titles', where: 'id = ?', whereArgs: [id], limit: 1);
+      if (rows.isEmpty) continue;
+      // Minimal fields needed by LocalDb.addToWatchlist — no public getById
+      // helper exists on LocalDb, so read the row directly (fallback per plan).
+      final row = rows.first;
+      await LocalDb.addToWatchlist(
+        CatalogItem(
+          id: row['id'] as int,
+          title: row['title'] as String,
+          year: row['year'] as int?,
+          mediaType: row['media_type'] as String,
+          posterUrl: row['poster_url'] as String?,
+          posterPath: row['poster_path'] as String?,
+          shareUrl: row['share_url'] as String?,
+        ),
+        profileId: state.active?.id,
+      );
+    }
+    await prefs.remove(AppConstants.onboardingPendingItemsKey);
   }
 }
 
