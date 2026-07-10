@@ -223,11 +223,15 @@ Migrate in this order (highest raw-literal count first, per blueprint §2/§4):
       green individually. Phase 5 is now complete.
 
 ## Phase 6 — Onboarding rebuild (new feature, not a migration)
-**Status:** ⏳ NOT STARTED — blocked on Phase 3 (prove `RaddCard`/`RaddButton`/`RaddChip` in
-production first).
-- [ ] Build the documented 3-step reciprocity flow (genre taste capture → starter watchlist build
-      → save/signup) per Volume V, replacing the current generic `PageView` marketing carousel.
-      Progress bar must open at ~25%, never 0%, per the design doc's stated behavioral intent.
+**Status:** ✅ COMPLETE (2026-07-10) — Phase 3 was already ✅ complete, so the stated block was
+stale; build verified green on GitHub Actions (commit `5eae5ca`).
+- [x] Built the documented 3-step reciprocity flow (genre taste capture → starter watchlist build
+      → save/signup) per Volume V, replacing the generic `PageView` marketing carousel.
+      Progress bar opens at 25%, never 0%, per the design doc's stated behavioral intent.
+      Files: `core/constants.dart`, `screens/onboarding_screen.dart`, `screens/splash_screen.dart`,
+      `providers/profile_provider.dart`. Also fixed a latent compile bug uncovered by first real
+      usage of `RaddChip`/`RaddCard`: both were missing the `radd_type.dart` import needed for the
+      `context.raddLabel`/`raddCaption` extension getters they call.
 
 ## Phase 7 — Final polish & readiness re-audit
 **Status:** ✅ COMPLETE (2026-07-10)
