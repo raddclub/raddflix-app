@@ -1,11 +1,39 @@
-import 'dart:convert';
+// lib/screens/onboarding_screen.dart
+//
+// Volume V — 3-step reciprocity onboarding flow. Replaces the old generic
+// PageView marketing carousel. Steps: genre taste capture → starter
+// watchlist build → save/signup. Progress bar opens at ~25% (never 0%) —
+// deliberate "goal gradient" behavioral cue, not a bug.
+
 import 'package:flutter/material.dart';
-import '../core/theme/radd_theme.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:smooth_page_indicator/smooth_page_indicator.dart';
+import '../core/theme/radd_theme.dart';
+import '../core/theme/radd_colors.dart';
 import '../core/constants.dart';
-import '../core/remote_config.dart';
+import '../core/db/local_db.dart';
+import '../design_system/components/radd_chip.dart';
+import '../design_system/components/radd_card.dart';
+import '../design_system/motion/radd_motion.dart';
+import '../design_system/spacing/radd_space.dart';
+import '../design_system/radius/radd_radius.dart';
+import '../design_system/typography/radd_type.dart';
+import '../models/catalog_item.dart';
+
+const List<String> _kOnboardingGenres = [
+  'Action',
+  'Drama',
+  'Comedy',
+  'Romance',
+  'Thriller',
+  'Anime',
+  'Urdu Dubbed',
+  'Kids',
+  'Sports',
+  'Horror',
+];
+
+// Step progress never starts at 0% — step 0 opens at 25% (goal-gradient effect).
+const List<double> _kStepProgress = [0.25, 0.60, 1.0];
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -14,280 +42,366 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final PageController _ctrl = PageController();
-  int _page = 0;
-  List<_PageData> _pages = _kDefaultPages;
+  int _step = 0;
+  final Set<String> _selectedGenres = {};
+  List<CatalogItem> _candidateItems = [];
+  final Set<int> _selectedItemIds = {};
+  bool _loadingCandidates = false;
 
-  // ── Hardcoded fallback pages ───────────────────────────────────────────────
-  static const List<_PageData> _kDefaultPages = [
-    _PageData(
-      icon: '🎬',
-      gradient: [Color(0xFF22C55E), Color(0xFF16A34A)],
-      title: 'Stream Everything',
-      body: 'Watch movies, dramas & shows in HD quality. Your entertainment, anytime, anywhere.',
-    ),
-    _PageData(
-      icon: '📱',
-      gradient: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
-      title: 'Offline Catalog',
-      body: 'The full movie catalog downloads to your phone. Browse, search and explore 7000+ titles without any internet.',
-    ),
-    _PageData(
-      icon: '🎬',
-      gradient: [Color(0xFFF59E0B), Color(0xFFD97706)],
-      title: 'Pakistani Content',
-      body: 'Urdu, Punjabi, Pakistani dramas and international hits. New titles added every week.',
-    ),
-    _PageData(
-      icon: '⭐',
-      gradient: [Color(0xFFE8002D), Color(0xFFB5001F)],
-      title: 'Subscribe to Unlock',
-      body: 'Start free. Upgrade to Basic, Standard or Premium to unlock HD quality and all content.',
-    ),
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadLivePages();
+  Future<void> _loadCandidates() async {
+    if (_selectedGenres.isEmpty) {
+      setState(() => _candidateItems = []);
+      return;
+    }
+    setState(() => _loadingCandidates = true);
+    final genres = _selectedGenres.take(3).toList();
+    final seen = <int>{};
+    final results = <CatalogItem>[];
+    for (final genre in genres) {
+      final found = await LocalDb.searchAdvanced(genre: genre, limit: 6);
+      for (final r in found) {
+        if (seen.add(r.item.id)) results.add(r.item);
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _candidateItems = results.take(18).toList();
+      _loadingCandidates = false;
+    });
   }
 
-  /// Load live-configured onboarding pages from SharedPreferences (set by
-  /// remote_config.dart from the Brand Studio admin panel). Falls back to
-  /// [_kDefaultPages] if not set or on any parse error.
-  Future<void> _loadLivePages() async {
-    try {
-      final raw = await RemoteConfig.getBrandOnboardingPages();
-      if (raw.isEmpty) return;
-      final list = jsonDecode(raw) as List<dynamic>;
-      if (list.isEmpty) return;
-      final parsed = list.map((e) {
-        final m = e as Map<String, dynamic>;
-        final gradRaw = (m['gradient'] as List<dynamic>?) ?? [];
-        final grad = gradRaw.map((c) {
-          final hex = (c as String).replaceFirst('#', '');
-          return Color(int.parse('FF$hex', radix: 16));
-        }).toList();
-        return _PageData(
-          icon:     (m['icon'] as String?) ?? '🎬',
-          gradient: grad.length >= 2 ? [grad[0], grad[1]] : [const Color(0xFFE8002D), const Color(0xFFB5001F)],
-          title:    (m['title'] as String?) ?? '',
-          body:     (m['body'] as String?) ?? '',
-        );
-      }).toList();
-      if (mounted) setState(() => _pages = parsed);
-    } catch (_) {
-      // Silent fallback — hardcoded pages remain
-    }
+  Future<void> _goToStep(int step) async {
+    if (step == 1) await _loadCandidates();
+    setState(() => _step = step);
   }
 
   Future<void> _finish() async {
     final prefs = await SharedPreferences.getInstance();
+    final ids = _selectedItemIds.map((id) => id.toString()).toList();
+    await prefs.setStringList(AppConstants.onboardingPendingItemsKey, ids);
     await prefs.setBool(AppConstants.onboardingSeenKey, true);
     if (mounted) Navigator.of(context).pushReplacementNamed(AppRoutes.login);
   }
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
-
-  @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final isLast = _page == _pages.length - 1;
     return Scaffold(
       backgroundColor: t.bg,
-      body: Stack(
-        children: [
-          // Animated gradient background
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 500),
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.topCenter,
-                radius: 1.2,
-                colors: [
-                  _pages[_page].gradient[0].withOpacity(0.15),
-                  t.bg,
-                ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildProgressBar(),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: RaddMotion.sheetEnterDuration,
+                switchInCurve: RaddMotion.sheetEnter,
+                switchOutCurve: RaddMotion.sheetExit,
+                transitionBuilder: (child, anim) => FadeTransition(
+                  opacity: anim,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0.05, 0),
+                      end: Offset.zero,
+                    ).animate(anim),
+                    child: child,
+                  ),
+                ),
+                child: KeyedSubtree(
+                  key: ValueKey(_step),
+                  child: switch (_step) {
+                    0 => _GenreStep(
+                        selected: _selectedGenres,
+                        onToggle: (g) => setState(() {
+                          _selectedGenres.contains(g)
+                              ? _selectedGenres.remove(g)
+                              : _selectedGenres.add(g);
+                        }),
+                      ),
+                    1 => _WatchlistStep(
+                        items: _candidateItems,
+                        loading: _loadingCandidates,
+                        selectedIds: _selectedItemIds,
+                        onToggle: (id) => setState(() {
+                          _selectedItemIds.contains(id)
+                              ? _selectedItemIds.remove(id)
+                              : _selectedItemIds.add(id);
+                        }),
+                      ),
+                    _ => _SummaryStep(
+                        items: _candidateItems
+                            .where((i) => _selectedItemIds.contains(i.id))
+                            .toList(),
+                      ),
+                  },
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                  RaddSpace.lg, 0, RaddSpace.lg, RaddSpace.lg),
+              child: _buildCta(t),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressBar() {
+    final t = RaddTheme.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(RaddSpace.lg, RaddSpace.md, RaddSpace.lg, RaddSpace.lg),
+      child: ClipRRect(
+        borderRadius: RaddRadius.pillRadius,
+        child: SizedBox(
+          height: 6,
+          child: Stack(
+            children: [
+              Container(color: t.glass),
+              AnimatedFractionallySizedBox(
+                duration: RaddMotion.sheetEnterDuration,
+                curve: RaddMotion.sheetEnter,
+                widthFactor: _kStepProgress[_step],
+                alignment: Alignment.centerLeft,
+                child: Container(color: context.signalPrimary),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCta(RaddTheme t) {
+    final isLast = _step == 2;
+    final canAdvance = _step == 0 ? _selectedGenres.isNotEmpty : true;
+    final label = isLast ? 'Save & Continue' : 'Continue';
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: Material(
+        color: canAdvance ? context.signalPrimary : t.glass,
+        borderRadius: RaddRadius.mdRadius,
+        child: InkWell(
+          borderRadius: RaddRadius.mdRadius,
+          onTap: !canAdvance
+              ? null
+              : () {
+                  if (isLast) {
+                    _finish();
+                  } else {
+                    _goToStep(_step + 1);
+                  }
+                },
+          child: Center(
+            child: Text(
+              label,
+              style: context.raddBodyStrong.copyWith(
+                color: canAdvance ? Colors.white : t.textMuted,
               ),
             ),
           ),
-          SafeArea(
+        ),
+      ),
+    );
+  }
+}
+
+class _GenreStep extends StatelessWidget {
+  final Set<String> selected;
+  final void Function(String) onToggle;
+  const _GenreStep({required this.selected, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.symmetric(horizontal: RaddSpace.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(height: RaddSpace.lg),
+          Text('What do you like to watch?', style: context.raddHeadline),
+          SizedBox(height: RaddSpace.sm),
+          Text(
+            'Pick as many as you want — we\'ll use this to build your starter watchlist.',
+            style: context.raddBody.copyWith(color: context.t.textMuted),
+          ),
+          SizedBox(height: RaddSpace.xl),
+          Wrap(
+            spacing: RaddSpace.sm,
+            runSpacing: RaddSpace.sm,
+            children: _kOnboardingGenres
+                .map((g) => RaddChip(
+                      label: g,
+                      active: selected.contains(g),
+                      onTap: () => onToggle(g),
+                    ))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WatchlistStep extends StatelessWidget {
+  final List<CatalogItem> items;
+  final bool loading;
+  final Set<int> selectedIds;
+  final void Function(int) onToggle;
+  const _WatchlistStep({
+    required this.items,
+    required this.loading,
+    required this.selectedIds,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return Center(
+        child: CircularProgressIndicator(color: context.signalPrimary),
+      );
+    }
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(RaddSpace.lg, RaddSpace.lg, RaddSpace.lg, RaddSpace.sm),
+          sliver: SliverToBoxAdapter(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Skip
-                Align(
-                  alignment: Alignment.topRight,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: TextButton(
-                      onPressed: _finish,
-                      child: Text('Skip',
-                          style: TextStyle(color: t.textMuted, fontSize: 14)),
-                    ),
-                  ),
+                Text('Pick a few to start with', style: context.raddHeadline),
+                SizedBox(height: RaddSpace.sm),
+                Text(
+                  'Tap the titles you\'re excited about — they\'ll be waiting in your watchlist.',
+                  style: context.raddBody.copyWith(color: context.t.textMuted),
                 ),
-                // Pages
-                Expanded(
-                  child: PageView.builder(
-                    controller: _ctrl,
-                    itemCount: _pages.length,
-                    onPageChanged: (i) => setState(() => _page = i),
-                    itemBuilder: (_, i) => _OnboardPage(data: _pages[i], isActive: i == _page),
-                  ),
-                ),
-                // Indicator
-                SmoothPageIndicator(
-                  controller: _ctrl,
-                  count: _pages.length,
-                  effect: ExpandingDotsEffect(
-                    dotWidth: 8,
-                    dotHeight: 8,
-                    expansionFactor: 3,
-                    spacing: 6,
-                    activeDotColor: AppColors.primary,
-                    dotColor: t.textMuted.withOpacity(0.3),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                // Button
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-                  child: _buildButton(isLast),
-                ),
+                SizedBox(height: RaddSpace.md),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildButton(bool isLast) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [_pages[_page].gradient[0], _pages[_page].gradient[1]],
         ),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        boxShadow: [
-          BoxShadow(
-            color: _pages[_page].gradient[0].withOpacity(0.4),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          onTap: () {
-            if (isLast) {
-              _finish();
-            } else {
-              _ctrl.nextPage(
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeInOutCubic,
-              );
-            }
-          },
-          child: Container(
-            height: 52,
-            alignment: Alignment.center,
-            child: Text(
-              isLast ? 'Get Started' : 'Next →',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.3,
+        if (items.isEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(RaddSpace.lg),
+              child: Text(
+                'No matches yet — you can still continue and explore later.',
+                style: context.raddBody.copyWith(color: context.t.textMuted),
+              ),
+            ),
+          )
+        else
+          SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: RaddSpace.lg),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.62,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, i) {
+                  final item = items[i];
+                  final selected = selectedIds.contains(item.id);
+                  return Stack(
+                    children: [
+                      RaddCard(
+                        variant: RaddCardVariant.compact,
+                        imageUrl: item.posterUrl ?? '',
+                        isDataFree: item.isFree,
+                        onTap: () => onToggle(item.id),
+                      ),
+                      if (selected)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: RaddRadius.mdRadius,
+                                border: Border.all(
+                                  color: context.signalPrimary,
+                                  width: 3,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (selected)
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: context.signalPrimary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.check, size: 14, color: Colors.white),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+                childCount: items.length,
               ),
             ),
           ),
-        ),
-      ),
+        SliverToBoxAdapter(child: SizedBox(height: RaddSpace.xl)),
+      ],
     );
   }
 }
 
-class _OnboardPage extends StatelessWidget {
-  final _PageData data;
-  final bool isActive;
-  const _OnboardPage({required this.data, required this.isActive});
+class _SummaryStep extends StatelessWidget {
+  final List<CatalogItem> items;
+  const _SummaryStep({required this.items});
 
   @override
   Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+    final shown = items.take(5).toList();
+    final extra = items.length - shown.length;
+    return SingleChildScrollView(
+      padding: EdgeInsets.symmetric(horizontal: RaddSpace.lg),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 130,
-            height: 130,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  data.gradient[0].withOpacity(0.2),
-                  data.gradient[1].withOpacity(0.08),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              border: Border.all(
-                color: data.gradient[0].withOpacity(0.3),
-                width: 1.5,
-              ),
-            ),
-            child: Center(
-              child: Text(data.icon, style: TextStyle(fontSize: 56)),
-            ),
-          )
-              .animate(target: isActive ? 1.0 : 0.0)
-              .scale(begin: const Offset(0.8, 0.8), end: const Offset(1, 1),
-                  duration: 400.ms, curve: AppCurves.enter),
-          SizedBox(height: 48),
+          SizedBox(height: RaddSpace.lg),
+          Text('Your watchlist is ready', style: context.raddHeadline),
+          SizedBox(height: RaddSpace.sm),
           Text(
-            data.title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: t.textPrimary,
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-              height: 1.1,
+            shown.isEmpty
+                ? 'You can build your watchlist anytime from the home screen.'
+                : 'These are saved and waiting for you right after you sign up.',
+            style: context.raddBody.copyWith(color: context.t.textMuted),
+          ),
+          SizedBox(height: RaddSpace.xl),
+          if (shown.isNotEmpty)
+            SizedBox(
+              height: 180,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: shown.length,
+                separatorBuilder: (_, __) => SizedBox(width: RaddSpace.sm),
+                itemBuilder: (context, i) => SizedBox(
+                  width: 120,
+                  child: RaddCard(
+                    variant: RaddCardVariant.compact,
+                    imageUrl: shown[i].posterUrl ?? '',
+                    isDataFree: shown[i].isFree,
+                    onTap: () {},
+                  ),
+                ),
+              ),
             ),
-          )
-              .animate(target: isActive ? 1.0 : 0.0)
-              .fadeIn(duration: 350.ms, delay: 100.ms)
-              .slideY(begin: 0.3, end: 0, duration: 350.ms, curve: AppCurves.standard),
-          SizedBox(height: 16),
-          Text(
-            data.body,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: t.textMuted,
-              fontSize: 15,
-              height: 1.65,
-              letterSpacing: 0.1,
-            ),
-          )
-              .animate(target: isActive ? 1.0 : 0.0)
-              .fadeIn(duration: 350.ms, delay: 200.ms),
+          if (extra > 0) ...[
+            SizedBox(height: RaddSpace.sm),
+            Text('+ $extra more', style: context.raddLabel.copyWith(color: context.t.textMuted)),
+          ],
         ],
       ),
     );
   }
-}
-
-class _PageData {
-  final String icon;
-  final List<Color> gradient;
-  final String title;
-  final String body;
-  const _PageData({required this.icon, required this.gradient, required this.title, required this.body});
 }
