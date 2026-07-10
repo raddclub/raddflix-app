@@ -362,3 +362,50 @@ Phase 4 ✅ COMPLETE. Phase 5 (large screens: show_detail, local_folder, home, e
 - `EdgeInsets.all(16)` and `SizedBox(height/width: 4/8/24)` → `RaddSpace.xs/sm/md/lg`
 - Kept: `Colors.white*/black*/transparent` (thumbnail overlay, no token). Completes Phase 5
   item 8.
+
+---
+
+## 2026-07-10 — PROFILE-FIELD-FOCUS + PLAYER-LANDSCAPE-PANELS
+
+### Task
+Two UX improvement areas: (1) profile edit screen field styling and avatar interactivity, (2) video player settings panels in landscape mode — whether video is visible while panels are open.
+
+### edit_profile_screen.dart — animated field focus
+
+**Root cause / gap:** `_Field` was a `StatelessWidget` with no focus tracking — tapping a field gave zero visual feedback. Label was 11pt (spec says 12pt). Icon box radius hardcoded `9` (should be `RaddRadius.smRadius` = 8).
+
+**Changes:**
+- `_Field` → `StatefulWidget` with `FocusNode` created in `initState`, disposed in `dispose`
+- `AnimatedContainer` wraps icon box: bg tints from `primary.withOpacity(0.08)` → `0.15` on focus
+- `AnimatedDefaultTextStyle` wraps label: color transitions from `textMuted` → `AppColors.primary` on focus; `duration: RaddMotion.pulse` (300ms)
+- Label `fontSize` fixed to `12` (was `11`)
+- Icon box `borderRadius` changed to `RaddRadius.smRadius`
+
+### player_screen.dart — landscape panel routing + barrier fix
+
+**Root cause / gap:** `_openRightPanel()` used a 60% black barrier over the video — user couldn't see what was playing while adjusting settings. All 7 panel openers called `RaddSheet.show` unconditionally — in landscape this covers ~85% of screen height.
+
+**Changes to `_openRightPanel`:**
+- Barrier opacity: `0.38 → 0.12` (video clearly visible through the dim)
+- Panel background: `Colors.black.withOpacity(0.60)` → `const Color(0xEA1C1C1E)` (solid dark surface, panel content stays readable)
+
+**Landscape routing added to all 7 panel openers:**
+Each function now checks orientation at the top. If landscape, constructs the panel widget as a `final panel` variable and calls `_openRightPanel(panel, widthFactor: N)` then returns. Portrait path unchanged (same `setState + RaddSheet.show`).
+
+| Function | widthFactor |
+|---|---|
+| `_openSubtitlePanel` | 0.42 |
+| `_openAudioPanel` | 0.38 |
+| `_openZoomPanel` | 0.30 |
+| `_openAudioEffectPanel` | 0.44 |
+| `_openMoreMenu` | 0.40 |
+| `_openSidebarCustomizer` | 0.40 |
+| `_openSettingsPanel` | 0.42 |
+
+**Files touched:** `raddflix_flutter/lib/screens/edit_profile_screen.dart`, `raddflix_flutter/lib/screens/player_screen.dart`
+
+**Commit:** `72f93a8d589ff2f9f706c62936ec21ab28113293`
+
+**Preflight:** passed (0 violations)
+
+**CI:** `build-apk.yml` triggered on `72f93a8d` — verify run succeeds (Rule 46)

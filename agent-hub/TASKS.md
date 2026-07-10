@@ -152,7 +152,7 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 
 ## Adding new work here
 
-| PROFILE-FIELD-FOCUS + PLAYER-LANDSCAPE-PANELS | (1) `edit_profile_screen.dart`: `_Field` → StatefulWidget with FocusNode; animated icon-bg tint 8%→15% primary, animated label color muted→primary, label size 12pt, icon radius `RaddRadius.smRadius`. (2) `player_screen.dart`: `_openRightPanel` barrier opacity 0.38→0.12, panel bg solid dark surface; all 7 panel openers (`_openSubtitlePanel`, `_openAudioPanel`, `_openZoomPanel`, `_openAudioEffectPanel`, `_openMoreMenu`, `_openSidebarCustomizer`, `_openSettingsPanel`) now check orientation at open — landscape routes to `_openRightPanel(panel, widthFactor)`, portrait keeps existing RaddSheet. | — | ⏳ IN PROGRESS |
+| PROFILE-FIELD-FOCUS + PLAYER-LANDSCAPE-PANELS | (1) `edit_profile_screen.dart`: `_Field` → StatefulWidget with FocusNode; animated icon-bg tint 8%→15% primary, animated label color muted→primary, label size 12pt, icon radius `RaddRadius.smRadius`. (2) `player_screen.dart`: `_openRightPanel` barrier opacity 0.38→0.12, panel bg solid dark surface; all 7 panel openers (`_openSubtitlePanel`, `_openAudioPanel`, `_openZoomPanel`, `_openAudioEffectPanel`, `_openMoreMenu`, `_openSidebarCustomizer`, `_openSettingsPanel`) now check orientation at open — landscape routes to `_openRightPanel(panel, widthFactor)`, portrait keeps existing RaddSheet. | See `agent-hub/history/TASK_LOG.md` 2026-07-10 PROFILE-FIELD-FOCUS entry | ✅ DONE — commit `72f93a8d` |
 
 1. Add a row with ⏳ IN PROGRESS *before* starting.
 2. When done and pushed, flip to ✅ DONE and fill in the commit SHA — verify the SHA is real by

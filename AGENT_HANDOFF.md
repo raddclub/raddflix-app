@@ -3,6 +3,32 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-10 — Profile field focus + Player landscape panels)
+
+### What was done
+Two UX improvements shipped in commit `72f93a8d`:
+
+**`edit_profile_screen.dart` — animated field focus:**
+- `_Field` widget converted `StatelessWidget → StatefulWidget` with `FocusNode`
+- On focus: icon-bg tints 8%→15% primary (`AnimatedContainer`), label color transitions muted→primary (`AnimatedDefaultTextStyle`, `RaddMotion.pulse` 300ms)
+- Label size fixed to 12pt (was 11pt); icon box radius → `RaddRadius.smRadius`
+- `FocusNode` disposed correctly in `dispose()`
+
+**`player_screen.dart` — landscape panel routing:**
+- `_openRightPanel`: barrier opacity `0.38 → 0.12` (video clearly visible behind open panel)
+- `_openRightPanel`: panel bg `Colors.black.withOpacity(0.60)` → `const Color(0xEA1C1C1E)` (solid dark surface)
+- All 7 panel openers now check `MediaQuery.of(context).orientation` at the top:
+  - Landscape: builds `final panel`, calls `_openRightPanel(panel, widthFactor: N)`, returns early
+  - Portrait: unchanged `setState + RaddSheet.show`
+  - Width factors: subtitle 0.42, audio 0.38, zoom 0.30, audioEffect 0.44, more 0.40, sidebar 0.40, settings 0.42
+
+### What's next
+- CI run on `72f93a8d` — verify `build-apk.yml` green (Rule 46)
+- Phase 1 HUD footprint measurement still blocked on real device/emulator (no Flutter SDK in Replit)
+- No other open tasks
+
+---
+
 ## Current State (2026-07-10 — Phase 6 READY TO BUILD, research complete)
 
 ### Phase 6 — Onboarding rebuild — research done, no code written yet
