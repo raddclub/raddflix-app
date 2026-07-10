@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/radd_colors.dart';
 import '../radius/radd_radius.dart';
 import '../motion/radd_motion.dart';
+import '../typography/radd_type.dart';
 
 class RaddChip extends StatelessWidget {
   final String label;
