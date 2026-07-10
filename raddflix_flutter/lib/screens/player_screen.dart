@@ -46,6 +46,7 @@ import '../providers/subscription_provider.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import '../core/player/subtitle_dubber.dart';
+import '../core/player/player_prefs_provider.dart';
 import '../design_system/components/radd_sheet.dart';
 import '../design_system/radius/radd_radius.dart';
 import '../design_system/spacing/radd_space.dart';
@@ -1587,6 +1588,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _channelModeIdx = prefs.getInt('pref_ch_mode') ?? 0;
       _useSWDecoder   = prefs.getBool('pref_sw_dec') ?? false;
       _subSpeed       = prefs.getDouble('pref_sub_speed') ?? 1.0;
+      _subSync        = prefs.getDouble('pref_sub_sync') ?? 0.0;
       _prefSubLang    = prefs.getString('pref_sub_lang');
       _prefAudioLang  = prefs.getString('pref_audio_lang');
       // Sprint 2 keys
@@ -1657,6 +1659,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_subSpeed != 1.0) {
       try { _np.setProperty('sub-speed', _subSpeed.toStringAsFixed(4)); } catch (_) {}
     }
+    if (_subSync != 0.0) {
+      try { _np.setProperty('sub-delay', _subSync.toStringAsFixed(1)); } catch (_) {}
+    }
     if (_videoRotation != 0) {
       try { _np.setProperty('video-rotate', _videoRotation.toString()); } catch (_) {}
     }
@@ -1702,6 +1707,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setInt('pref_ch_mode', _channelModeIdx);
     await prefs.setBool('pref_sw_dec', _useSWDecoder);
     await prefs.setDouble('pref_sub_speed', _subSpeed);
+    await prefs.setDouble('pref_sub_sync', _subSync);
     if (_prefSubLang != null)   await prefs.setString('pref_sub_lang',   _prefSubLang!);
     if (_prefAudioLang != null) await prefs.setString('pref_audio_lang', _prefAudioLang!);
     // Sprint 2 keys
@@ -2074,6 +2080,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _subSync = (_subSync + delta);
     try { _np.setProperty('sub-delay', _subSync.toStringAsFixed(1)); } catch (_) {}
     setState(() {});
+    _savePrefs(); // was previously never persisted — reset to 0 on next open
   }
 
   void _adjustAudioSync(double delta) {
@@ -2088,7 +2095,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _startDubGeneration(String lang) async {
     if (_currentSubFile == null) {
-      _showInfoSnackbar('Load an SRT subtitle file first');
+      // _selectedSubtitle can be non-null for embedded/streaming MKV tracks
+      // that have no backing SRT file — dubbing needs actual text lines, so
+      // give an accurate reason instead of implying no subtitles are active.
+      _showInfoSnackbar(_selectedSubtitle != null
+          ? 'AI Dub needs a downloadable subtitle file — embedded tracks aren\'t supported yet. Download an online SRT first.'
+          : 'Load an SRT subtitle file first');
       return;
     }
     setState(() {
@@ -3644,9 +3656,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Build shortcut definitions from current live state
       final defs = <String, ({IconData icon, String label, bool active, bool available, VoidCallback? onTap})>{
         'cc': (
-          icon: _realSubtitleTracks.isNotEmpty ? Icons.subtitles_rounded : Icons.subtitles_off_rounded,
+          // Reflect whether subtitles are actually turned on, not merely
+          // whether tracks exist — a user who explicitly disabled subs
+          // (sid=no) should not see the icon highlighted as active.
+          icon: _selectedSubtitle != null ? Icons.subtitles_rounded : Icons.subtitles_off_rounded,
           label: 'CC',
-          active: _realSubtitleTracks.isNotEmpty,
+          active: _selectedSubtitle != null,
           available: true,
           onTap: _openSubtitlePanel,
         ),
@@ -4340,12 +4355,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return Row(
         children: [
           Expanded(child: Center(child: _buildPortraitActionBtn(
-            _realSubtitleTracks.isNotEmpty
+            _selectedSubtitle != null
                 ? Icons.subtitles_rounded
                 : Icons.subtitles_off_rounded,
             'CC',
             _openSubtitlePanel,
-            active: _realSubtitleTracks.isNotEmpty,
+            active: _selectedSubtitle != null,
           ))),
           Expanded(child: Center(child: _buildPortraitActionBtn(
             Icons.headphones_rounded,
@@ -4651,8 +4666,11 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
           onSecondSubSelected: (track) {
             setState(() => _selectedSecondSub = track);
             try {
-              if (track != null) {
-                _np.setProperty('secondary-sid', track.id!);
+              // Guard against tracks with a null/non-numeric id (e.g. synthetic
+              // or virtual entries) — track.id! used to crash the player here.
+              final id = track?.id;
+              if (track != null && id != null && int.tryParse(id) != null) {
+                _np.setProperty('secondary-sid', id);
                 _np.setProperty('secondary-sub-visibility', 'yes');
               } else {
                 _np.setProperty('secondary-sid', 'no');
@@ -4660,6 +4678,18 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
             } catch (_) {}
           },
           onDubRequested: _startDubGeneration,  // P59
+          onStyleSynced: ({required fontIdx, required size, required bold,
+              required color, required bgColor, required opacity}) {
+            const fontNames = ['Sans Serif', 'Serif', 'Monospace', 'Casual'];
+            ref.read(playerPrefsProvider.notifier).update((p) => p.copyWith(
+                  subtitleFontFamily: fontNames[fontIdx.clamp(0, fontNames.length - 1)],
+                  subtitleFontSize: size,
+                  subtitleBold: bold,
+                  subtitleTextColorValue: color.value,
+                  subtitleBackgroundColorValue: bgColor.value,
+                  subtitleBackgroundOpacity: bgColor.opacity,
+                ));
+          },
         ),
       ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
@@ -6122,6 +6152,18 @@ class _SubtitlePanel extends StatefulWidget {
   final SubtitleTrack? selectedSecondSub;
   final void Function(SubtitleTrack?) onSubtitleTrackSelected;
   final void Function(SubtitleTrack?) onSecondSubSelected;
+  // Mirrors this panel's pref_sub_* style state into PlayerPrefs whenever it
+  // changes, so the (separately maintained) PlayerPrefs-based settings screen
+  // and any future Flutter-rendered overlay stay in sync with what's actually
+  // being sent to MPV, instead of silently drifting apart.
+  final void Function({
+    required int fontIdx,
+    required double size,
+    required bool bold,
+    required Color color,
+    required Color bgColor,
+    required double opacity,
+  })? onStyleSynced;
 
   const _SubtitlePanel({
     required this.isLocal,
@@ -6139,6 +6181,7 @@ class _SubtitlePanel extends StatefulWidget {
     this.selectedSecondSub,
     required this.onSubtitleTrackSelected,
     required this.onSecondSubSelected,
+    this.onStyleSynced,
   });
 
   @override
@@ -6174,7 +6217,11 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   late    TextEditingController _searchController;
   String  _selectedLangCode = 'urd,hin';
   bool    _hasSearched = false;
-  String? _osToken;
+  // static: _SubtitlePanelState is recreated every time the panel opens (it's
+  // built fresh inside a bottom sheet), so an instance field lost the token on
+  // every open and re-logged in to OpenSubtitles each time. A static field
+  // survives across panel opens for the life of the app process.
+  static String? _osToken;
 
   static const _subFonts     = ['Sans Serif', 'Serif', 'Monospace', 'Casual'];
   static const _mpvFonts     = ['sans-serif', 'serif', 'monospace', 'sans-serif'];
@@ -6275,6 +6322,14 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     await prefs.setInt('pref_sub_align_y',      _subAlignY);
     await prefs.setDouble('pref_sub_edge_pad',  _subEdgePadding);
     await prefs.setBool('pref_sub_fit',         _subFitToVideo);
+    widget.onStyleSynced?.call(
+      fontIdx: _subFontIdx,
+      size:    _subSize,
+      bold:    _subBold,
+      color:   _subColor,
+      bgColor: _subBgColor,
+      opacity: _subOpacity,
+    );
   }
 
   @override
@@ -6336,8 +6391,9 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         '<param><value><string>en</string></value></param>'
         '<param><value><string>RaddFlix v1</string></value></param>'
         '</params></methodCall>';
+    HttpClient? client;
     try {
-      final client = HttpClient();
+      client = HttpClient();
       final req = await client.postUrl(
           Uri.parse('https://api.opensubtitles.org/xml-rpc'));
       req.headers.set('Content-Type', 'text/xml; charset=utf-8');
@@ -6345,12 +6401,15 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       req.write(loginXml);
       final resp = await req.close().timeout(const Duration(seconds: 12));
       final body = await resp.transform(const Utf8Decoder()).join();
-      client.close();
       final m = RegExp(r'<name>token</name>\s*<value><string>([^<]+)</string>')
           .firstMatch(body);
       _osToken = m?.group(1);
       return _osToken;
-    } catch (_) { return null; }
+    } catch (_) {
+      return null;
+    } finally {
+      client?.close();
+    }
   }
 
   /// Extract all string-value members from an XML-RPC struct block
@@ -6375,6 +6434,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     if (mounted) setState(() {
       _onlineLoading = true; _onlineError = ''; _onlineResults = []; _hasSearched = true;
     });
+    HttpClient? client;
     try {
       final token = await _osLogin();
       if (token == null) {
@@ -6391,7 +6451,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
           '<member><name>query</name><value><string>$safeQuery</string></value></member>'
           '</struct></value></data></array></value></param>'
           '</params></methodCall>';
-      final client = HttpClient();
+      client = HttpClient();
       final req = await client.postUrl(
           Uri.parse('https://api.opensubtitles.org/xml-rpc'));
       req.headers.set('Content-Type', 'text/xml; charset=utf-8');
@@ -6399,7 +6459,6 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       req.write(searchXml);
       final resp = await req.close().timeout(const Duration(seconds: 20));
       final body = await resp.transform(const Utf8Decoder()).join();
-      client.close();
       // Check for fault
       if (body.contains('<name>faultString</name>')) {
         _osToken = null; // token may be expired, reset
@@ -6419,6 +6478,8 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       });
     } catch (e) {
       if (mounted) setState(() { _onlineLoading = false; _onlineError = 'Search failed: try again.'; });
+    } finally {
+      client?.close();
     }
   }
 
@@ -6427,17 +6488,22 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     final fname = (entry['SubFileName'] ?? 'subtitle.srt') as String;
     if (link.isEmpty) return;
     if (mounted) setState(() => _onlineLoading = true);
+    HttpClient? client;
     try {
-      final client = HttpClient();
+      client = HttpClient();
       final req = await client.getUrl(Uri.parse(link));
       req.headers.set('User-Agent', 'RaddFlix v1');
       final resp = await req.close().timeout(const Duration(seconds: 30));
       final bytesList = <List<int>>[];
       await for (final chunk in resp) { bytesList.add(chunk); }
       final bytes = bytesList.expand((e) => e).toList();
-      client.close();
       List<int> srtBytes;
-      try { srtBytes = ZLibDecoder().convert(bytes); }
+      // OpenSubtitles serves gzip (RFC 1952, magic bytes 1f 8b). ZLibDecoder
+      // only understands raw zlib (RFC 1950) and throws on gzip input, which
+      // silently fell through to writing the raw compressed bytes as an SRT
+      // file. dart:io's `gzip` codec (already available via dart:io) is the
+      // correct decoder here — no extra dependency needed.
+      try { srtBytes = gzip.decode(bytes); }
       catch (_) { srtBytes = bytes; }
       final dir = await getTemporaryDirectory();
       final cleanName = fname.replaceAll('.gz', '');
@@ -6448,6 +6514,8 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       if (mounted) _showInfoSnackbar('✓ Subtitle loaded: $cleanName');
     } catch (e) {
       if (mounted) setState(() { _onlineLoading = false; _onlineError = 'Download failed: try again.'; });
+    } finally {
+      client?.close();
     }
   }
 
@@ -6582,6 +6650,9 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       fontSize: (_subSize * 0.68).clamp(10.0, 28.0),
       fontWeight: _subBold ? FontWeight.bold : FontWeight.normal,
       color: _subColor.withOpacity(_subOpacity),
+      // Preview previously always rendered the default sans-serif font
+      // regardless of the font family selected above it.
+      fontFamily: _mpvFonts[_subFontIdx],
       shadows: shadows,
       height: 1.3,
     );
