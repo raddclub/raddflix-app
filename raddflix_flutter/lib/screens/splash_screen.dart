@@ -74,6 +74,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         ref.read(subscriptionProvider.notifier).loadStatus().ignore();
       }
     }
+    // Phase 6: convert any onboarding-selected titles (picked before the user
+    // had an account) into real watchlist entries now that a profile exists.
+    // No-ops instantly if nothing was picked or this has already run once.
+    if (mounted && ref.read(authProvider).status == AuthStatus.authenticated) {
+      ref.read(profileProvider.notifier).consumePendingOnboardingItems().ignore();
+    }
   }
 
   @override
