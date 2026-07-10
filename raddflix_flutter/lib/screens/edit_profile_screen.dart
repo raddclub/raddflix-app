@@ -675,7 +675,7 @@ class _FieldCard extends StatelessWidget {
   }
 }
 
-class _Field extends StatelessWidget {
+class _Field extends StatefulWidget {
   final TextEditingController ctrl;
   final String label;
   final String hint;
@@ -695,33 +695,74 @@ class _Field extends StatelessWidget {
   });
 
   @override
+  State<_Field> createState() => _FieldState();
+}
+
+class _FieldState extends State<_Field> {
+  final FocusNode _focus = FocusNode();
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (mounted) setState(() => _focused = _focus.hasFocus);
+  }
+
+  @override
+  void dispose() {
+    _focus.removeListener(_onFocusChange);
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    return Padding(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: _focused ? AppColors.primary.withOpacity(0.04) : Colors.transparent,
+        borderRadius: RaddRadius.mdRadius,
+      ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
           width: 34, height: 34,
           decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(9),
+            color: _focused
+                ? AppColors.primary.withOpacity(0.15)
+                : AppColors.primary.withOpacity(0.08),
+            borderRadius: RaddRadius.smRadius,
           ),
-          child: Icon(icon, size: 17, color: AppColors.primary),
+          child: Icon(widget.icon, size: 17, color: AppColors.primary),
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(color: t.textMuted, fontSize: 11,
-              fontWeight: FontWeight.w600, letterSpacing: 0.4)),
+          AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 180),
+            style: TextStyle(
+                color: _focused ? AppColors.primary : t.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.4),
+            child: Text(widget.label),
+          ),
           const SizedBox(height: RaddSpace.xs),
           TextField(
-            controller: ctrl,
-            keyboardType: keyboardType,
-            textCapitalization: textCapitalization,
-            maxLength: maxLength,
+            controller: widget.ctrl,
+            focusNode: _focus,
+            keyboardType: widget.keyboardType,
+            textCapitalization: widget.textCapitalization,
+            maxLength: widget.maxLength,
             style: TextStyle(color: t.textPrimary, fontSize: 15),
             decoration: InputDecoration(
-              hintText: hint,
+              hintText: widget.hint,
               hintStyle: TextStyle(color: t.textMuted, fontSize: 14),
               border: InputBorder.none,
               isDense: true,

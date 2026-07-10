@@ -4603,7 +4603,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
         children: [
           GestureDetector(
             onTap: () => Navigator.of(ctx).pop(),
-            child: Container(color: Colors.black.withOpacity(0.38 * anim.value)),
+            child: Container(color: Colors.black.withOpacity(0.12 * anim.value)),
           ),
           Positioned(
             right: 0, top: 0, bottom: 0,
@@ -4611,7 +4611,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
             child: SlideTransition(
               position: slide,
               child: Material(
-                color: Colors.black.withOpacity(0.60),
+                color: const Color(0xEA1C1C1E),
                 child: Container(
                   decoration: const BoxDecoration(
                     border: Border(left: BorderSide(color: Colors.white12, width: 0.8)),
@@ -4628,318 +4628,348 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
 }
 
     void _openSubtitlePanel() {
+      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+      final panel = _SubtitlePanel(
+        isLocal: _isLocal,
+        subSync: _subSync,
+        subSpeed: _subSpeed,
+        currentFile: _currentSubFile,
+        onSyncChanged: (delta) => _adjustSubSync(delta),
+        onSpeedChanged: (v) {
+          setState(() => _subSpeed = v);
+          try { _np.setProperty('sub-speed', v.toString()); } catch (_) {}
+          _savePrefs();
+        },
+        onSubPropertyChanged: (prop, val) {
+          if (prop == '_sub_margin_main') {
+            // Internal signal — update main state so _applySubtitleMargin
+            // uses the user's latest base value.
+            setState(() => _subBottomMarginMain = double.tryParse(val) ?? _subBottomMarginMain);
+            _savePrefs();
+          } else {
+            try {
+              // Force ASS style override FIRST so that the property change below
+              // immediately takes effect on ASS-format subs (embedded or SRT→ASS).
+              if (prop == 'sub-font-size'    || prop == 'sub-font'          ||
+                  prop == 'sub-bold'        || prop == 'sub-color'        ||
+                  prop == 'sub-back-color'  || prop == 'sub-scale'        ||
+                  prop == 'sub-opacity'     || prop == 'sub-outline-size' ||
+                  prop == 'sub-shadow-offset') {
+                _np.setProperty('sub-ass-override', 'force');
+              }
+              _np.setProperty(prop, val);
+            } catch (_) {}
+          }
+        },
+        title: _currentTitle,
+        onSubtitleFilePicked: (path) {
+          setState(() => _currentSubFile = path);
+          try { _np.setProperty('sub-file', path); } catch (_) {}
+        },
+        // P57-02: embedded track selector
+        embeddedTracks: _realSubtitleTracks,
+        selectedSubtitle: _selectedSubtitle,
+        onSubtitleTrackSelected: (track) {
+          setState(() {
+            _selectedSubtitle = track;
+            // Remember the language so future episodes auto-select the same
+            // language. Only update when track has a real language code.
+            if (track != null && (track.language?.isNotEmpty ?? false)) {
+              _prefSubLang = track.language;
+            }
+          });
+          _savePrefs();
+          if (track != null) {
+            _player.setSubtitleTrack(track);
+          } else {
+            try { _np.setProperty('sid', 'no'); } catch (_) {}
+          }
+        },
+        // P57-07: secondary subtitle (OST/signs at top)
+        selectedSecondSub: _selectedSecondSub,
+        onSecondSubSelected: (track) {
+          setState(() => _selectedSecondSub = track);
+          try {
+            // Guard against tracks with a null/non-numeric id (e.g. synthetic
+            // or virtual entries) — track.id! used to crash the player here.
+            final id = track?.id;
+            if (track != null && id != null && int.tryParse(id) != null) {
+              _np.setProperty('secondary-sid', id);
+              _np.setProperty('secondary-sub-visibility', 'yes');
+            } else {
+              _np.setProperty('secondary-sid', 'no');
+            }
+          } catch (_) {}
+        },
+        onDubRequested: _startDubGeneration,  // P59
+        onStyleSynced: ({required fontIdx, required size, required bold,
+            required color, required bgColor, required opacity}) {
+          const fontNames = ['Sans Serif', 'Serif', 'Monospace', 'Casual'];
+          ref.read(playerPrefsProvider.notifier).update((p) => p.copyWith(
+                subtitleFontFamily: fontNames[fontIdx.clamp(0, fontNames.length - 1)],
+                subtitleFontSize: size,
+                subtitleBold: bold,
+                // Bake the panel's separate text-opacity slider into the
+                // color's alpha channel, since PlayerPrefs has no distinct
+                // text-opacity field.
+                subtitleTextColorValue: color.withOpacity(opacity).value,
+                subtitleBackgroundColorValue: bgColor.value,
+                subtitleBackgroundOpacity: bgColor.opacity,
+              ));
+        },
+      );
+      if (isLandscape) {
+        _openRightPanel(panel, widthFactor: 0.42);
+        return;
+      }
       setState(() => _panelOpen = true);
       RaddSheet.show<void>(
         context,
         style: RaddSheetStyle.list,
         title: 'Subtitles',
         maxHeightFraction: 0.90,
-        listBuilder: (_) => _SubtitlePanel(
-          isLocal: _isLocal,
-          subSync: _subSync,
-          subSpeed: _subSpeed,
-          currentFile: _currentSubFile,
-          onSyncChanged: (delta) => _adjustSubSync(delta),
-          onSpeedChanged: (v) {
-            setState(() => _subSpeed = v);
-            try { _np.setProperty('sub-speed', v.toString()); } catch (_) {}
-            _savePrefs();
-          },
-          onSubPropertyChanged: (prop, val) {
-            if (prop == '_sub_margin_main') {
-              // Internal signal — update main state so _applySubtitleMargin
-              // uses the user's latest base value.
-              setState(() => _subBottomMarginMain = double.tryParse(val) ?? _subBottomMarginMain);
-              _savePrefs();
-            } else {
-              try {
-                // Force ASS style override FIRST so that the property change below
-                // immediately takes effect on ASS-format subs (embedded or SRT→ASS).
-                if (prop == 'sub-font-size'    || prop == 'sub-font'          ||
-                    prop == 'sub-bold'        || prop == 'sub-color'        ||
-                    prop == 'sub-back-color'  || prop == 'sub-scale'        ||
-                    prop == 'sub-opacity'     || prop == 'sub-outline-size' ||
-                    prop == 'sub-shadow-offset') {
-                  _np.setProperty('sub-ass-override', 'force');
-                }
-                _np.setProperty(prop, val);
-              } catch (_) {}
-            }
-          },
-          title: _currentTitle,
-          onSubtitleFilePicked: (path) {
-            setState(() => _currentSubFile = path);
-            try { _np.setProperty('sub-file', path); } catch (_) {}
-          },
-          // P57-02: embedded track selector
-          embeddedTracks: _realSubtitleTracks,
-          selectedSubtitle: _selectedSubtitle,
-          onSubtitleTrackSelected: (track) {
-            setState(() {
-              _selectedSubtitle = track;
-              // Remember the language so future episodes auto-select the same
-              // language. Only update when track has a real language code.
-              if (track != null && (track.language?.isNotEmpty ?? false)) {
-                _prefSubLang = track.language;
-              }
-            });
-            _savePrefs();
-            if (track != null) {
-              _player.setSubtitleTrack(track);
-            } else {
-              try { _np.setProperty('sid', 'no'); } catch (_) {}
-            }
-          },
-          // P57-07: secondary subtitle (OST/signs at top)
-          selectedSecondSub: _selectedSecondSub,
-          onSecondSubSelected: (track) {
-            setState(() => _selectedSecondSub = track);
-            try {
-              // Guard against tracks with a null/non-numeric id (e.g. synthetic
-              // or virtual entries) — track.id! used to crash the player here.
-              final id = track?.id;
-              if (track != null && id != null && int.tryParse(id) != null) {
-                _np.setProperty('secondary-sid', id);
-                _np.setProperty('secondary-sub-visibility', 'yes');
-              } else {
-                _np.setProperty('secondary-sid', 'no');
-              }
-            } catch (_) {}
-          },
-          onDubRequested: _startDubGeneration,  // P59
-          onStyleSynced: ({required fontIdx, required size, required bold,
-              required color, required bgColor, required opacity}) {
-            const fontNames = ['Sans Serif', 'Serif', 'Monospace', 'Casual'];
-            ref.read(playerPrefsProvider.notifier).update((p) => p.copyWith(
-                  subtitleFontFamily: fontNames[fontIdx.clamp(0, fontNames.length - 1)],
-                  subtitleFontSize: size,
-                  subtitleBold: bold,
-                  // Bake the panel's separate text-opacity slider into the
-                  // color's alpha channel, since PlayerPrefs has no distinct
-                  // text-opacity field.
-                  subtitleTextColorValue: color.withOpacity(opacity).value,
-                  subtitleBackgroundColorValue: bgColor.value,
-                  subtitleBackgroundOpacity: bgColor.opacity,
-                ));
-          },
-        ),
+        listBuilder: (_) => panel,
       ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
     void _openAudioPanel() {
+      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+      final panel = _AudioTrackPanel(
+        tracks: _realAudioTracks,
+        selectedTrack: _selectedAudio,
+        audioSync: _audioSync,
+        useSWDecoder: _useSWDecoder,
+        onTrackSelected: (track) {
+          setState(() {
+            _selectedAudio = track;
+            // Remember the language so future episodes auto-select the same
+            // audio language. Only update when track has a real language code.
+            if (track != null && (track.language?.isNotEmpty ?? false)) {
+              _prefAudioLang = track.language;
+            }
+          });
+          _savePrefs();
+          if (track != null) {
+            _player.setAudioTrack(track);
+          } else {
+            try { _np.setProperty('aid', 'no'); } catch (_) {}
+          }
+        },
+        onSyncChanged: (delta) => _adjustAudioSync(delta),
+        onSWDecoderChanged: (v) {
+          setState(() => _useSWDecoder = v);
+          // Safety rule (MediaTek/Infinix black-screen): never change hwdec while playing.
+          // Apply immediately when paused/stopped; otherwise save state and notify the user.
+          if (!_playing) {
+            try { _np.setProperty('hwdec', v ? 'no' : 'auto-safe'); } catch (_) {}
+          } else {
+            _showInfoSnackbar('Decoder preference saved — will apply on next file or after pause');
+          }
+        },
+        onChannelModeChanged: (filterStr) {
+          setState(() {
+            _currentChannelModeAf = filterStr;
+            _channelModeIdx = (_channelModeIdx + 1) % 4;
+          });
+          _applyAllAf();
+          _savePrefs();
+        },
+        initialChannelModeIdx: _channelModeIdx,
+        isPlaying: _playing,
+        currentCodec: _currentAudioCodec.isNotEmpty ? _currentAudioCodec : null,
+        isDubMode: _isDubMode,           // P60
+        dubActiveLang: _dubActiveLang,   // P60
+        onRemoveDub: () {                // P60
+          _disableDubMode();
+          Navigator.of(context).pop();
+        },
+      );
+      if (isLandscape) {
+        _openRightPanel(panel, widthFactor: 0.38);
+        return;
+      }
       setState(() => _panelOpen = true);
       RaddSheet.show<void>(
         context,
         style: RaddSheetStyle.list,
         title: 'Audio Track',
-        listBuilder: (_) => _AudioTrackPanel(
-          tracks: _realAudioTracks,
-          selectedTrack: _selectedAudio,
-          audioSync: _audioSync,
-          useSWDecoder: _useSWDecoder,
-          onTrackSelected: (track) {
-            setState(() {
-              _selectedAudio = track;
-              // Remember the language so future episodes auto-select the same
-              // audio language. Only update when track has a real language code.
-              if (track != null && (track.language?.isNotEmpty ?? false)) {
-                _prefAudioLang = track.language;
-              }
-            });
-            _savePrefs();
-            if (track != null) {
-              _player.setAudioTrack(track);
-            } else {
-              try { _np.setProperty('aid', 'no'); } catch (_) {}
-            }
-          },
-          onSyncChanged: (delta) => _adjustAudioSync(delta),
-          onSWDecoderChanged: (v) {
-            setState(() => _useSWDecoder = v);
-            // Safety rule (MediaTek/Infinix black-screen): never change hwdec while playing.
-            // Apply immediately when paused/stopped; otherwise save state and notify the user.
-            if (!_playing) {
-              try { _np.setProperty('hwdec', v ? 'no' : 'auto-safe'); } catch (_) {}
-            } else {
-              _showInfoSnackbar('Decoder preference saved — will apply on next file or after pause');
-            }
-          },
-          onChannelModeChanged: (filterStr) {
-            setState(() {
-              _currentChannelModeAf = filterStr;
-              _channelModeIdx = (_channelModeIdx + 1) % 4;
-            });
-            _applyAllAf();
-            _savePrefs();
-          },
-          initialChannelModeIdx: _channelModeIdx,
-          isPlaying: _playing,
-          currentCodec: _currentAudioCodec.isNotEmpty ? _currentAudioCodec : null,
-          isDubMode: _isDubMode,           // P60
-          dubActiveLang: _dubActiveLang,   // P60
-          onRemoveDub: () {                // P60
-            _disableDubMode();
-            Navigator.of(context).pop();
-          },
-        ),
+        listBuilder: (_) => panel,
       ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
     void _openZoomPanel() {
       const modes = ['Fit to screen', 'Stretch', 'Crop', '100%', 'Pinch & Zoom'];
+      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+      final panel = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (int i = 0; i < modes.length; i++)
+            RadioListTile<int>(
+              value: i,
+              groupValue: _zoomMode,
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() => _zoomMode = v);
+                _savePrefs();
+                Navigator.of(context).pop();
+                if (v == 4) {
+                  _showInfoSnackbar('Pinch the video to set a custom zoom level');
+                }
+              },
+              title: Text(modes[i], style: const TextStyle(color: Colors.white, fontSize: 14)),
+              activeColor: Colors.white,
+              controlAffinity: ListTileControlAffinity.trailing,
+            ),
+        ],
+      );
+      if (isLandscape) {
+        _openRightPanel(panel, widthFactor: 0.30);
+        return;
+      }
       setState(() => _panelOpen = true);
       RaddSheet.show<void>(
         context,
         style: RaddSheetStyle.list,
         title: 'Video Zoom',
-        listBuilder: (_) => Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (int i = 0; i < modes.length; i++)
-              RadioListTile<int>(
-                value: i,
-                groupValue: _zoomMode,
-                onChanged: (v) {
-                  if (v == null) return;
-                  setState(() => _zoomMode = v);
-                  _savePrefs();
-                  Navigator.of(context).pop();
-                  if (v == 4) {
-                    _showInfoSnackbar('Pinch the video to set a custom zoom level');
-                  }
-                },
-                title: Text(modes[i], style: const TextStyle(color: Colors.white, fontSize: 14)),
-                activeColor: Colors.white,
-                controlAffinity: ListTileControlAffinity.trailing,
-              ),
-          ],
-        ),
+        listBuilder: (_) => panel,
       ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
     void _openAudioEffectPanel() {
+      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+      final panel = _AudioEffectPanel(
+        selectedPreset: _selectedPreset,
+        eqBands: _eqBands,
+        eqEnabled: _eqEnabled,
+        onPresetSelected: _applyPreset,
+        onEqBandChanged: (i, v) {
+          setState(() { _eqBands[i] = v; _selectedPreset = -1; });
+          _applyCustomEq();
+          _savePrefs();
+        },
+        onEqEnabledChanged: (v) {
+          setState(() => _eqEnabled = v);
+          _applyAllAf(); // merged pipeline — reverb/lab still active if enabled
+          _savePrefs();
+        },
+        onReverbChanged: (preset) {
+          setState(() => _reverbPreset = preset ?? 'None');
+          switch (preset) {
+            case 'Small Room':  _currentReverbAf = 'aecho=0.8:0.9:30:0.4'; break;
+            case 'Hall':        _currentReverbAf = 'aecho=0.8:0.88:60:0.4'; break;
+            case 'Cathedral':   _currentReverbAf = 'aecho=0.8:0.88:120:0.5'; break;
+            case 'Stadium':     _currentReverbAf = 'aecho=0.8:0.9:180:0.6'; break;
+            default:            _currentReverbAf = '';
+          }
+          _applyAllAf(); // EQ + reverb + lab now all stack correctly
+          _savePrefs();
+        },
+        onLabAfChanged: (afStr) {
+          _currentLabAf = afStr;
+          _applyAllAf(); // EQ + reverb + lab all stack
+        },
+        onLabStateChanged: (vocal, dialogue, norm, bass, bassLevel, dialogueOnly, compress, stereoWide, noise) {
+          setState(() {
+            _labVocal = vocal;
+            _labDialogue = dialogue;
+            _labNorm = norm;
+            _labBass = bass;
+            _labBassLevel = bassLevel;
+            _labDialogueOnly = dialogueOnly;
+            _labCompress = compress;
+            _labStereoWide = stereoWide;
+            _labNoise = noise;
+          });
+          _savePrefs();
+        },
+        labVocal: _labVocal,
+        labDialogue: _labDialogue,
+        labNorm: _labNorm,
+        labBass: _labBass,
+        labBassLevel: _labBassLevel,
+        labDialogueOnly: _labDialogueOnly,
+        labCompress: _labCompress,
+        labStereoWide: _labStereoWide,
+        labNoise: _labNoise,
+        initialReverbPreset: _reverbPreset,
+        audioBalance: _audioBalance,
+        onBalanceChanged: _applyBalance,
+      );
+      if (isLandscape) {
+        _openRightPanel(panel, widthFactor: 0.44);
+        return;
+      }
       setState(() => _panelOpen = true);
       RaddSheet.show<void>(
         context,
         style: RaddSheetStyle.list,
         title: 'Audio Effect',
         maxHeightFraction: 0.90,
-        listBuilder: (_) => _AudioEffectPanel(
-          selectedPreset: _selectedPreset,
-          eqBands: _eqBands,
-          eqEnabled: _eqEnabled,
-          onPresetSelected: _applyPreset,
-          onEqBandChanged: (i, v) {
-            setState(() { _eqBands[i] = v; _selectedPreset = -1; });
-            _applyCustomEq();
-            _savePrefs();
-          },
-          onEqEnabledChanged: (v) {
-            setState(() => _eqEnabled = v);
-            _applyAllAf(); // merged pipeline — reverb/lab still active if enabled
-            _savePrefs();
-          },
-          onReverbChanged: (preset) {
-            setState(() => _reverbPreset = preset ?? 'None');
-            switch (preset) {
-              case 'Small Room':  _currentReverbAf = 'aecho=0.8:0.9:30:0.4'; break;
-              case 'Hall':        _currentReverbAf = 'aecho=0.8:0.88:60:0.4'; break;
-              case 'Cathedral':   _currentReverbAf = 'aecho=0.8:0.88:120:0.5'; break;
-              case 'Stadium':     _currentReverbAf = 'aecho=0.8:0.9:180:0.6'; break;
-              default:            _currentReverbAf = '';
-            }
-            _applyAllAf(); // EQ + reverb + lab now all stack correctly
-            _savePrefs();
-          },
-          onLabAfChanged: (afStr) {
-            _currentLabAf = afStr;
-            _applyAllAf(); // EQ + reverb + lab all stack
-          },
-          onLabStateChanged: (vocal, dialogue, norm, bass, bassLevel, dialogueOnly, compress, stereoWide, noise) {
-            setState(() {
-              _labVocal = vocal;
-              _labDialogue = dialogue;
-              _labNorm = norm;
-              _labBass = bass;
-              _labBassLevel = bassLevel;
-              _labDialogueOnly = dialogueOnly;
-              _labCompress = compress;
-              _labStereoWide = stereoWide;
-              _labNoise = noise;
-            });
-            _savePrefs();
-          },
-          labVocal: _labVocal,
-          labDialogue: _labDialogue,
-          labNorm: _labNorm,
-          labBass: _labBass,
-          labBassLevel: _labBassLevel,
-          labDialogueOnly: _labDialogueOnly,
-          labCompress: _labCompress,
-          labStereoWide: _labStereoWide,
-          labNoise: _labNoise,
-          initialReverbPreset: _reverbPreset,
-          audioBalance: _audioBalance,
-          onBalanceChanged: _applyBalance,
-        ),
+        listBuilder: (_) => panel,
       ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
     void _openMoreMenu() {
+      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+      final panel = _QuickShortcutsPanel(
+        isLocked: _isLocked,
+        isMuted: _isMuted,
+        loopEnabled: _loopEnabled,
+        smartEnhanceEnabled: _smartEnhanceEnabled,
+        isOneHanded: _oneHandedMode,
+        sleepTimerMinutes: _sleepTimerMinutes,
+        sleepTimerEnd: _sleepTimerEnd,
+        speed: _speed,
+        abA: _abA,
+        abB: _abB,
+        abActive: _abActive,
+        isRotateLocked: _orientMode != 0,
+        onRotate: () { Navigator.of(context).pop(); _cycleOrientation(); },
+        onLockToggle: () { Navigator.of(context).pop(); setState(() => _isLocked = true); },
+        onMuteToggle: () { Navigator.of(context).pop(); _toggleMute(); },
+        onLoopToggle: () { Navigator.of(context).pop(); _toggleLoop(); },
+        onSmartEnhanceToggle: () { Navigator.of(context).pop(); _toggleSmartEnhance(); },
+        onOneHandedToggle: () {
+          Navigator.of(context).pop();
+          setState(() => _oneHandedMode = !_oneHandedMode);
+          _savePrefs();
+        },
+        onSleepTimer: (mins) { Navigator.of(context).pop(); _setSleepTimer(mins); },
+        onSpeedSelected: (s) { Navigator.of(context).pop(); _setSpeed(s); },
+        onAudioEffect: () { Navigator.of(context).pop(); _openAudioEffectPanel(); },
+        onSettingsOpen: () { Navigator.of(context).pop(); _openSettingsPanel(); },
+        onAbSet: () { Navigator.of(context).pop(); _handleAbRepeat(); },
+        onFrameStep: () {
+          Navigator.of(context).pop();
+          try { _np.command(['frame-step']); } catch (_) {}
+        },
+        // Extended shortcuts
+        onJumpTo:         () { Navigator.of(context).pop(); _showJumpToDialog(context); },
+        onSpeedPresets:   () { Navigator.of(context).pop(); _showSpeedPresetsSheet(context); },
+        onEndAction:      () { Navigator.of(context).pop(); _showEndActionSheet(context); },
+        onScreenshot:     () { Navigator.of(context).pop(); _takeScreenshot(); },
+        onScreenshotWithSubtitles: () { Navigator.of(context).pop(); _takeScreenshot(withSubtitles: true); },
+        onWatchParty:     () { Navigator.of(context).pop(); _showWatchPartyDialog(context); },
+        onSilenceSkip:    () { Navigator.of(context).pop(); _showSilenceSkipSheet(context); },
+        onZoomCrop:       () { Navigator.of(context).pop(); _showZoomCropSheet(context); },
+        onGestureMap:     () { Navigator.of(context).pop(); _showGestureMapSheet(context); },
+        onSkipEditor:     () { Navigator.of(context).pop(); _showSkipEditorSheet(context); },
+        onLayoutDesigner: () { Navigator.of(context).pop(); _showLayoutDesignerSheet(context); },
+        silenceSkipEnabled: _silenceSkipEnabled,
+        endAction: _endAction,
+        onPiP: () { Navigator.of(context).pop(); _enterPiP(); },
+        onSidebarEdit: () { Navigator.of(context).pop(); _openSidebarCustomizer(); },
+      );
+      if (isLandscape) {
+        _openRightPanel(panel, widthFactor: 0.40);
+        return;
+      }
       setState(() => _panelOpen = true);
       RaddSheet.show<void>(
         context,
         style: RaddSheetStyle.list,
         title: 'More',
-        listBuilder: (_) => _QuickShortcutsPanel(
-          isLocked: _isLocked,
-          isMuted: _isMuted,
-          loopEnabled: _loopEnabled,
-          smartEnhanceEnabled: _smartEnhanceEnabled,
-          isOneHanded: _oneHandedMode,
-          sleepTimerMinutes: _sleepTimerMinutes,
-          sleepTimerEnd: _sleepTimerEnd,
-          speed: _speed,
-          abA: _abA,
-          abB: _abB,
-          abActive: _abActive,
-          isRotateLocked: _orientMode != 0,
-          onRotate: () { Navigator.of(context).pop(); _cycleOrientation(); },
-          onLockToggle: () { Navigator.of(context).pop(); setState(() => _isLocked = true); },
-          onMuteToggle: () { Navigator.of(context).pop(); _toggleMute(); },
-          onLoopToggle: () { Navigator.of(context).pop(); _toggleLoop(); },
-          onSmartEnhanceToggle: () { Navigator.of(context).pop(); _toggleSmartEnhance(); },
-          onOneHandedToggle: () {
-            Navigator.of(context).pop();
-            setState(() => _oneHandedMode = !_oneHandedMode);
-            _savePrefs();
-          },
-          onSleepTimer: (mins) { Navigator.of(context).pop(); _setSleepTimer(mins); },
-          onSpeedSelected: (s) { Navigator.of(context).pop(); _setSpeed(s); },
-          onAudioEffect: () { Navigator.of(context).pop(); _openAudioEffectPanel(); },
-          onSettingsOpen: () { Navigator.of(context).pop(); _openSettingsPanel(); },
-          onAbSet: () { Navigator.of(context).pop(); _handleAbRepeat(); },
-          onFrameStep: () {
-            Navigator.of(context).pop();
-            try { _np.command(['frame-step']); } catch (_) {}
-          },
-          // Extended shortcuts
-          onJumpTo:         () { Navigator.of(context).pop(); _showJumpToDialog(context); },
-          onSpeedPresets:   () { Navigator.of(context).pop(); _showSpeedPresetsSheet(context); },
-          onEndAction:      () { Navigator.of(context).pop(); _showEndActionSheet(context); },
-          onScreenshot:     () { Navigator.of(context).pop(); _takeScreenshot(); },
-          onScreenshotWithSubtitles: () { Navigator.of(context).pop(); _takeScreenshot(withSubtitles: true); },
-          onWatchParty:     () { Navigator.of(context).pop(); _showWatchPartyDialog(context); },
-          onSilenceSkip:    () { Navigator.of(context).pop(); _showSilenceSkipSheet(context); },
-          onZoomCrop:       () { Navigator.of(context).pop(); _showZoomCropSheet(context); },
-          onGestureMap:     () { Navigator.of(context).pop(); _showGestureMapSheet(context); },
-          onSkipEditor:     () { Navigator.of(context).pop(); _showSkipEditorSheet(context); },
-          onLayoutDesigner: () { Navigator.of(context).pop(); _showLayoutDesignerSheet(context); },
-          silenceSkipEnabled: _silenceSkipEnabled,
-          endAction: _endAction,
-          onPiP: () { Navigator.of(context).pop(); _enterPiP(); },
-          onSidebarEdit: () { Navigator.of(context).pop(); _openSidebarCustomizer(); },
-        ),
+        listBuilder: (_) => panel,
       ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
@@ -5598,95 +5628,107 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
     }
 
     void _openSidebarCustomizer() {
+      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+      final panel = _SidebarCustomizerPanel(
+        currentOrder: List<String>.from(_sidebarOrder),
+        allIds: List<String>.from(_allSidebarIds),
+        onOrderChanged: (newOrder) {
+          setState(() => _sidebarOrder = newOrder);
+          _savePrefs();
+        },
+      );
+      if (isLandscape) {
+        _openRightPanel(panel, widthFactor: 0.40);
+        return;
+      }
       setState(() => _panelOpen = true);
       RaddSheet.show<void>(
         context,
         style: RaddSheetStyle.list,
         title: 'Sidebar Shortcuts',
         maxHeightFraction: 0.90,
-        listBuilder: (_) => _SidebarCustomizerPanel(
-          currentOrder: List<String>.from(_sidebarOrder),
-          allIds: List<String>.from(_allSidebarIds),
-          onOrderChanged: (newOrder) {
-            setState(() => _sidebarOrder = newOrder);
-            _savePrefs();
-          },
-        ),
+        listBuilder: (_) => panel,
       ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
     void _openSettingsPanel() {
+      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+      final panel = _SettingsPanel(
+        showRemainingTime: _showRemainingTime,
+        keepScreenOn: _keepScreenOn,
+        skipInterval: _skipInterval,
+        onShowRemainingChanged: (v) { setState(() => _showRemainingTime = v); _savePrefs(); },
+        onKeepScreenChanged: (v) {
+          setState(() => _keepScreenOn = v);
+          if (v) WakelockPlus.enable(); else WakelockPlus.disable();
+          _savePrefs();
+        },
+        onSkipIntervalChanged: (v) { setState(() => _skipInterval = v); _savePrefs(); },
+        seekSwipeSec: _seekSwipeSec,
+        onSeekSwipeSpeedChanged: (v) { setState(() => _seekSwipeSec = v); _savePrefs(); },
+        accentColorIdx: _accentColorIdx,
+        progressBarStyle: _progressBarStyle,
+        onAccentColorChanged: (i) { setState(() => _accentColorIdx = i); _savePrefs(); },
+        onProgressBarStyleChanged: (s) { setState(() => _progressBarStyle = s); _savePrefs(); },
+        backgroundAudio: _backgroundAudio,
+        onBackgroundAudioChanged: (v) { setState(() => _backgroundAudio = v); _savePrefs(); },
+        nightModeEnabled: _nightModeEnabled,
+        nightWarmth: _nightWarmth,
+        onNightModeToggle: (v) { setState(() => _nightModeEnabled = v); _savePrefs(); },
+        onNightWarmthChanged: (v) { setState(() => _nightWarmth = v); _savePrefs(); },
+        showClockInTitle: _showClockInTitle,
+        onClockToggle: (v) {
+          setState(() { _showClockInTitle = v; _clockStr = _fmtClock(); });
+          _savePrefs();
+        },
+        initialBrightness: _brightness,
+        onShowSkipBtnsChanged: (v) { setState(() => _showSkipBtns = v); _savePrefs(); }, // J2
+        onShowPrevNextBtnsChanged: (v) { setState(() => _showPrevNextBtns = v); _savePrefs(); }, // J2
+        onShowSeekPositionChanged: (v) { setState(() => _showSeekPositionLabel = v); _savePrefs(); }, // J2
+        showSkipBtns: _showSkipBtns,
+        showPrevNextBtns: _showPrevNextBtns,
+        showSeekPosition: _showSeekPositionLabel,
+        onRotateVideo: () { Navigator.of(context).pop(); _rotateVideo(); },
+        doubleTapSeekEnabled: _doubleTapSeekEnabled,
+        longPressSpeedEnabled: _longPressSpeedEnabled,
+        swipeSeekEnabled: _swipeSeekEnabled,
+        swipeBVEnabled: _swipeBVEnabled,
+        onDoubleTapSeekChanged: (v) { setState(() => _doubleTapSeekEnabled = v); _savePrefs(); },
+        onLongPressSpeedChanged: (v) { setState(() => _longPressSpeedEnabled = v); _savePrefs(); },
+        onSwipeSeekChanged: (v) { setState(() => _swipeSeekEnabled = v); _savePrefs(); },
+        onSwipeBVChanged: (v) { setState(() => _swipeBVEnabled = v); _savePrefs(); },
+        onVideoInfo: _showVideoInfoDialog,
+        voiceCommandsEnabled: _voiceCommandsEnabled,
+        onVoiceCommandsChanged: (v) async {
+          if (v) {
+            final granted = await VoiceCommandsService.instance.requestPermission();
+            if (!granted) {
+              _showInfoSnackbar('Microphone permission required for voice commands');
+              return;
+            }
+            VoiceCommandsService.instance.start();
+            _voiceSub = VoiceCommandsService.instance.commandStream.listen(_onVoiceCommand);
+            // Fix #6: STT engine is not yet wired — be transparent about it.
+            _showInfoSnackbar('🎤 Voice commands are in development — stay tuned!');
+          } else {
+            _voiceSub?.cancel();
+            VoiceCommandsService.instance.stop();
+          }
+          setState(() => _voiceCommandsEnabled = v);
+          _savePrefs();
+        },
+      );
+      if (isLandscape) {
+        _openRightPanel(panel, widthFactor: 0.42);
+        return;
+      }
       setState(() => _panelOpen = true);
       RaddSheet.show<void>(
         context,
         style: RaddSheetStyle.list,
         title: 'Settings',
         maxHeightFraction: 0.90,
-        listBuilder: (_) => _SettingsPanel(
-          showRemainingTime: _showRemainingTime,
-          keepScreenOn: _keepScreenOn,
-          skipInterval: _skipInterval,
-          onShowRemainingChanged: (v) { setState(() => _showRemainingTime = v); _savePrefs(); },
-          onKeepScreenChanged: (v) {
-            setState(() => _keepScreenOn = v);
-            if (v) WakelockPlus.enable(); else WakelockPlus.disable();
-            _savePrefs();
-          },
-          onSkipIntervalChanged: (v) { setState(() => _skipInterval = v); _savePrefs(); },
-          seekSwipeSec: _seekSwipeSec,
-          onSeekSwipeSpeedChanged: (v) { setState(() => _seekSwipeSec = v); _savePrefs(); },
-          accentColorIdx: _accentColorIdx,
-          progressBarStyle: _progressBarStyle,
-          onAccentColorChanged: (i) { setState(() => _accentColorIdx = i); _savePrefs(); },
-          onProgressBarStyleChanged: (s) { setState(() => _progressBarStyle = s); _savePrefs(); },
-          backgroundAudio: _backgroundAudio,
-          onBackgroundAudioChanged: (v) { setState(() => _backgroundAudio = v); _savePrefs(); },
-          nightModeEnabled: _nightModeEnabled,
-          nightWarmth: _nightWarmth,
-          onNightModeToggle: (v) { setState(() => _nightModeEnabled = v); _savePrefs(); },
-          onNightWarmthChanged: (v) { setState(() => _nightWarmth = v); _savePrefs(); },
-          showClockInTitle: _showClockInTitle,
-          onClockToggle: (v) {
-            setState(() { _showClockInTitle = v; _clockStr = _fmtClock(); });
-            _savePrefs();
-          },
-          initialBrightness: _brightness,
-          onShowSkipBtnsChanged: (v) { setState(() => _showSkipBtns = v); _savePrefs(); }, // J2
-          onShowPrevNextBtnsChanged: (v) { setState(() => _showPrevNextBtns = v); _savePrefs(); }, // J2
-          onShowSeekPositionChanged: (v) { setState(() => _showSeekPositionLabel = v); _savePrefs(); }, // J2
-          showSkipBtns: _showSkipBtns,
-          showPrevNextBtns: _showPrevNextBtns,
-          showSeekPosition: _showSeekPositionLabel,
-          onRotateVideo: () { Navigator.of(context).pop(); _rotateVideo(); },
-          doubleTapSeekEnabled: _doubleTapSeekEnabled,
-          longPressSpeedEnabled: _longPressSpeedEnabled,
-          swipeSeekEnabled: _swipeSeekEnabled,
-          swipeBVEnabled: _swipeBVEnabled,
-          onDoubleTapSeekChanged: (v) { setState(() => _doubleTapSeekEnabled = v); _savePrefs(); },
-          onLongPressSpeedChanged: (v) { setState(() => _longPressSpeedEnabled = v); _savePrefs(); },
-          onSwipeSeekChanged: (v) { setState(() => _swipeSeekEnabled = v); _savePrefs(); },
-          onSwipeBVChanged: (v) { setState(() => _swipeBVEnabled = v); _savePrefs(); },
-          onVideoInfo: _showVideoInfoDialog,
-          voiceCommandsEnabled: _voiceCommandsEnabled,
-          onVoiceCommandsChanged: (v) async {
-            if (v) {
-              final granted = await VoiceCommandsService.instance.requestPermission();
-              if (!granted) {
-                _showInfoSnackbar('Microphone permission required for voice commands');
-                return;
-              }
-              VoiceCommandsService.instance.start();
-              _voiceSub = VoiceCommandsService.instance.commandStream.listen(_onVoiceCommand);
-              // Fix #6: STT engine is not yet wired — be transparent about it.
-              _showInfoSnackbar('🎤 Voice commands are in development — stay tuned!');
-            } else {
-              _voiceSub?.cancel();
-              VoiceCommandsService.instance.stop();
-            }
-            setState(() => _voiceCommandsEnabled = v);
-            _savePrefs();
-          },
-        ),
+        listBuilder: (_) => panel,
       ).then((_) { if (mounted) setState(() => _panelOpen = false); });
     }
 
