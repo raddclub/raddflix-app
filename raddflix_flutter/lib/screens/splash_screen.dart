@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/theme/radd_theme.dart';
 import '../core/theme/radd_colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -77,6 +78,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // Phase 6: convert any onboarding-selected titles (picked before the user
     // had an account) into real watchlist entries now that a profile exists.
     // No-ops instantly if nothing was picked or this has already run once.
+    // consumePendingOnboardingItems() resolves the active profile itself
+    // (never relies on LocalDb.currentProfileId's default-profile-1 fallback),
+    // so it's safe even if navigateAfterAuth's own profile load hasn't
+    // resolved yet on this frame.
     if (mounted && ref.read(authProvider).status == AuthStatus.authenticated) {
       ref.read(profileProvider.notifier).consumePendingOnboardingItems().ignore();
     }
@@ -86,6 +91,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   void dispose() {
     _pulseCtrl.dispose();
     super.dispose();
+  }
+
+  /// Phase 6: first-run users see the onboarding flow before login; anyone
+  /// who has already been through it (or skipped it) goes straight to login.
+  Future<void> _routeUnauthenticated() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getBool(AppConstants.onboardingSeenKey) ?? false;
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed(
+      seen ? AppRoutes.login : AppRoutes.onboarding,
+    );
   }
 
   @override
@@ -133,7 +149,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         }
       } else if (next.status == AuthStatus.unauthenticated) {
         _started = true;
-        Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+        _routeUnauthenticated();
       }
     });
 
