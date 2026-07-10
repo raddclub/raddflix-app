@@ -13,11 +13,17 @@
 | Month | File | Sessions |
 |---|---|---|
 | June 2026 | [`2026-06.md`](2026-06.md) | 34 |
-| July 2026 | [`2026-07.md`](2026-07.md) | 11 |
+| July 2026 | [`2026-07.md`](2026-07.md) | 13 |
 
 ---
 
 ## Session index (title only — full detail in the linked archive)
+
+### July 2026 — Session 13 (2026-07-10) — SIMPLIFY-AUTH-FLOW (verification + docs only)
+
+**Task:** User requested simpler login/register — no genre selection or extra onboarding steps.
+Previous session had already completed all code changes (commits `0c9d2f61`–`eadc104c`).
+This session bootstrapped the repo, verified the clean state, and updated task tracking docs.
 
 ### July 2026 — Session 12 (2026-07-10) — Phase 6 research (account limit hit, no code written)
 
