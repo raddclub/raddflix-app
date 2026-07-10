@@ -19,6 +19,29 @@
 
 ## Session index (title only — full detail in the linked archive)
 
+### July 2026 — Session 12 (2026-07-10) — Phase 6 research (account limit hit, no code written)
+
+**Task:** Phase 6 onboarding rebuild — investigation complete, implementation deferred (account
+token limit reached mid-session).
+
+**Research findings (fully documented in `AGENT_HANDOFF.md` "Phase 6 READY TO BUILD" section):**
+- Current onboarding is a generic `PageView` of 4 marketing slides; `onboardingSeenKey` is
+  SET on finish but **never read** — onboarding is an orphaned route never triggered by auth flow.
+- Four files change: `constants.dart` (new key), `onboarding_screen.dart` (full rewrite to
+  3-step reciprocity flow), `splash_screen.dart` (routing fix), `profile_provider.dart`
+  (pending watchlist sync after login).
+- Genre data source confirmed: `LocalDb.searchAdvanced(genre:, limit:)` → `List<SearchResult>`
+  where `SearchResult.item` is `CatalogItem`. `CatalogItem.isFree` available for Free ⚡ badge.
+- `SearchResult` class confirmed at `local_db.dart:1836`.
+- Watchlist sync strategy: save selected item IDs to `SharedPreferences` during onboarding
+  (before login), sync to `LocalDb.addToWatchlist` in `navigateAfterAuth` after auth.
+
+**Next agent:** read `AGENT_HANDOFF.md` top section only — all Phase 6 detail is there.
+Do NOT re-read `onboarding_screen.dart`, `splash_screen.dart`, `profile_provider.dart`,
+`watchlist_provider.dart`, `local_db.dart`, or `catalog_item.dart` — already done.
+
+---
+
 ### July 2026 — Session 11 (2026-07-10) — Phase 1 + Phase 7 (this session)
 
 **Task:** UI-UX-MIGRATION Phase 1 (investigation gaps) + Phase 7 (final readiness re-audit).

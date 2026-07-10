@@ -3,6 +3,128 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+## Current State (2026-07-10 — Phase 6 READY TO BUILD, research complete)
+
+### Phase 6 — Onboarding rebuild — research done, no code written yet
+
+**Read this entire section before touching any file. All context is here — skip re-reading.**
+
+**What to build:** Replace `lib/screens/onboarding_screen.dart` (generic `PageView` carousel)
+with the Volume V 3-step reciprocity flow. Four files change total.
+
+---
+
+#### Files to change and exactly what to do in each
+
+**1. `lib/core/constants.dart`** — add one constant:
+```dart
+static const String onboardingPendingItemsKey = 'jm_onboarding_pending_items';
+```
+(Put it alongside `onboardingSeenKey = 'jm_onboarding_seen'` in `AppConstants`.)
+
+**2. `lib/screens/onboarding_screen.dart`** — full rewrite. Spec (Volume V §Onboarding):
+- 3 steps: genres → content grid → summary. Progress bar: 25% / 60% / 100%.
+  Progress **never starts at 0%** — step 0 opens at 25% (goal gradient effect).
+- Step 0 headline: "What do you like to watch?" — genre chips from this exact list:
+  `['Action', 'Drama', 'Comedy', 'Romance', 'Thriller', 'Anime', 'Urdu Dubbed', 'Kids', 'Sports', 'Horror']`
+  Use `RaddChip` (already imported via design_system). Multi-select, no minimum.
+- Step 1 headline: "Pick a few to start with" — 3-col `RaddCard` grid loaded from:
+  `LocalDb.searchAdvanced(genre: firstSelectedGenre, limit: 18)` which returns
+  `List<SearchResult>` where `SearchResult.item` is a `CatalogItem`. Show up to 18 items.
+  If multiple genres selected, call `searchAdvanced` for each (max 3 genres, 6 items each)
+  and deduplicate by `item.id`. Tap card = toggle selected; selected = filled border.
+  Include data-free (⚡) indicator via `RaddCard(isDataFree: item.isFree)`.
+- Step 2 headline: "Your watchlist is ready" — show up to 5 poster thumbnails of selected
+  items + "+ N more" label if more. CTA button text: **"Save & Continue"** (NOT "Sign Up" —
+  endowment effect per Volume V spec).
+- `_finish()`: save selected item IDs to SharedPreferences as JSON int list under
+  `AppConstants.onboardingPendingItemsKey`; set `onboardingSeenKey = true`; push login.
+- Use `RaddMotion.sheetEnterDuration` / `RaddMotion.tuneDuration` for step transitions.
+  Use `RaddSpace.*`, `RaddRadius.*`, `context.t.*` tokens throughout — no raw literals.
+  Use `context.raddHeadline`, `context.raddTitle`, `context.raddBody` for text.
+
+**3. `lib/screens/splash_screen.dart`** — routing fix. Currently when unauthenticated:
+```dart
+Navigator.of(context).pushReplacementNamed(AppRoutes.login);  // CURRENT
+```
+Change to:
+```dart
+final prefs = await SharedPreferences.getInstance();         // NEW
+final seen = prefs.getBool(AppConstants.onboardingSeenKey) ?? false;
+Navigator.of(context).pushReplacementNamed(
+  seen ? AppRoutes.login : AppRoutes.onboarding,
+);
+```
+`SharedPreferences` is already imported via `package:shared_preferences/shared_preferences.dart`
+in `onboarding_screen.dart`; add the import to `splash_screen.dart`.
+`AppConstants` and `AppRoutes` are already imported in `splash_screen.dart`.
+
+**4. `lib/providers/profile_provider.dart`** — update `navigateAfterAuth` to sync pending
+watchlist items after login. Current function (line 134):
+```dart
+Future<void> navigateAfterAuth(BuildContext context, WidgetRef ref) async {
+  await ref.read(profileProvider.notifier).load();
+  if (!context.mounted) return;
+  final profiles = ref.read(profileProvider).profiles;
+  if (profiles.length <= 1) {
+    Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+  } else {
+    Navigator.of(context).pushReplacementNamed(AppRoutes.profileSwitcher);
+  }
+}
+```
+Add before the `Navigator.of(context).pushReplacementNamed(...)` call:
+```dart
+// Sync any watchlist items the user selected during onboarding (before login).
+final prefs = await SharedPreferences.getInstance();
+final pendingIds = prefs.getStringList(AppConstants.onboardingPendingItemsKey) ?? [];
+if (pendingIds.isNotEmpty) {
+  final idInts = pendingIds.map(int.tryParse).whereType<int>().toList();
+  for (final id in idInts) {
+    final item = await LocalDb.getItemById(id);  // see note below
+    if (item != null) await LocalDb.addToWatchlist(item);
+  }
+  await prefs.remove(AppConstants.onboardingPendingItemsKey);
+}
+```
+**NOTE on `LocalDb.getItemById`:** grep `local_db.dart` for a method that fetches a single
+`CatalogItem` by id before writing this — it may be named `getById`, `fetchById`, or
+similar. If no such method exists, query the titles table directly:
+`final rows = await db.query('titles', where: 'id = ?', whereArgs: [id], limit: 1);`
+and construct a `CatalogItem.fromJson(rows.first)`.
+
+---
+
+#### Key types / APIs confirmed from codebase reading
+
+| Thing | Location | Notes |
+|---|---|---|
+| `SearchResult` | `local_db.dart:1836` | `final CatalogItem item; final String? snippet;` |
+| `LocalDb.searchAdvanced(genre:, limit:)` | `local_db.dart:698` | Returns `List<SearchResult>` |
+| `CatalogItem` fields | `models/catalog_item.dart` | `id`, `title`, `posterUrl`, `isFree`, `genres`, `mediaType` |
+| `WatchlistNotifier.toggle(item)` | `providers/watchlist_provider.dart:54` | Optimistic add/remove; use after login |
+| `LocalDb.addToWatchlist(item)` | `local_db.dart:1569` | Direct DB write; use in `navigateAfterAuth` sync |
+| `AppConstants.onboardingSeenKey` | `core/constants.dart:10` | `'jm_onboarding_seen'` |
+| `AppRoutes.onboarding` | `core/constants.dart:337` | `'/onboarding'` |
+| `AppRoutes.login` | `core/constants.dart` | `'/login'` |
+| `RaddChip` | `design_system/components/radd_chip.dart` | `active`, `onTap`, `label`, `isDataFreeVariant` |
+| `RaddCard` | `design_system/components/radd_card.dart` | `variant`, `imageUrl`, `title`, `isDataFree`, `onTap` |
+
+#### Critical discovery: onboarding is currently an orphaned route
+`onboardingSeenKey` is SET in `onboarding_screen.dart._finish()` but **never read by any
+routing logic** — the existing onboarding is never triggered from the normal auth flow.
+The routing fix in `splash_screen.dart` (item 3 above) is what wires it in for new users.
+
+#### Commit order (Rule 42 — one logical change per commit)
+1. `constants.dart` — add `onboardingPendingItemsKey`
+2. `onboarding_screen.dart` — full rewrite
+3. `splash_screen.dart` — routing fix
+4. `profile_provider.dart` — navigateAfterAuth sync
+
+All 4 are Flutter files → verify `build-apk.yml` CI green after each push (Rule 46).
+
+---
+
 ## Current State (2026-07-10 — Phase 7 COMPLETE, Phase 6 next)
 
 ### Phases 1 (partial) + 7 — complete — 2026-07-10
