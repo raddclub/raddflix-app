@@ -10,6 +10,7 @@ import '../core/remote_config.dart';
 import '../core/theme/brand_theme_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/subscription_provider.dart';
+import '../providers/profile_provider.dart' show navigateAfterAuth;
 import '../widgets/particle_overlay.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
