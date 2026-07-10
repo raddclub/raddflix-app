@@ -137,17 +137,19 @@ class _RaddSheetState extends State<RaddSheet> with SingleTickerProviderStateMix
                       children: [
                         Expanded(child: Text(widget.title, style: context.raddTitle.copyWith(color: t.textPrimary))),
                         if (widget.dismissible)
-                          // Accessibility: label the close button for screen readers.
-                          Semantics(
-                            label: 'Close ${widget.title}',
-                            button: true,
-                            child: GestureDetector(
-                              onTap: () {
-                                widget.onDismiss?.call();
-                                Navigator.of(context).maybePop();
-                              },
-                              child: Icon(Icons.close, size: 20, color: t.textMuted),
-                            ),
+                          // Accessibility (Volume VI): IconButton is natively focusable,
+                          // has a built-in 48×48 touch target, and exposes tooltip as
+                          // semantic label — no manual Semantics wrapper needed.
+                          IconButton(
+                            onPressed: () {
+                              widget.onDismiss?.call();
+                              Navigator.of(context).maybePop();
+                            },
+                            icon: Icon(Icons.close, size: 20, color: t.textMuted),
+                            tooltip: 'Close ${widget.title}',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                           ),
                       ],
                     ),
