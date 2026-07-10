@@ -8,6 +8,7 @@ class AppConstants {
   static String apiBaseUrl = 'http://92.4.95.252';
 
   static const String onboardingSeenKey = 'jm_onboarding_seen';
+  static const String onboardingPendingItemsKey = 'jm_onboarding_pending_items';
 
   static const Duration accessTokenValidity = Duration(days: 7);
   static const Duration refreshTokenValidity = Duration(days: 90);
