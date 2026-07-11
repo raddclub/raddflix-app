@@ -93,8 +93,13 @@ async function main() {
     if (!fs.existsSync(diskPath)) {
       console.error(`  ❌ File not found: ${diskPath}`); process.exit(1);
     }
-    const content = fs.readFileSync(diskPath, 'utf8');
-    const blob    = await ghReq('POST', `/repos/${REPO}/git/blobs`, { content, encoding: 'utf-8' });
+    // Binary assets (images, fonts, etc.) must be base64-encoded — reading
+    // them as utf8 corrupts the bytes. Detect by extension.
+    const BINARY_EXT = new Set(['.png','.jpg','.jpeg','.gif','.webp','.ico','.ttf','.otf','.woff','.woff2','.mp3','.mp4','.wav','.zip']);
+    const isBinary = BINARY_EXT.has(path.extname(diskPath).toLowerCase());
+    const blob = isBinary
+      ? await ghReq('POST', `/repos/${REPO}/git/blobs`, { content: fs.readFileSync(diskPath).toString('base64'), encoding: 'base64' })
+      : await ghReq('POST', `/repos/${REPO}/git/blobs`, { content: fs.readFileSync(diskPath, 'utf8'), encoding: 'utf-8' });
     treeEntries.push({ path: relPath, mode: '100644', type: 'blob', sha: blob.sha });
     console.log(`  blob: ${relPath}`);
   }
