@@ -12,7 +12,7 @@ import '../models/subscription.dart';
 import '../providers/subscription_provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/loading_overlay.dart';
-import '../widgets/radd_text_field.dart';
+import '../design_system/components/radd_text_field.dart';
 import 'tid_status_screen.dart';
 import '../widgets/tier_badge.dart';
 

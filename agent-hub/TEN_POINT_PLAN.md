@@ -345,8 +345,8 @@ the inferior version silently.
 2. Update each import to `design_system/components/radd_text_field.dart`.
 3. Verify the design_system version's API matches all call sites.
 4. Delete `lib/widgets/radd_text_field.dart`.
-- [ ] Grep and update all imports of widgets/radd_text_field.dart
-- [ ] Delete lib/widgets/radd_text_field.dart
+- [x] Grep and update all imports of widgets/radd_text_field.dart
+- [x] Delete lib/widgets/radd_text_field.dart
 
 ### D2 — Add `focusNode` parameter to `design_system RaddTextField`
 **File:** `raddflix_flutter/lib/design_system/components/radd_text_field.dart`
@@ -359,7 +359,7 @@ _focusNode = widget.focusNode ?? FocusNode();
 _ownsNode = widget.focusNode == null;
 ```
 In dispose: `if (_ownsNode) _focusNode.dispose();`
-- [ ] Add focusNode parameter to design_system RaddTextField
+- [x] Add focusNode parameter to design_system RaddTextField
 
 ### D3 — Fix `RaddSheet` tab switching: replace `setState` with `IndexedStack`
 **File:** `raddflix_flutter/lib/design_system/components/radd_sheet.dart` ~L119
@@ -375,7 +375,7 @@ IndexedStack(
 )
 ```
 This keeps all tab subtrees alive but only renders one, preserving state and scroll position.
-- [ ] Replace RaddSheet tab setState with IndexedStack
+- [x] Replace RaddSheet tab setState with IndexedStack
 
 ### D4 — Fix hardcoded colors in design system components
 **Files:**
@@ -388,9 +388,11 @@ This means they won't respond to theme changes and contradict the token system.
 - `Color(0xFF12121E)` → `AppColors.background` (or `context.t.background` via RaddColors)
 - `Color(0xFF1565C0)` → `AppColors.primary` or appropriate token
 - RaddLockPad gradient → use `AppColors.primaryGradient` + `AppColors.error` or define named tokens
-- [ ] Fix hardcoded Color(0xFF12121E) in EqVisualizer
-- [ ] Fix hardcoded colors in QuickSettingsPanel
-- [ ] Fix hardcoded gradient colors in RaddLockPad
+- [x] Fix hardcoded Color(0xFF12121E) in EqVisualizer
+- [x] Fix hardcoded colors in QuickSettingsPanel
+- [x] Fix hardcoded gradient colors in RaddLockPad (second stop only — exact
+      match to AppColors.primary; first stop kept as a named local constant,
+      no existing token matches it — see AGENT_HANDOFF.md Phase D notes)
 
 ### D5 — Add `subtitle` and `iconColor` parameters to `SettingsRow`
 **File:** `raddflix_flutter/lib/design_system/components/settings_row.dart`
@@ -401,7 +403,7 @@ will remain zero.
 **Fix:** Add `final String? subtitle;` and `final Color? iconColor;` to SettingsRow constructor.
 Display subtitle as a small text below the title when non-null.
 Apply `iconColor` to the leading icon container.
-- [ ] Add subtitle and iconColor params to SettingsRow
+- [x] Add subtitle and iconColor params to SettingsRow
 
 ### D6 — Fix icon system inconsistency
 **Files:** Various widgets and screens
@@ -411,8 +413,12 @@ and visual weight drift across the app.
 **Fix:** Grep for direct `PhosphorIcons.` references in `lib/screens/` and `lib/widgets/`.
 Replace each with the appropriate `AppIcons.` entry. If an icon is missing from `AppIcons`,
 add it there first.
-- [ ] Audit and replace direct PhosphorIcons references with AppIcons in screens/
-- [ ] Audit and replace direct PhosphorIcons references with AppIcons in widgets/
+- [x] Audit and replace direct PhosphorIcons references with AppIcons in screens/
+      (none found)
+- [x] Audit and replace direct PhosphorIcons references with AppIcons in
+      widgets/ (only bottom_nav.dart; added AppIcons.localDevice/
+      localDeviceFill and downloadActionFill since no existing entry matched
+      the glyphs actually in use)
 
 ---
 

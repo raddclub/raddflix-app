@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import '../../core/constants.dart' show AppColors;
 
 /// Phase I — Equalizer Visualizer
 /// Animated frequency bars + 13 presets + 10-band vertical sliders.
@@ -79,7 +80,7 @@ class _EqVisualizerState extends State<EqVisualizer> {
     return RepaintBoundary(child: Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
       decoration: const BoxDecoration(
-        color: Color(0xFF12121E),
+        color: AppColors.background,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../core/theme/radd_theme.dart';
 import '../core/constants.dart';
+import '../core/design/app_icons.dart';
 import '../core/utils/anim_config.dart';
 
 // ── Nav item descriptors ──────────────────────────────────────────────────────
@@ -36,30 +37,35 @@ class RaddFlixBottomNav extends ConsumerStatefulWidget {
 
 class _RaddFlixBottomNavState extends ConsumerState<RaddFlixBottomNav> {
   static final _items = [
+    // D6: use the shared AppIcons source instead of raw PhosphorIcons calls,
+    // so icon families can be swapped app-wide from one place.
     _NavItem(
       label: 'Home',
-      icon:     () => PhosphorIcons.house(),
-      iconFill: () => PhosphorIcons.house(PhosphorIconsStyle.fill),
+      icon:     () => AppIcons.home,
+      iconFill: () => AppIcons.homeFill,
     ),
     _NavItem(
       label: 'Search',
-      icon:     () => PhosphorIcons.magnifyingGlass(),
-      iconFill: () => PhosphorIcons.magnifyingGlass(PhosphorIconsStyle.fill),
+      icon:     () => AppIcons.search,
+      iconFill: () => AppIcons.searchFill,
     ),
     _NavItem(
       label: 'Local',
-      icon:     () => PhosphorIcons.deviceMobile(),
-      iconFill: () => PhosphorIcons.deviceMobile(PhosphorIconsStyle.fill),
+      icon:     () => AppIcons.localDevice,
+      iconFill: () => AppIcons.localDeviceFill,
     ),
+    // Nav uses the "simple download" glyph (downloadAction), not the
+    // arrow-in-circle glyph (downloads) used elsewhere for downloads-list
+    // headers — kept distinct to preserve the existing nav bar look.
     _NavItem(
       label: 'Download',
-      icon:     () => PhosphorIcons.downloadSimple(),
-      iconFill: () => PhosphorIcons.downloadSimple(PhosphorIconsStyle.fill),
+      icon:     () => AppIcons.downloadAction,
+      iconFill: () => AppIcons.downloadActionFill,
     ),
     _NavItem(
       label: 'Profile',
-      icon:     () => PhosphorIcons.user(),
-      iconFill: () => PhosphorIcons.user(PhosphorIconsStyle.fill),
+      icon:     () => AppIcons.profile,
+      iconFill: () => AppIcons.profileFill,
     ),
   ];
 

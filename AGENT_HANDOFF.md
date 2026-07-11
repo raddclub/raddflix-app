@@ -7,6 +7,69 @@
 
 ---
 
+## Current State (2026-07-11 — Phase D Complete)
+
+### PHASE-D — Widget Layer: Duplicates, Tokens, API Gaps — 2026-07-11
+
+All 6 Phase D items from `agent-hub/TEN_POINT_PLAN.md` completed and pushed.
+
+**What was done:**
+- **D1** Deleted `lib/widgets/radd_text_field.dart` (the inferior duplicate). Its 3 remaining
+  importers (`login_screen.dart`, `register_screen.dart`, `subscription_screen.dart`) now import
+  `design_system/components/radd_text_field.dart`. That component's API did not actually cover the
+  call sites (no `prefixIcon`, `keyboardType`, or `validator`), so D1 also had to extend it —
+  folded D2 in at the same time since both touch the same file.
+- **D2** Added `prefixIcon`, `keyboardType`, `validator`, `maxLines`, and `focusNode` params to
+  `design_system/components/radd_text_field.dart`. `validator` required wrapping the internal
+  `TextField` in a `FormField<String>` (not just adding the parameter) so it participates in the
+  ambient `Form.validate()` that login/register already gate submission on — a bare callback
+  parameter would not have been wired to anything.
+- **D3** `RaddSheet` tabbed body: replaced `AnimatedSwitcher` (which tears down the outgoing tab's
+  subtree) with `IndexedStack` — all tab subtrees now stay alive, so switching tabs no longer
+  resets scroll position on the subtitle/settings panels.
+- **D4** Replaced hardcoded hex colors with tokens: `Color(0xFF12121E)` → `AppColors.background`
+  in `eq_visualizer.dart` and `quick_settings_panel.dart`; `Color(0xFF1565C0)` → `AppColors.primary`
+  (5 sites in `quick_settings_panel.dart`); `RaddLockPad`'s vault gradient's second stop
+  (`0xFFE8002D`) → `AppColors.primary` (exact value match, zero visual change) — its purple first
+  stop has no existing token so it stays a named local constant rather than being mismapped onto
+  an unrelated one (checked: not the same value as `AppColors.simosaAccent`).
+- **D5** Added `subtitle` and `iconColor` params to `SettingsRow` — renders a muted caption line
+  below the label and tints the leading icon when set.
+- **D6** Audited direct `PhosphorIcons.*` calls in `lib/screens/` and `lib/widgets/` (only
+  `bottom_nav.dart` had any) and replaced them with `AppIcons.*`. Two of the five nav icons had no
+  existing `AppIcons` equivalent that matched the actual glyph in use (`deviceMobile` for "Local",
+  `downloadSimple` for "Download" — `AppIcons.downloads` uses the unrelated `arrowCircleDown`
+  glyph), so added `AppIcons.localDevice`/`localDeviceFill` and `AppIcons.downloadActionFill`
+  (paired with the pre-existing `downloadAction`) rather than swapping in a visually different icon.
+
+**Next phase:** Phase E (Provider Architecture: God Provider Split).
+
+**Active rules (carry forward):**
+- Never add `androidAttachSurfaceAfterVideoParameters: true`
+- Never upgrade `sqflite_sqlcipher` past `3.1.0+1`
+- Push files sequentially (SHA race condition), ≥1.2 s apart
+- JS `String.replace`: escape `# RaddFlix Agent Handoff
+
+> Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
+> in place each session instead of creating a new dated handoff/status file.
+
+---
+
+---
+
+ as `$` when Dart code contains `# RaddFlix Agent Handoff
+
+> Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
+> in place each session instead of creating a new dated handoff/status file.
+
+---
+
+---
+
+ interpolation
+- TEN_POINT_PLAN.md dead-code/audit findings (icon mappings, "matches exactly" claims, etc.) are
+  not guaranteed accurate — re-grep/re-diff before trusting them, per the C3 and D4/D6 near-misses.
+
 ## Current State (2026-07-11 — Phase C Complete)
 
 ### PHASE-C — Player Screen Structural Fixes — 2026-07-11

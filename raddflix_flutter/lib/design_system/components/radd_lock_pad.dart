@@ -6,12 +6,22 @@
 
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import '../../core/constants.dart' show AppColors;
 import '../../core/theme/radd_colors.dart';
 import '../motion/radd_motion.dart';
 import '../spacing/radd_space.dart';
 import '../typography/radd_type.dart';
 
 enum RaddLockPadAccent { standard, vault }
+
+// D4: the vault skin's second gradient stop was a raw hex literal that
+// happened to duplicate AppColors.primary exactly (0xFFE8002D) — using the
+// token here means it now tracks brand-color changes instead of silently
+// drifting. The purple start stop has no existing design-system token (it is
+// not the same value as AppColors.simosaAccent, which is a separate product
+// branding color), so it stays a named local constant rather than being
+// mapped onto an unrelated token.
+const Color _vaultGradientPurple = Color(0xFF7C3AED);
 
 class RaddLockPad extends StatefulWidget {
   final int pinLength;
@@ -46,7 +56,7 @@ class _RaddLockPadState extends State<RaddLockPad> {
 
   Gradient _gradientFor(BuildContext context) {
     if (widget.accent == RaddLockPadAccent.vault) {
-      return const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFFE8002D)]);
+      return const LinearGradient(colors: [_vaultGradientPurple, AppColors.primary]);
     }
     return LinearGradient(colors: [context.signalPrimary, context.signalPrimary]);
   }

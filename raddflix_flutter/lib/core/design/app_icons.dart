@@ -21,6 +21,11 @@ class AppIcons {
   static PhosphorIconData get homeFill       => PhosphorIcons.house(PhosphorIconsStyle.fill);
   static PhosphorIconData get localMedia     => PhosphorIcons.folder();
   static PhosphorIconData get localMediaFill => PhosphorIcons.folder(PhosphorIconsStyle.fill);
+  // D6: the bottom nav's "Local" tab uses the device icon (distinct from the
+  // folder icon used elsewhere for local-media browsing), so it needs its
+  // own entry rather than being forced onto localMedia.
+  static PhosphorIconData get localDevice     => PhosphorIcons.deviceMobile();
+  static PhosphorIconData get localDeviceFill => PhosphorIcons.deviceMobile(PhosphorIconsStyle.fill);
   static PhosphorIconData get downloads      => PhosphorIcons.arrowCircleDown();
   static PhosphorIconData get downloadsFill  => PhosphorIcons.arrowCircleDown(PhosphorIconsStyle.fill);
   static PhosphorIconData get profile        => PhosphorIcons.user();
@@ -84,6 +89,7 @@ class AppIcons {
 
   // ── Download / Storage ────────────────────────────────────────────────────
   static PhosphorIconData get downloadAction => PhosphorIcons.downloadSimple();
+  static PhosphorIconData get downloadActionFill => PhosphorIcons.downloadSimple(PhosphorIconsStyle.fill);
   static PhosphorIconData get downloadDone   => PhosphorIcons.checkCircle(PhosphorIconsStyle.fill);
   static PhosphorIconData get cloudDownload  => PhosphorIcons.cloudArrowDown();
   static PhosphorIconData get cloudUpload    => PhosphorIcons.cloudArrowUp();

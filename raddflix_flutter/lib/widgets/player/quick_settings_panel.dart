@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../../core/constants.dart' show AppColors;
 import '../../../core/player/player_prefs.dart';
 import '../../../core/player/video_look_filter.dart'; // D2
 import '../../../core/player/end_of_video_actions.dart'; // M3
@@ -126,8 +127,8 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
   bool   _improveStroke    = false;
   bool   _fadeOut          = false;
 
-  static const _accent = Color(0xFF1565C0);
-  static const _bg     = Color(0xFF12121E);
+  static const _accent = AppColors.primary;
+  static const _bg     = AppColors.background;
 
   @override
   void initState() {
@@ -1491,7 +1492,7 @@ class _QsToggleRow extends StatelessWidget {
   final ValueChanged<bool> onChanged;
   const _QsToggleRow({required this.label, this.sublabel, required this.value,
       required this.onChanged});
-  static const _accent = Color(0xFF1565C0);
+  static const _accent = AppColors.primary;
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: () => onChanged(!value),
@@ -1549,7 +1550,7 @@ class _SizeChip extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   const _SizeChip(this.label, this.selected, this.onTap);
-  static const _accent = Color(0xFF1565C0);
+  static const _accent = AppColors.primary;
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
@@ -1575,7 +1576,7 @@ class _StyleOption extends StatelessWidget {
   final Widget child;
   const _StyleOption({required this.label, required this.selected,
       required this.onTap, required this.child});
-  static const _accent = Color(0xFF1565C0);
+  static const _accent = AppColors.primary;
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
@@ -1606,7 +1607,7 @@ class _TouchActionBtn extends StatelessWidget {
   final VoidCallback onTap;
   const _TouchActionBtn({required this.icon, required this.label,
       required this.selected, required this.onTap});
-  static const _accent = Color(0xFF1565C0);
+  static const _accent = AppColors.primary;
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,

@@ -11,7 +11,6 @@ import '../../core/theme/radd_colors.dart';
 import '../elevation/radd_elevation.dart';
 import '../radius/radd_radius.dart';
 import '../spacing/radd_space.dart';
-import '../motion/radd_motion.dart';
 import '../typography/radd_type.dart';
 
 enum RaddSheetStyle { list, tabbed }
@@ -201,14 +200,19 @@ class _RaddSheetState extends State<RaddSheet> with SingleTickerProviderStateMix
 
   Widget _buildBody(BuildContext context) {
     if (widget.style == RaddSheetStyle.tabbed && widget.tabs != null) {
-      return AnimatedSwitcher(
-        // Use spec-exact Tune duration instead of a raw literal (Volume III).
-        duration: RaddMotion.tuneDuration,
-        switchInCurve: RaddMotion.tune,
-        child: Padding(
-          key: ValueKey(_tabIndex),
-          padding: const EdgeInsets.all(RaddSpace.md),
-          child: widget.tabs![_tabIndex].builder(context),
+      // D3: IndexedStack instead of AnimatedSwitcher(+setState rebuild).
+      // AnimatedSwitcher tears down the outgoing tab's subtree on every
+      // switch, which resets scroll position on any tab with a scrollable
+      // (subtitle panel's 3 tabs, settings panel's tabs). IndexedStack keeps
+      // every tab's widget subtree alive and just toggles visibility, so
+      // switching back to a tab restores exactly where the user left it.
+      return Padding(
+        padding: const EdgeInsets.all(RaddSpace.md),
+        child: IndexedStack(
+          index: _tabIndex,
+          children: [
+            for (final tab in widget.tabs!) tab.builder(context),
+          ],
         ),
       );
     }

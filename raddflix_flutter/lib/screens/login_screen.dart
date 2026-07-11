@@ -12,7 +12,7 @@ import '../core/constants.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/loading_overlay.dart';
-import '../widgets/radd_text_field.dart';
+import '../design_system/components/radd_text_field.dart';
 import '../core/utils/auth_utils.dart';
 import '../widgets/particle_overlay.dart';
 

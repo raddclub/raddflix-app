@@ -15,6 +15,12 @@ enum SettingsRowTrailing { none, chevron, switchControl, valueText }
 class SettingsRow extends StatelessWidget {
   final PhosphorIconData icon;
   final String label;
+  // D5: settings_screen.dart previously used bespoke inline rows instead of
+  // this shared component specifically because it had no way to show a
+  // secondary description line or tint the leading icon — added both so
+  // that screen can adopt SettingsRow instead of duplicating the layout.
+  final String? subtitle;
+  final Color? iconColor;
   final SettingsRowTrailing trailing;
   final String? valueText;
   final bool switchValue;
@@ -26,6 +32,8 @@ class SettingsRow extends StatelessWidget {
     super.key,
     required this.icon,
     required this.label,
+    this.subtitle,
+    this.iconColor,
     this.trailing = SettingsRowTrailing.chevron,
     this.valueText,
     this.switchValue = false,
@@ -70,13 +78,23 @@ class SettingsRow extends StatelessWidget {
         child: Opacity(
           opacity: enabled ? 1.0 : 0.4,
           child: SizedBox(
-            height: 56,
+            height: subtitle != null ? 64 : 56,
             child: Row(
               children: [
-                Icon(icon, size: 24, color: t.textSecondary),
+                Icon(icon, size: 24, color: iconColor ?? t.textSecondary),
                 const SizedBox(width: RaddSpace.md),
                 Expanded(
-                  child: Text(label, style: context.raddBody.copyWith(color: t.textPrimary)),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label, style: context.raddBody.copyWith(color: t.textPrimary)),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(subtitle!, style: context.raddCaption.copyWith(color: t.textMuted)),
+                      ],
+                    ],
+                  ),
                 ),
                 if (trailingWidget != null) trailingWidget,
               ],
