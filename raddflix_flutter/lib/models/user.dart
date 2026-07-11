@@ -99,7 +99,13 @@ class AppUser {
   String get avatarInitial {
     if (isGuest) return 'G';
     if (displayName != null && displayName!.isNotEmpty) return displayName![0].toUpperCase();
-    return phone.isNotEmpty ? phone[0].toUpperCase() : 'U';
+    // Pakistani numbers overwhelmingly start with a leading "0" trunk prefix
+    // (e.g. 03xxxxxxxxx) — using phone[0] directly renders a bare "0" for
+    // almost every user with no display name. Skip the leading zeros so the
+    // avatar shows a meaningful digit instead.
+    final digits = phone.replaceAll(RegExp(r'^0+'), '');
+    if (digits.isNotEmpty) return digits[0];
+    return 'U';
   }
 }
 

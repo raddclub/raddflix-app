@@ -139,18 +139,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 style: TextStyle(color: t.textPrimary, fontSize: 17,
                     fontWeight: FontWeight.w700)),
             centerTitle: true,
-            actions: [
-              TextButton(
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? SizedBox(width: 18, height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2,
-                            color: AppColors.primary))
-                    : const Text('Save',
-                        style: TextStyle(color: AppColors.primary,
-                            fontSize: 15, fontWeight: FontWeight.w700)),
-              ),
-            ],
+            // Save lives solely in the bottom "Save Changes" button below —
+            // having it duplicated here too made it unclear which one to use.
           ),
 
           SliverToBoxAdapter(
@@ -241,11 +231,21 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   children: [
-                    _EmojiChip(
-                      emoji: '',
-                      isSelected: _avatarEmoji.isEmpty,
-                      onTap: () => setState(() => _avatarEmoji = ''),
-                      isNone: true,
+                    Tooltip(
+                      message: 'No emoji — show initials instead',
+                      child: _EmojiChip(
+                        emoji: '',
+                        isSelected: _avatarEmoji.isEmpty,
+                        onTap: () => setState(() => _avatarEmoji = ''),
+                        isNone: true,
+                      ),
+                    ),
+                    // Visual separator so "clear" reads as a distinct action,
+                    // not just another item in the emoji row.
+                    Container(
+                      width: 1, height: 24,
+                      margin: const EdgeInsets.only(right: 8),
+                      color: RaddTheme.of(context).border,
                     ),
                     ...['🎬','🎭','🎮','🎵','🦁','🔥','⚡','🌟','👑','🎯',
                         '🦊','🐺','🎸','💎','🚀','🌙','😎','🦅','🐉','🌺',

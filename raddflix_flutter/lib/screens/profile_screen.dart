@@ -281,13 +281,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       letterSpacing: -0.6))
                       .animate(delay: 100.ms).fadeIn(duration: 300.ms),
                   if (user?.isGuest != true) ...[
-                    const SizedBox(height: 5),
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(AppIcons.phone, size: 13, color: t.textMuted),
-                      const SizedBox(width: 5),
-                      Text(user!.phone,
-                          style: TextStyle(color: t.textMuted, fontSize: 12)),
-                    ]).animate(delay: 120.ms).fadeIn(),
+                    // Only show the phone row when the name above is a real
+                    // display name — otherwise displayLabel already IS the
+                    // phone number and this would repeat the same value twice.
+                    if ((user!.displayName ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(AppIcons.phone, size: 13, color: t.textMuted),
+                        const SizedBox(width: 5),
+                        Text(user.phone,
+                            style: TextStyle(color: t.textMuted, fontSize: 12)),
+                      ]).animate(delay: 120.ms).fadeIn(),
+                    ],
                     if ((user.email ?? '').isNotEmpty) ...[
                       const SizedBox(height: 3),
                       Row(mainAxisSize: MainAxisSize.min, children: [
@@ -333,8 +338,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
 
-            // Subscription card
-            if (user?.subscription != null)
+            // Subscription card — only for users with a genuinely active
+            // subscription. A subscription object always exists (even for
+            // free users, with isActive: false), so checking for non-null
+            // alone showed "Active Subscription" to free users right next
+            // to their "FREE" tier badge.
+            if (user?.hasActiveSubscription == true)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -769,7 +778,7 @@ class _ThemePicker extends ConsumerWidget {
         color: t.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Handle
         Center(child: Container(width: 36, height: 4, margin: const EdgeInsets.only(bottom: 20),
@@ -779,6 +788,11 @@ class _ThemePicker extends ConsumerWidget {
         // Title
         Text('Choose Theme',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: t.textPrimary)),
+        const SizedBox(height: 4),
+        // Clarify that both sections below are one single choice — picking a
+        // color theme replaces Dark/Light/etc., not layered on top of it.
+        Text('Pick one look — a color theme replaces Dark/Light instantly.',
+            style: TextStyle(fontSize: 12, color: t.textMuted)),
         const SizedBox(height: 18),
 
         // ── Standard themes ──────────────────────────────────────────────

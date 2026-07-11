@@ -27,7 +27,7 @@ class OfflineBanner extends ConsumerWidget {
       child: !isOnline
           ? Container(
               key: const ValueKey('offline'),
-              margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              margin: const EdgeInsets.fromLTRB(16, 14, 16, 6),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 color: AppColors.error.withOpacity(0.12),

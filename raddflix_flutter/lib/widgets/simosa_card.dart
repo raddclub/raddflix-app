@@ -138,8 +138,11 @@ class _SimosaCardState extends State<SimosaCard>
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF7C5CFF), Color(0xFF9B7DFF)],
+                              gradient: LinearGradient(
+                                colors: [
+                                  AppColors.simosaAccent,
+                                  AppColors.simosaAccent.withOpacity(0.65),
+                                ],
                               ),
                               borderRadius: BorderRadius.circular(20),
                             ),
@@ -195,15 +198,18 @@ class _SimosaCardState extends State<SimosaCard>
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 14, vertical: 7),
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF7C5CFF), Color(0xFF5B3FE0)],
+                              gradient: LinearGradient(
+                                colors: [
+                                  AppColors.simosaAccent,
+                                  AppColors.simosaAccent.withOpacity(0.75),
+                                ],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
                               borderRadius: BorderRadius.circular(10),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF7C5CFF).withOpacity(0.45),
+                                  color: AppColors.simosaAccent.withOpacity(0.45),
                                   blurRadius: 10,
                                   offset: const Offset(0, 3),
                                 ),
@@ -356,7 +362,7 @@ class _StreakBar extends StatelessWidget {
             value: progress,
             minHeight: 3,
             backgroundColor: isDark ? Colors.white12 : Colors.black12,
-            valueColor: const AlwaysStoppedAnimation(Color(0xFF7C5CFF)),
+            valueColor: const AlwaysStoppedAnimation(AppColors.simosaAccent),
           ),
         ),
       ),
