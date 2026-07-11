@@ -7,6 +7,56 @@
 
 ---
 
+## Current State (2026-07-11 — Phase C Complete)
+
+### PHASE-C — Player Screen Structural Fixes — 2026-07-11
+
+All 4 Phase C items from `agent-hub/TEN_POINT_PLAN.md` addressed and pushed (C3 resolved as
+"verified not dead" rather than a code change — see below).
+
+**What was done:**
+- **C1** `_openPanel()` helper: `player_screen.dart` had 7 near-identical panel openers
+  (`_openSubtitlePanel`, `_openAudioPanel`, `_openZoomPanel`, `_openAudioEffectPanel`,
+  `_openMoreMenu`, `_openSidebarCustomizer`, `_openSettingsPanel`), each repeating the same
+  ~13-line landscape (`_openRightPanel`) vs portrait (`RaddSheet.show`) branch inline. Extracted
+  to one `_openPanel({panel, title, widthFactor, maxHeightFraction})` method; all 7 now call it.
+- **C2** Debounced `_savePrefs`: added `_scheduleSavePrefs()` (300ms `Timer`-based debounce) and
+  switched all 53 non-dispose call sites from `_savePrefs()` to `_scheduleSavePrefs()`. Avoids a
+  `SharedPreferences` disk write on every slider drag/toggle tap.
+- **C3** Dead-variable audit: the plan flagged `_currentFramedrop` and `_labDialogueOnly` as dead.
+  Re-verified with grep before touching anything — both are actively read/written (framedrop
+  gates a real seek-flush in `_setSpeed`; dialogue-only drives a real audio-pan filter and is
+  persisted to prefs). **No removal made** — the original plan finding did not hold up.
+- **C4** `dispose()` still calls `_savePrefs()` directly (not the debounced version), now preceded
+  by `_savePrefsDebounce?.cancel()` so no stray debounced write fires after teardown.
+
+**Next phase:** Phase D (widget layer: duplicate RaddTextField, RepaintBoundary, RaddSheet IndexedStack).
+
+**Active rules (carry forward):**
+- Never add `androidAttachSurfaceAfterVideoParameters: true`
+- Never upgrade `sqflite_sqlcipher` past `3.1.0+1`
+- Push files sequentially (SHA race condition), ≥1.2 s apart
+- JS `String.replace`: escape `# RaddFlix Agent Handoff
+
+> Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
+> in place each session instead of creating a new dated handoff/status file.
+
+---
+
+---
+
+ as `$` when Dart code contains `# RaddFlix Agent Handoff
+
+> Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
+> in place each session instead of creating a new dated handoff/status file.
+
+---
+
+---
+
+ interpolation
+- TEN_POINT_PLAN.md dead-code findings are not guaranteed accurate — re-grep before deleting.
+
 ## Current State (2026-07-11 — Phase B Complete)
 
 ### PHASE-B — Database Performance — 2026-07-11

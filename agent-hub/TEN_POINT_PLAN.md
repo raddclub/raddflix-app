@@ -279,14 +279,14 @@ void _openPanel({
 ```
 Then replace each of the 7 openers with a call to `_openPanel(...)`.
 Each opener call becomes ~3 lines instead of ~15.
-- [ ] Add _openPanel() helper to player_screen.dart
-- [ ] Replace _openSubtitlePanel boilerplate with _openPanel call
-- [ ] Replace _openAudioPanel boilerplate with _openPanel call
-- [ ] Replace _openZoomPanel boilerplate with _openPanel call
-- [ ] Replace _openAudioEffectPanel boilerplate with _openPanel call
-- [ ] Replace _openMoreMenu boilerplate with _openPanel call
-- [ ] Replace _openSidebarCustomizer boilerplate with _openPanel call
-- [ ] Replace _openSettingsPanel boilerplate with _openPanel call
+- [x] Add _openPanel() helper to player_screen.dart
+- [x] Replace _openSubtitlePanel boilerplate with _openPanel call
+- [x] Replace _openAudioPanel boilerplate with _openPanel call
+- [x] Replace _openZoomPanel boilerplate with _openPanel call
+- [x] Replace _openAudioEffectPanel boilerplate with _openPanel call
+- [x] Replace _openMoreMenu boilerplate with _openPanel call
+- [x] Replace _openSidebarCustomizer boilerplate with _openPanel call
+- [x] Replace _openSettingsPanel boilerplate with _openPanel call
 
 ### C2 — Debounce `_savePrefs` (60 call sites → 1 delayed write)
 **File:** `raddflix_flutter/lib/screens/player_screen.dart` ~L1681
@@ -304,8 +304,8 @@ void _scheduleSavePrefs() {
 ```
 3. Add `_savePrefsDebounce?.cancel()` to `dispose()` before the existing timer cancellations.
 4. Replace all call sites of `_savePrefs()` (except inside `dispose()`) with `_scheduleSavePrefs()`.
-- [ ] Add _scheduleSavePrefs() debounce wrapper in player_screen.dart
-- [ ] Replace all mid-session _savePrefs() calls with _scheduleSavePrefs()
+- [x] Add _scheduleSavePrefs() debounce wrapper in player_screen.dart
+- [x] Replace all mid-session _savePrefs() calls with _scheduleSavePrefs()
 
 ### C3 — Remove confirmed dead state variables
 **File:** `raddflix_flutter/lib/screens/player_screen.dart`
@@ -316,7 +316,7 @@ implementation path (confirmed: they are set but never meaningfully read or caus
 Before removing: grep the file for each variable name to confirm zero meaningful reads.
 If grep shows only the declaration + one assignment, the variable is dead.
 **Fix:** Remove the declaration and the single assignment site.
-- [ ] Audit and remove confirmed dead state vars in player_screen.dart
+- [x] Audit and remove confirmed dead state vars in player_screen.dart — RE-VERIFIED: `_currentFramedrop` (read/written in `_setSpeed`, gates a real seek-flush branch) and `_labDialogueOnly` (persisted to prefs, drives a real audio-pan filter; the second occurrence at ~L7476 is a *different* class's own field, not a stale duplicate) both have real, meaningful reads. Original finding was incorrect — no removal made.
 
 ### C4 — Fix `_savePrefs` being called inside `dispose()` after debounce
 **File:** `raddflix_flutter/lib/screens/player_screen.dart` dispose()
@@ -326,7 +326,7 @@ directly (not `_scheduleSavePrefs()`) and must also cancel the debounce timer fi
 This is explicitly called out to prevent C2 from breaking the dispose-time save.
 **Fix:** In dispose(): `_savePrefsDebounce?.cancel(); await _savePrefs();`
 (or call synchronously — SharedPreferences is fast when called once at dispose time).
-- [ ] Ensure dispose() calls _savePrefs() directly, not the debounced version
+- [x] Ensure dispose() calls _savePrefs() directly, not the debounced version
 
 ---
 

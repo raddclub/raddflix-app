@@ -376,6 +376,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   // ── P3: Auto-retry countdown ─────────────────────────────────────────────────
   Timer? _autoRetryTimer;
+  Timer? _savePrefsDebounce; // C2: debounce SharedPreferences writes off the main thread hot path
   int _autoRetryCountdown = 0;
 
   // ── P9: Seek preview label (shown above seek bar during drag) ────────────────
@@ -501,6 +502,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _saveWatchPos();
+    _savePrefsDebounce?.cancel(); // C4: flush synchronously on dispose, do not debounce the final save
     _savePrefs();
     _hideTimer?.cancel();
     _posTimer?.cancel();
@@ -1678,6 +1680,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  // C2: _savePrefs() used to be called synchronously from ~60 call sites,
+  // including inside setState() closures — SharedPreferences I/O on the main
+  // thread is a known cause of dropped frames. Call sites now debounce
+  // through this wrapper instead of writing on every keystroke/toggle.
+  void _scheduleSavePrefs() {
+    _savePrefsDebounce?.cancel();
+    _savePrefsDebounce = Timer(const Duration(milliseconds: 300), _savePrefs);
+  }
+
   Future<void> _savePrefs() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('pref_speed', _speed);
@@ -1846,7 +1857,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _toggleSmartEnhance() {
     setState(() => _smartEnhanceEnabled = !_smartEnhanceEnabled);
     _showInfoSnackbar(_smartEnhanceEnabled ? 'Vivid Mode on' : 'Vivid Mode off');
-    _savePrefs(); // J2: was missing — change was only saved on dispose()
+    _scheduleSavePrefs(); // J2: was missing — change was only saved on dispose()
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1959,13 +1970,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
       _applyAllAf();
     });
-    _savePrefs();
+    _scheduleSavePrefs();
   }
 
   void _rotateVideo() {
     setState(() => _videoRotation = (_videoRotation + 90) % 360);
     try { _np.setProperty('video-rotate', _videoRotation.toString()); } catch (_) {}
-    _savePrefs();
+    _scheduleSavePrefs();
   }
 
   void _showVideoInfoDialog() {
@@ -2091,7 +2102,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _subSync = (_subSync + delta);
     try { _np.setProperty('sub-delay', _subSync.toStringAsFixed(1)); } catch (_) {}
     setState(() {});
-    _savePrefs(); // was previously never persisted — reset to 0 on next open
+    _scheduleSavePrefs(); // was previously never persisted — reset to 0 on next open
   }
 
   void _adjustAudioSync(double delta) {
@@ -3191,7 +3202,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
             const SizedBox(height: 6),
             GestureDetector(
-              onTap: () { setState(() => _oneHandedLeft = !_oneHandedLeft); _savePrefs(); },
+              onTap: () { setState(() => _oneHandedLeft = !_oneHandedLeft); _scheduleSavePrefs(); },
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
@@ -3644,7 +3655,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
           // Duration / remaining
           GestureDetector(
-            onTap: () { setState(() => _showRemainingTime = !_showRemainingTime); _savePrefs(); },
+            onTap: () { setState(() => _showRemainingTime = !_showRemainingTime); _scheduleSavePrefs(); },
             child: SizedBox(
               width: 44,
               child: Text(
@@ -3805,7 +3816,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           label: '1-Hand',
           active: _oneHandedMode,
           available: true,
-          onTap: () { setState(() => _oneHandedMode = !_oneHandedMode); _savePrefs(); },
+          onTap: () { setState(() => _oneHandedMode = !_oneHandedMode); _scheduleSavePrefs(); },
         ),
         'zoom': (
           icon: Icons.zoom_in_rounded,
@@ -3842,7 +3853,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           GestureDetector(
             onTap: () {
               setState(() => _sidebarExpanded = !_sidebarExpanded);
-              _savePrefs();
+              _scheduleSavePrefs();
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
@@ -4638,8 +4649,33 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
   ).then((_) { if (mounted) setState(() => _panelOpen = false); });
 }
 
+// C1: shared orientation-aware panel opener. All 7 panel-opening methods
+// below (_openSubtitlePanel, _openAudioPanel, _openZoomPanel,
+// _openAudioEffectPanel, _openMoreMenu, _openSidebarCustomizer,
+// _openSettingsPanel) used to repeat this exact landscape/portrait branch
+// inline (commit 72f93a8d). Centralized here so the branching logic only
+// exists once.
+void _openPanel({
+  required Widget panel,
+  required String title,
+  double widthFactor = 0.40,
+  double maxHeightFraction = 0.85,
+}) {
+  if (MediaQuery.of(context).orientation == Orientation.landscape) {
+    _openRightPanel(panel, widthFactor: widthFactor);
+    return;
+  }
+  setState(() => _panelOpen = true);
+  RaddSheet.show<void>(
+    context,
+    style: RaddSheetStyle.list,
+    title: title,
+    maxHeightFraction: maxHeightFraction,
+    listBuilder: (_) => panel,
+  ).then((_) { if (mounted) setState(() => _panelOpen = false); });
+}
+
     void _openSubtitlePanel() {
-      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
       final panel = _SubtitlePanel(
         isLocal: _isLocal,
         subSync: _subSync,
@@ -4649,14 +4685,14 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
         onSpeedChanged: (v) {
           setState(() => _subSpeed = v);
           try { _np.setProperty('sub-speed', v.toString()); } catch (_) {}
-          _savePrefs();
+          _scheduleSavePrefs();
         },
         onSubPropertyChanged: (prop, val) {
           if (prop == '_sub_margin_main') {
             // Internal signal — update main state so _applySubtitleMargin
             // uses the user's latest base value.
             setState(() => _subBottomMarginMain = double.tryParse(val) ?? _subBottomMarginMain);
-            _savePrefs();
+            _scheduleSavePrefs();
           } else {
             try {
               // Force ASS style override FIRST so that the property change below
@@ -4689,7 +4725,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
               _prefSubLang = track.language;
             }
           });
-          _savePrefs();
+          _scheduleSavePrefs();
           if (track != null) {
             _player.setSubtitleTrack(track);
           } else {
@@ -4729,22 +4765,10 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
               ));
         },
       );
-      if (isLandscape) {
-        _openRightPanel(panel, widthFactor: 0.42);
-        return;
-      }
-      setState(() => _panelOpen = true);
-      RaddSheet.show<void>(
-        context,
-        style: RaddSheetStyle.list,
-        title: 'Subtitles',
-        maxHeightFraction: 0.90,
-        listBuilder: (_) => panel,
-      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
+      _openPanel(panel: panel, title: 'Subtitles', widthFactor: 0.42, maxHeightFraction: 0.90);
     }
 
     void _openAudioPanel() {
-      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
       final panel = _AudioTrackPanel(
         tracks: _realAudioTracks,
         selectedTrack: _selectedAudio,
@@ -4759,7 +4783,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
               _prefAudioLang = track.language;
             }
           });
-          _savePrefs();
+          _scheduleSavePrefs();
           if (track != null) {
             _player.setAudioTrack(track);
             // Fallback: on some stream types (DASH/HLS) media_kit's
@@ -4791,7 +4815,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
             _channelModeIdx = (_channelModeIdx + 1) % 4;
           });
           _applyAllAf();
-          _savePrefs();
+          _scheduleSavePrefs();
         },
         initialChannelModeIdx: _channelModeIdx,
         isPlaying: _playing,
@@ -4803,22 +4827,11 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
           Navigator.of(context).pop();
         },
       );
-      if (isLandscape) {
-        _openRightPanel(panel, widthFactor: 0.38);
-        return;
-      }
-      setState(() => _panelOpen = true);
-      RaddSheet.show<void>(
-        context,
-        style: RaddSheetStyle.list,
-        title: 'Audio Track',
-        listBuilder: (_) => panel,
-      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
+      _openPanel(panel: panel, title: 'Audio Track', widthFactor: 0.38);
     }
 
     void _openZoomPanel() {
       const modes = ['Fit to screen', 'Stretch', 'Crop', '100%', 'Pinch & Zoom'];
-      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
       final panel = Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -4829,7 +4842,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
               onChanged: (v) {
                 if (v == null) return;
                 setState(() => _zoomMode = v);
-                _savePrefs();
+                _scheduleSavePrefs();
                 Navigator.of(context).pop();
                 if (v == 4) {
                   _showInfoSnackbar('Pinch the video to set a custom zoom level');
@@ -4841,21 +4854,10 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
             ),
         ],
       );
-      if (isLandscape) {
-        _openRightPanel(panel, widthFactor: 0.30);
-        return;
-      }
-      setState(() => _panelOpen = true);
-      RaddSheet.show<void>(
-        context,
-        style: RaddSheetStyle.list,
-        title: 'Video Zoom',
-        listBuilder: (_) => panel,
-      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
+      _openPanel(panel: panel, title: 'Video Zoom', widthFactor: 0.30);
     }
 
     void _openAudioEffectPanel() {
-      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
       final panel = _AudioEffectPanel(
         selectedPreset: _selectedPreset,
         eqBands: _eqBands,
@@ -4864,12 +4866,12 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
         onEqBandChanged: (i, v) {
           setState(() { _eqBands[i] = v; _selectedPreset = -1; });
           _applyCustomEq();
-          _savePrefs();
+          _scheduleSavePrefs();
         },
         onEqEnabledChanged: (v) {
           setState(() => _eqEnabled = v);
           _applyAllAf(); // merged pipeline — reverb/lab still active if enabled
-          _savePrefs();
+          _scheduleSavePrefs();
         },
         onReverbChanged: (preset) {
           setState(() => _reverbPreset = preset ?? 'None');
@@ -4881,7 +4883,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
             default:            _currentReverbAf = '';
           }
           _applyAllAf(); // EQ + reverb + lab now all stack correctly
-          _savePrefs();
+          _scheduleSavePrefs();
         },
         onLabAfChanged: (afStr) {
           _currentLabAf = afStr;
@@ -4899,7 +4901,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
             _labStereoWide = stereoWide;
             _labNoise = noise;
           });
-          _savePrefs();
+          _scheduleSavePrefs();
         },
         labVocal: _labVocal,
         labDialogue: _labDialogue,
@@ -4914,22 +4916,10 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
         audioBalance: _audioBalance,
         onBalanceChanged: _applyBalance,
       );
-      if (isLandscape) {
-        _openRightPanel(panel, widthFactor: 0.44);
-        return;
-      }
-      setState(() => _panelOpen = true);
-      RaddSheet.show<void>(
-        context,
-        style: RaddSheetStyle.list,
-        title: 'Audio Effect',
-        maxHeightFraction: 0.90,
-        listBuilder: (_) => panel,
-      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
+      _openPanel(panel: panel, title: 'Audio Effect', widthFactor: 0.44, maxHeightFraction: 0.90);
     }
 
     void _openMoreMenu() {
-      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
       final panel = _QuickShortcutsPanel(
         isLocked: _isLocked,
         isMuted: _isMuted,
@@ -4951,7 +4941,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
         onOneHandedToggle: () {
           Navigator.of(context).pop();
           setState(() => _oneHandedMode = !_oneHandedMode);
-          _savePrefs();
+          _scheduleSavePrefs();
         },
         onSleepTimer: (mins) { Navigator.of(context).pop(); _setSleepTimer(mins); },
         onSpeedSelected: (s) { Navigator.of(context).pop(); _setSpeed(s); },
@@ -4979,17 +4969,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
         onPiP: () { Navigator.of(context).pop(); _enterPiP(); },
         onSidebarEdit: () { Navigator.of(context).pop(); _openSidebarCustomizer(); },
       );
-      if (isLandscape) {
-        _openRightPanel(panel, widthFactor: 0.40);
-        return;
-      }
-      setState(() => _panelOpen = true);
-      RaddSheet.show<void>(
-        context,
-        style: RaddSheetStyle.list,
-        title: 'More',
-        listBuilder: (_) => panel,
-      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
+      _openPanel(panel: panel, title: 'More', widthFactor: 0.40);
     }
 
     void _handleAbRepeat() {
@@ -5167,7 +5147,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                       : null,
                   onTap: () {
                     setState(() => _endAction = pair.$1);
-                    _savePrefs();
+                    _scheduleSavePrefs();
                     Navigator.of(ctx).pop();
                   },
                 ),
@@ -5202,7 +5182,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                         setState(() => _silenceSkipEnabled = v);
                         setSt(() {});
                         _applySilenceSkip();
-                        _savePrefs();
+                        _scheduleSavePrefs();
                       },
                       activeColor: Colors.white,
                     ),
@@ -5226,7 +5206,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                       setState(() => _silenceSkipThreshold = v);
                       setSt(() {});
                       _applySilenceSkip();
-                      _savePrefs();
+                      _scheduleSavePrefs();
                     },
                   ),
                   const Text(
@@ -5278,7 +5258,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                         try {
                           _np.setProperty('video-aspect-override', ratios[i].$2.isEmpty ? '-1' : ratios[i].$2);
                         } catch (_) {}
-                        _savePrefs();
+                        _scheduleSavePrefs();
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -5329,7 +5309,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                   title: const Text('Double-tap seek', style: TextStyle(color: Colors.white, fontSize: 14)),
                   subtitle: Text('Double-tap left/right to ±${_skipInterval}s', style: const TextStyle(color: Colors.white38, fontSize: 11)),
                   value: _doubleTapSeekEnabled,
-                  onChanged: (v) { setState(() => _doubleTapSeekEnabled = v); setSt(() {}); _savePrefs(); },
+                  onChanged: (v) { setState(() => _doubleTapSeekEnabled = v); setSt(() {}); _scheduleSavePrefs(); },
                   activeColor: Colors.white,
                 ),
                 SwitchListTile(
@@ -5337,7 +5317,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                   title: const Text('Long press speed boost', style: TextStyle(color: Colors.white, fontSize: 14)),
                   subtitle: const Text('Hold to play at 2× speed', style: TextStyle(color: Colors.white38, fontSize: 11)),
                   value: _longPressSpeedEnabled,
-                  onChanged: (v) { setState(() => _longPressSpeedEnabled = v); setSt(() {}); _savePrefs(); },
+                  onChanged: (v) { setState(() => _longPressSpeedEnabled = v); setSt(() {}); _scheduleSavePrefs(); },
                   activeColor: Colors.white,
                 ),
                 SwitchListTile(
@@ -5345,7 +5325,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                   title: const Text('Swipe to seek', style: TextStyle(color: Colors.white, fontSize: 14)),
                   subtitle: const Text('Horizontal swipe jumps through video', style: TextStyle(color: Colors.white38, fontSize: 11)),
                   value: _swipeSeekEnabled,
-                  onChanged: (v) { setState(() => _swipeSeekEnabled = v); setSt(() {}); _savePrefs(); },
+                  onChanged: (v) { setState(() => _swipeSeekEnabled = v); setSt(() {}); _scheduleSavePrefs(); },
                   activeColor: Colors.white,
                 ),
                 SwitchListTile(
@@ -5353,7 +5333,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                   title: const Text('Swipe brightness / volume', style: TextStyle(color: Colors.white, fontSize: 14)),
                   subtitle: const Text('Left edge: brightness  •  Right edge: volume', style: TextStyle(color: Colors.white38, fontSize: 11)),
                   value: _swipeBVEnabled,
-                  onChanged: (v) { setState(() => _swipeBVEnabled = v); setSt(() {}); _savePrefs(); },
+                  onChanged: (v) { setState(() => _swipeBVEnabled = v); setSt(() {}); _scheduleSavePrefs(); },
                   activeColor: Colors.white,
                 ),
               ],
@@ -5382,7 +5362,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                   )),
                   Switch(
                     value: _skipEditorEnabled,
-                    onChanged: (v) { setState(() => _skipEditorEnabled = v); setSt(() {}); _savePrefs(); },
+                    onChanged: (v) { setState(() => _skipEditorEnabled = v); setSt(() {}); _scheduleSavePrefs(); },
                     activeColor: Colors.white,
                   ),
                 ]),
@@ -5392,7 +5372,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                 Row(children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () { setState(() => _introStart = _position); setSt(() {}); _savePrefs(); _showInfoSnackbar('Intro start: ${_formatDuration(_position)}'); },
+                      onTap: () { setState(() => _introStart = _position); setSt(() {}); _scheduleSavePrefs(); _showInfoSnackbar('Intro start: ${_formatDuration(_position)}'); },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: RaddRadius.smRadius),
@@ -5407,7 +5387,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                   const SizedBox(width: RaddSpace.sm),
                   Expanded(
                     child: GestureDetector(
-                      onTap: () { setState(() => _introEnd = _position); setSt(() {}); _savePrefs(); _showInfoSnackbar('Intro end: ${_formatDuration(_position)}'); },
+                      onTap: () { setState(() => _introEnd = _position); setSt(() {}); _scheduleSavePrefs(); _showInfoSnackbar('Intro end: ${_formatDuration(_position)}'); },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: RaddRadius.smRadius),
@@ -5421,7 +5401,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                   ),
                   const SizedBox(width: RaddSpace.sm),
                   GestureDetector(
-                    onTap: () { setState(() { _introStart = null; _introEnd = null; }); setSt(() {}); _savePrefs(); },
+                    onTap: () { setState(() { _introStart = null; _introEnd = null; }); setSt(() {}); _scheduleSavePrefs(); },
                     child: const Icon(Icons.close_rounded, color: Colors.white38, size: 20),
                   ),
                 ]),
@@ -5431,7 +5411,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                 Row(children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () { setState(() => _outroStart = _position); setSt(() {}); _savePrefs(); _showInfoSnackbar('Outro skip from: ${_formatDuration(_position)}'); },
+                      onTap: () { setState(() => _outroStart = _position); setSt(() {}); _scheduleSavePrefs(); _showInfoSnackbar('Outro skip from: ${_formatDuration(_position)}'); },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: RaddRadius.smRadius),
@@ -5445,7 +5425,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                   ),
                   const SizedBox(width: RaddSpace.sm),
                   GestureDetector(
-                    onTap: () { setState(() => _outroStart = null); setSt(() {}); _savePrefs(); },
+                    onTap: () { setState(() => _outroStart = null); setSt(() {}); _scheduleSavePrefs(); },
                     child: const Icon(Icons.close_rounded, color: Colors.white38, size: 20),
                   ),
                 ]),
@@ -5512,7 +5492,7 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
                       if (item.$1 == 'cinema') _showSkipBtns = false;
                       if (item.$1 == 'default' || item.$1 == 'compact') _showSkipBtns = true;
                     });
-                    _savePrefs();
+                    _scheduleSavePrefs();
                     Navigator.of(ctx).pop();
                   },
                   child: Container(
@@ -5647,63 +5627,50 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
     }
 
     void _openSidebarCustomizer() {
-      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
       final panel = _SidebarCustomizerPanel(
         currentOrder: List<String>.from(_sidebarOrder),
         allIds: List<String>.from(_allSidebarIds),
         onOrderChanged: (newOrder) {
           setState(() => _sidebarOrder = newOrder);
-          _savePrefs();
+          _scheduleSavePrefs();
         },
       );
-      if (isLandscape) {
-        _openRightPanel(panel, widthFactor: 0.40);
-        return;
-      }
-      setState(() => _panelOpen = true);
-      RaddSheet.show<void>(
-        context,
-        style: RaddSheetStyle.list,
-        title: 'Sidebar Shortcuts',
-        maxHeightFraction: 0.90,
-        listBuilder: (_) => panel,
-      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
+      _openPanel(panel: panel, title: 'Sidebar Shortcuts', widthFactor: 0.40, maxHeightFraction: 0.90);
     }
 
     void _openSettingsPanel() {
-      final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
       final panel = _SettingsPanel(
         showRemainingTime: _showRemainingTime,
         keepScreenOn: _keepScreenOn,
         skipInterval: _skipInterval,
-        onShowRemainingChanged: (v) { setState(() => _showRemainingTime = v); _savePrefs(); },
+        onShowRemainingChanged: (v) { setState(() => _showRemainingTime = v); _scheduleSavePrefs(); },
         onKeepScreenChanged: (v) {
           setState(() => _keepScreenOn = v);
           if (v) WakelockPlus.enable(); else WakelockPlus.disable();
-          _savePrefs();
+          _scheduleSavePrefs();
         },
-        onSkipIntervalChanged: (v) { setState(() => _skipInterval = v); _savePrefs(); },
+        onSkipIntervalChanged: (v) { setState(() => _skipInterval = v); _scheduleSavePrefs(); },
         seekSwipeSec: _seekSwipeSec,
-        onSeekSwipeSpeedChanged: (v) { setState(() => _seekSwipeSec = v); _savePrefs(); },
+        onSeekSwipeSpeedChanged: (v) { setState(() => _seekSwipeSec = v); _scheduleSavePrefs(); },
         accentColorIdx: _accentColorIdx,
         progressBarStyle: _progressBarStyle,
-        onAccentColorChanged: (i) { setState(() => _accentColorIdx = i); _savePrefs(); },
-        onProgressBarStyleChanged: (s) { setState(() => _progressBarStyle = s); _savePrefs(); },
+        onAccentColorChanged: (i) { setState(() => _accentColorIdx = i); _scheduleSavePrefs(); },
+        onProgressBarStyleChanged: (s) { setState(() => _progressBarStyle = s); _scheduleSavePrefs(); },
         backgroundAudio: _backgroundAudio,
-        onBackgroundAudioChanged: (v) { setState(() => _backgroundAudio = v); _savePrefs(); },
+        onBackgroundAudioChanged: (v) { setState(() => _backgroundAudio = v); _scheduleSavePrefs(); },
         nightModeEnabled: _nightModeEnabled,
         nightWarmth: _nightWarmth,
-        onNightModeToggle: (v) { setState(() => _nightModeEnabled = v); _savePrefs(); },
-        onNightWarmthChanged: (v) { setState(() => _nightWarmth = v); _savePrefs(); },
+        onNightModeToggle: (v) { setState(() => _nightModeEnabled = v); _scheduleSavePrefs(); },
+        onNightWarmthChanged: (v) { setState(() => _nightWarmth = v); _scheduleSavePrefs(); },
         showClockInTitle: _showClockInTitle,
         onClockToggle: (v) {
           setState(() { _showClockInTitle = v; _clockStr = _fmtClock(); });
-          _savePrefs();
+          _scheduleSavePrefs();
         },
         initialBrightness: _brightness,
-        onShowSkipBtnsChanged: (v) { setState(() => _showSkipBtns = v); _savePrefs(); }, // J2
-        onShowPrevNextBtnsChanged: (v) { setState(() => _showPrevNextBtns = v); _savePrefs(); }, // J2
-        onShowSeekPositionChanged: (v) { setState(() => _showSeekPositionLabel = v); _savePrefs(); }, // J2
+        onShowSkipBtnsChanged: (v) { setState(() => _showSkipBtns = v); _scheduleSavePrefs(); }, // J2
+        onShowPrevNextBtnsChanged: (v) { setState(() => _showPrevNextBtns = v); _scheduleSavePrefs(); }, // J2
+        onShowSeekPositionChanged: (v) { setState(() => _showSeekPositionLabel = v); _scheduleSavePrefs(); }, // J2
         showSkipBtns: _showSkipBtns,
         showPrevNextBtns: _showPrevNextBtns,
         showSeekPosition: _showSeekPositionLabel,
@@ -5712,10 +5679,10 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
         longPressSpeedEnabled: _longPressSpeedEnabled,
         swipeSeekEnabled: _swipeSeekEnabled,
         swipeBVEnabled: _swipeBVEnabled,
-        onDoubleTapSeekChanged: (v) { setState(() => _doubleTapSeekEnabled = v); _savePrefs(); },
-        onLongPressSpeedChanged: (v) { setState(() => _longPressSpeedEnabled = v); _savePrefs(); },
-        onSwipeSeekChanged: (v) { setState(() => _swipeSeekEnabled = v); _savePrefs(); },
-        onSwipeBVChanged: (v) { setState(() => _swipeBVEnabled = v); _savePrefs(); },
+        onDoubleTapSeekChanged: (v) { setState(() => _doubleTapSeekEnabled = v); _scheduleSavePrefs(); },
+        onLongPressSpeedChanged: (v) { setState(() => _longPressSpeedEnabled = v); _scheduleSavePrefs(); },
+        onSwipeSeekChanged: (v) { setState(() => _swipeSeekEnabled = v); _scheduleSavePrefs(); },
+        onSwipeBVChanged: (v) { setState(() => _swipeBVEnabled = v); _scheduleSavePrefs(); },
         onVideoInfo: _showVideoInfoDialog,
         voiceCommandsEnabled: _voiceCommandsEnabled,
         onVoiceCommandsChanged: (v) async {
@@ -5734,21 +5701,10 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
             VoiceCommandsService.instance.stop();
           }
           setState(() => _voiceCommandsEnabled = v);
-          _savePrefs();
+          _scheduleSavePrefs();
         },
       );
-      if (isLandscape) {
-        _openRightPanel(panel, widthFactor: 0.42);
-        return;
-      }
-      setState(() => _panelOpen = true);
-      RaddSheet.show<void>(
-        context,
-        style: RaddSheetStyle.list,
-        title: 'Settings',
-        maxHeightFraction: 0.90,
-        listBuilder: (_) => panel,
-      ).then((_) { if (mounted) setState(() => _panelOpen = false); });
+      _openPanel(panel: panel, title: 'Settings', widthFactor: 0.42, maxHeightFraction: 0.90);
     }
 
     // Feature 24: Picture-in-Picture
