@@ -451,3 +451,39 @@ Added `RepaintBoundary` around each animated widget root. Each was triggering fu
 ### Outcome
 All Phase A checkboxes marked `[x]` in `agent-hub/TEN_POINT_PLAN.md`. Ready for Phase B.
 
+
+---
+
+## 2026-07-11 — PHASE-B-2026-07-11
+
+### Task
+Phase B of TEN_POINT_PLAN.md: database performance — 7 items across local_db.dart, sync_service.dart, catalog_provider.dart, constants.dart.
+
+### Changes
+
+**B1 — N+1 → batch** `local_db.dart`, `catalog_provider.dart`
+Added `LocalDb.getEpisodesForIds(List<int> ids)`: single `SELECT * FROM episodes WHERE title_id IN (?,...)` returns all shows' episodes in one round-trip. `CatalogNotifier._loadFromDb` updated to call this instead of one `getEpisodes(id)` per show. On a 200-show catalog: startup DB round-trips drop from 201 → 2.
+
+**B2 — getTopFreeMovies device ID** `local_db.dart`
+`getTopFreeMovies` now calls `DeviceIdentifier.getDeviceId()` once before the decode loop. `RequestEncoder.unscrambleUrl` is synchronous so each row's decode is now CPU-only (was: one async await per RF1-encoded URL).
+
+**B3 — getPendingUsageBytes SUM** `local_db.dart`
+Replaced Dart row-accumulation loop with `SELECT COALESCE(SUM(bytes), 0) AS total FROM usage_log WHERE flushed = 0`.
+
+**B4 — Atomic sync transaction** `local_db.dart`, `sync_service.dart`
+Added `LocalDb.persistBatch(List<CatalogItem> items)`: wraps all title + episode inserts in `db.transaction()`, gets device ID once for encode. `sync_service._persistItems` now delegates here. Partial-sync corruption on power loss is now impossible.
+
+**B5 — Missing indexes** `local_db.dart`, `constants.dart`
+- Fresh installs: `_createAll` gains `idx_episodes_file_id` and `idx_watch_positions_file_id`
+- Upgraded devices: migration v22 adds all four indexes (`idx_episodes_title`, `idx_titles_type`, `idx_episodes_file_id`, `idx_watch_positions_file_id`) with `IF NOT EXISTS`
+- `catalogDbVersion` bumped 21 → 22
+
+**B6 — FTS rebuild delay** `local_db.dart`
+`rebuildFtsIndex()` awaits `Future.delayed(5s)` so the calling widget tree renders its first frame before the heavy FTS rebuild begins. Full isolate approach deferred pending SQLCipher key-passing validation.
+
+**B7 — Sync retry** `sync_service.dart`
+Added `_withRetry<T>(fn, {attempts=3})` with exponential back-off (2 s, 4 s). `CatalogApi.syncFull()` and `CatalogApi.syncDelta()` are now wrapped.
+
+### Outcome
+All Phase B checkboxes marked `[x]` in `agent-hub/TEN_POINT_PLAN.md`. Ready for Phase C.
+

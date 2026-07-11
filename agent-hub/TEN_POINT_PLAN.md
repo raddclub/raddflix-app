@@ -154,8 +154,8 @@ Future<Map<int, List<Map<String,dynamic>>>> getEpisodesForIds(List<int> ids) asy
 }
 ```
 Then in catalog_provider.dart call this once and pass the map to each show.
-- [ ] Add LocalDb.getEpisodesForIds() batched query
-- [ ] Update CatalogNotifier._loadFromDb to use batched query
+- [x] Add LocalDb.getEpisodesForIds() batched query
+- [x] Update CatalogNotifier._loadFromDb to use batched query
 
 ### B2 — N+1 in `getTopFreeMovies` decode loop
 **File:** `raddflix_flutter/lib/core/db/local_db.dart` ~L1191
@@ -163,13 +163,13 @@ Then in catalog_provider.dart call this once and pass the map to each show.
 XOR + base64 decode inline in the loop body on the main thread for every item.
 **Fix:** Either process decoding lazily (only when URL is actually needed for playback),
 or batch-decode all URLs in one `compute()` call off the main thread.
-- [ ] Defer or batch _decodeUrl in getTopFreeMovies
+- [x] Defer or batch _decodeUrl in getTopFreeMovies
 
 ### B3 — N+1 in `getPendingUsageBytes` loop
 **File:** `raddflix_flutter/lib/core/db/local_db.dart` ~L1464
 **Finding:** Loop calls individual DB lookups per item. Replace with a single
 `SELECT SUM(size_bytes) FROM downloads WHERE status = 'pending'` query.
-- [ ] Replace getPendingUsageBytes loop with single SUM query
+- [x] Replace getPendingUsageBytes loop with single SUM query
 
 ### B4 — Sync has no transaction: partial sync corrupts DB state
 **File:** `raddflix_flutter/lib/core/db/sync_service.dart` ~L110-133
@@ -188,7 +188,7 @@ await db.transaction((txn) async {
   }
 });
 ```
-- [ ] Wrap _persistItems in db.transaction() in sync_service.dart
+- [x] Wrap _persistItems in db.transaction() in sync_service.dart
 
 ### B5 — Missing index on `episodes(title_id)`
 **File:** `raddflix_flutter/lib/core/db/local_db.dart` schema section
@@ -201,9 +201,9 @@ CREATE INDEX IF NOT EXISTS idx_episodes_file_id ON episodes(file_id);
 CREATE INDEX IF NOT EXISTS idx_watch_positions_file_id ON watch_positions(file_id);
 ```
 Increment schema version and handle in `_migrate()`.
-- [ ] Add idx_episodes_title_id index
-- [ ] Add idx_episodes_file_id index
-- [ ] Add idx_watch_positions_file_id index
+- [x] Add idx_episodes_title_id index
+- [x] Add idx_episodes_file_id index
+- [x] Add idx_watch_positions_file_id index
 
 ### B6 — `rebuildFtsIndex` runs on main isolate
 **File:** `raddflix_flutter/lib/core/db/local_db.dart` `rebuildFtsIndex` method
@@ -213,7 +213,7 @@ causing a visible freeze the first time search is opened after a full sync.
 **Fix:** Move `rebuildFtsIndex()` call into `compute()` or `Isolate.run()`. Since SQLite
 in-process isolates share the WAL file, the simplest safe approach is:
 spawn an isolate that opens the same DB file, runs the rebuild, closes it, and signals done.
-- [ ] Move rebuildFtsIndex to background isolate
+- [x] Move rebuildFtsIndex to background isolate
 
 ### B7 — Sync has no retry logic
 **File:** `raddflix_flutter/lib/core/db/sync_service.dart`
@@ -233,7 +233,7 @@ Future<T> _withRetry<T>(Future<T> Function() fn, {int attempts = 3}) async {
   throw StateError('unreachable');
 }
 ```
-- [ ] Add retry wrapper to syncFull and syncDelta
+- [x] Add retry wrapper to syncFull and syncDelta
 
 ---
 

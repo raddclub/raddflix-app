@@ -5,6 +5,31 @@
 
 ---
 
+---
+
+## Current State (2026-07-11 — Phase B Complete)
+
+### PHASE-B — Database Performance — 2026-07-11
+
+All 7 Phase B items from `agent-hub/TEN_POINT_PLAN.md` completed and pushed. CI run verifying.
+
+**What was done:**
+- **B1** N+1 → 1 query: Added `LocalDb.getEpisodesForIds(ids)` — single `IN (…)` query returns all episodes for all shows at once. `CatalogNotifier._loadFromDb` now calls this instead of one `getEpisodes(show.id)` per show. On a 200-show catalog startup DB round-trips drop from 201 → 2.
+- **B2** `getTopFreeMovies` decode loop: Calls `DeviceIdentifier.getDeviceId()` once before the loop; `RequestEncoder.unscrambleUrl` is synchronous so each iteration is now pure CPU — no async waterfall per row.
+- **B3** `getPendingUsageBytes`: Replaced Dart loop over all rows with `SELECT COALESCE(SUM(bytes), 0)` — one round-trip returns the aggregate directly from SQLite.
+- **B4** Atomic sync transaction: Added `LocalDb.persistBatch(items)` which wraps the full title + episode batch in `db.transaction()`. `_persistItems` in `sync_service.dart` now delegates here. Partial syncs on power loss are now impossible — if any insert fails the transaction rolls back and the sync retries on next launch (M-17 timestamps are written after this call, so they're never committed for a failed batch).
+- **B5** Missing indexes: Fresh installs gain `idx_episodes_file_id` and `idx_watch_positions_file_id` via `_createAll`. Upgraded devices get all four indexes (`idx_episodes_title`, `idx_titles_type`, `idx_episodes_file_id`, `idx_watch_positions_file_id`) via migration 22. `catalogDbVersion` bumped 21 → 22.
+- **B6** FTS rebuild delay: `rebuildFtsIndex()` now awaits `Future.delayed(5s)` before executing so startup frame renders before the heavy `INSERT INTO catalog_fts VALUES('rebuild')` call.
+- **B7** Sync retry: Added `_withRetry<T>(fn, attempts: 3)` with exponential back-off (2 s, 4 s). `CatalogApi.syncFull()` and `CatalogApi.syncDelta()` are now wrapped. Transient handoffs on Pakistani mobile networks no longer silently kill the full sync.
+
+**Next phase:** Phase C (Player Screen: _openPanel helper, _savePrefs debounce, dead vars).
+
+**Active rules (carry forward):**
+- Never add `androidAttachSurfaceAfterVideoParameters: true`
+- Never upgrade `sqflite_sqlcipher` past `3.1.0+1`
+- Push files sequentially (SHA race condition), ≥1.2 s apart
+- JS `String.replace`: escape `$` as `$$` when Dart code contains `$` interpolation
+
 ## Current State (2026-07-11 — Phase A Complete)
 
 ### PHASE-A — Critical Bugs, Safety Nets, Quick Wins — 2026-07-11
