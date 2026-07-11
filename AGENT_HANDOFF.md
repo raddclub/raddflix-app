@@ -3,29 +3,39 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
-## Current State (2026-07-10 — Profile field focus + Player landscape panels)
+## Current State (2026-07-11 — Full codebase audit + 10/10 master plan written)
 
 ### What was done
-Two UX improvements shipped in commit `72f93a8d`:
+Full codebase audit + 10/10 master improvement plan written.
 
-**`edit_profile_screen.dart` — animated field focus:**
-- `_Field` widget converted `StatelessWidget → StatefulWidget` with `FocusNode`
-- On focus: icon-bg tints 8%→15% primary (`AnimatedContainer`), label color transitions muted→primary (`AnimatedDefaultTextStyle`, `RaddMotion.pulse` 300ms)
-- Label size fixed to 12pt (was 11pt); icon box radius → `RaddRadius.smRadius`
-- `FocusNode` disposed correctly in `dispose()`
+**Audit scope:** 22 parallel subagents read every .dart file in the codebase (67,988 lines total):
+- `player_screen.dart` in 4 chunks (lines 1–9,458)
+- All 25+ screens
+- All providers (auth, catalog, connectivity, downloads, profile, subscription, watchlist, playerPrefs)
+- All widgets (player/*, content_card, simosa_card, particle_overlay, etc.)
+- All design_system components + token files
+- All core/player/ series files (confirmed which are live vs dead code)
+- All services (jazzdrive, vault, actor, subtitle_hunter, download, debug, security)
+- `app.dart`, `main.dart`, `pubspec.yaml`, all models
 
-**`player_screen.dart` — landscape panel routing:**
-- `_openRightPanel`: barrier opacity `0.38 → 0.12` (video clearly visible behind open panel)
-- `_openRightPanel`: panel bg `Colors.black.withOpacity(0.60)` → `const Color(0xEA1C1C1E)` (solid dark surface)
-- All 7 panel openers now check `MediaQuery.of(context).orientation` at the top:
-  - Landscape: builds `final panel`, calls `_openRightPanel(panel, widthFactor: N)`, returns early
-  - Portrait: unchanged `setState + RaddSheet.show`
-  - Width factors: subtitle 0.42, audio 0.38, zoom 0.30, audioEffect 0.44, more 0.40, sidebar 0.40, settings 0.42
+**Output:** `agent-hub/TEN_POINT_PLAN.md` (43 KB) — 10 phases (A–K), ~80 discrete tasks,
+each with exact file + line reference from actual code (no assumptions).
+
+**Key findings confirmed from real code:**
+- `VoiceCommandsService.requestPermission()` unconditionally returns `true` — never requests mic permission
+- `n_series_network.dart` generates bandwidth figures from `Random()` — fake data shown to users
+- 13 lettered series files (c/d/f/g/n/o/p/q/r/s/t/u/v) are NOT imported by player_screen.dart — dead code
+- Dead duplicate: `lib/screens/layout_designer_screen.dart` (484 lines) — live copy is `screens/player/layout_designer_screen.dart`
+- 3 session leaks: WatchlistNotifier, ProfileNotifier, PlayerPrefsNotifier not cleared on logout
+- DB: no `db.transaction()` anywhere in sync_service._persistItems — partial sync corrupts DB
+- DB: no index on episodes(title_id) — full table scan on every catalog load
+- RaddSheet tab switching calls setState on whole sheet — not IndexedStack
+- 4 animation packages (flutter_staggered_animations, animated_text_kit, animations, flutter_animate) — 3 redundant
 
 ### What's next
-- CI run on `72f93a8d` — verify `build-apk.yml` green (Rule 46)
+- **Start Phase A** of `agent-hub/TEN_POINT_PLAN.md` — all critical bug fixes, very low risk
+- Last commit on CI: `72f93a8d` (landscape panels) — verify still green before starting edits
 - Phase 1 HUD footprint measurement still blocked on real device/emulator (no Flutter SDK in Replit)
-- No other open tasks
 
 ---
 
