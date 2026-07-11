@@ -213,7 +213,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     _debounce?.cancel();
     setState(() {});
     final _dQ = q;
-    _debounce = Timer(const Duration(milliseconds: 220), () {
+    // A6: 400ms debounce — 220ms fired on nearly every autocorrect keypress
+    _debounce = Timer(const Duration(milliseconds: 400), () {
       _doSearch();
     });
   }
