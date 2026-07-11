@@ -85,7 +85,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         Navigator.of(context).pop(true);
       }
     } on Exception catch (e) {
-      setState(() { _error = e.toString().replaceAll('Exception:', '').trim(); _saving = false; });
+      // A1: guard against setState after dispose if user navigates away mid-request
+      if (mounted) setState(() { _error = e.toString().replaceAll('Exception:', '').trim(); _saving = false; });
     }
   }
 
