@@ -41,12 +41,16 @@ class _ParticleOverlayState extends ConsumerState<ParticleOverlay>
     if (!animConfig.canParticle || MediaQuery.of(context).disableAnimations) {
       return const SizedBox.shrink();
     }
-    return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: _ctrl,
-        builder: (_, __) => CustomPaint(
-          painter: _ParticlePainter(tick: _ctrl.value),
-          size: Size.infinite,
+    // A7: RepaintBoundary prevents the 12s animation loop from repainting
+    // the ancestor widget tree on every frame — critical on Snapdragon 400/600 devices.
+    return RepaintBoundary(
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _ctrl,
+          builder: (_, __) => CustomPaint(
+            painter: _ParticlePainter(tick: _ctrl.value),
+            size: Size.infinite,
+          ),
         ),
       ),
     );

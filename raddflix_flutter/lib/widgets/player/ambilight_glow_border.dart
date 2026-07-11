@@ -25,7 +25,9 @@ class AmbilightGlowBorder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
+    // A7: RepaintBoundary isolates the animated boxShadow from the ancestor tree
+    return RepaintBoundary(
+      child: AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       decoration: BoxDecoration(
         boxShadow: [
@@ -36,6 +38,7 @@ class AmbilightGlowBorder extends StatelessWidget {
         ],
       ),
       child: child,
+      ),
     );
   }
 }

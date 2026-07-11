@@ -75,7 +75,8 @@ class _EqVisualizerState extends State<EqVisualizer> {
   @override
   Widget build(BuildContext context) {
     final acc = widget.accentColor;
-    return Container(
+    // A7: RepaintBoundary isolates the setState-per-tick visualizer from ancestor tree
+    return RepaintBoundary(child: Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
       decoration: const BoxDecoration(
         color: Color(0xFF12121E),
@@ -142,7 +143,7 @@ class _EqVisualizerState extends State<EqVisualizer> {
           ],
         )),
       ]),
-    );
+    ));
   }
 }
 
