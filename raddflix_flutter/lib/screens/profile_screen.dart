@@ -37,6 +37,8 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  late String _greetingTod; // A8: cached greeting
+
   bool _loggingOut = false;
   String? _deviceName;
   bool _hasInternet = true;
@@ -52,6 +54,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    final _h = DateTime.now().hour;
+    _greetingTod = _h < 12 ? 'Good morning' : _h < 17 ? 'Good afternoon' : 'Good evening';
     DebugLogger.logLifecycle('ProfileScreen', 'initState');
     DeviceIdentifier.getDeviceName().then((n) {
       if (mounted) setState(() => _deviceName = n);
@@ -199,14 +203,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
                 child: Column(children: [
-                  // Time-based greeting
-                  Builder(builder: (_) {
-                    final hour = DateTime.now().hour;
-                    final tod = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-                    return Text(tod, style: TextStyle(
-                        color: t.textMuted, fontSize: 13, fontWeight: FontWeight.w500,
-                        letterSpacing: 0.2));
-                  }).animate().fadeIn(duration: 400.ms),
+                  // A8: greeting cached in initState — no DateTime.now() in build()
+                  Text(_greetingTod, style: TextStyle(
+                      color: t.textMuted, fontSize: 13, fontWeight: FontWeight.w500,
+                      letterSpacing: 0.2)).animate().fadeIn(duration: 400.ms),
                   const SizedBox(height: 18),
                   // Avatar with double glow ring
                   GestureDetector(

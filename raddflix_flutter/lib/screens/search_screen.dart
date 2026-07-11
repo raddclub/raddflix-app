@@ -117,6 +117,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   _FilterState _filters = const _FilterState();
 
   // Meta for filter dropdowns (loaded once from DB)
+  // A8: cache the combined catalog list so build() doesn't re-spread 200+ items
+  // on every keyboard event. Updated in _loadFilterMeta which runs on mount.
+  List<CatalogItem> _cachedAllItems = const [];
   List<String> _availLanguages = [];
   List<int>    _availYears     = [];
   List<String> _availGenres    = [];
@@ -172,6 +175,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     final allItems = [...catalog.movies, ...catalog.shows];
     final genres   = _extractGenres(allItems);
     if (mounted) setState(() {
+      _cachedAllItems = allItems; // A8: persist so build() can reuse without re-spreading
       _availLanguages = langs as List<String>;
       _availYears     = years as List<int>;
       _availGenres    = genres;
@@ -307,7 +311,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   @override
   Widget build(BuildContext context) {
     final catalog   = ref.watch(catalogProvider);
-    final allItems  = [...catalog.movies, ...catalog.shows];
+    // A8: use cached list from _loadFilterMeta — avoids re-spreading 200+ items
+    // on every keystroke rebuild. Falls back to live spread before meta loads.
+    final allItems  = _cachedAllItems.isNotEmpty
+        ? _cachedAllItems
+        : [...catalog.movies, ...catalog.shows];
     final hasQuery  = _ctrl.text.isNotEmpty;
     final hasFilter = _filters.hasAny;
     final showResultsArea = hasQuery || hasFilter;

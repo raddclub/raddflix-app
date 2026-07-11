@@ -130,7 +130,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final catalog    = ref.watch(catalogProvider);
+    // A9: scope rebuild to display-relevant fields — totalCount changes
+    // (sync progress counter) no longer trigger sliver-grid rebuilds.
+    ref.watch(catalogProvider.select((c) => (
+      c.status, c.movies.length, c.shows.length, c.recentlyWatched.length,
+      c.trending.length, c.freeContent.length, c.ongoingShows.length,
+      c.newlyAdded.length, c.recommendations.length,
+    )));
+    final catalog = ref.read(catalogProvider);
     final user       = ref.watch(authProvider).user;
     // Phase 43/44: tier-gated stagger + OpenContainer morph
     final animConfig = ref.watch(animConfigProvider);
@@ -268,13 +275,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           child: Padding(
             padding: const EdgeInsets.fromLTRB(18, 2, 18, 10),
             child: Builder(builder: (_) {
+              // A8: read user once here (not watched); greeting recomputed only
+              // when this subtree rebuilds, not on every catalog change.
               final u = ref.read(authProvider).user;
               final firstName = (u?.displayName?.isNotEmpty == true)
                   ? u!.displayName!.split(' ').first : null;
-              final hour = DateTime.now().hour;
-              final tod = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+              // A8: hour cached at build start — DateTime.now() called once per rebuild,
+              // not inside a deeper nested builder that could run more often.
+              final tod = _greetingTod;
               return RichText(text: TextSpan(children: [
-                TextSpan(text: '$tod',
+                TextSpan(text: tod,
                     style: TextStyle(color: t.textMuted, fontSize: 13,
                         fontWeight: FontWeight.w500)),
                 if (firstName != null) ...[
