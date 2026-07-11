@@ -63,7 +63,8 @@ class SyncService {
       DebugLogger.log('SYNC', lastSyncTs == 0
           ? 'First run — starting full catalog download'
           : 'Server update detected — running full sync');
-      final fullResult = await CatalogApi.syncFull();
+      // B7: retry up to 3× on transient failure before propagating the error
+      final fullResult = await _withRetry(() => CatalogApi.syncFull());
       items = fullResult.items;
       await _persistItems(items);
       // M-17: write timestamps BEFORE the optional prune step so they are
@@ -80,7 +81,7 @@ class SyncService {
         }
       }
     } else {
-      items = await CatalogApi.syncDelta(localVersion);
+      items = await _withRetry(() => CatalogApi.syncDelta(localVersion)); // B7
       await _persistItems(items);
       // M-17: write timestamps immediately after persist (delta sync)
       final nowTs2 = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -100,37 +101,33 @@ class SyncService {
 
   // ── Persistence ────────────────────────────────────────────────────────────
 
-  /// Full persist — used by Oracle sync. Replaces the full row including
-  /// share_url and file_id which come from the trusted Oracle server.
-  /// M-16: Persist titles and episodes. Each item is isolated in its own try-catch
-  /// so one malformed record does not abort a 200-item full sync. Without this,
-  /// a single bad server record would leave the catalog partially updated.
-  /// Atomic wrapping of the entire batch requires refactoring LocalDb to expose
-  /// a Transaction helper; tracked as a future improvement.
+  /// B4: Delegate to [LocalDb.persistBatch] which wraps the entire list in a
+  /// single SQLite transaction. Either all titles + episodes commit, or none do —
+  /// DB is never left in a partial state after power loss or process kill.
+  /// M-17 timestamps are written AFTER this returns, so a thrown exception here
+  /// causes the next app open to retry the full sync automatically (self-healing).
   static Future<void> _persistItems(List<CatalogItem> items) async {
     if (items.isEmpty) return;
-    for (final item in items) {
+    await LocalDb.persistBatch(items);
+  }
+
+  // ── B7: Retry helper ────────────────────────────────────────────────────────
+
+  /// Simple exponential back-off retry for transient network failures.
+  /// On Pakistani mobile networks (frequent handoff, variable signal) a single
+  /// timeout would silently abort the entire catalog sync with no recovery until
+  /// the user manually reopens the app.
+  static Future<T> _withRetry<T>(Future<T> Function() fn,
+      {int attempts = 3}) async {
+    for (int i = 0; i < attempts; i++) {
       try {
-      await LocalDb.upsertTitle(item);
-      } catch (e) { DebugLogger.logError('SYNC', 'upsertTitle failed for id=' + item.id.toString(), e); continue; }
-      for (final ep in item.episodes) {
-        try {
-        await LocalDb.upsertEpisode({
-          'id':        ep['id'],
-          'title_id':  item.id,
-          'file_id':   ep['file_id']?.toString(),
-          'season':    ep['season'],
-          'episode':   ep['episode'],
-          'label':     ep['label'],
-          'quality':   ep['quality'],
-          'is_free':   (ep['is_free'] == true || ep['is_free'] == 1) ? 1 : 0,
-          'share_url': ep['share_url'] as String?,
-          'filename':  ep['filename']  as String?,
-          'remote_id': ep['remote_id'] as int? ?? 0,
-        });
-        } catch (e) { DebugLogger.logError('SYNC', 'upsertEpisode failed', e); }
+        return await fn();
+      } catch (e) {
+        if (i == attempts - 1) rethrow;
+        await Future.delayed(Duration(seconds: 2 * (i + 1)));
       }
     }
+    throw StateError('unreachable');
   }
 }
 
