@@ -45,9 +45,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   Timer? _notifTimer;
   static const _categories = ['All', 'Movies', 'Shows', 'Dramas', 'Urdu', 'Punjabi', 'English'];
 
+  // A8: greeting cached once per widget lifetime — no DateTime.now() in build()
+  late String _greetingTod;
+
   @override
   void initState() {
     super.initState();
+    final _hour = DateTime.now().hour;
+    _greetingTod = _hour < 12 ? 'Good morning' : _hour < 17 ? 'Good afternoon' : 'Good evening';
     DebugLogger.logLifecycle('HomeScreen', 'initState');
     WidgetsBinding.instance.addObserver(this);
     _scroll.addListener(() {
