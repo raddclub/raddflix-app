@@ -54,14 +54,11 @@ class NetworkSpeedMonitor {
 
   void start() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) async {
-      // In a real app: read bytes from the video player's stats
-      // Simulation: random bandwidth between 500 and 15000 kbps
-      final now = DateTime.now().millisecondsSinceEpoch;
-      // Stub — will be replaced by real player stats
-      _kbps = 1500 + (now % 13500);
-      _ctrl.add(_kbps);
-    });
+    // A4: real bandwidth measurement from media_kit buffer/download stats is not
+    // yet wired. Do not emit fabricated values — _kbps = 0 causes format() to
+    // return '—' so the HUD never shows a fake Mbps number to the user.
+    _kbps = 0;
+    _ctrl.add(_kbps);
   }
 
   void stop() {

@@ -36,7 +36,10 @@ class VoiceCommandsService {
 
   bool _listening = false;
 
-  Future<bool> requestPermission() async => true;
+  /// Returns false — this is a stub pending a Flutter-3.22 / AGP-8-compatible
+  /// STT package. No microphone permission dialog is shown until the real
+  /// implementation replaces this stub.
+  Future<bool> requestPermission() async => false;
 
   Future<void> start() async {
     _listening = true;
