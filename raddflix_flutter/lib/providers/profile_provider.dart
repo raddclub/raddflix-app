@@ -110,6 +110,12 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     await load();
   }
 
+  /// Resets profile state to empty on logout. The next authenticated user's
+  /// auth flow will trigger a fresh [load()] via their own session.
+  void reset() {
+    state = const ProfileState(loading: false);
+  }
+
   /// Always keeps at least one profile — deletion is a no-op otherwise.
   Future<void> removeProfile(int id) async {
     if (state.profiles.length <= 1) return;

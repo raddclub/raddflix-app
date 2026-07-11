@@ -51,6 +51,12 @@ class WatchlistNotifier extends StateNotifier<WatchlistState> {
     }
   }
 
+  /// Clears all watchlist state on logout so the next user starts with an
+  /// empty list rather than inheriting the previous user's watchlist.
+  void clear() {
+    state = const WatchlistState();
+  }
+
   Future<void> toggle(CatalogItem item) async {
     if (state.isInWatchlist(item.id)) {
       // Optimistic update — UI responds instantly

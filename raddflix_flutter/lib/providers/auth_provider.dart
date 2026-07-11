@@ -7,6 +7,9 @@ import '../core/db/local_db.dart';
 import '../core/security/keystore.dart';
 import '../core/constants.dart';
 import '../models/user.dart';
+import 'watchlist_provider.dart';
+import 'profile_provider.dart';
+import '../core/player/player_prefs_provider.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
@@ -51,7 +54,8 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier() : super(const AuthState());
+  AuthNotifier(this._ref) : super(const AuthState());
+  final Ref _ref;
 
   Future<void> checkAuth() async {
     final prefs = await SharedPreferences.getInstance();
@@ -222,6 +226,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await prefs.remove(StorageKeys.isGuest);
     await _clearUserCache(prefs);
     ApiClient.isGuestMode = false;
+    // A5: clear per-user state so next account doesn't inherit previous session
+    _ref.read(watchlistProvider.notifier).clear();
+    _ref.read(profileProvider.notifier).reset();
+    _ref.read(playerPrefsProvider.notifier).reset();
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 
@@ -307,5 +315,5 @@ class AuthNotifier extends StateNotifier<AuthState> {
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
-  (ref) => AuthNotifier(),
+  (ref) => AuthNotifier(ref),
 );
