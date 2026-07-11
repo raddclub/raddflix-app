@@ -779,3 +779,160 @@ The player has these logical clusters confirmed from the full read (lines 86-356
 **After Session 10+11:** architecture clean, typed routing → ~9.0/10
 **After Session 12-13:** tested, regression-safe → ~9.5/10
 **After Session 14-20:** player decomposed, all dead code gone, polished → **10/10**
+
+---
+
+## PHASE L — Production Hygiene: Remove Developer Artifacts from Release Builds
+**Effort:** ~1 session | **Risk:** Very low (gating/removal only, no logic change)
+**Goal:** Nothing developer-only should be visible, reachable, or leaking in a production APK.
+Do this before Phase G (architecture) since it's fast and directly affects real users right now.
+
+> All findings below were confirmed by grep against actual source code. No assumptions.
+
+---
+
+### L1 — "Debug Logs" menu tile visible to all users in ProfileScreen
+**File:** `raddflix_flutter/lib/screens/profile_screen.dart` L625–631
+**Finding:** A `_SectionTile` labelled **"Debug Logs"** with `AppIcons.bugReport` is present in
+the normal profile menu with no `kDebugMode`, `isAdmin`, or build-flavour guard. Every user
+who opens their profile sees this item and can tap into full internal diagnostics.
+**Fix:** Wrap in `if (kDebugMode || _user?.isAdmin == true)` so it disappears in release builds
+for non-admin users. The 5-tap easter egg (see L2) can remain as the hidden admin path.
+- [ ] L1 — Gate "Debug Logs" tile behind `kDebugMode || isAdmin` in profile_screen.dart L625–631
+
+### L2 — DebugDiagnosticsScreen reachable by every user (5-tap easter egg has no gate)
+**File:** `raddflix_flutter/lib/screens/profile_screen.dart` L650–657
+**Finding:** Tapping the version string 5 times calls
+`Navigator.push(..., DebugDiagnosticsScreen())` with zero role or build check.
+Any user who discovers the trick reaches a screen showing:
+- Internal filesystem paths (`DebugLogger.getLogPath()` at `debug_diagnostics_screen.dart` L488)
+- Auth token presence/validity
+- XOR decode test results
+- Device ID
+- Raw DB row counts
+- Live stream service test hook
+**Fix:** Wrap the push with `if (kDebugMode || (_user?.isAdmin == true))`. In release builds
+for non-admin users, replace the push with a harmless animated easter egg (e.g. confetti)
+so long-press still feels intentional without exposing internals.
+- [ ] L2 — Gate 5-tap DebugDiagnosticsScreen push behind `kDebugMode || isAdmin` in profile_screen.dart L650–657
+
+### L3 — DebugDiagnosticsScreen exposes filesystem paths and device internals
+**File:** `raddflix_flutter/lib/screens/debug_diagnostics_screen.dart` L488
+**Finding:** `Text(DebugLogger.getLogPath(), ...)` renders the raw internal filesystem path
+(e.g. `/data/user/0/com.raddflix.app/app_flutter/debug.log`) directly in the UI.
+Even for admin users seeing this screen, the raw log-file path is developer noise.
+**Fix:** Replace with a human-friendly label ("Stored on device") or show only the filename,
+not the full path. Do NOT show the absolute internal path in production, even to admins.
+- [ ] L3 — Replace `Text(DebugLogger.getLogPath())` with sanitised label in debug_diagnostics_screen.dart L488
+
+### L4 — Raw `e.toString()` exception strings shown directly to users (6 screens)
+**Confirmed locations from grep:**
+
+| Screen | Line(s) | Raw output |
+|---|---|---|
+| `vault_screen.dart` | L284, L616 | `Text(_error!, ...)` where `_error` is set from `e.toString()` |
+| `subtitle_hunter_sheet.dart` | (multiple) | Raw exception set directly into displayed error variable |
+| `admin_queue_screen.dart` | (multiple) | Raw exception in displayed error |
+| `edit_profile_screen.dart` | (multiple) | Raw exception in displayed error |
+| `subscription_screen.dart` | L127 | `_tidError = e.toString().replaceFirst('Exception: ', '')` |
+| `add_edit_profile_screen.dart` | L193, L399 | `_error!` with raw exception data |
+
+**Why this matters:** Raw Dart exceptions expose:
+- Stack trace fragments
+- Internal class/method names (`DioException: Connection refused at ...`)
+- Server-side error payloads that may leak API structure
+- Confusing technical strings instead of actionable messages
+
+**Fix for each screen:** Pass the exception to `AuthErrors` / `_friendlyError()` / a new
+`AppErrors.friendly(e)` helper. If no match, show a generic:
+`'Something went wrong. Please try again.'` — never the raw string.
+- [ ] L4a — Fix raw exception display in vault_screen.dart L284, L616
+- [ ] L4b — Fix raw exception display in subtitle_hunter_sheet.dart
+- [ ] L4c — Fix raw exception display in admin_queue_screen.dart
+- [ ] L4d — Fix raw exception display in edit_profile_screen.dart
+- [ ] L4e — Fix subscription_screen.dart L127: sanitise TID error before display
+- [ ] L4f — Fix raw exception display in add_edit_profile_screen.dart L193, L399
+
+### L5 — `_friendlyError()` and `AuthErrors` helpers can fall back to raw exception string
+**Files:**
+- `raddflix_flutter/lib/screens/player_screen.dart` L910, L1239:
+  `_streamError = _friendlyError(e.toString())`
+- `raddflix_flutter/lib/screens/login_screen.dart` L63:
+  `_error = AuthErrors.login(e.toString())`
+- `raddflix_flutter/lib/screens/register_screen.dart` L72:
+  `_error = AuthErrors.register(e.toString())`
+- `raddflix_flutter/lib/core/utils/auth_utils.dart` L32: relies on string matching
+  (`raw.contains('401')`, `raw.contains('409')`) — if the API response format changes,
+  the match fails and the raw string passes through unchanged.
+
+**Fix:** In `_friendlyError()` and both `AuthErrors` helpers, add an explicit final fallback:
+```dart
+// Last resort — never return the raw exception
+return 'Something went wrong. Please try again.';
+```
+Do NOT return `raw` as the final else branch.
+- [ ] L5a — Fix _friendlyError() final fallback in player_screen.dart to use generic message
+- [ ] L5b — Fix AuthErrors.login() final fallback in auth_utils.dart to use generic message
+- [ ] L5c — Fix AuthErrors.register() final fallback in auth_utils.dart to use generic message
+
+### L6 — Revenue leak: `_isFree` flag gets stuck `true` on content-type transition
+**File:** `raddflix_flutter/lib/screens/player_screen.dart` L1099–1105
+**Finding:** A developer comment marks this as **BUG-A23/A21/A22** — when the user transitions
+from a free content item to a paid content item in the same player session (e.g. autoplay
+from a free episode to a premium one), `_isFree` can remain `true`. The quota/subscription
+check is skipped, paid content plays without counting against any quota, and no revenue is
+tracked for that stream.
+**Fix:** Reset `_isFree = false` at the start of `_openMediaForEpisode()` before re-evaluating
+the new item's `isFree` flag. Never carry `_isFree` across episode boundaries.
+- [ ] L6 — Fix _isFree stuck-true revenue leak in player_screen.dart L1099–1105
+
+### L7 — Navigator lifecycle logs fire in production (all builds)
+**File:** `raddflix_flutter/lib/app.dart` L64, L69, L73, L78
+**Finding:** A custom `NavigatorObserver` logs `PUSH`, `POP`, `REPLACE`, `REMOVE` for every
+navigation event to `DebugLogger`. These go to the in-memory circular buffer (not shown in UI
+directly), but they fill the buffer in production, evicting useful debug entries and adding
+overhead on every screen transition.
+**Fix:** Wrap each `DebugLogger.log(...)` call in the observer with `if (kDebugMode)`.
+- [ ] L7 — Gate NavigatorObserver DebugLogger calls behind kDebugMode in app.dart L64–78
+
+### L8 — `DebugLogger` calls in `actor_service.dart` fire in production
+**File:** `raddflix_flutter/lib/services/actor_service.dart` L146, L182, L230, L315, L339, L378
+**Finding:** Six `DebugLogger` calls log actor data-fetching activity. Unlike the API interceptor
+(which uses DebugLogger intentionally for diagnostics), these are verbose status logs
+that add noise to the production log buffer without diagnostic value.
+**Fix:** Gate each with `if (kDebugMode)` or demote to a structured debug-only event type
+that the `DebugDiagnosticsScreen` can filter on.
+- [ ] L8 — Gate actor_service.dart DebugLogger calls behind kDebugMode
+
+### L9 — BUG-Axx comment tags in `profile_screen.dart` indicate unresolved known issues
+**File:** `raddflix_flutter/lib/screens/profile_screen.dart` L22, L23, L24, L74, L144
+**Finding:** Source-code comments reference internal bug tags (BUG-A23, etc.) for:
+- Scene bookmarks not syncing correctly
+- Player preferences not persisting after cold start in some conditions
+- Local database cleanup leaving orphaned rows
+These are not user-visible but mark known bugs that have no corresponding task in TASKS.md.
+**Fix:** For each BUG-Axx tag:
+1. If it corresponds to an open issue that is now fixed → remove the comment.
+2. If it is genuinely still broken → add a task in TASKS.md and replace the comment with `// See TASKS.md: <task-id>`.
+- [ ] L9 — Audit BUG-Axx comment tags in profile_screen.dart; resolve or file as tasks
+
+### L10 — `ApiClient.isGuestMode` is a global mutable static
+**File:** `raddflix_flutter/lib/core/api/api_client.dart` L56
+**Finding:** `static bool isGuestMode = false` is set by `AuthNotifier.continueAsGuest()`.
+As a mutable static, it persists across hot restarts in debug mode and could retain a stale
+`true` value if the auth flow is interrupted mid-session (e.g. app killed during guest login).
+A stuck-`true` value silently bypasses all auth headers and XOR encryption.
+**Fix:** This is the same fix as E3 (move globals to Riverpod). Confirm `isGuestMode` is
+included when converting `ApiClient` globals to a Riverpod-backed `AuthConfigProvider`.
+Reset to `false` as part of the logout flow (same session as A5).
+- [ ] L10 — Include ApiClient.isGuestMode in E3 Riverpod migration; ensure reset on logout
+
+---
+
+### Summary: What Was Clean (No Action Needed)
+- All 13 `debugPrint(...)` calls are correctly wrapped in `if (kDebugMode)` — no production output
+- No raw `print()` calls anywhere in the codebase
+- No `developer.log()` calls
+- No hardcoded test phone numbers, test passwords, or localhost URLs in `lib/`
+- `Random()` usage is limited to `n_series_network.dart` (fake bandwidth — already flagged in I1)
+  and legitimate use in animation jitter — no fake data elsewhere
