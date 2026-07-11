@@ -13,7 +13,7 @@ class AppConstants {
 
   static const Duration catalogSyncInterval = Duration(hours: 6);
   static const String catalogDbName = 'raddflix_catalog.db';
-  static const int catalogDbVersion = 21;
+  static const int catalogDbVersion = 22; // Phase B: adds performance indexes
   static const int streamCacheTtlSeconds = 6600; // 110 min
 
   // ── JazzDrive (zero-rated CDN) ─────────────────────────────────────────────
