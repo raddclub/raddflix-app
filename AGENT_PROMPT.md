@@ -33,8 +33,8 @@ user rather than proceeding.
 If the human sent you this file's URL to get started, follow these steps in order, then stop
 and wait for their actual task:
 
-1. **Verify secrets are present.** Check that `GITHUB_TOKEN` and `ORACLE_SSH_KEY` exist in
-   this environment's Secrets.
+1. **Verify `GITHUB_TOKEN` is present.** This secret is required to clone and push to the repo.
+   It should already be in your Secrets tab — the human pre-added it when giving you this prompt.
 
    > **Why secrets may be missing — read this first:**
    > Replit Secrets are **per-Replit environment**. They are NOT shared between Repls
@@ -42,21 +42,24 @@ and wait for their actual task:
    > its secrets store starts empty even if the same secrets exist in another Replit.
    > This is expected Replit behaviour — it is not a bug.
    >
-   > **If `GITHUB_TOKEN` or `ORACLE_SSH_KEY` are missing, do NOT stop and wait.**
+   > **If `GITHUB_TOKEN` is missing, do NOT stop and wait.**
    > Instead, tell the human exactly this:
    >
    > ---
-   > **Action needed — add secrets to this Replit:**
+   > **Action needed — add `GITHUB_TOKEN` to this Replit:**
    > This is a fresh Replit environment. Secrets don't carry over automatically between Repls.
-   > Please add the following to this Replit's Secrets panel (not in chat):
-   > - `GITHUB_TOKEN` — your GitHub personal access token (repo scope)
-   > - `ORACLE_SSH_KEY` — the private SSH key for the Oracle VPS (the full key including header/footer lines)
-   >
-   > Steps: open the Replit sidebar → click the 🔒 **Secrets** tab → add each key with its value.
-   > Once both are added, tell me and I'll continue with the clone.
+   > Please add `GITHUB_TOKEN` (your GitHub personal access token, repo scope) to this Replit's
+   > Secrets panel — open the sidebar → click the 🔒 **Secrets** tab → add the key and value.
+   > Once it's added, tell me and I'll continue with the clone.
    > ---
    >
-   > After the human confirms the secrets are added, continue to step 2.
+   > After the human confirms `GITHUB_TOKEN` is added, continue to step 2.
+   >
+   > **`ORACLE_SSH_KEY`** (the Oracle VPS SSH private key) is only required when work touches the
+   > live Flask server (`radd-hub/**`, deployments, DB operations). Flutter-only work (Phase A–L
+   > of the 10/10 plan) does **not** need it. If a task later requires Oracle access and
+   > `ORACLE_SSH_KEY` is missing, ask the human to add it then — do not block the clone on it now.
+
 2. **Clone the repository locally** so you have full project context:
    ```bash
    git clone https://github.com/raddclub/raddflix-app.git raddflix-app
@@ -89,59 +92,89 @@ and wait for their actual task:
    use fallback approaches when something fails, without ever skipping verification or the
    "confirm before touching production" rule.
 
-## UI/UX design-system migration — active, multi-session effort (started 2026-07-09)
+## Current primary work — 10/10 master improvement plan (started 2026-07-11)
 
-This is the current largest body of work on the project and is explicitly designed to survive
-being picked up by a different agent, a different Replit account, or a session that hit its usage
-limit mid-task. **If you are being asked to "continue the UI/UX work" or "fix the design system,"
-this section is your entry point — do not restart the analysis, it is already done:**
+**This is the current active coding effort.** A full codebase audit (22 parallel subagents,
+every `.dart` file read — 67,988 lines) produced `agent-hub/TEN_POINT_PLAN.md`: 11 phases
+(A–L), ~95 discrete tasks, every one with exact file and line number from real code.
 
-**Status as of 2026-07-10: Phases 0 (partially, see below), 2, 3, 4, 5 are ✅ COMPLETE — the
-mechanical color/radius/spacing token migration across every screen and the player is done, CI
-green on every commit. Next unstarted phase is Phase 1 (investigation gaps), then Phase 6
-(onboarding rebuild), then Phase 7 (final polish/re-audit).** Do not redo Phases 2-5 or re-derive
-their findings — read `agent-hub/UI_UX_MIGRATION_PLAN.md` for the full per-screen record.
+**If you are being asked to work on RaddFlix improvements, this is your entry point:**
 
-1. Read `docs/AUDIT_UI_UX_REPORT.md` — the original evidence-gathering audit (what's wrong, why).
-2. Read `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` — the full analysis turned into a roadmap
-   (readiness dashboard, screen-by-screen compliance matrix, token mapping tables, design-debt
-   inventory, phased plan). Treat this as background/rationale, not a checklist.
-3. Read `agent-hub/UI_UX_MIGRATION_PLAN.md` — **the actual checklist.** Phases 0–7, each with
-   checkboxes. Find the first phase with any unchecked `[ ]` item and continue there — that is
-   Phase 1 right now. Do not jump ahead to a later phase while an earlier one has open items,
-   except where that file explicitly marks a phase as parallelizable.
-4. Follow Rule 42 (`log_pending.sh` → edit → `auto_commit.sh`) for every single file change in
-   this effort, same as any other code change in this repo — no exceptions for "it's just a
-   token swap." Check a box in `UI_UX_MIGRATION_PLAN.md` only after the push has succeeded and,
-   for any `raddflix_flutter/**` change, the GitHub Actions build is confirmed green.
-5. `auto_commit.sh` now runs `preflight_check.sh` automatically on every push touching a `.dart`
-   file (added 2026-07-10, see Rule 47 in `agent-hub/RULES.md`) — it blocks the two mistake
-   patterns that broke CI in earlier sessions (missing design-token imports, invalid
-   `const SomeStaticClass.field` syntax). This is a heuristic, not a compiler; CI is still the
-   real check (Rule 46). `SKIP_PREFLIGHT=1` bypasses it for a genuine false positive only.
+1. **Read `agent-hub/TEN_POINT_PLAN.md` in full** before touching any file.
+   The plan is self-contained: each phase has a background section explaining the finding,
+   and a checkbox list of tasks. Work top-to-bottom within each phase.
+2. **Start at Phase A** (Critical Bugs, Safety Nets, Quick Wins) — it is the first phase with
+   unchecked `[ ]` items. Do NOT skip to a later phase while Phase A has open items.
+3. **Phase order matters** — later phases depend on earlier ones. The dependency chain is:
+   `A → B → C → D → E → F → G → H → I → J → K`, with `L` (Production Hygiene) able to run
+   in parallel with any phase since it is isolated single-file gating changes.
+4. Follow Rule 42 (`log_pending.sh` → edit → `auto_commit.sh`) for every single file change.
+   Check a checkbox `[x]` in `TEN_POINT_PLAN.md` only after the push has succeeded and the
+   GitHub Actions CI build is confirmed green (Rule 46).
+5. After every push touching `raddflix_flutter/**`, confirm CI status:
+   ```bash
+   curl -s -H "Authorization: token $GITHUB_TOKEN" \
+     "https://api.github.com/repos/raddclub/raddflix-app/actions/workflows/build-apk.yml/runs?per_page=1"
+   ```
 6. If `agent-hub/UNPUSHED.txt` has content when your session starts, run `bash recover_push.sh`
    before doing anything else — a previous agent's edit may not have landed yet.
-7. This is intentionally a long-running, many-session effort (estimated 3-4 months of work per
-   the blueprint's phased roadmap) — do not try to compress it into one session, and do not
-   create a new "progress so far" file. The checkboxes in `UI_UX_MIGRATION_PLAN.md` ARE the
-   progress record; keep them current and nothing else is needed for a clean handoff.
 
-Older one-off audit reports and superseded handoff files have been deleted (2026-07-06 cleanup).
-There is no `archive/` folder anymore — do not recreate one. If you think something is worth
-preserving "for reference," it belongs as a section in `agent-hub/memory/` (a topic file) or
-`AGENT_HANDOFF.md`, not as a standalone dated file.
+### Phase summary (A = start here, L = can run any time)
 
-## Design system docs — Player architecture correction (read before touching the Player)
+| Phase | Topic | Key risk areas |
+|---|---|---|
+| **A** | **Critical bugs + session leaks + quick wins** | `edit_profile_screen.dart`, 3 providers, voice stub, fake bandwidth |
+| B | Database: N+1, transactions, missing indexes | `sync_service.dart`, `local_db.dart` |
+| C | Player: panel boilerplate, `_savePrefs` debounce, dead vars | `player_screen.dart` |
+| D | Widgets: dedup RaddTextField, RaddSheet IndexedStack, RepaintBoundary | widget layer |
+| E | Providers: split CatalogNotifier, globals to Riverpod | provider layer |
+| F | Design system migration — remaining 70% of screens (28 tasks) | all screens |
+| G | go_router, animation consolidation, dead series files, folder reorg | architecture |
+| H | Test infrastructure | new `test/` directory |
+| I | Dead code removal | 13 dead series files, layout_designer dead copy |
+| J | Player God Class full decomposition into 5 controllers | `player_screen.dart` (9,458 lines) |
+| K | Final performance polish | profiling pass |
+| **L** | **Production Hygiene — debug leaks, raw exceptions, revenue bug** | 6 screens + player |
 
-`docs/design-system/` contains a frozen v1.0 UI/UX design system plus an `IMPLEMENTATION_PLAN.md`
-mapping it to this codebase — docs-only, no app code from that work has shipped yet. **Do not trust
-older mental models of the Player's file layout.** A 2026-07-08 live import trace found the Player
-is NOT ~24-50 external `widgets/player/*.dart` sheet/panel files as earlier drafts claimed — it's
-7 private classes defined inline inside `player_screen.dart`, plus 2 live external sheets used by
-`PlayerSettingsScreen`, plus 2 shared helpers. ~47 files in `widgets/player/` are dead code, never
-imported anywhere. Full corrected inventory: `docs/design-system/09-migration-guide.md`
-("Player — corrected 2026-07-08" section). Open follow-up tasks: `PLAYER-DEAD-CODE-CLEANUP` and
-`PLAYER-CONSOLIDATION` in `agent-hub/TASKS.md` — read those before starting any Player work.
+> **Phase L is high priority regardless of where you are in the other phases** — it contains
+> user-visible security issues: the "Debug Logs" tile is shown to every user in the Profile
+> screen right now (no gate), 6 screens display raw `e.toString()` exception strings to users,
+> and a revenue-leak bug (`_isFree` stuck `true` on content transition) is confirmed in
+> `player_screen.dart` L1099–1105. These are the Phase L items — read the plan for exact details.
+
+## UI/UX design-system migration — secondary ongoing effort (started 2026-07-09)
+
+This is a long-running background effort. Phases 2, 3, 4, 5 are ✅ COMPLETE (color/radius/spacing
+token migration across most screens, CI green on every commit). Phase 0 (Flutter SDK/tooling
+setup) and Phase 1 (Player HUD live-device measurement) are blocked on needing a real
+Flutter emulator/device — no Flutter SDK in this Replit environment.
+
+**If you are continuing UI/UX work specifically** (not the 10/10 plan):
+
+1. Read `docs/AUDIT_UI_UX_REPORT.md` — original evidence-gathering audit.
+2. Read `docs/DESIGN_SYSTEM_MIGRATION_BLUEPRINT.md` — full analysis and roadmap (background).
+3. Read `agent-hub/UI_UX_MIGRATION_PLAN.md` — **the actual checklist.** Find the first phase
+   with any unchecked `[ ]` item and continue there. Do not jump ahead.
+4. Follow Rule 42 and Rule 47 (`preflight_check.sh` runs automatically on every `.dart` push).
+5. `auto_commit.sh` runs `preflight_check.sh` automatically before every push touching `.dart`
+   files — it blocks the two mistake patterns that broke CI in earlier sessions (missing
+   design-token imports, invalid `const SomeStaticClass.field` syntax). `SKIP_PREFLIGHT=1`
+   bypasses it for a genuine false positive only.
+
+> **Do not treat the UI/UX migration as the primary effort unless the human explicitly asks for
+> it.** The 10/10 plan (Phase A above) is the priority — it fixes crashes, data leaks, and
+> revenue bugs that affect real users right now.
+
+## Design system docs — Player architecture (read before touching the Player)
+
+`docs/design-system/` contains a frozen v1.0 UI/UX design system plus an `IMPLEMENTATION_PLAN.md`.
+**Do not trust older mental models of the Player's file layout.** A 2026-07-08 live import trace
+found the Player is NOT ~50 external `widgets/player/*.dart` files as earlier drafts claimed —
+it is 7 private classes defined inline inside `player_screen.dart`, plus 2 live external sheets
+used by `PlayerSettingsScreen`, plus 2 shared helpers. 50 files in `widgets/player/` are dead
+code, never imported anywhere (re-verified 2026-07-08, user declined deletion — they are
+intentionally-parked unshipped features). Full corrected inventory:
+`docs/design-system/09-migration-guide.md` ("Player — corrected 2026-07-08" section).
 
 ## Working on this project — normal workflow
 
