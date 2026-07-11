@@ -178,11 +178,13 @@ class CatalogNotifier extends StateNotifier<CatalogState>
     try {
       final movies  = await LocalDb.getMovies();
       final rawShows = await LocalDb.getShows();
-      // Embed episodes into each show so ShowDetailScreen has them on first open
-      final shows = await Future.wait(rawShows.map((show) async {
-        final eps = await LocalDb.getEpisodes(show.id);
-        return show.copyWithEpisodes(eps);
-      }));
+      // B1: single batched query replaces N+1 (getEpisodes once-per-show) pattern.
+      // On a 200-show catalog this reduces startup DB round-trips from 201 → 2.
+      final episodeMap = await LocalDb.getEpisodesForIds(
+          rawShows.map((s) => s.id).toList());
+      final shows = rawShows
+          .map((show) => show.copyWithEpisodes(episodeMap[show.id] ?? const []))
+          .toList();
       final count   = await LocalDb.getTotalCount();
       final recent   = await _loadRecentlyWatched(movies, shows);
       final trending = _computeTrending(movies, shows);
