@@ -29,7 +29,7 @@ Append a session summary to `agent-hub/history/TASK_LOG.md` at the end of every 
 navigates away before the response arrives, this throws
 `setState() called after dispose()`.
 **Fix:** Wrap the setState in `if (mounted) setState(...)`.
-- [ ] Fix mounted guard in edit_profile_screen.dart ~L88
+- [x] Fix mounted guard in edit_profile_screen.dart ~L88
 
 ### A2 — Dead duplicate screen file
 **File:** `raddflix_flutter/lib/screens/layout_designer_screen.dart` (484 lines)
@@ -38,7 +38,7 @@ navigates away before the response arrives, this throws
 - `lib/screens/player/layout_designer_screen.dart` — the live copy (541 lines), imported by `app.dart`
 The dead copy at `lib/screens/layout_designer_screen.dart` is NOT imported anywhere (confirmed by grep via subagent). Editing it by mistake has caused real bugs before.
 **Fix:** Delete `lib/screens/layout_designer_screen.dart`. Confirm `app.dart` references `screens/player/layout_designer_screen.dart`.
-- [ ] Delete dead `lib/screens/layout_designer_screen.dart`
+- [x] Delete dead `lib/screens/layout_designer_screen.dart`
 
 ### A3 — VoiceCommandsService is a stub with a lie
 **File:** `raddflix_flutter/lib/core/player/voice_commands_service.dart`
@@ -48,7 +48,7 @@ This means the app tells the user voice commands are ready when they are not.
 **Fix:** Either (a) implement real mic permission check using `permission_handler`, or
 (b) remove the feature entirely from any UI that exposes it until it is real.
 Do not leave a method that returns `true` for a permission it never requested.
-- [ ] Fix VoiceCommandsService: real permission check or remove from UI
+- [x] Fix VoiceCommandsService: real permission check or remove from UI
 
 ### A4 — `n_series_network.dart` simulates bandwidth with random numbers
 **File:** `raddflix_flutter/lib/core/player/n_series_network.dart`
@@ -57,7 +57,7 @@ measuring actual network throughput. Any bandwidth display in the player UI show
 or "Kbps" is fabricated data.
 **Fix:** Either implement real bandwidth measurement via `media_kit`'s buffer/download stats,
 or remove the bandwidth display from the UI entirely.
-- [ ] Replace fake KBPS random simulation with real measurement or remove display
+- [x] Replace fake KBPS random simulation with real measurement or remove display
 
 ### A5 — Session state leaks across user accounts (3 providers)
 **Files:**
@@ -74,16 +74,16 @@ call `ref.read(watchlistProvider.notifier).clear()`,
 `ref.read(profileProvider.notifier).reset()`,
 `ref.read(playerPrefsProvider.notifier).reset()`.
 Add a `clear()`/`reset()` method to each notifier that resets state to initial values.
-- [ ] Add WatchlistNotifier.clear() and call from logout
-- [ ] Add ProfileNotifier.reset() and call from logout
-- [ ] Add PlayerPrefsNotifier.reset() and call from logout
+- [x] Add WatchlistNotifier.clear() and call from logout
+- [x] Add ProfileNotifier.reset() and call from logout
+- [x] Add PlayerPrefsNotifier.reset() and call from logout
 
 ### A6 — Search debounce too aggressive (220ms)
 **File:** `raddflix_flutter/lib/screens/search_screen.dart` ~L216
 **Finding:** 220ms debounce fires on nearly every autocorrect keypress,
 triggering DB queries mid-word. Standard for DB-backed search is 350–500ms.
 **Fix:** Change debounce from 220ms to 400ms.
-- [ ] Raise search debounce to 400ms in search_screen.dart ~L216
+- [x] Raise search debounce to 400ms in search_screen.dart ~L216
 
 ### A7 — `RepaintBoundary` missing on 3 animated widgets
 **Files:**
@@ -95,9 +95,9 @@ phones (Snapdragon 400/600 series — the RaddFlix target), each animation frame
 repaint of the entire ancestor tree, not just the animated widget. On startup/login screens
 the particle overlay is particularly costly.
 **Fix:** Wrap each animated widget's root with `RepaintBoundary(child: ...)`.
-- [ ] Add RepaintBoundary to ParticleOverlay
-- [ ] Add RepaintBoundary to EqVisualizer
-- [ ] Add RepaintBoundary to AmbilightGlowBorder
+- [x] Add RepaintBoundary to ParticleOverlay
+- [x] Add RepaintBoundary to EqVisualizer
+- [x] Add RepaintBoundary to AmbilightGlowBorder
 
 ### A8 — Expensive computation inside `build()`
 **Files:**
@@ -112,9 +112,9 @@ the particle overlay is particularly costly.
   via `useMemoized`/provider selector.
 - Move the combined list in search_screen to a computed property outside `build()`.
 - Cache the greeting string as a local field, recomputed only when hour changes.
-- [ ] Move _filtered() out of build() in home_screen.dart
-- [ ] Move combined catalog list out of build() in search_screen.dart
-- [ ] Cache greeting string in profile_screen.dart
+- [x] Move _filtered() out of build() in home_screen.dart
+- [x] Move combined catalog list out of build() in search_screen.dart
+- [x] Cache greeting string in profile_screen.dart
 
 ### A9 — Provider rebuild scope too broad in HomeScreen
 **File:** `raddflix_flutter/lib/screens/home_screen.dart` ~L133
@@ -123,7 +123,7 @@ the particle overlay is particularly costly.
 full rebuild of the sliver grid.
 **Fix:** Replace with `ref.watch(catalogProvider.select((c) => c.items))` (or the specific
 fields the home screen actually uses), so only relevant changes trigger rebuilds.
-- [ ] Scope catalogProvider.watch to select() in home_screen.dart
+- [x] Scope catalogProvider.watch to select() in home_screen.dart
 
 ---
 

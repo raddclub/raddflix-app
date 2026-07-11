@@ -409,3 +409,45 @@ Each function now checks orientation at the top. If landscape, constructs the pa
 **Preflight:** passed (0 violations)
 
 **CI:** `build-apk.yml` triggered on `72f93a8d` — verify run succeeds (Rule 46)
+
+---
+
+## 2026-07-11 — PHASE-A-2026-07-11
+
+### Task
+Phase A of TEN_POINT_PLAN.md: 9 fix categories, 15 discrete sub-tasks.
+
+### Changes
+
+**A1 — mounted guard** `edit_profile_screen.dart`
+Added `if (mounted)` before `setState` in the `on Exception catch` block of `_save()`. Prevents `setState() called after dispose()` if user pops the screen while the updateProfile request is in-flight.
+
+**A2 — delete dead file** `lib/screens/layout_designer_screen.dart`
+Deleted the 484-line dead copy of layout_designer_screen.dart. `app.dart` already imports the live copy from `lib/screens/player/layout_designer_screen.dart`. The dead copy has caused at least one prior bug (agent edited wrong file).
+
+**A3 — voice stub** `voice_commands_service.dart`
+`requestPermission()` changed from `async => true` to `async => false`. The class is a stub with no real STT implementation — returning `true` was a lie that misled the UI into showing voice commands as available.
+
+**A4 — fake KBPS** `n_series_network.dart`
+`NetworkSpeedMonitor.start()` no longer emits fabricated kbps values derived from `now % 13500`. `_kbps` stays at 0 so `format()` returns `'—'`.
+
+**A5 — session leaks** `watchlist_provider.dart`, `profile_provider.dart`, `auth_provider.dart`
+Added `WatchlistNotifier.clear()` and `ProfileNotifier.reset()`. `AuthNotifier` now stores a `Ref` and calls all three providers' clear/reset in `logout()`. Prevents User A's watchlist/profile from persisting into User B's session.
+
+**A6 — debounce** `search_screen.dart`
+Debounce raised from 220ms to 400ms. Was firing on nearly every autocorrect keypress.
+
+**A7 — RepaintBoundary** `particle_overlay.dart`, `eq_visualizer.dart`, `ambilight_glow_border.dart`
+Added `RepaintBoundary` around each animated widget root. Each was triggering full ancestor-tree repaints on every animation frame — expensive on Snapdragon 400/600 devices.
+
+**A8 — build() compute** `home_screen.dart`, `search_screen.dart`, `profile_screen.dart`
+- home_screen: greeting cached in `late String _greetingTod` computed in `initState()`
+- search_screen: `_cachedAllItems` field populated in `_loadFilterMeta()`; `build()` uses cache
+- profile_screen: greeting cached in `late String _greetingTod` computed in `initState()`
+
+**A9 — catalog select** `home_screen.dart`
+`ref.watch(catalogProvider)` replaced with a Dart-3 record select over display-critical fields (counts + status). `totalCount` increments no longer trigger sliver-grid rebuilds.
+
+### Outcome
+All Phase A checkboxes marked `[x]` in `agent-hub/TEN_POINT_PLAN.md`. Ready for Phase B.
+

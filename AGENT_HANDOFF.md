@@ -3,6 +3,33 @@
 > Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
 > in place each session instead of creating a new dated handoff/status file.
 
+---
+
+## Current State (2026-07-11 — Phase A Complete)
+
+### PHASE-A — Critical Bugs, Safety Nets, Quick Wins — 2026-07-11
+
+All 9 Phase A items from `agent-hub/TEN_POINT_PLAN.md` completed and pushed. No CI breakage expected (all changes are isolated, no new imports to non-existent symbols). CI run should be verified after push.
+
+**What was done:**
+- **A1** `edit_profile_screen.dart`: Added `if (mounted)` guard in `_save()` catch block — prevents `setState() called after dispose()` crash when user navigates away mid-request.
+- **A2** `lib/screens/layout_designer_screen.dart`: Deleted the dead duplicate (484 lines). Live copy remains at `lib/screens/player/layout_designer_screen.dart` (imported by `app.dart`). This duplicate has caused real bugs before (editing wrong file).
+- **A3** `voice_commands_service.dart`: `requestPermission()` now returns `false` instead of lying with `true`. No real STT implementation exists; the app will correctly report voice commands as unavailable.
+- **A4** `n_series_network.dart`: `NetworkSpeedMonitor.start()` no longer emits fabricated kbps values. `_kbps = 0` causes `format()` to return `'—'` — users no longer see fake Mbps numbers in the HUD.
+- **A5** Session state leaks: Added `WatchlistNotifier.clear()` and `ProfileNotifier.reset()`. `AuthNotifier` now holds a `Ref` and calls all three providers' clear/reset methods in `logout()`. User A's watchlist and profile will no longer bleed into User B's session.
+- **A6** `search_screen.dart`: Search debounce raised from 220ms to 400ms. Was firing on nearly every autocorrect keystroke.
+- **A7** `RepaintBoundary` added to: `ParticleOverlay` (12s continuous animation loop), `EqVisualizer` (setState per animation tick), `AmbilightGlowBorder` (animated boxShadow). Critical on Snapdragon 400/600 target devices.
+- **A8** Expensive `build()` computations cached: home_screen greeting cached in `_greetingTod` field (initState); search_screen `allItems` cached in `_cachedAllItems` (populated in `_loadFilterMeta`); profile_screen greeting cached in `_greetingTod` (initState).
+- **A9** `home_screen.dart`: `ref.watch(catalogProvider)` replaced with a Dart-3 record select that only rebuilds on visible content count/status changes. `totalCount` increments during sync no longer trigger sliver-grid repaints.
+
+**Next phase:** Phase B (DB Performance — N+1 catalog load, missing indexes, sync transaction).
+
+**Key rules still in force:**
+- Never add `androidAttachSurfaceAfterVideoParameters: true`
+- Never upgrade `sqflite_sqlcipher` past `3.1.0+1`
+- Push files sequentially (SHA race condition)
+- JS `String.replace`: escape `$` as `$$` when Dart code contains `$`
+
 ## Current State (2026-07-11 — Full codebase audit + 10/10 master plan written)
 
 ### What was done
