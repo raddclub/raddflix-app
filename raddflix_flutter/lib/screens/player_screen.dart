@@ -693,8 +693,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               final detected = advCodecs.firstWhere((c) => codec.contains(c), orElse: () => '');
               if (mounted) setState(() => _currentAudioCodec = detected.isNotEmpty ? detected : codec);
               if (detected.isNotEmpty && !_useSWDecoder) {
+                // Safety rule (MediaTek/Infinix black-screen): hwdec must never
+                // change while frames are actively being decoded/rendered. This
+                // auto-fallback used to set the property unconditionally, which
+                // is exactly the case that rule exists to prevent — on affected
+                // chipsets it could silently break audio/video for files that
+                // need this switch (EAC3/DTS/TrueHD), which is the intermittent
+                // "some videos have no audio" symptom. Pause across the property
+                // change, mirroring the manual toggle's guard.
+                final wasPlaying = _playing;
+                if (wasPlaying) { try { await _player.pause(); } catch (_) {} }
                 try { _np.setProperty('hwdec', 'no'); } catch (_) {}
                 if (mounted) setState(() => _useSWDecoder = true);
+                if (wasPlaying) { try { await _player.play(); } catch (_) {} }
                 final name = {
                   'eac3': 'E-AC-3 (Dolby Digital+)', 'ac3': 'AC-3 (Dolby Digital)',
                   'dts': 'DTS', 'dca': 'DTS-HD', 'truehd': 'Dolby TrueHD', 'mlp': 'MLP/TrueHD',
@@ -4751,6 +4762,14 @@ void _openRightPanel(Widget content, {double widthFactor = 0.4}) {
           _savePrefs();
           if (track != null) {
             _player.setAudioTrack(track);
+            // Fallback: on some stream types (DASH/HLS) media_kit's
+            // setAudioTrack() has been observed to silently no-op. Also set
+            // the native mpv property directly, mirroring the existing
+            // disable-path fallback right below — belt-and-braces so track
+            // switching actually takes effect.
+            if (track.id != null) {
+              try { _np.setProperty('aid', track.id!); } catch (_) {}
+            }
           } else {
             try { _np.setProperty('aid', 'no'); } catch (_) {}
           }
@@ -8846,51 +8865,63 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
                   child: Text('No audio tracks found.', style: TextStyle(color: Colors.white54)),
                 ),
 
-              for (int i = 0; i < widget.tracks.length; i++)
-                RadioListTile<AudioTrack>(
-                  value: widget.tracks[i],
-                  groupValue: widget.selectedTrack,
-                  onChanged: (v) => v != null ? widget.onTrackSelected(v) : null,
-                  title: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          (widget.tracks[i].language != null && widget.tracks[i].title != null)
-                              ? '${widget.tracks[i].language} (${widget.tracks[i].title})'
-                              : widget.tracks[i].language ?? widget.tracks[i].title ?? 'Audio track ${i + 1}',
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
-                        ),
+              // Select by index rather than by AudioTrack `==` — media_kit can
+              // emit new track-list instances across updates, so comparing
+              // object equality directly was unreliable and left the "active"
+              // radio dot unlit even when a track really was selected. Index
+              // matched by track id is robust regardless of instance identity.
+              Builder(builder: (_) {
+                final selectedIdx = widget.selectedTrack?.id == null
+                    ? -1
+                    : widget.tracks.indexWhere((t) => t.id == widget.selectedTrack!.id);
+                return Column(children: [
+                  for (int i = 0; i < widget.tracks.length; i++)
+                    RadioListTile<int>(
+                      value: i,
+                      groupValue: selectedIdx,
+                      onChanged: (v) => v != null ? widget.onTrackSelected(widget.tracks[v]) : null,
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              (widget.tracks[i].language != null && widget.tracks[i].title != null)
+                                  ? '${widget.tracks[i].language} (${widget.tracks[i].title})'
+                                  : widget.tracks[i].language ?? widget.tracks[i].title ?? 'Audio track ${i + 1}',
+                              style: const TextStyle(color: Colors.white, fontSize: 14),
+                            ),
+                          ),
+                          // P57-06: codec badge on active track
+                          if (i == selectedIdx && widget.currentCodec != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white12,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                widget.currentCodec!.toUpperCase(),
+                                style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                        ],
                       ),
-                      // P57-06: codec badge on active track
-                      if (widget.tracks[i] == widget.selectedTrack && widget.currentCodec != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white12,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            widget.currentCodec!.toUpperCase(),
-                            style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                    ],
+                      activeColor: Colors.white,
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+
+                  const Divider(color: Colors.white12),
+
+                  // Disable
+                  RadioListTile<int>(
+                    value: -1,
+                    groupValue: selectedIdx,
+                    onChanged: (_) => widget.onTrackSelected(null),
+                    title: const Text('Disable', style: TextStyle(color: Colors.white, fontSize: 14)),
+                    activeColor: Colors.white,
+                    controlAffinity: ListTileControlAffinity.leading,
                   ),
-                  activeColor: Colors.white,
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-
-              const Divider(color: Colors.white12),
-
-              // Disable
-              RadioListTile<AudioTrack?>(
-                value: null,
-                groupValue: widget.selectedTrack,
-                onChanged: (_) => widget.onTrackSelected(null),
-                title: const Text('Disable', style: TextStyle(color: Colors.white, fontSize: 14)),
-                activeColor: Colors.white,
-                controlAffinity: ListTileControlAffinity.leading,
-              ),
+                ]);
+              }),
 
               const Divider(color: Colors.white12),
 

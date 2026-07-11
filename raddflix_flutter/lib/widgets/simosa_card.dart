@@ -270,50 +270,77 @@ class _SimosaCardState extends State<SimosaCard>
   }
 }
 
-/// Jazz-branded icon with gradient square + J logo / fire for high streaks.
+/// SIMOSA app icon (real brand logo), with a small fire badge overlay once
+/// the user hits a 7-day streak.
 class _JazzBadgeIcon extends StatelessWidget {
   final int streak;
   const _JazzBadgeIcon({required this.streak});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: 44,
       height: 44,
-      decoration: BoxDecoration(
-        gradient: streak >= 7
-            ? const LinearGradient(
-                colors: [Color(0xFFFF6B35), Color(0xFFE8002D)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : const LinearGradient(
-                colors: [Color(0xFFE8002D), Color(0xFFB5001F)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFE8002D).withOpacity(0.4),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Center(
-        child: streak >= 7
-            ? const Text('🔥', style: TextStyle(fontSize: 22))
-            : const Text(
-                'J',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1,
-                  height: 1,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFE8002D).withOpacity(0.35),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                'assets/brand/simosa_logo.jpg',
+                fit: BoxFit.cover,
+                // Fallback if the asset is ever missing — keeps the card
+                // from breaking instead of throwing.
+                errorBuilder: (_, __, ___) => Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFE8002D), Color(0xFFB5001F)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: const Center(
+                    child: Text('S',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900)),
+                  ),
                 ),
               ),
+            ),
+          ),
+          if (streak >= 7)
+            Positioned(
+              bottom: -4,
+              right: -4,
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C0B32),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFF1C0B32), width: 2),
+                ),
+                child: const Center(
+                  child: Text('🔥', style: TextStyle(fontSize: 12)),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
