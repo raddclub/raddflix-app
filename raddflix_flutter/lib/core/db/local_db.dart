@@ -162,6 +162,9 @@ class LocalDb {
       )
     ''');
     await db.execute('CREATE INDEX idx_stream_cache_expires ON stream_cache(expires_at)');
+    // B5: additional performance indexes (also applied via migration 22 for upgraded devices)
+    await db.execute('CREATE INDEX idx_episodes_file_id ON episodes(file_id)');
+    await db.execute('CREATE INDEX idx_watch_positions_file_id ON watch_positions(file_id)');
     // Phase 6 — usage tracking
     await db.execute('''
       CREATE TABLE IF NOT EXISTS usage_log (
@@ -542,6 +545,15 @@ class LocalDb {
         }
       } catch (_) {}
     }
+    if (oldV < 22) {
+      // B5: add missing performance indexes.
+      // idx_episodes_title + idx_titles_type exist in _createAll for fresh installs
+      // but were never applied via migration — IF NOT EXISTS makes this idempotent.
+      try { await db.execute('CREATE INDEX IF NOT EXISTS idx_episodes_title ON episodes(title_id)'); } catch (_) {}
+      try { await db.execute('CREATE INDEX IF NOT EXISTS idx_titles_type ON titles(media_type)'); } catch (_) {}
+      try { await db.execute('CREATE INDEX IF NOT EXISTS idx_episodes_file_id ON episodes(file_id)'); } catch (_) {}
+      try { await db.execute('CREATE INDEX IF NOT EXISTS idx_watch_positions_file_id ON watch_positions(file_id)'); } catch (_) {}
+    }
   }
 
   // ── Admin episode overrides ──────────────────────────────────────────────
@@ -834,6 +846,9 @@ class LocalDb {
   }
 
   static Future<void> rebuildFtsIndex() async {
+    // B6: yield 5 s so the calling widget tree can render its first frame before
+    // the FTS rebuild begins. Full isolate approach deferred pending SQLCipher key-passing.
+    await Future.delayed(const Duration(seconds: 5));
     final db = await instance;
     try {
       await db.execute("INSERT INTO catalog_fts(catalog_fts) VALUES('rebuild')");
@@ -1057,6 +1072,27 @@ class LocalDb {
         orderBy: 'season ASC, episode ASC');
   }
 
+  /// B1: Batch-load all episodes for a list of show IDs in a single SQL query.
+  /// Returns {title_id → list of episode rows}. Eliminates the N+1 pattern in
+  /// [CatalogNotifier._loadFromDb] (was: one getEpisodes(id) call per show).
+  static Future<Map<int, List<Map<String, dynamic>>>> getEpisodesForIds(
+      List<int> ids) async {
+    if (ids.isEmpty) return const {};
+    final db = await instance;
+    final placeholders = ids.map((_) => '?').join(',');
+    final rows = await db.rawQuery(
+      'SELECT * FROM episodes WHERE title_id IN ($placeholders) '
+      'ORDER BY title_id, season ASC, episode ASC',
+      ids,
+    );
+    final result = <int, List<Map<String, dynamic>>>{};
+    for (final row in rows) {
+      final tid = row['title_id'] as int;
+      result.putIfAbsent(tid, () => []).add(Map<String, dynamic>.from(row));
+    }
+    return result;
+  }
+
   static Future<void> upsertEpisode(Map<String, dynamic> ep) async {
     final db = await instance;
     final shareUrl = ep['share_url'] as String? ?? '';
@@ -1068,6 +1104,60 @@ class LocalDb {
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
+
+  /// B4: Persist a full catalog batch in a single SQLite transaction.
+  /// Either ALL titles + episodes commit, or NONE do — DB never left partially synced.
+  /// Gets device ID once for the encode pass (incidental per-row async reduction).
+  ///
+  /// sync_service writes timestamps AFTER this call (M-17), so a thrown exception
+  /// here leaves timestamps un-advanced → next open retries the full sync (self-healing).
+  static Future<void> persistBatch(List<CatalogItem> items) async {
+    if (items.isEmpty) return;
+    final db = await instance;
+    final deviceId = await DeviceIdentifier.getDeviceId();
+    Future<String> enc(String url) async {
+      if (url.isEmpty || url.startsWith('RF1:')) return url;
+      return RequestEncoder.scrambleUrl(url, deviceId);
+    }
+    await db.transaction((txn) async {
+      for (final item in items) {
+        await txn.insert('titles', {
+          'id':          item.id,
+          'title':       item.title,
+          'year':        item.year,
+          'media_type':  item.mediaType,
+          'description': item.description,
+          'rating':      item.rating,
+          'genres':      item.genres,
+          'poster_url':  item.posterUrl,
+          'share_url':   await enc(item.shareUrl ?? ''),
+          'file_id':     item.fileId,
+          'is_free':     item.isFree ? 1 : 0,
+          'db_version':  item.dbVersion,
+          'language':    item.language,
+          'status':      item.status,
+          'is_ongoing':  (item.isOngoing ?? false) ? 1 : 0,
+          'poster_path': item.posterPath,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        for (final ep in item.episodes) {
+          final epUrl = ep['share_url'] as String? ?? '';
+          await txn.insert('episodes', {
+            'id':        ep['id'],
+            'title_id':  item.id,
+            'file_id':   ep['file_id']?.toString(),
+            'season':    ep['season'],
+            'episode':   ep['episode'],
+            'label':     ep['label'],
+            'quality':   ep['quality'],
+            'is_free':   (ep['is_free'] == true || ep['is_free'] == 1) ? 1 : 0,
+            'share_url': epUrl.isNotEmpty ? await enc(epUrl) : null,
+            'filename':  ep['filename']  as String?,
+            'remote_id': ep['remote_id'] as int? ?? 0,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+    });
+  }
 
   // ── Catalog pruning ──────────────────────────────────────────────────────
 
@@ -1187,10 +1277,17 @@ class LocalDb {
       "ORDER BY db_version DESC LIMIT ?",
       [count],
     );
+    if (rows.isEmpty) return const [];
+    // B2: get device ID once — avoids N async getDeviceId() awaits (one per RF1-encoded URL).
+    // RequestEncoder.unscrambleUrl is synchronous so per-row decode is now pure CPU.
+    final deviceId = await DeviceIdentifier.getDeviceId();
     final result = <Map<String, dynamic>>[];
     for (final row in rows) {
       final rawUrl = row['share_url'] as String? ?? '';
-      final decoded = rawUrl.isNotEmpty ? await _decodeUrl(rawUrl) : '';
+      if (rawUrl.isEmpty) continue;
+      final decoded = rawUrl.startsWith('RF1:')
+          ? RequestEncoder.unscrambleUrl(rawUrl, deviceId)
+          : rawUrl;
       if (decoded == null || decoded.isEmpty) continue;
       result.add({
         'id':        row['id'],
@@ -1459,10 +1556,11 @@ class LocalDb {
 
   static Future<int> getPendingUsageBytes() async {
     final db = await instance;
-    final rows = await db.query('usage_log', where: 'flushed = ?', whereArgs: [0]);
-    int total = 0;
-    for (final r in rows) { total += (r['bytes'] as int? ?? 0); }
-    return total;
+    // B3: single aggregate query — avoids loading all pending rows just to sum bytes.
+    final rows = await db.rawQuery(
+      'SELECT COALESCE(SUM(bytes), 0) AS total FROM usage_log WHERE flushed = 0',
+    );
+    return (rows.first['total'] as int?) ?? 0;
   }
 
   static Future<void> clearPendingUsage() async {
