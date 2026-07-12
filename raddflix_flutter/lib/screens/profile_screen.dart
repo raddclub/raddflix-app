@@ -19,9 +19,9 @@ import '../providers/watchlist_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../core/api/subscription_api.dart';
 import '../widgets/loading_overlay.dart';
-import '../core/player/scene_bookmark_store.dart';  // BUG-A23
-import '../core/player/player_prefs.dart';          // BUG-A21
-import '../core/db/local_db.dart';                  // BUG-A22
+import '../core/player/scene_bookmark_store.dart';
+import '../core/player/player_prefs.dart';
+import '../core/db/local_db.dart';
 import '../widgets/bottom_nav.dart';
 import 'debug_diagnostics_screen.dart';
 import '../widgets/tier_badge.dart';
@@ -75,8 +75,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _loadExtras() async {
-    // BUG-A14: catch blocks now log errors so developers can diagnose
-    // PackageInfo / SubscriptionApi failures in the debug console.
     try {
       final info = await PackageInfo.fromPlatform();
       if (mounted) setState(() => _appVersion = 'v${info.version}');
@@ -145,7 +143,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     ));
     if (ok != true) return;
     setState(() => _loggingOut = true);
-    // BUG-A23: clean up per-user scene bookmarks on logout
+    // Clean up per-user scene bookmarks on logout so User B never sees User A's history.
     await SceneBookmarkStore.deleteAllContent();
     await ref.read(authProvider.notifier).logout();
     if (mounted) Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
@@ -451,7 +449,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ]),
                   const SizedBox(height: 12),
-                  // Player — BUG-A21 + BUG-A22: expose reset actions
+                  // Player — expose reset actions for troubleshooting prefs/DB issues
                   _Section(title: 'Player', children: [
                     _SectionTile(
                       icon: AppIcons.equalizer,
@@ -621,14 +619,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       label: 'Downloads',
                       onTap: () { DebugLogger.logTap('Profile', 'downloads'); Navigator.of(context).pushNamed(AppRoutes.downloads); },
                     ),
-                    _divider(),
-                    _SectionTile(
-                      icon: AppIcons.bugReport,
-                      iconColor: AppColors.orange,
-                      label: 'Debug Logs',
-                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => const DebugDiagnosticsScreen())),
-                    ),
+                    // L1: Debug Logs hidden in production for non-admin users
+                    if (kDebugMode || (user?.isAdmin == true)) ...[
+                      _divider(),
+                      _SectionTile(
+                        icon: AppIcons.bugReport,
+                        iconColor: AppColors.orange,
+                        label: 'Debug Logs',
+                        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => const DebugDiagnosticsScreen())),
+                      ),
+                    ],
                     _divider(),
                     _SectionTile(
                       icon: AppIcons.logout,
@@ -651,8 +652,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         setState(() => _versionTapCount++);
                         if (_versionTapCount >= 5) {
                           setState(() => _versionTapCount = 0);
-                          Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => const DebugDiagnosticsScreen()));
+                          // L2: Easter egg only opens diagnostics for admins/debug builds
+                          if (kDebugMode || (user?.isAdmin == true)) {
+                            Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => const DebugDiagnosticsScreen()));
+                          }
                         }
                       },
                       child: RichText(
