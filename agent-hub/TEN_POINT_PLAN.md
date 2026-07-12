@@ -830,8 +830,18 @@ The player has these logical clusters confirmed from the full read (lines 86-356
 **Effort:** ~1 session | **Risk:** Low
 **Goal:** The remaining micro-performance items that become accessible after other phases.
 
-- [ ] K1 — Move `rebuildFtsIndex` to `Isolate.run()` (covered in B6, tracked here for sequence clarity — do after B is done)
-- [ ] K2 — Implement `const` constructors on all design system components that can use them (audit after F is done)
+- [x] K1 — Already done via B6 (`rebuildFtsIndex` moved to a background isolate) — no separate
+  action needed, this item only existed for session-sequencing clarity.
+- [x] K2 — Spot-checked the 5 core design-system components (`radd_button.dart`, `radd_card.dart`,
+  `radd_chip.dart`, `radd_text_field.dart`, `radd_sheet.dart`): all static/literal widget
+  subtrees already use `const` (confirmed by the F-phase design-system migration). Grepped for
+  the common missed patterns (`SizedBox(width/height: <literal>)`, `EdgeInsets.all/symmetric(...)`
+  without a preceding `const`) — zero hits. **A genuine exhaustive "const everywhere applicable"
+  audit across the full 67k-line app needs `dart fix --apply` (the `prefer_const_constructors`
+  lint) run through the real Dart analyzer** — hand-auditing that scope by eye without a compiler
+  in this environment risks introducing exactly the kind of subtle breakage this whole plan is
+  trying to eliminate. Recommend running `dart fix --apply` as a CI or local-machine step next
+  time Flutter SDK access is available, rather than a manual pass.
 - [ ] K3 — Add `AutomaticKeepAliveClientMixin` to tab pages in HomeScreen bottom nav so switching tabs doesn't re-render
 - [x] K4 — Added `fadeInDuration` to the actor/cast `CachedNetworkImage` calls in
   `widgets/cast_rail.dart` and `screens/actor_screen.dart` (the only two actor-photo call
@@ -849,7 +859,12 @@ The player has these logical clusters confirmed from the full read (lines 86-356
   just to apply K3 would be a real navigation-model change, not the small addition the plan's
   "Low risk" / "~1 session" estimate implies — left undone as a mismatched premise rather than
   forced.
-- [ ] K5 — Audit and add `const` to all static widget instantiations missed by preflight_check.sh
+- [ ] K5 — Same blocker as K2: a real "add const everywhere applicable" sweep needs
+  `flutter analyze` / `dart fix --apply`, not manual review — not attempted for the same reason.
+  `preflight_check.sh` itself is scoped narrowly (missing-import + static-field-as-constructor
+  checks per its own header comment), not a const-lint; extending it to detect missing `const`
+  would itself need real compiler feedback to avoid false positives. Left for a session with
+  Flutter SDK access.
 
 ---
 
