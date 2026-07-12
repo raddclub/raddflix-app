@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
@@ -87,7 +88,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       }
     } on Exception catch (e) {
       // A1: guard against setState after dispose if user navigates away mid-request
-      if (mounted) setState(() { _error = e.toString().replaceAll('Exception:', '').trim(); _saving = false; });
+      if (kDebugMode) debugPrint('[EditProfile] save error: $e');
+      if (mounted) setState(() { _error = 'Could not save changes. Please try again.'; _saving = false; });
     }
   }
 
@@ -567,8 +569,9 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
         );
       }
     } on Exception catch (e) {
+      if (kDebugMode) debugPrint('[EditProfile] password change error: $e');
       setState(() {
-        _error = e.toString().replaceAll('Exception:', '').trim();
+        _error = 'Could not change password. Please try again.';
         _saving = false;
       });
     }

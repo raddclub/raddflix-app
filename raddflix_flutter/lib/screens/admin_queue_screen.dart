@@ -47,7 +47,8 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() { _loading = false; _error = e.toString(); });
+      if (kDebugMode) debugPrint('[AdminQueue] load error: $e');
+      if (mounted) setState(() { _loading = false; _error = 'Could not load queue. Please try again.'; });
     }
   }
 

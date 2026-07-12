@@ -125,7 +125,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
         setState(() => _tidError = err.replaceFirst('Exception: ', ''));
       }
     } catch (e) {
-      setState(() { _tidError = e.toString().replaceFirst('Exception: ', ''); _submitting = false; });
+      if (kDebugMode) debugPrint('[SubscriptionScreen] submitTid error: $e');
+      setState(() { _tidError = 'Payment submission failed. Please try again.'; _submitting = false; });
     }
   }
 
