@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
@@ -453,9 +454,10 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
         await _load();
       }
     } catch (e) {
+      if (kDebugMode) debugPrint('[Vault] restore error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Restore failed: $e'),
+          content: const Text('Restore failed. Please try again.'),
           backgroundColor: AppColors.error,
         ));
       }
@@ -472,8 +474,9 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
       if (result == null || result.files.isEmpty) return;
       await _processPickedFiles(result.files);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Could not import: $e'), backgroundColor: AppColors.error));
+      if (kDebugMode) debugPrint('[Vault] import error: $e');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not import files. Please try again.'), backgroundColor: AppColors.error));
     }
   }
 
@@ -501,8 +504,9 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
         await _load();
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Could not import folder: $e'), backgroundColor: AppColors.error));
+      if (kDebugMode) debugPrint('[Vault] import folder error: $e');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not import folder. Please try again.'), backgroundColor: AppColors.error));
     }
   }
 
