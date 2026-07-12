@@ -385,7 +385,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
             ),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               if (selected)
-                Icon(AppIcons.successIcon, color: const Color(0xFF7C5CFF), size: 40)
+                Icon(AppIcons.successIcon, color: AppColors.simosaAccent, size: 40)
               else
                 Icon(f.icon, color: f.isFolder ? AppColors.primary : t.textSecondary, size: 40),
               SizedBox(height: RaddSpace.sm),
@@ -628,7 +628,7 @@ class _FileListTileState extends State<_FileListTile> {
             AnimatedSwitcher(
               duration: AppDurations.fast,
               child: widget.selected
-                  ? Icon(AppIcons.successIcon, color: const Color(0xFF7C5CFF), size: 40, key: ValueKey('check'))
+                  ? Icon(AppIcons.successIcon, color: AppColors.simosaAccent, size: 40, key: ValueKey('check'))
                   : SizedBox(key: const ValueKey('icon'), width: 44, height: 44, child: iconWidget),
             ),
             SizedBox(width: 14),

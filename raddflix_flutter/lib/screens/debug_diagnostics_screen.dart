@@ -13,6 +13,7 @@ import '../core/security/request_encoder.dart';
 import '../core/security/device_id.dart';
 import '../core/services/jazzdrive_service.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/radius/radd_radius.dart';
 import '../providers/auth_provider.dart';
 
 /// Diagnostics screen — accessible in all builds.
@@ -426,7 +427,7 @@ class _LogsTab extends StatelessWidget {
   });
 
   Color _lineColor(String line) {
-    if (line.contains('[ERROR]') || line.contains('[CRASH]')) return const Color(0xFFEF4444);
+    if (line.contains('[ERROR]') || line.contains('[CRASH]')) return AppColors.error;
     if (line.contains('[WARN ]')) return Colors.orange;
     if (line.contains('[JAZZDRIVE]') || line.contains('[STREAM]')) return const Color(0xFF34D399);
     if (line.contains('[API  ]')) return const Color(0xFF60A5FA);
@@ -520,16 +521,16 @@ class _ResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color color; final IconData icon;
     switch (result.status) {
-      case _Status.ok:      color = const Color(0xFF22C55E); icon = AppIcons.successIcon;  break;
+      case _Status.ok:      color = AppColors.success; icon = AppIcons.successIcon;  break;
       case _Status.warn:    color = Colors.orange;           icon = AppIcons.warning;  break;
-      case _Status.fail:    color = const Color(0xFFEF4444); icon = AppIcons.cancel;         break;
+      case _Status.fail:    color = AppColors.error; icon = AppIcons.cancel;         break;
       case _Status.running: color = Colors.blueGrey;         icon = AppIcons.hourglass;  break;
     }
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: RaddRadius.mdRadius,
         border: Border.all(color: color.withOpacity(0.2))),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         result.status == _Status.running
@@ -626,7 +627,7 @@ class _DiagResult {
                     color: active
                         ? (hasWarn ? Colors.red.withOpacity(0.25) : Colors.orange.withOpacity(0.2))
                         : Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: RaddRadius.mdRadius,
                     border: Border.all(
                       color: active
                           ? (hasWarn ? Colors.red.withOpacity(0.7) : Colors.orange.withOpacity(0.6))

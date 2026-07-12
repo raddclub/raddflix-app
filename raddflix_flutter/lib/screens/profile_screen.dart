@@ -588,7 +588,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       _divider(),
                       _SectionTile(
                         icon: AppIcons.lock,
-                        iconColor: const Color(0xFF7C5CFF),
+                        iconColor: AppColors.simosaAccent,
                         label: 'Private Vault',
                         trailing: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -597,7 +597,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Text('PRIVATE', style: TextStyle(
-                              color: Color(0xFF7C5CFF), fontSize: 10, fontWeight: FontWeight.w700)),
+                              color: AppColors.simosaAccent, fontSize: 10, fontWeight: FontWeight.w700)),
                         ),
                         onTap: () async {
                           final hasPin = await VaultService.hasPin();

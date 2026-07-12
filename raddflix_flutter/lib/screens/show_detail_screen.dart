@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import '../core/theme/radd_colors.dart';
+import '../design_system/motion/radd_motion.dart';
 import '../design_system/radius/radd_radius.dart';
 import '../design_system/spacing/radd_space.dart';
 import 'package:flutter/services.dart';
@@ -956,7 +957,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                           GestureDetector(
                             onTap: _isDownloadingAll ? null : _downloadCurrentSeason,
                             child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
+                              duration: RaddMotion.tuneDuration,
                               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                               decoration: BoxDecoration(
                                 color: context.signalPrimary.withOpacity(0.12),
@@ -987,7 +988,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                                   ? 'Show newest first'
                                   : 'Show oldest first',
                               child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 200),
+                                duration: RaddMotion.tuneDuration,
                                 child: Icon(
                                   _sortAscending
                                       ? AppIcons.arrowDown
@@ -1551,7 +1552,7 @@ class _EpisodeUnavailableTile extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 200),
+          duration: RaddMotion.tuneDuration,
           opacity: hasOverride ? 0.78 : 0.38,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 250),

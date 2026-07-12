@@ -84,10 +84,10 @@ class ContentCard extends StatelessWidget {
               ],
               if (item.isOngoingNow) ...[
                 const SizedBox(height: 4),
-                _StatusBadge(label: 'ONGOING', color: const Color(0xFF22C55E)),
+                _StatusBadge(label: 'ONGOING', color: AppColors.success),
               ] else if (item.isCompleted && !item.isMovie) ...[
                 const SizedBox(height: 4),
-                _StatusBadge(label: 'COMPLETED', color: const Color(0xFF3B82F6)),
+                _StatusBadge(label: 'COMPLETED', color: AppColors.info),
               ],
             ])),
             // Language badge (bottom-left, above title text)

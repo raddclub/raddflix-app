@@ -291,7 +291,7 @@ class _JazzBadgeIcon extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFE8002D).withOpacity(0.35),
+                  color: AppColors.primary.withOpacity(0.35),
                   blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
@@ -307,7 +307,7 @@ class _JazzBadgeIcon extends StatelessWidget {
                 errorBuilder: (_, __, ___) => Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Color(0xFFE8002D), Color(0xFFB5001F)],
+                      colors: [AppColors.primary, AppColors.primaryDark],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
