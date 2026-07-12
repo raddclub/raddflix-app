@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../constants.dart';
 import '../app_container.dart';
 import '../../providers/remote_values_provider.dart';
+import '../../providers/auth_config_provider.dart';
 import '../security/keystore.dart';
 import '../security/app_guard.dart';
 import '../security/request_encoder.dart';
@@ -63,10 +64,22 @@ class ApiClient {
     return _instance!;
   }
 
-  /// Set to true when the current session is an offline-first guest.
+  /// L10: true when the current session is an offline-first guest.
   /// When true, 401 responses do NOT trigger logout — guests rely on
   /// zero-rated JazzDrive delta for catalog and have no refresh token.
-  static bool isGuestMode = false;
+  ///
+  /// Backed by `authConfigProvider` (Riverpod) instead of a mutable static —
+  /// see `providers/auth_config_provider.dart` for rationale. Falls back to
+  /// `false` before `appContainer` exists (should not happen in practice;
+  /// main.dart creates it before any network code runs — same guard as
+  /// `_currentApiBaseUrl` above).
+  static bool get isGuestMode {
+    try {
+      return appContainer.read(authConfigProvider);
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Call this after RemoteConfig.fetch() to point Dio at the new server URL.
   static void updateBaseUrl(String url) {

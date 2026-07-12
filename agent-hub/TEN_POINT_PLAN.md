@@ -1001,7 +1001,10 @@ A stuck-`true` value silently bypasses all auth headers and XOR encryption.
 **Fix:** This is the same fix as E3 (move globals to Riverpod). Confirm `isGuestMode` is
 included when converting `ApiClient` globals to a Riverpod-backed `AuthConfigProvider`.
 Reset to `false` as part of the logout flow (same session as A5).
-- [ ] L10 — Include ApiClient.isGuestMode in E3 Riverpod migration; ensure reset on logout
+- [x] L10 — `ApiClient.isGuestMode` moved to Riverpod-backed `authConfigProvider` (mirrors the
+  G5 `remoteValuesProvider`/`appContainer` pattern) — `providers/auth_config_provider.dart`;
+  `AuthNotifier` writes via `ref.read(authConfigProvider.notifier)`, `ApiClient` reads via
+  `appContainer.read(...)`. Explicit `resetOnLogout()` call added in `AuthNotifier.logout()`.
 
 ---
 

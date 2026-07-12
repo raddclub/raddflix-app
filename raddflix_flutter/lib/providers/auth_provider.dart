@@ -2,7 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api/auth_api.dart';
-import '../core/api/api_client.dart';
 import '../core/db/local_db.dart';
 import '../core/security/keystore.dart';
 import '../core/constants.dart';
@@ -10,6 +9,7 @@ import '../models/user.dart';
 import 'watchlist_provider.dart';
 import 'profile_provider.dart';
 import '../core/player/player_prefs_provider.dart';
+import 'auth_config_provider.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
@@ -65,7 +65,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Local-only guest check — works 100% offline, no token or network needed.
       // Create guest identity if missing (handles app reinstall edge case).
       await LocalDb.getOrCreateGuestId();
-      ApiClient.isGuestMode = true;
+      _ref.read(authConfigProvider.notifier).setGuestMode(true);
       state = AuthState(status: AuthStatus.authenticated, user: AppUser.guest());
       // Background: grab a server token for Oracle catalog fallback when online.
       _tryAcquireGuestServerToken();
@@ -121,7 +121,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(StorageKeys.isGuest);
-      ApiClient.isGuestMode = false;
+      _ref.read(authConfigProvider.notifier).setGuestMode(false);
       final user = await AuthApi.getMe();
       await _saveUserCache(user, prefs);
       state = AuthState(status: AuthStatus.authenticated, user: user);
@@ -192,7 +192,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     //    User enters the app NOW — no waiting for a network response.
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(StorageKeys.isGuest, true);
-    ApiClient.isGuestMode = true;
+    _ref.read(authConfigProvider.notifier).setGuestMode(true);
     state = AuthState(status: AuthStatus.authenticated, user: AppUser.guest());
 
     // 3. Background: try to acquire a server guest token for Oracle catalog fallback.
@@ -225,7 +225,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(StorageKeys.isGuest);
     await _clearUserCache(prefs);
-    ApiClient.isGuestMode = false;
+    _ref.read(authConfigProvider.notifier).resetOnLogout();
     // A5: clear per-user state so next account doesn't inherit previous session
     _ref.read(watchlistProvider.notifier).clear();
     _ref.read(profileProvider.notifier).reset();
