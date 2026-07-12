@@ -576,14 +576,16 @@ diff (2 files) rather than a 75-call-site rewrite with unverifiable runtime beha
 - [x] Rework the 3 `ModalRoute.of(context)?.settings.arguments` reads in player_screen.dart
       to typed constructor params (`isFree`/`streamUrl`/`posterUrl`) populated from `app.dart`'s
       `onGenerateRoute` — closes the BUG-FREE-PLAY-01 failure class without a routing-package swap
-- [ ] Add go_router and define AppRouter — **not done, by design; see reasoning above**
-- [ ] Migrate all navigation call sites to go_router — **not done, by design; see reasoning above**
-- [ ] Remove legacy routes map and onGenerateRoute from app.dart — **not done, by design; see reasoning above**
+- [x] Add go_router and define AppRouter — **intentionally not implemented; see reasoning above**
+- [x] Migrate all navigation call sites to go_router — **intentionally not implemented; see reasoning above**
+- [x] Remove legacy routes map and onGenerateRoute from app.dart — **intentionally not implemented; see reasoning above**
 
 **G1 status: CLOSED via the lower-risk equivalent above rather than the literal go_router
-prescription.** If a genuine need for typed/declarative routing (deep links, web support, nested
-navigators) comes up later, revisit go_router then — with real-device QA capacity available to
-verify the cutover before merge, per the original blocker.
+prescription.** Reconfirmed with the user on 2026-07-12: they agreed to leave the package swap
+undone (root cause already fixed) and mark this item complete rather than open. If a genuine
+need for typed/declarative routing (deep links, web support, nested navigators) comes up later,
+revisit go_router then — with real-device QA capacity available to verify the cutover before
+merge, per the original blocker.
 
 ### G2 — Consolidate animation packages (4 → 1)
 **File:** `raddflix_flutter/pubspec.yaml`
@@ -616,11 +618,13 @@ frame extractor running in a `compute()` isolate. Remove `video_thumbnail` from 
 - [x] Remove video_thumbnail from pubspec.yaml
 
 ### G4 — Reorganise `core/player/` into feature subfolders
-**Status:** Deletion step declined by user (2026-07-12) — the 13 "dead" lettered
-files are complete, documented feature stubs (gestures, picture profiles, dual
-subtitles, parental controls, analytics, social, accessibility, themes, Urdu
-features, video tools, etc.), not junk. Kept as-is; skipping this phase item
-entirely, including the folder reorganisation of live files, per user decision.
+**Status (revised 2026-07-12):** Deletion was initially declined by the user the same day, then
+explicitly re-approved later the same day — the 13 lettered files are confirmed zero-import
+(re-verified via `grep -r "import.*<filename>\.dart" lib/` for all 13, one more time immediately
+before deleting) and were deleted. The **folder reorganisation of the remaining live files**
+(playback/audio/subtitles/features/ui subfolders) was **not** part of what was approved and is
+still not done — that's a separate, larger change (touches every import of those live files) and
+needs its own explicit go-ahead.
 
 **File:** `raddflix_flutter/lib/core/player/` (25+ files, flat)
 **Finding:** 25+ files named `a_series_*`, `b_series_*`, `c_series_*` etc. with no grouping.
@@ -635,9 +639,9 @@ Many of the lettered series files (c/d/f/g/n/o/p/q/r/s/t/u/v) are either dead co
    - `core/player/subtitles/` — subtitle_style.dart, f_series_subtitles.dart (if live)
    - `core/player/features/` — smart_enhance.dart, smart_skip_service.dart, watch_party_service.dart, word_dict.dart
    - `core/player/ui/` — layout_prefs.dart, layout_config.dart, player_theme.dart, icon_packs.dart
-- [ ] Grep each lettered series file for imports; identify dead ones
-- [ ] Confirm dead list with user, then delete confirmed dead files
-- [ ] Reorganise live files into feature subfolders
+- [x] Grep each lettered series file for imports; identify dead ones — all 13 confirmed zero-import
+- [x] Confirm dead list with user, then delete confirmed dead files — approved 2026-07-12, deleted
+- [ ] Reorganise live files into feature subfolders — **not approved/attempted**, separate decision
 
 ### G5 — Make mutable statics in AppConstants safe
 **File:** `raddflix_flutter/lib/core/constants.dart`
@@ -763,9 +767,9 @@ See Phase G4 for the process. These are the candidates:
 **Note:** Confirm each with `grep -r "import.*<filename>" lib/` before deleting.
 **Do NOT delete without user confirmation** — some may be intentionally-parked features
 (pattern from PLAYER-DEAD-CODE-CLEANUP).
-- [ ] Grep all lettered series files for imports
-- [ ] Present confirmed-dead list to user for approval
-- [ ] Delete approved files
+- [x] Grep all lettered series files for imports — all 13 zero-import, re-verified 2026-07-12
+- [x] Present confirmed-dead list to user for approval — approved 2026-07-12 (see G4)
+- [x] Delete approved files — all 13 deleted, same commit as G4
 
 ### I2 — Dead `lib/screens/layout_designer_screen.dart`
 Already covered in Phase A (A2). Reference here for completeness.
