@@ -58,13 +58,13 @@ android/
 ## Test Suite
 
 ```bash
-# JazzDrive logic (27 tests, no Jazz SIM needed)
-node test_suite/jazzdrive_logic_test.js
+# JazzDrive logic (27 tests, no Jazz SIM needed) — moved to scripts/ (I4)
+node scripts/jazzdrive_logic_test.js
 
-# Full server integration tests
-node test_suite/run_tests.js
+# Full server integration tests — moved to scripts/ (I4)
+node scripts/run_tests.js
 
-# Business logic (pure Dart)
+# Business logic (pure Dart) — stays in test_suite/, it's a Flutter/Dart artifact
 dart run test_suite/logic_tests.dart
 ```
 

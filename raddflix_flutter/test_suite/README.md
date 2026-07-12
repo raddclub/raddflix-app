@@ -6,9 +6,14 @@ Complete A-to-Z tests for every API, user flow, and logic path in the RaddFlix a
 
 | File | What it tests | How to run |
 |---|---|---|
-| `run_tests.js` | Every server API, JazzDrive zero-rating, user scenarios | `node test_suite/run_tests.js` |
+| `run_tests.js` | Every server API, JazzDrive zero-rating, user scenarios | `node scripts/run_tests.js` |
 | `logic_tests.dart` | All business logic (no device needed) | `dart run test_suite/logic_tests.dart` |
-| `jazzdrive_logic_test.js` | JazzDrive URL parsing, 3-pass match, stream/poster URLs | `node test_suite/jazzdrive_logic_test.js` |
+| `jazzdrive_logic_test.js` | JazzDrive URL parsing, 3-pass match, stream/poster URLs | `node scripts/jazzdrive_logic_test.js` |
+
+> **I4 (TEN_POINT_PLAN Phase I):** the `.js` files that used to live in this directory
+> (`run_tests.js`, `jazzdrive_logic_test.js`, `verify_links.js`) moved to `scripts/` at the repo
+> root — a Flutter project's `test_suite/` directory is not where plain Node scripts belong.
+> Only the Dart files (`logic_tests.dart`, `jazzdrive_dart_test.dart`) stay here.
 
 ---
 
@@ -31,7 +36,7 @@ Complete A-to-Z tests for every API, user flow, and logic path in the RaddFlix a
 
 ### Run (from project root or Replit):
 ```bash
-node test_suite/run_tests.js
+node scripts/run_tests.js
 ```
 
 No install needed — uses Node.js built-ins only (http, https, crypto).
@@ -77,12 +82,12 @@ No packages required — pure Node.js built-ins only.
 
 ### Run (logic only — works anywhere)
 ```bash
-node raddflix_flutter/test_suite/jazzdrive_logic_test.js
+node scripts/jazzdrive_logic_test.js
 ```
 
 ### Run (full network test — Jazz SIM device required)
 ```bash
-node raddflix_flutter/test_suite/jazzdrive_logic_test.js --live \
+node scripts/jazzdrive_logic_test.js --live \
   "https://cloud.jazzdrive.com.pk/share/f/yourShareKey..." \
   "All Of Us Are Dead S01E01.mkv"
 ```

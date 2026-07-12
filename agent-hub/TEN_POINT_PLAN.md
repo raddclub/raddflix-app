@@ -777,7 +777,12 @@ Already covered in Phase D (D1).
 **Files:** `test_suite/run_tests.js`, `test_suite/verify_links.js`
 **Finding:** JS files in a Flutter project's test directory are unusual. After creating the
 proper `test/` directory (Phase H1), these should move to a `scripts/` root directory.
-- [ ] Move test_suite/*.js to scripts/ directory
+- [x] Moved `run_tests.js`, `jazzdrive_logic_test.js`, `verify_links.js` from `test_suite/` to
+  `scripts/` (all self-contained, no relative-path dependencies on their old location); updated
+  the reference in `.github/workflows/ci-tests.yml` and the command paths in
+  `raddflix_flutter/README.md` + `raddflix_flutter/test_suite/README.md`. Dart files
+  (`logic_tests.dart`, `jazzdrive_dart_test.dart`) stay in `test_suite/` — they're Flutter/Dart
+  test artifacts, not the "JS files in a Flutter test dir" problem this item targeted.
 
 ---
 

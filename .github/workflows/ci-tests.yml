@@ -18,7 +18,7 @@ jobs:
 
       - name: Run API test suite
         run: |
-          node raddflix_flutter/test_suite/run_tests.js 2>&1 | tee /tmp/test_output.txt || true
+          node scripts/run_tests.js 2>&1 | tee /tmp/test_output.txt || true
           PASSED=$(grep -oE '[0-9]+ passed' /tmp/test_output.txt | grep -oE '[0-9]+' | tail -1 || echo 0)
           FAILED=$(grep -oE '[0-9]+ failed' /tmp/test_output.txt | grep -oE '[0-9]+' | tail -1 || echo 0)
           WARNED=$(grep -oE '[0-9]+ warned' /tmp/test_output.txt | grep -oE '[0-9]+' | tail -1 || echo 0)
