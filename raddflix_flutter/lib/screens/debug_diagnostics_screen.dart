@@ -486,8 +486,8 @@ class _LogsTab extends StatelessWidget {
         child: Row(children: [
           Text('${lines.length} lines', style: TextStyle(color: Colors.grey[600], fontSize: 11)),
           const Spacer(),
-          Flexible(child: Text(DebugLogger.getLogPath(),
-              style: TextStyle(color: Colors.grey[700], fontSize: 10),
+          const Flexible(child: Text('Log stored on device',
+              style: TextStyle(color: Colors.grey, fontSize: 10),
               overflow: TextOverflow.ellipsis, maxLines: 1)),
         ])),
       const SizedBox(height: 4),
