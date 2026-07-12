@@ -63,6 +63,17 @@ class PlayerScreen extends ConsumerStatefulWidget {
   final List<Map<String, dynamic>>? episodes;
   final int episodeIndex;
   final String contentType;
+  // G1: these three used to be read at runtime via
+  // `ModalRoute.of(context)?.settings.arguments` instead of being passed as
+  // constructor params. That indirection is exactly what caused
+  // BUG-FREE-PLAY-01 (a PageRouteBuilder that didn't forward `settings:`
+  // silently dropped `is_free`, charging free content). Making them typed,
+  // required-at-the-call-site fields removes that failure mode entirely —
+  // there's no longer a second, independent path that can diverge from what
+  // the caller intended.
+  final bool isFree;
+  final String? streamUrl;
+  final String? posterUrl;
 
   const PlayerScreen({
     super.key,
@@ -73,6 +84,9 @@ class PlayerScreen extends ConsumerStatefulWidget {
     this.episodes,
     this.episodeIndex = 0,
     this.contentType = 'series',
+    this.isFree = false,
+    this.streamUrl,
+    this.posterUrl,
   });
 
   @override
@@ -792,10 +806,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // wrongly treating a navigated paid episode as free (or vice-versa).
     if (!isLocal) {
       if (!_videoOpened) {
-        // First open — trust route args which show_detail sets correctly
-        final routeArgsFree = ModalRoute.of(context)?.settings.arguments as Map?;
-        final isFreeArg     = routeArgsFree?['is_free'];
-        _isFree     = isFreeArg == true || isFreeArg == 1;
+        // First open — trust the typed constructor arg the caller passed in
+        // (G1: previously re-read from ModalRoute.of(context)?.settings.arguments,
+        // see BUG-FREE-PLAY-01).
+        _isFree     = widget.isFree;
         _trackUsage = !_isFree;
       }
       // else: retry or re-open — keep _isFree/_trackUsage as already set
@@ -862,8 +876,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     if (mounted) setState(() { _streamError = null; _isLinkLoading = true; _ended = false; _position = Duration.zero; });
 
-    final routeArgs = ModalRoute.of(context)?.settings.arguments as Map?;
-    final inlineShareUrl = routeArgs?['stream_url'] as String?;
+    final inlineShareUrl = widget.streamUrl;
 
     String? shareUrl;
     String? targetFilename;
@@ -1338,7 +1351,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // ── Resume FAB data ───────────────────────────────────────────────────
     // Save enough context for ResumeFab on the home screen to reconstruct
     // the player route and show a meaningful card (title + progress).
-    final routeArgs = ModalRoute.of(context)?.settings.arguments as Map?;
     await prefs.setString('resume_title',        _currentTitle);
     await prefs.setString('resume_file_id',      _currentFileId);
     await prefs.setInt   ('resume_pos_ms',       ms);
@@ -1346,10 +1358,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setString('resume_content_type', widget.contentType);
     // BUG-11 fix: persist is_free so ResumeFab can skip sub gate for free content.
     await prefs.setBool  ('resume_is_free',      _isFree);
-    final streamUrl  = routeArgs?['stream_url'] as String?;
-    final localPath  = routeArgs?['local_path']  as String?;
-    final posterUrl  = routeArgs?['poster_url']  as String?
-                    ?? routeArgs?['poster']      as String?;
+    final streamUrl  = widget.streamUrl;
+    final localPath  = widget.localPath;
+    final posterUrl  = widget.posterUrl;
     if (streamUrl  != null) await prefs.setString('resume_stream_url', streamUrl);
     if (localPath  != null) await prefs.setString('resume_local_path', localPath);
     if (posterUrl  != null) await prefs.setString('resume_poster_url', posterUrl);

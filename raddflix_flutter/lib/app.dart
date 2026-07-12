@@ -154,6 +154,13 @@ class RaddFlixApp extends ConsumerWidget {
               episodes: episodes,
               episodeIndex: args['episode_index'] as int? ?? 0,
               contentType: args['content_type'] as String? ?? 'series',
+              // G1: passed as typed constructor params instead of PlayerScreen
+              // re-reading ModalRoute.of(context)?.settings.arguments at
+              // runtime — see BUG-FREE-PLAY-01 and the comment on
+              // PlayerScreen.isFree/streamUrl/posterUrl.
+              isFree: args['is_free'] == true || args['is_free'] == 1,
+              streamUrl: args['stream_url'] as String?,
+              posterUrl: (args['poster_url'] as String?) ?? (args['poster'] as String?),
             ),
             transitionsBuilder: (_, anim, __, child) =>
                 FadeTransition(opacity: anim, child: child),
