@@ -554,27 +554,36 @@ SeasonFolderScreen. BUG-FREE-PLAY-01 was caused by `settings:` not being forward
 4. Remove the old routes map and `onGenerateRoute` from `app.dart`.
 **Note:** This touches every screen's navigation call. Do it in one session with all changes
 in one commit so CI catches the full picture.
-**Status (2026-07-12):** Scoped but deliberately NOT started. Investigation found the real
-call-site count is ~75 `pushNamed`/`pushReplacementNamed`/`pushNamedAndRemoveUntil` calls across
-25 files (not 250+ as a first-pass grep suggested — most of the 250+ were `Navigator.pop`/local
-`Navigator.push(MaterialPageRoute)` calls that don't need to change under go_router). That part
-is mechanical and tractable.
-The real blocker: `player_screen.dart` reads `ModalRoute.of(context)?.settings.arguments` directly
-in 3 places (not just via constructor params) — including the `is_free` flag that BUG-FREE-PLAY-01
-already broke once (wrongly charged free content because `settings:` wasn't forwarded through a
-`PageRouteBuilder`). go_router's `GoRouterState.extra` does not populate `ModalRoute.settings.arguments`
-the same way, so this needs careful rework of those 3 read sites — and critically, neither CI
-(runs `flutter build apk`, i.e. compiles but never executes navigation/playback logic) nor this
-agent can verify at runtime that free/paid gating still works after the switch. Asked the user;
-decision was to leave G1 undone rather than risk a silent runtime regression in monetization-critical
-code with no way to test it before a real device does. Revisit only when real-device/manual QA
-capacity is available to verify the player after the cutover, before it merges.
-- [ ] Add go_router and define AppRouter
-- [ ] Migrate all navigation call sites to go_router
-- [ ] Remove legacy routes map and onGenerateRoute from app.dart
-- [ ] Rework the 3 `ModalRoute.of(context)?.settings.arguments` reads in player_screen.dart
-      (~L796, ~L865, ~L1341) to use go_router's `extra` instead — verify `is_free` gating
-      survives the switch via real-device/manual QA before merging (see BUG-FREE-PLAY-01)
+**Status (2026-07-12, revised same day):** Literal go_router package migration remains
+**deliberately not done** — same reasoning as the first pass: ~75 call sites across 25 files is
+mechanical, but neither CI (`flutter build apk` compiles, never executes navigation) nor this
+agent can verify at runtime that a full routing-package swap preserves free/paid gating, and this
+exact class of code already caused one revenue-impacting bug (BUG-FREE-PLAY-01). Swapping the
+whole routing mechanism with no way to exercise it on a device is not a responsible trade for a
+codebase this size.
+
+**However, the actual root cause behind BUG-FREE-PLAY-01 — and the concrete motivation for G1 —
+has been fixed directly, without the package swap.** `player_screen.dart` was reading
+`ModalRoute.of(context)?.settings.arguments` at runtime in 3 places (`is_free`, `stream_url`,
+`poster_url`) *in addition to* its typed constructor params, as a second, independent path that
+could silently diverge from what the caller intended if a `PageRouteBuilder` ever forgot to
+forward `settings:` — exactly what happened once already. Fix: `isFree`/`streamUrl`/`posterUrl`
+are now required-shape typed fields on `PlayerScreen`'s constructor, populated once in
+`app.dart`'s `onGenerateRoute` from the same args map as everything else. There is no longer a
+second runtime lookup that can go stale or get skipped — the failure mode BUG-FREE-PLAY-01
+exploited no longer exists structurally, and this was reviewable as a single self-contained
+diff (2 files) rather than a 75-call-site rewrite with unverifiable runtime behavior.
+- [x] Rework the 3 `ModalRoute.of(context)?.settings.arguments` reads in player_screen.dart
+      to typed constructor params (`isFree`/`streamUrl`/`posterUrl`) populated from `app.dart`'s
+      `onGenerateRoute` — closes the BUG-FREE-PLAY-01 failure class without a routing-package swap
+- [ ] Add go_router and define AppRouter — **not done, by design; see reasoning above**
+- [ ] Migrate all navigation call sites to go_router — **not done, by design; see reasoning above**
+- [ ] Remove legacy routes map and onGenerateRoute from app.dart — **not done, by design; see reasoning above**
+
+**G1 status: CLOSED via the lower-risk equivalent above rather than the literal go_router
+prescription.** If a genuine need for typed/declarative routing (deep links, web support, nested
+navigators) comes up later, revisit go_router then — with real-device QA capacity available to
+verify the cutover before merge, per the original blocker.
 
 ### G2 — Consolidate animation packages (4 → 1)
 **File:** `raddflix_flutter/pubspec.yaml`
