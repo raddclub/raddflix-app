@@ -22,6 +22,7 @@ import 'package:disk_space_plus/disk_space_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../services/vault_service.dart';
 import '../core/utils/anim_config.dart';
+import '../design_system/motion/radd_motion.dart';
 import 'season_folder_screen.dart';
 
 enum _SortMode { name, size, date }
@@ -310,7 +311,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           return GestureDetector(
             onTap: () { setState(() => _section = s); _savePrefs(); },
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+              duration: RaddMotion.tuneDuration,
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
               decoration: BoxDecoration(
@@ -779,7 +780,7 @@ class _DownloadCardState extends State<_DownloadCard> {
     return GestureDetector(
       onTap: widget.onTap, onLongPress: widget.onLongPress,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: RaddMotion.tuneDuration,
         decoration: BoxDecoration(
           color: widget.isSelected ? AppColors.primary.withOpacity(0.1) : t.surface,
           borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -820,7 +821,7 @@ class _DownloadCardState extends State<_DownloadCard> {
             // Selection checkbox
             if (widget.isSelecting)
               Positioned(top: 6, right: 6, child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+                duration: RaddMotion.tuneDuration,
                 width: 22, height: 22,
                 decoration: BoxDecoration(shape: BoxShape.circle,
                     color: widget.isSelected ? AppColors.primary : Colors.black38,
@@ -940,7 +941,7 @@ class _DownloadListTileState extends State<_DownloadListTile> {
     return GestureDetector(
       onTap: widget.onTap, onLongPress: widget.onLongPress,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: RaddMotion.tuneDuration,
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
@@ -970,7 +971,7 @@ class _DownloadListTileState extends State<_DownloadListTile> {
                     child: Icon(AppIcons.play, color: Colors.white, size: 16))),
               if (widget.isSelecting)
                 Positioned(top: 4, right: 4, child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
+                  duration: RaddMotion.tuneDuration,
                   width: 16, height: 16,
                   decoration: BoxDecoration(shape: BoxShape.circle,
                       color: widget.isSelected ? AppColors.primary : Colors.black38,

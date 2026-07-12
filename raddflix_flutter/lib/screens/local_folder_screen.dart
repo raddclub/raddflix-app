@@ -7,6 +7,7 @@ import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../core/theme/radd_theme.dart';
 import '../core/theme/radd_colors.dart';
+import '../design_system/motion/radd_motion.dart';
 import '../design_system/radius/radd_radius.dart';
 import '../design_system/spacing/radd_space.dart';
 import '../models/local_video.dart';
@@ -569,7 +570,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
                   ),
                   const SizedBox(width: 6),
                   AnimatedRotation(
-                    duration: const Duration(milliseconds: 200),
+                    duration: RaddMotion.tuneDuration,
                     turns: expanded ? 0.25 : 0,
                     child: Icon(AppIcons.caretRight,
                         color: RaddTheme.of(context).textMuted, size: 18),
@@ -577,7 +578,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
                 ]),
               ),
             ),
-          ).animate(delay: Duration(milliseconds: animIdx * 15)).fadeIn(duration: const Duration(milliseconds: 200)),
+          ).animate(delay: Duration(milliseconds: animIdx * 15)).fadeIn(duration: RaddMotion.tuneDuration),
         );
         animIdx++;
 
@@ -595,7 +596,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
                   onLongPress: () {
                     setState(() { _selecting = true; _selected.add(vid.filePath); });
                   },
-                ).animate(delay: Duration(milliseconds: animIdx * 15)).fadeIn(duration: const Duration(milliseconds: 200)),
+                ).animate(delay: Duration(milliseconds: animIdx * 15)).fadeIn(duration: RaddMotion.tuneDuration),
               ),
             );
             animIdx++;
@@ -613,7 +614,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
             onLongPress: () {
               setState(() { _selecting = true; _selected.add(vid.filePath); });
             },
-          ).animate(delay: Duration(milliseconds: animIdx * 15)).fadeIn(duration: const Duration(milliseconds: 200)),
+          ).animate(delay: Duration(milliseconds: animIdx * 15)).fadeIn(duration: RaddMotion.tuneDuration),
         );
         animIdx++;
       }

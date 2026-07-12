@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api/history_api.dart';
 import '../core/constants.dart';
+import '../design_system/radius/radd_radius.dart';
 import '../models/catalog_item.dart';
 import '../providers/catalog_provider.dart';
 import '../providers/auth_provider.dart';
@@ -146,7 +147,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
                 color: context.signalPrimary,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: RaddRadius.mdRadius,
               ),
               child: const Text(
                 'Browse Content',

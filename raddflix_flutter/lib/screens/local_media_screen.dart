@@ -12,6 +12,8 @@ import '../services/local_media_service.dart';
 import 'local_folder_screen.dart';
 import '../widgets/bottom_nav.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/motion/radd_motion.dart';
+import '../design_system/radius/radd_radius.dart';
 import '../design_system/spacing/radd_space.dart';
 import '../widgets/animated_empty_icons.dart';
 import '../core/db/local_db.dart';
@@ -251,7 +253,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
     return GestureDetector(
       onTap: () => setState(() => _watchFilter = filter),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: RaddMotion.tuneDuration,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: active ? AppColors.primary.withOpacity(0.15) : t.surface,
@@ -518,7 +520,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
         focusNode: _searchFocus,
         onChanged: (v) {
                   _searchDebounce?.cancel();
-                  _searchDebounce = Timer(const Duration(milliseconds: 200), () {
+                  _searchDebounce = Timer(RaddMotion.tuneDuration, () {
                     if (mounted) setState(() => _searchQuery = v);
                   });
                 },

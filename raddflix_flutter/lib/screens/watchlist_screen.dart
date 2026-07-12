@@ -5,6 +5,7 @@ import '../core/theme/radd_colors.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants.dart';
+import '../design_system/radius/radd_radius.dart';
 import '../models/catalog_item.dart';
 import '../providers/watchlist_provider.dart';
 import '../widgets/content_card.dart';
@@ -154,7 +155,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: context.signalPrimary.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: RaddRadius.mdRadius,
                   ),
                   child: Text('${state.items.length}',
                       style: TextStyle(color: context.signalPrimary,
@@ -202,7 +203,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
               color: context.signalPrimary,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: RaddRadius.mdRadius,
             ),
             child: const Text('Browse Content',
                 style: TextStyle(color: Colors.white,
