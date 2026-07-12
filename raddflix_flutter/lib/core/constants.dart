@@ -4,8 +4,11 @@ class AppConstants {
   static const String appName = 'RaddFlix';
   static const String tagline = 'Pakistan ka entertainment, data-free';
 
-  /// Runtime-mutable: updated by RemoteConfig.fetch() on every app start.
-  static String apiBaseUrl = 'http://92.4.95.252';
+  /// G5: hardcoded fallback only — the live, runtime-updatable value lives in
+  /// `remoteValuesProvider` (see `providers/remote_values_provider.dart`).
+  /// RemoteConfig no longer writes to this constant; it calls
+  /// `remoteValuesProvider.notifier.setApiBaseUrl()` instead.
+  static const String apiBaseUrlDefault = 'http://92.4.95.252';
 
 
   static const Duration accessTokenValidity = Duration(days: 7);
@@ -19,22 +22,19 @@ class AppConstants {
   // ── JazzDrive (zero-rated CDN) ─────────────────────────────────────────────
   static const String jazzDriveCloudBase = 'https://cloud.jazzdrive.com.pk';
 
-  /// Zero-rated delta.json URL — 24h rolling window, full playback data.
-  /// Updated by RemoteConfig.fetch() from /api/config on every startup.
-  /// Cached in SharedPreferences so it survives offline restarts.
-  /// Empty = JazzDrive delta disabled (Oracle-only sync).
-  /// Must be a mutable static field (not a getter) — RemoteConfig writes to it.
-  static String jazzDriveDeltaUrl = '';
-
   /// Legacy: full db_update.json URL — Oracle-only, never public JazzDrive.
-  static String get jazzDriveDbUpdateUrl => '\$apiBaseUrl/api/catalog/db_update';
+  /// Unused elsewhere in the app; kept for reference only.
+  static String get jazzDriveDbUpdateUrl =>
+      '$apiBaseUrlDefault/api/catalog/db_update';
 
   /// Stream link cache TTL. Same link reused for both watch + download within TTL.
   static const Duration streamLinkTtl = Duration(minutes: 110); // 110 min — matches jazzdrive_service.dart _cacheTtl
 
   // ── Support ──────────────────────────────────────────────────────────────
+  /// G5: hardcoded fallback only — the live value lives in
+  /// `remoteValuesProvider` (see `providers/remote_values_provider.dart`).
   /// WhatsApp support number (international format, no +, no spaces).
-  static String supportWhatsApp = '923257719165';
+  static const String supportWhatsAppDefault = '923257719165';
 
   // ── Device Switch / OTP Hook ─────────────────────────────────────────────
   /// Controls self-serve device switching via OTP (6-digit code via WhatsApp).

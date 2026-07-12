@@ -3,7 +3,9 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'constants.dart';
 import 'api/api_client.dart';
+import 'app_container.dart';
 import 'debug/debug_logger.dart';
+import '../providers/remote_values_provider.dart';
 
 /// Remote config loader for RaddFlix.
 ///
@@ -65,15 +67,16 @@ class RemoteConfig {
   /// Shared by both loadCached() and fetchBackground().
   static Future<void> _applyData(
       Map<String, dynamic> data, SharedPreferences prefs) async {
+    final remoteValues = appContainer.read(remoteValuesProvider.notifier);
     final url = (data['api_base_url'] as String?)?.trim();
     if (url != null && url.isNotEmpty) {
-      AppConstants.apiBaseUrl = url;
+      remoteValues.setApiBaseUrl(url);
       ApiClient.updateBaseUrl(url);
     }
     final deltaUrl = (data['jd_delta_url'] as String?)?.trim() ?? '';
-    if (deltaUrl.isNotEmpty) AppConstants.jazzDriveDeltaUrl = deltaUrl;
+    if (deltaUrl.isNotEmpty) remoteValues.setJazzDriveDeltaUrl(deltaUrl);
     final supportWa = (data['support_whatsapp'] as String?)?.trim() ?? '';
-    if (supportWa.isNotEmpty) AppConstants.supportWhatsApp = supportWa;
+    if (supportWa.isNotEmpty) remoteValues.setSupportWhatsApp(supportWa);
     for (final k in _brandKeys) {
       final v = (data[k] as String?)?.trim() ?? '';
       if (v.isNotEmpty) await prefs.setString(k, v);
@@ -100,7 +103,8 @@ class RemoteConfig {
       }
     }
     // No cache yet — use hardcoded fallback (first install, no internet yet)
-    ApiClient.updateBaseUrl(AppConstants.apiBaseUrl);
+    ApiClient.updateBaseUrl(
+        appContainer.read(remoteValuesProvider).apiBaseUrl);
   }
 
   /// Fetch fresh config from Oracle in the background — fire-and-forget.

@@ -9,6 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/api/auth_api.dart';
 import '../core/security/keystore.dart';
 import '../core/constants.dart';
+import '../core/app_container.dart';
+import '../providers/remote_values_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/loading_overlay.dart';
@@ -269,7 +271,7 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
       'Hi RaddFlix Support, I need to switch my account to a new device. '
       'My account was active on: ${widget.deviceName}');
     final url = Uri.parse(
-        'https://wa.me/${AppConstants.supportWhatsApp}?text=$msg');
+        'https://wa.me/${appContainer.read(remoteValuesProvider).supportWhatsApp}?text=$msg');
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {

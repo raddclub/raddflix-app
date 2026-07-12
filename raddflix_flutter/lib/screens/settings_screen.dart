@@ -12,6 +12,8 @@ import '../design_system/components/settings_row.dart';
 import '../design_system/radius/radd_radius.dart';
 import '../design_system/spacing/radd_space.dart';
 import '../core/constants.dart';
+import '../core/app_container.dart';
+import '../providers/remote_values_provider.dart';
 import '../core/debug/debug_logger.dart';
 import '../providers/catalog_provider.dart';
 
@@ -95,7 +97,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _contactSupport() async {
     DebugLogger.logTap('Settings', 'contactSupport');
-    final phone = AppConstants.supportWhatsApp;
+    final phone = appContainer.read(remoteValuesProvider).supportWhatsApp;
     final uri   = Uri.parse('https://wa.me/$phone?text=Hi%2C%20I%20need%20help%20with%20RaddFlix');
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);

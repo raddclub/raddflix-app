@@ -3,11 +3,24 @@ import 'dart:convert';
 import 'package:dio/dio.dart' hide RequestEncoder;
 import 'package:flutter/foundation.dart';
 import '../constants.dart';
+import '../app_container.dart';
+import '../../providers/remote_values_provider.dart';
 import '../security/keystore.dart';
 import '../security/app_guard.dart';
 import '../security/request_encoder.dart';
 import '../security/device_id.dart';
 import '../debug/debug_logger.dart';
+
+/// G5: current API base URL — reads the live Riverpod-managed value, falling
+/// back to the hardcoded default before `appContainer` exists (should not
+/// happen in practice; main.dart creates it before any network code runs).
+String get _currentApiBaseUrl {
+  try {
+    return appContainer.read(remoteValuesProvider).apiBaseUrl;
+  } catch (_) {
+    return AppConstants.apiBaseUrlDefault;
+  }
+}
 
 /// Singleton Dio HTTP client.
 /// Automatically attaches Bearer token to every request.
@@ -27,7 +40,7 @@ class ApiClient {
   ApiClient._() {
     _dio = Dio(
       BaseOptions(
-        baseUrl: AppConstants.apiBaseUrl,
+        baseUrl: _currentApiBaseUrl,
         connectTimeout: const Duration(seconds: 6),
         receiveTimeout: const Duration(seconds: 30),
         headers: {'Content-Type': 'application/json'},
@@ -276,7 +289,7 @@ class _AuthInterceptor extends Interceptor {
     if (refreshToken == null || refreshToken.isEmpty) {
       // Guest mode: no refresh token — re-issue a fresh guest token instead of logging out
       try {
-        final freshDio = Dio(BaseOptions(baseUrl: AppConstants.apiBaseUrl));
+        final freshDio = Dio(BaseOptions(baseUrl: _currentApiBaseUrl));
         freshDio.interceptors.add(_XorInterceptor()); // AUDIT-04: decode XOR response without auth loop
         final guestResp = await freshDio.post(ApiPaths.guest);
         if (guestResp.statusCode == 200) {
@@ -298,7 +311,7 @@ class _AuthInterceptor extends Interceptor {
     try {
       // Use a fresh Dio instance (no _AuthInterceptor) to avoid infinite retry loop.
       // _XorInterceptor is safe here — it only encodes/decodes, contains no auth logic.
-      final freshDio = Dio(BaseOptions(baseUrl: AppConstants.apiBaseUrl));
+      final freshDio = Dio(BaseOptions(baseUrl: _currentApiBaseUrl));
       freshDio.interceptors.add(_XorInterceptor()); // AUDIT-04: decode XOR response without auth loop
       final response = await freshDio.post(
         ApiPaths.refresh,

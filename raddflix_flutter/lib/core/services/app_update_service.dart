@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import '../constants.dart';
+import '../app_container.dart';
+import '../../providers/remote_values_provider.dart';
 
 class AppUpdateResult {
   final bool forceUpdate;
@@ -30,7 +31,7 @@ class AppUpdateService {
       final info = await PackageInfo.fromPlatform();
       final versionCode = int.tryParse(info.buildNumber) ?? 1;
       final dio = Dio(BaseOptions(
-        baseUrl: AppConstants.apiBaseUrl,
+        baseUrl: appContainer.read(remoteValuesProvider).apiBaseUrl,
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 10),
       ));

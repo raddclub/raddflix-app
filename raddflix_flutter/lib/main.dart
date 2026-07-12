@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'app.dart' show RaddFlixApp;
 import 'providers/app_navigation_provider.dart';
+import 'core/app_container.dart' as app_container;
 import 'core/remote_config.dart';
 import 'core/services/app_update_service.dart';
 import 'core/services/jazzdrive_service.dart';
@@ -66,6 +67,16 @@ void main() async {
   // Zero cost in release builds (kDebugMode is a compile-time constant).
   Animate.restartOnHotReload = kDebugMode;
 
+  // G5: create the shared ProviderContainer BEFORE any network/config code
+  // runs — RemoteConfig.loadCached() below (and every non-widget service
+  // that reads/writes remoteValuesProvider) needs it to already exist.
+  // Passed to UncontrolledProviderScope via runApp() further down, so
+  // widgets see the exact same provider state.
+  app_container.appContainer = ProviderContainer(
+    overrides: [animConfigProvider.overrideWithValue(animConfig)],
+  );
+  final container = app_container.appContainer;
+
   // Security shield — must run before any network or DB calls.
   // If tampered (cracked APK / Frida detected), sets AppGuard.isTampered = true.
   // ApiClient silently returns fake empty data when tampered.
@@ -106,15 +117,12 @@ void main() async {
   HistoryApi.flushUnsynced().ignore();               // push offline watch positions
   UsageService.flushPending().ignore();              // push pending data-usage bytes
 
-  // E3: this must exist before runApp() so both the pending-intent write
-  // below and the warm-start MethodChannel handler further down (which has
-  // no BuildContext / WidgetRef) can read/write navigatorKeyProvider and the
-  // pendingVideo*/pendingSubtitleUri providers. UncontrolledProviderScope
-  // hands this same container to the widget tree so ref.watch/read inside it
-  // see the exact same provider state.
-  final container = ProviderContainer(
-    overrides: [animConfigProvider.overrideWithValue(animConfig)],
-  );
+  // E3: `container` (created above, before Future.wait) is also read here so
+  // both the pending-intent write below and the warm-start MethodChannel
+  // handler further down (which has no BuildContext / WidgetRef) can
+  // read/write navigatorKeyProvider and the pendingVideo*/pendingSubtitleUri
+  // providers. UncontrolledProviderScope hands this same container to the
+  // widget tree so ref.watch/read inside it see the exact same provider state.
 
   // Check for initial video URI + display name from "Open with" intent (cold start)
   try {

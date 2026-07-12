@@ -3,7 +3,9 @@ import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/constants.dart';
+import '../core/app_container.dart';
 import '../core/services/notification_service.dart';
+import '../providers/remote_values_provider.dart';
 
 class NotificationBell extends StatelessWidget {
   const NotificationBell({super.key});
@@ -162,7 +164,7 @@ class _NotificationCard extends StatelessWidget {
     final (icon, iconColor) = _icons[notif.type] ?? _icons['info']!;
     final hasImage = notif.imageUrl != null && notif.imageUrl!.isNotEmpty;
     final imageFullUrl = hasImage
-        ? '${AppConstants.apiBaseUrl}${notif.imageUrl}'
+        ? '${appContainer.read(remoteValuesProvider).apiBaseUrl}${notif.imageUrl}'
         : null;
 
     return Container(

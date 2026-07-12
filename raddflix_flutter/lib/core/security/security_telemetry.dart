@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
-import '../constants.dart';
+import '../app_container.dart';
+import '../../providers/remote_values_provider.dart';
 import '../security/device_id.dart';
 import '../security/app_guard.dart';
 
@@ -42,7 +43,7 @@ class SecurityTelemetry {
       // Use a fresh Dio with short timeout — no interceptors, no auth header
       // (The tampered app may not have a valid JWT, so we skip auth entirely)
       final dio = Dio(BaseOptions(
-        baseUrl: AppConstants.apiBaseUrl,
+        baseUrl: appContainer.read(remoteValuesProvider).apiBaseUrl,
         connectTimeout: const Duration(seconds: 5),
         receiveTimeout: const Duration(seconds: 5),
         headers: {'Content-Type': 'application/json'},

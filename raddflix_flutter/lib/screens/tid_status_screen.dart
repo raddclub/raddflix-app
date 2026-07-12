@@ -7,6 +7,8 @@ import '../design_system/radius/radd_radius.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import '../core/constants.dart';
+import '../core/app_container.dart';
+import '../providers/remote_values_provider.dart';
 import '../core/api/api_client.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/subscription_provider.dart';
@@ -401,7 +403,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
     return TextButton.icon(
       onPressed: () async {
         final uri = Uri.parse(
-          'https://wa.me/${AppConstants.supportWhatsApp}?text=RaddFlix+Support+%E2%80%94+TID:+${widget.tid}',
+          'https://wa.me/${appContainer.read(remoteValuesProvider).supportWhatsApp}?text=RaddFlix+Support+%E2%80%94+TID:+${widget.tid}',
         );
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -451,7 +453,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
       child: ElevatedButton.icon(
         onPressed: () async {
           final uri = Uri.parse(
-            'https://wa.me/${AppConstants.supportWhatsApp}?text=RaddFlix+Payment+Rejected+%E2%80%94+TID:+${widget.tid}',
+            'https://wa.me/${appContainer.read(remoteValuesProvider).supportWhatsApp}?text=RaddFlix+Payment+Rejected+%E2%80%94+TID:+${widget.tid}',
           );
           if (await canLaunchUrl(uri)) {
             await launchUrl(uri, mode: LaunchMode.externalApplication);
