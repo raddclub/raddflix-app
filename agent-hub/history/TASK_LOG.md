@@ -603,6 +603,58 @@ Goal: nothing developer-only visible, reachable, or leaking in production APK.
 - **L10** `ApiClient.isGuestMode` mutable static: belongs in Phase G/E3 Riverpod migration session.
 
 ### Outcome
-All actionable L items complete. L10 deferred. CI pending on `7231766b`.
+All actionable L items complete. L10 deferred. CI green on `7231766b`.
 Phase L marked ✅ DONE in TASKS.md. Ready for Phase G.
+
+---
+
+## 2026-07-12 — PHASE-G-2026-07-12 (partial)
+
+### Task
+Phase G of TEN_POINT_PLAN.md: Architecture Modernisation.
+Session focused on G2 (animation package consolidation) with investigation of G1/G3/G4/G5 scope.
+
+### Verification findings (before coding)
+
+**G2:**
+- `flutter_staggered_animations`: zero usages via grep across all lib/*.dart → safe to remove.
+- `animated_text_kit`: zero usages → safe to remove.
+- `animations` (OpenContainer): used in `home_screen.dart` L481 and `search_screen.dart` L836
+  for Tier 2+ card-expand morph; non-trivial to replace → kept.
+
+**G4 (dead file audit):**
+- 13 lettered series files in `core/player/` all have zero imports (grep confirmed):
+  c/d/f/g/n/o/p/q/r/s/t/u/v series files.
+- Each file is 100–300 lines of feature stub code (planned features not yet connected).
+- **Decision: defer deletion — requires user confirmation per TEN_POINT_PLAN G4 note.**
+
+**G3 (video_thumbnail → media_kit):**
+- 2 call sites: `thumb_service.dart` + `local_media_service.dart`.
+- Platform channels cannot be used inside `compute()` isolates, so the plan's
+  "media_kit in compute()" approach needs a different mechanism.
+- **Decision: defer to dedicated investigation session.**
+
+**G5 (AppConstants mutable statics → Riverpod):**
+- `AppConstants.apiBaseUrl`, `jazzDriveDeltaUrl`, `supportWhatsApp` are `static var`.
+- `RemoteConfig.fetch()` writes to them at startup; `ApiClient` reads `apiBaseUrl` repeatedly.
+- Complex refactor; same session as L10 (`ApiClient.isGuestMode`).
+- **Decision: defer to Phase G5 session.**
+
+### Changes
+
+**G2 — `pubspec.yaml`** (commit `58a0137`)
+- Removed `flutter_staggered_animations: ^1.1.1` (zero usages).
+- Removed `animated_text_kit: ^4.2.2` (zero usages).
+- Kept `animations: ^2.0.11` with rationale comment (OpenContainer in 2 screens).
+- Estimated APK size reduction: ~100–200KB from two removed packages.
+
+### Deferred to next G session
+- G1: go_router migration (large, all Navigator.pushNamed call sites).
+- G3: video_thumbnail replacement (needs platform-safe frame extraction approach).
+- G4: lettered series file deletion (user confirmation required first).
+- G5 + L10: AppConstants + ApiClient.isGuestMode → Riverpod (complex, dedicated session).
+
+### Outcome
+G2 partial complete. CI pending on `58a01378`.
+Phase G marked ⏳ IN PROGRESS in TASKS.md.
 

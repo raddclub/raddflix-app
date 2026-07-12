@@ -5,6 +5,46 @@
 
 ---
 
+## Current State (2026-07-12 — Phase G In Progress)
+
+### PHASE-G — Architecture Modernisation — 2026-07-12
+
+**G2 partial** — 2 unused animation packages removed from pubspec.yaml. CI pending on `58a01378`.
+
+- **G2: flutter_staggered_animations removed** — zero usages confirmed across all 67k lines; removed
+  from pubspec.yaml.
+- **G2: animated_text_kit removed** — zero usages confirmed; removed from pubspec.yaml.
+- **G2: animations package (OpenContainer) KEPT** — evaluated: `OpenContainer<void>` used in
+  `home_screen.dart` L481 and `search_screen.dart` L836 for Tier 2+ card-expand morph transition.
+  Non-trivial to replace with `flutter_animate` without visual regression; kept with rationale comment.
+
+**What's remaining for Phase G:**
+- **G1** `go_router`: Large migration — replaces all `Navigator.pushNamed/push(context, ...)` call sites.
+  Currently: static named routes map + `onGenerateRoute` in `app.dart`. Touches every screen's
+  navigation call. Recommend doing in one session.
+- **G3** `video_thumbnail → media_kit frame extraction`: 2 call sites (`thumb_service.dart`,
+  `local_media_service.dart`). Blocked: platform channels cannot run inside `compute()` isolates,
+  so the plan's approach (media_kit in compute()) needs a different mechanism. Deferred.
+- **G4** `core/player/` dead file audit: 13 lettered series files (`c_series_gestures.dart` through
+  `v_series_video_tools.dart`) all have **zero imports** — confirmed dead. BUT each file is a
+  100–300 line feature stub (planned features: pinch brightness, picture profiles, parental controls,
+  etc.). **MUST confirm with the user before deleting.** Do not delete without confirmation.
+- **G5** `AppConstants` mutable statics → Riverpod: `apiBaseUrl`, `jazzDriveDeltaUrl`,
+  `supportWhatsApp` are `static var` mutated by `RemoteConfig.fetch()`. Touches `ApiClient`,
+  `RemoteConfig`, `security_telemetry`, `app_update_service`. Complex refactor — same session as
+  Phase E3 / L10 (`ApiClient.isGuestMode`).
+
+**Active rules (carry forward):**
+- G4 file deletion requires user confirmation — never delete lettered series stubs without it
+- G3 video_thumbnail replacement: platform channels cannot run in compute() isolates; investigate
+  alternative frame-extraction approach before implementing
+- Never add `androidAttachSurfaceAfterVideoParameters: true`
+- Never upgrade `sqflite_sqlcipher` past `3.1.0+1`
+- Push files sequentially (SHA race condition), ≥1.2 s apart
+- `kDebugMode` gate requires `import 'package:flutter/foundation.dart' show kDebugMode;` (Rule 43)
+
+---
+
 ## Current State (2026-07-12 — Phase L Complete)
 
 ### PHASE-L — Production Hygiene — 2026-07-12

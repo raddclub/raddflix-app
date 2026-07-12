@@ -572,10 +572,10 @@ in one commit so CI catches the full picture.
 3. Audit all uses of `animated_text_kit` → replace with `flutter_animate`'s `.shimmer()`/`.fade()`.
 4. Remove the three packages from pubspec.yaml.
 Estimated APK size reduction: 200–400KB.
-- [ ] Replace flutter_staggered_animations usages with flutter_animate
-- [ ] Replace animated_text_kit usages with flutter_animate
-- [ ] Evaluate and replace/keep animations package (OpenContainer is non-trivial to replace)
-- [ ] Remove consolidated packages from pubspec.yaml
+- [x] Replace flutter_staggered_animations usages with flutter_animate — zero usages confirmed, package removed from pubspec.yaml (G2 commit 58a0137)
+- [x] Replace animated_text_kit usages with flutter_animate — zero usages confirmed, package removed from pubspec.yaml (G2 commit 58a0137)
+- [x] Evaluate and replace/keep animations package — KEPT: OpenContainer used in home_screen.dart + search_screen.dart (Tier 2+ morph); non-trivial to replace without visual regression
+- [x] Remove consolidated packages from pubspec.yaml — flutter_staggered_animations + animated_text_kit removed; animations kept
 
 ### G3 — Replace `video_thumbnail` with `media_kit` frame extraction
 **File:** `raddflix_flutter/pubspec.yaml` + any file calling `VideoThumbnail.thumbnailFile()`
