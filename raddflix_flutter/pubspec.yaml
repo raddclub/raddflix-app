@@ -120,6 +120,9 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
 
+  # Mocking for unit/widget tests (Phase H — Testing Infrastructure)
+  mocktail: ^1.0.3
+
 flutter:
   uses-material-design: true
   assets:
