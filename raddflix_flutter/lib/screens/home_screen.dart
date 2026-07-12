@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/components/radd_button.dart';
+import '../design_system/motion/radd_motion.dart';
 import '../design_system/spacing/radd_space.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -947,16 +949,10 @@ class _UpdateDialog extends StatelessWidget {
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
-              icon: Icon(AppIcons.downloadAction, size: 18),
-              label: const Text('Update Now'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.round)),
-                padding: const EdgeInsets.symmetric(vertical: 13),
-              ),
+            child: RaddButton(
+              label: 'Update Now',
+              leadingIcon: AppIcons.downloadAction,
+              fullWidth: true,
               onPressed: () async {
                 if (updateUrl.isNotEmpty) {
                   await launchUrl(Uri.parse(updateUrl),
@@ -1167,7 +1163,7 @@ class _CategoryChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: RaddMotion.tuneDuration,
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
         decoration: BoxDecoration(

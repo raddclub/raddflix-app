@@ -12,6 +12,7 @@ import '../core/constants.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/loading_overlay.dart';
+import '../design_system/components/radd_button.dart';
 import '../design_system/components/radd_text_field.dart';
 import '../core/utils/auth_utils.dart';
 import '../widgets/particle_overlay.dart';
@@ -184,14 +185,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ],
                     SizedBox(height: 28),
                     // Sign In Button
-                    _GradientButton(label: 'Sign In', onTap: _loading ? null : _login)
+                    RaddButton(
+                      label: 'Sign In',
+                      onPressed: _loading ? null : _login,
+                      loading: _loading,
+                      fullWidth: true,
+                    )
                         .animate(delay: 320.ms).fadeIn(duration: 350.ms)
                         .slideY(begin: 0.2, end: 0, duration: 350.ms, curve: AppCurves.standard),
                     SizedBox(height: 12),
                     // Guest
-                    OutlinedButton(
+                    RaddButton(
+                      variant: RaddButtonVariant.ghost,
+                      label: 'Continue as Guest',
                       onPressed: _loading ? null : _guest,
-                      child: Text('Continue as Guest'),
+                      fullWidth: true,
                     )
                         .animate(delay: 370.ms).fadeIn(duration: 350.ms),
                     SizedBox(height: 24),
@@ -332,10 +340,10 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header
         Row(children: [
-          Icon(AppIcons.devices, color: Color(0xFFF59E0B), size: 18),
+          Icon(AppIcons.devices, color: AppColors.warning, size: 18),
           SizedBox(width: 8),
           Text('Device Conflict',
-              style: TextStyle(color: Color(0xFFF59E0B), fontSize: 14,
+              style: TextStyle(color: AppColors.warning, fontSize: 14,
                   fontWeight: FontWeight.w700)),
         ]),
         SizedBox(height: 8),
@@ -389,18 +397,12 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: context.signalPrimary.withOpacity(0.6)),
-                  foregroundColor: context.signalPrimary,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                ),
+              child: RaddButton(
+                variant: RaddButtonVariant.tonal,
+                label: 'Send OTP to My Number',
+                loading: _otpLoading,
                 onPressed: _otpLoading ? null : _requestOtp,
-                child: _otpLoading
-                    ? const SizedBox(height: 16, width: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Send OTP to My Number',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                fullWidth: true,
               ),
             ),
           ] else ...[
@@ -415,18 +417,12 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: context.signalPrimary.withOpacity(0.6)),
-                  foregroundColor: context.signalPrimary,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                ),
+              child: RaddButton(
+                variant: RaddButtonVariant.tonal,
+                label: 'Verify & Switch Device',
+                loading: _otpLoading,
                 onPressed: _otpLoading ? null : _verifyOtp,
-                child: _otpLoading
-                    ? SizedBox(height: 16, width: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : Text('Verify & Switch Device',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                fullWidth: true,
               ),
             ),
             TextButton(
@@ -459,7 +455,7 @@ class _Logo extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: const LinearGradient(
-              colors: [Color(0xFFE8002D), Color(0xFF8B0000)],
+              colors: [AppColors.primary, AppColors.primaryDark],
               begin: Alignment.topLeft, end: Alignment.bottomRight,
             ),
             boxShadow: AppShadows.glow,
@@ -511,35 +507,4 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
-// ── Gradient Button ────────────────────────────────────────────────────────────
-class _GradientButton extends StatelessWidget {
-  final String label;
-  final VoidCallback? onTap;
-  const _GradientButton({required this.label, this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return Container(
-      height: 54,
-      decoration: BoxDecoration(
-        gradient: onTap != null ? AppColors.primaryGradient : null,
-        color: onTap == null ? context.signalPrimary.withOpacity(0.4) : null,
-        borderRadius: RaddRadius.mdRadius,
-        boxShadow: onTap != null ? AppShadows.primary : null,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: RaddRadius.mdRadius,
-          onTap: onTap,
-          child: Center(
-            child: Text(label,
-              style: const TextStyle(
-                color: Colors.white, fontSize: 15,
-                fontWeight: FontWeight.w800, letterSpacing: 0.5)),
-          ),
-        ),
-      ),
-    );
-  }
-}
+// _GradientButton removed — Phase F: replaced with RaddButton.signal.

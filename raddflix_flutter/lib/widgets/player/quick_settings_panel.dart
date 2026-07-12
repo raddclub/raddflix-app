@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants.dart' show AppColors;
+import '../../../design_system/motion/radd_motion.dart';
+import '../../../design_system/radius/radd_radius.dart';
 import '../../../core/player/player_prefs.dart';
 import '../../../core/player/video_look_filter.dart'; // D2
 import '../../../core/player/end_of_video_actions.dart'; // M3
@@ -175,7 +177,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                 width: 32, height: 32,
                 decoration: BoxDecoration(
                   color: _accent,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: RaddRadius.smRadius,
                 ),
                 child: const Icon(Icons.chevron_left_rounded,
                     color: Colors.white, size: 22),
@@ -290,7 +292,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(children: [
               AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+                duration: RaddMotion.tuneDuration,
                 width: 26, height: 26,
                 decoration: BoxDecoration(
                   color: playerAccent,
@@ -492,7 +494,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: sel ? playerAccent.withOpacity(0.2) : Colors.white.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: RaddRadius.smRadius,
                     border: Border.all(
                       color: sel ? playerAccent : Colors.white12,
                       width: sel ? 1.5 : 1),
@@ -683,7 +685,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
             child: Row(children: [
               Container(width: 36, height: 36,
                 decoration: BoxDecoration(color: Colors.white10,
-                    borderRadius: BorderRadius.circular(8)),
+                    borderRadius: RaddRadius.smRadius),
                 child: const Icon(Icons.photo_filter_rounded, color: Colors.white54, size: 18)),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -773,7 +775,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: isSel ? _accent.withOpacity(0.2) : Colors.white.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: RaddRadius.smRadius,
                   border: Border.all(
                     color: isSel ? _accent : Colors.white12,
                     width: isSel ? 1.5 : 1),
@@ -905,7 +907,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                   decoration: BoxDecoration(
                     color: Colors.white10,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: RaddRadius.lgRadius,
                     border: Border.all(color: Colors.white.withOpacity(0.20))),
                   child: Text('${s}×',
                       style: const TextStyle(color: Colors.white60, fontSize: 12)),
@@ -926,7 +928,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                   decoration: BoxDecoration(
                     color: _accent.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: RaddRadius.lgRadius,
                     border: Border.all(color: _accent.withOpacity(0.4))),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.edit_rounded, color: _accent, size: 14),
@@ -1070,7 +1072,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
             child: Row(children: [
               Container(width: 36, height: 36,
                 decoration: BoxDecoration(color: Colors.white10,
-                    borderRadius: BorderRadius.circular(8)),
+                    borderRadius: RaddRadius.smRadius),
                 child: const Icon(Icons.touch_app_rounded, color: Colors.white54, size: 18)),
               const SizedBox(width: 14),
               const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1089,7 +1091,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
             child: Row(children: [
               Container(width: 36, height: 36,
                 decoration: BoxDecoration(color: Colors.white10,
-                    borderRadius: BorderRadius.circular(8)),
+                    borderRadius: RaddRadius.smRadius),
                 child: const Icon(Icons.content_cut_rounded, color: Colors.white54, size: 18)),
               const SizedBox(width: 14),
               const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1307,7 +1309,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                 width: 36, height: 36,
                 decoration: BoxDecoration(
                   color: _p.subtitleBold ? _accent : Colors.white10,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: RaddRadius.smRadius,
                   border: Border.all(
                     color: _p.subtitleBold ? _accent : Colors.white24),
                 ),
@@ -1533,7 +1535,7 @@ class _ModeChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
         color: selected ? accentColor.withOpacity(0.2) : Colors.white10,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: RaddRadius.lgRadius,
         border: Border.all(color: selected ? accentColor : Colors.white24),
       ),
       child: Text(label,
@@ -1664,12 +1666,12 @@ class _NavButton extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     child: InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: RaddRadius.mdRadius,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: RaddRadius.mdRadius,
           border: Border.all(color: Colors.white10),
         ),
         child: Row(children: [

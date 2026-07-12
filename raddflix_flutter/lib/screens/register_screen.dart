@@ -10,6 +10,7 @@ import '../core/constants.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/loading_overlay.dart';
+import '../design_system/components/radd_button.dart';
 import '../design_system/components/radd_text_field.dart';
 import '../core/utils/auth_utils.dart';
 
@@ -170,19 +171,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ).animate().fadeIn(duration: 250.ms).shakeX(hz: 3, amount: 4),
                   ],
                   const SizedBox(height: 28),
-                  Container(height: 52,
-                    decoration: BoxDecoration(gradient: AppColors.primaryGradient,
-                        borderRadius: RaddRadius.mdRadius, boxShadow: AppShadows.primary),
-                    child: Material(color: Colors.transparent,
-                      child: InkWell(borderRadius: RaddRadius.mdRadius,
-                        onTap: _loading ? null : _register,
-                        child: Center(child: Text('Create Account',
-                            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700))))))
+                  RaddButton(
+                    label: 'Create Account',
+                    onPressed: _loading ? null : _register,
+                    loading: _loading,
+                    fullWidth: true,
+                  )
                       .animate(delay: 300.ms).fadeIn(duration: 350.ms)
                       .slideY(begin: 0.2, end: 0, duration: 350.ms, curve: AppCurves.standard),
                   SizedBox(height: 12),
-                  OutlinedButton(onPressed: _loading ? null : _guest,
-                      child: Text('Continue as Guest'))
+                  RaddButton(
+                    variant: RaddButtonVariant.ghost,
+                    label: 'Continue as Guest',
+                    onPressed: _loading ? null : _guest,
+                    fullWidth: true,
+                  )
                       .animate(delay: 350.ms).fadeIn(duration: 300.ms),
                   SizedBox(height: 20),
                   Center(child: GestureDetector(

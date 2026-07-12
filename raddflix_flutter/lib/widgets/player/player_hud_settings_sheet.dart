@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/player/player_prefs.dart';
+import '../../design_system/motion/radd_motion.dart';
+import '../../design_system/radius/radd_radius.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PLAYER HUD SETTINGS SHEET  v2
@@ -410,7 +412,7 @@ class _Tab extends StatelessWidget {
           margin: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             color: selected ? Colors.white.withOpacity(0.13) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: RaddRadius.smRadius,
           ),
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(icon, color: selected ? Colors.white : Colors.white38, size: 12),
@@ -461,7 +463,7 @@ class _PresetStrip extends StatelessWidget {
             return GestureDetector(
               onTap: () => onPreset(pr.id),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+                duration: RaddMotion.tuneDuration,
                 margin: const EdgeInsets.only(right: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -487,7 +489,7 @@ class _PresetStrip extends StatelessWidget {
           GestureDetector(
             onTap: () {},
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+              duration: RaddMotion.tuneDuration,
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
@@ -791,7 +793,7 @@ class _QuickBarSectionState extends State<_QuickBarSection> {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: RaddRadius.smRadius,
                   border: Border.all(color: Colors.white.withOpacity(0.12)),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -817,7 +819,7 @@ class _QuickBarSectionState extends State<_QuickBarSection> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: Colors.amber.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: RaddRadius.smRadius,
               border: Border.all(color: Colors.amber.withOpacity(0.2)),
             ),
             child: const Row(children: [
@@ -892,7 +894,7 @@ class _Chips3 extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 7),
         decoration: BoxDecoration(
           color: sel ? accent.withOpacity(0.20) : Colors.white.withOpacity(0.07),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: RaddRadius.smRadius,
           border: Border.all(color: sel ? accent.withOpacity(0.65) : Colors.white.withOpacity(0.12)),
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
