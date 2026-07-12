@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'core/design/app_icons.dart';
 import 'models/catalog_item.dart';
@@ -44,22 +45,30 @@ import 'providers/app_navigation_provider.dart';
 class _RaddNavObserver extends NavigatorObserver {
   @override
   void didPush(Route route, Route? previousRoute) {
-    final from = previousRoute?.settings.name ?? 'root';
-    DebugLogger.logNav('PUSH', route.settings.name ?? '(anon)', 'from=$from');
+    if (kDebugMode) {
+      final from = previousRoute?.settings.name ?? 'root';
+      DebugLogger.logNav('PUSH', route.settings.name ?? '(anon)', 'from=$from');
+    }
   }
   @override
   void didPop(Route route, Route? previousRoute) {
-    final to = previousRoute?.settings.name ?? 'root';
-    DebugLogger.logNav('POP', route.settings.name ?? '(anon)', 'to=$to');
+    if (kDebugMode) {
+      final to = previousRoute?.settings.name ?? 'root';
+      DebugLogger.logNav('POP', route.settings.name ?? '(anon)', 'to=$to');
+    }
   }
   @override
   void didReplace({Route? newRoute, Route? oldRoute}) {
-    DebugLogger.logNav('REPLACE',
-        '${oldRoute?.settings.name ?? "?"} → ${newRoute?.settings.name ?? "?"}');
+    if (kDebugMode) {
+      DebugLogger.logNav('REPLACE',
+          '${oldRoute?.settings.name ?? "?"} → ${newRoute?.settings.name ?? "?"}');
+    }
   }
   @override
   void didRemove(Route route, Route? previousRoute) {
-    DebugLogger.logNav('REMOVE', route.settings.name ?? '(anon)');
+    if (kDebugMode) {
+      DebugLogger.logNav('REMOVE', route.settings.name ?? '(anon)');
+    }
   }
 }
 
