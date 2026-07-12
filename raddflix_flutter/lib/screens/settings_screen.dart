@@ -8,7 +8,9 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/theme/radd_theme.dart';
 import '../core/theme/radd_colors.dart';
+import '../design_system/components/settings_row.dart';
 import '../design_system/radius/radd_radius.dart';
+import '../design_system/spacing/radd_space.dart';
 import '../core/constants.dart';
 import '../core/debug/debug_logger.dart';
 import '../providers/catalog_provider.dart';
@@ -134,133 +136,156 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                 // ── Playback ──────────────────────────────────────────────
                 _SettingsSection(t: t, title: 'Playback', children: [
-                  _SettingsSwitch(
-                    t: t,
-                    icon: AppIcons.subtitle,
-                    label: 'Subtitles On By Default',
-                    subtitle: 'Auto-enable subtitles when opening a video',
-                    value: _subtitleDefault,
-                    onChanged: (v) => _set(StorageKeys.subtitleDefault, v,
-                        (x) => _subtitleDefault = x),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
+                    child: SettingsRow(
+                      icon: AppIcons.subtitle,
+                      label: 'Subtitles On By Default',
+                      subtitle: 'Auto-enable subtitles when opening a video',
+                      trailing: SettingsRowTrailing.switchControl,
+                      switchValue: _subtitleDefault,
+                      onSwitchChanged: (v) => _set(StorageKeys.subtitleDefault, v,
+                          (x) => _subtitleDefault = x),
+                    ),
                   ),
                   _divider(t),
-                  _SettingsSwitch(
-                    t: t,
-                    icon: AppIcons.skipForward,
-                    label: 'Auto-play Next Episode',
-                    subtitle: 'Automatically play the next episode when one ends',
-                    value: _autoPlayNext,
-                    onChanged: (v) => _set('jm_autoplay_next', v,
-                        (x) => _autoPlayNext = x),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
+                    child: SettingsRow(
+                      icon: AppIcons.skipForward,
+                      label: 'Auto-play Next Episode',
+                      subtitle: 'Automatically play the next episode when one ends',
+                      trailing: SettingsRowTrailing.switchControl,
+                      switchValue: _autoPlayNext,
+                      onSwitchChanged: (v) => _set('jm_autoplay_next', v,
+                          (x) => _autoPlayNext = x),
+                    ),
                   ),
                 ]),
                 const SizedBox(height: 20),
 
                 // ── Network & Data ────────────────────────────────────────
                 _SettingsSection(t: t, title: 'Network & Data', children: [
-                  _SettingsSwitch(
-                    t: t,
-                    icon: AppIcons.wifi,
-                    label: 'Download on WiFi Only',
-                    subtitle: 'Prevent downloads over mobile data',
-                    value: _wifiOnly,
-                    iconColor: AppColors.info,
-                    onChanged: (v) => _set('jm_wifi_only', v, (x) => _wifiOnly = x),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
+                    child: SettingsRow(
+                      icon: AppIcons.wifi,
+                      label: 'Download on WiFi Only',
+                      subtitle: 'Prevent downloads over mobile data',
+                      trailing: SettingsRowTrailing.switchControl,
+                      switchValue: _wifiOnly,
+                      iconColor: AppColors.info,
+                      onSwitchChanged: (v) => _set('jm_wifi_only', v,
+                          (x) => _wifiOnly = x),
+                    ),
                   ),
                   _divider(t),
-                  _SettingsSwitch(
-                    t: t,
-                    icon: AppIcons.dataSaver,
-                    label: 'Data Saver',
-                    subtitle: 'Reduces streaming buffer size to save mobile data',
-                    value: _dataSaver,
-                    iconColor: AppColors.success,
-                    onChanged: (v) => _set('jm_data_saver', v, (x) => _dataSaver = x),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
+                    child: SettingsRow(
+                      icon: AppIcons.dataSaver,
+                      label: 'Data Saver',
+                      subtitle: 'Reduces streaming buffer size to save mobile data',
+                      trailing: SettingsRowTrailing.switchControl,
+                      switchValue: _dataSaver,
+                      iconColor: AppColors.success,
+                      onSwitchChanged: (v) => _set('jm_data_saver', v,
+                          (x) => _dataSaver = x),
+                    ),
                   ),
                 ]),
                 const SizedBox(height: 20),
 
                 // ── Storage & Cache ───────────────────────────────────────
                 _SettingsSection(t: t, title: 'Storage & Cache', children: [
-                  _SettingsTile(
-                    t: t,
-                    icon: AppIcons.clearCache,
-                    label: 'Clear Image Cache',
-                    subtitle: 'Frees cached poster and thumbnail images',
-                    onTap: _clearImageCache,
-                    iconColor: context.accentWarning,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
+                    child: SettingsRow(
+                      icon: AppIcons.clearCache,
+                      label: 'Clear Image Cache',
+                      subtitle: 'Frees cached poster and thumbnail images',
+                      onTap: _clearImageCache,
+                      iconColor: context.accentWarning,
+                    ),
                   ),
                   _divider(t),
-                  _SettingsTile(
-                    t: t,
-                    icon: AppIcons.folder2,
-                    label: 'Manage Downloads',
-                    subtitle: 'View, delete and manage downloaded content',
-                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.downloads),
-                    iconColor: context.signalPrimary,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
+                    child: SettingsRow(
+                      icon: AppIcons.folder2,
+                      label: 'Manage Downloads',
+                      subtitle: 'View, delete and manage downloaded content',
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.downloads),
+                      iconColor: context.signalPrimary,
+                    ),
                   ),
                 ]),
                 const SizedBox(height: 20),
 
                 // ── Catalog Sync ──────────────────────────────────────────
                 _SettingsSection(t: t, title: 'Catalog', children: [
-                  _SettingsTile(
-                    t: t,
-                    icon: _syncing ? AppIcons.arrowsSync : AppIcons.refresh,
-                    label: _syncing ? 'Syncing…' : 'Refresh Catalog',
-                    subtitle: 'Force download the latest movies and shows',
-                    onTap: _syncing ? null : _syncNow,
-                    iconColor: context.signalPrimary,
-                    trailing: _syncing
-                        ? SizedBox(
-                            width: 18, height: 18,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation(context.signalPrimary)))
-                        : null,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
+                    child: _syncing
+                        ? _SyncingRow(signalColor: context.signalPrimary)
+                        : SettingsRow(
+                            icon: AppIcons.refresh,
+                            label: 'Refresh Catalog',
+                            subtitle: 'Force download the latest movies and shows',
+                            onTap: _syncNow,
+                            iconColor: context.signalPrimary,
+                          ),
                   ),
                 ]),
                 const SizedBox(height: 20),
 
                 // ── Support ───────────────────────────────────────────────
                 _SettingsSection(t: t, title: 'Support', children: [
-                  _SettingsTile(
-                    t: t,
-                    icon: AppIcons.support,
-                    label: 'Contact Support',
-                    subtitle: 'Chat with us on WhatsApp',
-                    onTap: _contactSupport,
-                    iconColor: const Color(0xFF25D366),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
+                    child: SettingsRow(
+                      icon: AppIcons.support,
+                      label: 'Contact Support',
+                      subtitle: 'Chat with us on WhatsApp',
+                      onTap: _contactSupport,
+                      iconColor: const Color(0xFF25D366), // intentional: WhatsApp brand green
+                    ),
                   ),
                 ]),
                 const SizedBox(height: 20),
 
                 // ── About ─────────────────────────────────────────────────
                 _SettingsSection(t: t, title: 'About', children: [
-                  _SettingsTile(
-                    t: t,
-                    icon: AppIcons.info,
-                    label: 'App Version',
-                    subtitle: '$_version (build $_buildNumber)',
-                    onTap: null,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
+                    child: SettingsRow(
+                      icon: AppIcons.info,
+                      label: 'App Version',
+                      subtitle: '$_version (build $_buildNumber)',
+                      trailing: SettingsRowTrailing.none,
+                    ),
                   ),
                   _divider(t),
-                  _SettingsTile(
-                    t: t,
-                    icon: AppIcons.lightning,
-                    label: 'Streaming Features',
-                    subtitle: 'HD quality video and offline downloads included',
-                    onTap: null,
-                    iconColor: const Color(0xFFFFB800),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
+                    child: SettingsRow(
+                      icon: AppIcons.lightning,
+                      label: 'Streaming Features',
+                      subtitle: 'HD quality video and offline downloads included',
+                      trailing: SettingsRowTrailing.none,
+                      iconColor: const Color(0xFFFFB800), // intentional: gold accent
+                    ),
                   ),
                   _divider(t),
-                  _SettingsTile(
-                    t: t,
-                    icon: AppIcons.heart,
-                    label: 'Made in Pakistan',
-                    subtitle: 'RaddFlix — Streaming ki apni zubaan',
-                    onTap: null,
-                    iconColor: const Color(0xFF00A550),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
+                    child: SettingsRow(
+                      icon: AppIcons.heart,
+                      label: 'Made in Pakistan',
+                      subtitle: 'RaddFlix — Streaming ki apni zubaan',
+                      trailing: SettingsRowTrailing.none,
+                      iconColor: const Color(0xFF00A550), // intentional: Pakistan flag green
+                    ),
                   ),
                 ]),
               ],
@@ -269,10 +294,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Widget _divider(RaddTheme t) => Divider(
-      height: 1, color: t.border.withOpacity(0.5), indent: 52, endIndent: 0);
+      height: 1, color: t.border.withOpacity(0.5), indent: 56, endIndent: 0);
 }
 
 // ── Shared section widgets ─────────────────────────────────────────────────
+
+class _SyncingRow extends StatelessWidget {
+  final Color signalColor;
+  const _SyncingRow({required this.signalColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return SizedBox(
+      height: 64,
+      child: Row(children: [
+        Icon(AppIcons.arrowsSync, size: 24, color: signalColor),
+        const SizedBox(width: RaddSpace.md),
+        Expanded(child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Syncing…',
+                style: TextStyle(color: t.textPrimary, fontSize: 14,
+                    fontWeight: FontWeight.w500)),
+            const SizedBox(height: 2),
+            Text('Force download the latest movies and shows',
+                style: TextStyle(color: t.textMuted, fontSize: 12)),
+          ],
+        )),
+        SizedBox(width: 18, height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation(signalColor))),
+      ]),
+    );
+  }
+}
 
 class _SettingsSection extends StatelessWidget {
   final String title;
@@ -301,76 +358,4 @@ class _SettingsSection extends StatelessWidget {
   }
 }
 
-class _SettingsTile extends StatelessWidget {
-  final RaddTheme t;
-  final IconData icon;
-  final String label;
-  final String? subtitle;
-  final VoidCallback? onTap;
-  final Color? iconColor;
-  final Widget? trailing;
-  const _SettingsTile({
-    required this.t, required this.icon, required this.label,
-    this.subtitle, this.onTap, this.iconColor, this.trailing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: Container(
-        width: 36, height: 36,
-        decoration: BoxDecoration(
-          color: (iconColor ?? t.textSecondary).withOpacity(0.14),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, size: 20, color: iconColor ?? t.textSecondary),
-      ),
-      title: Text(label, style: TextStyle(
-          color: t.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-      subtitle: subtitle != null
-          ? Text(subtitle!, style: TextStyle(color: t.textMuted, fontSize: 12))
-          : null,
-      trailing: trailing ??
-          (onTap != null
-              ? Icon(AppIcons.caretRight, color: t.textMuted, size: 20)
-              : null),
-      onTap: onTap,
-    );
-  }
-}
-
-class _SettingsSwitch extends StatelessWidget {
-  final RaddTheme t;
-  final IconData icon;
-  final String label;
-  final String? subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  final Color? iconColor;
-  const _SettingsSwitch({
-    required this.t, required this.icon, required this.label,
-    this.subtitle, required this.value, required this.onChanged, this.iconColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: Container(
-        width: 36, height: 36,
-        decoration: BoxDecoration(
-          color: (iconColor ?? t.textSecondary).withOpacity(0.14),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, size: 20, color: iconColor ?? t.textSecondary),
-      ),
-      title: Text(label, style: TextStyle(
-          color: t.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-      subtitle: subtitle != null
-          ? Text(subtitle!, style: TextStyle(color: t.textMuted, fontSize: 12))
-          : null,
-      trailing: Switch(value: value, onChanged: onChanged, activeColor: context.signalPrimary),
-    );
-  }
-}
+// _SettingsTile and _SettingsSwitch removed — Phase F: all rows now use SettingsRow.

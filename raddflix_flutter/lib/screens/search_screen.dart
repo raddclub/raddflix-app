@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/motion/radd_motion.dart';
 import '../design_system/spacing/radd_space.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/animated_empty_icons.dart';
@@ -338,7 +339,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           _buildSearchBar(),
           _buildTypeRow(),
           AnimatedSize(
-            duration: const Duration(milliseconds: 260),
+            duration: RaddMotion.sheetEnterDuration,
             curve: Curves.easeInOut,
             child: _showFilters ? _buildFilterPanel() : const SizedBox.shrink(),
           ),
@@ -446,7 +447,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
+                  duration: RaddMotion.tuneDuration,
                   child: _loading
                       ? SizedBox(key: const ValueKey('spin'), width: 20, height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2,
@@ -491,7 +492,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         GestureDetector(
           onTap: () => setState(() => _showFilters = !_showFilters),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+            duration: RaddMotion.tuneDuration,
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
               color: _showFilters || _filters.hasAny
@@ -544,7 +545,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               _applyFilter(_filters.copyWith(type: types[i]));
             },
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+              duration: RaddMotion.tuneDuration,
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               decoration: BoxDecoration(

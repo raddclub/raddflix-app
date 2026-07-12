@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../design_system/motion/radd_motion.dart';
 import '../design_system/spacing/radd_space.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -478,7 +479,7 @@ class _PlanCard extends StatelessWidget {
           // Radio dot
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: AnimatedContainer(duration: const Duration(milliseconds: 200),
+            child: AnimatedContainer(duration: RaddMotion.tuneDuration,
               width: 20, height: 20,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -654,7 +655,7 @@ class _PayMethodCard extends StatelessWidget {
     return GestureDetector(
       onTap: onSelect,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: RaddMotion.tuneDuration,
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -665,7 +666,7 @@ class _PayMethodCard extends StatelessWidget {
               width: isSelected ? 1.5 : 0.5)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            AnimatedContainer(duration: const Duration(milliseconds: 200),
+            AnimatedContainer(duration: RaddMotion.tuneDuration,
               width: 18, height: 18,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
