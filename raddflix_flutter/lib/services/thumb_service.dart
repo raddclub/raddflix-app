@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:video_thumbnail/video_thumbnail.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
+import 'media_kit_thumbnail_extractor.dart';
 
 /// Generates and disk-caches video thumbnails for local files.
 class ThumbService {
@@ -52,13 +52,10 @@ class ThumbService {
         return bytes;
       }
 
-      // Generate
-      final bytes = await VideoThumbnail.thumbnailData(
-        video: videoPath,
-        imageFormat: ImageFormat.JPEG,
+      // Generate (G3: media_kit frame extraction — see extractor for why)
+      final bytes = await MediaKitThumbnailExtractor.extractFrame(
+        videoPath,
         timeMs: timeMs,
-        maxWidth: maxWidth,
-        quality: quality,
       );
       if (bytes != null) {
         await file.writeAsBytes(bytes); // H-10: async — was blocking main thread

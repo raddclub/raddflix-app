@@ -26,8 +26,9 @@ dependencies:
   # SHA-256 PIN hashing for vault
   crypto: ^3.0.3
 
-  # Video thumbnail generation for local/downloaded files
-  video_thumbnail: ^0.5.3
+  # Video thumbnail generation for local/downloaded files — see
+  # services/media_kit_thumbnail_extractor.dart (G3: replaced video_thumbnail
+  # with media_kit frame extraction; media_kit is already a dependency below).
 
   # Local SQLite — SQLCipher edition (AES-256 full-file encryption).
   # Pinned to 3.1.0+1 — last release before 3.2.0 which introduced flutter.compileSdkVersion

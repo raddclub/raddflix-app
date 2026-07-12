@@ -584,11 +584,17 @@ Android 12+ when generating thumbnails on the main thread. `media_kit` (already 
 playback) can extract frames via `Player` + `VideoController` with a background seek.
 **Fix:** Replace `VideoThumbnail.thumbnailFile(...)` call sites with a `media_kit` based
 frame extractor running in a `compute()` isolate. Remove `video_thumbnail` from pubspec.yaml.
-- [ ] Implement media_kit-based thumbnail extractor
-- [ ] Replace all VideoThumbnail.thumbnailFile() call sites
-- [ ] Remove video_thumbnail from pubspec.yaml
+- [x] Implement media_kit-based thumbnail extractor — `services/media_kit_thumbnail_extractor.dart` (Player.open + seek + screenshot)
+- [x] Replace all VideoThumbnail.thumbnailFile() call sites — thumb_service.dart + local_media_service.dart (both used `.thumbnailData()`, not `.thumbnailFile()` — same fix applies)
+- [x] Remove video_thumbnail from pubspec.yaml
 
 ### G4 — Reorganise `core/player/` into feature subfolders
+**Status:** Deletion step declined by user (2026-07-12) — the 13 "dead" lettered
+files are complete, documented feature stubs (gestures, picture profiles, dual
+subtitles, parental controls, analytics, social, accessibility, themes, Urdu
+features, video tools, etc.), not junk. Kept as-is; skipping this phase item
+entirely, including the folder reorganisation of live files, per user decision.
+
 **File:** `raddflix_flutter/lib/core/player/` (25+ files, flat)
 **Finding:** 25+ files named `a_series_*`, `b_series_*`, `c_series_*` etc. with no grouping.
 Many of the lettered series files (c/d/f/g/n/o/p/q/r/s/t/u/v) are either dead code or stubs
@@ -614,7 +620,7 @@ at runtime by `RemoteConfig`. Mutable statics are unsafe in a multi-isolate cont
 untestable (can't inject different values in tests).
 **Fix:** Convert to a `RemoteValues` Riverpod provider that exposes these as state.
 `RemoteConfig.fetchBackground()` updates the provider, not the static.
-- [ ] Convert mutable AppConstants statics to RemoteValues Riverpod provider
+- [x] Convert mutable AppConstants statics to RemoteValues Riverpod provider — `providers/remote_values_provider.dart` + `core/app_container.dart`; AppConstants keeps only const *Default fallbacks
 
 ---
 

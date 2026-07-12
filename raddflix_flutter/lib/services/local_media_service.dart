@@ -2,7 +2,7 @@ import 'dart:io';
   import 'dart:typed_data';
   import 'package:flutter/services.dart';
   import 'package:path/path.dart' as p;
-  import 'package:video_thumbnail/video_thumbnail.dart';
+  import 'media_kit_thumbnail_extractor.dart';
   import '../models/local_video.dart';
   import 'package:shared_preferences/shared_preferences.dart';
 
@@ -100,18 +100,9 @@ import 'dart:io';
 
     // ── File-path thumbnail fallback (filesystem / "Open With" URIs) ──────────
     // Uses timeMs:0 (first frame) — safe for clips of any length.
-    static Future<Uint8List?> getThumbnail(String filePath, {int quality = 50, int maxDimension = 200}) async {
-      try {
-        return await VideoThumbnail.thumbnailData(
-          video: filePath,
-          imageFormat: ImageFormat.JPEG,
-          maxWidth: maxDimension,
-          quality: quality,
-          timeMs: 0,
-        );
-      } catch (_) {
-        return null;
-      }
+    // G3: media_kit frame extraction — see MediaKitThumbnailExtractor for why.
+    static Future<Uint8List?> getThumbnail(String filePath, {int quality = 50, int maxDimension = 200}) {
+      return MediaKitThumbnailExtractor.extractFrame(filePath, timeMs: 0);
     }
 
     // ── Mark files as seen ────────────────────────────────────────────────────
