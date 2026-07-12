@@ -97,13 +97,11 @@ dependencies:
   # Disk space info for downloads screen
   disk_space_plus: ^0.2.0
 
-  # Animation system — Phase 41 (tier-gated, 3 packages)
-  # animations: Google's OpenContainer morph transition (Tier 2+)
-  # flutter_staggered_animations: list/grid cascade-in stagger (Tier 1+)
-  # animated_text_kit: typewriter, wavy, fade text effects (Tier 1+)
+  # Animation system
+  # animations: Google's OpenContainer morph transition (Tier 2+) — used in home_screen + search_screen
+  # flutter_staggered_animations: removed — zero usages confirmed (G2)
+  # animated_text_kit: removed — zero usages confirmed (G2)
   animations: ^2.0.11
-  flutter_staggered_animations: ^1.1.1
-  animated_text_kit: ^4.2.2
 
   # Player extended packages
   saver_gallery: ^3.0.6
