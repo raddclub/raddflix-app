@@ -99,6 +99,51 @@ jobs:
           path: /tmp/dart_out.txt
           retention-days: 14
 
+  # ── Job 2b: Flutter unit/widget tests (Phase H — Testing Infrastructure) ─
+  flutter-test:
+    name: "Flutter Test"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.22.x"
+          channel: "stable"
+          cache: true
+
+      - name: Get dependencies
+        working-directory: raddflix_flutter
+        run: flutter pub get
+
+      - name: Run flutter test
+        working-directory: raddflix_flutter
+        run: |
+          flutter test --reporter expanded 2>&1 | tee /tmp/flutter_test.txt
+          EXIT=${PIPESTATUS[0]}
+          echo "## Flutter Test" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "$EXIT" -eq 0 ]; then
+            echo "All tests passed." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "One or more Flutter tests FAILED." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "<details><summary>Full output</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/flutter_test.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          exit $EXIT
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: "flutter-test-results-${{ github.run_number }}"
+          path: /tmp/flutter_test.txt
+          retention-days: 14
+
   # ── Job 3: Flutter static analysis (blocks build on errors) ─────────────
   flutter-analyze:
     name: "Flutter Analyze"

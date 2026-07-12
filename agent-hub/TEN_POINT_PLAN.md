@@ -662,8 +662,9 @@ test/
   integration/
 ```
 Add `flutter_test` and `mockito` (or `mocktail`) to dev_dependencies in pubspec.yaml.
-- [ ] Create test/ directory structure
-- [ ] Add flutter_test, mocktail to pubspec.yaml dev_dependencies
+- [x] Create test/ directory structure — `test/unit/{db,providers,services}`, `test/widget/{design_system,screens}`, `test/integration/`
+- [x] Add flutter_test, mocktail to pubspec.yaml dev_dependencies (flutter_test already present; mocktail ^1.0.3 added)
+- [x] Wire `flutter test` into CI as its own job (`.github/workflows/ci-tests.yml` → "Flutter Test") so H2–H5 tests actually run; previously no CI job ran `flutter test` at all
 
 ### H2 — Unit tests for LocalDb key methods
 **Target methods (confirmed critical from audit):**
@@ -672,7 +673,14 @@ Add `flutter_test` and `mockito` (or `mocktail`) to dev_dependencies in pubspec.
 - `searchAdvanced()` — assert FTS and LIKE fallback
 - `addToWatchlist()` / `removeFromWatchlist()` — assert idempotence
 - Schema migration V21 — assert multi-profile tables created correctly
-- [ ] Write LocalDb unit tests (8–10 test cases)
+- [ ] Write LocalDb unit tests (8–10 test cases) — **BLOCKED, not started.** `LocalDb._openDb()` opens a
+  `sqflite_sqlcipher` database whose encryption key comes from `Keystore.getOrCreateDbKey()` (Android
+  Keystore via a platform channel), and `_createAll`/`_migrate` are private statics not reachable from a
+  separate test file. Plain `flutter test` runs in a headless Dart VM with no platform channels, so this
+  needs either (a) exposing a testable/DI seam in LocalDb (schema builder + injectable Database, no
+  Keystore call) or (b) a real Android integration test (`integration_test` package + device/emulator),
+  which this environment cannot run. Left for a session with real-device access or a scoped LocalDb
+  refactor — flagging rather than shipping a fake/no-op test.
 
 ### H3 — Unit tests for providers
 **Target providers:**
@@ -680,9 +688,13 @@ Add `flutter_test` and `mockito` (or `mocktail`) to dev_dependencies in pubspec.
 - `CatalogNotifier` — loadFromDb, sync trigger, reload
 - `WatchlistNotifier` — toggle optimistic update, clear on logout
 - `SyncNotifier` (after E1) — syncFull success, syncFull failure + retry
-- [ ] Write AuthNotifier unit tests
-- [ ] Write CatalogNotifier unit tests
-- [ ] Write WatchlistNotifier unit tests
+- [ ] Write AuthNotifier unit tests — **not started**, same root blocker as H2 (depends on LocalDb/Keystore)
+- [ ] Write CatalogNotifier unit tests — **not started**, same root blocker as H2
+- [ ] Write WatchlistNotifier unit tests — **not started**, same root blocker as H2
+- Note: all three notifiers read/write through `LocalDb`, so they inherit its Keystore/platform-channel
+  dependency. Mocking `LocalDb`'s static methods with mocktail is possible but non-trivial (static methods
+  aren't mockable without wrapping them behind an interface first) — that wrapping is itself a design
+  decision worth a human call, not a drive-by change during a testing pass.
 
 ### H4 — Widget tests for design system components
 **Target components (confirmed built but untested):**
@@ -691,16 +703,32 @@ Add `flutter_test` and `mockito` (or `mocktail`) to dev_dependencies in pubspec.
 - `RaddSheet` — opens, tab switching preserves state (after D3)
 - `RaddCard` — press scale animation, onTap, isDataFree badge
 - `RaddChip` — active/inactive state, onTap
-- [ ] Write RaddButton widget tests
-- [ ] Write RaddTextField widget tests
-- [ ] Write RaddSheet widget tests
+- [x] Write RaddButton widget tests — `test/widget/design_system/radd_button_test.dart` (label render, tap,
+  disabled, loading, icon-variant + assertion-guard cases)
+- [x] Write RaddTextField widget tests — `test/widget/design_system/radd_text_field_test.dart` (label/hint,
+  onChanged, errorText, controller seeding, disabled state)
+- [x] Write RaddSheet widget tests — `test/widget/design_system/radd_sheet_test.dart` (show/list content,
+  close button, tabbed assertion guard, tab switching)
+- [x] Write RaddCard widget tests — `test/widget/design_system/radd_card_test.dart` (semantics label incl.
+  data-free suffix, tap, progress bar, mini-variant hides title)
+- [x] Write RaddChip widget tests — `test/widget/design_system/radd_chip_test.dart` (label render, tap,
+  selected-state semantics)
 
 ### H5 — Player prefs round-trip test
-**Target:** `_loadPrefs()` + `_savePrefs()` in player_screen.dart
-**Finding:** player_prefs.dart has 80+ keys. A single typo in a key name silently drops
-user preferences. A round-trip test that writes all keys, reads them back, and asserts
-equality would catch this class of bug before CI.
-- [ ] Write player prefs round-trip unit test
+**Target:** `PlayerPrefs.save()` / `PlayerPrefs.load()` in `core/player/player_prefs.dart`
+**Finding:** player_prefs.dart has ~150 keys. A single typo in a key name silently drops
+user preferences. A round-trip test that writes representative keys across every settings
+category, reads them back, and asserts equality catches this class of bug before CI.
+- [x] Write player prefs round-trip unit test — `test/unit/services/player_prefs_round_trip_test.dart`.
+  Covers a representative field from every settings category (not all ~150 fields — impractical to
+  hand-maintain in lockstep with the class) plus a defaults-on-empty-store case and the `accentColor`/
+  `audioDelay` derived getters.
+
+**Phase H status (2026-07-12): H1, H4, H5 done. H2/H3 blocked on a LocalDb testability seam
+(Keystore platform channel + private schema methods + static-method design) that needs a deliberate
+decision, not a drive-by fix — see notes above. `flutter test` cannot be run in this environment
+(no Flutter SDK), so none of the above has been executed locally; correctness rests on careful
+reading of the source + CI once pushed.**
 
 ---
 
