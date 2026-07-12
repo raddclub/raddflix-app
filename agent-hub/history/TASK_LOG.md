@@ -487,3 +487,76 @@ Added `_withRetry<T>(fn, {attempts=3})` with exponential back-off (2 s, 4 s). `C
 ### Outcome
 All Phase B checkboxes marked `[x]` in `agent-hub/TEN_POINT_PLAN.md`. Ready for Phase C.
 
+---
+
+## 2026-07-12 — PHASE-F-2026-07-12
+
+### Task
+Phase F of TEN_POINT_PLAN.md: Design System Migration — remaining 70% of screens (28 tasks).
+Mechanical token-swap pass: raw Color/spacing/radius/duration literals → AppColors/RaddSpace/RaddRadius/RaddMotion tokens; RaddButton/RaddChip/SettingsRow component adoption where applicable.
+
+### Changes
+
+**F01 — `home_screen.dart`**
+`RaddButton` for primary action buttons; `RaddMotion.tuneDuration` for animated containers; `RaddSpace.*` spacing tokens throughout.
+
+**F02 — `show_detail_screen.dart`**
+`RaddMotion.tuneDuration` + `RaddRadius.smRadius/mdRadius/lgRadius` replacing raw `Duration(milliseconds:...)` and `BorderRadius.circular(...)` literals.
+
+**F03 — `search_screen.dart`**
+`RaddMotion.tuneDuration`; `RaddChip` for filter chips.
+
+**F04 — `profile_screen.dart`**
+`AppColors.simosaAccent` replacing SIMOSA-purple raw hex; `RaddButton`.
+
+**F05–F07 — `downloads_screen.dart`, `local_folder_screen.dart`, `local_media_screen.dart`**
+`RaddMotion.tuneDuration`; `Colors.*` → `AppColors.*` tokens.
+
+**F08 — `settings_screen.dart`**
+Full `SettingsRow` adoption for all settings items; raw spacing/radius literals replaced.
+
+**F09 — `login_screen.dart`**
+`RaddButton` replaces `_GradientButton` and OTP `OutlinedButton`s; `AppColors.warning` for orange; `_GradientButton` helper deleted.
+
+**F10 — `register_screen.dart`**
+`RaddButton` replaces inline gradient button + `OutlinedButton`.
+
+**F11 — `subscription_screen.dart`**
+`RaddMotion.tuneDuration` for animated expansions.
+
+**F12 — `edit_profile_screen.dart`**
+`RaddMotion.tuneDuration` for field focus animations.
+
+**F13 — `vault_screen.dart`, `vault_settings_screen.dart`**
+`AppColors.simosaAccent` replacing SIMOSA-purple hex; remaining radius/spacing tokens.
+
+**F14 — `debug_diagnostics_screen.dart`**
+`AppColors.success`/`AppColors.error`; `RaddRadius` tokens.
+
+**F15–F17, F20–F24 — various screens**
+`tid_status`, `add_edit_profile`, `profile_switcher`, `actor`, `admin_queue`, `plan_expired`, `quota_full`, `season_folder`, `onboarding`: literals with no exact token kept with `// intentional: no token` comments.
+
+**F18 — `history_screen.dart`**, **F19 — `watchlist_screen.dart`**
+`RaddRadius.mdRadius` replacing `BorderRadius.circular(12)`.
+
+**F25 — `content_card.dart`**
+`AppColors.success`/`AppColors.info` replacing `Colors.green`/`Colors.blue`.
+
+**F26 — `simosa_card.dart`**
+`AppColors.primary`/`AppColors.primaryDark` for gradient stops.
+
+**F27 — `quick_settings_panel.dart`** (1,684 lines)
+`RaddRadius.smRadius/mdRadius/lgRadius` + `RaddMotion.tuneDuration` across all panel sections.
+
+**F28 — `player_hud_settings_sheet.dart`** (1,145 lines)
+`RaddRadius.smRadius` + `RaddMotion.tuneDuration`.
+
+**Fix — `radd_button.dart`**
+`PhosphorIcons.dotsThreeBold` → `PhosphorIcons.dotsThreeVertical()` (non-existent member caught by CI).
+
+### Outcome
+All 28 Phase F checkboxes marked `[x]` in `agent-hub/TEN_POINT_PLAN.md`. CI green on `62867e45`.
+Commits: `b7a26ba`, `3cbe121`, `7389e61`, `9614ee0`, `1d91c8ab`, `76ead2d3`, `62867e45`.
+AGENT_HANDOFF.md and TASK_LOG.md were NOT updated by the executing agent — fixed this session.
+Ready for Phase L (Production Hygiene).
+

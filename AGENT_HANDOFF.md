@@ -5,6 +5,67 @@
 
 ---
 
+## Current State (2026-07-12 — Phase F Complete)
+
+### PHASE-F — Design System Migration: Remaining 70% of Screens — 2026-07-12
+
+All 28 Phase F items from `agent-hub/TEN_POINT_PLAN.md` completed and pushed. CI green on `62867e45`.
+
+**What was done:**
+- **F01** `home_screen.dart`: `RaddButton` for primary action buttons; `RaddMotion.tuneDuration` for
+  animated containers; `RaddSpace` tokens for spacing.
+- **F02** `show_detail_screen.dart`: `RaddMotion.tuneDuration` + `RaddRadius.smRadius/mdRadius/lgRadius`
+  replacing raw `Duration(milliseconds: 200/260)` and `BorderRadius.circular(...)` literals.
+- **F03** `search_screen.dart`: `RaddMotion.tuneDuration`; `RaddChip` adoption for filter chips.
+- **F04** `profile_screen.dart`: `AppColors.simosaAccent` replacing the SIMOSA-purple raw hex; `RaddButton`.
+- **F05–F07** `downloads_screen.dart`, `local_folder_screen.dart`, `local_media_screen.dart`:
+  `RaddMotion.tuneDuration`; remaining `Colors.*` → `AppColors.*` tokens.
+- **F08** `settings_screen.dart`: Full `SettingsRow` adoption for all settings items (D5 SettingsRow
+  params already added in Phase D); all raw spacing/radius literals replaced.
+- **F09** `login_screen.dart`: `RaddButton` replaces `_GradientButton` and OTP `OutlinedButton`s;
+  `AppColors.warning` replacing raw orange hex; `_GradientButton` helper class deleted.
+- **F10** `register_screen.dart`: `RaddButton` replaces inline gradient + `OutlinedButton`.
+- **F11** `subscription_screen.dart`: `RaddMotion.tuneDuration` for animated expansions.
+- **F12** `edit_profile_screen.dart`: `RaddMotion.tuneDuration` for field focus animations.
+- **F13** `vault_screen.dart` + `vault_settings_screen.dart`: `AppColors.simosaAccent` replacing
+  SIMOSA-purple hex; remaining radius/spacing tokens.
+- **F14** `debug_diagnostics_screen.dart`: `AppColors.success`/`AppColors.error`; `RaddRadius` tokens.
+- **F15–F17, F20–F24** (`tid_status`, `add_edit_profile`, `profile_switcher`, `actor`, `admin_queue`,
+  `plan_expired`, `quota_full`, `season_folder`, `onboarding`): remaining literals passed through with
+  `// intentional: no token` comments where no exact token match exists (brand colors, off-scale values).
+- **F18** `history_screen.dart`, **F19** `watchlist_screen.dart`: `RaddRadius.mdRadius` replacing raw
+  `BorderRadius.circular(12)`.
+- **F25** `content_card.dart`: `AppColors.success`/`AppColors.info` replacing `Colors.green`/`Colors.blue`.
+- **F26** `simosa_card.dart`: `AppColors.primary`/`AppColors.primaryDark` for gradient stops.
+- **F27** `quick_settings_panel.dart` (1,684 lines): `RaddRadius.smRadius/mdRadius/lgRadius` +
+  `RaddMotion.tuneDuration` across all panel sections.
+- **F28** `player_hud_settings_sheet.dart` (1,145 lines): `RaddRadius.smRadius` + `RaddMotion.tuneDuration`.
+- **Fix commit** `62867e45`: `PhosphorIcons.dotsThreeBold` → `PhosphorIcons.dotsThreeVertical()` in
+  `radd_button.dart` (non-existent member caught by CI, fixed immediately).
+
+**What the last agent skipped (fixed this session):**
+- AGENT_HANDOFF.md was not updated with Phase F summary — fixed now.
+- TASK_LOG.md had no Phase F entry — fixed now.
+
+**Next phase:** Phase L (Production Hygiene — remove developer artifacts from release builds).
+Recommended before Phase G because it's low-risk and directly fixes real user-facing issues.
+L6 (_isFree stuck true) and L8 (actor_service.dart DebugLogger) are already fixed in code —
+confirmed by grep. Remaining items: L1, L2 (Debug Logs tile / easter egg gate), L3 (log path),
+L4 (raw e.toString() in 6 screens), L5 (_friendlyError fallback), L7 (navigator observer logs),
+L9 (BUG-Axx comment audit), L10 (ApiClient.isGuestMode mutable static).
+
+**Active rules (carry forward):**
+- Never add `androidAttachSurfaceAfterVideoParameters: true`
+- Never upgrade `sqflite_sqlcipher` past `3.1.0+1`
+- Push files sequentially (SHA race condition), ≥1.2 s apart
+- TEN_POINT_PLAN.md dead-code/audit findings are not guaranteed accurate — re-grep before trusting
+- `kDebugMode` gate requires `import 'package:flutter/foundation.dart' show kDebugMode;` explicitly
+  (Rule 43) — `package:flutter/material.dart` does NOT reliably re-export it
+- When a global variable is used before `runApp()`, migrating to Riverpod requires a manually-created
+  `ProviderContainer` passed via `UncontrolledProviderScope` (see E3 notes)
+
+---
+
 ## Current State (2026-07-11 — Phase E Complete)
 
 ### PHASE-E — Provider Architecture: God Provider Split — 2026-07-11
