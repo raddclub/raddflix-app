@@ -209,6 +209,10 @@ class _CastCard extends StatelessWidget {
       return CachedNetworkImage(
         imageUrl: member.profileUrl!,
         width: size, height: size, fit: BoxFit.cover,
+        // K4: fade actor photos in instead of a hard pop-in once the network
+        // fetch resolves — matches the fadeIn treatment already expected on
+        // poster art elsewhere in the design system.
+        fadeInDuration: const Duration(milliseconds: 200),
         placeholder: (_, __) => _placeholder(t, size),
         errorWidget: (_, __, ___) => _placeholder(t, size),
       );

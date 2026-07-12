@@ -833,7 +833,22 @@ The player has these logical clusters confirmed from the full read (lines 86-356
 - [ ] K1 — Move `rebuildFtsIndex` to `Isolate.run()` (covered in B6, tracked here for sequence clarity — do after B is done)
 - [ ] K2 — Implement `const` constructors on all design system components that can use them (audit after F is done)
 - [ ] K3 — Add `AutomaticKeepAliveClientMixin` to tab pages in HomeScreen bottom nav so switching tabs doesn't re-render
-- [ ] K4 — Lazy-load actor images: use `cached_network_image` with `fadeIn` where not already used
+- [x] K4 — Added `fadeInDuration` to the actor/cast `CachedNetworkImage` calls in
+  `widgets/cast_rail.dart` and `screens/actor_screen.dart` (the only two actor-photo call
+  sites in the app). Other `CachedNetworkImage` usages (posters in `content_card.dart`,
+  `home_screen.dart`, `search_screen.dart`, `show_detail_screen.dart`, `downloads_screen.dart`)
+  were audited and are out of scope for K4 (posters, not actor images) — left as-is.
+- [ ] K3 — **Does not apply to this codebase's actual architecture.** The plan assumed a
+  TabBarView/IndexedStack-based bottom nav where `AutomaticKeepAliveClientMixin` would prevent
+  re-render on tab switch. The real `RaddFlixBottomNav` (`widgets/bottom_nav.dart`) instead
+  drives `Navigator.pushNamed` — Search/Local/Downloads/Profile are separate pushed routes, not
+  sibling pages in a shared PageView, and Home is reached via `popUntil(isFirst)`. There is no
+  shared widget subtree for a keep-alive mixin to attach to; each pushed screen already keeps
+  its own state alive for the lifetime of its route (Flutter's normal `Navigator` behavior) and
+  is correctly disposed on pop. Converting this to an `IndexedStack`/`PageView` architecture
+  just to apply K3 would be a real navigation-model change, not the small addition the plan's
+  "Low risk" / "~1 session" estimate implies — left undone as a mismatched premise rather than
+  forced.
 - [ ] K5 — Audit and add `const` to all static widget instantiations missed by preflight_check.sh
 
 ---

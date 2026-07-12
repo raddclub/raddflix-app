@@ -214,6 +214,8 @@ class ActorScreen extends StatelessWidget {
     if (member.profileUrl != null) {
       return CachedNetworkImage(imageUrl: member.profileUrl!,
           width: size, height: size, fit: fit,
+          // K4: fade actor photo in on load, matching cast_rail.dart.
+          fadeInDuration: const Duration(milliseconds: 200),
           placeholder: (_, __) => _placeholder(size, t),
           errorWidget: (_, __, ___) => _placeholder(size, t));
     }
