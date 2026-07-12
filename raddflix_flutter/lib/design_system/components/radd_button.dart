@@ -123,7 +123,7 @@ class _RaddButtonState extends State<RaddButton> {
         child: CircularProgressIndicator(strokeWidth: 2, color: fg),
       );
     } else if (isIconOnly) {
-      child = Icon(widget.leadingIcon ?? PhosphorIcons.dotsThreeBold, color: fg, size: 20);
+      child = Icon(widget.leadingIcon ?? PhosphorIcons.dotsThreeVertical(), color: fg, size: 20);
     } else {
       child = Row(
         mainAxisSize: MainAxisSize.min,
