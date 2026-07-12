@@ -560,3 +560,49 @@ Commits: `b7a26ba`, `3cbe121`, `7389e61`, `9614ee0`, `1d91c8ab`, `76ead2d3`, `62
 AGENT_HANDOFF.md and TASK_LOG.md were NOT updated by the executing agent — fixed this session.
 Ready for Phase L (Production Hygiene).
 
+---
+
+## 2026-07-12 — PHASE-L-2026-07-12
+
+### Task
+Phase L of TEN_POINT_PLAN.md: Production Hygiene — remove developer artifacts from release builds.
+Goal: nothing developer-only visible, reachable, or leaking in production APK.
+
+### Verification findings (before coding)
+- **L6** already fixed (BUG-C02 in `_openMediaForEpisode`) — `_isFree` correctly resets per episode.
+- **L8** `actor_service.dart` has zero `DebugLogger` calls — finding was stale.
+- **L4b** `subtitle_hunter_sheet.dart` not at expected path — finding was stale.
+- **L4f** `add_edit_profile_screen.dart` already uses friendly strings (`'Could not save profile'`, etc.).
+- **L5a–c** `_friendlyError()` and `AuthErrors.login/register()` already return generic final messages.
+
+### Changes
+
+**L1 + L2 + L9 — `profile_screen.dart`** (commit `7035956`)
+- Debug Logs `_SectionTile` wrapped: `if (kDebugMode || (user?.isAdmin == true)) ...[divider, tile]`.
+- 5-tap easter egg navigation wrapped same condition — silently resets counter for non-admin release builds.
+- Removed `// BUG-A23`, `// BUG-A21`, `// BUG-A22` tags from import lines.
+- Removed `// BUG-A14:` comment block (fix was already in place).
+- Rewrote inline BUG-A comments to plain English.
+
+**L7 — `app.dart`** (commit `6f27ca0`)
+- Added `import 'package:flutter/foundation.dart' show kDebugMode;` (Rule 43).
+- All 4 `_RaddNavObserver` methods gate their `DebugLogger.logNav(...)` with `if (kDebugMode)`.
+
+**L3 — `debug_diagnostics_screen.dart`** (commit `e65617b`)
+- `DebugLogger.getLogPath()` → `'Log stored on device'` (raw internal FS path removed).
+
+**L4c + L4d + L4e — `admin_queue`, `edit_profile`, `subscription`** (commit `049dfaf`)
+- `admin_queue_screen.dart`: `_error = e.toString()` → friendly + kDebugMode log.
+- `edit_profile_screen.dart`: 2 catch paths → friendly + kDebugMode log; foundation import added.
+- `subscription_screen.dart`: `e.toString().replaceFirst('Exception: ', '')` → friendly string.
+
+**L4a — `vault_screen.dart`** (commit `7231766`)
+- 3 SnackBar catch blocks: `'...: $e'` → friendly static strings + kDebugMode log; foundation import added.
+
+### Deferred
+- **L10** `ApiClient.isGuestMode` mutable static: belongs in Phase G/E3 Riverpod migration session.
+
+### Outcome
+All actionable L items complete. L10 deferred. CI pending on `7231766b`.
+Phase L marked ✅ DONE in TASKS.md. Ready for Phase G.
+

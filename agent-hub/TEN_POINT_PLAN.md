@@ -813,7 +813,7 @@ the normal profile menu with no `kDebugMode`, `isAdmin`, or build-flavour guard.
 who opens their profile sees this item and can tap into full internal diagnostics.
 **Fix:** Wrap in `if (kDebugMode || _user?.isAdmin == true)` so it disappears in release builds
 for non-admin users. The 5-tap easter egg (see L2) can remain as the hidden admin path.
-- [ ] L1 — Gate "Debug Logs" tile behind `kDebugMode || isAdmin` in profile_screen.dart L625–631
+- [x] L1 — Gate "Debug Logs" tile behind `kDebugMode || isAdmin` in profile_screen.dart L625–631
 
 ### L2 — DebugDiagnosticsScreen reachable by every user (5-tap easter egg has no gate)
 **File:** `raddflix_flutter/lib/screens/profile_screen.dart` L650–657
@@ -829,7 +829,7 @@ Any user who discovers the trick reaches a screen showing:
 **Fix:** Wrap the push with `if (kDebugMode || (_user?.isAdmin == true))`. In release builds
 for non-admin users, replace the push with a harmless animated easter egg (e.g. confetti)
 so long-press still feels intentional without exposing internals.
-- [ ] L2 — Gate 5-tap DebugDiagnosticsScreen push behind `kDebugMode || isAdmin` in profile_screen.dart L650–657
+- [x] L2 — Gate 5-tap DebugDiagnosticsScreen push behind `kDebugMode || isAdmin` in profile_screen.dart L650–657
 
 ### L3 — DebugDiagnosticsScreen exposes filesystem paths and device internals
 **File:** `raddflix_flutter/lib/screens/debug_diagnostics_screen.dart` L488
@@ -838,7 +838,7 @@ so long-press still feels intentional without exposing internals.
 Even for admin users seeing this screen, the raw log-file path is developer noise.
 **Fix:** Replace with a human-friendly label ("Stored on device") or show only the filename,
 not the full path. Do NOT show the absolute internal path in production, even to admins.
-- [ ] L3 — Replace `Text(DebugLogger.getLogPath())` with sanitised label in debug_diagnostics_screen.dart L488
+- [x] L3 — Replace `Text(DebugLogger.getLogPath())` with sanitised label in debug_diagnostics_screen.dart L488
 
 ### L4 — Raw `e.toString()` exception strings shown directly to users (6 screens)
 **Confirmed locations from grep:**
@@ -861,12 +861,12 @@ not the full path. Do NOT show the absolute internal path in production, even to
 **Fix for each screen:** Pass the exception to `AuthErrors` / `_friendlyError()` / a new
 `AppErrors.friendly(e)` helper. If no match, show a generic:
 `'Something went wrong. Please try again.'` — never the raw string.
-- [ ] L4a — Fix raw exception display in vault_screen.dart L284, L616
-- [ ] L4b — Fix raw exception display in subtitle_hunter_sheet.dart
-- [ ] L4c — Fix raw exception display in admin_queue_screen.dart
-- [ ] L4d — Fix raw exception display in edit_profile_screen.dart
-- [ ] L4e — Fix subscription_screen.dart L127: sanitise TID error before display
-- [ ] L4f — Fix raw exception display in add_edit_profile_screen.dart L193, L399
+- [x] L4a — Fix raw exception display in vault_screen.dart (SnackBars: restore/import/import-folder)
+- [x] L4b — subtitle_hunter_sheet.dart: file not found at expected path — finding was stale, N/A
+- [x] L4c — Fix raw exception display in admin_queue_screen.dart
+- [x] L4d — Fix raw exception display in edit_profile_screen.dart (save + password-change paths)
+- [x] L4e — Fix subscription_screen.dart: replace raw e.toString() with friendly TID error
+- [x] L4f — add_edit_profile_screen.dart: already uses friendly messages ('Could not save profile', 'Give this profile a name') — N/A
 
 ### L5 — `_friendlyError()` and `AuthErrors` helpers can fall back to raw exception string
 **Files:**
@@ -886,9 +886,9 @@ not the full path. Do NOT show the absolute internal path in production, even to
 return 'Something went wrong. Please try again.';
 ```
 Do NOT return `raw` as the final else branch.
-- [ ] L5a — Fix _friendlyError() final fallback in player_screen.dart to use generic message
-- [ ] L5b — Fix AuthErrors.login() final fallback in auth_utils.dart to use generic message
-- [ ] L5c — Fix AuthErrors.register() final fallback in auth_utils.dart to use generic message
+- [x] L5a — _friendlyError() in player_screen.dart already returns 'Could not load stream. Please retry.' — N/A
+- [x] L5b — AuthErrors.login() already returns 'Login failed. Please try again.' — N/A
+- [x] L5c — AuthErrors.register() already returns 'Registration failed. Please try again.' — N/A
 
 ### L6 — Revenue leak: `_isFree` flag gets stuck `true` on content-type transition
 **File:** `raddflix_flutter/lib/screens/player_screen.dart` L1099–1105
@@ -899,7 +899,7 @@ check is skipped, paid content plays without counting against any quota, and no 
 tracked for that stream.
 **Fix:** Reset `_isFree = false` at the start of `_openMediaForEpisode()` before re-evaluating
 the new item's `isFree` flag. Never carry `_isFree` across episode boundaries.
-- [ ] L6 — Fix _isFree stuck-true revenue leak in player_screen.dart L1099–1105
+- [x] L6 — Already fixed in player_screen.dart (BUG-C02 fix: _openMediaForEpisode resets _isFree per episode)
 
 ### L7 — Navigator lifecycle logs fire in production (all builds)
 **File:** `raddflix_flutter/lib/app.dart` L64, L69, L73, L78
@@ -908,7 +908,7 @@ navigation event to `DebugLogger`. These go to the in-memory circular buffer (no
 directly), but they fill the buffer in production, evicting useful debug entries and adding
 overhead on every screen transition.
 **Fix:** Wrap each `DebugLogger.log(...)` call in the observer with `if (kDebugMode)`.
-- [ ] L7 — Gate NavigatorObserver DebugLogger calls behind kDebugMode in app.dart L64–78
+- [x] L7 — Gate NavigatorObserver DebugLogger calls behind kDebugMode in app.dart L64–78
 
 ### L8 — `DebugLogger` calls in `actor_service.dart` fire in production
 **File:** `raddflix_flutter/lib/services/actor_service.dart` L146, L182, L230, L315, L339, L378
@@ -917,7 +917,7 @@ overhead on every screen transition.
 that add noise to the production log buffer without diagnostic value.
 **Fix:** Gate each with `if (kDebugMode)` or demote to a structured debug-only event type
 that the `DebugDiagnosticsScreen` can filter on.
-- [ ] L8 — Gate actor_service.dart DebugLogger calls behind kDebugMode
+- [x] L8 — actor_service.dart has no DebugLogger calls (grep confirmed) — finding was stale, N/A
 
 ### L9 — BUG-Axx comment tags in `profile_screen.dart` indicate unresolved known issues
 **File:** `raddflix_flutter/lib/screens/profile_screen.dart` L22, L23, L24, L74, L144
@@ -929,7 +929,7 @@ These are not user-visible but mark known bugs that have no corresponding task i
 **Fix:** For each BUG-Axx tag:
 1. If it corresponds to an open issue that is now fixed → remove the comment.
 2. If it is genuinely still broken → add a task in TASKS.md and replace the comment with `// See TASKS.md: <task-id>`.
-- [ ] L9 — Audit BUG-Axx comment tags in profile_screen.dart; resolve or file as tasks
+- [x] L9 — BUG-A* import comments removed; inline comments reworded to plain English (all referenced fixes were already implemented)
 
 ### L10 — `ApiClient.isGuestMode` is a global mutable static
 **File:** `raddflix_flutter/lib/core/api/api_client.dart` L56

@@ -5,6 +5,58 @@
 
 ---
 
+## Current State (2026-07-12 — Phase L Complete)
+
+### PHASE-L — Production Hygiene — 2026-07-12
+
+All Phase L items resolved and pushed. CI pending on `7231766b`.
+
+**What was done:**
+- **L1** `profile_screen.dart`: "Debug Logs" `_SectionTile` (with `AppIcons.bugReport`) wrapped in
+  `if (kDebugMode || (user?.isAdmin == true))` — invisible to regular users in release builds.
+- **L2** `profile_screen.dart`: 5-tap version string easter egg wrapped same way — in release builds
+  for non-admins, the counter resets silently with no navigation to `DebugDiagnosticsScreen`.
+- **L3** `debug_diagnostics_screen.dart`: `DebugLogger.getLogPath()` replaced with `'Log stored on device'`
+  — raw internal filesystem path no longer shown even to admins.
+- **L4a** `vault_screen.dart`: 3 SnackBar catch blocks (`'Restore failed: $e'`, `'Could not import: $e'`,
+  `'Could not import folder: $e'`) → friendly static strings + `kDebugMode` debug log.
+- **L4b** `subtitle_hunter_sheet.dart`: file not at expected path — finding was stale, N/A.
+- **L4c** `admin_queue_screen.dart`: `_error = e.toString()` → `'Could not load queue. Please try again.'`.
+- **L4d** `edit_profile_screen.dart`: 2 raw exception paths → friendly strings + `kDebugMode` debug log.
+  Added `import 'package:flutter/foundation.dart' show kDebugMode;` (Rule 43).
+- **L4e** `subscription_screen.dart`: `e.toString().replaceFirst('Exception: ', '')` → `'Payment submission failed. Please try again.'`.
+- **L4f** `add_edit_profile_screen.dart`: already uses friendly messages — N/A.
+- **L5a–c**: `_friendlyError()` and `AuthErrors.login/register()` already return generic final messages — N/A.
+- **L6**: `_isFree` stuck-true bug already fixed (BUG-C02 fix in `_openMediaForEpisode`) — N/A.
+- **L7** `app.dart`: All 4 `_RaddNavObserver` `DebugLogger.logNav(...)` calls wrapped in `if (kDebugMode)`.
+  Added `import 'package:flutter/foundation.dart' show kDebugMode;` (Rule 43).
+- **L8** `actor_service.dart`: grep confirmed zero `DebugLogger` calls — finding was stale, N/A.
+- **L9** `profile_screen.dart`: `// BUG-A23`, `// BUG-A21`, `// BUG-A22` removed from import lines;
+  `// BUG-A14` comment block removed; inline BUG-A comments reworded to plain English.
+- **L10** Deferred — `ApiClient.isGuestMode` mutable static belongs in the same session as Phase G/E3
+  Riverpod migration. Left as `[ ]` in TEN_POINT_PLAN.md.
+
+**Previous agent's doc omissions also fixed this session:**
+- AGENT_HANDOFF.md had no Phase F entry — added.
+- TASK_LOG.md had no Phase F entry — added.
+
+**Commits:** `cb7734d` (docs), `7035956` (L1+L2+L9), `6f27ca0` (L7), `e65617b` (L3),
+`049dfaf` (L4c+d+e), `7231766` (L4a).
+
+**Next phase:** Phase G (Architecture Modernisation — go_router, package consolidation, folder reorg).
+Recommended order: G2 (animation package consolidation) → G4 (dead player file audit) → G1 (go_router) → G5 (AppConstants).
+
+**Active rules (carry forward):**
+- Never add `androidAttachSurfaceAfterVideoParameters: true`
+- Never upgrade `sqflite_sqlcipher` past `3.1.0+1`
+- Push files sequentially (SHA race condition), ≥1.2 s apart
+- `kDebugMode` gate requires `import 'package:flutter/foundation.dart' show kDebugMode;` (Rule 43)
+- TEN_POINT_PLAN.md dead-code/audit findings not guaranteed accurate — re-grep before trusting
+- When a global variable is used before `runApp()`, migrating to Riverpod requires a manually-created
+  `ProviderContainer` passed via `UncontrolledProviderScope`
+
+---
+
 ## Current State (2026-07-12 — Phase F Complete)
 
 ### PHASE-F — Design System Migration: Remaining 70% of Screens — 2026-07-12
