@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/motion/radd_motion.dart';
 import '../design_system/radius/radd_radius.dart';
 import '../core/constants.dart';
 import '../core/api/auth_api.dart';
@@ -481,7 +482,7 @@ class _ColorPickerSheet extends StatelessWidget {
             return GestureDetector(
               onTap: () => onSelect(hex),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+                duration: RaddMotion.tuneDuration,
                 width: 56, height: 56,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
