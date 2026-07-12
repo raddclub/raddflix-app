@@ -13,6 +13,7 @@ import '../core/constants.dart';
 import '../core/theme/radd_colors.dart';
 import '../providers/auth_provider.dart';
 import '../providers/catalog_provider.dart';
+import '../providers/sync_provider.dart';
 import '../models/catalog_item.dart';
 import '../widgets/content_card.dart';
 import '../widgets/bottom_nav.dart';
@@ -165,7 +166,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               HapticFeedback.lightImpact();
               return ref.read(catalogProvider.notifier).syncFromServer();
             },
-            child: catalog.isEmpty && catalog.status == CatalogStatus.syncing
+            child: catalog.isEmpty && ref.watch(syncProvider).isSyncing
                 ? _buildShimmer()
                 : _buildContent(catalog, animConfig: animConfig, canAnimate: canAnimate, canMorph: canMorph),
           ),
@@ -307,7 +308,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         ),
 
         // Sync banner
-        if (catalog.status == CatalogStatus.syncing)
+        if (ref.watch(syncProvider).isSyncing)
           SliverToBoxAdapter(
             child: Center(
               child: Container(
@@ -439,7 +440,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             ).animate().fadeIn(duration: 400.ms)),
 
           if (catalog.movies.isEmpty && catalog.shows.isEmpty &&
-              catalog.status != CatalogStatus.syncing)
+              !ref.watch(syncProvider).isSyncing)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),

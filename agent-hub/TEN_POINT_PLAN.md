@@ -443,9 +443,12 @@ at the point where a sync completes and the DB is updated.
 - State: `SyncStatus` (idle/syncing/error), `lastSyncAt`, `error`
 - Methods: `sync()`, `syncFull()`, `syncDelta()`
 - On complete: calls `ref.read(catalogProvider.notifier).reload()`
-- [ ] Create SyncNotifier in sync_provider.dart
-- [ ] Move sync logic from CatalogNotifier to SyncNotifier
-- [ ] Wire SyncNotifier.onComplete → CatalogNotifier.reload()
+- [x] Create SyncNotifier in sync_provider.dart
+- [x] Move sync logic from CatalogNotifier to SyncNotifier
+- [x] Wire SyncNotifier.onComplete → CatalogNotifier.reload() (implemented as
+      CatalogNotifier.onSyncComplete(), called from SyncNotifier.sync();
+      CatalogNotifier.syncFromServer() kept as a thin delegate to
+      syncProvider so no call site needed updating — see AGENT_HANDOFF.md)
 
 ### E2 — Extract `PosterSyncNotifier` from CatalogNotifier
 **File:** `raddflix_flutter/lib/providers/catalog_provider.dart`
@@ -455,8 +458,8 @@ CatalogNotifier, making the sync logic entangled with display state.
 **Fix:** Create `lib/providers/poster_sync_provider.dart` with `PosterSyncNotifier`:
 - State: `PosterSyncStatus` (idle/running/done), `pendingCount`
 - Methods: `scheduleSync()`, `cancelSync()`
-- [ ] Create PosterSyncNotifier in poster_sync_provider.dart
-- [ ] Move poster sync logic from CatalogNotifier to PosterSyncNotifier
+- [x] Create PosterSyncNotifier in poster_sync_provider.dart
+- [x] Move poster sync logic from CatalogNotifier to PosterSyncNotifier
 
 ### E3 — Move globals into Riverpod providers
 **File:** `raddflix_flutter/lib/app.dart`
@@ -467,8 +470,12 @@ graph, cannot be mocked in tests, and can cause silent race conditions.
 - Create `final navigatorKeyProvider = Provider((ref) => GlobalKey<NavigatorState>());`
 - Create `final pendingVideoUriProvider = StateProvider<String?>((ref) => null);`
 - Update all usage sites to go through `ref.read(...)`.
-- [ ] Move appNavigatorKey to Riverpod provider
-- [ ] Move pendingVideoUri to Riverpod StateProvider
+- [x] Move appNavigatorKey to Riverpod provider (app_navigation_provider.dart)
+- [x] Move pendingVideoUri to Riverpod StateProvider (also pendingVideoTitle
+      and pendingSubtitleUri, which have the identical lifecycle — see
+      AGENT_HANDOFF.md for the main.dart ProviderContainer/
+      UncontrolledProviderScope restructure this required, since main.dart
+      reads/writes these before the widget tree exists)
 
 ### E4 — SubscriptionNotifier: add refresh after payment
 **File:** `raddflix_flutter/lib/providers/subscription_provider.dart`
@@ -476,7 +483,9 @@ graph, cannot be mocked in tests, and can cause silent race conditions.
 not automatically refreshed. The user must reopen the subscription screen to see their
 updated plan. The method exists (`loadStatus()`) but is not called after a successful submit.
 **Fix:** In `submitTid()`, after a successful API response, call `await loadStatus()`.
-- [ ] Call loadStatus() after successful submitTid()
+- [x] Call loadStatus() after successful submitTid() (fire-and-forget via
+      unawaited() — subscription_screen.dart's spinner is driven by its own
+      local _submitting flag, not provider.loading, so this causes no flicker)
 
 ---
 

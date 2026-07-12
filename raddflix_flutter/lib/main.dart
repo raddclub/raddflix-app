@@ -6,7 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
-import 'app.dart' show RaddFlixApp, pendingVideoUri, pendingVideoTitle, pendingSubtitleUri, appNavigatorKey;
+import 'app.dart' show RaddFlixApp;
+import 'providers/app_navigation_provider.dart';
 import 'core/remote_config.dart';
 import 'core/services/app_update_service.dart';
 import 'core/services/jazzdrive_service.dart';
@@ -105,17 +106,30 @@ void main() async {
   HistoryApi.flushUnsynced().ignore();               // push offline watch positions
   UsageService.flushPending().ignore();              // push pending data-usage bytes
 
+  // E3: this must exist before runApp() so both the pending-intent write
+  // below and the warm-start MethodChannel handler further down (which has
+  // no BuildContext / WidgetRef) can read/write navigatorKeyProvider and the
+  // pendingVideo*/pendingSubtitleUri providers. UncontrolledProviderScope
+  // hands this same container to the widget tree so ref.watch/read inside it
+  // see the exact same provider state.
+  final container = ProviderContainer(
+    overrides: [animConfigProvider.overrideWithValue(animConfig)],
+  );
+
   // Check for initial video URI + display name from "Open with" intent (cold start)
   try {
     const _ch = MethodChannel('com.raddflix.app/intent');
-    pendingVideoUri    = await _ch.invokeMethod<String>('getPendingVideoUri');
-    pendingVideoTitle  = await _ch.invokeMethod<String>('getPendingVideoTitle');
-    pendingSubtitleUri = await _ch.invokeMethod<String?>('getPendingSubtitleUri');
+    container.read(pendingVideoUriProvider.notifier).state =
+        await _ch.invokeMethod<String>('getPendingVideoUri');
+    container.read(pendingVideoTitleProvider.notifier).state =
+        await _ch.invokeMethod<String>('getPendingVideoTitle');
+    container.read(pendingSubtitleUriProvider.notifier).state =
+        await _ch.invokeMethod<String?>('getPendingSubtitleUri');
   } catch (_) {}
 
   runApp(
-    ProviderScope(
-      overrides: [animConfigProvider.overrideWithValue(animConfig)],
+    UncontrolledProviderScope(
+      container: container,
       child: const RaddFlixApp(),
     ),
   );
@@ -145,7 +159,7 @@ void main() async {
       final String localPath =
           uri.startsWith('file://') ? uri.replaceFirst('file://', '') : uri;
 
-      final nav = appNavigatorKey.currentState;
+      final nav = container.read(navigatorKeyProvider).currentState;
       if (nav == null) return;
 
       // M-25: Only push player when the navigator is ready and app is past auth

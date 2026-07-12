@@ -5,11 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/db/local_db.dart';
-import '../core/db/sync_service.dart';
-import '../core/services/poster_service.dart';
 import '../models/catalog_item.dart';
 import '../core/api/catalog_api.dart';
 import 'auth_provider.dart';
+import 'sync_provider.dart';
+import 'poster_sync_provider.dart';
 
 enum CatalogStatus { idle, syncing, ready, error }
 
@@ -107,7 +107,7 @@ class CatalogNotifier extends StateNotifier<CatalogState>
     // Force a full re-sync when the APK is updated so any data-parsing fixes
     // (e.g. is_free bool/int correction) are applied to existing SQLite rows.
     await _resetSyncIfNewBuild();
-    await syncFromServer(); // version-gated: no-op if Oracle unchanged
+    await syncFromServer(); // delegates to SyncNotifier — version-gated: no-op if Oracle unchanged
 
     // Load recommendations in background — non-blocking
     Future.microtask(loadRecommendations);
@@ -121,7 +121,7 @@ class CatalogNotifier extends StateNotifier<CatalogState>
     _connectivitySub?.cancel();
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       final hasNet = results.isNotEmpty && results.first != ConnectivityResult.none;
-      if (hasNet && state.status != CatalogStatus.syncing) {
+      if (hasNet && !_ref.read(syncProvider).isSyncing) {
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted) syncFromServer(); // version-gated: no-op if Oracle unchanged
         });
@@ -134,7 +134,7 @@ class CatalogNotifier extends StateNotifier<CatalogState>
   @override
   void didChangeAppLifecycleState(AppLifecycleState appState) {
     if (appState == AppLifecycleState.resumed &&
-        state.status != CatalogStatus.syncing) {
+        !_ref.read(syncProvider).isSyncing) {
       syncFromServer(); // version-gated: no-op if Oracle unchanged
     }
   }
@@ -215,35 +215,12 @@ class CatalogNotifier extends StateNotifier<CatalogState>
 
       // Background: rebuild FTS search index with freshest data (fire-and-forget)
       LocalDb.rebuildFtsIndex();
-      // Background poster download — runs silently after UI renders
-      _schedulePosterSync(movies, shows);
+      // Background poster download — runs silently after UI renders (E2: now
+      // owned by PosterSyncNotifier, see poster_sync_provider.dart)
+      _ref.read(posterSyncProvider.notifier).scheduleSync(movies, shows);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
-  }
-
-  // BUG-A20: static guard — poster sync fires once per app lifecycle, not per catalog reload
-  static bool _posterSyncDone = false;
-
-  // BUG-F09 fix: allow reset so delta-synced titles get posters downloaded
-  static void resetPosterSyncFlag() { _posterSyncDone = false; }
-
-  void _schedulePosterSync(
-    List<CatalogItem> movies,
-    List<CatalogItem> shows, {
-    bool forceReset = false,
-  }) {
-    if (forceReset) _posterSyncDone = false;
-    if (_posterSyncDone) return;
-    _posterSyncDone = true;
-    // Delay so UI is interactive first
-    Future.delayed(const Duration(seconds: 3), () async {
-      final all = [
-        ...movies.map((i) => {'id': i.id, 'poster_url': i.posterUrl ?? ''}),
-        ...shows.map((i) => {'id': i.id, 'poster_url': i.posterUrl ?? ''}),
-      ];
-      await PosterService.runBackgroundSync(all);
-    });
   }
 
   /// Build the "Continue Watching" list from local watch_positions.
@@ -375,38 +352,44 @@ class CatalogNotifier extends StateNotifier<CatalogState>
     } catch (_) {}
   }
 
-  Future<void> syncFromServer() async {
-    if (!mounted) return; // M-09: check mounted before any state mutation
-    state = state.copyWith(status: CatalogStatus.syncing, error: null);
-    final result = await SyncService.sync();
+  /// E1: thin delegate — all sync mechanics (calling SyncService.sync(),
+  /// tracking SyncStatus/lastSyncAt/error, guarding against concurrent runs)
+  /// now live in SyncNotifier (sync_provider.dart). Kept as a method here so
+  /// every existing call site (settings_screen.dart, home_screen.dart, plus
+  /// this file's own initialize()/lifecycle/connectivity triggers) needs no
+  /// changes. SyncNotifier calls back into onSyncComplete() below once the
+  /// server round-trip finishes, so this notifier still decides whether the
+  /// local catalog needs reloading — that decision depends on catalog state
+  /// (isEmpty), not sync state, so it belongs here.
+  Future<void> syncFromServer() => _ref.read(syncProvider.notifier).sync();
+
+  /// Called by SyncNotifier once a sync attempt (success or failure) has
+  /// completed against the server. Decides whether the local catalog needs
+  /// reloading and resets the poster-sync flag when new items arrived.
+  Future<void> onSyncComplete({
+    required int itemsSynced,
+    bool failed = false,
+  }) async {
     if (!mounted) return; // M-09: provider may have been disposed while awaiting
     _lastSyncTime = DateTime.now();
-    if (result.success) {
+    if (!failed) {
       // FIX-POSTER-01: if new items were synced, reset the poster sync flag so
       // _schedulePosterSync() runs again and downloads posters for the new titles.
       // Without this reset, the static _posterSyncDone flag blocks poster downloads
       // for any titles added after the first app launch in the same session.
-      if (result.itemsSynced > 0) resetPosterSyncFlag();
+      if (itemsSynced > 0) _ref.read(posterSyncProvider.notifier).resetFlag();
       // BUG-SYNC-01: skip _loadFromDb() when nothing changed and catalog is
       // already populated — avoids full SQLite read + UI rebuild on every
       // app foreground when Oracle version matches (itemsSynced == 0).
-      if (result.itemsSynced > 0 || state.isEmpty) {
+      if (itemsSynced > 0 || state.isEmpty) {
         await _loadFromDb();
       } else {
         state = state.copyWith(status: CatalogStatus.ready);
       }
-      // Refresh subscription / plan silently after every successful sync so
-      // plan upgrades, quota changes, and is_free changes reach the user
-      // instantly without manual re-login.
-      _ref.read(authProvider.notifier).silentRefresh().ignore();
     } else {
       // Even on sync failure, reload DB so any stale catalog from a previous session is shown.
       // Without this, a temporary network failure shows a blank screen instead of cached content.
       await _loadFromDb();
-      if (!mounted) return; // M-09
-      state = state.copyWith(
-        error: result.itemsSynced == 0 ? result.message : null,
-      );
     }
   }
 

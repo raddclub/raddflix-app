@@ -37,23 +37,7 @@ import 'models/profile.dart';
 import 'core/services/app_update_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'core/debug/debug_logger.dart';
-
-/// Global navigator key — lets background intent handler push PlayerScreen
-/// without needing a BuildContext.
-final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
-
-/// Pending video URI from a cold-start "Open with" ACTION_VIEW intent.
-/// Read once by SplashScreen._start() then cleared.
-String? pendingVideoUri;
-
-/// Resolved display name for [pendingVideoUri] (from Android ContentResolver).
-/// Set alongside pendingVideoUri; cleared after use.
-String? pendingVideoTitle;
-
-/// Path to an external subtitle file found alongside the opened video (or vice versa).
-/// Set by native MainActivity when a sidecar .srt/.ass exists, or when user opens a
-/// subtitle file and the matching video is found in the same directory.
-String? pendingSubtitleUri;
+import 'providers/app_navigation_provider.dart';
 
 /// Logs every Navigator push / pop / replace to DebugLogger.
 /// Registered in MaterialApp.navigatorObservers so ALL screens are covered.
@@ -88,7 +72,7 @@ class RaddFlixApp extends ConsumerWidget {
     final brandState = ref.watch(brandThemeProvider);
     Animate.restartOnHotReload = true;
     return MaterialApp(
-      navigatorKey: appNavigatorKey,
+      navigatorKey: ref.watch(navigatorKeyProvider),
       navigatorObservers: [_RaddNavObserver()],
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,

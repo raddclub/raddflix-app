@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api/subscription_api.dart';
 import '../models/subscription.dart';
@@ -100,6 +101,12 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
         paymentMethod: paymentMethod,
       );
       state = state.copyWith(loading: false, tidSubmitted: true);
+      // E4: refresh subscription status right after a successful submission so
+      // the new plan/quota is reflected immediately — previously the user had
+      // to leave and reopen the subscription screen to see it update. Errors
+      // here are non-fatal (loadStatus already handles/logs its own failure);
+      // the TID submission itself already succeeded.
+      unawaited(loadStatus());
       return true;
     } catch (e) {
       state = state.copyWith(loading: false, error: e.toString());

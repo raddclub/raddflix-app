@@ -5,7 +5,75 @@
 
 ---
 
----
+## Current State (2026-07-11 — Phase E Complete)
+
+### PHASE-E — Provider Architecture: God Provider Split — 2026-07-11
+
+All 4 Phase E items from `agent-hub/TEN_POINT_PLAN.md` completed and pushed.
+
+**What was done:**
+- **E1** Extracted `SyncNotifier` (`lib/providers/sync_provider.dart`) from `CatalogNotifier`. It
+  owns `SyncStatus` (idle/syncing/error), `lastSyncAt`, and `error`, and calls
+  `SyncService.sync()` directly. `CatalogNotifier.syncFromServer()` is now a one-line delegate
+  (`_ref.read(syncProvider.notifier).sync()`) — kept deliberately so every existing call site
+  (`settings_screen.dart`, `home_screen.dart`'s pull-to-refresh, plus this file's own
+  `initialize()`/lifecycle/connectivity triggers) needed zero changes. `SyncNotifier.sync()` calls
+  back into a new `CatalogNotifier.onSyncComplete({itemsSynced, failed})` once the server
+  round-trip finishes; that method still decides whether `_loadFromDb()` needs to run (that
+  decision depends on catalog state — `isEmpty` — not sync state, so it stays in CatalogNotifier)
+  and resets the poster-sync flag. The old guard conditions (`state.status != syncing` in
+  `didChangeAppLifecycleState` / the connectivity listener) now read `syncProvider`'s
+  `isSyncing`. `home_screen.dart` had 3 UI reads of `catalog.status == CatalogStatus.syncing`
+  (shimmer gate, sync banner, empty-state gate) — updated all 3 to `ref.watch(syncProvider).isSyncing`
+  so the loading UI keeps working correctly now that sync status lives outside `CatalogState`.
+- **E2** Extracted `PosterSyncNotifier` (`lib/providers/poster_sync_provider.dart`) — owns
+  `PosterSyncStatus` (idle/running/done) and `pendingCount`, and the `_posterSyncDone` flag /
+  3-second delayed background download that used to live as static state on `CatalogNotifier`.
+  `_loadFromDb()` now calls `_ref.read(posterSyncProvider.notifier).scheduleSync(movies, shows)`;
+  `onSyncComplete()` calls `.resetFlag()` instead of the old static `resetPosterSyncFlag()`.
+- **E3** Moved `appNavigatorKey`, `pendingVideoUri`, `pendingVideoTitle`, `pendingSubtitleUri` —
+  previously bare global mutable variables in `app.dart` — into providers in a new
+  `lib/providers/app_navigation_provider.dart` (`navigatorKeyProvider`, `pendingVideoUriProvider`,
+  etc.). The non-obvious part: `main.dart` reads/writes these **before the widget tree exists** —
+  once synchronously before `runApp()` (writing the cold-start "Open with" intent values) and once
+  in a `MethodChannel` handler registered after `runApp()` that has no `BuildContext`/`WidgetRef`.
+  A naive `ref.read(...)` swap doesn't compile in either spot. Fixed by having `main.dart` create
+  its own `ProviderContainer` (with the existing `animConfigProvider` override moved onto it) and
+  pass that same container to `runApp(UncontrolledProviderScope(container: container, child: ...))`
+  — so the widget tree's `ref.watch/read` see the exact same provider state `main.dart` wrote to.
+  `splash_screen.dart` (a `ConsumerStatefulWidget`, so it has `ref`) swapped its 3 global reads +
+  clears for `ref.read(...)`/`ref.read(...notifier).state = null`.
+- **E4** `SubscriptionNotifier.submitTid()` now calls `unawaited(loadStatus())` right after a
+  successful submission, so plan/quota updates reach the UI without the user leaving and
+  reopening the subscription screen. Checked first that this is safe: `subscription_screen.dart`'s
+  loading spinner is driven by its own local `_submitting` flag, not `subscriptionProvider.loading`,
+  so `loadStatus()`'s own `loading: true/false` transitions cause no visible flicker.
+
+**Next phase:** Phase F (Design System Migration: remaining 70% of screens).
+
+**Active rules (carry forward):**
+- Never add `androidAttachSurfaceAfterVideoParameters: true`
+- Never upgrade `sqflite_sqlcipher` past `3.1.0+1`
+- Push files sequentially (SHA race condition), ≥1.2 s apart
+- JS `String.replace`: escape `# RaddFlix Agent Handoff
+
+> Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
+> in place each session instead of creating a new dated handoff/status file.
+
+ as `$` when Dart code contains `# RaddFlix Agent Handoff
+
+> Start at `AGENT_PROMPT.md` first. This file is the canonical "current state" doc — update it
+> in place each session instead of creating a new dated handoff/status file.
+
+ interpolation
+- TEN_POINT_PLAN.md dead-code/audit findings (icon mappings, "matches exactly" claims, "just add
+  a provider" globals migrations, etc.) are not guaranteed accurate or complete — re-grep/re-diff
+  and trace every real call site before trusting them, per the C3/D4/D6/E3 near-misses.
+- When a global variable is read/written from code that runs before `runApp()` or from a
+  callback with no `BuildContext`/`WidgetRef` (native platform-channel handlers, background
+  isolates), migrating it to a Riverpod provider requires a manually-created `ProviderContainer`
+  passed to `runApp()` via `UncontrolledProviderScope` — plain `ProviderScope` alone doesn't give
+  non-widget code a way to read/write providers.
 
 ## Current State (2026-07-11 — Phase D Complete)
 

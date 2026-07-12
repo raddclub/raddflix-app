@@ -5,7 +5,7 @@ import '../core/theme/radd_colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../core/constants.dart';
-import '../app.dart' show pendingVideoUri, pendingVideoTitle, pendingSubtitleUri, appNavigatorKey;
+import '../providers/app_navigation_provider.dart';
 import '../core/remote_config.dart';
 import '../core/theme/brand_theme_provider.dart';
 import '../providers/auth_provider.dart';
@@ -91,13 +91,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         _started = true;
         navigateAfterAuth(context, ref);
         // If app was opened via "Open with" intent, push player after home loads
-        final uri = pendingVideoUri;
+        final uri = ref.read(pendingVideoUriProvider);
         if (uri != null && uri.isNotEmpty) {
-          pendingVideoUri   = null;
-          final String? resolvedTitle = pendingVideoTitle;
-          pendingVideoTitle = null;
-          final String? subtitlePath = pendingSubtitleUri;
-          pendingSubtitleUri = null;
+          ref.read(pendingVideoUriProvider.notifier).state = null;
+          final String? resolvedTitle = ref.read(pendingVideoTitleProvider);
+          ref.read(pendingVideoTitleProvider.notifier).state = null;
+          final String? subtitlePath = ref.read(pendingSubtitleUriProvider);
+          ref.read(pendingSubtitleUriProvider.notifier).state = null;
           Future.delayed(const Duration(milliseconds: 400), () {
             // H-02: widget may be disposed during the 400ms wait
             if (!mounted) return;
@@ -111,7 +111,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             final String localPath =
                 uri.startsWith('file://') ? uri.substring(7) : uri;
             // Pop any stale player screen before pushing (cold-start edge case).
-            appNavigatorKey.currentState
+            ref.read(navigatorKeyProvider).currentState
               ?..popUntil((route) => route.settings.name != '/player')
               ..pushNamed(
                 '/player',
