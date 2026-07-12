@@ -503,34 +503,34 @@ RaddButton, RaddCard, SettingsRow, RaddChip adopted where applicable.
 
 **Screens with migration still needed (confirmed from Phase 5 status):**
 
-- [ ] F01 — `home_screen.dart`: RaddButton for action buttons; remaining raw Colors.*
-- [ ] F02 — `show_detail_screen.dart`: remaining raw Color(0xFF...) per Phase 4 notes; adopt RaddButton for play/watchlist CTAs
-- [ ] F03 — `search_screen.dart`: remaining raw Colors.*; adopt RaddChip for filter chips
-- [ ] F04 — `profile_screen.dart`: remaining raw Color(0xFF7C5CFF)/Color(0xFFFFB300); adopt RaddButton
-- [ ] F05 — `downloads_screen.dart`: remaining raw Colors.*
-- [ ] F06 — `local_folder_screen.dart`: remaining raw Colors.*
-- [ ] F07 — `local_media_screen.dart`: remaining raw Colors.*
-- [ ] F08 — `settings_screen.dart`: adopt SettingsRow for all setting items (requires D5 done first)
-- [ ] F09 — `login_screen.dart`: adopt RaddButton for primary actions; RaddTextField for fields (requires D1 done)
-- [ ] F10 — `register_screen.dart`: same as login
-- [ ] F11 — `subscription_screen.dart`: adopt RaddButton for plan CTA buttons
-- [ ] F12 — `edit_profile_screen.dart`: remaining raw literals
-- [ ] F13 — `vault_screen.dart` + `vault_settings_screen.dart`: remaining raw literals
-- [ ] F14 — `debug_diagnostics_screen.dart`: remaining raw literals
-- [ ] F15 — `tid_status_screen.dart`: remaining raw literals
-- [ ] F16 — `add_edit_profile_screen.dart`: remaining raw literals
-- [ ] F17 — `profile_switcher_screen.dart`: remaining raw literals
-- [ ] F18 — `history_screen.dart`: remaining raw literals
-- [ ] F19 — `watchlist_screen.dart`: remaining raw literals
-- [ ] F20 — `actor_screen.dart`: remaining raw literals
-- [ ] F21 — `admin_queue_screen.dart`: remaining raw literals
-- [ ] F22 — `plan_expired_screen.dart` + `quota_full_screen.dart`: remaining raw literals
-- [ ] F23 — `season_folder_screen.dart`: remaining raw literals
-- [ ] F24 — `onboarding_screen.dart`: remaining raw literals
-- [ ] F25 — ContentCard: adopt RaddCard as base (after RaddCard API is confirmed sufficient)
-- [ ] F26 — SimosaCard: migrate hardcoded colors to tokens
-- [ ] F27 — `quick_settings_panel.dart` (1,684 lines): remaining hardcoded tokens (post-D4)
-- [ ] F28 — `player_hud_settings_sheet.dart` (1,145 lines): remaining hardcoded tokens
+- [x] F01 — `home_screen.dart`: RaddButton for action buttons; remaining raw Colors.*
+- [x] F02 — `show_detail_screen.dart`: remaining raw Color(0xFF...) per Phase 4 notes; adopt RaddButton for play/watchlist CTAs
+- [x] F03 — `search_screen.dart`: remaining raw Colors.*; adopt RaddChip for filter chips
+- [x] F04 — `profile_screen.dart`: remaining raw Color(0xFF7C5CFF)/Color(0xFFFFB300); adopt RaddButton
+- [x] F05 — `downloads_screen.dart`: remaining raw Colors.*
+- [x] F06 — `local_folder_screen.dart`: remaining raw Colors.*
+- [x] F07 — `local_media_screen.dart`: remaining raw Colors.*
+- [x] F08 — `settings_screen.dart`: adopt SettingsRow for all setting items (requires D5 done first)
+- [x] F09 — `login_screen.dart`: adopt RaddButton for primary actions; RaddTextField for fields (requires D1 done)
+- [x] F10 — `register_screen.dart`: same as login
+- [x] F11 — `subscription_screen.dart`: adopt RaddButton for plan CTA buttons
+- [x] F12 — `edit_profile_screen.dart`: remaining raw literals
+- [x] F13 — `vault_screen.dart` + `vault_settings_screen.dart`: remaining raw literals
+- [x] F14 — `debug_diagnostics_screen.dart`: remaining raw literals
+- [x] F15 — `tid_status_screen.dart`: remaining raw literals
+- [x] F16 — `add_edit_profile_screen.dart`: remaining raw literals
+- [x] F17 — `profile_switcher_screen.dart`: remaining raw literals
+- [x] F18 — `history_screen.dart`: remaining raw literals
+- [x] F19 — `watchlist_screen.dart`: remaining raw literals
+- [x] F20 — `actor_screen.dart`: remaining raw literals
+- [x] F21 — `admin_queue_screen.dart`: remaining raw literals
+- [x] F22 — `plan_expired_screen.dart` + `quota_full_screen.dart`: remaining raw literals
+- [x] F23 — `season_folder_screen.dart`: remaining raw literals
+- [x] F24 — `onboarding_screen.dart`: remaining raw literals
+- [x] F25 — ContentCard: adopt RaddCard as base (after RaddCard API is confirmed sufficient)
+- [x] F26 — SimosaCard: migrate hardcoded colors to tokens
+- [x] F27 — `quick_settings_panel.dart` (1,684 lines): remaining hardcoded tokens (post-D4)
+- [x] F28 — `player_hud_settings_sheet.dart` (1,145 lines): remaining hardcoded tokens
 
 **After each screen commit: run preflight_check.sh (auto via auto_commit.sh) and verify CI green (Rule 46/47).**
 
