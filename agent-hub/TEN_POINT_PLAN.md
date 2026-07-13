@@ -825,28 +825,28 @@ using mixins. Phase J2–J5 will use **mixins** (`mixin PlayerPlaybackMixin on C
 so each cluster can define its own state vars and still call `setState()` / `ref` / `context`
 directly. This is the correct Dart pattern for exactly this situation.
 
-### J2 — Extract `PlayerPlaybackController` as mixin
+### J2 — Extract `PlayerPlaybackController` as mixin (DONE 2026-07-13)
 - Move `_player`, `_videoCtrl`, all stream subscriptions, `_openMedia`, `_openMediaForEpisode`, episode navigation, `_autoRetry` logic into `mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen>`.
 - Cross-references from other mixins to `_player`/`_np` must be declared abstract in those mixins.
-- [ ] Extract PlayerPlaybackMixin
+- [x] Extract PlayerPlaybackMixin — `screens/player/_ps_playback_mixin.dart` (1,103 lines)
 
-### J3 — Extract `AudioLabMixin`
+### J3 — Extract `AudioLabMixin` (DONE 2026-07-13)
 - Move all `_lab*` state vars, `_eqBands`, `_reverb`, `_buildMergedAfString`, `_applyAllAf` into `mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen>`.
 - Declare `abstract NativePlayer get _np;` in the mixin (satisfied by `_PlayerPlaybackMixin`).
-- [ ] Extract AudioLabMixin
+- [x] Extract AudioLabMixin — `screens/player/_ps_audiolab_mixin.dart` (342 lines); fixed missing abstract `_audioSync` get/set (commit `43d6d76e`)
 
-### J4 — Extract `SubtitleMixin`
+### J4 — Extract `SubtitleMixin` (DONE 2026-07-13)
 - Move subtitle loading pipeline, `_subtitlePath`, `_subtitleLang`, `_secondarySid`, `_subDelay`, `_applyCompanionSub`, `_adjustSubSync` into `mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen>`.
-- [ ] Extract SubtitleMixin
+- [x] Extract SubtitleMixin — `screens/player/_ps_subtitle_mixin.dart` (160 lines)
 
-### J5 — Extract `PlayerUIMixin`
+### J5 — Extract `PlayerUIMixin` (DONE 2026-07-13)
 - Move `_showControls`, `_isLocked`, `_hideTimer`, `_scheduleHide`, immersive mode, gesture handlers, seek flash into `mixin _PlayerUIMixin on ConsumerState<PlayerScreen>`.
-- [ ] Extract PlayerUIMixin
+- [x] Extract PlayerUIMixin — `screens/player/_ps_ui_mixin.dart` (3,285 lines — the largest cluster: gestures, panels, sheets, HUD widgets); shipped with 2 missing abstract setters (`_streamError`, `_silenceSkipThreshold`) that broke the Android release build, fixed 2026-07-13 (commit `75473077`, CI green on `7a1b05b0`)
 
-### J6 — Slim down `_PlayerScreenState`
-- After J2-J5, `_PlayerScreenState` mixes in all four mixins and keeps only `initState`, `dispose`, and `build`.
+### J6 — Slim down `_PlayerScreenState` (DONE 2026-07-13)
+- After J2-J5, `_PlayerScreenState` mixes in all four mixins and keeps only `initState`, `dispose`, and `build` (plus the pre-existing standalone `_HorizontalSeekPainter`/other small helper classes that were never part of the God class's state, and stay in this file by design).
 - Target: under 2,000 lines total (main file).
-- [ ] Slim _PlayerScreenState after all extractions
+- [x] Slim _PlayerScreenState after all extractions — `player_screen.dart` now 1,617 lines (down from the original 9,458), class declares `with WidgetsBindingObserver, _PlayerPlaybackMixin, _PlayerAudioLabMixin, _PlayerSubtitleMixin, _PlayerUIMixin`. CI-verified green (commit `7a1b05b0`) — this is the first time the full split has actually compiled successfully.
 
 ---
 
