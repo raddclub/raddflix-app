@@ -21,6 +21,7 @@ mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen> {
   String? get _currentSubFile; set _currentSubFile(String? v);
   SubtitleTrack? get _selectedSubtitle;
   Duration get _duration;
+  double get _audioSync; set _audioSync(double v);
 
   double _audioBalance = 0.0;
   String _currentBalanceAf = '';
