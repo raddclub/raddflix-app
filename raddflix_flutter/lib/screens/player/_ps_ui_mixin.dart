@@ -22,7 +22,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   NativePlayer get _np;
   Duration get _duration;
   SubtitleTrack? get _selectedSubtitle; set _selectedSubtitle(SubtitleTrack? v);
-  double get _silenceSkipThreshold;
+  double get _silenceSkipThreshold; set _silenceSkipThreshold(double v);
   double get _subSync; set _subSync(double v);
   void _applySubtitleMargin({required bool controlsVisible});
   void _scheduleSavePrefs();
@@ -89,7 +89,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   int get _selectedPreset; set _selectedPreset(int v);
   bool get _silenceSkipEnabled; set _silenceSkipEnabled(bool v);
   double get _speed;
-  String? get _streamError;
+  String? get _streamError; set _streamError(String? v);
   VideoController get _videoCtrl;
   Player get _player;
 
