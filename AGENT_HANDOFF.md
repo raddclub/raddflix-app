@@ -5,39 +5,69 @@
 
 ---
 
-## Current State (2026-07-12 — Phase G In Progress)
+## Current State (2026-07-12 — Phase H In Progress)
+
+### PHASE-H — Testing Infrastructure — 2026-07-12
+
+H1/H4/H5 done. H2/H3 formally BLOCKED on Android Keystore platform-channel constraint.
+
+- **H1** `test/` directory structure created; `mocktail` dep added; `flutter test` wired into CI
+  as a **separate `ci-tests.yml` job** (this job did not exist before H1 — `build-apk.yml` never
+  ran `flutter test`).
+- **H4** Widget tests written for `RaddButton`, `RaddChip`, `RaddTextField`, `RaddCard`, `RaddSheet`.
+- **H5** `PlayerPrefs` save/load round-trip tests (one field per settings category + defaults +
+  derived getters). Commits: `809f537` (H1), `a022e48` (H4/H5).
+- **H2** LocalDb unit tests — **BLOCKED**: `LocalDb` opens its encrypted DB via Android Keystore
+  platform channel. `flutter test` runs in a headless Dart VM with no platform channel support —
+  any test directly exercising `LocalDb` will crash or test nothing. Do **NOT** ship fake/stub
+  tests. Correct path: (a) DI seam — abstract `LocalDb` behind an interface and inject a fake in
+  tests, or (b) Flutter integration test on a real device/emulator where platform channels work.
+  See `agent-hub/memory/localdb-testability.md` and Rule 49.
+- **H3** Provider unit tests — **BLOCKED**: same root cause as H2 (providers depend on `LocalDb`).
+
+**No tests were executed locally** — no Flutter/Dart SDK available in this Replit environment.
+Correctness rests on source review + CI. After any push touching `test/`, `pubspec.yaml`, or
+`.github/workflows/`, check **BOTH** CI job statuses (Rule 50):
+```bash
+curl -s -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/raddclub/raddflix-app/actions/workflows/build-apk.yml/runs?per_page=1"
+curl -s -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/raddclub/raddflix-app/actions/workflows/ci-tests.yml/runs?per_page=1"
+```
+
+**Active rules (carry forward):**
+- Never add `androidAttachSurfaceAfterVideoParameters: true`
+- Never upgrade `sqflite_sqlcipher` past `3.1.0+1`
+- Push files sequentially (SHA race condition), ≥1.2 s apart
+- `kDebugMode` gate requires `import 'package:flutter/foundation.dart' show kDebugMode;` (Rule 43)
+- After any Flutter push, check BOTH `build-apk.yml` AND `ci-tests.yml` CI jobs (Rule 50)
+- H2/H3 LocalDb tests: blocked by platform channels — never ship fake tests (Rule 49)
+
+---
+
+## Current State (2026-07-12 — Phase G ✅ FULLY CLOSED)
 
 ### PHASE-G — Architecture Modernisation — 2026-07-12
 
-**G2 partial** — 2 unused animation packages removed from pubspec.yaml. CI pending on `58a01378`.
+All G items resolved and pushed. Commits: `58a0137` (G2), `c9974ac` (G3), `fb8e65d` (G5),
+`2580b88` (G1 typed-args fix), `2f2a11d` (G1 close + G4 deletion).
 
-- **G2: flutter_staggered_animations removed** — zero usages confirmed across all 67k lines; removed
-  from pubspec.yaml.
-- **G2: animated_text_kit removed** — zero usages confirmed; removed from pubspec.yaml.
-- **G2: animations package (OpenContainer) KEPT** — evaluated: `OpenContainer<void>` used in
-  `home_screen.dart` L481 and `search_screen.dart` L836 for Tier 2+ card-expand morph transition.
-  Non-trivial to replace with `flutter_animate` without visual regression; kept with rationale comment.
-
-**What's remaining for Phase G:**
-- **G1** `go_router`: Large migration — replaces all `Navigator.pushNamed/push(context, ...)` call sites.
-  Currently: static named routes map + `onGenerateRoute` in `app.dart`. Touches every screen's
-  navigation call. Recommend doing in one session.
-- **G3** `video_thumbnail → media_kit frame extraction`: 2 call sites (`thumb_service.dart`,
-  `local_media_service.dart`). Blocked: platform channels cannot run inside `compute()` isolates,
-  so the plan's approach (media_kit in compute()) needs a different mechanism. Deferred.
-- **G4** `core/player/` dead file audit: 13 lettered series files (`c_series_gestures.dart` through
-  `v_series_video_tools.dart`) all have **zero imports** — confirmed dead. BUT each file is a
-  100–300 line feature stub (planned features: pinch brightness, picture profiles, parental controls,
-  etc.). **MUST confirm with the user before deleting.** Do not delete without confirmation.
-- **G5** `AppConstants` mutable statics → Riverpod: `apiBaseUrl`, `jazzDriveDeltaUrl`,
-  `supportWhatsApp` are `static var` mutated by `RemoteConfig.fetch()`. Touches `ApiClient`,
-  `RemoteConfig`, `security_telemetry`, `app_update_service`. Complex refactor — same session as
-  Phase E3 / L10 (`ApiClient.isGuestMode`).
+- **G1** go_router literal package swap left undone by user decision (unverifiable runtime
+  routing behaviour without device/CI coverage). Root cause it targeted — `ModalRoute.of(context)?
+  .settings.arguments` reads in `player_screen.dart` — already fixed via typed `PlayerScreen`
+  constructor params (commit `2580b88`). Marked complete (`2f2a11d`).
+- **G2** `flutter_staggered_animations` + `animated_text_kit` removed (zero usages confirmed across
+  all 67k lines). `animations` (OpenContainer) kept — used in `home_screen.dart` L481 +
+  `search_screen.dart` L836 for Tier 2+ card morph. Commit `58a0137`.
+- **G3** `video_thumbnail` → `media_kit`-based frame extraction:
+  `services/media_kit_thumbnail_extractor.dart` added; `video_thumbnail` removed from pubspec.yaml.
+  Commit `c9974ac`.
+- **G4** 13 lettered stub files in `core/player/` (c/d/f/g/n/o/p/q/r/s/t/u/v_series_*) deleted
+  after explicit user approval + zero-import re-verification across all `lib/`. Commit `2f2a11d`.
+- **G5** `AppConstants` mutable statics (`apiBaseUrl`, `jazzDriveDeltaUrl`, `supportWhatsApp`) →
+  `remoteValuesProvider` (Riverpod) + `appContainer` for non-widget access. Commit `fb8e65d`.
 
 **Active rules (carry forward):**
-- G4 file deletion requires user confirmation — never delete lettered series stubs without it
-- G3 video_thumbnail replacement: platform channels cannot run in compute() isolates; investigate
-  alternative frame-extraction approach before implementing
 - Never add `androidAttachSurfaceAfterVideoParameters: true`
 - Never upgrade `sqflite_sqlcipher` past `3.1.0+1`
 - Push files sequentially (SHA race condition), ≥1.2 s apart

@@ -33,28 +33,27 @@ user rather than proceeding.
 If the human sent you this file's URL to get started, follow these steps in order, then stop
 and wait for their actual task:
 
-1. **Verify `GITHUB_TOKEN` is present.** This secret is required to clone and push to the repo.
-   It should already be in your Secrets tab — the human pre-added it when giving you this prompt.
+1. **Verify `GITHUB_TOKEN` is present — via code, not trust.**
+   The human may say they already added it, but Replit Secrets are **per-Replit environment** and
+   do NOT carry over between Repls automatically. Always verify with a code check first (Rule 48).
 
-   > **Why secrets may be missing — read this first:**
-   > Replit Secrets are **per-Replit environment**. They are NOT shared between Repls
-   > automatically. Every time a new Replit is created (a new agent session, a fork, etc.),
-   > its secrets store starts empty even if the same secrets exist in another Replit.
-   > This is expected Replit behaviour — it is not a bug.
-   >
-   > **If `GITHUB_TOKEN` is missing, do NOT stop and wait.**
-   > Instead, tell the human exactly this:
-   >
-   > ---
-   > **Action needed — add `GITHUB_TOKEN` to this Replit:**
-   > This is a fresh Replit environment. Secrets don't carry over automatically between Repls.
-   > Please add `GITHUB_TOKEN` (your GitHub personal access token, repo scope) to this Replit's
-   > Secrets panel — open the sidebar → click the 🔒 **Secrets** tab → add the key and value.
-   > Once it's added, tell me and I'll continue with the clone.
-   > ---
-   >
-   > After the human confirms `GITHUB_TOKEN` is added, continue to step 2.
-   >
+   In the Replit CodeExecution tool, run:
+   ```javascript
+   const r = await viewEnvVars({ type: "secret", keys: ["GITHUB_TOKEN"] });
+   console.log(r.secrets.GITHUB_TOKEN); // true = present, false = missing
+   ```
+
+   - **If `true`**: proceed to step 2.
+   - **If `false`**: use `requestSecrets({ keys: ["GITHUB_TOKEN"] })` to prompt the user via the
+     secure form — this writes the value directly to Replit Secrets, which is more reliable than
+     asking in chat. Wait for confirmation before proceeding.
+
+   > **Why secrets go missing:** Every new Replit starts with an empty secrets store — this is
+   > expected behaviour, not a bug. The `viewEnvVars` check takes 1 second and prevents the entire
+   > setup flow from failing at `git clone`. Do not skip it even when the user says the token is
+   > present. (Evidence: 2026-07-12 — user confirmed token was added, `viewEnvVars` showed `false`,
+   > token had to be re-added before clone could proceed — see Rule 48.)
+
    > **`ORACLE_SSH_KEY`** (the Oracle VPS SSH private key) is only required when work touches the
    > live Flask server (`radd-hub/**`, deployments, DB operations). Flutter-only work (Phase A–L
    > of the 10/10 plan) does **not** need it. If a task later requires Oracle access and
@@ -62,11 +61,12 @@ and wait for their actual task:
 
 2. **Clone the repository locally** so you have full project context:
    ```bash
-   git clone https://github.com/raddclub/raddflix-app.git raddflix-app
+   git clone https://$GITHUB_TOKEN@github.com/raddclub/raddflix-app.git raddflix-app
    cd raddflix-app
-   git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/raddclub/raddflix-app.git
    ```
-   If `raddflix-app/` already exists in the workspace, `cd` into it and run `git pull` instead.
+   The token must be embedded in the URL — a plain `https://github.com/...` clone will fail
+   because this is a private repository. If `raddflix-app/` already exists, `cd` into it and
+   run `git pull` instead.
 3. **Read the canonical docs below, in order**, from the local clone. This single file alone is
    not enough context to work safely.
 4. **Stop and wait.** Do not edit any code, run any scripts, or restart any services yet.
@@ -111,10 +111,15 @@ every `.dart` file read — 67,988 lines) produced `agent-hub/TEN_POINT_PLAN.md`
 4. Follow Rule 42 (`log_pending.sh` → edit → `auto_commit.sh`) for every single file change.
    Check a checkbox `[x]` in `TEN_POINT_PLAN.md` only after the push has succeeded and the
    GitHub Actions CI build is confirmed green (Rule 46).
-5. After every push touching `raddflix_flutter/**`, confirm CI status:
+5. After every push touching `raddflix_flutter/**`, confirm CI status (Rule 46 + Rule 50).
+   Always check `build-apk.yml`. If the push also touches `test/`, `pubspec.yaml`, or
+   `.github/workflows/`, also check the separate `ci-tests.yml` job:
    ```bash
    curl -s -H "Authorization: token $GITHUB_TOKEN" \
      "https://api.github.com/repos/raddclub/raddflix-app/actions/workflows/build-apk.yml/runs?per_page=1"
+   # Also run this if test/ or pubspec.yaml or .github/workflows/ was touched:
+   curl -s -H "Authorization: token $GITHUB_TOKEN" \
+     "https://api.github.com/repos/raddclub/raddflix-app/actions/workflows/ci-tests.yml/runs?per_page=1"
    ```
 6. If `agent-hub/UNPUSHED.txt` has content when your session starts, run `bash recover_push.sh`
    before doing anything else — a previous agent's edit may not have landed yet.

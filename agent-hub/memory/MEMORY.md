@@ -7,3 +7,4 @@
 - [MediaTek black screen fix](../history/TASK_LOG.md) — _videoOpened flag set before player.open() closes 200-500ms race; PlaybackTimeline proves it works
 - [RaddColors has no gradient getter](radd-colors-no-gradient.md) — context.signalPrimaryGradient does not exist; use AppColors.primaryGradient for primary-color gradients
 - [TEN_POINT_PLAN dead-code findings need re-verification](dead-code-plan-findings.md) — plan docs can be wrong/stale about "dead" vars; always re-grep before deleting
+- [LocalDb platform-channel testability](localdb-testability.md) — LocalDb uses Android Keystore; headless flutter test cannot run it; DI seam or integration test required, never fake tests

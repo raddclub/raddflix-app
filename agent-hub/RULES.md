@@ -1,5 +1,5 @@
 # agent-hub/RULES.md — Non-Negotiable Agent Rules
-Last updated: 2026-07-08 (added Rules 43-46 — deploy verification gaps found during a full audit)
+Last updated: 2026-07-12 (added Rules 48-50 — bootstrap verification gap + LocalDb testability + dual CI check)
 
 ## Startup (every session, no exceptions)
 1. Read `AGENT_PROMPT.md` (repo root) — the single entry point, links everything below.
@@ -242,3 +242,45 @@ false positive — state why in the commit message when you do. **This does not 
 CI is still the only real compiler check; this just avoids paying for a red build on mistakes we
 already know how to catch for free. When adding a new `Radd*`/`App*` token class to the design
 system, add it to the `REQUIRES_IMPORT` map in `preflight_check.sh` too.
+
+---
+
+## Replit Environment & Bootstrap Rules (added 2026-07-12)
+
+**Rule 48: Always verify secrets via code — never trust verbal confirmation alone.**
+At the start of every Replit session, verify `GITHUB_TOKEN` is actually present by running
+`viewEnvVars({ type: "secret", keys: ["GITHUB_TOKEN"] })` in the CodeExecution tool.
+Even when the user says "I already added it," Replit Secrets are per-Replit and do NOT carry
+over between environments automatically. A `false` result means the secret is absent, full stop.
+If missing, call `requestSecrets({ keys: ["GITHUB_TOKEN"] })` to prompt the user via the secure
+form — do NOT proceed with `git clone` until the check returns `true`. Asking in chat is less
+reliable because it doesn't actually set the Replit Secret.
+**Evidence:** 2026-07-12 session — user confirmed token was already added, `viewEnvVars` showed
+`false`, token had to be re-added before the clone could proceed.
+
+**Rule 49: LocalDb unit tests are blocked by Android Keystore platform channels — do NOT write fake tests.**
+`LocalDb` opens its encrypted SQLite database via the Android Keystore platform channel.
+`flutter test` runs in a headless Dart VM with **no platform channel support** — any test that
+directly constructs or calls `LocalDb` will either crash at runtime or require a mock that makes
+the test meaningless. Phase H items H2 (LocalDb unit tests) and H3 (provider unit tests) are
+formally BLOCKED for this reason. Do not mark them done with stub/fake tests just to clear a
+checklist item.
+**Correct paths forward:**
+- **(a) DI seam:** abstract `LocalDb` behind an interface (`LocalDbInterface` or similar), inject
+  the real impl in production and a `FakeLocalDb` in tests. This requires a deliberate refactor.
+- **(b) Flutter integration tests:** run on a real device or emulator where platform channels work.
+  These require a CI runner with an Android emulator (not the current headless setup).
+Document H2/H3 as BLOCKED with this root cause and wait for an explicit decision. Never ship a
+test that passes vacuously. See `agent-hub/memory/localdb-testability.md` for full detail.
+
+**Rule 50: After any push touching `test/`, `pubspec.yaml`, or `.github/workflows/`, check BOTH CI jobs.**
+Phase H added a separate CI workflow (`ci-tests.yml`) that runs `flutter test`. Rule 46 already
+requires checking `build-apk.yml` after every Flutter push. **Extend that rule:** any push that
+touches the test directory, pubspec, or workflow files must also verify `ci-tests.yml`:
+```bash
+curl -s -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/raddclub/raddflix-app/actions/workflows/ci-tests.yml/runs?per_page=1"
+```
+Check `conclusion == "success"` in the response. Work is not complete until **both**
+`build-apk.yml` AND `ci-tests.yml` show `"success"`. A green APK build with a red test run is
+still a broken state.
