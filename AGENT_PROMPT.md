@@ -59,6 +59,18 @@ and wait for their actual task:
    > of the 10/10 plan) does **not** need it. If a task later requires Oracle access and
    > `ORACLE_SSH_KEY` is missing, ask the human to add it then — do not block the clone on it now.
 
+   > **Never store `GITHUB_TOKEN` or `ORACLE_SSH_KEY` in `.replit`'s `[userenv.shared]` block, or
+   > in any other plaintext file/config.** That block is plain TOML — readable by anyone with
+   > project access and preserved in checkpoint/version history — so it defeats the entire point
+   > of a secret. The **only** correct home for these two values in a Replit session is the
+   > Secrets store (`requestSecrets` to write, `viewEnvVars({ type: "secret" })` to check
+   > existence — value is never echoed back). This exact mistake happened on 2026-07-13: both
+   > values were found written directly into `.replit`'s shared env block, including the raw RSA
+   > private key. If you ever find secrets sitting in `.replit`, a `.env` file, or any tracked
+   > file, treat it as a live incident: move the value into Secrets immediately, then strip it
+   > from the plaintext location — do not leave "a copy in both places just in case." See Rule 48
+   > in `agent-hub/RULES.md`.
+
 2. **Clone the repository locally** so you have full project context:
    ```bash
    git clone https://$GITHUB_TOKEN@github.com/raddclub/raddflix-app.git raddflix-app

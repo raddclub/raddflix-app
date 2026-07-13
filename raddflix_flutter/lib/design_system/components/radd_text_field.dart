@@ -30,6 +30,11 @@ class RaddTextField extends StatefulWidget {
   // programmatic focus (e.g. focusNode.requestFocus() from a "next" button).
   // Only disposed here when this widget created it itself.
   final FocusNode? focusNode;
+  // D3: added so profile-name/display-name style fields (previously stuck on
+  // ad-hoc raw TextFields) can migrate to this component without losing
+  // their character limit or capitalization behaviour.
+  final int? maxLength;
+  final TextCapitalization textCapitalization;
 
   const RaddTextField({
     super.key,
@@ -46,6 +51,8 @@ class RaddTextField extends StatefulWidget {
     this.maxLines = 1,
     this.enabled = true,
     this.focusNode,
+    this.maxLength,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
@@ -119,6 +126,8 @@ class _RaddTextFieldState extends State<RaddTextField> {
                       obscureText: widget.obscureText,
                       keyboardType: widget.keyboardType,
                       maxLines: widget.maxLines,
+                      maxLength: widget.maxLength,
+                      textCapitalization: widget.textCapitalization,
                       enabled: widget.enabled,
                       style: context.raddBody.copyWith(color: t.textPrimary),
                       onChanged: (v) {
@@ -131,6 +140,7 @@ class _RaddTextFieldState extends State<RaddTextField> {
                         hintStyle: context.raddBody.copyWith(color: t.textMuted),
                         suffixIcon: widget.suffixIcon,
                         isCollapsed: true,
+                        counterText: widget.maxLength != null ? '' : null,
                       ),
                     ),
                   ),

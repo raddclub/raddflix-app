@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/components/radd_text_field.dart';
 import '../core/constants.dart';
 import '../models/profile.dart';
 import '../providers/profile_provider.dart';
@@ -197,24 +198,13 @@ class _AddEditProfileScreenState extends ConsumerState<AddEditProfileScreen> {
           ],
 
           // ── Name field ────────────────────────────────────────────────
-          Container(
-            decoration: BoxDecoration(color: t.surface, borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: t.border)),
-            child: TextField(
-              controller: _nameCtrl,
-              maxLength: 20,
-              textCapitalization: TextCapitalization.words,
-              onChanged: (_) => setState(() {}),
-              style: TextStyle(color: t.textPrimary, fontSize: 15),
-              decoration: InputDecoration(
-                counterText: '',
-                hintText: 'Profile name',
-                hintStyle: TextStyle(color: t.textMuted),
-                prefixIcon: Icon(AppIcons.profile, color: t.textMuted, size: 20),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              ),
-            ),
+          RaddTextField(
+            controller: _nameCtrl,
+            hint: 'Profile name',
+            prefixIcon: AppIcons.profile,
+            maxLength: 20,
+            textCapitalization: TextCapitalization.words,
+            onChanged: (_) => setState(() {}),
           ),
 
           const SizedBox(height: 20),

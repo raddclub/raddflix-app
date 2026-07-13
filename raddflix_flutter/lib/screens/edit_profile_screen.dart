@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
 import '../design_system/motion/radd_motion.dart';
-import '../design_system/radius/radd_radius.dart';
+import '../design_system/components/radd_text_field.dart';
 import '../core/constants.dart';
 import '../core/api/auth_api.dart';
 import '../providers/auth_provider.dart';
@@ -293,28 +293,24 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     const SizedBox(height: RaddSpace.md),
                   ],
 
-                  _FieldCard(children: [
-                    _Field(
-                      ctrl: _nameCtrl,
-                      label: 'Display Name',
-                      hint: 'Your name (optional)',
-                      icon: AppIcons.profile,
-                      maxLength: 60,
-                      textCapitalization: TextCapitalization.words,
-                    ),
-                  ]),
+                  RaddTextField(
+                    controller: _nameCtrl,
+                    label: 'Display Name',
+                    hint: 'Your name (optional)',
+                    prefixIcon: AppIcons.profile,
+                    maxLength: 60,
+                    textCapitalization: TextCapitalization.words,
+                  ),
 
                   const SizedBox(height: 12),
 
-                  _FieldCard(children: [
-                    _Field(
-                      ctrl: _emailCtrl,
-                      label: 'Email',
-                      hint: 'For account recovery (optional)',
-                      icon: AppIcons.mail,
-                      keyboardType: TextInputType.emailAddress,
-                    ),
-                  ]),
+                  RaddTextField(
+                    controller: _emailCtrl,
+                    label: 'Email',
+                    hint: 'For account recovery (optional)',
+                    prefixIcon: AppIcons.mail,
+                    keyboardType: TextInputType.emailAddress,
+                  ),
 
                   const SizedBox(height: RaddSpace.lg),
 
@@ -515,6 +511,24 @@ class _ColorPickerSheet extends StatelessWidget {
   }
 }
 
+// ── Settings-row card wrapper (used for the "Change Password" entry point) ────
+class _FieldCard extends StatelessWidget {
+  final List<Widget> children;
+  const _FieldCard({required this.children});
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: t.border),
+      ),
+      child: Column(children: children),
+    );
+  }
+}
+
 // ── Change password bottom sheet ──────────────────────────────────────────────
 class _ChangePasswordSheet extends StatefulWidget {
   const _ChangePasswordSheet();
@@ -624,17 +638,38 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
           const SizedBox(height: 14),
         ],
 
-        _PwField(ctrl: _currentCtrl, label: 'Current Password',
-            show: _showCurrent,
-            onToggle: () => setState(() => _showCurrent = !_showCurrent)),
+        RaddTextField(
+          controller: _currentCtrl,
+          label: 'Current Password',
+          obscureText: !_showCurrent,
+          prefixIcon: AppIcons.lock,
+          suffixIcon: IconButton(
+            icon: Icon(_showCurrent ? AppIcons.eyeOff : AppIcons.eye, size: 18, color: t.textMuted),
+            onPressed: () => setState(() => _showCurrent = !_showCurrent),
+          ),
+        ),
         const SizedBox(height: 12),
-        _PwField(ctrl: _newCtrl, label: 'New Password',
-            show: _showNew,
-            onToggle: () => setState(() => _showNew = !_showNew)),
+        RaddTextField(
+          controller: _newCtrl,
+          label: 'New Password',
+          obscureText: !_showNew,
+          prefixIcon: AppIcons.lock,
+          suffixIcon: IconButton(
+            icon: Icon(_showNew ? AppIcons.eyeOff : AppIcons.eye, size: 18, color: t.textMuted),
+            onPressed: () => setState(() => _showNew = !_showNew),
+          ),
+        ),
         const SizedBox(height: 12),
-        _PwField(ctrl: _confirmCtrl, label: 'Confirm New Password',
-            show: _showConfirm,
-            onToggle: () => setState(() => _showConfirm = !_showConfirm)),
+        RaddTextField(
+          controller: _confirmCtrl,
+          label: 'Confirm New Password',
+          obscureText: !_showConfirm,
+          prefixIcon: AppIcons.lock,
+          suffixIcon: IconButton(
+            icon: Icon(_showConfirm ? AppIcons.eyeOff : AppIcons.eye, size: 18, color: t.textMuted),
+            onPressed: () => setState(() => _showConfirm = !_showConfirm),
+          ),
+        ),
         const SizedBox(height: 20),
 
         SizedBox(
@@ -662,160 +697,3 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
   }
 }
 
-// ── Shared field widgets ───────────────────────────────────────────────────────
-class _FieldCard extends StatelessWidget {
-  final List<Widget> children;
-  const _FieldCard({required this.children});
-  @override
-  Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: t.border),
-      ),
-      child: Column(children: children),
-    );
-  }
-}
-
-class _Field extends StatefulWidget {
-  final TextEditingController ctrl;
-  final String label;
-  final String hint;
-  final IconData icon;
-  final TextInputType? keyboardType;
-  final int? maxLength;
-  final TextCapitalization textCapitalization;
-
-  const _Field({
-    required this.ctrl,
-    required this.label,
-    required this.hint,
-    required this.icon,
-    this.keyboardType,
-    this.maxLength,
-    this.textCapitalization = TextCapitalization.none,
-  });
-
-  @override
-  State<_Field> createState() => _FieldState();
-}
-
-class _FieldState extends State<_Field> {
-  final FocusNode _focus = FocusNode();
-  bool _focused = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _focus.addListener(_onFocusChange);
-  }
-
-  void _onFocusChange() {
-    if (mounted) setState(() => _focused = _focus.hasFocus);
-  }
-
-  @override
-  void dispose() {
-    _focus.removeListener(_onFocusChange);
-    _focus.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: _focused ? AppColors.primary.withOpacity(0.04) : Colors.transparent,
-        borderRadius: RaddRadius.mdRadius,
-      ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          width: 34, height: 34,
-          decoration: BoxDecoration(
-            color: _focused
-                ? AppColors.primary.withOpacity(0.15)
-                : AppColors.primary.withOpacity(0.08),
-            borderRadius: RaddRadius.smRadius,
-          ),
-          child: Icon(widget.icon, size: 17, color: AppColors.primary),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
-          AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 180),
-            style: TextStyle(
-                color: _focused ? AppColors.primary : t.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.4),
-            child: Text(widget.label),
-          ),
-          const SizedBox(height: RaddSpace.xs),
-          TextField(
-            controller: widget.ctrl,
-            focusNode: _focus,
-            keyboardType: widget.keyboardType,
-            textCapitalization: widget.textCapitalization,
-            maxLength: widget.maxLength,
-            style: TextStyle(color: t.textPrimary, fontSize: 15),
-            decoration: InputDecoration(
-              hintText: widget.hint,
-              hintStyle: TextStyle(color: t.textMuted, fontSize: 14),
-              border: InputBorder.none,
-              isDense: true,
-              contentPadding: EdgeInsets.zero,
-              counterText: '',
-            ),
-          ),
-        ])),
-      ]),
-    );
-  }
-}
-
-class _PwField extends StatelessWidget {
-  final TextEditingController ctrl;
-  final String label;
-  final bool show;
-  final VoidCallback onToggle;
-  const _PwField({required this.ctrl, required this.label,
-      required this.show, required this.onToggle});
-  @override
-  Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: t.bg,
-        borderRadius: RaddRadius.mdRadius,
-        border: Border.all(color: t.border),
-      ),
-      child: TextField(
-        controller: ctrl,
-        obscureText: !show,
-        style: TextStyle(color: t.textPrimary, fontSize: 14),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(color: t.textMuted, fontSize: 13),
-          suffixIcon: IconButton(
-            icon: Icon(show
-                ? AppIcons.eyeOff
-                : AppIcons.eye,
-                size: 18, color: t.textMuted),
-            onPressed: onToggle,
-          ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16, vertical: 14),
-        ),
-      ),
-    );
-  }
-}
