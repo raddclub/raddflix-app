@@ -1,3 +1,2 @@
-# Memory Index
-
-- [RaddSheet bounded-height for Expanded children](raddsheet-bounded-height.md) — panels with Column+Expanded work inside RaddSheet.list without extra wrappers; height is bounded by its own ConstrainedBox.
+- [Phase J part-file extraction](phase-j-part-files.md) — panel classes extracted to part files; preflight false-positive pattern for part files.
+- [Phase J mixin plan](phase-j-mixin-plan.md) — precise J2 PlaybackMixin abstract-declaration map for next session.

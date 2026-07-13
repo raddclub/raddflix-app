@@ -17,13 +17,128 @@
   `_ps_panels_sidebar.dart` (366 lines). Zero behavioral change — `part`/`part of` keeps the
   same library namespace; all `_` private identifiers accessible cross-file.
 
-- **J2–J5** ⏳ PENDING — Method-cluster extraction using **mixins**.
-  `_PlayerScreenState` methods are too tightly coupled for standalone StateNotifier extraction
-  (they need `ref`, `context`, `setState()`, and cross-cluster vars like `_player`). The correct
-  Dart pattern is `mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen>` — each mixin
-  defines its own state vars and can call `setState()` / `ref` / `context` directly.
-  Cross-mixin dependencies declared via `abstract` members in the consuming mixin.
-  See TEN_POINT_PLAN.md §Phase J for the updated extraction plan.
+- **J2–J5** ⏳ PENDING — Method-cluster extraction using **mixins** on `ConsumerState<PlayerScreen>`.
+
+  **How to implement J2 (_PlayerPlaybackMixin) — exact steps:**
+
+  1. Create `lib/screens/player/_ps_playback_mixin.dart` with:
+     ```dart
+     part of '../player_screen.dart';
+
+     mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
+       // ── Abstract cross-cluster references (satisfied by _PlayerScreenState) ──
+       // These remain in _PlayerScreenState (or future mixins) — declare abstract
+       // so PlaybackMixin can call them without knowing the concrete location.
+       void _applyCompanionSub(String? subPath);           // subtitle cluster (line 1434)
+       void _scheduleHide();                               // UI cluster (line 1415)
+       void _startSavePositionTimer();                     // prefs cluster (line 1568)
+       Future<void> _restoreWatchPos();                    // position cluster (line 1374)
+       Future<void> _saveWatchPos();                       // position cluster (line 1351)
+       void _startAutoRetry();                             // error cluster (line 1777)
+       void _cancelAutoRetry();                            // error cluster (line 1791)
+       void _applyAutoOrientation();                       // orientation cluster (line 1822)
+       void _showInfoSnackbar(String msg);                 // UI cluster (line 5736)
+       void _checkSkipEditor();                            // skip-editor cluster
+       void _loadSkipEditorPrefs();                        // prefs cluster
+       void _showEndActionDialog();                        // UI cluster (line 1311)
+
+       // Abstract state var accessors for cross-cluster state vars
+       // (vars that PlaybackMixin READS but BELONGS to another cluster)
+       bool get _silenceInPipeline;                        // audio-lab var (line 345)
+       double get _silenceSkipThreshold;                   // prefs var (line 312)
+       String? get _prefSubLang;                           // prefs var (line 171)
+       String? get _prefAudioLang;                         // prefs var (line 172)
+       SubtitleTrack? get _selectedSubtitle;               // track state (line 168)
+       set _selectedSubtitle(SubtitleTrack? v);
+       AudioTrack? get _selectedAudio;                     // track state (line 166)
+       set _selectedAudio(AudioTrack? v);
+       String? get _currentSubFile;                        // subtitle var (line 239)
+       bool get _backgroundAudio;                          // prefs var (line 381)
+       WatchPartyRoom? get _watchPartyRoom;                // watch-party var (line 333)
+       StreamSubscription<WatchPartyRoom?>? get _watchPartySub;
+       StreamSubscription<VoiceCommand>? get _voiceSub;
+       String get _lastVoiceCmd;
+       Timer? get _voiceCmdTimer;
+
+       // ── State vars that BELONG to PlaybackMixin (move from _PlayerScreenState) ──
+       late final Player _player;
+       late final VideoController _videoCtrl;
+       NativePlayer get _np => _player.platform as NativePlayer;
+       bool _videoOpened = false;
+       bool _playing = false;
+       Duration _position = Duration.zero;
+       Duration _duration = Duration.zero;
+       bool _buffering = false;
+       Duration _buffered = Duration.zero;
+       double _bufferedFraction = 0.0;
+       bool _ended = false;
+       String? _streamError;
+       bool _isLinkLoading = false;
+       int _currentEpIdx = 0;
+       String _currentFileId = '';
+       String _currentTitle = '';
+       double _speed = 1.0;
+       bool _longPressFast = false;
+       String _currentFramedrop = 'vo';
+       bool _isLocal = false;
+       bool _isFree = false;
+       bool _trackUsage = false;
+       Timer? _usageTimer;
+       bool _loopEnabled = false;
+       bool _isMuted = false;
+       Duration? _abA;
+       Duration? _abB;
+       bool _abActive = false;
+       String? _prefetchedFileId;
+       String? _prefetchedStreamUrl;
+       bool _prefetchInFlight = false;
+       bool _prefetchTriggeredForEp = false;
+       String _endAction = 'play_next';
+       final List<StreamSubscription> _subs = [];
+       int _orientMode = 0;
+       int _videoWidth = 0;
+       int _videoHeight = 0;
+       Timer? _posTimer;
+       Timer? _autoRetryTimer;
+       int _autoRetryCountdown = 0;
+       int _lastPositionMs = -1;
+
+       // Computed getters (also move these)
+       List<Map<String, dynamic>> get _eps => widget.episodes ?? [];
+       bool get _hasPrev => _currentEpIdx > 0;
+       bool get _hasNext => _currentEpIdx < _eps.length - 1;
+
+       // ── Methods to MOVE (cut from player_screen.dart, paste here) ─────────────
+       // _startUsageTimer (line 571-586)
+       // _stopUsageTimer (line 583-586)
+       // _initPlayer (line 592-790)
+       // _openMedia (line 796-944)
+       // _friendlyError (line 946-954)
+       // _playEpisodeAt (line 964-1000ish)
+       // _syncNativeAbLoop, _prefetchNextEpisode, _openMediaForEpisode (around 1042-1150)
+       // _onVideoCompleted (line 1271-1309)
+       // _setSpeed (line 1523-1536ish)
+       // _saveCurrentPosition, _clearSavedPosition (line 1558-1566ish)
+       // _startAutoRetry, _cancelAutoRetry (line 1777-1814)
+       // _toggleMute, _toggleLoop (line 1796-1814ish)
+       // _notifyBgState, _setSleepTimer (line 2057-2100ish)
+     }
+     ```
+
+  2. Add `part 'player/_ps_playback_mixin.dart';` to player_screen.dart after the existing part directives.
+
+  3. Change `class _PlayerScreenState extends ConsumerState<PlayerScreen> with WidgetsBindingObserver`
+     to `class _PlayerScreenState extends ConsumerState<PlayerScreen> with WidgetsBindingObserver, _PlayerPlaybackMixin`.
+
+  4. Remove from player_screen.dart:
+     - All state var declarations that moved to the mixin (lines ~109-132, 140-143, 220-223, 288-289, 293-295, 301-304, 308, 365-366, 368-372, 375, 397-399, 404-405, and the `_eps`/`_hasPrev`/`_hasNext` getters at 960-962).
+     - All methods that moved to the mixin.
+
+  5. The `_openMedia` method references `_loadSkipEditorPrefs` — grep for its definition in player_screen.dart to confirm it's still there.
+
+  6. After each cluster (J3 AudioLab, J4 Subtitle, J5 UI), the abstract declarations in PlaybackMixin can be replaced with concrete implementations as those clusters are also extracted to mixins.
+
+  **Why `part of` for the mixin file:** Same false-positive preflight issue as the panel files — `SKIP_PREFLIGHT=1` will be needed since the mixin uses `RaddSpace`/`RaddRadius`/`AppColors` indirectly via the shared library scope.
 
 - **J6** ⏳ PENDING — Slim `_PlayerScreenState` to `initState` + `dispose` + `build` after J2–J5.
 
