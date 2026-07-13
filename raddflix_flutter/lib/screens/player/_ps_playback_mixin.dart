@@ -1,4 +1,4 @@
-part of 'player_screen.dart';
+part of '../player_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Phase J2 — _PlayerPlaybackMixin
