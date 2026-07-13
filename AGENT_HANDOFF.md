@@ -5,6 +5,32 @@
 
 ---
 
+## Current State (2026-07-13 — Phase J In Progress)
+
+### PHASE-J — Player God Class Decomposition — 2026-07-13
+
+**First pass done:** Panel widget classes extracted to `part` files.
+
+- **J-prep** ✅ All top-level panel/widget classes (6,194–9,425 of original) extracted to three
+  `part` files under `lib/screens/player/`. Main file reduced from 9,425 → 6,198 lines.
+  Files: `_ps_panels_subtitle.dart` (1,187 lines), `_ps_panels_audio.dart` (1,691 lines),
+  `_ps_panels_sidebar.dart` (366 lines). Zero behavioral change — `part`/`part of` keeps the
+  same library namespace; all `_` private identifiers accessible cross-file.
+
+- **J2–J5** ⏳ PENDING — Method-cluster extraction using **mixins**.
+  `_PlayerScreenState` methods are too tightly coupled for standalone StateNotifier extraction
+  (they need `ref`, `context`, `setState()`, and cross-cluster vars like `_player`). The correct
+  Dart pattern is `mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen>` — each mixin
+  defines its own state vars and can call `setState()` / `ref` / `context` directly.
+  Cross-mixin dependencies declared via `abstract` members in the consuming mixin.
+  See TEN_POINT_PLAN.md §Phase J for the updated extraction plan.
+
+- **J6** ⏳ PENDING — Slim `_PlayerScreenState` to `initState` + `dispose` + `build` after J2–J5.
+
+**H2/H3 remain BLOCKED** — LocalDb platform channel constraint unchanged (Rule 49).
+
+---
+
 ## Current State (2026-07-12 — Phase H In Progress)
 
 ### PHASE-H — Testing Infrastructure — 2026-07-12

@@ -807,25 +807,45 @@ The player has these logical clusters confirmed from the full read (lines 86-356
 | `PlayerUIState` | `_showControls`, `_isLocked`, `_cinematicMode`, `_nightMode`, timers for hide/clock | `player/player_ui_state.dart` |
 | `PlayerScreen` (slim) | Wires above; builds widget tree from extracted panel widgets | `screens/player_screen.dart` |
 
-### J2 — Extract `PlayerPlaybackController`
-- Move `_player`, `_videoCtrl`, all stream subscriptions, `_openMedia`, `_openMediaForEpisode`, episode navigation, `_autoRetry` logic into a `StateNotifier` or `ChangeNotifier`.
-- [ ] Extract PlayerPlaybackController
+### J-prep — Extract panel widget classes to `part` files (DONE 2026-07-13)
+All top-level panel/widget classes (lines 6194–9425 of the original file) moved to
+three Dart `part` files under `lib/screens/player/`. The `part`/`part of` mechanism
+keeps the same library namespace, so all `_` private identifiers remain accessible
+across files with zero behavioral change. Main file reduced 9,425 → 6,198 lines.
+- [x] `_ps_panels_subtitle.dart` — `_SubtitlePanel`, `_SubtitlePanelState`, `_SubTrackTile`, `_BigStepBtn` (1,187 lines)
+- [x] `_ps_panels_audio.dart` — `_AudioTrackPanel`/`State`, `_AudioEffectPanel`/`State`, `_QuickShortcutsPanel`/`State`, `_ShortcutItem`, `_ShortcutGrid`, `_SettingsPanel`/`State`, `_SyncBtn`, `_ReverbSelector`/`State`, `_LabToggleRow` (1,691 lines)
+- [x] `_ps_panels_sidebar.dart` — `_SidebarCustomizerPanel`/`State`, `_DubLangBtn`, `_DubProgressCard`, `_WaveformBars` (366 lines)
 
-### J3 — Extract `AudioLabController`
-- Move all `_lab*` state vars, `_eqBands`, `_reverb`, `_buildMergedAfString`, `_applyAllAf` into `AudioLabController`.
-- [ ] Extract AudioLabController
+**Why `part` not StateNotifier/ChangeNotifier:** The method clusters inside
+`_PlayerScreenState` are tightly coupled — `_applyAllAf` needs `_player` (Playback),
+`_scheduleHide` checks `_playing`, gesture handlers call `_player.seek()`, and many
+methods use `ref`, `context`, and `setState()`. Extracting to standalone controllers
+would require injecting all of these as callbacks, which is architecturally messier than
+using mixins. Phase J2–J5 will use **mixins** (`mixin PlayerPlaybackMixin on ConsumerState<PlayerScreen>`)
+so each cluster can define its own state vars and still call `setState()` / `ref` / `context`
+directly. This is the correct Dart pattern for exactly this situation.
 
-### J4 — Extract `SubtitleController`
-- Move subtitle loading pipeline, `_subtitlePath`, `_subtitleLang`, `_secondarySid`, `_subDelay`, online subtitle search state into `SubtitleController`.
-- [ ] Extract SubtitleController
+### J2 — Extract `PlayerPlaybackController` as mixin
+- Move `_player`, `_videoCtrl`, all stream subscriptions, `_openMedia`, `_openMediaForEpisode`, episode navigation, `_autoRetry` logic into `mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen>`.
+- Cross-references from other mixins to `_player`/`_np` must be declared abstract in those mixins.
+- [ ] Extract PlayerPlaybackMixin
 
-### J5 — Extract `PlayerUIState`
-- Move `_showControls`, `_isLocked`, hide timer, `_cinematicMode`, `_nightMode` into `PlayerUIState`.
-- [ ] Extract PlayerUIState
+### J3 — Extract `AudioLabMixin`
+- Move all `_lab*` state vars, `_eqBands`, `_reverb`, `_buildMergedAfString`, `_applyAllAf` into `mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen>`.
+- Declare `abstract NativePlayer get _np;` in the mixin (satisfied by `_PlayerPlaybackMixin`).
+- [ ] Extract AudioLabMixin
+
+### J4 — Extract `SubtitleMixin`
+- Move subtitle loading pipeline, `_subtitlePath`, `_subtitleLang`, `_secondarySid`, `_subDelay`, `_applyCompanionSub`, `_adjustSubSync` into `mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen>`.
+- [ ] Extract SubtitleMixin
+
+### J5 — Extract `PlayerUIMixin`
+- Move `_showControls`, `_isLocked`, `_hideTimer`, `_scheduleHide`, immersive mode, gesture handlers, seek flash into `mixin _PlayerUIMixin on ConsumerState<PlayerScreen>`.
+- [ ] Extract PlayerUIMixin
 
 ### J6 — Slim down `_PlayerScreenState`
-- After J2-J5, `_PlayerScreenState` should only wire the above controllers together and build the widget tree.
-- Target: under 2,000 lines.
+- After J2-J5, `_PlayerScreenState` mixes in all four mixins and keeps only `initState`, `dispose`, and `build`.
+- Target: under 2,000 lines total (main file).
 - [ ] Slim _PlayerScreenState after all extractions
 
 ---
