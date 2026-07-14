@@ -104,7 +104,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   /// the installed build is older than min_version_code.
   Future<void> _checkForUpdates() async {
     try {
-      final resp    = await ApiClient.instance.get('/api/config');
+      final resp    = await ApiClient.instance.get('/api/app/config');
       final data    = resp.data as Map<String, dynamic>? ?? {};
       final minCode = (data['min_version_code'] as num?)?.toInt() ?? 0;
       if (minCode <= 0 || !mounted) return;

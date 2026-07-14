@@ -411,6 +411,9 @@ class ApiPaths {
   // ── Recommendations (radd_recommend engine) ─────────────────────────────
   static const String recommend = '/api/recommend';
 
+  // ── Admin queue (upload/transcode job monitor) ────────────────────────
+  static const String adminQueue = '/stream/api/queue';
+
   // ── Phase 6: Data Usage ───────────────────────────────────────────────
   static const String usage  = '/api/usage';
   static const String quota  = '/api/usage/quota';
