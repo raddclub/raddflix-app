@@ -13,11 +13,18 @@
 | Month | File | Sessions |
 |---|---|---|
 | June 2026 | [`2026-06.md`](2026-06.md) | 34 |
-| July 2026 | [`2026-07.md`](2026-07.md) | 13 |
+| July 2026 | [`2026-07.md`](2026-07.md) | 14 |
 
 ---
 
 ## Session index (title only — full detail in the linked archive)
+
+### July 2026 — Session 14 (2026-07-14) — PLAYER-FIXES (full audit + 5 bugs fixed)
+
+**Task:** Audit all player feature toggles and persistence, fix anything broken.
+Bugs fixed: Vivid Mode fake matrix → real Rec.709 saturation+contrast; Vivid Mode, SW Decoder,
+subtitle style each not applied at startup; SW Decoder pref not saved on toggle.
+Commits: `04ddc47d`, `9bc539e8`, `e911085102bb`.
 
 ### July 2026 — Session 13 (2026-07-10) — SIMPLIFY-AUTH-FLOW (verification + docs only)
 

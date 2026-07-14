@@ -5,6 +5,43 @@
 
 ---
 
+## Current State (2026-07-14 — Player Feature Audit Complete)
+
+### PLAYER-FIXES — Player Feature Audit + Persistence Fixes — 2026-07-14
+
+Full audit of all player feature toggles, color filters, and audio/subtitle properties across
+all 4 mixins (`_ps_ui_mixin.dart`, `_ps_playback_mixin.dart`, `_ps_audiolab_mixin.dart`,
+`_ps_subtitle_mixin.dart`) and all panels. Five bugs found and fixed across two sessions:
+
+**Commit `04ddc47d`** — Vivid Mode matrix + save fix:
+- Vivid Mode color matrix was a yellow-tint fake (Blue×0.92, warm offsets) — replaced with proper
+  Rec.709 luminance-weighted saturation (s=1.35) × contrast (c=1.12) matrix, zero colour cast
+- `_toggleSmartEnhance()` never called `_scheduleSavePrefs()` — pref_vivid lost on exit
+
+**Commit `9bc539e8`** — SW Decoder save fix:
+- `onSWDecoderChanged` set `_useSWDecoder` state + applied MPV property but never called
+  `_scheduleSavePrefs()` — pref_sw_dec lost on exit if decoder was the only thing changed
+
+**Commit `e911085102bb`** — Subtitle style + SW Decoder startup fix (CI pending):
+- Saved subtitle style (font, size, bold, color, opacity, shadow, alignment, edge padding, fit)
+  was only applied when the subtitle panel opened — NOT at player startup. `_applySubtitleStylePrefs()`
+  added to `_PlayerSubtitleMixin`; called from `_loadPrefs()` with 700ms delay.
+- `_useSWDecoder` was restored to Dart state but `hwdec: no` never sent to MPV at startup —
+  hardware decoding ran regardless of saved preference until a codec failure auto-detected it.
+  Fixed in `_loadPrefs()`.
+
+**All other toggles audited — confirmed correct:**
+- mute/loop: intentionally session-only (no pref keys)
+- Audio lab: properly wired through `onLabStateChanged` → `_scheduleSavePrefs()`
+- Balance/sub-sync/sub-speed/sub-margin/EQ/reverb: all save and restore correctly
+- Night mode / Vivid mode visual filter: Flutter ColorFiltered widget reacts to `setState()` in
+  `_loadPrefs()` — no extra MPV property needed
+
+**Next session:** No pending player audit items. Consider Phase J3–J5 (AudioLab/Subtitle/UI mixin
+extraction) or any user-prioritised task. H2/H3 still BLOCKED (LocalDb platform channel, Rule 49).
+
+---
+
 ## Current State (2026-07-13 — Phase J In Progress)
 
 ### PHASE-J — Player God Class Decomposition — 2026-07-13
