@@ -96,6 +96,7 @@ mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen> {
       ];
     });
     _applyAllAf();
+    _scheduleSavePrefs();
   }
 
   void _applyCustomEq() {
