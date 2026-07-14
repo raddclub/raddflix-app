@@ -2369,6 +2369,7 @@ void _openPanel({
         onSyncChanged: (delta) => _adjustAudioSync(delta),
         onSWDecoderChanged: (v) {
           setState(() => _useSWDecoder = v);
+          _scheduleSavePrefs(); // pref_sw_dec — was missing, choice lost on exit if nothing else saved
           // Safety rule (MediaTek/Infinix black-screen): never change hwdec while playing.
           // Apply immediately when paused/stopped; otherwise save state and notify the user.
           if (!_playing) {
