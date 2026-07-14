@@ -79,7 +79,74 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
     _scheduleSavePrefs(); // was previously never persisted — reset to 0 on next open
   }
 
-    void _openSubtitlePanel() {
+    // ── Subtitle style helpers (duplicated from _SubtitlePanelState since that ──
+  // class is a separate StatefulWidget and its private statics are not visible
+  // here). Keep in sync with _toMpvColor / _toMpvBackColor in _ps_panels_subtitle.dart.
+  static String _subMpvColor(Color c) =>
+      '#${c.red.toRadixString(16).padLeft(2, '0')}'
+      '${c.green.toRadixString(16).padLeft(2, '0')}'
+      '${c.blue.toRadixString(16).padLeft(2, '0')}';
+
+  static String _subMpvBackColor(Color c) {
+    if (c.opacity == 0) return '#000000ff';
+    final r  = c.red  .toRadixString(16).padLeft(2, '0');
+    final g  = c.green.toRadixString(16).padLeft(2, '0');
+    final b  = c.blue .toRadixString(16).padLeft(2, '0');
+    final aa = ((1.0 - c.opacity) * 255).round()
+                   .toRadixString(16).padLeft(2, '0');
+    return '#$r$g$b$aa';
+  }
+
+  // Called from _loadPrefs() at player startup so saved subtitle style/position
+  // is applied to MPV immediately — without requiring the user to open the
+  // subtitle panel first (which was the only place _loadSubPrefs() ran before).
+  Future<void> _applySubtitleStylePrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    const mpvFonts = ['sans-serif', 'serif', 'monospace', 'sans-serif'];
+    final fontIdx    = prefs.getInt('pref_sub_font_idx')    ?? 0;
+    final size       = prefs.getDouble('pref_sub_size')     ?? 22.0;
+    final bold       = prefs.getBool('pref_sub_bold')       ?? false;
+    final colorVal   = prefs.getInt('pref_sub_color')       ?? Colors.white.value;
+    final bgColorVal = prefs.getInt('pref_sub_bg_color')    ?? Colors.transparent.value;
+    final opacity    = prefs.getDouble('pref_sub_opacity')  ?? 1.0;
+    final shadowIdx  = prefs.getInt('pref_sub_shadow')      ?? 1;
+    final alignX     = prefs.getInt('pref_sub_align_x')     ?? 1;
+    final alignY     = prefs.getInt('pref_sub_align_y')     ?? 2;
+    final edgePad    = prefs.getDouble('pref_sub_edge_pad') ?? 16.0;
+    final fitToVideo = prefs.getBool('pref_sub_fit')        ?? true;
+    try {
+      // Force ASS override FIRST (BUG-SUB-STYLE-01) — the same rule that
+      // applies in _loadSubPrefs, _applySubtitleMargin, and track selection.
+      _np.setProperty('sub-ass-override',          'force');
+      _np.setProperty('sub-font',                  mpvFonts[fontIdx.clamp(0, 3)]);
+      _np.setProperty('sub-font-size',             size.round().toString());
+      _np.setProperty('sub-bold',                  bold ? 'yes' : 'no');
+      _np.setProperty('sub-color',                 _subMpvColor(Color(colorVal)));
+      _np.setProperty('sub-back-color',            _subMpvBackColor(Color(bgColorVal)));
+      _np.setProperty('sub-opacity',               opacity.toStringAsFixed(2));
+      _np.setProperty('sub-align-x',               ['left','center','right'][alignX.clamp(0, 2)]);
+      _np.setProperty('sub-align-y',               ['top','center','bottom'][alignY.clamp(0, 2)]);
+      _np.setProperty('sub-margin-x',              edgePad.round().toString());
+      _np.setProperty('sub-ass-scale-with-window', fitToVideo ? 'yes' : 'no');
+      // Shadow: 0=None  1=Outline  2=Drop Shadow  3=Box
+      if (shadowIdx == 0) {
+        _np.setProperty('sub-shadow-offset', '0');
+        _np.setProperty('sub-outline-size',  '0');
+      } else if (shadowIdx == 1) {
+        _np.setProperty('sub-outline-size',  '2');
+        _np.setProperty('sub-shadow-offset', '0');
+      } else if (shadowIdx == 2) {
+        _np.setProperty('sub-shadow-offset', '3');
+        _np.setProperty('sub-outline-size',  '0.5');
+      } else if (shadowIdx == 3) {
+        _np.setProperty('sub-shadow-offset', '0');
+        _np.setProperty('sub-outline-size',  '0');
+      }
+    } catch (_) {}
+  }
+
+  void _openSubtitlePanel() {
       final panel = _SubtitlePanel(
         isLocal: _isLocal,
         subSync: _subSync,

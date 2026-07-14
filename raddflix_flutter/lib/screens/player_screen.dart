@@ -504,6 +504,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_videoRotation != 0) {
       try { _np.setProperty('video-rotate', _videoRotation.toString()); } catch (_) {}
     }
+    // BUG-SW-DEC-STARTUP: pref_sw_dec was loaded into Dart state but hwdec was
+    // never sent to MPV — hardware decoding ran regardless of the saved preference
+    // until a codec failure auto-detected it. Apply immediately when enabled.
+    if (_useSWDecoder) {
+      try { _np.setProperty('hwdec', 'no'); } catch (_) {}
+    }
+    // BUG-SUB-STYLE-STARTUP: saved subtitle style (font, size, bold, color,
+    // opacity, shadow, alignment, edge padding, fit) was only applied when the
+    // subtitle panel opened — not at player startup. Apply all saved style props
+    // to MPV now so the first subtitle frame already uses the user's preferences.
+    // Delay slightly beyond _applyAllAf so MPV is fully ready to accept sub-* props.
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (mounted) _applySubtitleStylePrefs();
+    });
   }
 
   // C2: _savePrefs() used to be called synchronously from ~60 call sites,
