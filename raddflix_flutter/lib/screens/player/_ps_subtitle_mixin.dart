@@ -47,13 +47,27 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
   void _applySubtitleMargin({required bool controlsVisible}) {
     // When controls are visible, push subs 140px above bottom controls so they
     // clear the seek bar AND transport row.
-    // sub-ass-override 'yes' makes sub-margin-y apply to ASS-format subs too
-    // (which is the default embedded format). Using 'yes' not 'force' so that
-    // ASS colour/bold/italic styles are still respected.
+    //
+    // BUG-SUB-STYLE-01 (root cause of "customization changes preview but not
+    // the real player"): this function runs on nearly every controls
+    // show/hide transition — far more often than any style edit — so it is
+    // the de-facto last writer of `sub-ass-override` on every real playback
+    // session. It used to set 'yes', which lets an embedded ASS/SSA
+    // subtitle's own baked-in style block win over our custom sub-color/
+    // sub-font-size/sub-margin-y properties. The panel's style callbacks set
+    // 'force' right before pushing a style change, but the very next
+    // controls toggle (a few seconds later, or immediately via a tap)
+    // silently downgraded it back to 'yes', undoing the override — so
+    // embedded subtitles always snapped back to their built-in look/position
+    // moments after a customization, which is exactly the reported symptom.
+    //
+    // Fix: 'sub-ass-override' must always be 'force' everywhere it's touched
+    // (here, in `_loadSubPrefs`, on track selection, and on episode reset) —
+    // never 'yes'. Do not reintroduce 'yes' in any of those call sites.
     final base = _subBottomMarginMain;
     final marginY = controlsVisible ? (base + 140).round() : base.round();
     try {
-      _np.setProperty('sub-ass-override', 'yes');
+      _np.setProperty('sub-ass-override', 'force');
       _np.setProperty('sub-margin-y', marginY.toString());
     } catch (_) {}
   }
@@ -118,6 +132,11 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
           _scheduleSavePrefs();
           if (track != null) {
             _player.setSubtitleTrack(track);
+            // BUG-SUB-STYLE-01: force the override mode immediately on every
+            // track switch so a newly-selected track's baked-in ASS style
+            // never wins over the user's custom style/position, even before
+            // the next controls show/hide fires `_applySubtitleMargin`.
+            try { _np.setProperty('sub-ass-override', 'force'); } catch (_) {}
           } else {
             try { _np.setProperty('sid', 'no'); } catch (_) {}
           }

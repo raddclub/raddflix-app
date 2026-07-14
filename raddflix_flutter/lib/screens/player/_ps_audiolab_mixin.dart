@@ -155,6 +155,30 @@ mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen> {
     if (_silenceInPipeline) {
       parts.add('lavfi=[silencedetect=noise=-50dB:d=${_silenceSkipThreshold.toStringAsFixed(1)}]');
     }
+
+    // BUG-AUDIO-SILENT-01 (root cause of "audio missing on some videos but
+    // not others"): every `pan=stereo|c0=...|c1=...` filter above (Balance,
+    // Channel Mode, Lab vocal-isolation/dialogue-only) hardcodes 2-channel
+    // (c0/c1) input. These settings persist across episodes (by design, so a
+    // user's EQ/effects stay put) and the underlying mpv `af` property
+    // itself also carries over a loadfile unless explicitly reset. The
+    // catalog mixes stereo, mono, and 5.1/7.1 sources — when any pan= filter
+    // above receives a non-stereo track, ffmpeg's filter-graph negotiation
+    // for that pan filter fails, which breaks the *entire* af chain (one bad
+    // filter takes down the whole graph) and produces total silence for
+    // that specific video, while stereo videos with the exact same settings
+    // play fine. This is an async native-side failure our Dart
+    // try/catch around setProperty can never see (the property set call
+    // itself succeeds; only the filter's internal init fails).
+    //
+    // Fix: whenever any pan= filter is present, force the input into a
+    // known 2-channel layout first via `aformat=channel_layouts=stereo`, so
+    // every pan filter downstream always gets the stereo input it expects
+    // regardless of the source track's real channel count.
+    if (parts.any((p) => p.startsWith('pan='))) {
+      parts.insert(0, 'aformat=channel_layouts=stereo');
+    }
+
     return parts.join(',');
   }
 

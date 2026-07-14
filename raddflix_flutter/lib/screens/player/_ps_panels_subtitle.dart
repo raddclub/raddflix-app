@@ -166,7 +166,12 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       _subFitToVideo   = fitToVideo;
     });
     if (!mounted) return;
-    // Re-apply all saved settings to MPV so the live video matches prefs
+    // Re-apply all saved settings to MPV so the live video matches prefs.
+    // BUG-SUB-STYLE-01: force ASS style override FIRST — otherwise an
+    // embedded subtitle's own baked-in style block can win over every
+    // property pushed below, which is why customization used to appear to
+    // do nothing on the real player despite updating the preview box.
+    _setProp('sub-ass-override',          'force');
     _setProp('sub-font',                  _mpvFonts[fontIdx]);
     _setProp('sub-font-size',             size.round().toString());
     _setProp('sub-bold',                  bold ? 'yes' : 'no');

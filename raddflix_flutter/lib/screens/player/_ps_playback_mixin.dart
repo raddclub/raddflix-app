@@ -573,6 +573,11 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       _np.setProperty('sid', 'auto');
       _np.setProperty('secondary-sid', 'no');
       _np.setProperty('aid', 'auto');
+      // BUG-SUB-STYLE-01: force ASS style override on every episode reset so
+      // the new episode's subtitles honor the user's saved style/position
+      // from the very first frame, instead of only after the panel is
+      // reopened or the controls are next toggled.
+      _np.setProperty('sub-ass-override', 'force');
     } catch (_) {}
     // Reset sync offsets and sub speed in MPV — these are session-level
     // properties that survive loadfile and must be cleared explicitly.
