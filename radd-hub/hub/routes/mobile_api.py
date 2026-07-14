@@ -1375,18 +1375,13 @@ def get_catalog_share_url(_user_id, _phone):
     row = None
     try:
         with db.conn() as c:
-            # Try each possible catalog table name; break on first hit.
-            for tbl in ("catalog_episodes", "episodes", "catalog_files", "files"):
-                try:
-                    row = c.execute(
-                        f"SELECT share_url, is_free FROM {tbl} "
-                        f"WHERE file_id=? LIMIT 1",
-                        (file_id,)
-                    ).fetchone()
-                    if row:
-                        break
-                except Exception:
-                    continue
+            # files.id is the PK; is_free lives on titles, not files.
+            row = c.execute(
+                "SELECT f.share_url, t.is_free "
+                "FROM files f JOIN titles t ON t.id = f.title_id "
+                "WHERE f.id = ? LIMIT 1",
+                (file_id,)
+            ).fetchone()
     except Exception as e:
         log.warning("share_url DB lookup failed for file_id=%s: %s", file_id, e)
         return jsonify({"error": "server error"}), 500

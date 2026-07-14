@@ -78,30 +78,61 @@ def _get_active_keys(provider: str) -> list[str]:
 
 
 def _mark_key_invalid(provider: str, value: str):
-    """Mark a key as inactive after confirmed 401."""
+    """Mark a key as inactive after confirmed 401.
+    value_enc stores Fernet-encrypted bytes — cannot match with a plaintext
+    value in a WHERE clause, so we scan+decrypt to find the correct row.
+    """
     try:
+        from hub import keys as _keys_mod
         conn = _radd_db()
-        conn.execute(
-            "UPDATE keys SET is_active=0, last_status='invalid', failure_count=failure_count+1 "
-            "WHERE provider=? AND value_enc=?",
-            (provider, value)
-        )
-        conn.commit()
+        rows = conn.execute(
+            "SELECT rowid, value_enc FROM keys WHERE provider=? AND is_active=1",
+            (provider,)
+        ).fetchall()
+        for row in rows:
+            try:
+                enc = row["value_enc"]
+                decrypted = _keys_mod.decrypt(enc.encode() if isinstance(enc, str) else enc)
+                if decrypted and decrypted.strip() == value:
+                    conn.execute(
+                        "UPDATE keys SET is_active=0, last_status='invalid', "
+                        "failure_count=failure_count+1 WHERE rowid=?",
+                        (row["rowid"],)
+                    )
+                    conn.commit()
+                    break
+            except Exception:
+                continue
         conn.close()
     except Exception as e:
         log.debug("mark_invalid failed: %s", e)
 
 
 def _mark_key_ok(provider: str, value: str):
-    """Record a successful use of a key."""
+    """Record a successful use of a key.
+    Same scan+decrypt approach as _mark_key_invalid to locate the right row.
+    """
     try:
+        from hub import keys as _keys_mod
         conn = _radd_db()
-        conn.execute(
-            "UPDATE keys SET last_status='ok', total_uses=total_uses+1, last_used_at=? "
-            "WHERE provider=? AND value_enc=?",
-            (int(time.time()), provider, value)
-        )
-        conn.commit()
+        rows = conn.execute(
+            "SELECT rowid, value_enc FROM keys WHERE provider=? AND is_active=1",
+            (provider,)
+        ).fetchall()
+        for row in rows:
+            try:
+                enc = row["value_enc"]
+                decrypted = _keys_mod.decrypt(enc.encode() if isinstance(enc, str) else enc)
+                if decrypted and decrypted.strip() == value:
+                    conn.execute(
+                        "UPDATE keys SET last_status='ok', total_uses=total_uses+1, "
+                        "last_used_at=? WHERE rowid=?",
+                        (int(time.time()), row["rowid"])
+                    )
+                    conn.commit()
+                    break
+            except Exception:
+                continue
         conn.close()
     except Exception as e:
         log.debug("mark_ok failed: %s", e)

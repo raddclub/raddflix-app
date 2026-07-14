@@ -93,10 +93,10 @@ def get_table_data(name):
             where, params = "", []
             if q:
                 # FTS5 for titles
-                if name == "titles" and _table_exists(c, "catalog_fts"):
+                if name == "titles" and _table_exists(c, "titles_fts"):
                     try:
                         fts_rows = c.execute(
-                            "SELECT rowid FROM catalog_fts WHERE catalog_fts MATCH ? LIMIT 500",
+                            "SELECT rowid FROM titles_fts WHERE titles_fts MATCH ? LIMIT 500",
                             (f"{q}*",)
                         ).fetchall()
                         ids = ",".join(str(r[0]) for r in fts_rows) if fts_rows else "0"
@@ -119,7 +119,7 @@ def get_table_data(name):
                 params.append(mt)
 
             if request.args.get("nullsonly") == "1" and name == "titles":
-                _nf = ["poster", "overview", "genres_csv", "cast_names",
+                _nf = ["poster", "plot", "genres_csv",
                        "director", "rating", "imdb_rating"]
                 _nc = " OR ".join(
                     f"({f} IS NULL OR CAST({f} AS TEXT) = '')" for f in _nf
@@ -422,7 +422,7 @@ def _tmdb_full(title: str, year, media_type: str, keys_list: list) -> dict:
             # Language
             ol = det.get("original_language") or ""
             if ol:
-                out["original_lang"] = ol
+                out["language"] = ol
 
             return out
 

@@ -68,6 +68,14 @@ JD_BOT_SETTINGS = [
     ("TG_RATE_LIMIT_PER_MIN",         "telegram",  "Telegram rate limit / min",        "Default 12"),
 ]
 
+# App version/update control — GET/POST /settings/api/app-version
+APP_VERSION_KEYS = (
+    "min_version_code",
+    "latest_version_code",
+    "update_url",
+    "force_update",
+)
+
 
 @bp.route("/")
 @auth.login_required
@@ -182,7 +190,7 @@ def api_setup_status():
             stats["total"]    = c.execute("SELECT COUNT(*) FROM titles").fetchone()[0]
             stats["poster"]   = c.execute("SELECT COUNT(*) FROM titles WHERE poster_url IS NOT NULL AND CAST(poster_url AS TEXT) != ''").fetchone()[0]
             stats["rating"]   = c.execute("SELECT COUNT(*) FROM titles WHERE imdb_rating IS NOT NULL").fetchone()[0]
-            stats["overview"] = c.execute("SELECT COUNT(*) FROM titles WHERE overview IS NOT NULL AND CAST(overview AS TEXT) != ''").fetchone()[0]
+            stats["overview"] = c.execute("SELECT COUNT(*) FROM titles WHERE plot IS NOT NULL AND CAST(plot AS TEXT) != ''").fetchone()[0]
             stats["genres"]   = c.execute("SELECT COUNT(*) FROM titles WHERE genres_csv IS NOT NULL AND CAST(genres_csv AS TEXT) != ''").fetchone()[0]
     except Exception:
         pass

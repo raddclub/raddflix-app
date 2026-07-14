@@ -495,6 +495,15 @@ _DDL = [
        ON received_sms_payments(received_at DESC)""",
     """CREATE INDEX IF NOT EXISTS idx_sms_matched
        ON received_sms_payments(matched_payment_id)""",
+    # ── App signature allowlist (settings → app-version page) ────────────────
+    """CREATE TABLE IF NOT EXISTS app_signatures (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        sig_hash    TEXT UNIQUE NOT NULL,
+        label       TEXT DEFAULT '',
+        is_allowed  INTEGER DEFAULT 1,
+        note        TEXT DEFAULT '',
+        created_at  INTEGER DEFAULT (strftime('%s','now'))
+    )""",
     # ── Security telemetry (Phase 25.6) ─────────────────────────────────────
     """CREATE TABLE IF NOT EXISTS tamper_reports (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,

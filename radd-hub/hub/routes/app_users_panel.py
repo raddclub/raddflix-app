@@ -653,13 +653,13 @@ def user_history(user_id):
     try:
         with db.conn() as c:
             rows = c.execute("""
-                SELECT wh.position_sec, wh.duration_sec, wh.updated_at,
+                SELECT wh.position_ms, wh.duration_ms, wh.watched_at,
                        f.filename, t.title
                 FROM watch_history wh
-                LEFT JOIN files f ON f.id = wh.file_id
+                LEFT JOIN files f ON f.id = CAST(wh.file_id AS INTEGER)
                 LEFT JOIN titles t ON t.id = f.title_id
                 WHERE wh.user_id = ?
-                ORDER BY wh.updated_at DESC
+                ORDER BY wh.watched_at DESC
                 LIMIT 50
             """, (user_id,)).fetchall()
         history = []
@@ -667,9 +667,9 @@ def user_history(user_id):
             history.append({
                 "title":        r["title"],
                 "filename":     r["filename"],
-                "position_sec": r["position_sec"],
-                "duration_sec": r["duration_sec"] or 0,
-                "watched_at":   _fmt_time(r["updated_at"], relative=True),
+                "position_sec": round((r["position_ms"] or 0) / 1000),
+                "duration_sec": round((r["duration_ms"] or 0) / 1000),
+                "watched_at":   _fmt_time(r["watched_at"], relative=True),
             })
         return jsonify({"ok": True, "history": history})
     except Exception as e:
