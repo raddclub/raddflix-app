@@ -710,3 +710,35 @@ deferred indefinitely (no SDK/emulator in env) and accepted as sufficient closur
 ### Outcome
 Code fix: 1 line added to `_ps_audiolab_mixin.dart`. Docs updated: TASKS.md, AGENT_HANDOFF.md,
 TEN_POINT_PLAN.md, UI_UX_MIGRATION_PLAN.md, TASK_LOG.md. CI pending.
+
+---
+
+## 2026-07-14 — BILLING-FIX-2026-07-14
+
+### Task
+`GET /billing/` returning HTTP 500 `{"error":"internal error"}` on the live Oracle server.
+
+### Diagnosis
+- SSHed to server, found logs: `Exception: OperationalError` immediately before the 500.
+- Live DB checked via sqlite3: `received_sms_payments` table does not exist.
+- Searched codebase: table referenced in `payment_gateway.py` (3×), `tid_panel.py` (4×),
+  `db_mgmt.py` (2×) — but never added to `db.py`'s `_DDL` list. Never created.
+- Also found: `payment_methods` has only 7 columns on live server; code uses 12 (5 missing).
+- Also found: no POST `/billing/api/sms/receive` endpoint despite gateway-key UI.
+
+### Fix
+`radd-hub/hub/db.py`:
+- Added `received_sms_payments` CREATE TABLE (8 columns: id, source, tid, amount_pkr,
+  sender_phone, raw_sms, received_at, matched_payment_id) + 2 indexes to `_DDL`.
+- Added 5 ALTER TABLE migrations for missing `payment_methods` columns.
+- Added default payment method seeding (EasyPaisa/JazzCash/NayaPay/SadaPay) after init.
+- Added auto-generation of `sms_gateway_key` in init_db() if not already set.
+
+`radd-hub/hub/routes/payment_gateway.py`:
+- Added POST `/billing/api/sms/receive` — gateway-key auth (body or X-Gateway-Key header),
+  stores SMS in `received_sms_payments`, auto-matches by TID to pending `tid_payments`,
+  auto-approves if `sms_auto_approve_enabled=1`.
+
+### Outcome
+Deployed via `push_to_oracle.sh`. `GET /billing/ → 200` confirmed in live server logs.
+Commit: `90328920`.

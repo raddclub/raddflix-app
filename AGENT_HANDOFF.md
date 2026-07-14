@@ -5,6 +5,34 @@
 
 ---
 
+## Current State (2026-07-14 — Billing 500 Fixed + Audio Panel Audit + Phase H/UI-UX-Migration Closed)
+
+### BILLING-FIX — `/billing/` Internal Error — 2026-07-14
+
+**Symptom:** `GET http://92.4.95.252/billing/` → `{"error":"internal error"}` (HTTP 500).
+
+**Root cause:** `received_sms_payments` table was referenced in 3 route files
+(`payment_gateway.py`, `tid_panel.py`, `db_mgmt.py`) but was never added to `db.py`'s
+`_DDL` list. Table never existed in the live DB → SQLite `OperationalError` on every
+page load. Live log confirmed: `Exception: OperationalError` immediately before the 500.
+
+**Additional issues found and fixed in the same commit:**
+- `payment_methods` table missing 5 columns (`account_name`, `icon`, `min_amount_pkr`,
+  `amount_tolerance_pkr`, `updated_at`) that the update form writes to — silently broken.
+- No POST endpoint for the admin phone-app SMS gateway despite the UI having a gateway key
+  config and a "POST incoming SMS" description — gateway was non-functional.
+
+**Fix (commit `90328920`, deployed to Oracle):**
+1. Added `received_sms_payments` CREATE TABLE + 2 indexes to `_DDL` in `db.py`
+2. Added ALTER TABLE migrations for 5 missing `payment_methods` columns
+3. Added default method seeding (EasyPaisa/JazzCash/NayaPay/SadaPay) + auto-generated
+   `sms_gateway_key` in `init_db()`
+4. Added POST `/billing/api/sms/receive` with gateway-key auth, TID auto-matching,
+   and configurable auto-approve (`sms_auto_approve_enabled` setting)
+5. Deployed via `push_to_oracle.sh` — `GET /billing/ → 200` confirmed in live logs.
+
+---
+
 ## Current State (2026-07-14 — Audio Panel Audit + Phase H/UI-UX-Migration Closed)
 
 ### AUDIO-PANEL-SAVE — EQ Preset Save Bug — 2026-07-14
