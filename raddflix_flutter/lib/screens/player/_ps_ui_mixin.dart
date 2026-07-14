@@ -404,8 +404,8 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
 
   void _toggleSmartEnhance() {
     setState(() => _smartEnhanceEnabled = !_smartEnhanceEnabled);
+    _scheduleSavePrefs();
     _showInfoSnackbar(_smartEnhanceEnabled ? 'Vivid Mode on' : 'Vivid Mode off');
-    _scheduleSavePrefs(); // J2: was missing — change was only saved on dispose()
   }
 
   void _rotateVideo() {
@@ -677,12 +677,19 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
       );
 
       if (_smartEnhanceEnabled) {
+        // Vivid Mode — Rec.709 luminance-weighted saturation (s=1.35) + contrast (c=1.12).
+        // Uses proper cross-channel mixing so colours become more vibrant with ZERO colour cast
+        // (no yellow tint). Formula: combined matrix = contrast(c) × saturation(s) where
+        //   lumR=0.2126, lumG=0.7152, lumB=0.0722 (standard Rec.709 weights)
+        //   sat row R : [(1-s)*lumR+s, (1-s)*lumG,      (1-s)*lumB     ]
+        //   contrast  : multiply each row by c, offset = -(c-1)*128
+        // Net result: colours punch up ~35%, contrast tightens ~12%, whites/greys stay neutral.
         video = ColorFiltered(
           colorFilter: const ColorFilter.matrix([
-            1.15,  0.0,   0.0,   0.0,  8.0,
-            0.0,   1.08,  0.0,   0.0,  4.0,
-            0.0,   0.0,   0.92,  0.0, -3.0,
-            0.0,   0.0,   0.0,   1.0,  0.0,
+             1.43, -0.28, -0.03, 0.0, -16.0,
+            -0.08,  1.23, -0.03, 0.0, -16.0,
+            -0.08, -0.28,  1.48, 0.0, -16.0,
+             0.0,   0.0,   0.0,  1.0,   0.0,
           ]),
           child: video,
         );
