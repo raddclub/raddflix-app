@@ -860,9 +860,14 @@ class _HeroCardState extends ConsumerState<_HeroCard>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
+                        color: Colors.white.withOpacity(0.10),
                         borderRadius: BorderRadius.circular(AppRadius.round),
-                        border: Border.all(color: Colors.white24),
+                        border: Border(
+                          top:    BorderSide(color: Colors.white.withOpacity(0.38), width: 0.8),
+                          left:   BorderSide(color: Colors.white.withOpacity(0.20), width: 0.5),
+                          right:  BorderSide(color: Colors.white.withOpacity(0.10), width: 0.5),
+                          bottom: BorderSide(color: Colors.white.withOpacity(0.05), width: 0.5),
+                        ),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Icon(AppIcons.add, color: Colors.white, size: 16),
@@ -1007,13 +1012,20 @@ class _ContentSection extends StatelessWidget {
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
         child: Row(children: [
-          // Red accent bar
+          // Red accent bar — glowing pill with brand shadow
           Container(
             width: 3, height: 20,
             margin: const EdgeInsets.only(right: 10),
             decoration: BoxDecoration(
               gradient: AppColors.primaryGradient,
               borderRadius: BorderRadius.circular(2),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.55),
+                  blurRadius: 8,
+                  spreadRadius: 0,
+                ),
+              ],
             ),
           ),
           if (titleIcon != null) ...[
@@ -1047,9 +1059,14 @@ class _ContentSection extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
-                color: t.surface,
+                color: AppColors.primary.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(AppRadius.round),
-                border: Border.all(color: t.border),
+                border: Border(
+                  top:    BorderSide(color: AppColors.primary.withOpacity(0.35), width: 0.7),
+                  left:   BorderSide(color: AppColors.primary.withOpacity(0.20), width: 0.5),
+                  right:  BorderSide(color: AppColors.primary.withOpacity(0.12), width: 0.5),
+                  bottom: BorderSide(color: AppColors.primary.withOpacity(0.06), width: 0.5),
+                ),
               ),
               child: const Text('See all', style: TextStyle(
                   color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),

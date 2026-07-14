@@ -156,8 +156,16 @@ class ContentCard extends StatelessWidget {
               Positioned(top: 6, right: 6,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.black54,
-                      borderRadius: BorderRadius.circular(4)),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border(
+                      top:    BorderSide(color: Colors.white.withOpacity(0.28), width: 0.6),
+                      left:   BorderSide(color: Colors.white.withOpacity(0.15), width: 0.5),
+                      right:  BorderSide(color: Colors.white.withOpacity(0.08), width: 0.5),
+                      bottom: BorderSide(color: Colors.white.withOpacity(0.04), width: 0.5),
+                    ),
+                  ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(AppIcons.starFill, color: Colors.amber, size: 10),
                     const SizedBox(width: 2),
@@ -284,23 +292,46 @@ class ShimmerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    return ClipRRect(
-      borderRadius: RaddRadius.smRadius,
-      child: Shimmer.fromColors(
-        baseColor:      t.shimmerBase,
-        highlightColor: t.shimmerHighlight,
-        child: Stack(fit: StackFit.expand, children: [
-          Container(color: t.surface),
-          // Subtle gradient sheen at the bottom
-          Positioned(bottom: 0, left: 0, right: 0,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(6, 22, 6, 8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, t.card],
+    // Wrap in same glass border treatment as ContentCard for visual consistency
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: RaddRadius.smRadius,
+        border: Border(
+          top:    BorderSide(color: Colors.white.withOpacity(0.18), width: 0.8),
+          left:   BorderSide(color: Colors.white.withOpacity(0.08), width: 0.5),
+          right:  BorderSide(color: Colors.white.withOpacity(0.04), width: 0.5),
+          bottom: BorderSide(color: t.cardBorder.withOpacity(0.30), width: 0.5),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: RaddRadius.smRadius,
+        child: Shimmer.fromColors(
+          baseColor:      t.shimmerBase,
+          highlightColor: t.shimmerHighlight,
+          child: Stack(fit: StackFit.expand, children: [
+            Container(color: t.surface),
+            // Specular highlight — matches loaded ContentCard glass rim
+            Positioned(top: 0, left: 0, right: 0,
+              child: Container(
+                height: 60,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                    colors: [Color(0x16FFFFFF), Colors.transparent],
+                  ),
                 ),
               ),
+            ),
+            // Frosted gradient sheen at the bottom
+            Positioned(bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(6, 22, 6, 8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, t.card],
+                  ),
+                ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -798,13 +829,13 @@ class _GlintOverlayState extends State<_GlintOverlay>
           builder: (_, __) {
             // Sweep the bright centre from -0.2 → 1.2 so it starts and ends
             // fully off-screen, appearing as a clean diagonal flash.
-            final c = -0.20 + _anim.value * 1.40;
+            final c = -0.22 + _anim.value * 1.44;
             final stops = [
-              (c - 0.14).clamp(0.0, 1.0),
-              (c - 0.04).clamp(0.0, 1.0),
+              (c - 0.22).clamp(0.0, 1.0),
+              (c - 0.07).clamp(0.0, 1.0),
               c.clamp(0.0, 1.0),
-              (c + 0.04).clamp(0.0, 1.0),
-              (c + 0.14).clamp(0.0, 1.0),
+              (c + 0.07).clamp(0.0, 1.0),
+              (c + 0.22).clamp(0.0, 1.0),
             ];
             return Container(
               decoration: BoxDecoration(
@@ -814,9 +845,9 @@ class _GlintOverlayState extends State<_GlintOverlay>
                   end: const Alignment(0.6, 1.0),
                   colors: const [
                     Colors.transparent,
-                    Color(0x07FFFFFF),
-                    Color(0x12FFFFFF), // peak brightness
-                    Color(0x07FFFFFF),
+                    Color(0x0CFFFFFF), // 5% soft edge
+                    Color(0x1EFFFFFF), // 12% peak — clearly visible glass flash
+                    Color(0x0CFFFFFF), // 5% soft edge
                     Colors.transparent,
                   ],
                   stops: stops,
