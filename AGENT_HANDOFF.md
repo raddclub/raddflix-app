@@ -22,7 +22,7 @@ all 4 mixins (`_ps_ui_mixin.dart`, `_ps_playback_mixin.dart`, `_ps_audiolab_mixi
 - `onSWDecoderChanged` set `_useSWDecoder` state + applied MPV property but never called
   `_scheduleSavePrefs()` — pref_sw_dec lost on exit if decoder was the only thing changed
 
-**Commit `e911085102bb`** — Subtitle style + SW Decoder startup fix (CI pending):
+**Commit `e911085102bb`** — Subtitle style + SW Decoder startup fix (CI ✅):
 - Saved subtitle style (font, size, bold, color, opacity, shadow, alignment, edge padding, fit)
   was only applied when the subtitle panel opened — NOT at player startup. `_applySubtitleStylePrefs()`
   added to `_PlayerSubtitleMixin`; called from `_loadPrefs()` with 700ms delay.
@@ -37,8 +37,18 @@ all 4 mixins (`_ps_ui_mixin.dart`, `_ps_playback_mixin.dart`, `_ps_audiolab_mixi
 - Night mode / Vivid mode visual filter: Flutter ColorFiltered widget reacts to `setState()` in
   `_loadPrefs()` — no extra MPV property needed
 
-**Next session:** No pending player audit items. Consider Phase J3–J5 (AudioLab/Subtitle/UI mixin
-extraction) or any user-prioritised task. H2/H3 still BLOCKED (LocalDb platform channel, Rule 49).
+**Commit `1d24b44f`** — Audio balance AF not rebuilt at startup (CI pending):
+- `_currentBalanceAf` was never rebuilt in `_loadPrefs()` even though all other AF strings
+  (reverb, lab, channel mode) were. `_audioBalance` state loaded correctly but the `pan=` AF
+  string stayed `''`, so `_applyAllAf()` at startup emitted a centerless pipeline. A saved
+  L/R balance had zero effect until the user moved the slider.
+- Fix: 8-line balance AF rebuild added inside the `setState()` block in `_loadPrefs()`, using
+  the same formula as `_applyBalance()` — threshold 0.02, pan multipliers l/r from balance value.
+- Episode navigation audited: MPV `af` property persists across `loadfile` by design (confirmed
+  by BUG-AUDIO-SILENT-01 comment in `_ps_audiolab_mixin.dart`). No re-apply needed on episode nav.
+
+**Next session:** No pending audio/subtitle audit items. Consider Phase J3–J5 (AudioLab/Subtitle/UI
+mixin extraction) or any user-prioritised task. H2/H3 still BLOCKED (LocalDb platform channel, Rule 49).
 
 ---
 
