@@ -33,22 +33,23 @@ class ContentCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: RaddRadius.smRadius,
-          boxShadow: AppShadows.soft,
+          boxShadow: AppShadows.cardRich,
+          border: Border.all(color: t.cardBorder, width: 0.75),
         ),
         child: ClipRRect(
           borderRadius: RaddRadius.smRadius,
           child: Stack(fit: StackFit.expand, children: [
             // Poster
             _buildPoster(context),
-            // Gradient overlay
+            // Gradient overlay — starts sooner and goes fully opaque for depth
             Positioned(bottom: 0, left: 0, right: 0,
               child: Container(
-                padding: const EdgeInsets.fromLTRB(8, 32, 8, 8),
+                padding: const EdgeInsets.fromLTRB(8, 40, 8, 8),
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Color(0xDD000000)],
-                    stops: [0.0, 1.0],
+                    colors: [Colors.transparent, Color(0xF5000000)],
+                    stops: [0.15, 1.0],
                   ),
                 ),
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [

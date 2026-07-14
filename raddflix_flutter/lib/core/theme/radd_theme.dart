@@ -73,26 +73,26 @@ class RaddTheme {
       );
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  DARK  — default deep navy-black
+  //  DARK  — default deep navy-black (richer depth + visible card borders)
   // ══════════════════════════════════════════════════════════════════════════
   static const RaddTheme dark = RaddTheme(
-    bg:               Color(0xFF08080E),
-    bgAlt:            Color(0xFF0D0D1A),
-    surface:          Color(0xFF0E0E1C),
-    surfaceHigh:      Color(0xFF161628),
-    card:             Color(0xFF1A1A2E),
-    cardBorder:       Color(0xFF252540),
-    glass:            Color(0x0DFFFFFF),
-    glassHigh:        Color(0x1AFFFFFF),
-    border:           Color(0x14FFFFFF),
+    bg:               Color(0xFF07070F),
+    bgAlt:            Color(0xFF0B0B1C),
+    surface:          Color(0xFF0F0F22),
+    surfaceHigh:      Color(0xFF18183A),
+    card:             Color(0xFF1E1E3C),
+    cardBorder:       Color(0xFF30305A),
+    glass:            Color(0x12FFFFFF),
+    glassHigh:        Color(0x20FFFFFF),
+    border:           Color(0x18FFFFFF),
     textPrimary:      Color(0xFFF2F2FF),
-    textSecondary:    Color(0xFFB0B0CC),
-    textMuted:        Color(0xFF6A6A90),
-    textDisabled:     Color(0xFF404060),
-    divider:          Color(0xFF1E1E35),
-    shimmerBase:      Color(0xFF0E0E1C),
-    shimmerHighlight: Color(0xFF161628),
-    heroStop:         Color(0xFF08080E),
+    textSecondary:    Color(0xFFB8B8D8),
+    textMuted:        Color(0xFF7070A0),
+    textDisabled:     Color(0xFF404068),
+    divider:          Color(0xFF1E1E42),
+    shimmerBase:      Color(0xFF0F0F22),
+    shimmerHighlight: Color(0xFF18183A),
+    heroStop:         Color(0xFF07070F),
   );
 
   // ══════════════════════════════════════════════════════════════════════════
