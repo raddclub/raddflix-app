@@ -866,13 +866,13 @@ directly. This is the correct Dart pattern for exactly this situation.
   in this environment risks introducing exactly the kind of subtle breakage this whole plan is
   trying to eliminate. Recommend running `dart fix --apply` as a CI or local-machine step next
   time Flutter SDK access is available, rather than a manual pass.
-- [ ] K3 — Add `AutomaticKeepAliveClientMixin` to tab pages in HomeScreen bottom nav so switching tabs doesn't re-render
 - [x] K4 — Added `fadeInDuration` to the actor/cast `CachedNetworkImage` calls in
   `widgets/cast_rail.dart` and `screens/actor_screen.dart` (the only two actor-photo call
   sites in the app). Other `CachedNetworkImage` usages (posters in `content_card.dart`,
   `home_screen.dart`, `search_screen.dart`, `show_detail_screen.dart`, `downloads_screen.dart`)
   were audited and are out of scope for K4 (posters, not actor images) — left as-is.
-- [ ] K3 — **Does not apply to this codebase's actual architecture.** The plan assumed a
+- [x] K3 (originally: "Add `AutomaticKeepAliveClientMixin` to tab pages in HomeScreen bottom
+  nav so switching tabs doesn't re-render") — **does not apply to this codebase's actual architecture.** The plan assumed a
   TabBarView/IndexedStack-based bottom nav where `AutomaticKeepAliveClientMixin` would prevent
   re-render on tab switch. The real `RaddFlixBottomNav` (`widgets/bottom_nav.dart`) instead
   drives `Navigator.pushNamed` — Search/Local/Downloads/Profile are separate pushed routes, not
