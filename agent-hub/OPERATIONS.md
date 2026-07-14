@@ -12,7 +12,7 @@ day-to-day workflow.
 
 ## 1. The two systems you'll touch
 
-| System | What it is | How you reach it | Secret needed |
+| System | What it is | How you reach it | Credential needed |
 |---|---|---|---|
 | **GitHub** | Source of truth for all code (`raddclub/raddflix-app`) | `git` over HTTPS, or the GitHub REST API | `GITHUB_TOKEN` |
 | **Oracle VPS** | Production server running the Flask backend | SSH (`ssh ubuntu@92.4.95.252`) | `ORACLE_SSH_KEY` |
@@ -21,9 +21,11 @@ These are separate systems and separate credentials. Pushing to GitHub does **no
 Oracle — Oracle only updates when you `git pull` on the server (via `push_to_oracle.sh` or by
 hand). Nothing auto-deploys.
 
-Both secrets live in Replit Secrets (sidebar → 🔒). Never print their values, never paste them
-into a file, never log them. Every script in this repo is written to keep them out of shell
-history and out of files that get committed.
+Both values live in this project's **Configurations** section (sidebar, shared env vars) — a
+deliberate choice by the repository owner, not the Secrets store. Even though Configurations
+values aren't masked the way Secrets are, treat them with the same care in practice: never print
+their values in chat, never paste them into a file, never log them. Every script in this repo is
+written to keep them out of shell history and out of files that get committed.
 
 ---
 
@@ -125,8 +127,9 @@ meantime. All calls need `Authorization: token $GITHUB_TOKEN`.
 ssh -i <path-to-key> -o StrictHostKeyChecking=accept-new ubuntu@92.4.95.252 "curl -s http://localhost:5000/healthz"
 # expect: {"ok":true,"version":"3.0.0"}
 ```
-The key itself comes from the `ORACLE_SSH_KEY` secret, which is PEM text, not a file path — you
-have to materialize it to a temp file first (see below) rather than pasting it inline.
+The key itself comes from the `ORACLE_SSH_KEY` Configuration value, which is PEM text, not a
+file path — you have to materialize it to a temp file first (see below) rather than pasting it
+inline.
 
 ### 5b. Preferred: the helper script (pulls latest code + restarts + verifies)
 
@@ -136,7 +139,7 @@ bash push_to_oracle.sh
 Always push to GitHub first — this script deploys whatever is currently on `origin/main` /
 `origin/HEAD`, not your local uncommitted changes.
 
-What it does: restores `ORACLE_SSH_KEY` to a temp file (auto-deleted on exit, even on Ctrl-C or
+What it does: restores the `ORACLE_SSH_KEY` Configuration value to a temp file (auto-deleted on exit, even on Ctrl-C or
 a crash) → tests the SSH connection → confirms `/opt/jazzmax` is a valid git repo before
 touching it → pulls with fast-forward only (refuses to auto-merge over a dirty or diverged
 server tree — you'd have to SSH in and fix that by hand, since it usually means someone edited
@@ -198,9 +201,9 @@ rm -f /tmp/oracle_key   # always clean up
 
 | Symptom | Likely cause | Where to look |
 |---|---|---|
-| `push_to_github.sh` fails "invalid or expired" | `GITHUB_TOKEN` secret rotated/expired | Regenerate PAT with `repo` scope, update the secret |
 | `push_to_github.sh` fails "behind origin" | Someone else pushed since you last pulled | `git pull --rebase origin main`, resolve, retry |
 | `push_to_oracle.sh` fails "dirty worktree" | Server files edited directly (not via git) | SSH in, `git status`/`git diff`, decide stash vs. discard |
 | `push_to_oracle.sh` fails "not a fast-forward" | Server branch diverged from GitHub history | SSH in, inspect `git log`, resolve manually — do not force |
 | API doesn't respond after restart | Deploy broke the server, or slow startup | `sudo supervisorctl tail raddflix_radd`, check `data/logs/raddhub.log` |
-| "Cannot connect to Oracle" | Key malformed, IP unreachable, or firewall | Re-check `ORACLE_SSH_KEY` secret format, confirm `92.4.95.252` is reachable |
+| `push_to_github.sh` fails "invalid or expired" | `GITHUB_TOKEN` Configuration value rotated/expired | Regenerate PAT with `repo` scope, update the value in Configurations |
+| "Cannot connect to Oracle" | Key malformed, IP unreachable, or firewall | Re-check the `ORACLE_SSH_KEY` Configuration value's format, confirm `92.4.95.252` is reachable |

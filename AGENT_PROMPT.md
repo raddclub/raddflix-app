@@ -34,42 +34,50 @@ If the human sent you this file's URL to get started, follow these steps in orde
 and wait for their actual task:
 
 1. **Verify `GITHUB_TOKEN` is present — via code, not trust.**
-   The human may say they already added it, but Replit Secrets are **per-Replit environment** and
-   do NOT carry over between Repls automatically. Always verify with a code check first (Rule 48).
+   The human may say they already added it, but Replit environment values are **per-Replit
+   environment** and do NOT carry over between Repls automatically. Always verify with a code
+   check first (Rule 48).
+
+   `GITHUB_TOKEN` and `ORACLE_SSH_KEY` are intentionally kept in the **Configurations** section
+   of this project (non-secret shared environment variables), not in the Secrets section. This is
+   a deliberate choice by the repository owner — do not ask to move them, and do not treat their
+   presence there as a mistake.
 
    In the Replit CodeExecution tool, run:
    ```javascript
-   const r = await viewEnvVars({ type: "secret", keys: ["GITHUB_TOKEN"] });
-   console.log(r.secrets.GITHUB_TOKEN); // true = present, false = missing
+   const r = await viewEnvVars({ type: "env", keys: ["GITHUB_TOKEN"] });
+   console.log(Boolean(r.envVars?.shared?.GITHUB_TOKEN)); // true = present, false = missing
    ```
+   (Check existence only — there's no need to print the actual token value to chat.)
 
    - **If `true`**: proceed to step 2.
-   - **If `false`**: use `requestSecrets({ keys: ["GITHUB_TOKEN"] })` to prompt the user via the
-     secure form — this writes the value directly to Replit Secrets, which is more reliable than
-     asking in chat. Wait for confirmation before proceeding.
+   - **If `false`**: use `requestEnvVars({ envVars: [{ key: "GITHUB_TOKEN", environment: "shared" }] })`
+     to prompt the user via the secure form — this writes the value directly into Configurations.
+     Wait for confirmation before proceeding.
 
-   > **Why secrets go missing:** Every new Replit starts with an empty secrets store — this is
-   > expected behaviour, not a bug. The `viewEnvVars` check takes 1 second and prevents the entire
-   > setup flow from failing at `git clone`. Do not skip it even when the user says the token is
-   > present. (Evidence: 2026-07-12 — user confirmed token was added, `viewEnvVars` showed `false`,
-   > token had to be re-added before clone could proceed — see Rule 48.)
+   > **Why the value can appear missing:** Every new Replit starts with empty Configurations and
+   > Secrets stores — this is expected behaviour, not a bug. The `viewEnvVars` check takes 1
+   > second and prevents the entire setup flow from failing at `git clone`. Do not skip it even
+   > when the user says the token is present. (Evidence: 2026-07-12 — user confirmed the token was
+   > added, the check showed it was missing, and it had to be re-added before the clone could
+   > proceed — see Rule 48.)
 
    > **`ORACLE_SSH_KEY`** (the Oracle VPS SSH private key) is only required when work touches the
    > live Flask server (`radd-hub/**`, deployments, DB operations). Flutter-only work (Phase A–L
    > of the 10/10 plan) does **not** need it. If a task later requires Oracle access and
-   > `ORACLE_SSH_KEY` is missing, ask the human to add it then — do not block the clone on it now.
+   > `ORACLE_SSH_KEY` is missing, ask the human to add it then (in Configurations, same as
+   > `GITHUB_TOKEN`) — do not block the clone on it now.
 
-   > **Never store `GITHUB_TOKEN` or `ORACLE_SSH_KEY` in `.replit`'s `[userenv.shared]` block, or
-   > in any other plaintext file/config.** That block is plain TOML — readable by anyone with
-   > project access and preserved in checkpoint/version history — so it defeats the entire point
-   > of a secret. The **only** correct home for these two values in a Replit session is the
-   > Secrets store (`requestSecrets` to write, `viewEnvVars({ type: "secret" })` to check
-   > existence — value is never echoed back). This exact mistake happened on 2026-07-13: both
-   > values were found written directly into `.replit`'s shared env block, including the raw RSA
-   > private key. If you ever find secrets sitting in `.replit`, a `.env` file, or any tracked
-   > file, treat it as a live incident: move the value into Secrets immediately, then strip it
-   > from the plaintext location — do not leave "a copy in both places just in case." See Rule 48
-   > in `agent-hub/RULES.md`.
+   > **Do not store `GITHUB_TOKEN` or `ORACLE_SSH_KEY` in `.replit`'s `[userenv.shared]` block, in
+   > a `.env` file, or in any other tracked plaintext file.** Those are committed/checkpointed and
+   > readable by anyone with project access, which defeats the point of keeping these values out
+   > of the code. The correct home for both values in this project is the **Configurations**
+   > section (shared env vars) — use `viewEnvVars({ type: "env" })` to check existence and
+   > `requestEnvVars` to write. This is an explicit, permanent choice by the repository owner, not
+   > an oversight — do not suggest or perform a move to Secrets. If you ever find either value
+   > sitting inside a tracked file instead of Configurations, treat it as a live incident: move
+   > it into Configurations, then strip it from the plaintext location. See Rule 48 in
+   > `agent-hub/RULES.md`.
 
 2. **Clone the repository locally** so you have full project context:
    ```bash
@@ -211,8 +219,9 @@ intentionally-parked unshipped features). Full corrected inventory:
   to push all logged-but-unpushed changes automatically. See `agent-hub/RULES.md` Rule 42.
 - Confirm with the user before: restarting the Oracle Flask service, running destructive DB operations,
   or triggering production deploys/APK builds. These are not "ask forgiveness" actions.
-- SSH access to the Oracle VPS uses `ORACLE_SSH_KEY` (Replit Secret). GitHub API/push access uses
-  `GITHUB_TOKEN` (Replit Secret). Never print these values.
+- SSH access to the Oracle VPS uses `ORACLE_SSH_KEY` (Replit Configuration value, shared env
+  var). GitHub API/push access uses `GITHUB_TOKEN` (same — Configuration value, not a Secret).
+  Never print these values.
 - Oracle health check: `ssh -i <key> ubuntu@92.4.95.252 "curl -s http://localhost:5000/healthz"` →
   expect `{"ok":true,"version":"3.0.0"}`.
 - **Oracle does NOT auto-deploy on push.** `push_to_oracle.sh` is the only thing that updates the

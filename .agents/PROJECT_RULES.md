@@ -26,7 +26,9 @@ session ends mid-edit. The GitHub API path via the script is atomic, auditable, 
 
 ### Rule 2 — Never commit secrets
 
-`GITHUB_TOKEN`, `ORACLE_SSH_KEY`, and any other credentials exist only in Replit Secrets.
+`GITHUB_TOKEN` and `ORACLE_SSH_KEY` exist only in this project's Configurations section (shared
+env vars) — a deliberate choice by the repository owner, not the Secrets store. Other sensitive
+credentials (e.g. `SESSION_SECRET`) belong in Replit Secrets.
 The SSH key lives at `/tmp/oracle_key` during a session — it is created from the env var
 at session start and disappears when the container restarts.
 

@@ -3,7 +3,8 @@
 RaddFlix is a Pakistani Flutter streaming app (Jazz SIM zero-rated). Backend is Flask on Oracle VPS 92.4.95.252. This Replit is used as an agent workspace — the real code lives on GitHub (`raddclub/raddflix-app`) and runs on Oracle Cloud.
 
 ## Quick Start for Any New Agent
-1. Add secrets: `GITHUB_TOKEN` and `ORACLE_SSH_KEY`
+1. Add these as Configuration values (Configurations tab, not Secrets — deliberate project
+   choice): `GITHUB_TOKEN` and `ORACLE_SSH_KEY`
 2. Restore SSH key + verify Oracle is alive:
    ```bash
    node -e "const raw=process.env.ORACLE_SSH_KEY;const m=raw.match(/(-----BEGIN[^-]+-----)(.+?)(-----END[^-]+-----)/s);if(m)require('fs').writeFileSync('/tmp/oracle_key',m[1].trim()+'\n'+m[2].trim().replace(/ /g,'\n')+'\n'+m[3].trim()+'\n',{mode:0o600})"
@@ -24,7 +25,7 @@ RaddFlix is a Pakistani Flutter streaming app (Jazz SIM zero-rated). Backend is 
 
 ## Infrastructure
 - GitHub: raddclub/raddflix-app (main branch)
-- Oracle: ubuntu@92.4.95.252 (SSH via ORACLE_SSH_KEY secret)
+- Oracle: ubuntu@92.4.95.252 (SSH via the `ORACLE_SSH_KEY` Configuration value, not a Secret)
 - API: http://92.4.95.252 (nginx port 80 → Flask port 5000)
 - **Supervisor service: `raddflix_radd`** (NOT `radd-hub`)
 - Restart command: `sudo supervisorctl restart raddflix_radd`

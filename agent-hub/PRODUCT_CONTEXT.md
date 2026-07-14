@@ -308,10 +308,12 @@ curl -s -H "Authorization: token $GITHUB_TOKEN" \
 
 ---
 
-## Secrets (stored in Replit Secrets — never print or commit)
-- `GITHUB_TOKEN` — GitHub PAT for raddclub account
-- `ORACLE_SSH_KEY` — SSH private key as plain text (no base64 encoding)
-- `SESSION_SECRET` — Flask session secret
+## Credentials — never print or commit
+- `GITHUB_TOKEN` — GitHub PAT for raddclub account. Lives in this project's **Configurations**
+  section (shared env var), not Secrets — a deliberate choice by the repository owner.
+- `ORACLE_SSH_KEY` — SSH private key as plain text (no base64 encoding). Same as above: kept in
+  **Configurations**, not Secrets.
+- `SESSION_SECRET` — Flask session secret. This one lives in Replit **Secrets**.
 
 ## Tools Available in Replit Bash
 - `jq` v1.7.1 — available, use for GitHub API JSON parsing

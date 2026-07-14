@@ -247,16 +247,21 @@ system, add it to the `REQUIRES_IMPORT` map in `preflight_check.sh` too.
 
 ## Replit Environment & Bootstrap Rules (added 2026-07-12)
 
-**Rule 48: Always verify secrets via code — never trust verbal confirmation alone.**
+**Rule 48: Always verify credentials via code — never trust verbal confirmation alone.**
+`GITHUB_TOKEN` and `ORACLE_SSH_KEY` are kept in this project's **Configurations** section
+(shared, non-secret env vars) by the repository owner's deliberate choice — not in Secrets. Do
+not treat this as a mistake and do not propose moving them.
 At the start of every Replit session, verify `GITHUB_TOKEN` is actually present by running
-`viewEnvVars({ type: "secret", keys: ["GITHUB_TOKEN"] })` in the CodeExecution tool.
-Even when the user says "I already added it," Replit Secrets are per-Replit and do NOT carry
-over between environments automatically. A `false` result means the secret is absent, full stop.
-If missing, call `requestSecrets({ keys: ["GITHUB_TOKEN"] })` to prompt the user via the secure
-form — do NOT proceed with `git clone` until the check returns `true`. Asking in chat is less
-reliable because it doesn't actually set the Replit Secret.
-**Evidence:** 2026-07-12 session — user confirmed token was already added, `viewEnvVars` showed
-`false`, token had to be re-added before the clone could proceed.
+`viewEnvVars({ type: "env", keys: ["GITHUB_TOKEN"] })` in the CodeExecution tool and checking
+`r.envVars.shared.GITHUB_TOKEN` for existence (no need to print the value itself).
+Even when the user says "I already added it," Replit environment values are per-Replit and do
+NOT carry over between environments automatically. A missing/empty result means the value is
+absent, full stop. If missing, call
+`requestEnvVars({ envVars: [{ key: "GITHUB_TOKEN", environment: "shared" }] })` to prompt the
+user via the secure form — do NOT proceed with `git clone` until the check confirms the value is
+present. Asking in chat is less reliable because it doesn't actually set the Configuration value.
+**Evidence:** 2026-07-12 session — user confirmed the token was already added, the check showed
+it was missing, and it had to be re-added before the clone could proceed.
 
 **Rule 49: LocalDb unit tests are blocked by Android Keystore platform channels — do NOT write fake tests.**
 `LocalDb` opens its encrypted SQLite database via the Android Keystore platform channel.
