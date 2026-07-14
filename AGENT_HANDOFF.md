@@ -1365,6 +1365,32 @@ Commits: `5d37e39`, `19fa4cf`
 ### Open Tasks
 None — awaiting next task.
 
+### What was done 2026-07-14 — Backend Audit + Flutter Constants Fix
+
+**BACKEND-AUDIT-2026-07-14** (commits `5861ff5`, `737d956`, `54cb17a` — CI ✅)
+
+Previous agent ran a full backend audit and found 10 bugs, then hit quota before pushing any fixes. This session pushed all fixes and deployed to Oracle.
+
+**Python fixes — commit `5861ff5` (8 files):**
+1. `app.py` — registered `bp_catalog_secure` at `/api` (was missing; every `GET /api/catalog/share_url` returned 404)
+2. `routes/mobile_api.py` — `get_catalog_share_url`: replaced broken loop over nonexistent tables with `SELECT f.share_url, t.is_free FROM files JOIN titles WHERE f.id=?`
+3. `routes/app_users_panel.py` — watch history SQL columns corrected (`position_sec/duration_sec/updated_at` → `position_ms/duration_ms/watched_at`); JSON converts ms→sec so the JS template keeps working
+4. `routes/settings.py` — added `APP_VERSION_KEYS` tuple (was a NameError at runtime); fixed stat query `overview IS NOT NULL` → `plot IS NOT NULL` (column dropped by earlier migration)
+5. `db.py` — added `app_signatures` CREATE TABLE to `_DDL` (settings routes were already INSERT/SELECTing it — table was never created)
+6. `routes/db_mgmt.py` — `catalog_fts`→`titles_fts` (×2); removed dropped columns `overview`/`cast_names` from nullsonly filter array; `out["original_lang"]`→`out["language"]`
+7. `routes/analytics.py` — `NULL as name`→`COALESCE(u.device_name,'') as name` so analytics dashboard shows device name instead of permanent dash
+8. `routes/poster_proxy.py` — `_mark_key_invalid`/`_mark_key_ok` both had `WHERE value_enc=<plaintext>` which never matched the Fernet-encrypted column; replaced with scan+decrypt loop updating by rowid
+
+**Flutter fixes — commit `737d956` (2 files):**
+1. `lib/screens/home_screen.dart` — `_checkForUpdates()` was calling `/api/config` (404); corrected to `/api/app/config` (`bp_app` is registered at `/api/app`)
+2. `lib/core/constants.dart` — added `ApiPaths.adminQueue = '/stream/api/queue'` (compile-time reference in `admin_queue_screen.dart` was missing the constant)
+
+**Deletion — commit `54cb17a`:**
+- `radd-hub/hub/routes/proxy_pool_page.py` — deleted; proxy pool feature was intentionally removed from admin panel; file was orphaned (never imported or registered in `app.py`)
+
+**Deployment:** `push_to_oracle.sh` ran cleanly; Oracle confirmed at `737d956`; `GET /api/app/version → {"ok":true}`.
+**CI note:** The `737d956` build initially failed with `Archive is not a ZIP archive` on Android SDK Platform 31 — GitHub Actions infra issue (corrupted download), not a code problem. Re-running the same commit produced a clean green build.
+
 ### What was done 2026-07-07 — Subtitle Panel Full Rewrite + Settings Polish
 
 **G1 — Subtitle Panel Full Rewrite** (`778f17c`)

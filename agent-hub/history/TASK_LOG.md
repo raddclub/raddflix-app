@@ -19,6 +19,8 @@
 
 ## Session index (title only — full detail in the linked archive)
 
+### July 2026 — Session 15 (2026-07-14) — BACKEND-AUDIT (10 bugs fixed across 8 Python + 2 Flutter files; proxy_pool_page.py deleted; Oracle deployed; CI green)
+
 ### July 2026 — Session 14 (2026-07-14) — PLAYER-FIXES (full audit + 5 bugs fixed)
 
 **Task:** Audit all player feature toggles and persistence, fix anything broken.
