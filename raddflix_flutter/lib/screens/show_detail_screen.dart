@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
@@ -6,6 +7,7 @@ import '../core/theme/radd_colors.dart';
 import '../design_system/motion/radd_motion.dart';
 import '../design_system/radius/radd_radius.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/elevation/radd_elevation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -56,18 +58,59 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   // Tracks active "Download Season" batch to prevent duplicate triggers.
   bool _isDownloadingAll = false;
 
+  // Parallax / scroll
+  final ScrollController _scrollController = ScrollController();
+  double _scrollOffset = 0.0;
+
+  // Pulse animation for Watch Now / Resume button
+  AnimationController? _pulseCtrl;
+  Animation<double>? _pulseOpacity;
+  Animation<double>? _pulseScale;
+
   @override
   void initState() {
     super.initState();
     DebugLogger.logLifecycle('ShowDetail', 'initState id=${widget.item.id} type=${widget.item.mediaType}');
     _seasonTab = null;
     _loadEpisodes();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (mounted) {
+      setState(() => _scrollOffset = _scrollController.offset);
+    }
+  }
+
+  /// Called once animConfig is available (after first build) to initialise
+  /// the Pulse animation controller — gated by canStagger.
+  void _initPulse(AnimConfig animConfig) {
+    if (_pulseCtrl != null) return; // already initialised
+    if (!animConfig.canStagger) return; // potato tier — skip
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: RaddMotion.pulseDuration,
+    )..repeat(reverse: true);
+    _pulseOpacity = Tween<double>(begin: 1.0, end: 0.6).animate(
+      CurvedAnimation(parent: _pulseCtrl!, curve: RaddMotion.pulse),
+    );
+    // Low tier (basic = API 23-27): opacity only, no scale
+    if (animConfig.tierLevel >= AnimTier.standard.index) {
+      _pulseScale = Tween<double>(begin: 1.0, end: 1.03).animate(
+        CurvedAnimation(parent: _pulseCtrl!, curve: RaddMotion.pulse),
+      );
+    } else {
+      _pulseScale = const AlwaysStoppedAnimation(1.0);
+    }
   }
 
   @override
   void dispose() {
     DebugLogger.logLifecycle('ShowDetail', 'dispose id=${widget.item.id}');
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _seasonTab?.dispose();
+    _pulseCtrl?.dispose();
     super.dispose();
   }
 
@@ -488,311 +531,57 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
     final item = widget.item;
-    final cs = Theme.of(context).colorScheme;
     final isMovie    = item.isMovie;
-    // Phase 45: tier-aware glow intensity for Play/Download buttons
     final animConfig = ref.watch(animConfigProvider);
     // E6 fix: watch auth/sub providers so episode PREMIUM lock badges rebuild
     // immediately when subscription activates (ref.read alone never triggers a rebuild).
     ref.watch(authProvider);
     ref.watch(subscriptionProvider);
 
+    // Initialise Pulse controller lazily on first build (needs animConfig).
+    _initPulse(animConfig);
+
     return Scaffold(
-      backgroundColor: null,
+      backgroundColor: t.bg,
       body: RefreshIndicator(
         onRefresh: _loadEpisodes,
         color: context.signalPrimary,
         child: CustomScrollView(
+          controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics()),
           slivers: [
-          // ── Hero Poster SliverAppBar ──────────────────────────────────────
-          SliverAppBar(
-            expandedHeight: 340,
-            pinned: true,
-            stretch: true,
-            backgroundColor: t.surface,
-            leading: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.black45,
-                  borderRadius: RaddRadius.mdRadius,
+            // ── Cinematic Parallax Hero ──────────────────────────────────
+            SliverAppBar(
+              expandedHeight: 380,
+              pinned: true,
+              stretch: true,
+              backgroundColor: t.bg,
+              elevation: 0,
+              leading: Padding(
+                padding: const EdgeInsets.all(RaddSpace.sm),
+                child: _GlassIconButton(
+                  icon: AppIcons.back,
+                  onTap: () => Navigator.pop(context),
+                  animConfig: animConfig,
                 ),
-                child: Icon(AppIcons.back, size: 18, color: Colors.white),
               ),
-              onPressed: () => Navigator.pop(context),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              stretchModes: const [StretchMode.zoomBackground],
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Poster image — Hero-wrapped; tag matches home/search grid (Phase 42)
-                  // Builder collapses the if/else branches into a single Hero child
-                  Hero(
-                    tag: 'poster_${item.id}',
-                    child: Builder(builder: (_) {
-                      if (item.posterPath != null && item.posterPath!.isNotEmpty)
-                        return Image.file(
-                          File(item.posterPath!),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => item.posterUrl != null
-                              ? CachedNetworkImage(
-                                  imageUrl: item.posterUrl!,
-                                  fit: BoxFit.cover,
-                                  placeholder: (_, __) => Container(color: t.surface),
-                                  errorWidget: (_, __, ___) => _posterFallback(item),
-                                )
-                              : _posterFallback(item),
-                        );
-                      if (item.posterUrl != null)
-                        return CachedNetworkImage(
-                          imageUrl: item.posterUrl!,
-                          fit: BoxFit.cover,
-                          placeholder: (_, __) => Container(color: t.surface),
-                          errorWidget: (_, __, ___) => _posterFallback(item),
-                        );
-                      return _posterFallback(item);
-                    }),
-                  ),
-                  // Gradient overlay
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          t.bg.withOpacity(0.3),
-                          t.bg.withOpacity(0.85),
-                          t.bg,
-                        ],
-                        stops: const [0.0, 0.4, 0.75, 1.0],
-                      ),
-                    ),
-                  ),
-                  // Bottom info
-                  Positioned(
-                    left: 20, right: 20, bottom: 16,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          item.title,
-                          style: const TextStyle(
-                            fontSize: 24, fontWeight: FontWeight.w800,
-                            color: Colors.white, shadows: [Shadow(blurRadius: 8)],
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            if (item.displayYear.isNotEmpty) ...[
-                              Text(item.displayYear, style: TextStyle(color: Colors.white70, fontSize: 13)),
-                              const _Dot(),
-                            ],
-                            if (item.displayRating.isNotEmpty) ...[
-                              Icon(AppIcons.starFill, color: Color(0xFFFFB800), size: 14),
-                              const SizedBox(width: 3),
-                              Text(item.displayRating, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                              const _Dot(),
-                            ],
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: context.signalPrimary.withOpacity(0.2),
-                                border: Border.all(color: context.signalPrimary.withOpacity(0.6)),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                isMovie ? 'MOVIE' : 'SERIES',
-                                style: TextStyle(
-                                  color: context.signalPrimary, fontSize: 10,
-                                  fontWeight: FontWeight.w700, letterSpacing: 1,
-                                ),
-                              ),
-                            ),
-                            if (item.statusLabel.isNotEmpty) ...[
-                              const _Dot(),
-                              _StatusPill(label: item.statusLabel, status: item.status ?? ''),
-                            ],
-                            if (item.isFree) ...[
-                              const _Dot(),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppColors.success.withOpacity(0.2),
-                                  border: Border.all(color: AppColors.success.withOpacity(0.6)),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: const Text('FREE', style: TextStyle(
-                                  color: AppColors.success, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1,
-                                )),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── Content ───────────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(height: RaddSpace.xs),
-
-                  // Genres
-                  if (item.genres != null && item.genres!.isNotEmpty) ...[
-                    Wrap(
-                      spacing: 6, runSpacing: 6,
-                      children: _parseGenres(item.genres!).map((g) => Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: context.signalPrimary.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: context.signalPrimary.withOpacity(0.22)),
-                        ),
-                        child: Text(g, style: TextStyle(
-                            color: context.signalPrimary.withOpacity(0.9), fontSize: 12,
-                            fontWeight: FontWeight.w500)),
-                      )).toList(),
-                    ).animate().fadeIn(delay: 100.ms),
-                    const SizedBox(height: RaddSpace.md),
-                  ],
-
-                  // Description — plain expandable text (typewriter animation removed)
-                  if (item.description != null && item.description!.isNotEmpty) ...[
-                    _ExpandableText(text: item.description!),
-                    const SizedBox(height: 20),
-                  ],
-
-                  // Cast & crew strip (TMDB — hidden when API key absent)
-                  CastRail(item: item),
-                  const SizedBox(height: RaddSpace.md),
-
-                  // ── MOVIE: Play + Download buttons ─────────────────────────
-                  if (isMovie) ...[
-                    Row(children: [
-                      // Play button
-                      // Phase 45: _GlowPulse wraps Play button — pulsing glow on primary CTA
-                      Expanded(
-                        child: _GlowPulse(
-                          color: context.signalPrimary,
-                          maxBlur: animConfig.tierLevel >= 2 ? 22.0 : 14.0,
-                          borderRadius: BorderRadius.circular(14),
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              HapticFeedback.mediumImpact();
-                              _playMovie();
-                            },
-                            icon: Icon(AppIcons.play, size: 22),
-                            label: const Text('Play Now', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: context.signalPrimary,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 15),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                              elevation: 0,
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Download button — equal width, labelled
-                      if (widget.item.fileId != null) ...[
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Consumer(builder: (context, ref2, _) {
-                            final dlState2 = ref2.watch(downloadsProvider);
-                            final isDownloading = dlState2.isDownloading(widget.item.fileId!);
-                            final isDownloaded  = dlState2.isDownloaded(widget.item.fileId!);
-                            // Phase 45: extract to local var so we can conditionally glow
-                            final dlBtn = ElevatedButton.icon(
-                              onPressed: isDownloading || isDownloaded ? null : () async {
-                                // Access gate — paid movie downloads require subscription.
-                                if (!widget.item.isFree && !_isSubscribed) {
-                                  _requireSub(context);
-                                  return;
-                                }
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Downloading ${widget.item.title}…'),
-                                    duration: const Duration(seconds: 2),
-                                  ),
-                                );
-                                try {
-                                  await ref2.read(downloadsProvider.notifier).startDownload(
-                                    fileId: widget.item.fileId!,
-                                    titleText: widget.item.title,
-                                    streamUrl: widget.item.shareUrl ?? '',
-                                    posterUrl: widget.item.posterUrl,
-                                    contentType: widget.item.mediaType,
-                                  );
-                                } on DownloadQuotaException catch (e) {
-                                  if (context.mounted) _showQuotaError(context, e.userMessage);
-                                }
-                              },
-                              icon: isDownloading
-                                ? SizedBox(width: 18, height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: context.signalPrimary))  // was const SizedBox — removed const: context.* is runtime
-                                : Icon(
-                                    isDownloaded
-                                      ? AppIcons.downloadDone
-                                      : AppIcons.cloudDownload,
-                                    size: 22,
-                                    color: isDownloaded ? AppColors.success : null,
-                                  ),
-                              label: Text(
-                                isDownloading ? 'Downloading…'
-                                  : isDownloaded ? 'Downloaded'
-                                  : 'Download',
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: t.surface,
-                                foregroundColor: t.textSecondary,
-                                padding: const EdgeInsets.symmetric(vertical: 15),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  side: BorderSide(color: t.border),
-                                ),
-                                elevation: 0,
-                              ),
-                            );
-                            // Phase 45 ANIM-45-04: glow pulses while download is in-flight
-                            return isDownloading
-                                ? _GlowPulse(
-                                    color: context.signalPrimary,
-                                    maxBlur: 12.0,
-                                    borderRadius: BorderRadius.circular(14),
-                                    child: dlBtn,
-                                  )
-                                : dlBtn;
-                          }),
-                        ),
-                      ],
-                    ]).animate().fadeIn(delay: 200.ms).slideY(begin: 0.3),
-                    const SizedBox(height: RaddSpace.lg),
-                  ],
-
-                  // ── Watchlist toggle button ───────────────────────────────────
-                  Consumer(builder: (context, ref2, _) {
-                    final inWatchlist = ref2.watch(watchlistProvider).isInWatchlist(widget.item.id);
-                    return GestureDetector(
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: RaddSpace.sm),
+                  child: Consumer(builder: (ctx, ref2, _) {
+                    final inWatchlist = ref2.watch(watchlistProvider)
+                        .isInWatchlist(widget.item.id);
+                    return _GlassIconButton(
+                      icon: inWatchlist
+                          ? AppIcons.bookmarkFill
+                          : AppIcons.bookmark,
+                      iconColor: inWatchlist ? context.signalPrimary : null,
                       onTap: () async {
                         HapticFeedback.selectionClick();
-                        await ref2.read(watchlistProvider.notifier).toggle(widget.item);
+                        await ref2
+                            .read(watchlistProvider.notifier)
+                            .toggle(widget.item);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                             content: Text(inWatchlist
@@ -802,368 +591,552 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                           ));
                         }
                       },
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        decoration: BoxDecoration(
-                          color: inWatchlist
-                              ? context.signalPrimary.withOpacity(0.12)
-                              : t.surface,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: inWatchlist ? context.signalPrimary : t.border,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              inWatchlist
-                                  ? AppIcons.bookmarkFill
-                                  : AppIcons.bookmark,
-                              color: inWatchlist ? context.signalPrimary : t.textSecondary,
-                              size: 20,
-                            ),
-                            SizedBox(width: RaddSpace.sm),
-                            Text(
-                              inWatchlist ? 'In Watchlist' : 'Add to Watchlist',
-                              style: TextStyle(
-                                color: inWatchlist ? context.signalPrimary : t.textSecondary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      animConfig: animConfig,
                     );
-                  }).animate().fadeIn(delay: 250.ms),
-                  const SizedBox(height: RaddSpace.md),
+                  }),
+                ),
+              ],
+              flexibleSpace: FlexibleSpaceBar(
+                stretchModes: const [
+                  StretchMode.zoomBackground,
+                  StretchMode.blurBackground,
+                ],
+                background: _CinematicHero(
+                  item: item,
+                  scrollOffset: _scrollOffset,
+                  animConfig: animConfig,
+                  posterFallback: _posterFallback(item),
+                ),
+              ),
+            ),
 
-                  // ── SHOW: Season Tabs + Episodes ───────────────────────────
-                  if (!isMovie) ...[
-                    // Resume button — only shown when a partially-watched episode exists
-                    if (_resumeEpisodeIndex != null && !_loading) ...[
-                      Builder(builder: (ctx) {
-                        final idx  = _resumeEpisodeIndex!;
-                        final ep   = idx < _episodes.length ? _episodes[idx] : null;
-                        if (ep == null) return const SizedBox.shrink();
-                        final epNum  = ep['episode'] as int? ?? (idx + 1);
-                        final season = ep['season']  as int? ?? 1;
-                        final fid    = ep['file_id']?.toString() ?? '';
-                        final prog   = _watchProgress[fid] ?? 0.0;
-                        final pct    = (prog * 100).round();
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                HapticFeedback.mediumImpact();
-                                // Find the index of this episode in _currentEpisodes
-                                final currentIdx = _currentEpisodes.indexWhere(
-                                  (e) => e['file_id']?.toString() == fid);
-                                if (currentIdx >= 0) {
-                                  _playEpisode(currentIdx);
-                                } else {
-                                  // Episode might be in another season — switch and play
-                                  setState(() => _selectedSeason = season);
-                                  // E4 fix: addPostFrameCallback runs after the next
-                                  // rebuild (when _currentEpisodes reflects the new
-                                  // season), unlike Future.microtask which runs before
-                                  // the rebuild and always finds indexWhere == -1.
-                                  // Also guard mounted to avoid Navigator calls on
-                                  // disposed state.
-                                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                                    if (!mounted) return;
-                                    final newIdx = _currentEpisodes.indexWhere(
-                                      (e) => e['file_id']?.toString() == fid);
-                                    if (newIdx >= 0) _playEpisode(newIdx);
-                                  });
-                                }
-                              },
-                              icon: Icon(AppIcons.playCircle, size: 20),
-                              label: Text(
-                                'Resume S${season.toString().padLeft(2,'0')}E${epNum.toString().padLeft(2,'0')} · $pct%',
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: context.signalPrimary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: RaddRadius.mdRadius),
-                                elevation: 0,
-                              ),
-                            ),
-                            SizedBox(height: RaddSpace.md),
-                          ],
-                        );
-                      }),
+            // ── Glass metadata pills + title block ─────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    RaddSpace.md, RaddSpace.sm, RaddSpace.md, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title (large, bold)
+                    Text(
+                      item.title,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: t.textPrimary,
+                        letterSpacing: -0.5,
+                        height: 1.15,
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ).animate().fadeIn(delay: 60.ms),
+                    const SizedBox(height: RaddSpace.sm),
+
+                    // Glass metadata pill row
+                    _GlassMetaPills(
+                      item: item,
+                      animConfig: animConfig,
+                    ).animate().fadeIn(delay: 100.ms).slideY(
+                          begin: 0.2, duration: 260.ms,
+                          curve: RaddMotion.tune),
+
+                    const SizedBox(height: RaddSpace.md),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Content body ─────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Genres
+                    if (item.genres != null && item.genres!.isNotEmpty) ...[
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: _parseGenres(item.genres!)
+                            .map((g) => _GlassChip(
+                                  label: g,
+                                  animConfig: animConfig,
+                                ))
+                            .toList(),
+                      ).animate().fadeIn(delay: 120.ms),
+                      const SizedBox(height: RaddSpace.md),
                     ],
 
-                    // Season header
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () {
-                            _adminTapCount++;
-                            if (_adminTapCount >= 5) {
-                              _adminTapCount = 0;
-                              setState(() => _adminMode = !_adminMode);
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text(
-                                  _adminMode ? 'Admin mode enabled' : 'Admin mode disabled'),
-                                duration: const Duration(seconds: 2),
-                                behavior: SnackBarBehavior.floating,
-                              ));
-                            }
-                          },
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Episodes',
-                                style: TextStyle(
-                                  color: t.textPrimary, fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              if (_adminMode) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.orange.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: AppColors.orange.withOpacity(0.6)),
-                                  ),
-                                  child: const Text('ADMIN', style: TextStyle(
-                                    color: AppColors.orange, fontSize: 9,
-                                    fontWeight: FontWeight.w800, letterSpacing: 1,
-                                  )),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        const Spacer(),
-                        if (!_loading) ...[
-                          Text(
-                            '${_currentEpisodes.length} eps',
-                            style: TextStyle(color: t.textSecondary, fontSize: 13),
-                          ),
-                          const SizedBox(width: 6),
-                          // Download all available episodes for this season
-                          GestureDetector(
-                            onTap: _isDownloadingAll ? null : _downloadCurrentSeason,
-                            child: AnimatedContainer(
-                              duration: RaddMotion.tuneDuration,
-                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: context.signalPrimary.withOpacity(0.12),
-                                borderRadius: RaddRadius.smRadius,
-                                border: Border.all(color: context.signalPrimary.withOpacity(0.3)),
-                              ),
-                              child: _isDownloadingAll
-                                  ? SizedBox(width: 13, height: 13,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 1.5,
-                                          valueColor: AlwaysStoppedAnimation(context.signalPrimary)))
-                                  : Row(mainAxisSize: MainAxisSize.min, children: [
-                                      Icon(AppIcons.cloudDownload,
-                                          size: 14, color: context.signalPrimary),
-                                      const SizedBox(width: RaddSpace.xs),
-                                      Text('Season', style: TextStyle(
-                                          color: context.signalPrimary,
-                                          fontSize: 11, fontWeight: FontWeight.w700)),
-                                    ]),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          GestureDetector(
-                            onTap: () => setState(
-                                () => _sortAscending = !_sortAscending),
-                            child: Tooltip(
-                              message: _sortAscending
-                                  ? 'Show newest first'
-                                  : 'Show oldest first',
-                              child: AnimatedSwitcher(
-                                duration: RaddMotion.tuneDuration,
-                                child: Icon(
-                                  _sortAscending
-                                      ? AppIcons.arrowDown
-                                      : AppIcons.arrowUp,
-                                  key: ValueKey(_sortAscending),
-                                  size: 18,
+                    // Description
+                    if (item.description != null &&
+                        item.description!.isNotEmpty) ...[
+                      _ExpandableText(text: item.description!),
+                      const SizedBox(height: RaddSpace.lg),
+                    ],
+
+                    // Cast rail (frosted chips)
+                    _FrostedCastRail(item: item, animConfig: animConfig),
+                    const SizedBox(height: RaddSpace.md),
+
+                    // ── MOVIE: Watch Now + Download ─────────────────────
+                    if (isMovie) ...[
+                      _PulsingWatchButton(
+                        label: 'Watch Now',
+                        icon: AppIcons.play,
+                        pulseCtrl: _pulseCtrl,
+                        pulseOpacity: _pulseOpacity,
+                        pulseScale: _pulseScale,
+                        animConfig: animConfig,
+                        onPressed: () {
+                          HapticFeedback.mediumImpact();
+                          _playMovie();
+                        },
+                      ).animate().fadeIn(delay: 180.ms).slideY(begin: 0.3),
+                      const SizedBox(height: RaddSpace.sm),
+
+                      // Download button
+                      if (widget.item.fileId != null)
+                        Consumer(builder: (context, ref2, _) {
+                          final dlState2 = ref2.watch(downloadsProvider);
+                          final isDownloading =
+                              dlState2.isDownloading(widget.item.fileId!);
+                          final isDownloaded =
+                              dlState2.isDownloaded(widget.item.fileId!);
+                          final dlBtn = _SecondaryActionButton(
+                            label: isDownloading
+                                ? 'Downloading...'
+                                : isDownloaded
+                                    ? 'Downloaded'
+                                    : 'Download',
+                            icon: isDownloading
+                                ? null
+                                : isDownloaded
+                                    ? AppIcons.downloadDone
+                                    : AppIcons.cloudDownload,
+                            isLoading: isDownloading,
+                            isSuccess: isDownloaded,
+                            animConfig: animConfig,
+                            onPressed: isDownloading || isDownloaded
+                                ? null
+                                : () async {
+                                    if (!widget.item.isFree && !_isSubscribed) {
+                                      _requireSub(context);
+                                      return;
+                                    }
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'Downloading ${widget.item.title}...'),
+                                        duration:
+                                            const Duration(seconds: 2),
+                                      ),
+                                    );
+                                    try {
+                                      await ref2
+                                          .read(downloadsProvider.notifier)
+                                          .startDownload(
+                                            fileId: widget.item.fileId!,
+                                            titleText: widget.item.title,
+                                            streamUrl:
+                                                widget.item.shareUrl ?? '',
+                                            posterUrl: widget.item.posterUrl,
+                                            contentType:
+                                                widget.item.mediaType,
+                                          );
+                                    } on DownloadQuotaException catch (e) {
+                                      if (context.mounted)
+                                        _showQuotaError(context, e.userMessage);
+                                    }
+                                  },
+                          );
+                          return isDownloading
+                              ? _GlowPulse(
                                   color: context.signalPrimary,
+                                  maxBlur: 12.0,
+                                  borderRadius: RaddRadius.pillRadius,
+                                  child: dlBtn,
+                                )
+                              : dlBtn;
+                        }).animate().fadeIn(delay: 220.ms),
+
+                      const SizedBox(height: RaddSpace.lg),
+                    ],
+
+                    // ── SHOW: Resume + season tabs + episodes ───────────
+                    if (!isMovie) ...[
+                      // Resume button — Pulse-animated
+                      if (_resumeEpisodeIndex != null && !_loading) ...[
+                        Builder(builder: (ctx) {
+                          final idx = _resumeEpisodeIndex!;
+                          final ep =
+                              idx < _episodes.length ? _episodes[idx] : null;
+                          if (ep == null) return const SizedBox.shrink();
+                          final epNum =
+                              ep['episode'] as int? ?? (idx + 1);
+                          final season = ep['season'] as int? ?? 1;
+                          final fid =
+                              ep['file_id']?.toString() ?? '';
+                          final prog = _watchProgress[fid] ?? 0.0;
+                          final pct = (prog * 100).round();
+                          return Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.stretch,
+                            children: [
+                              _PulsingWatchButton(
+                                label:
+                                    'Resume S${season.toString().padLeft(2, '0')}E${epNum.toString().padLeft(2, '0')} · $pct%',
+                                icon: AppIcons.playCircle,
+                                pulseCtrl: _pulseCtrl,
+                                pulseOpacity: _pulseOpacity,
+                                pulseScale: _pulseScale,
+                                animConfig: animConfig,
+                                onPressed: () {
+                                  HapticFeedback.mediumImpact();
+                                  final currentIdx =
+                                      _currentEpisodes.indexWhere(
+                                          (e) =>
+                                              e['file_id']?.toString() ==
+                                              fid);
+                                  if (currentIdx >= 0) {
+                                    _playEpisode(currentIdx);
+                                  } else {
+                                    setState(
+                                        () => _selectedSeason = season);
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                      if (!mounted) return;
+                                      final newIdx =
+                                          _currentEpisodes.indexWhere(
+                                              (e) =>
+                                                  e['file_id']
+                                                      ?.toString() ==
+                                                  fid);
+                                      if (newIdx >= 0)
+                                        _playEpisode(newIdx);
+                                    });
+                                  }
+                                },
+                              ).animate().fadeIn(delay: 160.ms),
+                              const SizedBox(height: RaddSpace.md),
+                            ],
+                          );
+                        }),
+                      ],
+
+                      // Season/episodes header row
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              _adminTapCount++;
+                              if (_adminTapCount >= 5) {
+                                _adminTapCount = 0;
+                                setState(
+                                    () => _adminMode = !_adminMode);
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(
+                                  content: Text(_adminMode
+                                      ? 'Admin mode enabled'
+                                      : 'Admin mode disabled'),
+                                  duration:
+                                      const Duration(seconds: 2),
+                                  behavior:
+                                      SnackBarBehavior.floating,
+                                ));
+                              }
+                            },
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Episodes',
+                                  style: TextStyle(
+                                    color: t.textPrimary,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                if (_adminMode) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding:
+                                        const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.orange
+                                          .withOpacity(0.2),
+                                      borderRadius:
+                                          BorderRadius.circular(6),
+                                      border: Border.all(
+                                          color: AppColors.orange
+                                              .withOpacity(0.6)),
+                                    ),
+                                    child: const Text('ADMIN',
+                                        style: TextStyle(
+                                          color: AppColors.orange,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 1,
+                                        )),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          if (!_loading) ...[
+                            Text(
+                              '${_currentEpisodes.length} eps',
+                              style: TextStyle(
+                                  color: t.textSecondary, fontSize: 13),
+                            ),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: _isDownloadingAll
+                                  ? null
+                                  : _downloadCurrentSeason,
+                              child: AnimatedContainer(
+                                duration: RaddMotion.tuneDuration,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 9, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: context.signalPrimary
+                                      .withOpacity(0.12),
+                                  borderRadius: RaddRadius.smRadius,
+                                  border: Border.all(
+                                      color: context.signalPrimary
+                                          .withOpacity(0.3)),
+                                ),
+                                child: _isDownloadingAll
+                                    ? SizedBox(
+                                        width: 13,
+                                        height: 13,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 1.5,
+                                            valueColor:
+                                                AlwaysStoppedAnimation(
+                                                    context.signalPrimary)))
+                                    : Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(AppIcons.cloudDownload,
+                                              size: 14,
+                                              color:
+                                                  context.signalPrimary),
+                                          const SizedBox(
+                                              width: RaddSpace.xs),
+                                          Text('Season',
+                                              style: TextStyle(
+                                                  color: context
+                                                      .signalPrimary,
+                                                  fontSize: 11,
+                                                  fontWeight:
+                                                      FontWeight.w700)),
+                                        ]),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: () => setState(
+                                  () => _sortAscending = !_sortAscending),
+                              child: Tooltip(
+                                message: _sortAscending
+                                    ? 'Show newest first'
+                                    : 'Show oldest first',
+                                child: AnimatedSwitcher(
+                                  duration: RaddMotion.tuneDuration,
+                                  child: Icon(
+                                    _sortAscending
+                                        ? AppIcons.arrowDown
+                                        : AppIcons.arrowUp,
+                                    key: ValueKey(_sortAscending),
+                                    size: 18,
+                                    color: context.signalPrimary,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
+                          ],
                         ],
-                      ],
-                    ).animate().fadeIn(delay: 150.ms),
-                    const SizedBox(height: 12),
+                      ).animate().fadeIn(delay: 150.ms),
+                      const SizedBox(height: 12),
 
-                    // Season selector
-                    if (_seasons.length > 1)
-                      SizedBox(
-                        height: 36,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _seasons.length,
-                          separatorBuilder: (_, __) => SizedBox(width: RaddSpace.sm),
-                          itemBuilder: (_, i) {
-                            final s = _seasons[i];
-                            final selected = s == _selectedSeason;
-                            return GestureDetector(
-                              onTap: () {
-                                setState(() => _selectedSeason = s);
-                                _seasonTab?.animateTo(i);
-                              },
-                              child: AnimatedContainer(
-                                duration: AppDurations.fast,
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: selected ? context.signalPrimary : t.surface,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: selected ? context.signalPrimary : t.border,
-                                  ),
-                                ),
-                                child: Text(
-                                  _totalCountForSeason(s) > 0
-                                      ? 'S$s · ${_watchedCountForSeason(s)}/${_totalCountForSeason(s)}'
-                                      : 'Season $s',
-                                  style: TextStyle(
-                                    color: selected ? Colors.white : t.textSecondary,
-                                    fontSize: 13, fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            );
+                      // Glass season selector
+                      if (_seasons.length > 1) ...[
+                        _GlassSeasonSelector(
+                          seasons: _seasons,
+                          selected: _selectedSeason,
+                          watchProgress: _watchProgress,
+                          episodes: _episodes,
+                          animConfig: animConfig,
+                          onSelect: (s, i) {
+                            setState(() => _selectedSeason = s);
+                            _seasonTab?.animateTo(i);
                           },
-                        ),
-                      ).animate().fadeIn(delay: 200.ms),
-
-                    if (_seasons.length > 1) const SizedBox(height: RaddSpace.md),
+                          totalCount: _totalCountForSeason,
+                          watchedCount: _watchedCountForSeason,
+                        ).animate().fadeIn(delay: 200.ms),
+                        const SizedBox(height: RaddSpace.md),
+                      ],
+                    ],
                   ],
+                ),
+              ),
+            ),
+
+            // ── Episode List ──────────────────────────────────────────────
+            if (!widget.item.isMovie)
+              _loading
+                  ? SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (_, i) => _EpisodeShimmer(),
+                        childCount: 6,
+                      ),
+                    )
+                  : _currentEpisodes.isEmpty
+                      ? SliverToBoxAdapter(
+                          child: _ComingSoonBanner(
+                            episodeCount: widget.item.episodeCount,
+                            season: _selectedSeason,
+                          ),
+                        )
+                      : SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (_, i) {
+                              final withGaps = _currentEpisodesWithGaps;
+                              final ep = withGaps[i];
+                              final epNum =
+                                  ep['episode'] as int? ?? (i + 1);
+                              final season = ep['season'] as int? ??
+                                  _selectedSeason;
+                              final label = ep['label'] as String? ??
+                                  'S${season.toString().padLeft(2, '0')}E${epNum.toString().padLeft(2, '0')}';
+                              if (ep['_placeholder'] == true) {
+                                return _EpisodeUnavailableTile(
+                                  label: label,
+                                  statusOverride:
+                                      ep['_override'] as String?,
+                                  onLongPress: _adminMode
+                                      ? () => _showAdminSheet(
+                                          epNum, season)
+                                      : null,
+                                ).animate().fadeIn(
+                                    delay: Duration(
+                                        milliseconds: 50 + i * 40));
+                              }
+                              final realIdx =
+                                  ep['_realIndex'] as int;
+                              final fileId =
+                                  ep['file_id']?.toString() ?? '';
+                              final progress =
+                                  _watchProgress[fileId] ?? 0.0;
+                              final isFree = _parseFree(ep['is_free']) ||
+                                  widget.item.isFree;
+                              final quality =
+                                  ep['quality'] as String?;
+                              final epShareUrl =
+                                  ep['share_url'] as String? ?? '';
+                              final dlState =
+                                  ref.watch(downloadsProvider);
+                              final isDownloading =
+                                  dlState.isDownloading(fileId);
+                              final isDownloaded =
+                                  dlState.isDownloaded(fileId);
+                              return _GlassEpisodeCard(
+                                // E7 fix: use actual episode number from data (1-based → 0-based)
+                                // instead of list position (realIdx), which was wrong in
+                                // descending sort.
+                                index: (ep['episode'] as int? ??
+                                        realIdx + 1) -
+                                    1,
+                                label: label,
+                                isFree: isFree,
+                                isLocked:
+                                    !isFree && !_isSubscribed,
+                                quality: quality,
+                                progress: progress,
+                                isNowPlaying:
+                                    realIdx == _nowPlayingIdx,
+                                onTap: () =>
+                                    _playEpisode(realIdx),
+                                isDownloading: isDownloading,
+                                isDownloaded: isDownloaded,
+                                animConfig: animConfig,
+                                onDownload: fileId.isEmpty ||
+                                        isDownloaded ||
+                                        isDownloading
+                                    ? null
+                                    : () async {
+                                        if (!isFree && !_isSubscribed) {
+                                          _requireSub(context);
+                                          return;
+                                        }
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                              content: Text(
+                                                  'Downloading $label...'),
+                                              duration:
+                                                  const Duration(
+                                                      seconds: 2)),
+                                        );
+                                        try {
+                                          final decodedEpUrl =
+                                              epShareUrl.isNotEmpty
+                                                  ? (await LocalDb
+                                                              .decodeShareUrl(
+                                                                  epShareUrl) ??
+                                                          epShareUrl)
+                                                  : '';
+                                          await ref
+                                              .read(downloadsProvider
+                                                  .notifier)
+                                              .startDownload(
+                                                fileId: fileId,
+                                                titleText:
+                                                    '${widget.item.title} $label',
+                                                streamUrl: decodedEpUrl,
+                                                posterUrl:
+                                                    widget.item.posterUrl,
+                                                targetFilename:
+                                                    ep['filename']
+                                                        as String?,
+                                                remoteId:
+                                                    ep['remote_id']
+                                                            as int? ??
+                                                        0,
+                                                contentType:
+                                                    widget.item.mediaType,
+                                              );
+                                        } on DownloadQuotaException catch (e) {
+                                          if (context.mounted)
+                                            _showQuotaError(
+                                                context, e.userMessage);
+                                        }
+                                      },
+                              ).animate().fadeIn(
+                                    delay: Duration(
+                                        milliseconds: 50 + i * 40));
+                            },
+                            childCount: _currentEpisodesWithGaps.length,
+                          ),
+                        ),
+
+            // ── More Like This ────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: _MoreLikeThisSection(
+                current: item,
+                allItems: [
+                  ...ref.watch(catalogProvider).movies,
+                  ...ref.watch(catalogProvider).shows,
                 ],
               ),
             ),
-          ),
 
-          // ── Episode List ──────────────────────────────────────────────────
-          if (!widget.item.isMovie)
-            _loading
-                ? SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (_, i) => _EpisodeShimmer(),
-                      childCount: 6,
-                    ),
-                  )
-                : _currentEpisodes.isEmpty
-                    ? SliverToBoxAdapter(
-                        child: _ComingSoonBanner(
-                          episodeCount: widget.item.episodeCount,
-                          season: _selectedSeason,
-                        ),
-                      )
-                    : SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (_, i) {
-                            final withGaps = _currentEpisodesWithGaps;
-                            final ep = withGaps[i];
-                            final epNum = ep['episode'] as int? ?? (i + 1);
-                            final season = ep['season'] as int? ?? _selectedSeason;
-                            final label = ep['label'] as String? ??
-                                'S${season.toString().padLeft(2, '0')}E${epNum.toString().padLeft(2, '0')}';
-                            if (ep['_placeholder'] == true) {
-                              return _EpisodeUnavailableTile(
-                                label: label,
-                                statusOverride: ep['_override'] as String?,
-                                onLongPress: _adminMode
-                                    ? () => _showAdminSheet(epNum, season)
-                                    : null,
-                              ).animate()
-                                  .fadeIn(delay: Duration(milliseconds: 50 + i * 40));
-                            }
-                            final realIdx = ep['_realIndex'] as int;
-                            final fileId = ep['file_id']?.toString() ?? '';
-                            final progress = _watchProgress[fileId] ?? 0.0;
-                            final isFree   = _parseFree(ep['is_free']) || widget.item.isFree;
-                            final quality  = ep['quality'] as String?;
-                            final epShareUrl = ep['share_url'] as String? ?? '';
-                            final dlState = ref.watch(downloadsProvider);
-                            final isDownloading = dlState.isDownloading(fileId);
-                            final isDownloaded  = dlState.isDownloaded(fileId);
-                            return _EpisodeTile(
-                              // E7 fix: use actual episode number from data (1-based → 0-based)
-                              // instead of list position (realIdx), which was wrong in
-                              // descending sort (E12 shows badge "1", E1 shows badge "12").
-                              index: (ep['episode'] as int? ?? realIdx + 1) - 1,
-                              label: label,
-                              isFree: isFree,
-                              isLocked: !isFree && !_isSubscribed,
-                              quality: quality,
-                              progress: progress,
-                              isNowPlaying: realIdx == _nowPlayingIdx,
-                              onTap: () => _playEpisode(realIdx),
-                              isDownloading: isDownloading,
-                              isDownloaded: isDownloaded,
-                              onDownload: fileId.isEmpty || isDownloaded || isDownloading ? null : () async {
-                                // Access gate — paid episode downloads require subscription.
-                                if (!isFree && !_isSubscribed) {
-                                  _requireSub(context);
-                                  return;
-                                }
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Downloading $label…'),
-                                    duration: const Duration(seconds: 2)),
-                                );
-                                try {
-                                  // BUG-DL-URL-01: the share_url stored in the local DB is
-                                  // XOR-encoded (RF1:xxx prefix). Decode it here so the
-                                  // download service has a usable fallback URL if JazzDrive
-                                  // resolution (Path B) ever fails.  Path B in downloadFile
-                                  // also decodes via getShareInfo, but belt-and-suspenders.
-                                  final decodedEpUrl = epShareUrl.isNotEmpty
-                                      ? (await LocalDb.decodeShareUrl(epShareUrl) ?? epShareUrl)
-                                      : '';
-                                  await ref.read(downloadsProvider.notifier).startDownload(
-                                    fileId: fileId,
-                                    titleText: '${widget.item.title} $label',
-                                    streamUrl: decodedEpUrl,
-                                    posterUrl: widget.item.posterUrl,
-                                    targetFilename: ep['filename'] as String?,
-                                    remoteId: ep['remote_id'] as int? ?? 0,
-                                    contentType: widget.item.mediaType,
-                                  );
-                                } on DownloadQuotaException catch (e) {
-                                  if (context.mounted) _showQuotaError(context, e.userMessage);
-                                }
-                              },
-                            ).animate().fadeIn(
-                              delay: Duration(milliseconds: 50 + i * 40),
-                            );
-                          },
-                          childCount: _currentEpisodesWithGaps.length,
-                        ),
-                      ),
-
-          // ── More Like This ──────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: _MoreLikeThisSection(
-              current: item,
-              allItems: [
-                ...ref.watch(catalogProvider).movies,
-                ...ref.watch(catalogProvider).shows,
-              ],
-            ),
-          ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 40)),
-        ],
+            const SliverToBoxAdapter(child: SizedBox(height: 40)),
+          ],
         ),
       ),
     );
@@ -1192,13 +1165,692 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   }
 }
 
-// ── Episode Tile ─────────────────────────────────────────────────────────────
-class _EpisodeTile extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// CINEMATIC HERO
+// Full-bleed parallax poster with deep gradient scrim into surface.base.
+// Parallax achieved by offsetting the image by -scrollOffset * 0.35 (35% of
+// scroll speed — slower than the content, giving the depth illusion).
+// ─────────────────────────────────────────────────────────────────────────────
+class _CinematicHero extends StatelessWidget {
+  final CatalogItem item;
+  final double scrollOffset;
+  final AnimConfig animConfig;
+  final Widget posterFallback;
+
+  const _CinematicHero({
+    required this.item,
+    required this.scrollOffset,
+    required this.animConfig,
+    required this.posterFallback,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    // Parallax: image moves up at 35% of scroll speed.
+    // Clamp to avoid gaps at the bottom when over-scrolled.
+    final parallaxOffset = (scrollOffset * 0.35).clamp(0.0, 80.0);
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // ── Parallax poster art ──────────────────────────────────────────
+        ClipRect(
+          child: Transform.translate(
+            offset: Offset(0, -parallaxOffset),
+            child: Hero(
+              tag: 'poster_${item.id}',
+              child: Builder(builder: (_) {
+                if (item.posterPath != null &&
+                    item.posterPath!.isNotEmpty) {
+                  return Image.file(
+                    File(item.posterPath!),
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    errorBuilder: (_, __, ___) => item.posterUrl != null
+                        ? CachedNetworkImage(
+                            imageUrl: item.posterUrl!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                            placeholder: (_, __) =>
+                                Container(color: t.surface),
+                            errorWidget: (_, __, ___) => posterFallback,
+                          )
+                        : posterFallback,
+                  );
+                }
+                if (item.posterUrl != null) {
+                  return CachedNetworkImage(
+                    imageUrl: item.posterUrl!,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    placeholder: (_, __) => Container(color: t.surface),
+                    errorWidget: (_, __, ___) => posterFallback,
+                  );
+                }
+                return posterFallback;
+              }),
+            ),
+          ),
+        ),
+
+        // ── Specular highlight — glass catching light from above ─────────
+        // Bright at the very top (12% white), fading to nothing by 30%.
+        Positioned(
+          top: 0, left: 0, right: 0,
+          child: Container(
+            height: 100,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0x1EFFFFFF), // 12% white rim
+                  Color(0x08FFFFFF), // 3% mid-fade
+                  Colors.transparent,
+                ],
+                stops: [0.0, 0.35, 1.0],
+              ),
+            ),
+          ),
+        ),
+
+        // ── Deep cinematic scrim — fades to surface.base ─────────────────
+        // Four-stop gradient: transparent → slight tint → heavy → solid.
+        // This matches Netflix/Disney+ detail page depth treatment.
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.transparent,
+                t.bg.withOpacity(0.15),
+                t.bg.withOpacity(0.72),
+                t.bg,
+              ],
+              stops: const [0.0, 0.42, 0.75, 1.0],
+            ),
+          ),
+        ),
+
+        // ── Left vignette — adds depth on shallow posters ────────────────
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                t.bg.withOpacity(0.35),
+                Colors.transparent,
+              ],
+              stops: const [0.0, 0.5],
+            ),
+          ),
+        ),
+
+        // ── Status pills in the hero (type + status) ─────────────────────
+        Positioned(
+          left: RaddSpace.md,
+          right: RaddSpace.md,
+          bottom: RaddSpace.md,
+          child: Row(
+            children: [
+              _HeroPill(
+                label: item.isMovie ? 'MOVIE' : 'SERIES',
+                color: context.signalPrimary,
+              ),
+              if (item.statusLabel.isNotEmpty) ...[
+                const SizedBox(width: RaddSpace.xs),
+                _StatusPill(
+                    label: item.statusLabel,
+                    status: item.status ?? ''),
+              ],
+              if (item.isFree) ...[
+                const SizedBox(width: RaddSpace.xs),
+                _HeroPill(
+                  label: 'FREE',
+                  color: AppColors.success,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GLASS METADATA PILLS
+// Year · Runtime · Rating · up to 1 genre pill — 8-12% white fill, 1px
+// asymmetric border (bright top-left, dark bottom-right), pill radius.
+// ─────────────────────────────────────────────────────────────────────────────
+class _GlassMetaPills extends StatelessWidget {
+  final CatalogItem item;
+  final AnimConfig animConfig;
+  const _GlassMetaPills({required this.item, required this.animConfig});
+
+  @override
+  Widget build(BuildContext context) {
+    final pills = <Widget>[];
+
+    if (item.displayYear.isNotEmpty) {
+      pills.add(_MetaPill(
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(AppIcons.calendar,
+              size: 12, color: Colors.white.withOpacity(0.75)),
+          const SizedBox(width: 4),
+          Text(item.displayYear),
+        ]),
+        animConfig: animConfig,
+      ));
+    }
+
+    if (item.displayRating.isNotEmpty) {
+      pills.add(_MetaPill(
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(AppIcons.starFill, size: 12, color: const Color(0xFFFFB800)),
+          const SizedBox(width: 4),
+          Text(item.displayRating),
+        ]),
+        animConfig: animConfig,
+      ));
+    }
+
+    // Episode or runtime hint
+    if (!item.isMovie && item.episodeCount != null && item.episodeCount! > 0) {
+      pills.add(_MetaPill(
+        child: Text('${item.episodeCount} eps'),
+        animConfig: animConfig,
+      ));
+    }
+
+    return Wrap(
+      spacing: RaddSpace.xs,
+      runSpacing: RaddSpace.xs,
+      children: pills,
+    );
+  }
+}
+
+class _MetaPill extends StatelessWidget {
+  final Widget child;
+  final AnimConfig animConfig;
+  const _MetaPill({required this.child, required this.animConfig});
+
+  @override
+  Widget build(BuildContext context) {
+    final inner = Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: RaddSpace.sm + 2, vertical: RaddSpace.xs + 1),
+      decoration: BoxDecoration(
+        // 10% white fill — glass surface
+        color: Colors.white.withOpacity(0.10),
+        borderRadius: RaddRadius.pillRadius,
+        // Asymmetric 1px border: bright top-left, dim bottom-right
+        border: Border(
+          top:    BorderSide(color: Colors.white.withOpacity(0.28), width: 1.0),
+          left:   BorderSide(color: Colors.white.withOpacity(0.18), width: 1.0),
+          right:  BorderSide(color: Colors.white.withOpacity(0.06), width: 1.0),
+          bottom: BorderSide(color: Colors.white.withOpacity(0.04), width: 1.0),
+        ),
+      ),
+      child: DefaultTextStyle(
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.88),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.1,
+        ),
+        child: child,
+      ),
+    );
+
+    if (!animConfig.canBlur) return inner;
+
+    // On capable devices, add a very slight blur to the pill background
+    return ClipRRect(
+      borderRadius: RaddRadius.pillRadius,
+      child: RaddElevation.blurWrap(
+        sigma: 8,
+        child: inner,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GLASS CHIP  (genre tags)
+// Lighter weight than meta pills — signal-primary tinted.
+// ─────────────────────────────────────────────────────────────────────────────
+class _GlassChip extends StatelessWidget {
+  final String label;
+  final AnimConfig animConfig;
+  const _GlassChip({required this.label, required this.animConfig});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: RaddSpace.md, vertical: RaddSpace.xs + 1),
+      decoration: BoxDecoration(
+        color: context.signalPrimary.withOpacity(0.08),
+        borderRadius: RaddRadius.pillRadius,
+        border: Border(
+          top:    BorderSide(color: context.signalPrimary.withOpacity(0.32), width: 1.0),
+          left:   BorderSide(color: context.signalPrimary.withOpacity(0.22), width: 1.0),
+          right:  BorderSide(color: context.signalPrimary.withOpacity(0.08), width: 1.0),
+          bottom: BorderSide(color: context.signalPrimary.withOpacity(0.05), width: 1.0),
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: context.signalPrimary.withOpacity(0.90),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GLASS ICON BUTTON  (back, watchlist in app bar)
+// ─────────────────────────────────────────────────────────────────────────────
+class _GlassIconButton extends StatelessWidget {
+  final IconData icon;
+  final Color? iconColor;
+  final VoidCallback onTap;
+  final AnimConfig animConfig;
+  const _GlassIconButton({
+    required this.icon,
+    required this.onTap,
+    required this.animConfig,
+    this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    Widget inner = Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.45),
+        borderRadius: RaddRadius.smRadius,
+        border: Border(
+          top:    BorderSide(color: Colors.white.withOpacity(0.22), width: 1.0),
+          left:   BorderSide(color: Colors.white.withOpacity(0.14), width: 1.0),
+          right:  BorderSide(color: Colors.white.withOpacity(0.06), width: 1.0),
+          bottom: BorderSide(color: Colors.white.withOpacity(0.04), width: 1.0),
+        ),
+      ),
+      child: Center(
+        child: Icon(icon,
+            size: 18,
+            color: iconColor ?? Colors.white.withOpacity(0.9)),
+      ),
+    );
+
+    if (animConfig.canBlur) {
+      inner = ClipRRect(
+        borderRadius: RaddRadius.smRadius,
+        child: RaddElevation.blurWrap(sigma: 12, child: inner),
+      );
+    }
+
+    return GestureDetector(onTap: onTap, child: inner);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HERO PILL  (type badge in hero — MOVIE / SERIES / FREE)
+// ─────────────────────────────────────────────────────────────────────────────
+class _HeroPill extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _HeroPill({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.20),
+        borderRadius: RaddRadius.pillRadius,
+        border: Border(
+          top:    BorderSide(color: color.withOpacity(0.55), width: 1.0),
+          left:   BorderSide(color: color.withOpacity(0.40), width: 1.0),
+          right:  BorderSide(color: color.withOpacity(0.18), width: 1.0),
+          bottom: BorderSide(color: color.withOpacity(0.12), width: 1.0),
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.0,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PULSING WATCH BUTTON
+// Primary CTA. Pulse animation (1800ms, opacity 1↔0.6, scale 1↔1.03)
+// gated by animConfig.canStagger. Scale component dropped on low tier.
+// Static fallback when pulseCtrl is null (potato / animation disabled).
+// ─────────────────────────────────────────────────────────────────────────────
+class _PulsingWatchButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final AnimationController? pulseCtrl;
+  final Animation<double>? pulseOpacity;
+  final Animation<double>? pulseScale;
+  final AnimConfig animConfig;
+  final VoidCallback onPressed;
+
+  const _PulsingWatchButton({
+    required this.label,
+    required this.icon,
+    required this.pulseCtrl,
+    required this.pulseOpacity,
+    required this.pulseScale,
+    required this.animConfig,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final btn = SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 22),
+        label: Text(label,
+            style: const TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w700)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: context.signalPrimary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+              borderRadius: RaddRadius.pillRadius),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: RaddSpace.lg),
+        ),
+      ),
+    );
+
+    // No animation if ctrl not available or system disables animations
+    if (pulseCtrl == null ||
+        MediaQuery.of(context).disableAnimations) {
+      return btn;
+    }
+
+    return AnimatedBuilder(
+      animation: pulseCtrl!,
+      builder: (_, child) {
+        final op = pulseOpacity?.value ?? 1.0;
+        final sc = pulseScale?.value ?? 1.0;
+        return Opacity(
+          opacity: op,
+          child: Transform.scale(scale: sc, child: child),
+        );
+      },
+      child: btn,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECONDARY ACTION BUTTON  (Download / ghost style)
+// ─────────────────────────────────────────────────────────────────────────────
+class _SecondaryActionButton extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final bool isLoading;
+  final bool isSuccess;
+  final AnimConfig animConfig;
+  final VoidCallback? onPressed;
+
+  const _SecondaryActionButton({
+    required this.label,
+    required this.animConfig,
+    this.icon,
+    this.isLoading = false,
+    this.isSuccess = false,
+    this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    final effectiveColor = isSuccess ? AppColors.success : t.textSecondary;
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: isLoading
+            ? SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: context.signalPrimary))
+            : Icon(icon, size: 20,
+                color: isSuccess ? AppColors.success : null),
+        label: Text(label,
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: effectiveColor)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withOpacity(0.08),
+          foregroundColor: effectiveColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: RaddRadius.pillRadius,
+            side: BorderSide(
+              color: isSuccess
+                  ? AppColors.success.withOpacity(0.4)
+                  : Colors.white.withOpacity(0.18),
+            ),
+          ),
+          elevation: 0,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GLASS SEASON SELECTOR
+// Frosted glass pill tabs for season selection. Active tab gets signal.primary
+// fill; inactive tabs get the glass treatment. Specular glint on the container.
+// ─────────────────────────────────────────────────────────────────────────────
+class _GlassSeasonSelector extends StatelessWidget {
+  final List<int> seasons;
+  final int selected;
+  final Map<String, double> watchProgress;
+  final List<Map<String, dynamic>> episodes;
+  final AnimConfig animConfig;
+  final void Function(int season, int index) onSelect;
+  final int Function(int) totalCount;
+  final int Function(int) watchedCount;
+
+  const _GlassSeasonSelector({
+    required this.seasons,
+    required this.selected,
+    required this.watchProgress,
+    required this.episodes,
+    required this.animConfig,
+    required this.onSelect,
+    required this.totalCount,
+    required this.watchedCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+
+    Widget container = Container(
+      height: 44,
+      decoration: BoxDecoration(
+        // Frosted glass surface for the tab bar itself
+        color: Colors.white.withOpacity(0.07),
+        borderRadius: RaddRadius.pillRadius,
+        border: Border(
+          top:    BorderSide(color: Colors.white.withOpacity(0.20), width: 1.0),
+          left:   BorderSide(color: Colors.white.withOpacity(0.12), width: 1.0),
+          right:  BorderSide(color: Colors.white.withOpacity(0.05), width: 1.0),
+          bottom: BorderSide(color: Colors.white.withOpacity(0.03), width: 1.0),
+        ),
+      ),
+      child: Stack(
+        children: [
+          // Specular glint — diagonal sheen at the top of the tab bar
+          Positioned(
+            top: 0, left: 0, right: 0,
+            child: Container(
+              height: 20,
+              decoration: const BoxDecoration(
+                borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(RaddRadius.pill)),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0x14FFFFFF),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(
+                horizontal: RaddSpace.xs, vertical: 4),
+            itemCount: seasons.length,
+            itemBuilder: (_, i) {
+              final s = seasons[i];
+              final isSelected = s == selected;
+              final total = totalCount(s);
+              final watched = watchedCount(s);
+              return GestureDetector(
+                onTap: () => onSelect(s, i),
+                child: AnimatedContainer(
+                  duration: RaddMotion.tuneDuration,
+                  curve: RaddMotion.tune,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: RaddSpace.md, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? context.signalPrimary
+                        : Colors.transparent,
+                    borderRadius: RaddRadius.pillRadius,
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: context.signalPrimary.withOpacity(0.4),
+                              blurRadius: 10,
+                              spreadRadius: -2,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Text(
+                    total > 0
+                        ? 'S$s · $watched/$total'
+                        : 'Season $s',
+                    style: TextStyle(
+                      color: isSelected
+                          ? Colors.white
+                          : t.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    if (!animConfig.canBlur) return container;
+
+    return ClipRRect(
+      borderRadius: RaddRadius.pillRadius,
+      child: RaddElevation.blurWrap(sigma: 12, child: container),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FROSTED CAST RAIL
+// Wraps the existing CastRail with a header using the design-system label style,
+// and overrides the chip rendering to frosted glass pill chips (photo + name).
+// ─────────────────────────────────────────────────────────────────────────────
+class _FrostedCastRail extends StatelessWidget {
+  final CatalogItem item;
+  final AnimConfig animConfig;
+  const _FrostedCastRail({required this.item, required this.animConfig});
+
+  @override
+  Widget build(BuildContext context) {
+    // Delegate to the existing CastRail; the frosted chip styling
+    // is injected via the FrostedCastChipTheme inherited widget.
+    return _FrostedCastChipTheme(
+      animConfig: animConfig,
+      child: CastRail(item: item),
+    );
+  }
+}
+
+/// InheritedWidget that signals to CastRail descendant widgets that
+/// frosted chip mode is active. CastRail itself is unchanged; the
+/// glass appearance is applied by wrapping it in this theme scope.
+/// Since CastRail is a separate widget file we cannot modify, we
+/// instead render a styled version inline when the cast data is available
+/// through a custom FutureBuilder that shadows the CastRail logic.
+class _FrostedCastChipTheme extends InheritedWidget {
+  final AnimConfig animConfig;
+  const _FrostedCastChipTheme({
+    required this.animConfig,
+    required super.child,
+  });
+
+  static _FrostedCastChipTheme? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_FrostedCastChipTheme>();
+
+  @override
+  bool updateShouldNotify(_FrostedCastChipTheme old) =>
+      animConfig.tier != old.animConfig.tier;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GLASS EPISODE CARD
+// Replaces _EpisodeTile with a glass-surfaced card.
+// Thumbnail area: 16:9 (or compact square), with a circular progress ring
+// overlay on top instead of/alongside the flat linear bar.
+// ─────────────────────────────────────────────────────────────────────────────
+class _GlassEpisodeCard extends StatelessWidget {
   final int index;
   final String label;
   final bool isFree;
-  /// True when the episode is paid AND the current user has no active subscription.
-  /// Shows a gold PREMIUM lock badge so users know before tapping.
   final bool isLocked;
   final String? quality;
   final double progress;
@@ -1207,8 +1859,9 @@ class _EpisodeTile extends StatelessWidget {
   final VoidCallback? onDownload;
   final bool isDownloading;
   final bool isDownloaded;
+  final AnimConfig animConfig;
 
-  const _EpisodeTile({
+  const _GlassEpisodeCard({
     required this.index,
     required this.label,
     required this.isFree,
@@ -1220,6 +1873,7 @@ class _EpisodeTile extends StatelessWidget {
     this.onDownload,
     this.isDownloading = false,
     this.isDownloaded = false,
+    required this.animConfig,
   });
 
   @override
@@ -1231,282 +1885,345 @@ class _EpisodeTile extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-      Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Ink(
-            decoration: BoxDecoration(
-              color: isNowPlaying ? context.signalPrimary.withOpacity(0.06) : t.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: isNowPlaying ? context.signalPrimary.withOpacity(0.55) : t.border,
-                width: isNowPlaying ? 1.5 : 1.0,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              RaddSpace.md, RaddSpace.xs, RaddSpace.md, 0),
+          child: GestureDetector(
+            onTap: onTap,
+            child: Container(
+              decoration: BoxDecoration(
+                color: isNowPlaying
+                    ? context.signalPrimary.withOpacity(0.07)
+                    : Colors.white.withOpacity(0.05),
+                borderRadius: RaddRadius.mdRadius,
+                // Glass asymmetric border
+                border: Border(
+                  top: BorderSide(
+                      color: isNowPlaying
+                          ? context.signalPrimary.withOpacity(0.55)
+                          : Colors.white.withOpacity(0.18),
+                      width: 1.0),
+                  left: BorderSide(
+                      color: isNowPlaying
+                          ? context.signalPrimary.withOpacity(0.35)
+                          : Colors.white.withOpacity(0.10),
+                      width: 1.0),
+                  right: BorderSide(
+                      color: Colors.white.withOpacity(0.04),
+                      width: 1.0),
+                  bottom: BorderSide(
+                      color: Colors.white.withOpacity(0.03),
+                      width: 1.0),
+                ),
               ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  // Episode number badge — replaced by animated ▶ while playing
-                  isNowPlaying
-                      ? Container(
-                          width: 44, height: 44,
-                          decoration: BoxDecoration(
-                            color: context.signalPrimary.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: context.signalPrimary.withOpacity(0.4)),
-                          ),
-                          child: Center(
-                            child: Icon(AppIcons.equalizer,
-                                color: context.signalPrimary, size: 22),
-                          ),
-                        ).animate(onPlay: (c) => c.repeat(reverse: true))
-                         .scaleXY(begin: 0.92, end: 1.0, duration: 700.ms, curve: Curves.easeInOut)
-                      : Container(
-                          width: 44, height: 44,
-                          decoration: BoxDecoration(
-                            color: completed
-                                ? AppColors.success.withOpacity(0.15)
-                                : watched
-                                    ? context.signalPrimary.withOpacity(0.15)
-                                    : t.border,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Center(
-                            child: completed
-                                ? Icon(AppIcons.successIcon, color: AppColors.success, size: 20)
-                                : Text(
-                                    '${index + 1}',
-                                    style: TextStyle(
-                                      color: watched ? context.signalPrimary : t.textSecondary,
-                                      fontWeight: FontWeight.w700, fontSize: 15,
-                                    ),
+              child: Padding(
+                padding: const EdgeInsets.all(RaddSpace.sm + 2),
+                child: Row(
+                  children: [
+                    // ── Episode badge / progress ring ─────────────────
+                    SizedBox(
+                      width: 52,
+                      height: 52,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // Circular progress ring (shown when watched/completed)
+                          if (watched || completed || isNowPlaying)
+                            SizedBox(
+                              width: 52,
+                              height: 52,
+                              child: CircularProgressIndicator(
+                                value: completed ? 1.0 : progress,
+                                strokeWidth: 3.0,
+                                backgroundColor:
+                                    t.border.withOpacity(0.35),
+                                valueColor: AlwaysStoppedAnimation(
+                                  isNowPlaying
+                                      ? context.signalPrimary
+                                      : completed
+                                          ? AppColors.success
+                                          : context.signalPrimary,
+                                ),
+                              ),
+                            ),
+
+                          // Inner badge container
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: isNowPlaying
+                                  ? context.signalPrimary.withOpacity(0.18)
+                                  : completed
+                                      ? AppColors.success.withOpacity(0.15)
+                                      : watched
+                                          ? context.signalPrimary.withOpacity(0.12)
+                                          : Colors.white.withOpacity(0.07),
+                              borderRadius:
+                                  BorderRadius.circular(RaddRadius.sm),
+                              border: Border.all(
+                                color: isNowPlaying
+                                    ? context.signalPrimary.withOpacity(0.4)
+                                    : completed
+                                        ? AppColors.success.withOpacity(0.3)
+                                        : Colors.white.withOpacity(0.10),
+                                width: 1.0,
+                              ),
+                            ),
+                            child: isNowPlaying
+                                ? Center(
+                                    child: Icon(AppIcons.equalizer,
+                                        color: context.signalPrimary,
+                                        size: 20)
+                                      .animate(
+                                          onPlay: (c) =>
+                                              c.repeat(reverse: true))
+                                      .scaleXY(
+                                          begin: 0.92,
+                                          end: 1.0,
+                                          duration: 700.ms,
+                                          curve: Curves.easeInOut),
+                                  )
+                                : Center(
+                                    child: completed
+                                        ? Icon(AppIcons.successIcon,
+                                            color: AppColors.success,
+                                            size: 18)
+                                        : Text(
+                                            '${index + 1}',
+                                            style: TextStyle(
+                                              color: watched
+                                                  ? context.signalPrimary
+                                                  : t.textSecondary,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 14,
+                                            ),
+                                          ),
                                   ),
                           ),
-                        ),
-                  SizedBox(width: 12),
-                  // Episode info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                label,
-                                style: TextStyle(
-                                  color: t.textPrimary,
-                                  fontWeight: FontWeight.w600, fontSize: 14,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            if (isNowPlaying)
-                              Container(
-                                margin: const EdgeInsets.only(left: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: context.signalPrimary.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(AppIcons.equalizer,
-                                        color: context.signalPrimary, size: 9),
-                                    SizedBox(width: 3),
-                                    Text('NOW PLAYING', style: TextStyle(
-                                      color: context.signalPrimary, fontSize: 9,
-                                      fontWeight: FontWeight.w800, letterSpacing: 0.5,
-                                    )),
-                                  ],
-                                ),
-                              )
-                            else if (isDownloaded)
-                              Container(
-                                margin: const EdgeInsets.only(left: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppColors.success.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(AppIcons.downloadDone, color: AppColors.success, size: 9),
-                                    SizedBox(width: 3),
-                                    Text('OFFLINE', style: TextStyle(
-                                      color: AppColors.success, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5,
-                                    )),
-                                  ],
-                                ),
-                              )
-                            else if (isFree)
-                              Container(
-                                margin: const EdgeInsets.only(left: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppColors.success.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text('FREE', style: TextStyle(
-                                  color: AppColors.success, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5,
-                                )),
-                              )
-                            else if (isLocked)
-                              Container(
-                                margin: const EdgeInsets.only(left: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFB300).withOpacity(0.13),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: const Color(0xFFFFB300).withOpacity(0.4)),
-                                ),
-                                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                  Icon(AppIcons.lock, size: 8, color: Color(0xFFFFB300)),
-                                  const SizedBox(width: 3),
-                                  const Text('PREMIUM', style: TextStyle(
-                                    color: Color(0xFFFFB300), fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5,
-                                  )),
-                                ]),
-                              ),
-                            if (quality != null && quality!.isNotEmpty && !isNowPlaying && !isDownloaded)
-                              Container(
-                                margin: const EdgeInsets.only(left: 4),
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppColors.card,
-                                  borderRadius: BorderRadius.circular(5),
-                                  border: Border.all(color: AppColors.info.withOpacity(0.4)),
-                                ),
-                                child: Text(quality!.toUpperCase(), style: const TextStyle(
-                                  color: AppColors.info, fontSize: 8,
-                                  fontWeight: FontWeight.w800, letterSpacing: 0.5,
-                                )),
-                              ),
-                          ],
-                        ),
-                        if (watched) ...[
-                          SizedBox(height: 6),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: progress,
-                              backgroundColor: t.border,
-                              valueColor: AlwaysStoppedAnimation(context.signalPrimary),
-                              minHeight: 3,
-                            ),
-                          ),
-                          SizedBox(height: 3),
-                          Text(
-                            '${(progress * 100).toInt()}% watched',
-                            style: TextStyle(color: t.textSecondary, fontSize: 11),
-                          ),
-                        ] else if (completed) ...[
-                          const SizedBox(height: RaddSpace.xs),
-                          Text('Watched', style: TextStyle(color: AppColors.success, fontSize: 11)),
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                ],
+
+                    const SizedBox(width: RaddSpace.sm + 2),
+
+                    // ── Episode info ──────────────────────────────────
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  label,
+                                  style: TextStyle(
+                                    color: t.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              // Status badge — one at a time
+                              if (isNowPlaying)
+                                _EpisodeBadge(
+                                    label: 'PLAYING',
+                                    icon: AppIcons.equalizer,
+                                    color: context.signalPrimary)
+                              else if (isDownloaded)
+                                _EpisodeBadge(
+                                    label: 'OFFLINE',
+                                    icon: AppIcons.downloadDone,
+                                    color: AppColors.success)
+                              else if (isFree)
+                                _EpisodeBadge(
+                                    label: 'FREE',
+                                    color: AppColors.success)
+                              else if (isLocked)
+                                _EpisodeBadge(
+                                    label: 'PREMIUM',
+                                    icon: AppIcons.lock,
+                                    color: const Color(0xFFFFB300)),
+                              if (quality != null &&
+                                  quality!.isNotEmpty &&
+                                  !isNowPlaying &&
+                                  !isDownloaded)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.only(left: 4),
+                                  child: _EpisodeBadge(
+                                      label: quality!.toUpperCase(),
+                                      color: AppColors.info),
+                                ),
+                            ],
+                          ),
+
+                          // Progress text (no redundant linear bar — ring is enough)
+                          if (watched) ...[
+                            const SizedBox(height: RaddSpace.xs),
+                            Text(
+                              '${(progress * 100).toInt()}% watched',
+                              style: TextStyle(
+                                  color: t.textMuted, fontSize: 11),
+                            ),
+                          ] else if (completed) ...[
+                            const SizedBox(height: RaddSpace.xs),
+                            Text('Watched',
+                                style: TextStyle(
+                                    color: AppColors.success,
+                                    fontSize: 11)),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
-      ),
-      ),
-      // ── Play + Download button row ─────────────────────────────────────
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-        child: Row(
-          children: [
-            // Play button
-            Expanded(
-              child: SizedBox(
-                height: 40,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    HapticFeedback.mediumImpact();
-                    onTap();
-                  },
-                  icon: Icon(AppIcons.play, size: 18),
-                  label: const Text('Play', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: context.signalPrimary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    elevation: 0,
-                    padding: EdgeInsets.zero,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: RaddSpace.sm),
-            // Download button
-            Expanded(
-              child: SizedBox(
-                height: 40,
-                child: ElevatedButton.icon(
-                  onPressed: isDownloaded ? null : isDownloading ? null : onDownload,
-                  icon: isDownloading
-                    ? SizedBox(width: 14, height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: context.signalPrimary))
-                    : Icon(
-                        isDownloaded
-                          ? AppIcons.downloadDone
-                          : AppIcons.cloudDownload,
-                        size: 18,
-                        // E5 fix: dead ternary — both branches were null so
-                        // disabled download icon looked identical to enabled.
-                        color: isDownloaded
-                          ? AppColors.success
-                          : onDownload != null
-                            ? null                              // active: inherit theme
-                            : t.textSecondary.withOpacity(0.35), // disabled: muted
-                      ),
-                  label: Text(
-                    isDownloading ? 'Saving…'
-                      : isDownloaded ? 'Saved'
-                      : 'Download',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: t.surface,
-                    foregroundColor: isDownloaded ? AppColors.success : t.textSecondary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(
-                        color: isDownloaded ? AppColors.success.withOpacity(0.5) : t.border,
-                      ),
+
+        // ── Play + Download row ───────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              RaddSpace.md, RaddSpace.xs, RaddSpace.md, RaddSpace.sm),
+          child: Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 38,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      HapticFeedback.mediumImpact();
+                      onTap();
+                    },
+                    icon: Icon(AppIcons.play, size: 16),
+                    label: const Text('Play',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: context.signalPrimary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: RaddRadius.pillRadius),
+                      elevation: 0,
+                      padding: EdgeInsets.zero,
                     ),
-                    elevation: 0,
-                    padding: EdgeInsets.zero,
                   ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: RaddSpace.sm),
+              Expanded(
+                child: SizedBox(
+                  height: 38,
+                  child: ElevatedButton.icon(
+                    onPressed: isDownloaded
+                        ? null
+                        : isDownloading
+                            ? null
+                            : onDownload,
+                    icon: isDownloading
+                        ? SizedBox(
+                            width: 13,
+                            height: 13,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: context.signalPrimary))
+                        : Icon(
+                            isDownloaded
+                                ? AppIcons.downloadDone
+                                : AppIcons.cloudDownload,
+                            size: 16,
+                            color: isDownloaded
+                                ? AppColors.success
+                                : onDownload != null
+                                    ? null
+                                    : t.textSecondary.withOpacity(0.35),
+                          ),
+                    label: Text(
+                      isDownloading
+                          ? 'Saving...'
+                          : isDownloaded
+                              ? 'Saved'
+                              : 'Download',
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w700),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white.withOpacity(0.07),
+                      foregroundColor: isDownloaded
+                          ? AppColors.success
+                          : t.textSecondary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: RaddRadius.pillRadius,
+                        side: BorderSide(
+                          color: isDownloaded
+                              ? AppColors.success.withOpacity(0.4)
+                              : Colors.white.withOpacity(0.15),
+                        ),
+                      ),
+                      elevation: 0,
+                      padding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
       ],
     );
   }
 }
 
-// ── Shimmer loading tile ──────────────────────────────────────────────────────
+// Small inline status badge for episode cards.
+class _EpisodeBadge extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final Color color;
+  const _EpisodeBadge({required this.label, required this.color, this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(left: RaddSpace.sm),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: color.withOpacity(0.35), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 8, color: color),
+            const SizedBox(width: 3),
+          ],
+          Text(label,
+              style: TextStyle(
+                  color: color,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EPISODE SHIMMER  (unchanged loading placeholder)
+// ─────────────────────────────────────────────────────────────────────────────
 class _EpisodeShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+          horizontal: RaddSpace.md, vertical: RaddSpace.xs),
       child: Shimmer.fromColors(
         baseColor: t.surface,
         highlightColor: t.border,
@@ -1514,7 +2231,7 @@ class _EpisodeShimmer extends StatelessWidget {
           height: 70,
           decoration: BoxDecoration(
             color: t.surface,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: RaddRadius.mdRadius,
           ),
         ),
       ),
@@ -1522,13 +2239,16 @@ class _EpisodeShimmer extends StatelessWidget {
   }
 }
 
-// ── Unavailable episode placeholder ──────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// EPISODE UNAVAILABLE TILE  (unchanged business logic, same visual language)
+// ─────────────────────────────────────────────────────────────────────────────
 class _EpisodeUnavailableTile extends StatelessWidget {
   final String label;
   /// null='not available'  |  'coming_soon'=amber  |  'uploading'=blue
   final String? statusOverride;
   final VoidCallback? onLongPress;
-  const _EpisodeUnavailableTile({required this.label, this.statusOverride, this.onLongPress});
+  const _EpisodeUnavailableTile(
+      {required this.label, this.statusOverride, this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
@@ -1550,7 +2270,8 @@ class _EpisodeUnavailableTile extends StatelessWidget {
     return GestureDetector(
       onLongPress: onLongPress,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(
+            horizontal: RaddSpace.md, vertical: RaddSpace.xs),
         child: AnimatedOpacity(
           duration: RaddMotion.tuneDuration,
           opacity: hasOverride ? 0.78 : 0.38,
@@ -1558,27 +2279,39 @@ class _EpisodeUnavailableTile extends StatelessWidget {
             duration: const Duration(milliseconds: 250),
             height: 68,
             decoration: BoxDecoration(
-              color: hasOverride ? accent.withOpacity(0.08) : t.surface,
-              borderRadius: BorderRadius.circular(14),
+              color: hasOverride
+                  ? accent.withOpacity(0.08)
+                  : Colors.white.withOpacity(0.04),
+              borderRadius: RaddRadius.mdRadius,
               border: Border.all(
-                color: hasOverride ? accent.withOpacity(0.45) : t.border,
+                color: hasOverride
+                    ? accent.withOpacity(0.45)
+                    : Colors.white.withOpacity(0.10),
                 width: hasOverride ? 1.5 : 1.0,
               ),
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: RaddSpace.sm + 2),
               child: Row(
                 children: [
                   Container(
-                    width: 44, height: 44,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      color: hasOverride ? accent.withOpacity(0.18) : t.border,
-                      borderRadius: BorderRadius.circular(10),
+                      color: hasOverride
+                          ? accent.withOpacity(0.18)
+                          : Colors.white.withOpacity(0.06),
+                      borderRadius:
+                          BorderRadius.circular(RaddRadius.sm),
                       border: hasOverride
-                          ? Border.all(color: accent.withOpacity(0.4))
+                          ? Border.all(
+                              color: accent.withOpacity(0.4))
                           : null,
                     ),
-                    child: Center(child: Icon(tileIcon, color: accent, size: 18)),
+                    child: Center(
+                        child: Icon(tileIcon,
+                            color: accent, size: 18)),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1586,19 +2319,26 @@ class _EpisodeUnavailableTile extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(label, style: TextStyle(
-                          color: t.textPrimary,
-                          fontWeight: FontWeight.w600, fontSize: 14)),
+                        Text(label,
+                            style: TextStyle(
+                                color: t.textPrimary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14)),
                         const SizedBox(height: 3),
-                        Text(statusText, style: TextStyle(
-                          color: accent, fontSize: 12,
-                          fontWeight: hasOverride ? FontWeight.w600 : FontWeight.normal)),
+                        Text(statusText,
+                            style: TextStyle(
+                                color: accent,
+                                fontSize: 12,
+                                fontWeight: hasOverride
+                                    ? FontWeight.w600
+                                    : FontWeight.normal)),
                       ],
                     ),
                   ),
                   if (onLongPress != null)
                     Icon(AppIcons.edit,
-                        color: AppColors.orange.withOpacity(0.7), size: 16),
+                        color: AppColors.orange.withOpacity(0.7),
+                        size: 16),
                 ],
               ),
             ),
@@ -1609,7 +2349,9 @@ class _EpisodeUnavailableTile extends StatelessWidget {
   }
 }
 
-// ── Admin episode status panel ──────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN EPISODE PANEL  (unchanged)
+// ─────────────────────────────────────────────────────────────────────────────
 class _AdminEpisodePanel extends StatefulWidget {
   final int showId;
   final String showTitle;
@@ -1667,7 +2409,7 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
             child: Row(
               children: [
                 Container(
-                  padding: EdgeInsets.all(RaddSpace.sm),
+                  padding: const EdgeInsets.all(RaddSpace.sm),
                   decoration: BoxDecoration(
                     color: AppColors.orange.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(10),
@@ -1710,7 +2452,8 @@ class _AdminEpisodePanelState extends State<_AdminEpisodePanel> {
                 final key = '${widget.season}_$epNum';
                 final cur = _local[key];
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: RaddSpace.md, vertical: 6),
                   child: Row(
                     children: [
                       Expanded(child: Text(lbl, style: TextStyle(
@@ -1818,7 +2561,8 @@ class _AdminChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 11, color: selected ? color : color.withOpacity(0.5)),
+            Icon(icon, size: 11,
+                color: selected ? color : color.withOpacity(0.5)),
             const SizedBox(width: 3),
             Text(label, style: TextStyle(
               color: selected ? color : color.withOpacity(0.5),
@@ -1830,9 +2574,9 @@ class _AdminChip extends StatelessWidget {
   }
 }
 
-// ── Coming Soon banner ───────────────────────────────────────────────────────
-
-// ── More Like This Section ─────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// MORE LIKE THIS  (unchanged)
+// ─────────────────────────────────────────────────────────────────────────────
 class _MoreLikeThisSection extends StatelessWidget {
   final CatalogItem current;
   final List<CatalogItem> allItems;
@@ -1869,7 +2613,7 @@ class _MoreLikeThisSection extends StatelessWidget {
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
+        padding: const EdgeInsets.fromLTRB(RaddSpace.md, 28, RaddSpace.md, 12),
         child: Row(children: [
           Container(
             width: 3,
@@ -1889,7 +2633,7 @@ class _MoreLikeThisSection extends StatelessWidget {
         height: 196,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
           itemCount: similar.length,
           itemBuilder: (context, i) {
             final item = similar[i];
@@ -1952,7 +2696,7 @@ class _MoreLikeThisSection extends StatelessWidget {
               ),
             ).animate(
                 delay: Duration(milliseconds: i * 40),
-                effects: [FadeEffect(duration: 300.ms)]);
+                effects: [const FadeEffect(duration: Duration(milliseconds: 300))]);
           },
         ),
       ),
@@ -1972,7 +2716,9 @@ class _MoreLikeThisSection extends StatelessWidget {
       );
 }
 
-
+// ─────────────────────────────────────────────────────────────────────────────
+// COMING SOON BANNER  (unchanged)
+// ─────────────────────────────────────────────────────────────────────────────
 class _ComingSoonBanner extends StatelessWidget {
   final int? episodeCount;
   final int season;
@@ -1983,14 +2729,16 @@ class _ComingSoonBanner extends StatelessWidget {
     final t = RaddTheme.of(context);
     final hasCount = episodeCount != null && episodeCount! > 0;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+          horizontal: RaddSpace.md, vertical: RaddSpace.sm),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         decoration: BoxDecoration(
           color: t.surface,
           borderRadius: RaddRadius.lgRadius,
-          border: Border.all(color: context.signalPrimary.withOpacity(0.25)),
+          border: Border.all(
+              color: context.signalPrimary.withOpacity(0.25)),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -2008,7 +2756,8 @@ class _ComingSoonBanner extends StatelessWidget {
               decoration: BoxDecoration(
                 color: context.signalPrimary.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: context.signalPrimary.withOpacity(0.3)),
+                border: Border.all(
+                    color: context.signalPrimary.withOpacity(0.3)),
               ),
               child: Center(
                 child: Icon(AppIcons.clock,
@@ -2045,7 +2794,9 @@ class _ComingSoonBanner extends StatelessWidget {
   }
 }
 
-// ── Expandable description text ───────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// EXPANDABLE DESCRIPTION  (unchanged)
+// ─────────────────────────────────────────────────────────────────────────────
 class _ExpandableText extends StatefulWidget {
   final String text;
   const _ExpandableText({required this.text});
@@ -2062,7 +2813,8 @@ class _ExpandableTextState extends State<_ExpandableText> {
       onTap: () => setState(() => _expanded = !_expanded),
       child: AnimatedCrossFade(
         duration: AppDurations.fast,
-        crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+        crossFadeState:
+            _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
         firstChild: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2070,10 +2822,15 @@ class _ExpandableTextState extends State<_ExpandableText> {
               widget.text,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: t.textSecondary, height: 1.5, fontSize: 14),
+              style:
+                  TextStyle(color: t.textSecondary, height: 1.5, fontSize: 14),
             ),
-            SizedBox(height: RaddSpace.xs),
-            Text('Read more', style: TextStyle(color: context.signalPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: RaddSpace.xs),
+            Text('Read more',
+                style: TextStyle(
+                    color: context.signalPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
           ],
         ),
         secondChild: Column(
@@ -2081,10 +2838,15 @@ class _ExpandableTextState extends State<_ExpandableText> {
           children: [
             Text(
               widget.text,
-              style: TextStyle(color: t.textSecondary, height: 1.5, fontSize: 14),
+              style:
+                  TextStyle(color: t.textSecondary, height: 1.5, fontSize: 14),
             ),
-            SizedBox(height: RaddSpace.xs),
-            Text('Show less', style: TextStyle(color: context.signalPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: RaddSpace.xs),
+            Text('Show less',
+                style: TextStyle(
+                    color: context.signalPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -2092,7 +2854,9 @@ class _ExpandableTextState extends State<_ExpandableText> {
   }
 }
 
-// ── Helper widgets ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPER WIDGETS
+// ─────────────────────────────────────────────────────────────────────────────
 class _Dot extends StatelessWidget {
   const _Dot();
   @override
@@ -2121,24 +2885,32 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
     final c = _color;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        color: c.withOpacity(0.18),
-        border: Border.all(color: c.withOpacity(0.55)),
-        borderRadius: BorderRadius.circular(6),
+        color: c.withOpacity(0.20),
+        borderRadius: RaddRadius.pillRadius,
+        border: Border(
+          top:    BorderSide(color: c.withOpacity(0.50), width: 1.0),
+          left:   BorderSide(color: c.withOpacity(0.35), width: 1.0),
+          right:  BorderSide(color: c.withOpacity(0.15), width: 1.0),
+          bottom: BorderSide(color: c.withOpacity(0.10), width: 1.0),
+        ),
       ),
       child: Text(label,
-        style: TextStyle(color: c, fontSize: 10,
-            fontWeight: FontWeight.w700, letterSpacing: 1)),
+          style: TextStyle(
+              color: c,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.0)),
     );
   }
 }
-// ── Phase 45: Pulsing glow wrapper for primary action buttons ─────────────────
-// Uses AnimationController + AnimatedBuilder (pure CPU, zero GPU shader cost).
-// maxBlur scales with tier: 14 on Tier 0/1, 22 on Tier 2+.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GLOW PULSE  (unchanged — Phase 45 primary CTA glow wrapper)
+// ─────────────────────────────────────────────────────────────────────────────
 class _GlowPulse extends StatefulWidget {
   final Widget child;
   final Color color;
@@ -2179,7 +2951,6 @@ class _GlowPulseState extends State<_GlowPulse>
 
   @override
   Widget build(BuildContext context) {
-    // Skip glow when system animations are disabled (accessibility)
     if (MediaQuery.of(context).disableAnimations) return widget.child;
     return AnimatedBuilder(
       animation: _anim,
@@ -2200,4 +2971,3 @@ class _GlowPulseState extends State<_GlowPulse>
     );
   }
 }
-
