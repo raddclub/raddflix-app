@@ -480,6 +480,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // Rebuild channel mode AF from loaded index
       const chFilters = ['', 'pan=stereo|c0=0.5*c0+0.5*c1|c1=0.5*c0+0.5*c1', 'pan=stereo|c0=c0|c1=c0', 'pan=stereo|c0=c1|c1=c1'];
       _currentChannelModeAf = chFilters[_channelModeIdx.clamp(0, 3)];
+      // BUG-BALANCE-STARTUP: _audioBalance was loaded above but _currentBalanceAf
+      // was never rebuilt — _applyAllAf() (500ms delay below) used '' for balance
+      // so a saved non-zero balance had zero effect until the user moved the slider.
+      // Rebuild using the same logic as _applyBalance() in _ps_audiolab_mixin.dart.
+      if (_audioBalance.abs() < 0.02) {
+        _currentBalanceAf = '';
+      } else {
+        final l = _audioBalance <= 0 ? 1.0 : (1.0 - _audioBalance);
+        final r = _audioBalance >= 0 ? 1.0 : (1.0 + _audioBalance);
+        _currentBalanceAf =
+            'pan=stereo|c0=${l.toStringAsFixed(3)}*c0|c1=${r.toStringAsFixed(3)}*c1';
+      }
     });
     // Restore speed via MPV
     // Deferred AF restore — applied once player is ready
