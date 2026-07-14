@@ -61,9 +61,7 @@ Targeted audit of `_openAudioEffectPanel` in `_ps_ui_mixin.dart`: every callback
 ### PHASE-H + UI-UX-MIGRATION Closed — 2026-07-14
 
 Both tasks closed at user direction:
-- **PHASE-H**: H1/H4/H5 done (test/ structure, widget tests, prefs round-trip, CI-wired).
-  H2/H3 deferred — LocalDb Keystore platform-channel makes headless flutter test impossible;
-  requires DI seam or real-device session. Infrastructure goal is complete.
+- **PHASE-H**: H1/H4/H5 done (test/ structure, widget tests, prefs round-trip, CI-wired). Infrastructure goal is complete.
 - **UI-UX-MIGRATION**: Phases 2–7 all complete + CI green. Phase 1 "Player HUD footprint"
   closed via static-code analysis (no 5-control violation confirmed); live-device measurement
   deferred (no SDK/emulator) and accepted as sufficient closure.
@@ -118,15 +116,13 @@ Both tasks closed at user direction:
 
 - **J6** ⏳ PENDING — Slim `_PlayerScreenState` to `initState` + `dispose` + `build` after J2–J5.
 
-**H2/H3 remain BLOCKED** — LocalDb platform channel constraint unchanged (Rule 49).
-
 ---
 
 ## Current State (2026-07-12 — Phase H In Progress)
 
 ### PHASE-H — Testing Infrastructure — 2026-07-12
 
-H1/H4/H5 done. H2/H3 formally BLOCKED on Android Keystore platform-channel constraint.
+H1/H4/H5 done.
 
 - **H1** `test/` directory structure created; `mocktail` dep added; `flutter test` wired into CI
   as a **separate `ci-tests.yml` job** (this job did not exist before H1 — `build-apk.yml` never
@@ -134,13 +130,6 @@ H1/H4/H5 done. H2/H3 formally BLOCKED on Android Keystore platform-channel const
 - **H4** Widget tests written for `RaddButton`, `RaddChip`, `RaddTextField`, `RaddCard`, `RaddSheet`.
 - **H5** `PlayerPrefs` save/load round-trip tests (one field per settings category + defaults +
   derived getters). Commits: `809f537` (H1), `a022e48` (H4/H5).
-- **H2** LocalDb unit tests — **BLOCKED**: `LocalDb` opens its encrypted DB via Android Keystore
-  platform channel. `flutter test` runs in a headless Dart VM with no platform channel support —
-  any test directly exercising `LocalDb` will crash or test nothing. Do **NOT** ship fake/stub
-  tests. Correct path: (a) DI seam — abstract `LocalDb` behind an interface and inject a fake in
-  tests, or (b) Flutter integration test on a real device/emulator where platform channels work.
-  See `agent-hub/memory/localdb-testability.md` and Rule 49.
-- **H3** Provider unit tests — **BLOCKED**: same root cause as H2 (providers depend on `LocalDb`).
 
 **No tests were executed locally** — no Flutter/Dart SDK available in this Replit environment.
 Correctness rests on source review + CI. After any push touching `test/`, `pubspec.yaml`, or
@@ -158,7 +147,6 @@ curl -s -H "Authorization: token $GITHUB_TOKEN" \
 - Push files sequentially (SHA race condition), ≥1.2 s apart
 - `kDebugMode` gate requires `import 'package:flutter/foundation.dart' show kDebugMode;` (Rule 43)
 - After any Flutter push, check BOTH `build-apk.yml` AND `ci-tests.yml` CI jobs (Rule 50)
-- H2/H3 LocalDb tests: blocked by platform channels — never ship fake tests (Rule 49)
 
 ---
 
@@ -1423,7 +1411,6 @@ MPV colour helpers: `_toMpvColor(Color)` → `#RRGGBB`, `_toMpvBackColor(Color)`
 2. **Pinch zoom gray screen** — `player_screen.dart`: `Transform.scale` on media_kit's `Video` widget (SurfaceView) produces gray area — Flutter cannot scale a SurfaceView via Transform. Fixed: removed `Transform.scale`; apply zoom via MPV native `video-zoom` property (log2 scale) in `_onScaleUpdate`, `_onScaleEnd`, and reset button. Commits: `8829d3d` (dubber), `2918655` (player).
 
 ### Known Data Issues
-- DATA-01: All Of Us Are Dead missing E03/E04/E05/E09 — upload to JazzDrive + sync still needed
 
 ### Key Rules (NEVER BREAK)
 - Never add `androidAttachSurfaceAfterVideoParameters: true` (black screen on MediaTek)

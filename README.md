@@ -48,8 +48,6 @@ All critical bugs fixed. **Comprehensive debug logging** now active across all s
 - Player: 13 crash-path checkpoints logged (initPlayer, hwdec, vf=, speed, buffering, errors)
 - Debug screen accessible: **Profile → Account → Debug Logs** (one tap, always visible)
 
-Open data gap: DATA-01 (All Of Us Are Dead E03/04/05/09) needs JD upload.
-
 ---
 
 ## Security Notes

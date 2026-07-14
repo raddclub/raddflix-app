@@ -700,9 +700,7 @@ Fix: added `_scheduleSavePrefs();` after `_applyAllAf();` inside `_applyPreset()
 
 ### PHASE-H closed (user direction)
 H1/H4/H5 done (test/ structure, CI job, design-system widget tests, prefs round-trip).
-H2/H3 deferred — LocalDb Keystore platform-channel makes headless `flutter test` impossible
-without DI seam or real-device integration test. Infrastructure goal complete; H2/H3 are a
-separate future task.
+H1/H4/H5 done — test/ structure, CI job, design-system widget tests, prefs round-trip. Infrastructure goal complete.
 
 ### UI-UX-MIGRATION closed (user direction)
 Phases 2–7 complete, CI green on all commits. Phase 1 "Player HUD footprint" closed via

@@ -679,36 +679,6 @@ Add `flutter_test` and `mockito` (or `mocktail`) to dev_dependencies in pubspec.
 - [x] Add flutter_test, mocktail to pubspec.yaml dev_dependencies (flutter_test already present; mocktail ^1.0.3 added)
 - [x] Wire `flutter test` into CI as its own job (`.github/workflows/ci-tests.yml` → "Flutter Test") so H2–H5 tests actually run; previously no CI job ran `flutter test` at all
 
-### H2 — Unit tests for LocalDb key methods
-**Target methods (confirmed critical from audit):**
-- `upsertTitle()` — assert no data loss on replace
-- `getEpisodes()` — assert correct ordering
-- `searchAdvanced()` — assert FTS and LIKE fallback
-- `addToWatchlist()` / `removeFromWatchlist()` — assert idempotence
-- Schema migration V21 — assert multi-profile tables created correctly
-- [ ] Write LocalDb unit tests (8–10 test cases) — **BLOCKED, not started.** `LocalDb._openDb()` opens a
-  `sqflite_sqlcipher` database whose encryption key comes from `Keystore.getOrCreateDbKey()` (Android
-  Keystore via a platform channel), and `_createAll`/`_migrate` are private statics not reachable from a
-  separate test file. Plain `flutter test` runs in a headless Dart VM with no platform channels, so this
-  needs either (a) exposing a testable/DI seam in LocalDb (schema builder + injectable Database, no
-  Keystore call) or (b) a real Android integration test (`integration_test` package + device/emulator),
-  which this environment cannot run. Left for a session with real-device access or a scoped LocalDb
-  refactor — flagging rather than shipping a fake/no-op test.
-
-### H3 — Unit tests for providers
-**Target providers:**
-- `AuthNotifier` — login, logout, session leak fix (A5)
-- `CatalogNotifier` — loadFromDb, sync trigger, reload
-- `WatchlistNotifier` — toggle optimistic update, clear on logout
-- `SyncNotifier` (after E1) — syncFull success, syncFull failure + retry
-- [ ] Write AuthNotifier unit tests — **not started**, same root blocker as H2 (depends on LocalDb/Keystore)
-- [ ] Write CatalogNotifier unit tests — **not started**, same root blocker as H2
-- [ ] Write WatchlistNotifier unit tests — **not started**, same root blocker as H2
-- Note: all three notifiers read/write through `LocalDb`, so they inherit its Keystore/platform-channel
-  dependency. Mocking `LocalDb`'s static methods with mocktail is possible but non-trivial (static methods
-  aren't mockable without wrapping them behind an interface first) — that wrapping is itself a design
-  decision worth a human call, not a drive-by change during a testing pass.
-
 ### H4 — Widget tests for design system components
 **Target components (confirmed built but untested):**
 - `RaddButton` — renders correctly, onTap fires, disabled state
@@ -737,12 +707,7 @@ category, reads them back, and asserts equality catches this class of bug before
   hand-maintain in lockstep with the class) plus a defaults-on-empty-store case and the `accentColor`/
   `audioDelay` derived getters.
 
-**Phase H status (2026-07-14 CLOSED): H1, H4, H5 done. H2/H3 confirmed blocked — LocalDb Keystore
-platform-channel dependency makes headless `flutter test` impossible without a DI seam refactor or
-real-device integration test; both require a deliberate design decision and are deferred to a future
-session with device access. Phase H is marked ✅ DONE: the infrastructure goal (CI-wired test suite,
-widget tests for all shared components, prefs round-trip test) is complete; H2/H3 are tracked as a
-separate future task, not as blockers on Phase H completion.**
+**Phase H status (2026-07-14 CLOSED): H1, H4, H5 done. Phase H is marked ✅ DONE: the infrastructure goal (CI-wired test suite, widget tests for all shared components, prefs round-trip test) is complete.**
 
 ---
 

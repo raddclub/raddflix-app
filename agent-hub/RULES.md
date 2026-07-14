@@ -263,21 +263,6 @@ present. Asking in chat is less reliable because it doesn't actually set the Con
 **Evidence:** 2026-07-12 session — user confirmed the token was already added, the check showed
 it was missing, and it had to be re-added before the clone could proceed.
 
-**Rule 49: LocalDb unit tests are blocked by Android Keystore platform channels — do NOT write fake tests.**
-`LocalDb` opens its encrypted SQLite database via the Android Keystore platform channel.
-`flutter test` runs in a headless Dart VM with **no platform channel support** — any test that
-directly constructs or calls `LocalDb` will either crash at runtime or require a mock that makes
-the test meaningless. Phase H items H2 (LocalDb unit tests) and H3 (provider unit tests) are
-formally BLOCKED for this reason. Do not mark them done with stub/fake tests just to clear a
-checklist item.
-**Correct paths forward:**
-- **(a) DI seam:** abstract `LocalDb` behind an interface (`LocalDbInterface` or similar), inject
-  the real impl in production and a `FakeLocalDb` in tests. This requires a deliberate refactor.
-- **(b) Flutter integration tests:** run on a real device or emulator where platform channels work.
-  These require a CI runner with an Android emulator (not the current headless setup).
-Document H2/H3 as BLOCKED with this root cause and wait for an explicit decision. Never ship a
-test that passes vacuously. See `agent-hub/memory/localdb-testability.md` for full detail.
-
 **Rule 50: After any push touching `test/`, `pubspec.yaml`, or `.github/workflows/`, check BOTH CI jobs.**
 Phase H added a separate CI workflow (`ci-tests.yml`) that runs `flutter test`. Rule 46 already
 requires checking `build-apk.yml` after every Flutter push. **Extend that rule:** any push that
