@@ -467,14 +467,34 @@ _DDL = [
     "CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, created_at)",
     # ── payment_methods — admin-configurable gateways (Phase 8)
     """CREATE TABLE IF NOT EXISTS payment_methods (
-        id             INTEGER PRIMARY KEY AUTOINCREMENT,
-        code           TEXT UNIQUE NOT NULL,
-        name           TEXT NOT NULL,
-        account_number TEXT,
-        instructions   TEXT,
-        is_enabled     INTEGER DEFAULT 1,
-        sort_order     INTEGER DEFAULT 0
+        id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+        code                 TEXT UNIQUE NOT NULL,
+        name                 TEXT NOT NULL,
+        icon                 TEXT DEFAULT '💳',
+        account_number       TEXT,
+        account_name         TEXT,
+        instructions         TEXT,
+        is_enabled           INTEGER DEFAULT 1,
+        sort_order           INTEGER DEFAULT 0,
+        min_amount_pkr       REAL DEFAULT 0,
+        amount_tolerance_pkr REAL DEFAULT 10,
+        updated_at           INTEGER
     )""",
+    # ── SMS payment receipts — incoming SMS matched to TID submissions ────────
+    """CREATE TABLE IF NOT EXISTS received_sms_payments (
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        source             TEXT NOT NULL DEFAULT 'unknown',
+        tid                TEXT,
+        amount_pkr         REAL,
+        sender_phone       TEXT,
+        raw_sms            TEXT,
+        received_at        INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+        matched_payment_id INTEGER
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_sms_received_at
+       ON received_sms_payments(received_at DESC)""",
+    """CREATE INDEX IF NOT EXISTS idx_sms_matched
+       ON received_sms_payments(matched_payment_id)""",
     # ── Security telemetry (Phase 25.6) ─────────────────────────────────────
     """CREATE TABLE IF NOT EXISTS tamper_reports (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -585,11 +605,38 @@ def init_db() -> None:
             "CREATE TRIGGER IF NOT EXISTS titles_au AFTER UPDATE ON titles BEGIN INSERT INTO titles_fts(titles_fts, rowid, title, plot, genres, language) VALUES (\'delete\', old.id, old.title, old.plot, old.genres, old.language); INSERT INTO titles_fts(rowid, title, plot, genres, language) VALUES (new.id, new.title, new.plot, new.genres, new.language); END",
             # Rebuild FTS5 index after recreation
             "INSERT INTO titles_fts(titles_fts) VALUES(\'rebuild\')",
+            # ── payment_methods — columns added after initial schema deploy ──
+            "ALTER TABLE payment_methods ADD COLUMN icon TEXT DEFAULT '💳'",
+            "ALTER TABLE payment_methods ADD COLUMN account_name TEXT",
+            "ALTER TABLE payment_methods ADD COLUMN min_amount_pkr REAL DEFAULT 0",
+            "ALTER TABLE payment_methods ADD COLUMN amount_tolerance_pkr REAL DEFAULT 10",
+            "ALTER TABLE payment_methods ADD COLUMN updated_at INTEGER",
         ]:
             try:
                 c.execute(migration_sql)
             except Exception:
                 pass  # column/index already exists, or FTS5 not compiled in SQLite
+
+    # ── Seed default payment methods if table is empty ───────────────────────
+    _default_methods = [
+        ('easypaisa', 'EasyPaisa', '💚', 0),
+        ('jazzcash',  'JazzCash',  '🔴', 1),
+        ('nayapay',   'NayaPay',   '🟡', 2),
+        ('sadapay',   'SadaPay',   '⚫', 3),
+    ]
+    with _lock, _conn() as c:
+        for code, name, icon, sort in _default_methods:
+            c.execute(
+                "INSERT OR IGNORE INTO payment_methods(code, name, icon, sort_order) VALUES(?,?,?,?)",
+                (code, name, icon, sort)
+            )
+        # Generate sms_gateway_key on first boot if not already set
+        gk = c.execute("SELECT v FROM settings WHERE k='sms_gateway_key'").fetchone()
+        if not gk:
+            import secrets as _sec
+            c.execute("INSERT OR IGNORE INTO settings(k,v) VALUES('sms_gateway_key',?)",
+                      (_sec.token_hex(24),))
+
     # Run schema check at startup — logs WARNING for any missing critical columns.
     validate_schema()
 

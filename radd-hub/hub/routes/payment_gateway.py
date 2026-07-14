@@ -365,3 +365,84 @@ def public_methods():
             "SELECT code,name,account_number,account_name,instructions,icon FROM payment_methods WHERE is_enabled=1 ORDER BY sort_order ASC"
         ).fetchall()
     return jsonify({"methods": [dict(r) for r in rows]})
+
+
+@bp.route("/api/sms/receive", methods=["POST"])
+def receive_sms():
+    """Called by the admin phone app to POST incoming SMS for auto-TID matching.
+
+    Body (JSON):
+      key        — gateway key (from /billing/ settings)
+      source     — 'easypaisa' | 'jazzcash' | 'nayapay' | 'sadapay' | ...
+      tid        — transaction ID extracted from SMS (optional)
+      amount     — amount in PKR (optional)
+      sender     — sender phone number (optional)
+      sms        — full raw SMS body (optional, for debugging)
+
+    Also accepts X-Gateway-Key header instead of body key.
+    """
+    d = request.get_json(force=True, silent=True) or {}
+    provided_key = (
+        d.get("key") or request.headers.get("X-Gateway-Key") or ""
+    ).strip()
+
+    with db.conn() as c:
+        gk_row = c.execute("SELECT v FROM settings WHERE k='sms_gateway_key'").fetchone()
+        expected_key = gk_row["v"] if gk_row else None
+
+    if not expected_key or provided_key != expected_key:
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+
+    source     = str(d.get("source") or "unknown").lower().strip()[:50]
+    tid        = str(d.get("tid") or "").strip()[:100] or None
+    sender     = str(d.get("sender") or d.get("phone") or "").strip()[:30] or None
+    raw_sms    = str(d.get("sms") or d.get("body") or d.get("raw") or "").strip()[:500] or None
+    now        = int(time.time())
+
+    amount_pkr = None
+    try:
+        v = d.get("amount") or d.get("amount_pkr")
+        if v is not None:
+            amount_pkr = float(v) or None
+    except (ValueError, TypeError):
+        pass
+
+    with db.conn() as c:
+        cur = c.execute(
+            """INSERT INTO received_sms_payments
+               (source, tid, amount_pkr, sender_phone, raw_sms, received_at)
+               VALUES (?,?,?,?,?,?)""",
+            (source, tid, amount_pkr, sender, raw_sms, now),
+        )
+        sms_id = cur.lastrowid
+
+        # Auto-match: find a pending TID submission with the same TID string
+        matched = None
+        if tid:
+            row = c.execute(
+                "SELECT id FROM tid_payments WHERE tid=? AND status='pending' LIMIT 1",
+                (tid,),
+            ).fetchone()
+            if row:
+                matched = row["id"]
+                c.execute(
+                    "UPDATE received_sms_payments SET matched_payment_id=? WHERE id=?",
+                    (matched, sms_id),
+                )
+                # Auto-approve only when the setting is enabled
+                aa_row = c.execute(
+                    "SELECT v FROM settings WHERE k='sms_auto_approve_enabled'"
+                ).fetchone()
+                if aa_row and aa_row["v"] == "1":
+                    c.execute(
+                        "UPDATE tid_payments SET status='approved', admin_note=?, reviewed_at=?"
+                        " WHERE id=?",
+                        (f"Auto-approved via SMS ({source})", now, matched),
+                    )
+                    log.info("SMS auto-approved TID payment #%d via %s", matched, source)
+
+    log.info(
+        "SMS received: source=%s sender=%s TID=%s amount=%.0f matched_tid_payment=%s",
+        source, sender or "?", tid or "?", amount_pkr or 0, matched,
+    )
+    return jsonify({"ok": True, "sms_id": sms_id, "matched_payment_id": matched})
