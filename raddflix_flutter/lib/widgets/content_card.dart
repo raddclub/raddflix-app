@@ -11,6 +11,7 @@ import '../core/constants.dart';
 import '../core/constants.dart' show AppRoutes;
 import '../models/catalog_item.dart';
 import '../providers/watchlist_provider.dart';
+import '../core/utils/anim_config.dart';
 
 class ContentCard extends StatelessWidget {
   final CatalogItem item;
@@ -25,6 +26,7 @@ class ContentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
+    final animConfig = ProviderScope.containerOf(context, listen: false).read(animConfigProvider);
     return _PressableCard(
       onTap: onTap ?? () => _onTap(context),
       onLongPressStart: onLongPress != null
@@ -33,23 +35,55 @@ class ContentCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: RaddRadius.smRadius,
-          boxShadow: AppShadows.cardRich,
-          border: Border.all(color: t.cardBorder, width: 0.75),
+          boxShadow: AppShadows.glassCard,
+          // Asymmetric border: bright top = light catching the glass rim,
+          // fading sides, dark bottom = shadow beneath the pane.
+          border: Border(
+            top:    BorderSide(color: Colors.white.withOpacity(0.22), width: 0.8),
+            left:   BorderSide(color: Colors.white.withOpacity(0.10), width: 0.5),
+            right:  BorderSide(color: Colors.white.withOpacity(0.05), width: 0.5),
+            bottom: BorderSide(color: t.cardBorder.withOpacity(0.40), width: 0.5),
+          ),
         ),
         child: ClipRRect(
           borderRadius: RaddRadius.smRadius,
           child: Stack(fit: StackFit.expand, children: [
             // Poster
             _buildPoster(context),
-            // Gradient overlay — starts sooner and goes fully opaque for depth
+            // ── Specular highlight — bright sheen at the top edge ──────────
+            // Mimics light catching a glass surface: strong at the very top,
+            // fading to nothing by ~40% of the card height.
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: Container(
+                height: 72,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x1EFFFFFF), // 12% white at the rim
+                      Color(0x08FFFFFF), // 3% white mid-fade
+                      Colors.transparent,
+                    ],
+                    stops: [0.0, 0.40, 1.0],
+                  ),
+                ),
+              ),
+            ),
+            // ── Frosted base overlay — glass-tinted dark bottom ────────────
             Positioned(bottom: 0, left: 0, right: 0,
               child: Container(
-                padding: const EdgeInsets.fromLTRB(8, 40, 8, 8),
+                padding: const EdgeInsets.fromLTRB(8, 44, 8, 8),
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Color(0xF5000000)],
-                    stops: [0.15, 1.0],
+                    colors: [
+                      Colors.transparent,
+                      Color(0x55000008), // blue-tinted semi-transparent mid
+                      Color(0xF0000010), // near-opaque rich dark bottom
+                    ],
+                    stops: [0.0, 0.45, 1.0],
                   ),
                 ),
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -72,6 +106,8 @@ class ContentCard extends StatelessWidget {
                   ],
                 ]),
               )),
+            // ── Glint sweep (Tier 1+) — diagonal light reflection animation ──
+            if (animConfig.canStagger) const _GlintOverlay(),
             // Top badges
             Positioned(top: 6, left: 6, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // FIX-13: show only one badge at a time — FREE takes priority over NEW
@@ -707,6 +743,88 @@ class _UploadingBadgeState extends State<_UploadingBadge>
         child: const Text('⬆ UPLOADING',
           style: TextStyle(color: Colors.white, fontSize: 7,
               fontWeight: FontWeight.w800, letterSpacing: 0.4)),
+      ),
+    );
+  }
+}
+
+// ── Glint sweep overlay ───────────────────────────────────────────────────────
+// A diagonal bright band that sweeps across the card once every ~4 seconds,
+// simulating light moving across a glass surface.  Tier 1+ only (API 23+).
+class _GlintOverlay extends StatefulWidget {
+  const _GlintOverlay();
+  @override
+  State<_GlintOverlay> createState() => _GlintOverlayState();
+}
+
+class _GlintOverlayState extends State<_GlintOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 680),
+    );
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+    // Stagger first glint so not all cards fire simultaneously
+    final delay = 600 + (hashCode.abs() % 3200);
+    Future.delayed(Duration(milliseconds: delay), _fire);
+  }
+
+  void _fire() {
+    if (!mounted) return;
+    _ctrl.forward(from: 0).then((_) {
+      if (!mounted) return;
+      Future.delayed(const Duration(milliseconds: 3600), _fire);
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _anim,
+          builder: (_, __) {
+            // Sweep the bright centre from -0.2 → 1.2 so it starts and ends
+            // fully off-screen, appearing as a clean diagonal flash.
+            final c = -0.20 + _anim.value * 1.40;
+            final stops = [
+              (c - 0.14).clamp(0.0, 1.0),
+              (c - 0.04).clamp(0.0, 1.0),
+              c.clamp(0.0, 1.0),
+              (c + 0.04).clamp(0.0, 1.0),
+              (c + 0.14).clamp(0.0, 1.0),
+            ];
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  // Diagonal top-left → bottom-right (matches specular angle)
+                  begin: const Alignment(-0.6, -1.0),
+                  end: const Alignment(0.6, 1.0),
+                  colors: const [
+                    Colors.transparent,
+                    Color(0x07FFFFFF),
+                    Color(0x12FFFFFF), // peak brightness
+                    Color(0x07FFFFFF),
+                    Colors.transparent,
+                  ],
+                  stops: stops,
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }

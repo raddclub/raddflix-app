@@ -213,6 +213,31 @@ class AppShadows {
     ),
   ];
 
+  /// Glass card shadow — premium 3-layer: deep ambient + brand glow + rim light.
+  /// Pairs with the specular highlight and glint sweep for the full glass look.
+  static List<BoxShadow> get glassCard => [
+    // Deep ambient drop shadow — card floats above the surface
+    BoxShadow(
+      color: Colors.black.withOpacity(0.62),
+      blurRadius: 28,
+      spreadRadius: -6,
+      offset: const Offset(0, 10),
+    ),
+    // Brand glow — red halo radiating beneath the card
+    BoxShadow(
+      color: AppColors.primary.withOpacity(0.13),
+      blurRadius: 38,
+      spreadRadius: -5,
+    ),
+    // Rim highlight — faint white above the card (light source above the glass)
+    BoxShadow(
+      color: Colors.white.withOpacity(0.04),
+      blurRadius: 1,
+      spreadRadius: 0,
+      offset: const Offset(0, -1),
+    ),
+  ];
+
   static List<BoxShadow> get soft => [
     BoxShadow(
       color: Colors.black.withOpacity(0.2),

@@ -158,22 +158,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       // Phase 47 ANIM-47-03: content renders behind frosted nav on Tier 2+
       extendBody: true,
       appBar: _buildAppBar(user),
-      body: Column(children: [
-        const OfflineBanner(),
-        Expanded(
-          child: RefreshIndicator(
-            color: AppColors.primary,
-            backgroundColor: t.surface,
-            onRefresh: () {
-              HapticFeedback.lightImpact();
-              return ref.read(catalogProvider.notifier).syncFromServer();
-            },
-            child: catalog.isEmpty && ref.watch(syncProvider).isSyncing
-                ? _buildShimmer()
-                : _buildContent(catalog, animConfig: animConfig, canAnimate: canAnimate, canMorph: canMorph),
+      body: Stack(
+        children: [
+          // Ambient radial glow — warm light source at top of screen,
+          // gives the whole scaffold a glass-lit atmospheric depth.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(0.0, -0.85),
+                    radius: 0.90,
+                    colors: [
+                      AppColors.primary.withOpacity(0.07),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-      ]),
+          Column(children: [
+            const OfflineBanner(),
+            Expanded(
+              child: RefreshIndicator(
+                color: AppColors.primary,
+                backgroundColor: t.surface,
+                onRefresh: () {
+                  HapticFeedback.lightImpact();
+                  return ref.read(catalogProvider.notifier).syncFromServer();
+                },
+                child: catalog.isEmpty && ref.watch(syncProvider).isSyncing
+                    ? _buildShimmer()
+                    : _buildContent(catalog, animConfig: animConfig, canAnimate: canAnimate, canMorph: canMorph),
+              ),
+            ),
+          ]),
+        ],
+      ),
       floatingActionButton: const ResumeFab(),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: RaddFlixBottomNav(
