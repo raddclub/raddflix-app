@@ -5,50 +5,42 @@
 
 ---
 
-## Current State (2026-07-14 — Player Feature Audit Complete)
+## Current State (2026-07-14 — Audio Panel Audit + Phase H/UI-UX-Migration Closed)
 
-### PLAYER-FIXES — Player Feature Audit + Persistence Fixes — 2026-07-14
+### AUDIO-PANEL-SAVE — EQ Preset Save Bug — 2026-07-14
 
-Full audit of all player feature toggles, color filters, and audio/subtitle properties across
-all 4 mixins (`_ps_ui_mixin.dart`, `_ps_playback_mixin.dart`, `_ps_audiolab_mixin.dart`,
-`_ps_subtitle_mixin.dart`) and all panels. Five bugs found and fixed across two sessions:
+Targeted audit of `_openAudioEffectPanel` in `_ps_ui_mixin.dart`: every callback
+(`onEqBandChanged`, `onEqEnabledChanged`, `onReverbChanged`, `onLabAfChanged`,
+`onLabStateChanged`, `onBalanceChanged`, `onPresetSelected`) checked for `_scheduleSavePrefs()`.
 
-**Commit `04ddc47d`** — Vivid Mode matrix + save fix:
-- Vivid Mode color matrix was a yellow-tint fake (Blue×0.92, warm offsets) — replaced with proper
-  Rec.709 luminance-weighted saturation (s=1.35) × contrast (c=1.12) matrix, zero colour cast
-- `_toggleSmartEnhance()` never called `_scheduleSavePrefs()` — pref_vivid lost on exit
+**One bug found:**
+- `onPresetSelected` → `_applyPreset` — called directly (no lambda wrapper), applies the
+  EQ preset to MPV immediately via `_applyAllAf()` but never calls `_scheduleSavePrefs()`.
+  Selecting "Treble Boost", "Bass Boost", etc. was lost on next launch. Same class as the
+  SW Decoder bug from the previous session.
+- Fix: added `_scheduleSavePrefs();` after `_applyAllAf()` in `_applyPreset()` in
+  `_ps_audiolab_mixin.dart`.
 
-**Commit `9bc539e8`** — SW Decoder save fix:
-- `onSWDecoderChanged` set `_useSWDecoder` state + applied MPV property but never called
-  `_scheduleSavePrefs()` — pref_sw_dec lost on exit if decoder was the only thing changed
+**All other callbacks confirmed correct:**
+- `onEqBandChanged` — lambda calls `_applyCustomEq()` + `_scheduleSavePrefs()` ✅
+- `onEqEnabledChanged` — lambda calls `_applyAllAf()` + `_scheduleSavePrefs()` ✅
+- `onReverbChanged` — lambda calls `_applyAllAf()` + `_scheduleSavePrefs()` ✅
+- `onLabAfChanged` — lambda calls `_applyAllAf()` only; no save call, but `_applyLabAf()`
+  in the panel always fires `onLabStateChanged` immediately after, which does save ✅ (safe)
+- `onLabStateChanged` — lambda calls `_scheduleSavePrefs()` ✅
+- `onBalanceChanged` → `_applyBalance` — calls `_scheduleSavePrefs()` ✅
 
-**Commit `e911085102bb`** — Subtitle style + SW Decoder startup fix (CI ✅):
-- Saved subtitle style (font, size, bold, color, opacity, shadow, alignment, edge padding, fit)
-  was only applied when the subtitle panel opened — NOT at player startup. `_applySubtitleStylePrefs()`
-  added to `_PlayerSubtitleMixin`; called from `_loadPrefs()` with 700ms delay.
-- `_useSWDecoder` was restored to Dart state but `hwdec: no` never sent to MPV at startup —
-  hardware decoding ran regardless of saved preference until a codec failure auto-detected it.
-  Fixed in `_loadPrefs()`.
+### PHASE-H + UI-UX-MIGRATION Closed — 2026-07-14
 
-**All other toggles audited — confirmed correct:**
-- mute/loop: intentionally session-only (no pref keys)
-- Audio lab: properly wired through `onLabStateChanged` → `_scheduleSavePrefs()`
-- Balance/sub-sync/sub-speed/sub-margin/EQ/reverb: all save and restore correctly
-- Night mode / Vivid mode visual filter: Flutter ColorFiltered widget reacts to `setState()` in
-  `_loadPrefs()` — no extra MPV property needed
+Both tasks closed at user direction:
+- **PHASE-H**: H1/H4/H5 done (test/ structure, widget tests, prefs round-trip, CI-wired).
+  H2/H3 deferred — LocalDb Keystore platform-channel makes headless flutter test impossible;
+  requires DI seam or real-device session. Infrastructure goal is complete.
+- **UI-UX-MIGRATION**: Phases 2–7 all complete + CI green. Phase 1 "Player HUD footprint"
+  closed via static-code analysis (no 5-control violation confirmed); live-device measurement
+  deferred (no SDK/emulator) and accepted as sufficient closure.
 
-**Commit `1d24b44f`** — Audio balance AF not rebuilt at startup (CI pending):
-- `_currentBalanceAf` was never rebuilt in `_loadPrefs()` even though all other AF strings
-  (reverb, lab, channel mode) were. `_audioBalance` state loaded correctly but the `pan=` AF
-  string stayed `''`, so `_applyAllAf()` at startup emitted a centerless pipeline. A saved
-  L/R balance had zero effect until the user moved the slider.
-- Fix: 8-line balance AF rebuild added inside the `setState()` block in `_loadPrefs()`, using
-  the same formula as `_applyBalance()` — threshold 0.02, pan multipliers l/r from balance value.
-- Episode navigation audited: MPV `af` property persists across `loadfile` by design (confirmed
-  by BUG-AUDIO-SILENT-01 comment in `_ps_audiolab_mixin.dart`). No re-apply needed on episode nav.
-
-**Next session:** No pending audio/subtitle audit items. Consider Phase J3–J5 (AudioLab/Subtitle/UI
-mixin extraction) or any user-prioritised task. H2/H3 still BLOCKED (LocalDb platform channel, Rule 49).
+**Next session:** Consider Phase J3–J5 (AudioLab/Subtitle/UI mixin extraction from `_PlayerScreenState`) or any user-prioritised task.
 
 ---
 

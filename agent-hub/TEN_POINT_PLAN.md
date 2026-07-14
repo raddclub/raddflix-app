@@ -737,11 +737,12 @@ category, reads them back, and asserts equality catches this class of bug before
   hand-maintain in lockstep with the class) plus a defaults-on-empty-store case and the `accentColor`/
   `audioDelay` derived getters.
 
-**Phase H status (2026-07-12): H1, H4, H5 done. H2/H3 blocked on a LocalDb testability seam
-(Keystore platform channel + private schema methods + static-method design) that needs a deliberate
-decision, not a drive-by fix — see notes above. `flutter test` cannot be run in this environment
-(no Flutter SDK), so none of the above has been executed locally; correctness rests on careful
-reading of the source + CI once pushed.**
+**Phase H status (2026-07-14 CLOSED): H1, H4, H5 done. H2/H3 confirmed blocked — LocalDb Keystore
+platform-channel dependency makes headless `flutter test` impossible without a DI seam refactor or
+real-device integration test; both require a deliberate design decision and are deferred to a future
+session with device access. Phase H is marked ✅ DONE: the infrastructure goal (CI-wired test suite,
+widget tests for all shared components, prefs round-trip test) is complete; H2/H3 are tracked as a
+separate future task, not as blockers on Phase H completion.**
 
 ---
 

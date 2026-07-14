@@ -665,3 +665,48 @@ Session focused on G2 (animation package consolidation) with investigation of G1
 G2 partial complete. CI pending on `58a01378`.
 Phase G marked ⏳ IN PROGRESS in TASKS.md.
 
+
+---
+
+## 2026-07-14 — AUDIO-PANEL-SAVE-2026-07-14
+
+### Task
+Targeted audit of all `_openAudioEffectPanel` callbacks in `_ps_ui_mixin.dart` for the
+"applies but doesn't save" bug class (same as SW Decoder / SmartEnhance bugs fixed in
+the previous session). Also closed PHASE-H and UI-UX-MIGRATION at user direction.
+
+### Audit findings
+
+Every callback in `_openAudioEffectPanel` checked:
+
+| Callback | Wired to | `_scheduleSavePrefs()` called? |
+|---|---|---|
+| `onEqBandChanged` | inline lambda | ✅ yes |
+| `onEqEnabledChanged` | inline lambda | ✅ yes |
+| `onReverbChanged` | inline lambda | ✅ yes |
+| `onLabAfChanged` | inline lambda | ⚠️ no (but safe — `_applyLabAf()` always co-fires `onLabStateChanged` which saves) |
+| `onLabStateChanged` | inline lambda | ✅ yes |
+| `onBalanceChanged` | `_applyBalance` directly | ✅ yes |
+| `onPresetSelected` | `_applyPreset` directly | ❌ **BUG — missing** |
+
+### Bug fixed
+
+**`_applyPreset` in `_ps_audiolab_mixin.dart`** — called directly as `onPresetSelected: _applyPreset`.
+Applies the 10-band EQ preset to MPV via `_applyAllAf()` but never calls `_scheduleSavePrefs()`.
+Selecting "Treble Boost", "Bass Boost", etc. was applied immediately but lost on next cold start.
+Fix: added `_scheduleSavePrefs();` after `_applyAllAf();` inside `_applyPreset()`.
+
+### PHASE-H closed (user direction)
+H1/H4/H5 done (test/ structure, CI job, design-system widget tests, prefs round-trip).
+H2/H3 deferred — LocalDb Keystore platform-channel makes headless `flutter test` impossible
+without DI seam or real-device integration test. Infrastructure goal complete; H2/H3 are a
+separate future task.
+
+### UI-UX-MIGRATION closed (user direction)
+Phases 2–7 complete, CI green on all commits. Phase 1 "Player HUD footprint" closed via
+static-code analysis — no 5-control rule violation confirmed. Live-device pixel measurement
+deferred indefinitely (no SDK/emulator in env) and accepted as sufficient closure.
+
+### Outcome
+Code fix: 1 line added to `_ps_audiolab_mixin.dart`. Docs updated: TASKS.md, AGENT_HANDOFF.md,
+TEN_POINT_PLAN.md, UI_UX_MIGRATION_PLAN.md, TASK_LOG.md. CI pending.

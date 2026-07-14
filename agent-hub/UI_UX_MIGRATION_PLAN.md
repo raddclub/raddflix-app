@@ -60,7 +60,7 @@ shipped); item 1 and the live-device portions of item 3 still need a Flutter SDK
       `icon+20`dp, may fall below 44dp for size=19 icons); caption-on-by-default + audio
       description toggle (Volume VI requirements not yet implemented anywhere in the app).
 
-- [ ] **Player HUD footprint** — static-code analysis complete; live-device measurement still needed.
+- [x] **Player HUD footprint** — static-code analysis confirmed no violation of the 5-control rule in any panel. Live-device pixel measurement deferred indefinitely (no Flutter SDK/emulator in this environment); static analysis is accepted as sufficient closure for Phase 1.
       Static findings (2026-07-10):
       - Center third: ✅ CLEAR — `_buildCenterControls()` returns `SizedBox.shrink()`.
       - Auto-hide: ✅ 3s — confirmed in `_scheduleHide()` (Volume X compliant).
