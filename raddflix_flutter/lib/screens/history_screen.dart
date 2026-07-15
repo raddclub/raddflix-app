@@ -23,23 +23,28 @@ class HistoryScreen extends ConsumerStatefulWidget {
 }
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  bool _syncError = false;
+
   @override
   void initState() {
     super.initState();
     // Pull server history so cross-device positions appear in Continue Watching.
-    // Fire-and-forget — UI shows local data immediately; refreshes after merge.
+    // UI shows local data immediately; refreshes after merge.
     _mergeServerHistory();
   }
 
   Future<void> _mergeServerHistory() async {
+    // Clear any prior error so the banner disappears while retrying.
+    if (_syncError && mounted) setState(() => _syncError = false);
     // P28-04: Skip server sync for guest sessions — guests have no server history.
-    // mergeServerHistory() would fire a 401 API call that is silently swallowed,
-    // wasting bandwidth and polluting logs.
-    // BUG-9 fix: AuthState has no .isGuest getter — must use .user?.isGuest.
     if (ref.read(authProvider).user?.isGuest == true) return;
-    await HistoryApi.mergeServerHistory();
-    if (mounted) {
-      await ref.read(catalogProvider.notifier).reloadRecentlyWatched();
+    try {
+      await HistoryApi.mergeServerHistory();
+      if (mounted) {
+        await ref.read(catalogProvider.notifier).reloadRecentlyWatched();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _syncError = true);
     }
   }
 
@@ -102,9 +107,46 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             ),
         ],
       ),
-      body: items.isEmpty
-          ? _buildEmpty(context)
-          : _buildGrid(context, items),
+      body: Column(
+        children: [
+          if (_syncError)
+            Material(
+              color: AppColors.error.withOpacity(0.10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+                child: Row(children: [
+                  Icon(Icons.sync_problem_rounded,
+                      size: 16, color: AppColors.error),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                        "Couldn't sync watch history — showing local data",
+                        style: TextStyle(
+                            color: t.textSecondary, fontSize: 13)),
+                  ),
+                  GestureDetector(
+                    onTap: _mergeServerHistory,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 4),
+                      child: Text('Retry',
+                          style: TextStyle(
+                              color: AppColors.error,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          Expanded(
+            child: items.isEmpty
+                ? _buildEmpty(context)
+                : _buildGrid(context, items),
+          ),
+        ],
+      ),
     );
   }
 
