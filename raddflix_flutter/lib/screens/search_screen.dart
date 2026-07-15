@@ -18,6 +18,7 @@ import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../core/db/local_db.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/mini_player_bar.dart';
 import '../core/debug/debug_logger.dart';
 import '../providers/catalog_provider.dart';
 import '../models/catalog_item.dart';
@@ -374,7 +375,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
     return Scaffold(
       backgroundColor: t.bg,
-      bottomNavigationBar: RaddFlixBottomNav(
+      bottomNavigationBar: MiniPlayerDock(
+        child: RaddFlixBottomNav(
         currentIndex: 1,
         onTap: (i) {
           if (i == 1) return;
@@ -383,6 +385,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.downloads);
           else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile);
         },
+        ),
       ),
       body: SafeArea(
         child: Column(children: [

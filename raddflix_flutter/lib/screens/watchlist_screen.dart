@@ -4,11 +4,14 @@ import '../core/theme/radd_theme.dart';
 import '../core/theme/radd_colors.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:animations/animations.dart';
 import '../core/constants.dart';
+import '../core/utils/anim_config.dart';
 import '../design_system/radius/radd_radius.dart';
 import '../models/catalog_item.dart';
 import '../providers/watchlist_provider.dart';
 import '../widgets/content_card.dart';
+import 'show_detail_screen.dart';
 
 enum _SortBy { dateAdded, alphabetical, rating, type }
 
@@ -217,6 +220,8 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
   Widget _buildGrid(
       BuildContext context, WidgetRef ref, List<CatalogItem> items) {
     final t = RaddTheme.of(context);
+    final animConfig = ref.watch(animConfigProvider);
+    final canMorph = animConfig.canMorph && animConfig.shouldAnimate(context);
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -226,11 +231,26 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
       itemCount: items.length,
       itemBuilder: (_, i) {
         return Stack(children: [
-          ContentCard(item: items[i])
-              .animate(delay: (i * 30).ms)
-              .fadeIn(duration: 300.ms)
-              .scale(begin: const Offset(0.9, 0.9),
-                  end: const Offset(1, 1), duration: 300.ms),
+          // Tier 2+ → shared-element morph into the detail screen, matching
+          // the pattern used on Home/Search; lower tiers keep the plain
+          // fade/scale-in card (ContentCard's own tap still pushes normally).
+          canMorph
+              ? OpenContainer<void>(
+                  closedColor: Colors.transparent,
+                  openColor: Colors.transparent,
+                  closedElevation: 0,
+                  openElevation: 0,
+                  transitionDuration: animConfig.slow,
+                  tappable: false,
+                  closedBuilder: (_, openFn) =>
+                      ContentCard(item: items[i], onTap: openFn),
+                  openBuilder: (_, __) => ShowDetailScreen(item: items[i]),
+                )
+              : ContentCard(item: items[i])
+                  .animate(delay: (i * 30).ms)
+                  .fadeIn(duration: 300.ms)
+                  .scale(begin: const Offset(0.9, 0.9),
+                      end: const Offset(1, 1), duration: 300.ms),
           Positioned(
             top: 4, right: 4,
             child: GestureDetector(

@@ -23,6 +23,7 @@ import '../core/player/scene_bookmark_store.dart';
 import '../core/player/player_prefs.dart';
 import '../core/db/local_db.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/mini_player_bar.dart';
 import 'debug_diagnostics_screen.dart';
 import '../widgets/tier_badge.dart';
 import 'edit_profile_screen.dart';
@@ -162,7 +163,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       loading: _loggingOut,
       child: Scaffold(
         backgroundColor: null,
-        bottomNavigationBar: RaddFlixBottomNav(
+        bottomNavigationBar: MiniPlayerDock(
+          child: RaddFlixBottomNav(
           currentIndex: 4,
           onTap: (i) {
             if (i == 4) return;
@@ -171,6 +173,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.localMedia);
             else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.downloads);
           },
+          ),
         ),
         body: CustomScrollView(
           physics: const BouncingScrollPhysics(),

@@ -19,11 +19,11 @@ import '../providers/sync_provider.dart';
 import '../models/catalog_item.dart';
 import '../widgets/content_card.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/mini_player_bar.dart';
 import '../widgets/notification_banner.dart';
 import '../core/services/notification_service.dart';
 import '../widgets/simosa_card.dart';
 import '../core/debug/debug_logger.dart';
-import '../widgets/resume_fab.dart';
 import '../core/utils/anim_config.dart';
 import '../widgets/offline_banner.dart';
 import 'package:animations/animations.dart';
@@ -196,9 +196,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           ]),
         ],
       ),
-      floatingActionButton: const ResumeFab(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      bottomNavigationBar: RaddFlixBottomNav(
+      bottomNavigationBar: MiniPlayerDock(
+        child: RaddFlixBottomNav(
         currentIndex: _navIndex,
         onTap: (i) {
           setState(() => _navIndex = i);
@@ -215,6 +214,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.downloads).then((_) { if (mounted) setState(() => _navIndex = 0); });
           else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile).then((_) { if (mounted) setState(() => _navIndex = 0); });
         },
+        ),
       ),
     );
   }

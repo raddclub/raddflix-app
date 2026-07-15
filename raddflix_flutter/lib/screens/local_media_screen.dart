@@ -11,6 +11,7 @@ import '../models/local_video.dart';
 import '../services/local_media_service.dart';
 import 'local_folder_screen.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/mini_player_bar.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/motion/radd_motion.dart';
 import '../design_system/radius/radd_radius.dart';
@@ -425,7 +426,8 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
               ),
             )
           : null,
-      bottomNavigationBar: RaddFlixBottomNav(
+      bottomNavigationBar: MiniPlayerDock(
+        child: RaddFlixBottomNav(
         currentIndex: 2,
         onTap: (i) {
           if (i == 2) return;
@@ -434,6 +436,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
           else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.downloads);
           else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile);
         },
+        ),
       ),
       body: SafeArea(
         child: Column(children: [

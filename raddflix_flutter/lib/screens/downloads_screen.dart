@@ -14,6 +14,7 @@ import '../providers/downloads_provider.dart';
 import '../core/debug/debug_logger.dart';
 import '../core/utils/episode_title_parser.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/mini_player_bar.dart';
 import '../widgets/download/download_storage_strip.dart';
 import '../widgets/download/active_download_ticker.dart';
 import '../services/thumb_service.dart';
@@ -188,7 +189,8 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     return Scaffold(
       backgroundColor: null,
       appBar: _buildAppBar(state),
-      bottomNavigationBar: RaddFlixBottomNav(
+      bottomNavigationBar: MiniPlayerDock(
+        child: RaddFlixBottomNav(
         currentIndex: 3,
         onTap: (i) {
           if (i == 3) return;
@@ -197,6 +199,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.localMedia);
           else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile);
         },
+        ),
       ),
       body: Column(children: [
         if (!_isOnline) _buildOfflineBanner(),

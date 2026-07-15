@@ -11,6 +11,7 @@ import '../core/db/local_db.dart';
 import '../models/catalog_item.dart';
 import '../services/actor_service.dart';
 import '../widgets/content_card.dart';
+import '../widgets/animated_empty_icons.dart';
 
 /// Full-screen view for an actor: large photo + bio + every title in our catalog.
 class ActorScreen extends StatelessWidget {
@@ -151,8 +152,7 @@ class ActorScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(40),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(AppIcons.filmSlate,
-                        size: 48, color: t.textMuted.withOpacity(0.4)),
+                    AnimatedSearchIcon(size: 48, color: t.textMuted.withOpacity(0.4)),
                     const SizedBox(height: 12),
                     Text('No titles in our catalog yet',
                         style: TextStyle(color: t.textMuted, fontSize: 14),
