@@ -424,6 +424,17 @@ class _DestructiveRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
+        // Soft warning-tinted wash behind the whole row, so the danger
+        // action reads as its own tinted card rather than just an accent
+        // bar on an otherwise neutral row.
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: context.accentWarning.withOpacity(0.05),
+              borderRadius: RaddRadius.smRadius,
+            ),
+          ),
+        ),
         // Subtle left accent bar in warning color
         Positioned(
           left: 0,

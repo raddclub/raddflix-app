@@ -1575,20 +1575,54 @@ class _PulsingWatchButton extends StatelessWidget {
     final btn = SizedBox(
       width: double.infinity,
       height: 52,
-      child: ElevatedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 22),
-        label: Text(label,
-            style: const TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w700)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: context.signalPrimary,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-              borderRadius: RaddRadius.pillRadius),
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: RaddSpace.lg),
-        ),
+      child: Stack(
+        children: [
+          ElevatedButton.icon(
+            onPressed: onPressed,
+            icon: Icon(icon, size: 22),
+            label: Text(label,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: context.signalPrimary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: RaddRadius.pillRadius),
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: RaddSpace.lg),
+            ),
+          ),
+          // Specular glint — thin light sheen along the top edge, matching
+          // the glass treatment used on the hero/metadata pills elsewhere
+          // on this screen so the primary CTA reads as part of the same
+          // glass surface language rather than a flat filled button.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ClipRRect(
+                borderRadius: RaddRadius.pillRadius,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: FractionallySizedBox(
+                    heightFactor: 0.45,
+                    widthFactor: 1.0,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.white.withOpacity(0.22),
+                            Colors.white.withOpacity(0.0),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
 

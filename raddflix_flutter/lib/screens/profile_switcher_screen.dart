@@ -960,15 +960,49 @@ class _GlassKeyState extends State<_GlassKey>
               ? Border.all(color: widget.borderColor, width: 1)
               : null,
         ),
-        child: Center(
-          child: widget.child ??
-              Text(
-                widget.label,
-                style: TextStyle(
-                    color: widget.textColor,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Specular sheen along the top of the key, consistent with the
+            // glass surfaces used elsewhere on this screen (avatar rings,
+            // PIN sheet), so the numpad reads as part of the same material.
+            if (widget.onPressed != null)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ClipOval(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: FractionallySizedBox(
+                        heightFactor: 0.42,
+                        widthFactor: 1.0,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.white.withOpacity(0.14),
+                                Colors.white.withOpacity(0.0),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
+            Center(
+              child: widget.child ??
+                  Text(
+                    widget.label,
+                    style: TextStyle(
+                        color: widget.textColor,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600),
+                  ),
+            ),
+          ],
         ),
       ),
     );

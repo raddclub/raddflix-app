@@ -521,47 +521,78 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               }
               return Container(decoration: pillDecoration, child: child);
             },
-            child: Row(children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: AnimatedSwitcher(
-                  duration: RaddMotion.tuneDuration,
-                  child: _loading
-                      ? SizedBox(key: const ValueKey('spin'), width: 18, height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation(AppColors.primary)))
-                      : Icon(key: const ValueKey('icon'),
-                          AppIcons.search, color: t.textMuted, size: 20),
-                ),
-              ),
-              Expanded(
-                child: TextField(
-                  controller: _ctrl,
-                  focusNode: _focus,
-                  style: TextStyle(color: t.textPrimary, fontSize: 15),
-                  decoration: InputDecoration(
-                    hintText: 'Search movies, dramas, shows…',
-                    hintStyle: TextStyle(color: t.textMuted),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                    filled: false,
+            child: Stack(children: [
+              // Specular sheen along the top edge of the pill, matching the
+              // glass treatment used on the hero/CTA/numpad elsewhere in the
+              // app so the search pill reads as the same glass material.
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ClipRRect(
+                    borderRadius: RaddRadius.pillRadius,
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: FractionallySizedBox(
+                        heightFactor: 0.5,
+                        widthFactor: 1.0,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.white.withOpacity(0.10),
+                                Colors.white.withOpacity(0.0),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  onChanged: _onQueryChanged,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => _doSearch(),
                 ),
               ),
-              if (_ctrl.text.isNotEmpty)
-                IconButton(
-                  icon: Icon(AppIcons.close, size: 16, color: t.textMuted),
-                  onPressed: () {
-                    _ctrl.clear();
-                    setState(() { _results = null; _loading = false; });
-                    _focus.requestFocus();
-                  },
+              Row(children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: AnimatedSwitcher(
+                    duration: RaddMotion.tuneDuration,
+                    child: _loading
+                        ? SizedBox(key: const ValueKey('spin'), width: 18, height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation(AppColors.primary)))
+                        : Icon(key: const ValueKey('icon'),
+                            AppIcons.search, color: t.textMuted, size: 20),
+                  ),
                 ),
+                Expanded(
+                  child: TextField(
+                    controller: _ctrl,
+                    focusNode: _focus,
+                    style: TextStyle(color: t.textPrimary, fontSize: 15),
+                    decoration: InputDecoration(
+                      hintText: 'Search movies, dramas, shows…',
+                      hintStyle: TextStyle(color: t.textMuted),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                      filled: false,
+                    ),
+                    onChanged: _onQueryChanged,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => _doSearch(),
+                  ),
+                ),
+                if (_ctrl.text.isNotEmpty)
+                  IconButton(
+                    icon: Icon(AppIcons.close, size: 16, color: t.textMuted),
+                    onPressed: () {
+                      _ctrl.clear();
+                      setState(() { _results = null; _loading = false; });
+                      _focus.requestFocus();
+                    },
+                  ),
+              ]),
             ]),
           ),
         ),

@@ -1048,6 +1048,32 @@ class _DownloadCardState extends State<_DownloadCard> {
                     child: widget.isSelected
                         ? Icon(AppIcons.check, color: Colors.white, size: 14)
                         : null)),
+                // Progress ring — small circular indicator on the thumbnail
+                // itself (in addition to the bottom linear bar), so an
+                // active download reads at a glance without needing the
+                // text row below.
+                if (widget.isActive)
+                  Positioned(top: 6, left: 6, child: SizedBox(
+                    width: 26, height: 26,
+                    child: Stack(alignment: Alignment.center, children: [
+                      CircularProgressIndicator(
+                        value: widget.progress,
+                        strokeWidth: 2.5,
+                        backgroundColor: Colors.white.withOpacity(0.25),
+                        valueColor:
+                            const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      ),
+                      Container(
+                        width: 26, height: 26,
+                        decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black.withOpacity(0.35)),
+                      ),
+                      Text('${(widget.progress * 100).toInt()}',
+                          style: const TextStyle(color: Colors.white,
+                              fontSize: 7, fontWeight: FontWeight.w800)),
+                    ]),
+                  )),
                 // Queue position badge
                 if (widget.isActive && widget.queuePosition > 1)
                   Positioned(top: 6, right: 6, child: Container(
