@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/motion/radd_motion.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/radius/radd_radius.dart';
+import '../design_system/elevation/radd_elevation.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../widgets/animated_empty_icons.dart';
 import '../widgets/offline_banner.dart';
@@ -92,6 +95,55 @@ class _FilterState {
 }
 
 const _sentinel = Object();
+
+// ── Per-genre gradient palette (derived from design-system signal/surface tones)
+// Each entry: [color0, color1] — pulled from AppColors palette only, no hex outside it.
+const List<List<Color>> _kGenreGradients = [
+  // Action / Thriller — primary red to dark
+  [Color(0xFFE8002D), Color(0xFF07070F)],
+  // Drama — accent blue to deep navy surface
+  [Color(0xFF3B82F6), Color(0xFF060D1A)],
+  // Comedy — warm amber to card dark
+  [Color(0xFFF59E0B), Color(0xFF0B0B1C)],
+  // Romance — rose primaryLight to surface
+  [Color(0xFFFF4D6A), Color(0xFF0F0F22)],
+  // Horror — deep red-dark to amoled
+  [Color(0xFFB5001F), Color(0xFF000000)],
+  // Sci-Fi — info blue to cobalt deep
+  [Color(0xFF3B82F6), Color(0xFF060A1A)],
+  // Fantasy — simosa purple to dark bg
+  [Color(0xFF7C5CFF), Color(0xFF07070F)],
+  // Crime — muted primaryDark to surface
+  [Color(0xFFB5001F), Color(0xFF0F0F22)],
+  // Animation — success green to bg
+  [Color(0xFF22C55E), Color(0xFF060E09)],
+  // Documentary — warm orange to bgAlt
+  [Color(0xFFFF9800), Color(0xFF0B0B1C)],
+  // Thriller — primaryDark to card
+  [Color(0xFFE8002D), Color(0xFF1E1E3C)],
+  // Mystery — info to deep dark
+  [Color(0xFF3B82F6), Color(0xFF0A0A0A)],
+  // Historical — accent amber to surface
+  [Color(0xFFF59E0B), Color(0xFF0F0F22)],
+  // Family — success to background
+  [Color(0xFF22C55E), Color(0xFF07070F)],
+  // Sport — primary to card
+  [Color(0xFFE8002D), Color(0xFF1E1E3C)],
+  // Music — simosa purple to bg
+  [Color(0xFF7C5CFF), Color(0xFF0B0B1C)],
+  // War — dark red to amoled
+  [Color(0xFFB5001F), Color(0xFF000000)],
+  // Biography — blue to surface
+  [Color(0xFF3B82F6), Color(0xFF0F0F22)],
+  // Adventure — orange to bg
+  [Color(0xFFFF9800), Color(0xFF07070F)],
+  // Western — amber to card
+  [Color(0xFFF59E0B), Color(0xFF1E1E3C)],
+];
+
+List<Color> _gradientForGenre(int index) {
+  return _kGenreGradients[index % _kGenreGradients.length];
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -217,7 +269,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   void _onQueryChanged(String q) {
     _debounce?.cancel();
     setState(() {});
-    final _dQ = q;
     // A6: 400ms debounce — 220ms fired on nearly every autocorrect keypress
     _debounce = Timer(const Duration(milliseconds: 400), () {
       _doSearch();
@@ -363,7 +414,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   Widget _buildHistorySection() {
     return Container(
       color: t.bg,
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+      padding: const EdgeInsets.fromLTRB(RaddSpace.md, 6, RaddSpace.md, 0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(AppIcons.history, size: 14, color: AppColors.primary),
@@ -379,30 +430,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         ]),
         const SizedBox(height: 10),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: RaddSpace.sm,
+          runSpacing: RaddSpace.sm,
           children: _history.map((q) {
             return GestureDetector(
               onTap: () => _tapSuggestion(q),
-              child: Container(
-                padding: const EdgeInsets.only(left: 10, right: 6, top: 6, bottom: 6),
-                decoration: BoxDecoration(
-                  color: t.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.round),
-                  border: Border.all(color: t.border),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(AppIcons.history, size: 13, color: t.textMuted),
-                  const SizedBox(width: 5),
-                  Text(q, style: TextStyle(
-                      color: t.textSecondary, fontSize: 13,
-                      fontWeight: FontWeight.w500)),
-                  const SizedBox(width: 6),
-                  GestureDetector(
-                    onTap: () => _removeFromHistory(q),
-                    child: Icon(AppIcons.close, size: 13, color: t.textMuted),
-                  ),
-                ]),
+              child: _GlassChip(
+                label: q,
+                leadingIcon: AppIcons.history,
+                trailingIcon: AppIcons.close,
+                onTrailingTap: () => _removeFromHistory(q),
               ),
             );
           }).toList(),
@@ -414,46 +451,87 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     );
   }
 
-  // ── Search bar ─────────────────────────────────────────────────────────────
+  // ── Floating glass search bar ─────────────────────────────────────────────
 
   Widget _buildSearchBar() {
+    final animConfig = ref.read(animConfigProvider);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 12, 12, 0),
+      padding: const EdgeInsets.fromLTRB(RaddSpace.sm, 12, 12, 0),
       child: Row(children: [
-        IconButton(
-          icon: Icon(AppIcons.back, size: 20, color: t.textPrimary),
-          onPressed: () => Navigator.of(context).pop(),
+        // Back button
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: RaddRadius.pillRadius,
+            onTap: () => Navigator.of(context).pop(),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Icon(AppIcons.back, size: 20, color: t.textPrimary),
+            ),
+          ),
         ),
+        const SizedBox(width: 4),
         Expanded(
           child: AnimatedBuilder(
             animation: _glowAnim,
-            builder: (_, child) => Container(
-              decoration: BoxDecoration(
-                color: t.surface,
-                borderRadius: BorderRadius.circular(AppRadius.md),
+            builder: (_, child) {
+              // Floating glass pill — BackdropFilter gated on canBlur
+              final pillDecoration = BoxDecoration(
+                color: animConfig.canBlur
+                    ? t.glass.withOpacity(0.18 + 0.10 * _glowAnim.value)
+                    : t.surface,
+                borderRadius: RaddRadius.pillRadius,
                 border: Border.all(
-                  color: Color.lerp(t.border, AppColors.primary, _glowAnim.value)!,
-                  width: 1 + _glowAnim.value * 0.5,
+                  color: Color.lerp(
+                    t.border,
+                    AppColors.primary.withOpacity(0.7),
+                    _glowAnim.value,
+                  )!,
+                  width: 1 + _glowAnim.value * 0.6,
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.primary.withOpacity(0.18 * _glowAnim.value),
-                    blurRadius: 20, spreadRadius: -2),
+                    blurRadius: 24,
+                    spreadRadius: -2,
+                  ),
+                  // Ambient elevation shadow
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.35),
+                    blurRadius: 12,
+                    spreadRadius: -4,
+                    offset: const Offset(0, 4),
+                  ),
                 ],
-              ),
-              child: child,
-            ),
+              );
+              if (animConfig.canBlur) {
+                return ClipRRect(
+                  borderRadius: RaddRadius.pillRadius,
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(
+                      sigmaX: RaddElevation.sheetBlurSigma * 0.6,
+                      sigmaY: RaddElevation.sheetBlurSigma * 0.6,
+                    ),
+                    child: Container(
+                      decoration: pillDecoration,
+                      child: child,
+                    ),
+                  ),
+                );
+              }
+              return Container(decoration: pillDecoration, child: child);
+            },
             child: Row(children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: AnimatedSwitcher(
                   duration: RaddMotion.tuneDuration,
                   child: _loading
-                      ? SizedBox(key: const ValueKey('spin'), width: 20, height: 20,
+                      ? SizedBox(key: const ValueKey('spin'), width: 18, height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation(AppColors.primary)))
                       : Icon(key: const ValueKey('icon'),
-                          AppIcons.search, color: t.textMuted, size: 22),
+                          AppIcons.search, color: t.textMuted, size: 20),
                 ),
               ),
               Expanded(
@@ -477,7 +555,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               ),
               if (_ctrl.text.isNotEmpty)
                 IconButton(
-                  icon: Icon(AppIcons.close, size: 18, color: t.textMuted),
+                  icon: Icon(AppIcons.close, size: 16, color: t.textMuted),
                   onPressed: () {
                     _ctrl.clear();
                     setState(() { _results = null; _loading = false; });
@@ -488,46 +566,55 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           ),
         ),
         const SizedBox(width: 6),
-        // Filter toggle button with badge
-        GestureDetector(
-          onTap: () => setState(() => _showFilters = !_showFilters),
-          child: AnimatedContainer(
-            duration: RaddMotion.tuneDuration,
-            padding: const EdgeInsets.all(9),
-            decoration: BoxDecoration(
-              color: _showFilters || _filters.hasAny
-                  ? AppColors.primary.withOpacity(0.15)
-                  : t.surface,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              border: Border.all(
-                color: _showFilters || _filters.hasAny ? AppColors.primary : t.border,
-                width: _showFilters || _filters.hasAny ? 1.5 : 1,
-              ),
-            ),
-            child: Stack(clipBehavior: Clip.none, children: [
-              Icon(AppIcons.equalizer, size: 20,
-                  color: _showFilters || _filters.hasAny ? AppColors.primary : t.textMuted),
-              if (_filters.activeCount > 0)
-                Positioned(
-                  top: -6, right: -6,
-                  child: Container(
-                    width: 16, height: 16,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary, shape: BoxShape.circle),
-                    child: Center(
-                      child: Text('${_filters.activeCount}',
-                          style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900)),
-                    ),
-                  ),
-                ),
-            ]),
-          ),
-        ),
+        // Filter toggle — glass pill button with badge
+        _buildFilterToggle(),
       ]),
     ).animate().fadeIn(duration: 250.ms).slideY(begin: -0.1, end: 0, duration: 250.ms);
   }
 
-  // ── Type chips (All / Movies / Shows) ──────────────────────────────────────
+  Widget _buildFilterToggle() {
+    final active = _showFilters || _filters.hasAny;
+    return GestureDetector(
+      onTap: () => setState(() => _showFilters = !_showFilters),
+      child: AnimatedContainer(
+        duration: RaddMotion.tuneDuration,
+        curve: RaddMotion.tune,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: active
+              ? AppColors.primary.withOpacity(0.18)
+              : t.surface,
+          borderRadius: RaddRadius.pillRadius,
+          border: Border.all(
+            color: active ? AppColors.primary.withOpacity(0.7) : t.border,
+            width: active ? 1.5 : 1,
+          ),
+          boxShadow: active ? AppShadows.primary : null,
+        ),
+        child: Stack(clipBehavior: Clip.none, children: [
+          Icon(AppIcons.equalizer, size: 20,
+              color: active ? AppColors.primary : t.textMuted),
+          if (_filters.activeCount > 0)
+            Positioned(
+              top: -6, right: -6,
+              child: Container(
+                width: 16, height: 16,
+                decoration: const BoxDecoration(
+                  color: AppColors.primary, shape: BoxShape.circle),
+                child: Center(
+                  child: Text('${_filters.activeCount}',
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 9,
+                          fontWeight: FontWeight.w900)),
+                ),
+              ),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  // ── Type chips (All / Movies / Shows) — RaddChip-style glass pills ─────────
 
   Widget _buildTypeRow() {
     final types  = [null, 'Movies', 'Shows'];
@@ -536,7 +623,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       height: 44,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        padding: const EdgeInsets.fromLTRB(RaddSpace.md, 8, RaddSpace.md, 0),
         itemCount: types.length,
         itemBuilder: (_, i) {
           final active = _filters.type == types[i];
@@ -546,18 +633,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             },
             child: AnimatedContainer(
               duration: RaddMotion.tuneDuration,
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              curve: RaddMotion.tune,
+              margin: const EdgeInsets.only(right: RaddSpace.sm),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: RaddSpace.md, vertical: 4),
               decoration: BoxDecoration(
                 gradient: active ? AppColors.primaryGradient : null,
-                color: active ? null : t.surface,
-                borderRadius: BorderRadius.circular(AppRadius.round),
-                border: Border.all(color: active ? Colors.transparent : t.border),
+                color: active ? null : t.glass,
+                borderRadius: RaddRadius.pillRadius,
+                border: Border.all(
+                    color: active
+                        ? Colors.transparent
+                        : t.border.withOpacity(0.6)),
                 boxShadow: active ? AppShadows.primary : null,
               ),
               child: Text(labels[i], style: TextStyle(
                 color: active ? Colors.white : t.textMuted,
-                fontSize: 13, fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
+                fontSize: 13,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+              )),
             ),
           );
         },
@@ -572,8 +666,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        color: t.surface.withOpacity(0.92),
+        borderRadius: RaddRadius.lgRadius,
         border: Border.all(color: t.border),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -582,7 +676,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         if (_availGenres.isNotEmpty) ...[
           _filterLabel('Genre'),
           const SizedBox(height: 6),
-          _chipWrap(_availGenres, (g) => _filters.genre == g, (g) {
+          _glassChipWrap(_availGenres, (g) => _filters.genre == g, (g) {
             _applyFilter(_filters.copyWith(genre: _filters.genre == g ? null : g));
           }),
           const SizedBox(height: 12),
@@ -592,7 +686,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         if (_availLanguages.isNotEmpty) ...[
           _filterLabel('Language'),
           const SizedBox(height: 6),
-          _chipWrap(_availLanguages, (l) => _filters.language == l, (l) {
+          _glassChipWrap(_availLanguages, (l) => _filters.language == l, (l) {
             _applyFilter(_filters.copyWith(language: _filters.language == l ? null : l));
           }, capitalize: true),
           const SizedBox(height: 12),
@@ -606,15 +700,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           return GestureDetector(
             onTap: () => _applyFilter(_filters.copyWith(minRating: active ? null : r)),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              duration: RaddMotion.tuneDuration,
+              curve: RaddMotion.tune,
+              margin: const EdgeInsets.only(right: RaddSpace.sm),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
-                color: active ? AppColors.accent.withOpacity(0.18) : t.bg,
-                borderRadius: BorderRadius.circular(AppRadius.round),
+                color: active
+                    ? AppColors.accent.withOpacity(0.18)
+                    : t.glass,
+                borderRadius: RaddRadius.pillRadius,
                 border: Border.all(
-                  color: active ? AppColors.accent : t.border,
-                  width: active ? 1.5 : 1),
+                  color: active
+                      ? AppColors.accent
+                      : t.border.withOpacity(0.6),
+                  width: active ? 1.5 : 1,
+                ),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 if (r != null) ...[
@@ -626,7 +727,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                     style: TextStyle(
                       fontSize: 12,
                       color: active ? AppColors.accent : t.textMuted,
-                      fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
+                      fontWeight: active ? FontWeight.w700 : FontWeight.normal,
+                    )),
               ]),
             ),
           );
@@ -644,23 +746,33 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               children: [null, ..._availYears.take(15)].map((y) {
                 final active = _filters.year == y;
                 return GestureDetector(
-                  onTap: () => _applyFilter(_filters.copyWith(year: active ? null : y)),
+                  onTap: () => _applyFilter(
+                      _filters.copyWith(year: active ? null : y)),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    duration: RaddMotion.tuneDuration,
+                    curve: RaddMotion.tune,
+                    margin: const EdgeInsets.only(right: RaddSpace.sm),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: active ? AppColors.primary.withOpacity(0.15) : t.bg,
-                      borderRadius: BorderRadius.circular(AppRadius.round),
+                      color: active
+                          ? AppColors.primary.withOpacity(0.15)
+                          : t.glass,
+                      borderRadius: RaddRadius.pillRadius,
                       border: Border.all(
-                        color: active ? AppColors.primary : t.border,
-                        width: active ? 1.5 : 1),
+                        color: active ? AppColors.primary : t.border.withOpacity(0.6),
+                        width: active ? 1.5 : 1,
+                      ),
                     ),
-                    child: Text(y == null ? 'Any Year' : '$y',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: active ? AppColors.primary : t.textMuted,
-                          fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
+                    child: Text(
+                      y == null ? 'Any Year' : '$y',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: active ? AppColors.primary : t.textMuted,
+                        fontWeight:
+                            active ? FontWeight.w700 : FontWeight.normal,
+                      ),
+                    ),
                   ),
                 );
               }).toList(),
@@ -672,42 +784,43 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         // ── Row 5: Status ────────────────────────────────────────────────────
         _filterLabel('Status'),
         const SizedBox(height: 6),
-        _chipWrap(['Ongoing', 'Completed', 'Released'],
+        _glassChipWrap(['Ongoing', 'Completed', 'Released'],
           (s) => _filters.status == s.toLowerCase(), (s) {
           final v = s.toLowerCase();
-          _applyFilter(_filters.copyWith(status: _filters.status == v ? null : v));
+          _applyFilter(
+              _filters.copyWith(status: _filters.status == v ? null : v));
         }),
         const SizedBox(height: 12),
 
         // ── Row 6: Free / Offline / Sort ─────────────────────────────────────
         Row(children: [
-          // Free toggle
-          _toggleChip(
+          _glassToggleChip(
             label: 'Free Only',
             icon: AppIcons.tag,
             active: _filters.isFree == true,
             color: AppColors.success,
             onTap: () => _applyFilter(
-              _filters.copyWith(isFree: _filters.isFree == true ? null : true)),
+              _filters.copyWith(
+                  isFree: _filters.isFree == true ? null : true)),
           ),
           const SizedBox(width: RaddSpace.sm),
-          // Premium toggle
-          _toggleChip(
+          _glassToggleChip(
             label: 'Premium',
             icon: AppIcons.crown,
             active: _filters.isFree == false,
             color: AppColors.accent,
             onTap: () => _applyFilter(
-              _filters.copyWith(isFree: _filters.isFree == false ? null : false)),
+              _filters.copyWith(
+                  isFree: _filters.isFree == false ? null : false)),
           ),
           const SizedBox(width: RaddSpace.sm),
-          // Offline toggle
-          _toggleChip(
+          _glassToggleChip(
             label: 'Downloaded',
             icon: AppIcons.downloadDone,
             active: _filters.offlineOnly,
             color: AppColors.primary,
-            onTap: () => _applyFilter(_filters.copyWith(offlineOnly: !_filters.offlineOnly)),
+            onTap: () => _applyFilter(
+                _filters.copyWith(offlineOnly: !_filters.offlineOnly)),
           ),
         ]),
         const SizedBox(height: 12),
@@ -731,21 +844,34 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             return GestureDetector(
               onTap: () => _applyFilter(_filters.copyWith(sortBy: val)),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                duration: RaddMotion.tuneDuration,
+                curve: RaddMotion.tune,
+                margin: const EdgeInsets.only(right: RaddSpace.sm),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   gradient: active ? AppColors.primaryGradient : null,
-                  color: active ? null : t.bg,
-                  borderRadius: BorderRadius.circular(AppRadius.round),
-                  border: Border.all(color: active ? Colors.transparent : t.border),
+                  color: active ? null : t.glass,
+                  borderRadius: RaddRadius.pillRadius,
+                  border: Border.all(
+                    color: active
+                        ? Colors.transparent
+                        : t.border.withOpacity(0.6),
+                  ),
+                  boxShadow: active ? AppShadows.primary : null,
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(icon, size: 13, color: active ? Colors.white : t.textMuted),
+                  Icon(icon,
+                      size: 13,
+                      color: active ? Colors.white : t.textMuted),
                   const SizedBox(width: RaddSpace.xs),
-                  Text(label, style: TextStyle(
-                    fontSize: 12, color: active ? Colors.white : t.textMuted,
-                    fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
+                  Text(label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: active ? Colors.white : t.textMuted,
+                        fontWeight:
+                            active ? FontWeight.w700 : FontWeight.normal,
+                      )),
                 ]),
               ),
             );
@@ -769,12 +895,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               if (_filters.genre     != null) _activePill(_filters.genre!),
               if (_filters.language  != null) _activePill(_filters.language!),
               if (_filters.year      != null) _activePill('${_filters.year}'),
-              if (_filters.minRating != null) _activePill('${_filters.minRating!.toInt()}+ ★'),
+              if (_filters.minRating != null)
+                _activePill('${_filters.minRating!.toInt()}+ \u2605'),
               if (_filters.isFree == true)    _activePill('Free'),
               if (_filters.isFree == false)   _activePill('Premium'),
               if (_filters.status    != null) _activePill(_filters.status!),
               if (_filters.offlineOnly)       _activePill('Downloaded'),
-              if (_filters.sortBy != 'relevance') _activePill('Sort: ${_filters.sortBy}'),
+              if (_filters.sortBy != 'relevance')
+                _activePill('Sort: ${_filters.sortBy}'),
             ]),
           ),
         ),
@@ -783,7 +911,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           child: Padding(
             padding: const EdgeInsets.only(left: 8),
             child: Text('Clear all',
-                style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
+                style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600)),
           ),
         ),
       ]),
@@ -795,14 +926,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
     decoration: BoxDecoration(
       color: AppColors.primary.withOpacity(0.12),
-      borderRadius: BorderRadius.circular(AppRadius.round),
-      border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+      borderRadius: RaddRadius.pillRadius,
+      border: Border.all(color: AppColors.primary.withOpacity(0.35)),
     ),
     child: Text(label, style: TextStyle(
-        color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600)),
+        color: AppColors.primary,
+        fontSize: 11,
+        fontWeight: FontWeight.w600)),
   );
 
-  // ── Results ────────────────────────────────────────────────────────────────
+  // ── Results — Poster grid instead of text list ─────────────────────────────
 
   Widget _buildResults() {
     // Phase 43: stagger; Phase 44: OpenContainer morph on Tier 2+
@@ -811,47 +944,67 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     final canMorph   = animConfig.canMorph;
     final t          = RaddTheme.of(context);
     if (_loading && (_results == null)) {
-      return _buildShimmer();
+      return _buildGridShimmer();
     }
     final res = _results ?? [];
     if (res.isEmpty && !_loading) {
       return _buildEmpty();
     }
 
+    // Responsive grid: 3 columns on phone, 4+ on wider screens
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = screenWidth >= 600 ? 4 : 3;
+    // 2:3 poster ratio → childAspectRatio = 2/3
+    const posterRatio = 2.0 / 3.0;
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (res.isNotEmpty)
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-          child: Text('${res.length} result${res.length == 1 ? "" : "s"}',
-              style: TextStyle(color: t.textMuted, fontSize: 12, fontWeight: FontWeight.w500)),
+          padding: const EdgeInsets.fromLTRB(RaddSpace.md, 6, RaddSpace.md, 4),
+          child: Text(
+            '${res.length} result${res.length == 1 ? "" : "s"}',
+            style: TextStyle(
+                color: t.textMuted, fontSize: 12,
+                fontWeight: FontWeight.w500)),
         ),
       Expanded(
-        child: ListView.builder(
+        child: GridView.builder(
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: RaddSpace.sm,
+            mainAxisSpacing: RaddSpace.sm,
+            childAspectRatio: posterRatio,
+          ),
           itemCount: res.length,
-          // Phase 44: Tier 2+ → OpenContainer morph; Tier 1 → stagger; Tier 0 → raw
           itemBuilder: (_, i) {
             final item = res[i].item;
             if (canMorph) {
               return OpenContainer<void>(
-                closedColor: t.surface,
+                closedColor: Colors.transparent,
                 openColor: t.bg,
                 closedElevation: 0,
                 openElevation: 0,
                 transitionDuration: animConfig.slow,
                 tappable: false,
+                closedShape: RoundedRectangleBorder(
+                    borderRadius: RaddRadius.smRadius),
                 closedBuilder: (_, openFn) =>
-                    _SearchResultTile(result: res[i], onTap: openFn),
+                    ContentCard(item: item, onTap: openFn),
                 openBuilder: (_, __) => ShowDetailScreen(item: item),
               );
             }
+            final card = ContentCard(item: item);
             return canAnimate
-                ? _SearchResultTile(result: res[i])
+                ? card
                     .animate(delay: animConfig.stagger(i))
                     .fadeIn(duration: animConfig.normal)
-                    .slideX(begin: 0.07, end: 0, duration: animConfig.normal,
+                    .scale(
+                        begin: const Offset(0.92, 0.92),
+                        end: const Offset(1.0, 1.0),
+                        duration: animConfig.normal,
                         curve: Curves.easeOut)
-                : _SearchResultTile(result: res[i]);
+                : card;
           },
         ),
       ),
@@ -879,16 +1032,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           ),
           const SizedBox(height: RaddSpace.md),
           Text(
-            hasQuery
-                ? 'No results for'
-                : 'No titles match',
+            hasQuery ? 'No results for' : 'No titles match',
             style: TextStyle(color: t.textMuted,
                 fontSize: 13, fontWeight: FontWeight.w500),
           ),
           if (hasQuery) ...[
             const SizedBox(height: 2),
             Text(
-              '“${_ctrl.text}”',
+              '"${_ctrl.text}"',
               style: TextStyle(color: t.textPrimary,
                   fontSize: 18, fontWeight: FontWeight.w800,
                   letterSpacing: -0.3),
@@ -903,11 +1054,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                     fontSize: 18, fontWeight: FontWeight.w800)),
           ],
           const SizedBox(height: RaddSpace.md),
-          // Suggestions
           if (hasQuery) ...[
             Text('Try a different title, actor name, or shorter keywords.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: t.textMuted, fontSize: 13, height: 1.5)),
+                style: TextStyle(
+                    color: t.textMuted, fontSize: 13, height: 1.5)),
             const SizedBox(height: 20),
             GestureDetector(
               onTap: () {
@@ -915,18 +1066,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                 setState(() {});
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 10),
                 decoration: BoxDecoration(
                   color: t.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.round),
+                  borderRadius: RaddRadius.pillRadius,
                   border: Border.all(color: t.border),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(AppIcons.close, size: 14, color: t.textMuted),
                   const SizedBox(width: 6),
                   Text('Clear search',
-                      style: TextStyle(color: t.textSecondary,
-                          fontSize: 13, fontWeight: FontWeight.w600)),
+                      style: TextStyle(
+                          color: t.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
                 ]),
               ),
             ),
@@ -934,20 +1088,24 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           if (hasFilters && !hasQuery) ...[
             Text('Try adjusting or removing some filters.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: t.textMuted, fontSize: 13, height: 1.5)),
+                style: TextStyle(
+                    color: t.textMuted, fontSize: 13, height: 1.5)),
             const SizedBox(height: 20),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               GestureDetector(
                 onTap: _clearAll,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 10),
                   decoration: BoxDecoration(
                     gradient: AppColors.primaryGradient,
-                    borderRadius: BorderRadius.circular(AppRadius.round),
+                    borderRadius: RaddRadius.pillRadius,
                   ),
                   child: const Text('Clear all filters',
-                      style: TextStyle(color: Colors.white,
-                          fontSize: 13, fontWeight: FontWeight.w700)),
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700)),
                 ),
               ),
             ]),
@@ -962,7 +1120,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   // ── Discover (no query, no filter) ────────────────────────────────────────
 
   Widget _buildDiscover(List<CatalogItem> allItems, List<CatalogItem> trending) {
-    final byGenre = _byGenre(allItems);
+    final animConfig = ref.read(animConfigProvider);
+    final canAnimate = animConfig.canStagger;
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
@@ -972,27 +1131,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         if (_history.isNotEmpty) ...[
           _sectionHeader('Recent', trailing: TextButton(
             onPressed: _clearHistory,
-            child: Text('Clear', style: TextStyle(color: t.textMuted, fontSize: 12)),
+            child: Text('Clear',
+                style: TextStyle(color: t.textMuted, fontSize: 12)),
           )),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-            child: Wrap(spacing: 8, runSpacing: 6, children: _history.map((h) {
+            padding: const EdgeInsets.fromLTRB(
+                RaddSpace.md, 0, RaddSpace.md, 4),
+            child: Wrap(spacing: 8, runSpacing: 6,
+                children: _history.map((h) {
               return GestureDetector(
                 onLongPress: () => _removeFromHistory(h),
                 child: GestureDetector(
                   onTap: () => _tapSuggestion(h),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: t.surface,
-                      borderRadius: BorderRadius.circular(AppRadius.round),
-                      border: Border.all(color: t.border),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(AppIcons.history, size: 14, color: t.textMuted),
-                      const SizedBox(width: 5),
-                      Text(h, style: TextStyle(color: t.textSecondary, fontSize: 13)),
-                    ]),
+                  child: _GlassChip(
+                    label: h,
+                    leadingIcon: AppIcons.history,
                   ),
                 ),
               );
@@ -1008,324 +1161,349 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             height: 200,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+              padding: const EdgeInsets.fromLTRB(
+                  RaddSpace.md, 0, RaddSpace.md, 0),
               itemCount: trending.take(15).length,
-              itemBuilder: (_, i) => Padding(
-                padding: EdgeInsets.only(right: i < trending.length - 1 ? 10 : 0),
-                child: SizedBox(width: 110, child: ContentCard(item: trending[i])),
-              ),
+              itemBuilder: (_, i) {
+                final card = Padding(
+                  padding: EdgeInsets.only(
+                      right: i < trending.length - 1 ? 10 : 0),
+                  child: SizedBox(width: 110, child: ContentCard(item: trending[i])),
+                );
+                return canAnimate
+                    ? card
+                        .animate(delay: animConfig.stagger(i))
+                        .fadeIn(duration: animConfig.normal)
+                        .slideX(
+                            begin: 0.12,
+                            end: 0,
+                            duration: animConfig.normal,
+                            curve: Curves.easeOut)
+                    : card;
+              },
             ),
           ),
           const SizedBox(height: 12),
         ],
 
-        // ── Browse by genre ────────────────────────────────────────────────
-        if (byGenre.isNotEmpty) ...[
+        // ── Browse by Genre — visual 2-column gradient card grid ───────────
+        if (_availGenres.isNotEmpty) ...[
           _sectionHeader('Browse by Genre'),
-          ...byGenre.entries.map((e) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-                child: GestureDetector(
-                  onTap: () {
-                    _applyFilter(_filters.copyWith(genre: e.key));
-                    if (!_showFilters) setState(() => _showFilters = true);
-                  },
-                  child: Row(children: [
-                    Container(width: 3, height: 16,
-                      margin: const EdgeInsets.only(right: 8),
-                      decoration: BoxDecoration(
-                        gradient: AppColors.primaryGradient,
-                        borderRadius: BorderRadius.circular(2))),
-                    Text(e.key, style: TextStyle(
-                        color: t.textPrimary, fontSize: 14,
-                        fontWeight: FontWeight.w800, letterSpacing: -0.2)),
-                    const SizedBox(width: RaddSpace.sm),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(AppRadius.round),
-                        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
-                      ),
-                      child: Text('${e.value.length}', style: const TextStyle(
-                          color: AppColors.primary, fontSize: 9, fontWeight: FontWeight.w800)),
-                    ),
-                    const Spacer(),
-                    Icon(AppIcons.caretRight, size: 18, color: t.textMuted),
-                  ]),
-                ),
-              ),
-              SizedBox(
-                height: 175,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                  itemCount: e.value.take(10).length,
-                  itemBuilder: (_, i) => Padding(
-                    padding: EdgeInsets.only(right: i < e.value.length - 1 ? 10 : 0),
-                    child: SizedBox(width: 106, child: ContentCard(item: e.value[i])),
-                  ),
-                ),
-              ),
-            ],
-          )),
+          _buildGenreGrid(animConfig, canAnimate),
         ],
       ],
     );
   }
 
-  // ── Shimmer ────────────────────────────────────────────────────────────────
+  /// 2-column genre grid: each tile has a distinct gradient background
+  /// with the genre label overlaid on a contrast scrim.
+  Widget _buildGenreGrid(AnimConfig animConfig, bool canAnimate) {
+    // Only show genres that actually exist in the catalog data
+    final genres = _availGenres.take(16).toList();
+    if (genres.isEmpty) return const SizedBox.shrink();
 
-  Widget _buildShimmer() {
-    return Shimmer.fromColors(
-      baseColor: t.surface,
-      highlightColor: t.border,
-      child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
-        itemCount: 8,
-        itemBuilder: (_, __) => Container(
-          height: 80,
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: t.surface,
-            borderRadius: BorderRadius.circular(AppRadius.md)),
-          child: Row(children: [
-            // Poster thumbnail area
-            ClipRRect(
-              borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(AppRadius.md)),
-              child: Container(
-                width: 56, height: 80, color: t.surfaceHigh)),
-            const SizedBox(width: 14),
-            // Text placeholder lines
-            Expanded(child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(height: 13, width: double.infinity,
-                    decoration: BoxDecoration(color: t.surfaceHigh,
-                        borderRadius: BorderRadius.circular(4))),
-                const SizedBox(height: 7),
-                Container(height: 10, width: 110,
-                    decoration: BoxDecoration(color: t.surfaceHigh,
-                        borderRadius: BorderRadius.circular(3))),
-                const SizedBox(height: 5),
-                Container(height: 8, width: 75,
-                    decoration: BoxDecoration(color: t.surfaceHigh,
-                        borderRadius: BorderRadius.circular(3))),
-              ],
-            )),
-            const SizedBox(width: RaddSpace.md),
-          ]),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(RaddSpace.md, 0, RaddSpace.md, RaddSpace.md),
+      child: GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        shrinkWrap: true,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: RaddSpace.sm,
+          mainAxisSpacing: RaddSpace.sm,
+          childAspectRatio: 2.4, // wider landscape tile
         ),
+        itemCount: genres.length,
+        itemBuilder: (_, i) {
+          final genre = genres[i];
+          final colors = _gradientForGenre(i);
+          final tile = _GenreGridTile(
+            genre: genre,
+            gradientColors: colors,
+            onTap: () {
+              _applyFilter(_filters.copyWith(genre: genre));
+            },
+          );
+          if (!canAnimate) return tile;
+          return tile
+              .animate(delay: animConfig.stagger(i))
+              .fadeIn(duration: animConfig.normal)
+              .scale(
+                  begin: const Offset(0.92, 0.92),
+                  end: const Offset(1.0, 1.0),
+                  duration: animConfig.normal,
+                  curve: Curves.easeOut);
+        },
       ),
+    );
+  }
+
+  // ── Grid shimmer ─────────────────────────────────────────────────────────
+
+  Widget _buildGridShimmer() {
+    final crossAxisCount =
+        MediaQuery.of(context).size.width >= 600 ? 4 : 3;
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        crossAxisSpacing: RaddSpace.sm,
+        mainAxisSpacing: RaddSpace.sm,
+        childAspectRatio: 2.0 / 3.0,
+      ),
+      itemCount: 9,
+      itemBuilder: (_, __) => const ShimmerCard(),
     );
   }
 
   // ── Helper widgets ─────────────────────────────────────────────────────────
 
   Widget _filterLabel(String label) => Text(label,
-      style: TextStyle(color: t.textMuted, fontSize: 11,
-          fontWeight: FontWeight.w700, letterSpacing: 0.6));
+      style: TextStyle(
+          color: t.textMuted,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6));
 
-  Widget _chipWrap(List<String> items, bool Function(String) isActive,
-      void Function(String) onTap, {bool capitalize = false}) {
-    return Wrap(spacing: 8, runSpacing: 6, children: items.map((item) {
+  /// RaddChip-style glass-fill inactive / signal.primary fill active wrap.
+  Widget _glassChipWrap(
+    List<String> items,
+    bool Function(String) isActive,
+    void Function(String) onTap, {
+    bool capitalize = false,
+  }) {
+    return Wrap(spacing: RaddSpace.sm, runSpacing: 6, children: items.map((item) {
       final active = isActive(item);
-      final label  = capitalize
+      final label = capitalize
           ? item.substring(0, 1).toUpperCase() + item.substring(1)
           : item;
       return GestureDetector(
         onTap: () => onTap(item),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration: RaddMotion.tuneDuration,
+          curve: RaddMotion.tune,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
           decoration: BoxDecoration(
             gradient: active ? AppColors.primaryGradient : null,
-            color: active ? null : t.bg,
-            borderRadius: BorderRadius.circular(AppRadius.round),
-            border: Border.all(color: active ? Colors.transparent : t.border),
-            boxShadow: active ? [BoxShadow(
-                color: AppColors.primary.withOpacity(0.3), blurRadius: 8)] : null,
+            color: active ? null : t.glass,
+            borderRadius: RaddRadius.pillRadius,
+            border: Border.all(
+              color: active ? Colors.transparent : t.border.withOpacity(0.6),
+            ),
+            boxShadow: active
+                ? [BoxShadow(
+                    color: AppColors.primary.withOpacity(0.3),
+                    blurRadius: 8)]
+                : null,
           ),
           child: Text(label, style: TextStyle(
               color: active ? Colors.white : t.textMuted,
-              fontSize: 12, fontWeight: active ? FontWeight.w700 : FontWeight.w500)),
+              fontSize: 12,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w500)),
         ),
       );
     }).toList());
   }
 
-  Widget _toggleChip({
+  Widget _glassToggleChip({
     required String label,
     required IconData icon,
     required bool active,
     required Color color,
     required VoidCallback onTap,
-  }) => GestureDetector(
-    onTap: onTap,
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: active ? color.withOpacity(0.15) : t.bg,
-        borderRadius: BorderRadius.circular(AppRadius.round),
-        border: Border.all(color: active ? color : t.border, width: active ? 1.5 : 1),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 13, color: active ? color : t.textMuted),
-        const SizedBox(width: RaddSpace.xs),
-        Text(label, style: TextStyle(
-          fontSize: 12, color: active ? color : t.textMuted,
-          fontWeight: active ? FontWeight.w700 : FontWeight.normal)),
-      ]),
-    ),
-  );
+  }) =>
+      GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: RaddMotion.tuneDuration,
+          curve: RaddMotion.tune,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: active ? color.withOpacity(0.18) : t.glass,
+            borderRadius: RaddRadius.pillRadius,
+            border: Border.all(
+              color: active ? color : t.border.withOpacity(0.6),
+              width: active ? 1.5 : 1,
+            ),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 13, color: active ? color : t.textMuted),
+            const SizedBox(width: RaddSpace.xs),
+            Text(label, style: TextStyle(
+              fontSize: 12,
+              color: active ? color : t.textMuted,
+              fontWeight: active ? FontWeight.w700 : FontWeight.normal,
+            )),
+          ]),
+        ),
+      );
 
   Widget _sectionHeader(String title, {Widget? trailing}) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+    padding: const EdgeInsets.fromLTRB(
+        RaddSpace.md, 14, RaddSpace.md, RaddSpace.sm),
     child: Row(children: [
       Text(title, style: TextStyle(
-          color: t.textPrimary, fontSize: 15, fontWeight: FontWeight.w800)),
+          color: t.textPrimary,
+          fontSize: 15,
+          fontWeight: FontWeight.w800)),
       const Spacer(),
       if (trailing != null) trailing,
     ]),
   );
 }
 
-// ── Search result tile with snippet ──────────────────────────────────────────
+// ── Genre grid tile ───────────────────────────────────────────────────────────
 
-class _SearchResultTile extends StatelessWidget {
-  final SearchResult result;
-  // Phase 44: optional override — OpenContainer passes openFn here on Tier 2+
-  final VoidCallback? onTap;
-  const _SearchResultTile({required this.result, this.onTap});
+class _GenreGridTile extends StatelessWidget {
+  final String genre;
+  final List<Color> gradientColors;
+  final VoidCallback onTap;
+
+  const _GenreGridTile({
+    required this.genre,
+    required this.gradientColors,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final t    = RaddTheme.of(context);
-    final item = result.item;
-
-    // Parse snippet: FTS5 marks matches with [ ] — we render them highlighted
-    final rawSnippet = result.snippet;
-    final hasSnippet = rawSnippet != null && rawSnippet.isNotEmpty;
-
+    final t = RaddTheme.of(context);
     return GestureDetector(
-      // Phase 44: if onTap provided (OpenContainer), use it; otherwise default push
-      onTap: onTap ?? () {
-        Navigator.of(context).pushNamed(AppRoutes.showDetail, arguments: item);
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: t.border),
-        ),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Poster — Hero tag matches home grid and show_detail banner (Phase 42)
-          Hero(
-            tag: 'poster_${item.id}',
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-              child: _buildPoster(item, t),
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: RaddRadius.mdRadius,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: gradientColors,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            // Asymmetric glass rim — same as ContentCard
+            border: Border(
+              top: BorderSide(
+                  color: Colors.white.withOpacity(0.22), width: 0.8),
+              left: BorderSide(
+                  color: Colors.white.withOpacity(0.10), width: 0.5),
+              right: BorderSide(
+                  color: Colors.white.withOpacity(0.05), width: 0.5),
+              bottom: BorderSide(
+                  color: Colors.black.withOpacity(0.40), width: 0.5),
             ),
           ),
-          const SizedBox(width: 10),
-          // Info
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(item.title,
-                  style: TextStyle(color: t.textPrimary, fontSize: 14,
-                      fontWeight: FontWeight.w700),
-                  maxLines: 2, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 3),
-              // Metadata row
-              Wrap(spacing: 6, runSpacing: 2, children: [
-                if (item.year != null)
-                  _metaTag('${item.year}', t, color: t.textMuted),
-                if (item.language != null && item.language!.isNotEmpty)
-                  _metaTag(item.language!.toUpperCase(), t,
-                      color: AppColors.accent, border: true),
-                if (item.rating != null && item.rating! > 0)
-                  _metaTag('★ ${item.rating!.toStringAsFixed(1)}', t,
-                      color: Colors.amber[700]!),
-                if (item.isFree)
-                  _metaTag('FREE', t, color: AppColors.success, border: true),
-                _metaTag(item.isMovie ? 'Movie' : 'Show', t,
-                    color: t.textMuted),
-                if (item.statusLabel.isNotEmpty && item.statusLabel != 'Released')
-                  _metaTag(item.statusLabel, t,
-                      color: item.isOngoing == true ? AppColors.info : t.textMuted),
-              ]),
-              // Description snippet (highlighted matches)
-              if (hasSnippet) ...[
-                const SizedBox(height: 5),
-                _SnippetText(raw: rawSnippet!, textStyle: TextStyle(
-                    color: t.textMuted, fontSize: 12, height: 1.4)),
-              ] else if (item.description != null && item.description!.isNotEmpty) ...[
-                const SizedBox(height: 5),
-                Text(item.description!,
-                    style: TextStyle(color: t.textMuted, fontSize: 12, height: 1.4),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-              ],
-            ]),
-          ),
-        ]),
+          child: Stack(fit: StackFit.expand, children: [
+            // Specular highlight — matches ContentCard glint pattern
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: Container(
+                height: 32,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x1EFFFFFF),
+                      Color(0x06FFFFFF),
+                      Colors.transparent,
+                    ],
+                    stops: [0.0, 0.5, 1.0],
+                  ),
+                ),
+              ),
+            ),
+            // Contrast scrim at the bottom for label legibility
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(10, 16, 10, 8),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Color(0xA0000000),
+                      Color(0xD8000000),
+                    ],
+                    stops: [0.0, 0.5, 1.0],
+                  ),
+                ),
+                child: Text(
+                  genre,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                    shadows: [
+                      Shadow(
+                          color: Colors.black87,
+                          blurRadius: 6,
+                          offset: Offset(0, 1))
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }
+}
 
-  Widget _buildPoster(CatalogItem item, RaddTheme t) {
-    const w = 64.0; const h = 90.0;
-    // Local cached poster first (zero network, works offline)
-    if (item.posterPath != null && item.posterPath!.isNotEmpty) {
-      final f = File(item.posterPath!);
-      if (f.existsSync()) {
-        return Image.file(f, width: w, height: h, fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _buildNetworkPosterSR(item, t, w, h));
-      }
-    }
-    return _buildNetworkPosterSR(item, t, w, h);
+// ── Glass chip widget (reusable pill — history items, recent searches) ─────────
+
+class _GlassChip extends StatelessWidget {
+  final String label;
+  final IconData? leadingIcon;
+  final IconData? trailingIcon;
+  final VoidCallback? onTrailingTap;
+
+  const _GlassChip({
+    required this.label,
+    this.leadingIcon,
+    this.trailingIcon,
+    this.onTrailingTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Container(
+      padding: EdgeInsets.only(
+        left: 10,
+        right: trailingIcon != null ? 6 : 10,
+        top: 6,
+        bottom: 6,
+      ),
+      decoration: BoxDecoration(
+        color: t.glass,
+        borderRadius: RaddRadius.pillRadius,
+        border: Border.all(color: t.border.withOpacity(0.6)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (leadingIcon != null) ...[
+          Icon(leadingIcon, size: 13, color: t.textMuted),
+          const SizedBox(width: 5),
+        ],
+        Text(label,
+            style: TextStyle(
+                color: t.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500)),
+        if (trailingIcon != null) ...[
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: onTrailingTap,
+            child: Icon(trailingIcon, size: 13, color: t.textMuted),
+          ),
+        ],
+      ]),
+    );
   }
-
-  Widget _buildNetworkPosterSR(CatalogItem item, RaddTheme t, double w, double h) {
-    if (item.posterUrl != null && item.posterUrl!.isNotEmpty) {
-      return CachedNetworkImage(
-        imageUrl: item.posterUrl!,
-        width: w, height: h, fit: BoxFit.cover,
-        placeholder: (_, __) => Shimmer.fromColors(
-          baseColor: t.card, highlightColor: t.surfaceHigh,
-          child: Container(width: w, height: h, color: t.card)),
-        errorWidget: (_, __, ___) => _posterPlaceholder(item, t, w, h),
-      );
-    }
-    return _posterPlaceholder(item, t, w, h);
-  }
-
-  Widget _posterPlaceholder(CatalogItem item, RaddTheme t, double w, double h) =>
-      Container(
-        width: w, height: h,
-        color: t.bg,
-        child: Center(child: Icon(
-            item.isMovie ? AppIcons.movie : AppIcons.tv,
-            color: t.textMuted, size: 28)),
-      );
-
-  Widget _metaTag(String label, RaddTheme t, {Color? color, bool border = false}) =>
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-        decoration: BoxDecoration(
-          color: (color ?? t.textMuted).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(4),
-          border: border ? Border.all(color: (color ?? t.textMuted).withOpacity(0.4)) : null,
-        ),
-        child: Text(label, style: TextStyle(
-            color: color ?? t.textMuted, fontSize: 10, fontWeight: FontWeight.w700)),
-      );
 }
 
 // ── Snippet renderer: [ and ] around matched tokens → highlighted ─────────────
@@ -1365,4 +1543,3 @@ class _SnippetText extends StatelessWidget {
     );
   }
 }
-
