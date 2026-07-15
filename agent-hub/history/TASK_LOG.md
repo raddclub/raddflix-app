@@ -854,6 +854,49 @@ CI `2d419f4` confirmed green.
 
 ---
 
+## 2026-07-15 — Vault UX Fixes (Restore Crash + MediaStore Ghost + Progress + Unlock Gate)
+
+### Task
+User reported four vault issues: (1) no feedback when locking local media — app feels heavy, (2) files still visible in MX Player / file managers after vault add, (3) restore shows a bug warning and file stays in vault, (4) folder lock has no progress or feedback.
+
+### Root Causes
+
+**Bug 1 — Restore crash / file stuck:**
+`_restoreToGallery` in `vault_screen.dart` hardcoded the destination as `/storage/emulated/0/Download`. On Android 11+ (API 30+), `WRITE_EXTERNAL_STORAGE` is declared `maxSdkVersion="29"` in the manifest. `File.copy()` to that path throws `Permission denied`. The exception was caught in the catch block — correct — but the catch block never called `File.delete()` on the vault source, so the file stayed in the vault permanently while showing an error snackbar. The file was stuck until the user manually deleted it from the vault.
+
+**Bug 2 — MediaStore ghost entries:**
+`local_media_screen._addFolderToVault()` and `local_folder_screen._addToVault()` both called `VaultService.moveFileToVault(v.filePath)` — which moves the file to internal private storage — but never called `deleteFromMediaStore()`. MediaStore keeps a database record even after the file is moved; file managers and video players (MX Player, VLC, Files by Google) read MediaStore, not the filesystem directly, so they kept showing the files as if they were still there. `moveFileToVault` does call `notifyMediaStore(sourcePath)` (scan-file), but on Android 11+ this isn't sufficient to remove entries — deletion by content URI is required.
+
+**Bug 3 — No progress feedback:**
+All four vault-add code paths (`_processPickedFiles`, `_importVideoFolder` in vault_screen; `_addFolderToVault` in local_media_screen; `_addToVault` in local_folder_screen) ran their file I/O loops with zero UI feedback. For a folder with many large video files (common on Pakistani handsets with 50–100+ movies stored locally), this felt like a freeze.
+
+**Bug 4 — Missing unlock gate:**
+`local_folder_screen._addToVault()` checked `VaultService.hasPin()` (PIN is configured) but not `VaultService.isUnlocked` (user currently authenticated). A user with a PIN set but vault currently locked could silently move files without entering the PIN.
+
+### Fix
+
+**Native layer (`MainActivity.kt`):** Added `"copyToDownloads"` case to the existing `MEDIA_CHANNEL`. On API 29+: inserts via `MediaStore.Downloads.EXTERNAL_CONTENT_URI` with `IS_PENDING=1`, streams bytes from the vault file, then clears `IS_PENDING=0` — returns the `content://` URI. On API <29: direct `File.copyTo` to `Environment.DIRECTORY_DOWNLOADS` + `MediaScannerConnection.scanFile`. No new permissions needed.
+
+**`VaultService.restoreFileToDownloads()`:** New method that calls native `copyToDownloads`, waits for success, then and only then deletes the vault source. Replaces `restoreFile()` for the gallery restore path.
+
+**`_VaultProgressDialog` widget (vault_screen.dart):** Shared `StatelessWidget` wrapping an `AlertDialog` with a `ValueListenableBuilder<int>` that drives a `LinearProgressIndicator`. Callers hold a `ValueNotifier<int>` and increment it from their async loop; single-file variant shows a spinner instead of a bar.
+
+**`deleteFromMediaStore` calls added:** Content URI constructed from `LocalVideo.id` → `content://media/external/video/media/{id}`. Called after each batch of moves in both local screens.
+
+**`isUnlocked` check added** to `local_folder_screen._addToVault`.
+
+### Files Changed
+- `MainActivity.kt` — `copyToDownloads` native method (+64 lines)
+- `vault_service.dart` — `restoreFileToDownloads()` (+30 lines)
+- `vault_screen.dart` — fix restore, add progress to import paths, add `_VaultProgressDialog` widget
+- `local_media_screen.dart` — progress dialog + MediaStore cleanup in `_addFolderToVault`
+- `local_folder_screen.dart` — progress dialog + MediaStore cleanup + unlock gate in `_addToVault`
+
+### Outcome
+Commit `4c3c2574` — CI pending at time of writing.
+
+---
+
 ## 2026-07-15 — UX-BATCH-3 Docs Catch-Up (UX3-01 through UX3-10 + BUG-DL-EXT-01)
 
 ### Task
