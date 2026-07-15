@@ -1,7 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:animations/animations.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
+import '../core/utils/anim_config.dart';
 import '../design_system/spacing/radd_space.dart';
 import '../design_system/radius/radd_radius.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -12,15 +15,17 @@ import '../models/catalog_item.dart';
 import '../services/actor_service.dart';
 import '../widgets/content_card.dart';
 import '../widgets/animated_empty_icons.dart';
+import 'show_detail_screen.dart';
 
 /// Full-screen view for an actor: large photo + bio + every title in our catalog.
-class ActorScreen extends StatelessWidget {
+class ActorScreen extends ConsumerWidget {
   final CastMember member;
   const ActorScreen({super.key, required this.member});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = RaddTheme.of(context);
+    final animConfig = ref.watch(animConfigProvider);
     return Scaffold(
       backgroundColor: t.bg,
       body: FutureBuilder<(List<CatalogItem>, String?)>(
@@ -28,9 +33,11 @@ class ActorScreen extends StatelessWidget {
           ActorService.getFilmography(member.personId),
           ActorService.getBio(member.name),
         ]).then((r) => (r[0] as List<CatalogItem>, r[1] as String?)),
-        builder: (context, snap) {
+        builder: (ctx, snap) {
           final titles = snap.data?.$1 ?? [];
           final bio    = snap.data?.$2;
+          final canMorph =
+              animConfig.canMorph && animConfig.shouldAnimate(ctx);
           return CustomScrollView(slivers: [
             // ── Collapsing header with photo ──────────────────────────────
             SliverAppBar(
@@ -165,7 +172,22 @@ class ActorScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 sliver: SliverGrid(
                   delegate: SliverChildBuilderDelegate(
-                    (_, i) => ContentCard(item: titles[i]),
+                    // Tier 2+ → shared-element morph matching Home/Search/
+                    // Watchlist/History; lower tiers fall back to plain card.
+                    (_, i) => canMorph
+                        ? OpenContainer<void>(
+                            closedColor: Colors.transparent,
+                            openColor: Colors.transparent,
+                            closedElevation: 0,
+                            openElevation: 0,
+                            transitionDuration: animConfig.slow,
+                            tappable: false,
+                            closedBuilder: (_, openFn) =>
+                                ContentCard(item: titles[i], onTap: openFn),
+                            openBuilder: (_, __) =>
+                                ShowDetailScreen(item: titles[i]),
+                          )
+                        : ContentCard(item: titles[i]),
                     childCount: titles.length,
                   ),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
