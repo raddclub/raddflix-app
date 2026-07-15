@@ -84,6 +84,10 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   bool _trackUsage = false;  // true only for non-local, non-free streaming
   Timer? _usageTimer;        // 30-second heartbeat to log streamed bytes
   static const _kResumePrefix = 'resume_pos_';
+  // ── UX3-10: true background miniplayer ───────────────────────────────────
+  // Set by _minimizePlayer() right before popping the screen. Tells
+  // dispose() to leave the live Player alone — PlaybackService now owns it.
+  bool _handedOffToService = false;
   // Loop
   bool _loopEnabled = false;
   bool _isMuted = false;
@@ -157,6 +161,40 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   }
 
   void _initPlayer() {
+    // UX3-10: if a minimized session for this exact title is still alive in
+    // PlaybackService, reattach to it instead of creating a brand-new
+    // Player — that's what makes "tap the mini bar → back to fullscreen,
+    // no reload" possible.
+    final playbackService = ref.read(playbackServiceProvider);
+    if (widget.attachExisting && playbackService.sessionMatches(widget.fileId)) {
+      _player = playbackService.player!;
+      _videoCtrl = playbackService.videoController!;
+      _videoOpened = true;
+      final st = _player.state;
+      _playing = st.playing;
+      _position = st.position;
+      _duration = st.duration;
+      _buffering = st.buffering;
+      _audioTracks = st.tracks.audio;
+      _subtitleTracks = st.tracks.subtitle;
+      _selectedAudio = st.track.audio;
+      _selectedSubtitle = st.track.subtitle;
+      _isLocal = (widget.localPath != null && widget.localPath!.isNotEmpty);
+      _isFree = widget.isFree;
+      _trackUsage = !_isFree && !_isLocal;
+      playbackService.detachForReattach();
+      _wirePlayerStreams();
+      _wireSilenceSkipObserver();
+      if (_trackUsage) _startUsageTimer();
+      _posTimer = Timer.periodic(const Duration(seconds: 10), (_) => _saveWatchPos());
+      return;
+    }
+    // Starting different content while a session is minimized — only one
+    // video plays at a time, so the old one must end first.
+    if (playbackService.hasSession) {
+      playbackService.stop();
+    }
+
     _player = Player(
       configuration: const PlayerConfiguration(
         title: 'RaddFlix',
@@ -172,6 +210,48 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       ),
     );
 
+    _wirePlayerStreams();
+
+    _posTimer = Timer.periodic(const Duration(seconds: 10), (_) => _saveWatchPos());
+
+    _wireSilenceSkipObserver();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openMedia(_currentFileId, localPath: widget.localPath);
+    });
+  }
+
+  /// Hands the live player + current session metadata off to
+  /// [PlaybackService] instead of letting the normal `dispose()` path tear
+  /// it down, then pops the fullscreen UI. Playback keeps running —
+  /// [MiniPlayerBar] takes over as the visible, live control surface.
+  void _minimizePlayer() {
+    final playbackService = ref.read(playbackServiceProvider);
+    playbackService.adopt(
+      player: _player,
+      videoController: _videoCtrl,
+      fileId: _currentFileId,
+      title: _currentTitle,
+      posterUrl: widget.posterUrl,
+      localPath: widget.localPath,
+      streamUrl: widget.streamUrl,
+      subtitlePath: _currentSubFile,
+      contentType: widget.contentType,
+      isFree: _isFree,
+      episodeIndex: _currentEpIdx,
+      episodes: widget.episodes,
+      backgroundAudioEnabled: _backgroundAudio,
+    );
+    _handedOffToService = true;
+    Navigator.of(context).pop();
+  }
+
+  /// Wires up every `_player.stream.*` listener the screen depends on
+  /// (playback state, tracks, near-gapless prefetch, codec auto-fallback,
+  /// auto-orientation, …). Extracted out of `_initPlayer()` so the
+  /// reattach-to-an-existing-session path (see above) can reuse it against
+  /// a Player it didn't create itself.
+  void _wirePlayerStreams() {
     _subs.addAll([
       _player.stream.playing.listen((v) {
         if (mounted) setState(() => _playing = v);
@@ -324,10 +404,13 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
         }
       }),
     ]);
+  }
 
-    _posTimer = Timer.periodic(const Duration(seconds: 10), (_) => _saveWatchPos());
-
-    // Silence skip: subscribe to MPV log for silencedetect events
+  /// Subscribes to MPV's log-message property for silencedetect events.
+  /// Extracted out of `_initPlayer()` so both the fresh-create path and the
+  /// reattach-to-an-existing-session path register their own copy — the
+  /// old widget instance's copy was already unregistered in dispose().
+  void _wireSilenceSkipObserver() {
     try {
       _np.observeProperty('log-message', (String msg) async {
         if (!_silenceInPipeline || !mounted) return;
@@ -350,10 +433,6 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
     } catch (_) {
       // observeProperty may not be available on all media_kit versions — fail silently
     }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _openMedia(_currentFileId, localPath: widget.localPath);
-    });
   }
 
   Future<void> _openMedia(String fileId, {String? localPath}) async {

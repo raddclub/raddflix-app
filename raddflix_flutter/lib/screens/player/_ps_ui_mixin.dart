@@ -157,6 +157,16 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   double _nightWarmth = 0.4;
 
   bool _showClockInTitle = true;
+  // ── Status HUD (clock format + battery) ──────────────────────────────────
+  // 0 = Auto (follow device 12h/24h setting), 1 = force 12-hour, 2 = force 24-hour
+  int _clockFormat = 0;
+  bool _showBatteryInTitle = true;
+  bool _batteryChargeAnim = true;
+  int? _batteryLevel;
+  BatteryState _batteryState = BatteryState.unknown;
+  final Battery _battery = Battery();
+  StreamSubscription<BatteryState>? _batterySub;
+  Timer? _batteryPollTimer;
 
   String _clockStr = '';
 
@@ -273,7 +283,94 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
 
   String _fmtClock() {
     final n = DateTime.now();
-    return '${n.hour.toString().padLeft(2, '0')}:${n.minute.toString().padLeft(2, '0')}';
+    // 0 = Auto → follow the device's own 12h/24h system setting
+    // (MediaQuery.alwaysUse24HourFormat mirrors that OS preference exactly,
+    // same signal Android's own status bar clock uses).
+    final use24 = _clockFormat == 2 ||
+        (_clockFormat == 0 && MediaQuery.of(context).alwaysUse24HourFormat);
+    if (use24) {
+      return '${n.hour.toString().padLeft(2, '0')}:${n.minute.toString().padLeft(2, '0')}';
+    }
+    final h12 = n.hour % 12 == 0 ? 12 : n.hour % 12;
+    final ampm = n.hour < 12 ? 'AM' : 'PM';
+    return '$h12:${n.minute.toString().padLeft(2, '0')} $ampm';
+  }
+
+  // ── Battery HUD ───────────────────────────────────────────────────────────
+  // battery_plus only pushes *state* changes (charging/discharging/full) —
+  // level has to be polled. 60s is plenty for a status readout, not a
+  // precision gauge, and keeps this off the hot path entirely.
+  void _initBatteryMonitor() {
+    _battery.batteryLevel.then((lvl) {
+      if (mounted) setState(() => _batteryLevel = lvl);
+    }).catchError((_) {});
+    _battery.batteryState.then((s) {
+      if (mounted) setState(() => _batteryState = s);
+    }).catchError((_) {});
+    _batterySub = _battery.onBatteryStateChanged.listen((s) {
+      if (mounted) setState(() => _batteryState = s);
+      // A state change (e.g. plugged in) is exactly when the level is also
+      // likely to have just changed — refresh it immediately instead of
+      // waiting for the next poll tick.
+      _battery.batteryLevel.then((lvl) {
+        if (mounted) setState(() => _batteryLevel = lvl);
+      }).catchError((_) {});
+    }, onError: (_) {});
+    _batteryPollTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      _battery.batteryLevel.then((lvl) {
+        if (mounted) setState(() => _batteryLevel = lvl);
+      }).catchError((_) {});
+    });
+  }
+
+  void _disposeBatteryMonitor() {
+    _batterySub?.cancel();
+    _batteryPollTimer?.cancel();
+  }
+
+  IconData _batteryIconFor(int lvl, bool charging) {
+    if (charging) return Icons.battery_charging_full_rounded;
+    if (lvl >= 95) return Icons.battery_full_rounded;
+    if (lvl >= 80) return Icons.battery_6_bar_rounded;
+    if (lvl >= 60) return Icons.battery_5_bar_rounded;
+    if (lvl >= 45) return Icons.battery_4_bar_rounded;
+    if (lvl >= 30) return Icons.battery_3_bar_rounded;
+    if (lvl >= 15) return Icons.battery_2_bar_rounded;
+    return Icons.battery_1_bar_rounded;
+  }
+
+  /// Compact battery readout for the player's top bar — mirrors what
+  /// Android's own status bar shows (icon + %), plus a pulsing bolt while
+  /// charging so it's obvious at a glance mid-movie without looking away
+  /// from the video. Fully optional — off entirely when the user disables
+  /// "Show battery" in Settings → Style.
+  Widget _buildBatteryBadge() {
+    if (!_showBatteryInTitle || _batteryLevel == null) return const SizedBox.shrink();
+    final lvl = _batteryLevel!;
+    final isCharging = _batteryState == BatteryState.charging ||
+        _batteryState == BatteryState.full;
+    final low = lvl <= 15 && !isCharging;
+    final color = low ? const Color(0xFFFF4D4D) : Colors.white70;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isCharging && _batteryChargeAnim)
+            Icon(_batteryIconFor(lvl, true), size: 15, color: const Color(0xFF34C759))
+                .animate(onPlay: (c) => c.repeat(reverse: true))
+                .fadeIn(duration: 700.ms, curve: Curves.easeInOut)
+                .then()
+                .fadeOut(duration: 700.ms, curve: Curves.easeInOut, begin: 1.0)
+          else
+            Icon(_batteryIconFor(lvl, isCharging), size: 15,
+                color: isCharging ? const Color(0xFF34C759) : color),
+          const SizedBox(width: 2),
+          Text('$lvl%',
+              style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
   }
 
   String _fmtSleepRemaining() {
@@ -936,11 +1033,19 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
         padding: const EdgeInsets.fromLTRB(4, 4, 8, 4),
         child: Row(
           children: [
-            // Back/minimize button
+            // Back button — always fully ends this playback session.
             _RaddIconBtn(
               icon: Icons.arrow_back_ios_new_rounded,
               size: 20,
               onTap: () => Navigator.of(context).pop(),
+            ),
+
+            // UX3-10: Minimize — keeps playback running behind a live mini
+            // bar on Home/Search/etc. instead of ending the session.
+            _RaddIconBtn(
+              icon: Icons.keyboard_arrow_down_rounded,
+              size: 22,
+              onTap: _minimizePlayer,
             ),
 
             const SizedBox(width: RaddSpace.xs),
@@ -1043,7 +1148,11 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
               onTap: () => _player.seek(Duration.zero),
             ),
 
-            // Clock overlay
+            // Battery HUD (icon + % + charging pulse) — mirrors the device
+            // status bar so viewers can track charge without leaving the video.
+            _buildBatteryBadge(),
+
+            // Clock overlay — respects the user's 12h/24h preference (Settings → Style).
             if (_showClockInTitle) ...[
               Text(
                 _clockStr,
@@ -3187,6 +3296,15 @@ void _openPanel({
           setState(() { _showClockInTitle = v; _clockStr = _fmtClock(); });
           _scheduleSavePrefs();
         },
+        clockFormat: _clockFormat,
+        onClockFormatChanged: (v) {
+          setState(() { _clockFormat = v; _clockStr = _fmtClock(); });
+          _scheduleSavePrefs();
+        },
+        showBatteryInTitle: _showBatteryInTitle,
+        onBatteryToggle: (v) { setState(() => _showBatteryInTitle = v); _scheduleSavePrefs(); },
+        batteryChargeAnim: _batteryChargeAnim,
+        onBatteryAnimToggle: (v) { setState(() => _batteryChargeAnim = v); _scheduleSavePrefs(); },
         initialBrightness: _brightness,
         onShowSkipBtnsChanged: (v) { setState(() => _showSkipBtns = v); _scheduleSavePrefs(); }, // J2
         onShowPrevNextBtnsChanged: (v) { setState(() => _showPrevNextBtns = v); _scheduleSavePrefs(); }, // J2

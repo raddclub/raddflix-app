@@ -3,6 +3,7 @@ import '../core/design/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../providers/subscription_provider.dart';
+import '../services/playback_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/theme/radd_colors.dart';
@@ -13,28 +14,29 @@ import 'resume_fab.dart' show ResumeFab;
 /// Persistent "continue watching" bar, docked above the bottom nav bar on
 /// every top-level screen (Home / Search / Local / Downloads / Profile).
 ///
-/// This is the premium miniplayer upgrade requested in place of the old
-/// floating [ResumeFab]: instead of a small card that only appeared on the
-/// Home tab, this bar is anchored above the nav bar everywhere, can be
-/// swiped down to dismiss, and taps through to resume playback exactly
-/// where [ResumeFab] left off. It reads the same `resume_*` keys written by
-/// PlayerScreen — there is no separate background-audio session in this
-/// app, so (like the FAB it replaces) this reflects "last watched position",
-/// not a live playing/paused stream.
+/// UX3-10 — this has two modes:
+///  • Live: a [PlaybackService] session is active (the user minimized an
+///    in-progress video via the player's minimize control). The bar shows
+///    real play/pause + live position/duration and reopens the exact same
+///    session — playback never stopped.
+///  • Static fallback: no live session (e.g. the app was just relaunched),
+///    so it falls back to the original behaviour — reading the `resume_*`
+///    SharedPreferences keys PlayerScreen writes on every close, and
+///    resuming from that saved position when tapped.
 ///
 /// Drop this in via [MiniPlayerDock], which wraps a screen's existing
 /// `RaddFlixBottomNav` so the bar always sits directly above it.
-class MiniPlayerBar extends StatefulWidget {
+class MiniPlayerBar extends ConsumerStatefulWidget {
   const MiniPlayerBar({super.key});
 
   @override
-  State<MiniPlayerBar> createState() => _MiniPlayerBarState();
+  ConsumerState<MiniPlayerBar> createState() => _MiniPlayerBarState();
 }
 
-class _MiniPlayerBarState extends State<MiniPlayerBar>
+class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
     with SingleTickerProviderStateMixin {
-  _MiniPlayerData? _data;
-  bool _dismissed = false;
+  _MiniPlayerData? _staticData;
+  bool _staticDismissed = false;
   late AnimationController _anim;
   late Animation<double> _slideIn;
 
@@ -44,7 +46,7 @@ class _MiniPlayerBarState extends State<MiniPlayerBar>
     _anim = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 260));
     _slideIn = CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic);
-    _load();
+    _loadStatic();
   }
 
   @override
@@ -53,7 +55,7 @@ class _MiniPlayerBarState extends State<MiniPlayerBar>
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _loadStatic() async {
     final p = await SharedPreferences.getInstance();
     final title = p.getString(ResumeFab.kTitle);
     final fileId = p.getString(ResumeFab.kFileId) ?? '';
@@ -68,7 +70,7 @@ class _MiniPlayerBarState extends State<MiniPlayerBar>
     if (title == null || title.isEmpty || posMs < 10000) return;
     if (!mounted) return;
     setState(() {
-      _data = _MiniPlayerData(
+      _staticData = _MiniPlayerData(
         title: title,
         fileId: fileId,
         streamUrl: streamUrl,
@@ -83,14 +85,14 @@ class _MiniPlayerBarState extends State<MiniPlayerBar>
     _anim.forward();
   }
 
-  Future<void> _dismiss() async {
+  Future<void> _dismissStatic() async {
     if (!mounted) return;
-    setState(() => _dismissed = true);
+    setState(() => _staticDismissed = true);
     await ResumeFab.clear();
   }
 
-  void _expand() {
-    final d = _data;
+  void _expandStatic() {
+    final d = _staticData;
     if (d == null) return;
     // Same subscription gate as ResumeFab — downloaded/local content and
     // free titles always resume; paid streams require an active session.
@@ -140,7 +142,7 @@ class _MiniPlayerBarState extends State<MiniPlayerBar>
         return;
       }
     }
-    DebugLogger.logTap('MiniPlayerBar', 'expand');
+    DebugLogger.logTap('MiniPlayerBar', 'expand_static');
     Navigator.of(context).pushNamed(
       AppRoutes.player,
       arguments: {
@@ -167,8 +169,15 @@ class _MiniPlayerBarState extends State<MiniPlayerBar>
 
   @override
   Widget build(BuildContext context) {
-    if (_dismissed || _data == null) return const SizedBox.shrink();
-    final d = _data!;
+    // Live session takes priority — if the user minimized an in-progress
+    // video, that's what the bar should reflect, not stale resume prefs.
+    final playbackService = ref.watch(playbackServiceProvider);
+    if (playbackService.hasSession) {
+      return _LiveMiniPlayerBar(service: playbackService);
+    }
+
+    if (_staticDismissed || _staticData == null) return const SizedBox.shrink();
+    final d = _staticData!;
     final progress =
         d.durationMs > 0 ? (d.positionMs / d.durationMs).clamp(0.0, 1.0) : 0.0;
 
@@ -178,9 +187,9 @@ class _MiniPlayerBarState extends State<MiniPlayerBar>
       child: FadeTransition(
         opacity: _slideIn,
         child: Dismissible(
-          key: ValueKey('mini_player_${d.fileId}'),
+          key: ValueKey('mini_player_static_${d.fileId}'),
           direction: DismissDirection.down,
-          onDismissed: (_) => _dismiss(),
+          onDismissed: (_) => _dismissStatic(),
           child: SafeArea(
             top: false,
             bottom: false,
@@ -189,7 +198,7 @@ class _MiniPlayerBarState extends State<MiniPlayerBar>
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: _expand,
+                  onTap: _expandStatic,
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     height: 60,
@@ -264,7 +273,7 @@ class _MiniPlayerBarState extends State<MiniPlayerBar>
                               ),
                               // ── Dismiss ───────────────────────────────────
                               GestureDetector(
-                                onTap: _dismiss,
+                                onTap: _dismissStatic,
                                 child: Padding(
                                   padding: const EdgeInsets.only(
                                       right: 10, left: 2),
@@ -291,6 +300,168 @@ class _MiniPlayerBarState extends State<MiniPlayerBar>
                       ),
                     ),
                   ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _posterFallback() => Container(
+        color: const Color(0xFF2A2A2A),
+        child: Center(
+          child: Icon(AppIcons.movieFill, color: Colors.white24, size: 24),
+        ),
+      );
+}
+
+/// The "live" mini bar — rendered whenever [PlaybackService] has an active
+/// minimized session. Unlike the static fallback above, every value here
+/// (title/poster aside) is live: play/pause actually controls the running
+/// player, and the progress bar/timestamp tick in real time.
+class _LiveMiniPlayerBar extends StatelessWidget {
+  final PlaybackService service;
+  const _LiveMiniPlayerBar({required this.service});
+
+  String _fmt(Duration d) {
+    final s = d.inSeconds;
+    final h = s ~/ 3600;
+    final m = (s % 3600) ~/ 60;
+    final sec = s % 60;
+    if (h > 0) return '${h}h ${m.toString().padLeft(2, '0')}m';
+    return '${m}m ${sec.toString().padLeft(2, '0')}s';
+  }
+
+  void _expand(BuildContext context) {
+    DebugLogger.logTap('MiniPlayerBar', 'expand_live');
+    Navigator.of(context)
+        .pushNamed(AppRoutes.player, arguments: service.buildResumeArgs());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = service.duration.inMilliseconds > 0
+        ? (service.position.inMilliseconds / service.duration.inMilliseconds)
+            .clamp(0.0, 1.0)
+        : 0.0;
+
+    return SafeArea(
+      top: false,
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _expand(context),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              height: 60,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.primary.withOpacity(0.35)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Stack(
+                  children: [
+                    Row(
+                      children: [
+                        // ── Poster thumbnail ─────────────────────────────
+                        SizedBox(
+                          width: 60,
+                          height: 60,
+                          child: service.posterUrl != null &&
+                                  service.posterUrl!.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: service.posterUrl!,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) =>
+                                      _posterFallback(),
+                                )
+                              : _posterFallback(),
+                        ),
+                        const SizedBox(width: 10),
+                        // ── Title + live position ────────────────────────
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                service.title ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                service.buffering
+                                    ? 'Buffering…'
+                                    : '${_fmt(service.position)} / ${_fmt(service.duration)}',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // ── Real play/pause control ──────────────────────
+                        GestureDetector(
+                          onTap: service.togglePlayPause,
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 6),
+                            child: Icon(
+                              service.playing
+                                  ? AppIcons.pause
+                                  : AppIcons.play,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                          ),
+                        ),
+                        // ── End session ───────────────────────────────────
+                        GestureDetector(
+                          onTap: service.stop,
+                          child: Padding(
+                            padding: const EdgeInsets.only(
+                                right: 10, left: 2),
+                            child: Icon(AppIcons.close,
+                                size: 16, color: Colors.white38),
+                          ),
+                        ),
+                      ],
+                    ),
+                    // ── Progress line along the bottom edge ──────────────
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        backgroundColor: Colors.white12,
+                        valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                        minHeight: 2,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

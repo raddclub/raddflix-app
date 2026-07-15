@@ -161,6 +161,9 @@ class RaddFlixApp extends ConsumerWidget {
               isFree: args['is_free'] == true || args['is_free'] == 1,
               streamUrl: args['stream_url'] as String?,
               posterUrl: (args['poster_url'] as String?) ?? (args['poster'] as String?),
+              // UX3-10: MiniPlayerBar sets this via PlaybackService.buildResumeArgs()
+              // when the user taps a live (not just resume-from-prefs) mini bar.
+              attachExisting: args['attach_existing'] == true,
             ),
             transitionsBuilder: (_, anim, __, child) =>
                 FadeTransition(opacity: anim, child: child),

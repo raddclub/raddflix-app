@@ -858,6 +858,14 @@ class _SettingsPanel extends StatefulWidget {
   final void Function(double) onNightWarmthChanged;
   final bool showClockInTitle;
   final void Function(bool) onClockToggle;
+  // Clock format: 0=Auto (follow device) 1=12-hour 2=24-hour
+  final int clockFormat;
+  final void Function(int) onClockFormatChanged;
+  // Battery HUD
+  final bool showBatteryInTitle;
+  final void Function(bool) onBatteryToggle;
+  final bool batteryChargeAnim;
+  final void Function(bool) onBatteryAnimToggle;
   final double initialBrightness;
   final void Function(bool) onShowSkipBtnsChanged;
   final void Function(bool) onShowPrevNextBtnsChanged;
@@ -904,6 +912,12 @@ class _SettingsPanel extends StatefulWidget {
     required this.onNightWarmthChanged,
     required this.showClockInTitle,
     required this.onClockToggle,
+    required this.clockFormat,
+    required this.onClockFormatChanged,
+    required this.showBatteryInTitle,
+    required this.onBatteryToggle,
+    required this.batteryChargeAnim,
+    required this.onBatteryAnimToggle,
     required this.initialBrightness,
     required this.onShowSkipBtnsChanged,
     required this.onShowPrevNextBtnsChanged,
@@ -1152,6 +1166,53 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           activeColor: Colors.white,
           contentPadding: EdgeInsets.zero,
         ),
+        if (widget.showClockInTitle)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                const Text('Format', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SegmentedButton<int>(
+                    segments: const [
+                      ButtonSegment(value: 0, label: Text('Auto')),
+                      ButtonSegment(value: 1, label: Text('12h')),
+                      ButtonSegment(value: 2, label: Text('24h')),
+                    ],
+                    selected: {widget.clockFormat},
+                    onSelectionChanged: (s) => widget.onClockFormatChanged(s.first),
+                    style: SegmentedButton.styleFrom(
+                      backgroundColor: Colors.white.withOpacity(0.06),
+                      selectedBackgroundColor: Colors.white.withOpacity(0.18),
+                      foregroundColor: Colors.white54,
+                      selectedForegroundColor: Colors.white,
+                      textStyle: const TextStyle(fontSize: 12),
+                      side: const BorderSide(color: Colors.white12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        SwitchListTile(
+          title: const Text('Show battery %', style: TextStyle(color: Colors.white, fontSize: 14)),
+          subtitle: const Text('Battery icon + percentage in the top bar', style: TextStyle(color: Colors.white38, fontSize: 11)),
+          value: widget.showBatteryInTitle,
+          onChanged: widget.onBatteryToggle,
+          activeColor: Colors.white,
+          contentPadding: EdgeInsets.zero,
+        ),
+        if (widget.showBatteryInTitle)
+          SwitchListTile(
+            title: const Text('Charging animation', style: TextStyle(color: Colors.white, fontSize: 14)),
+            subtitle: const Text('Pulsing bolt icon while plugged in', style: TextStyle(color: Colors.white38, fontSize: 11)),
+            value: widget.batteryChargeAnim,
+            onChanged: widget.onBatteryAnimToggle,
+            activeColor: Colors.white,
+            contentPadding: EdgeInsets.zero,
+          ),
         const Divider(color: Colors.white12),
         const SizedBox(height: RaddSpace.sm),
         const Text('Screen brightness', style: TextStyle(color: Colors.white70, fontSize: 12)),

@@ -49,6 +49,9 @@ dependencies:
   # Device info
   device_info_plus: ^9.1.2
 
+  # Battery level + charging state — player status overlay (clock/battery HUD)
+  battery_plus: ^6.2.1
+
   # Network
   connectivity_plus: ^6.0.2
 

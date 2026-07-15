@@ -19,6 +19,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -33,6 +34,7 @@ import 'package:volume_controller/volume_controller.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/services/jazzdrive_service.dart';
+import '../services/playback_service.dart';
 import '../core/db/local_db.dart';
 import '../core/api/catalog_api.dart';
 import '../core/constants.dart';
@@ -83,6 +85,12 @@ class PlayerScreen extends ConsumerStatefulWidget {
   final bool isFree;
   final String? streamUrl;
   final String? posterUrl;
+  // UX3-10: when true, _initPlayer() reattaches to the live session held by
+  // PlaybackService (see services/playback_service.dart) instead of
+  // creating a new Player — this is how tapping the mini bar reopens
+  // fullscreen playback without a reload. Set by MiniPlayerBar via
+  // PlaybackService.buildResumeArgs().
+  final bool attachExisting;
 
   const PlayerScreen({
     super.key,
@@ -96,6 +104,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
     this.isFree = false,
     this.streamUrl,
     this.posterUrl,
+    this.attachExisting = false,
   });
 
   @override
@@ -230,6 +239,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _clockDisplayTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted) setState(() => _clockStr = _fmtClock());
     });
+    _initBatteryMonitor();
 
     // Media notification shade controls — receive button taps from Android
     const MethodChannel('com.raddflix.app/pip').setMethodCallHandler((call) async {
@@ -315,10 +325,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       DeviceOrientation.landscapeRight,
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    // Dismiss media notification when player screen closes
-    const MethodChannel('com.raddflix.app/pip')
-        .invokeMethod('stopBgPlayback').catchError((_) {});
-    const MethodChannel('com.raddflix.app/pip').setMethodCallHandler(null);
+    // Dismiss media notification when player screen closes — but not when
+    // we're only closing because playback was handed off to PlaybackService
+    // (minimize). That service owns the notification/method-handler for the
+    // minimized session now; killing it here would silently break "MX
+    // Player"-style background audio the moment the user minimizes.
+    if (!_handedOffToService) {
+      const MethodChannel('com.raddflix.app/pip')
+          .invokeMethod('stopBgPlayback').catchError((_) {});
+      const MethodChannel('com.raddflix.app/pip').setMethodCallHandler(null);
+    }
     _immersiveExitTimer?.cancel();
     _watchPartySub?.cancel();
     _voiceSub?.cancel();
@@ -326,10 +342,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     WatchPartyService.instance.leaveRoom();
     VoiceCommandsService.instance.stop();
     _stopUsageTimer();
+    _disposeBatteryMonitor();
     // Fix #1: unregister the log-message observer added in _initPlayer().
     // Without this, the C-level MPV callback fires into disposed Dart state.
     try { _np.unobserveProperty('log-message'); } catch (_) {}
-    _player.dispose();
+    // UX3-10: if the user minimized playback, PlaybackService now owns this
+    // Player — leave it running instead of disposing it out from under the
+    // mini bar. _handedOffToService is only ever true right before a pop
+    // triggered by _minimizePlayer().
+    if (!_handedOffToService) {
+      _player.dispose();
+    }
     super.dispose();
   }
 
@@ -396,6 +419,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _nightWarmth = prefs.getDouble('pref_warmth') ?? 0.4;
       _smartEnhanceEnabled = prefs.getBool('pref_vivid') ?? false; // J1: was never persisted
       _showClockInTitle = prefs.getBool('pref_clock') ?? true;
+      _clockFormat = prefs.getInt('pref_clock_fmt') ?? 0; // 0=auto 1=12h 2=24h
+      _showBatteryInTitle = prefs.getBool('pref_battery') ?? true;
+      _batteryChargeAnim = prefs.getBool('pref_battery_anim') ?? true;
       _videoRotation = prefs.getInt('pref_vrotate') ?? 0;
       _audioBalance = prefs.getDouble('pref_balance') ?? 0.0;
       _seekSwipeSec = prefs.getDouble('pref_swipe') ?? 120.0;
@@ -560,6 +586,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setBool('pref_prev_next_btns', _showPrevNextBtns);        // J1
     await prefs.setBool('pref_seek_pos_label', _showSeekPositionLabel);   // J2
     await prefs.setBool('pref_clock', _showClockInTitle);
+    await prefs.setInt('pref_clock_fmt', _clockFormat);
+    await prefs.setBool('pref_battery', _showBatteryInTitle);
+    await prefs.setBool('pref_battery_anim', _batteryChargeAnim);
     await prefs.setInt('pref_vrotate', _videoRotation);
     await prefs.setDouble('pref_balance', _audioBalance);
     await prefs.setDouble('pref_sub_margin', _subBottomMarginMain);
