@@ -611,9 +611,38 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     }
     final hasPin = await VaultService.hasPin();
     if (!hasPin) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Set up your vault PIN first (Profile → Vault)'),
-        backgroundColor: t.surface));
+      if (!mounted) return;
+      // Offer to navigate to Vault setup rather than leaving the user stranded.
+      final goSetup = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: t.card,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14)),
+          title: Text('Vault Not Set Up',
+              style: TextStyle(
+                  color: t.textPrimary, fontWeight: FontWeight.w700)),
+          content: Text(
+              'You need to create a vault PIN before you can store videos '
+              'securely. Set one up in your Profile settings.',
+              style: TextStyle(color: t.textMuted, height: 1.5)),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child:
+                    Text('Not Now', style: TextStyle(color: t.textMuted))),
+            TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Set Up Vault',
+                    style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700))),
+          ],
+        ),
+      );
+      if (goSetup == true && mounted) {
+        Navigator.of(context).pushNamed(AppRoutes.vault);
+      }
       return;
     }
     if (!VaultService.isUnlocked) {
