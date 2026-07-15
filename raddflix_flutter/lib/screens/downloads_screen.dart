@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:ui';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
@@ -585,15 +586,12 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   }
 
   Future<void> _deleteOne(String id, String title) async {
-    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      title: const Text('Delete Download'),
-      content: Text('Delete "$title"?'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-        TextButton(onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: AppColors.error))),
-      ],
-    ));
+    final ok = await _showGlassDeleteSheet(
+      context: context,
+      title: 'Delete Download',
+      body: 'Delete "$title"?',
+      animConfig: ref.read(animConfigProvider),
+    );
     if (ok == true) ref.read(downloadsProvider.notifier).deleteDownload(id);
   }
 
@@ -644,19 +642,170 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
 
   Future<void> _bulkDelete() async {
     final count = _selected.length;
-    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      title: const Text('Delete Selected'),
-      content: Text('Delete $count download${count == 1 ? '' : 's'}?'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-        TextButton(onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: AppColors.error))),
-      ],
-    ));
+    final ok = await _showGlassDeleteSheet(
+      context: context,
+      title: 'Delete Selected',
+      body: 'Delete $count download${count == 1 ? '' : 's'}?',
+      animConfig: ref.read(animConfigProvider),
+    );
     if (ok == true) {
       for (final id in _selected) ref.read(downloadsProvider.notifier).deleteDownload(id);
       setState(() { _selecting = false; _selected.clear(); });
     }
+  }
+}
+
+// ── Glass delete bottom sheet ─────────────────────────────────────────────────
+/// Shows a glass-styled bottom sheet for destructive confirm actions.
+/// BackdropFilter is gated on animConfig.canBlur; solid fallback otherwise.
+/// Returns true (confirm) or false/null (cancel) — same contract as AlertDialog.
+Future<bool?> _showGlassDeleteSheet({
+  required BuildContext context,
+  required String title,
+  required String body,
+  required AnimConfig animConfig,
+}) {
+  return showModalBottomSheet<bool>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black54,
+    isScrollControlled: true,
+    builder: (ctx) => _GlassDeleteSheet(
+      title: title,
+      body: body,
+      animConfig: animConfig,
+    ),
+  );
+}
+
+class _GlassDeleteSheet extends StatelessWidget {
+  final String title;
+  final String body;
+  final AnimConfig animConfig;
+
+  const _GlassDeleteSheet({
+    required this.title,
+    required this.body,
+    required this.animConfig,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+
+    Widget sheetContent = SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          // Drag handle
+          Container(
+            width: 32,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: t.textMuted.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(AppRadius.round),
+            ),
+          ),
+          // Destructive icon indicator
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.error.withOpacity(0.12),
+              border: Border.all(color: AppColors.error.withOpacity(0.25), width: 1),
+            ),
+            child: Icon(AppIcons.trash, color: AppColors.error, size: 22),
+          ),
+          const SizedBox(height: 16),
+          Text(title,
+              style: TextStyle(
+                  color: t.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text(body,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: t.textMuted, fontSize: 14, height: 1.5)),
+          const SizedBox(height: 28),
+          // Delete button — Destructive variant
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: TextButton(
+              style: TextButton.styleFrom(
+                backgroundColor: AppColors.error.withOpacity(0.12),
+                foregroundColor: AppColors.error,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.round),
+                    side: BorderSide(
+                        color: AppColors.error.withOpacity(0.30), width: 1)),
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 15)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Cancel button — Ghost variant
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: TextButton(
+              style: TextButton.styleFrom(
+                backgroundColor: t.glass,
+                foregroundColor: t.textPrimary,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.round),
+                    side: BorderSide(color: t.border, width: 1)),
+              ),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+            ),
+          ),
+        ]),
+      ),
+    );
+
+    // Glass blur wrapper (canBlur) — solid fallback otherwise
+    if (animConfig.canBlur) {
+      return ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            decoration: BoxDecoration(
+              color: t.surface.withOpacity(0.82),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+              border: Border(
+                  top: BorderSide(color: t.border.withOpacity(0.6), width: 1)),
+              boxShadow: [
+                BoxShadow(
+                    color: AppColors.error.withOpacity(0.08),
+                    blurRadius: 32,
+                    spreadRadius: 4),
+              ],
+            ),
+            child: sheetContent,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius:
+            const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+        border: Border(top: BorderSide(color: t.border, width: 1)),
+      ),
+      child: sheetContent,
+    );
   }
 }
 
@@ -691,54 +840,79 @@ class _ShowSummaryCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
+        // Glass card treatment: asymmetric border + glassCard shadow + specular
         color: t.surface,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: t.border, width: 0.5),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: SizedBox(width: 52, height: 74,
-                child: (posterUrl != null && posterUrl!.isNotEmpty)
-                    ? CachedNetworkImage(imageUrl: posterUrl!, fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) => Container(color: t.card,
-                            child: Icon(AppIcons.tv, color: t.textMuted, size: 22)))
-                    : Container(color: t.card,
-                        child: Icon(AppIcons.tv, color: t.textMuted, size: 22))),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(showName, maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: t.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 6),
-              Wrap(spacing: 6, runSpacing: 4, children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(5)),
-                  child: Text('$seasons season${seasons == 1 ? '' : 's'}',
-                      style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700))),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(color: t.card, borderRadius: BorderRadius.circular(5)),
-                  child: Text('$done/${episodes.length} eps',
-                      style: TextStyle(color: t.textMuted, fontSize: 10, fontWeight: FontWeight.w700))),
-                if (active > 0)
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(color: AppColors.success.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(5)),
-                    child: Text('↓ $active', style: const TextStyle(
-                        color: AppColors.success, fontSize: 10, fontWeight: FontWeight.w700))),
-              ]),
-              const SizedBox(height: RaddSpace.xs),
-              Text(fmtSize(total), style: TextStyle(color: t.textMuted, fontSize: 10)),
-            ])),
-            Icon(AppIcons.caretRight, size: 18, color: t.textMuted),
-          ]),
+        border: Border(
+          top: BorderSide(color: t.glassHigh, width: 0.8),    // specular top edge
+          left: BorderSide(color: t.glassHigh, width: 0.5),   // subtle left rim
+          right: BorderSide(color: t.border, width: 0.5),
+          bottom: BorderSide(color: t.border, width: 0.5),
         ),
+        boxShadow: AppShadows.glassCard,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Stack(children: [
+          // Specular highlight sweep across top-left corner
+          Positioned(
+            top: 0, left: 0, right: 0,
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [t.glassHigh, Colors.transparent],
+                  stops: const [0.0, 0.6],
+                ),
+              ),
+            ),
+          ),
+          InkWell(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: SizedBox(width: 52, height: 74,
+                    child: (posterUrl != null && posterUrl!.isNotEmpty)
+                        ? CachedNetworkImage(imageUrl: posterUrl!, fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => Container(color: t.card,
+                                child: Icon(AppIcons.tv, color: t.textMuted, size: 22)))
+                        : Container(color: t.card,
+                            child: Icon(AppIcons.tv, color: t.textMuted, size: 22))),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(showName, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: t.textPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Wrap(spacing: 6, runSpacing: 4, children: [
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(5)),
+                      child: Text('$seasons season${seasons == 1 ? '' : 's'}',
+                          style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700))),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(color: t.card, borderRadius: BorderRadius.circular(5)),
+                      child: Text('$done/${episodes.length} eps',
+                          style: TextStyle(color: t.textMuted, fontSize: 10, fontWeight: FontWeight.w700))),
+                    if (active > 0)
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(5)),
+                        child: Text('$active loading', style: const TextStyle(
+                            color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700))),
+                  ]),
+                  const SizedBox(height: RaddSpace.xs),
+                  Text(fmtSize(total), style: TextStyle(color: t.textMuted, fontSize: 10)),
+                ])),
+                Icon(AppIcons.caretRight, size: 18, color: t.textMuted),
+              ]),
+            ),
+          ),
+        ]),
       ),
     );
   }
@@ -781,127 +955,187 @@ class _DownloadCardState extends State<_DownloadCard> {
       onTap: widget.onTap, onLongPress: widget.onLongPress,
       child: AnimatedContainer(
         duration: RaddMotion.tuneDuration,
-        decoration: BoxDecoration(
-          color: widget.isSelected ? AppColors.primary.withOpacity(0.1) : t.surface,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(
-              color: widget.isSelected ? AppColors.primary : t.border,
-              width: widget.isSelected ? 1.5 : 0.5)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Thumbnail area
-          Expanded(child: Stack(fit: StackFit.expand, children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.sm - 1)),
-              child: _thumb != null
-                ? Image.memory(_thumb!, fit: BoxFit.cover)
-                : (widget.posterUrl != null && widget.posterUrl!.isNotEmpty)
-                    ? CachedNetworkImage(
-                        imageUrl: widget.posterUrl!,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) => Container(color: t.card,
-                            child: Center(child: Icon(AppIcons.movie,
-                                color: t.textMuted, size: 36))))
-                    : Container(color: t.card,
-                        child: Center(child: Icon(AppIcons.movie,
-                            color: t.textMuted, size: 36)))),
-            // Play overlay
-            if (widget.isComplete && !widget.isSelecting)
-              Center(child: Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black54,
-                    border: Border.all(color: Colors.white30)),
-                child: Icon(AppIcons.play, color: Colors.white, size: 24))),
-            // Download widget.progress bar
-            if (widget.isActive || (!widget.isComplete && widget.statusStr != 'failed'))
-              Positioned(bottom: 0, left: 0, right: 0,
-                child: LinearProgressIndicator(value: widget.progress,
-                    backgroundColor: Colors.black38,
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                    minHeight: 3)),
-            // Selection checkbox
-            if (widget.isSelecting)
-              Positioned(top: 6, right: 6, child: AnimatedContainer(
-                duration: RaddMotion.tuneDuration,
-                width: 22, height: 22,
-                decoration: BoxDecoration(shape: BoxShape.circle,
-                    color: widget.isSelected ? AppColors.primary : Colors.black38,
-                    border: Border.all(color: widget.isSelected ? AppColors.primary : Colors.white38, width: 1.5)),
-                child: widget.isSelected ? Icon(AppIcons.check, color: Colors.white, size: 14) : null)),
-            // Queue position badge (shown for #2 onwards so #1 = no badge = "currently downloading")
-            if (widget.isActive && widget.queuePosition > 1)
-              Positioned(top: 6, right: 6, child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+        decoration: widget.isSelected
+            ? BoxDecoration(
+                color: AppColors.primary.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: AppColors.primary, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                      color: AppColors.primary.withOpacity(0.18),
+                      blurRadius: 12, spreadRadius: -2),
+                ],
+              )
+            : BoxDecoration(
+                // Glass card: asymmetric border + glassCard shadow + specular top edge
+                color: t.surface,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border(
+                  top: BorderSide(color: t.glassHigh, width: 0.8),
+                  left: BorderSide(color: t.glassHigh, width: 0.5),
+                  right: BorderSide(color: t.border, width: 0.5),
+                  bottom: BorderSide(color: t.border, width: 0.5),
+                ),
+                boxShadow: AppShadows.glassCard,
+              ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.sm - 1),
+          child: Stack(children: [
+            // Specular highlight line across top
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: Container(
+                height: 1,
                 decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.65),
-                    borderRadius: BorderRadius.circular(4)),
-                child: Text('#${widget.queuePosition}',
-                    style: const TextStyle(color: Colors.white,
-                        fontSize: 9, fontWeight: FontWeight.w800)))),
-            // Failed badge
-            if (widget.statusStr == 'failed')
-              Positioned(top: 6, left: 6, child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                decoration: BoxDecoration(color: AppColors.error,
-                    borderRadius: BorderRadius.circular(3)),
-                child: Text('FAILED', style: TextStyle(
-                    color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800)))),
-          ])),
-          // Info
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(widget.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: t.textPrimary, fontSize: 11,
-                      fontWeight: FontWeight.w600, height: 1.3)),
-              SizedBox(height: RaddSpace.xs),
-              Row(children: [
-                if (widget.isActive)
-                  Flexible(child: Text(
-                    '${(widget.progress * 100).toStringAsFixed(0)}%'
-                    '${widget.speedLabel.isNotEmpty ? "  ${widget.speedLabel}" : ""}',
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.primary,
-                        fontSize: 10, fontWeight: FontWeight.w700)))
-                else
-                  Text(widget.sizeStr, style: TextStyle(color: t.textMuted, fontSize: 10)),
-                const Spacer(),
-                if (!widget.isSelecting)
-                  GestureDetector(
-                    onTap: widget.isActive
-                        ? (widget.onCancel ?? widget.onDelete)
-                        : widget.statusStr == 'failed'
-                            ? (widget.onRetry ?? widget.onDelete)
-                            : widget.onDelete,
-                    child: Icon(
-                      widget.isActive
-                          ? AppIcons.stopIcon
-                          : widget.statusStr == 'failed'
-                              ? AppIcons.refresh
-                              : AppIcons.trash,
-                      size: 16,
-                      color: widget.isActive
-                          ? AppColors.error.withOpacity(0.75)
-                          : widget.statusStr == 'failed'
-                              ? AppColors.primary.withOpacity(0.8)
-                              : t.textMuted,
-                    ),
+                  gradient: LinearGradient(
+                    colors: [t.glassHigh, Colors.transparent],
+                    stops: const [0.0, 0.7],
                   ),
-              ]),
-              if (widget.isActive && widget.etaLabel.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(widget.etaLabel, style: TextStyle(color: t.textMuted, fontSize: 8)),
-              ],
-              if (widget.statusStr == 'failed') ...[
-                const SizedBox(height: 2),
-                Text('Tap ↺ to retry download',
-                    style: TextStyle(color: AppColors.error.withOpacity(0.65),
-                        fontSize: 8, fontWeight: FontWeight.w600)),
-              ],
+                ),
+              ),
+            ),
+            // Card body column (sits inside ClipRRect > Stack)
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Thumbnail area
+              Expanded(child: Stack(fit: StackFit.expand, children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(AppRadius.sm - 1)),
+                  child: _thumb != null
+                    ? Image.memory(_thumb!, fit: BoxFit.cover)
+                    : (widget.posterUrl != null && widget.posterUrl!.isNotEmpty)
+                        ? CachedNetworkImage(
+                            imageUrl: widget.posterUrl!,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => Container(color: t.card,
+                                child: Center(child: Icon(AppIcons.movie,
+                                    color: t.textMuted, size: 36))))
+                        : Container(color: t.card,
+                            child: Center(child: Icon(AppIcons.movie,
+                                color: t.textMuted, size: 36)))),
+                // Play overlay
+                if (widget.isComplete && !widget.isSelecting)
+                  Center(child: Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(shape: BoxShape.circle,
+                        color: Colors.black54,
+                        border: Border.all(color: Colors.white30)),
+                    child: Icon(AppIcons.play, color: Colors.white, size: 24))),
+                // Download progress bar
+                if (widget.isActive ||
+                    (!widget.isComplete && widget.statusStr != 'failed'))
+                  Positioned(bottom: 0, left: 0, right: 0,
+                    child: LinearProgressIndicator(
+                        value: widget.progress,
+                        backgroundColor: Colors.black38,
+                        valueColor:
+                            const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        minHeight: 3)),
+                // Selection checkbox
+                if (widget.isSelecting)
+                  Positioned(top: 6, right: 6, child: AnimatedContainer(
+                    duration: RaddMotion.tuneDuration,
+                    width: 22, height: 22,
+                    decoration: BoxDecoration(shape: BoxShape.circle,
+                        color: widget.isSelected
+                            ? AppColors.primary
+                            : Colors.black38,
+                        border: Border.all(
+                            color: widget.isSelected
+                                ? AppColors.primary
+                                : Colors.white38,
+                            width: 1.5)),
+                    child: widget.isSelected
+                        ? Icon(AppIcons.check, color: Colors.white, size: 14)
+                        : null)),
+                // Queue position badge
+                if (widget.isActive && widget.queuePosition > 1)
+                  Positioned(top: 6, right: 6, child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.65),
+                        borderRadius: BorderRadius.circular(4)),
+                    child: Text('#${widget.queuePosition}',
+                        style: const TextStyle(color: Colors.white,
+                            fontSize: 9, fontWeight: FontWeight.w800)))),
+                // Failed badge
+                if (widget.statusStr == 'failed')
+                  Positioned(top: 6, left: 6, child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(color: AppColors.error,
+                        borderRadius: BorderRadius.circular(3)),
+                    child: Text('FAILED', style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w800)))),
+              ])),
+              // Info strip
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(widget.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: t.textPrimary, fontSize: 11,
+                          fontWeight: FontWeight.w600, height: 1.3)),
+                  SizedBox(height: RaddSpace.xs),
+                  Row(children: [
+                    if (widget.isActive)
+                      Flexible(child: Text(
+                        '${(widget.progress * 100).toStringAsFixed(0)}%'
+                        '${widget.speedLabel.isNotEmpty ? "  ${widget.speedLabel}" : ""}',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: AppColors.primary,
+                            fontSize: 10, fontWeight: FontWeight.w700)))
+                    else
+                      Text(widget.sizeStr,
+                          style: TextStyle(color: t.textMuted, fontSize: 10)),
+                    const Spacer(),
+                    if (!widget.isSelecting)
+                      GestureDetector(
+                        onTap: widget.isActive
+                            ? (widget.onCancel ?? widget.onDelete)
+                            : widget.statusStr == 'failed'
+                                ? (widget.onRetry ?? widget.onDelete)
+                                : widget.onDelete,
+                        child: Icon(
+                          widget.isActive
+                              ? AppIcons.stopIcon
+                              : widget.statusStr == 'failed'
+                                  ? AppIcons.refresh
+                                  : AppIcons.trash,
+                          size: 16,
+                          color: widget.isActive
+                              ? AppColors.error.withOpacity(0.75)
+                              : widget.statusStr == 'failed'
+                                  ? AppColors.primary.withOpacity(0.8)
+                                  : t.textMuted,
+                        ),
+                      ),
+                  ]),
+                  if (widget.isActive && widget.etaLabel.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(widget.etaLabel,
+                        style: TextStyle(color: t.textMuted, fontSize: 8)),
+                  ],
+                  if (widget.statusStr == 'failed') ...[
+                    const SizedBox(height: 2),
+                    Text('Tap retry to re-download',
+                        style: TextStyle(
+                            color: AppColors.error.withOpacity(0.65),
+                            fontSize: 8,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ]),
+              ),
             ]),
-          ),
-        ]),
-      ),
-    );
+          ]),  // end inner Stack (specular + Column)
+        ),      // end ClipRRect
+      ),        // end AnimatedContainer
+    );          // end GestureDetector
   }
 }
 
@@ -944,12 +1178,29 @@ class _DownloadListTileState extends State<_DownloadListTile> {
         duration: RaddMotion.tuneDuration,
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: widget.isSelected ? AppColors.primary.withOpacity(0.08) : t.surface,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(
-              color: widget.isSelected ? AppColors.primary : t.border,
-              width: widget.isSelected ? 1.5 : 0.5)),
+        decoration: widget.isSelected
+            ? BoxDecoration(
+                color: AppColors.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: AppColors.primary, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                      color: AppColors.primary.withOpacity(0.14),
+                      blurRadius: 10, spreadRadius: -2),
+                ],
+              )
+            : BoxDecoration(
+                // Glass card: asymmetric border + glassCard shadow + specular
+                color: t.surface,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border(
+                  top: BorderSide(color: t.glassHigh, width: 0.8),
+                  left: BorderSide(color: t.glassHigh, width: 0.5),
+                  right: BorderSide(color: t.border, width: 0.5),
+                  bottom: BorderSide(color: t.border, width: 0.5),
+                ),
+                boxShadow: AppShadows.glassCard,
+              ),
         child: Row(children: [
           // Thumbnail
           Container(width: 64, height: 48,
@@ -1010,7 +1261,7 @@ class _DownloadListTileState extends State<_DownloadListTile> {
             ],
             if (widget.statusStr == 'failed') ...[
               SizedBox(height: 3),
-              Text('Failed — tap ↺ to retry or 🗑 to remove',
+              Text('Failed — tap retry or delete to remove',
                   style: TextStyle(color: AppColors.error.withOpacity(0.7),
                       fontSize: 10, fontWeight: FontWeight.w500)),
             ],
