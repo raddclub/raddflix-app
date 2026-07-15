@@ -55,6 +55,28 @@ Color _accentForProfile(Profile p) {
   return palette[(hash.abs() % palette.length)];
 }
 
+// ── Fade page route (Tier 0/1 fallback) ──────────────────────────────────────
+
+/// Lightweight fade-only transition for Tier 0/1 devices where canMorph is
+/// false. Still feels deliberate compared to the default system push slide,
+/// without the GPU-heavy scale compositing required by _ZoomMorphRoute.
+class _FadeRoute<T> extends PageRouteBuilder<T> {
+  _FadeRoute({required WidgetBuilder builder})
+      : super(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              builder(context),
+          transitionDuration: const Duration(milliseconds: 260),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(
+                  parent: animation, curve: Curves.easeOut),
+              child: child,
+            );
+          },
+        );
+}
+
 // ── Zoom-morph page route ────────────────────────────────────────────────────
 
 /// A custom route that zooms-and-fades from the tapped avatar's screen
@@ -152,8 +174,12 @@ class _ProfileSwitcherScreenState
         (route) => false,
       );
     } else {
-      Navigator.of(context)
-          .pushNamedAndRemoveUntil(AppRoutes.home, (route) => false);
+      // Tier 0/1: lightweight fade transition — feels intentional without
+      // the GPU-heavy scale compositing that canMorph gates.
+      Navigator.of(context).pushAndRemoveUntil(
+        _FadeRoute(builder: (_) => const HomeScreen()),
+        (route) => false,
+      );
     }
   }
 
