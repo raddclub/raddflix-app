@@ -744,3 +744,65 @@ TEN_POINT_PLAN.md, UI_UX_MIGRATION_PLAN.md, TASK_LOG.md. CI pending.
 ### Outcome
 Deployed via `push_to_oracle.sh`. `GET /billing/ → 200` confirmed in live server logs.
 Commit: `90328920`.
+
+---
+
+## 2026-07-15 — UX3-10-CI-FIX-AND-BUG-AUDIT
+
+### Task
+`76a64295` (final commit of the UX-BATCH-3 session, "true background miniplayer") left
+`build-apk.yml` red. Verify the failure, find root cause, then audit all 8 changed files for
+further logic/UI/UX bugs and fix everything found.
+
+### Root cause (CI break)
+`_ps_ui_mixin.dart:1048: Error: The getter '_minimizePlayer' isn't defined for the class
+'_PlayerUIMixin'.` These `player/_ps_*.dart` files are all `part of '../player_screen.dart'`,
+composing several mixins onto `_PlayerScreenState`; each mixin's `on ConsumerState<PlayerScreen>`
+clause means it only sees its own members plus an explicit abstract "cross-cluster members" block
+declared at its top. `_minimizePlayer()` lives in `_PlayerPlaybackMixin` but the new minimize
+button in `_PlayerUIMixin` called it without adding `void _minimizePlayer();` to that block —
+every other cross-cluster call in the file (`_openMedia`, `_toggleMute`, etc.) had one, this one
+was missed. Fix: added the missing declaration.
+
+### Bugs found in the wider audit
+1. **Usage/billing tracking silently stopped on minimize.** `_stopUsageTimer()` ran
+   unconditionally in `PlayerScreen.dispose()`, including on the minimize path — but the 30s
+   heartbeat (`UsageService.addWatchSession`) lived only on that timer. A minimized paid stream
+   kept playing via `PlaybackService` completely untracked/unbilled until reopened.
+2. **Resume position froze at minimize time.** Same problem for the 10s periodic
+   `_saveWatchPos()` timer — `PlaybackService` never had an equivalent, so a session left
+   minimized for a while (then killed before reattaching) would resume from the position at
+   minimize time, not wherever it actually got to.
+3. **Watch-party / voice commands killed on minimize.** `WatchPartyService.instance.leaveRoom()`
+   and `VoiceCommandsService.instance.stop()` also ran unconditionally in `dispose()` — minimizing
+   during a watch party silently dropped the user from the room even though playback continued.
+4. **No confirmation on the mini-bar stop button.** A single un-confirmed tap on a small 16px
+   icon ended a live (possibly paid) session outright, unlike other destructive controls in the
+   same UX batch which do confirm.
+5. **Back and Minimize were visually identical**, sitting adjacent in the top bar despite very
+   different consequences (end session vs. keep it running).
+
+### Fix
+- `_ps_ui_mixin.dart`: added `void _minimizePlayer();` to the cross-cluster block; dimmed the
+  minimize icon (`Colors.white70`) relative to Back.
+- `player_screen.dart`: `_RaddIconBtn` now takes an optional `color`; `dispose()` gates
+  `WatchPartyService.leaveRoom()`, `VoiceCommandsService.stop()`, and `_stopUsageTimer()` behind
+  `if (!_handedOffToService)`.
+- `services/playback_service.dart`: added `trackUsage`/`posKey` fields captured at `adopt()`
+  time, plus its own 30s usage-heartbeat timer and 10s position-save timer (started in `adopt()`,
+  stopped in `detachForReattach()`/`_disposeCurrent()`) so both keep running for as long as a
+  session lives in the service, not just while `PlayerScreen` is mounted.
+- `_ps_playback_mixin.dart`: `_minimizePlayer()` now passes `trackUsage: _trackUsage` and
+  `posKey: _posKey` through to `adopt()`.
+- `widgets/mini_player_bar.dart`: stop button now shows an `AlertDialog` confirmation
+  (matching the existing dialog style used elsewhere in the player) before calling `service.stop()`.
+
+### Note on ephemeral live-only state (checked, not a bug)
+Considered whether reattaching after minimize loses in-memory-only settings (zoom, speed, EQ,
+etc.) that hadn't yet been debounce-saved to prefs. Not an issue: `dispose()` already cancels the
+save debounce and calls `_savePrefs()` synchronously on every dispose, including the minimize
+path, before the pop — so prefs reflect the exact live state at minimize time by the time a
+reattach's `_loadPrefs()` runs.
+
+### Outcome
+CI `5cf5c0e` confirmed green (`build-apk.yml`, run completed with `conclusion: success`).
