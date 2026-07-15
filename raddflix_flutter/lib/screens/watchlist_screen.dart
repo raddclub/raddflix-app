@@ -5,6 +5,7 @@ import '../core/theme/radd_colors.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:animations/animations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants.dart';
 import '../core/utils/anim_config.dart';
 import '../design_system/radius/radd_radius.dart';
@@ -15,6 +16,8 @@ import 'show_detail_screen.dart';
 
 enum _SortBy { dateAdded, alphabetical, rating, type }
 
+const _kSortByKey = 'watchlist_sort_by';
+
 class WatchlistScreen extends ConsumerStatefulWidget {
   const WatchlistScreen({super.key});
   @override
@@ -23,6 +26,21 @@ class WatchlistScreen extends ConsumerStatefulWidget {
 
 class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
   _SortBy _sortBy = _SortBy.dateAdded;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSortPref();
+  }
+
+  Future<void> _loadSortPref() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idx = prefs.getInt(_kSortByKey) ?? 0;
+    if (mounted) {
+      setState(() => _sortBy =
+          _SortBy.values[idx.clamp(0, _SortBy.values.length - 1)]);
+    }
+  }
 
   List<CatalogItem> _sorted(List<CatalogItem> items) {
     final list = [...items];
@@ -101,6 +119,9 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
               onTap: () {
                 setState(() => _sortBy = s);
                 Navigator.pop(context);
+                // Fire-and-forget — pref save doesn't need to block UI
+                SharedPreferences.getInstance()
+                    .then((p) => p.setInt(_kSortByKey, s.index));
               },
             );
           }),
