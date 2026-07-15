@@ -1140,9 +1140,6 @@ class _VideoListTile extends StatelessWidget {
           content: Text('"${video.title}" moved to Vault'),
           backgroundColor: t.surface,
         ));
-        // Remove from the displayed list immediately — no need to reload the
-        // whole screen; the video object is the same instance in the list.
-        setState(() { widget.folder.videos.remove(video); });
       }
     } catch (e) {
       if (dialogShown && context.mounted) {
