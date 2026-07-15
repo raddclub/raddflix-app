@@ -104,11 +104,38 @@ class _MiniPlayerBarState extends State<MiniPlayerBar>
               ? subState.status!.isActive
               : auth.user!.hasActiveSubscription);
       if (!isSubscribed) {
-        _dismiss();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content:
-                  Text('Active subscription required to continue watching.')),
+        // Don't dismiss the bar — show a dialog so the user understands
+        // what's needed and can navigate to subscribe without losing context.
+        showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF1C1C2E),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14)),
+            title: const Text('Subscription Required',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w700)),
+            content: const Text(
+                'An active subscription is needed to continue watching '
+                'this title.',
+                style: TextStyle(color: Colors.white70, height: 1.5)),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Not Now',
+                      style: TextStyle(color: Colors.white38))),
+              TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.of(context)
+                        .pushNamed(AppRoutes.subscription);
+                  },
+                  child: const Text('Subscribe',
+                      style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700))),
+            ],
+          ),
         );
         return;
       }
