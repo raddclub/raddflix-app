@@ -351,19 +351,20 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
   }
 
   Future<void> _addFolderToVault(LocalFolder folder) async {
+    final t = RaddTheme.of(context);
     final hasPin = await VaultService.hasPin();
     if (!hasPin) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('Set up your vault PIN first (Profile → Vault)'),
-        backgroundColor: RaddTheme.of(context).surface));
+        backgroundColor: t.surface));
       return;
     }
     if (!VaultService.isUnlocked) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('Unlock your vault first (Profile → Vault → Unlock)'),
-        backgroundColor: RaddTheme.of(context).surface));
+        backgroundColor: t.surface));
       return;
     }
     final videos = folder.videos.where((v) => v.isVideo).toList();
@@ -371,22 +372,83 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('No video files in this folder'),
-        backgroundColor: RaddTheme.of(context).surface));
+        backgroundColor: t.surface));
       return;
     }
+
+    final total = videos.length;
+    final progress = ValueNotifier<int>(0);
+
+    if (!mounted) { progress.dispose(); return; }
+    // Non-dismissible progress dialog — moving large video files blocks I/O
+    // and previously left the screen frozen with no feedback.
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          backgroundColor: t.surface,
+          title: Text('Moving to Vault',
+              style: TextStyle(color: t.textPrimary, fontSize: 15,
+                  fontWeight: FontWeight.w600)),
+          content: ValueListenableBuilder<int>(
+            valueListenable: progress,
+            builder: (_, val, __) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(
+                    value: total > 0 ? val / total : null,
+                    backgroundColor: t.border,
+                    color: AppColors.primary,
+                    minHeight: 6,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text('$val of $total videos',
+                    style: TextStyle(color: t.textSecondary, fontSize: 13)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ).ignore();
+
     int count = 0;
-    for (final v in videos) {
-      try {
-        await VaultService.moveFileToVault(v.filePath);
-        count++;
-      } catch (_) {}
+    final contentUris = <String>[];
+    try {
+      for (final v in videos) {
+        try {
+          await VaultService.moveFileToVault(v.filePath);
+          // Build the MediaStore content URI from the video's _ID so file
+          // managers (Mi File Manager, Files by Google) and MX Player stop
+          // showing the entry immediately after the move. Without this call,
+          // the MediaStore record stays even though the file is gone.
+          if (v.id > 0) {
+            contentUris.add('content://media/external/video/media/${v.id}');
+          }
+          count++;
+          progress.value = count;
+        } catch (_) {}
+      }
+      if (contentUris.isNotEmpty) {
+        await VaultService.deleteFromMediaStore(contentUris);
+      }
+    } finally {
+      progress.dispose();
+      if (mounted) {
+        try { Navigator.of(context, rootNavigator: true).pop(); } catch (_) {}
+      }
     }
+
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(count > 0
           ? '$count video${count != 1 ? "s" : ""} moved to vault'
           : 'No accessible files to move'),
-      backgroundColor: RaddTheme.of(context).surface,
+      backgroundColor: t.surface,
       duration: const Duration(seconds: 3)));
     if (count > 0) _load(refresh: true);
   }

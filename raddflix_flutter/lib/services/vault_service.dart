@@ -415,6 +415,35 @@ class VaultService {
     return total;
   }
 
+  /// Restore a vault file to the public Downloads folder.
+  ///
+  /// On Android 10+ (API 29+) uses the MediaStore.Downloads content provider —
+  /// no WRITE_EXTERNAL_STORAGE permission needed; the file appears in Downloads
+  /// immediately in every file manager and MX Player.
+  /// On older versions falls back to a direct copy to the public Downloads dir.
+  ///
+  /// The vault source file is deleted ONLY after the copy succeeds, so the file
+  /// is never lost even if the write fails (fixes the old direct-path crash on
+  /// Android 11+ where the vault file stayed behind after showing an error).
+  static Future<void> restoreFileToDownloads(String vaultPath) async {
+    final filename = p.basename(vaultPath);
+    final dest = await _mediaChannel.invokeMethod<String>('copyToDownloads', {
+      'src_path': vaultPath,
+      'filename': filename,
+    });
+    if (dest == null || dest.isEmpty) {
+      throw Exception('copyToDownloads returned no destination path');
+    }
+    // Copy succeeded — now safe to delete the vault original
+    final src = File(vaultPath);
+    if (await src.exists()) await src.delete();
+    // For legacy path-based result (API < 29), trigger a MediaStore scan so the
+    // file shows up in gallery/file-manager immediately.
+    if (!dest.startsWith('content://')) {
+      await notifyMediaStore(dest);
+    }
+  }
+
   static Future<void> changePin(String oldPin, String newPin) async {
     final ok = await checkPin(oldPin);
     if (!ok) throw Exception('Incorrect current PIN');

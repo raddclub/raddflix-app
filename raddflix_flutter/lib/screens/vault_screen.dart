@@ -443,18 +443,49 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _restoreToGallery(VaultFile f) async {
+    // Show a non-dismissible progress indicator while the copy completes.
+    // The old code wrote directly to /storage/emulated/0/Download which fails
+    // on Android 11+ (WRITE_EXTERNAL_STORAGE is maxSdkVersion=29) — the copy
+    // threw before the delete ran, so the file was never removed from the vault.
+    // restoreFileToDownloads() uses MediaStore.Downloads on API 29+ instead.
+    bool dialogOpen = false;
     try {
-      final destDir = '/storage/emulated/0/Download';
-      await VaultService.restoreFile(f.path, destDir);
+      if (mounted) {
+        dialogOpen = true;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => PopScope(
+            canPop: false,
+            child: AlertDialog(
+              backgroundColor: t.surface,
+              content: Row(children: [
+                const CircularProgressIndicator(),
+                const SizedBox(width: 20),
+                Expanded(child: Text('Restoring "${f.name}"…',
+                    style: TextStyle(color: t.textPrimary))),
+              ]),
+            ),
+          ),
+        ).ignore();
+      }
+      await VaultService.restoreFileToDownloads(f.path);
+      if (dialogOpen && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogOpen = false;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Restored to Downloads folder'),
+          content: const Text('Restored to Downloads folder'),
           backgroundColor: t.surface,
         ));
         await _load();
       }
     } catch (e) {
       if (kDebugMode) debugPrint('[Vault] restore error: $e');
+      if (dialogOpen && mounted) {
+        try { Navigator.of(context, rootNavigator: true).pop(); } catch (_) {}
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: const Text('Restore failed. Please try again.'),
@@ -487,42 +518,95 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
       if (dir == null) return;
       final videoFiles = Directory(dir).listSync(recursive: false)
           .whereType<File>()
-          .where((f) => AppConstants.playableVideoExtensions.contains(f.path.split('.').last.toLowerCase()))
+          .where((f) => AppConstants.playableVideoExtensions
+              .contains(f.path.split('.').last.toLowerCase()))
           .toList();
       if (videoFiles.isEmpty) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text('No video files found in that folder'), backgroundColor: t.surface));
+          content: const Text('No video files found in that folder'),
+          backgroundColor: t.surface));
         return;
       }
+      final total = videoFiles.length;
       final folder = widget.folderPath != null ? widget.folderPath!.split('/').last : null;
-      for (final f in videoFiles) await VaultService.moveFileToVault(f.path, folder: folder);
+      final progress = ValueNotifier<int>(0);
+
+      if (!mounted) { progress.dispose(); return; }
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => PopScope(
+          canPop: false,
+          child: _VaultProgressDialog(
+            t: t, title: 'Importing Folder', total: total, progress: progress),
+        ),
+      ).ignore();
+
+      int moved = 0;
+      try {
+        for (final f in videoFiles) {
+          await VaultService.moveFileToVault(f.path, folder: folder);
+          moved++;
+          progress.value = moved;
+        }
+      } finally {
+        progress.dispose();
+        if (mounted) {
+          try { Navigator.of(context, rootNavigator: true).pop(); } catch (_) {}
+        }
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${videoFiles.length} video${videoFiles.length > 1 ? "s" : ""} imported'),
+          content: Text('$moved video${moved > 1 ? "s" : ""} imported'),
           backgroundColor: t.surface));
         await _load();
       }
     } catch (e) {
       if (kDebugMode) debugPrint('[Vault] import folder error: $e');
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Could not import folder. Please try again.'), backgroundColor: AppColors.error));
+        content: Text('Could not import folder. Please try again.'),
+        backgroundColor: AppColors.error));
     }
   }
 
   Future<void> _processPickedFiles(List<PlatformFile> files) async {
+    if (files.isEmpty) return;
     int imported = 0; bool hadBytesOnly = false;
     final contentUris = <String>[];
     final folder = widget.folderPath != null ? widget.folderPath!.split('/').last : null;
-    for (final file in files) {
-      final src = file.path;
-      if (src != null) {
-        await VaultService.moveFileToVault(src, folder: folder);
-        final uri = file.identifier;
-        if (uri != null && uri.isNotEmpty) contentUris.add(uri);
-        imported++;
-      } else { hadBytesOnly = true; }
+    final total = files.length;
+    final progress = ValueNotifier<int>(0);
+
+    if (!mounted) { progress.dispose(); return; }
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: _VaultProgressDialog(
+          t: t, title: 'Adding to Vault', total: total, progress: progress),
+      ),
+    ).ignore();
+
+    try {
+      for (final file in files) {
+        final src = file.path;
+        if (src != null) {
+          await VaultService.moveFileToVault(src, folder: folder);
+          final uri = file.identifier;
+          if (uri != null && uri.isNotEmpty) contentUris.add(uri);
+          imported++;
+        } else { hadBytesOnly = true; }
+        progress.value = imported;
+      }
+      if (contentUris.isNotEmpty) await VaultService.deleteFromMediaStore(contentUris);
+    } finally {
+      progress.dispose();
+      if (mounted) {
+        try { Navigator.of(context, rootNavigator: true).pop(); } catch (_) {}
+      }
     }
-    if (contentUris.isNotEmpty) await VaultService.deleteFromMediaStore(contentUris);
+
     if (mounted && imported > 0) {
       final msg = hadBytesOnly
           ? '$imported file${imported > 1 ? "s" : ""} added. Some originals may still appear in gallery.'
@@ -650,6 +734,61 @@ class _FileListTileState extends State<_FileListTile> {
           ]),
         ),
       ),
+    );
+  }
+}
+
+// ── Shared progress dialog used by all vault import/add operations ────────────
+// Shows a live "X of Y files" linear progress bar inside a non-dismissible
+// AlertDialog. Callers hold a ValueNotifier<int> and update it from their
+// async loop; the dialog rebuilds itself via ValueListenableBuilder so the
+// main widget tree is never involved.
+class _VaultProgressDialog extends StatelessWidget {
+  final RaddTheme t;
+  final String title;
+  final int total;
+  final ValueNotifier<int> progress;
+  const _VaultProgressDialog({
+    required this.t, required this.title,
+    required this.total, required this.progress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: t.surface,
+      title: Text(title,
+          style: TextStyle(color: t.textPrimary, fontSize: 15,
+              fontWeight: FontWeight.w600)),
+      content: total == 1
+          ? Row(children: [
+              const SizedBox(
+                width: 24, height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5)),
+              const SizedBox(width: 20),
+              Expanded(child: Text('Moving file…',
+                  style: TextStyle(color: t.textSecondary, fontSize: 13))),
+            ])
+          : ValueListenableBuilder<int>(
+              valueListenable: progress,
+              builder: (_, val, __) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: total > 0 ? val / total : null,
+                      backgroundColor: t.border,
+                      color: AppColors.primary,
+                      minHeight: 6,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('$val of $total files moved',
+                      style: TextStyle(color: t.textSecondary, fontSize: 13)),
+                ],
+              ),
+            ),
     );
   }
 }

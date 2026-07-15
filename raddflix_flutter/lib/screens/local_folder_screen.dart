@@ -1080,23 +1080,74 @@ class _VideoListTile extends StatelessWidget {
 
   Future<void> _addToVault(BuildContext context) async {
     final t = RaddTheme.of(context);
+    bool dialogShown = false;
     try {
       final hasPin = await VaultService.hasPin();
       if (!hasPin) {
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: const Text('Set up your vault PIN first (Profile → Vault)'),
           backgroundColor: t.surface,
         ));
         return;
       }
+      // Bug: was missing isUnlocked check — user could move files without
+      // entering the vault PIN if a PIN was configured but not currently unlocked.
+      if (!VaultService.isUnlocked) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Unlock your vault first (Profile → Vault → Unlock)'),
+          backgroundColor: t.surface,
+        ));
+        return;
+      }
+      if (!context.mounted) return;
+      dialogShown = true;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            backgroundColor: t.surface,
+            content: Row(children: [
+              const SizedBox(
+                width: 24, height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5)),
+              const SizedBox(width: 20),
+              Expanded(child: Text('Moving to vault…',
+                  style: TextStyle(color: t.textPrimary, fontSize: 13))),
+            ]),
+          ),
+        ),
+      ).ignore();
+
       await VaultService.moveFileToVault(video.filePath);
+
+      // Delete from Android MediaStore so the file stops appearing in file
+      // managers (Mi File Manager, Files by Google) and MX Player immediately.
+      if (video.id > 0) {
+        await VaultService.deleteFromMediaStore(
+            ['content://media/external/video/media/${video.id}']);
+      }
+
+      if (dialogShown && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogShown = false;
+      }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('"${video.title}" moved to Vault'),
           backgroundColor: t.surface,
         ));
+        // Remove from the displayed list immediately — no need to reload the
+        // whole screen; the video object is the same instance in the list.
+        setState(() { widget.folder.videos.remove(video); });
       }
     } catch (e) {
+      if (dialogShown && context.mounted) {
+        try { Navigator.of(context, rootNavigator: true).pop(); } catch (_) {}
+      }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Could not add to vault: $e'),

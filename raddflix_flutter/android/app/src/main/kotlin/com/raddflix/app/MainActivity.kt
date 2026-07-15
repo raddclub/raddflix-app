@@ -271,6 +271,65 @@ class MainActivity : FlutterActivity() {
                         }
                     }
 
+                    // Copy a vault file to the public Downloads folder.
+                    // API 29+ (Android 10+): MediaStore.Downloads content provider —
+                    //   no WRITE_EXTERNAL_STORAGE needed; result is a content:// URI.
+                    // API < 29: direct file copy to Environment.DIRECTORY_DOWNLOADS.
+                    "copyToDownloads" -> {
+                        val srcPath  = call.argument<String>("src_path") ?: run {
+                            result.error("MISSING_ARG", "src_path required", null)
+                            return@setMethodCallHandler
+                        }
+                        val filename = call.argument<String>("filename")
+                            ?: java.io.File(srcPath).name
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                val ext = filename.substringAfterLast('.', "").lowercase()
+                                val mime = when (ext) {
+                                    "mkv"  -> "video/x-matroska"
+                                    "avi"  -> "video/x-msvideo"
+                                    "mov"  -> "video/quicktime"
+                                    "webm" -> "video/webm"
+                                    "ts", "m2ts", "mts" -> "video/mp2t"
+                                    "wmv"  -> "video/x-ms-wmv"
+                                    else   -> "video/mp4"
+                                }
+                                val values = ContentValues().apply {
+                                    put(MediaStore.Downloads.DISPLAY_NAME, filename)
+                                    put(MediaStore.Downloads.MIME_TYPE, mime)
+                                    put(MediaStore.Downloads.IS_PENDING, 1)
+                                }
+                                val uri = contentResolver.insert(
+                                    MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                                    ?: run {
+                                        result.error("INSERT_FAILED",
+                                            "MediaStore.Downloads insert failed", null)
+                                        return@setMethodCallHandler
+                                    }
+                                contentResolver.openOutputStream(uri)?.use { out ->
+                                    java.io.File(srcPath).inputStream().use { it.copyTo(out) }
+                                }
+                                values.clear()
+                                values.put(MediaStore.Downloads.IS_PENDING, 0)
+                                contentResolver.update(uri, values, null, null)
+                                result.success(uri.toString())
+                            } else {
+                                @Suppress("DEPRECATION")
+                                val dlDir = android.os.Environment
+                                    .getExternalStoragePublicDirectory(
+                                        android.os.Environment.DIRECTORY_DOWNLOADS)
+                                dlDir.mkdirs()
+                                val dest = java.io.File(dlDir, filename)
+                                java.io.File(srcPath).copyTo(dest, overwrite = true)
+                                MediaScannerConnection.scanFile(
+                                    this, arrayOf(dest.absolutePath), null, null)
+                                result.success(dest.absolutePath)
+                            }
+                        } catch (e: Exception) {
+                            result.error("COPY_FAILED", e.message, null)
+                        }
+                    }
+
                     else -> result.notImplemented()
                 }
             }
