@@ -146,7 +146,7 @@ class DownloadStorageStrip extends ConsumerWidget {
           filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: Container(
             margin: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-            decoration: decoration.copyWith(margin: EdgeInsets.zero),
+            decoration: decoration,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(children: [

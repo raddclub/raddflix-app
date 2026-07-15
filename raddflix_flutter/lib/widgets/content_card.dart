@@ -348,7 +348,7 @@ class ShimmerCard extends StatelessWidget {
             )),
         ]),
       ),
-    );
+    ));
   }
 }
 

@@ -340,7 +340,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         label: 'App Version',
                         trailing: SettingsRowTrailing.none,
                         trailingWidget:
-                            _VersionPill(version: _version, build: _buildNumber, t: t),
+                            _VersionPill(version: _version, buildNumber: _buildNumber, t: t),
                       ),
                     ),
                     _divider(t),
@@ -446,9 +446,9 @@ class _DestructiveRow extends StatelessWidget {
 /// Glass pill showing version + build — used in the About section's App Version row.
 class _VersionPill extends StatelessWidget {
   final String version;
-  final String build;
+  final String buildNumber;
   final RaddTheme t;
-  const _VersionPill({required this.version, required this.build, required this.t});
+  const _VersionPill({required this.version, required this.buildNumber, required this.t});
 
   @override
   Widget build(BuildContext context) {
@@ -462,7 +462,7 @@ class _VersionPill extends StatelessWidget {
         border: Border.all(color: t.border.withOpacity(0.6), width: 0.75),
       ),
       child: Text(
-        'v$version ($build)',
+        'v$version ($buildNumber)',
         style: context.raddCaption.copyWith(
           color: t.textSecondary,
           // Slightly tighter tracking gives it a "build stamp" feel
