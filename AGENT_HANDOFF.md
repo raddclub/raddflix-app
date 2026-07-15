@@ -5,6 +5,39 @@
 
 ---
 
+## Current State (2026-07-15 — Empty States + Shared-Element Transitions + Miniplayer)
+
+### UX-BATCH-2 — Tasks 7-9 — 2026-07-15
+
+Continuation of the direct-from-chat UX task list (tasks 1-5 were the prior batch: Show
+Detail/Profile Switcher/Search/Settings/Downloads polish, commit `2b7f6672`).
+
+1. **Empty states (Task 7):** `actor_screen.dart`'s "No titles in our catalog yet" state used a
+   plain static `Icon(AppIcons.filmSlate)` while Search/Downloads/Local Media already used the
+   animated `AnimatedSearchIcon` from `animated_empty_icons.dart`. Swapped it in for consistency.
+   `admin_queue_screen.dart`/`debug_diagnostics_screen.dart` intentionally left as-is — internal
+   dev tooling, not user-facing.
+2. **Transitions (Task 8):** `watchlist_screen.dart` and `history_screen.dart` grids only had
+   plain `Navigator.push` into the detail screen, while `home_screen.dart`/`search_screen.dart`
+   already had a tier-gated `OpenContainer` shared-element morph (Tier 2+ devices via
+   `animConfigProvider.canMorph`). Added the identical pattern to both screens so the grid→detail
+   transition is consistent app-wide. `content_card.dart`'s internal detail sheet and
+   `show_detail_screen.dart`'s "More Like This" rail were left untouched (lower priority, out of
+   this batch's scope).
+3. **Miniplayer (Task 9):** No background playback service exists in this app — playback state
+   is local to `PlayerScreen`, so a "live" miniplayer (pause/resume audio while browsing) isn't
+   architecturally supported without a much bigger change. Scoped honestly instead: new
+   `lib/widgets/mini_player_bar.dart` (`MiniPlayerBar` + `MiniPlayerDock`) reuses the same
+   `resume_*` SharedPreferences keys `ResumeFab` already wrote, rendered as a persistent glass bar
+   docked above the bottom nav bar on all 5 top-level screens (Home/Search/Local/Downloads/
+   Profile) instead of the old Home-only floating FAB. Swipe down or tap X to dismiss, tap to
+   resume playback. `ResumeFab` class itself is untouched/still defined (in case a real miniplayer
+   is built later) but no longer mounted anywhere.
+
+**Commit:** `b7b74c20` — CI green: https://github.com/raddclub/raddflix-app/actions/runs/29411968550
+
+---
+
 ## Current State (2026-07-14 — Billing 500 Fixed + Audio Panel Audit + Phase H/UI-UX-Migration Closed)
 
 ### BILLING-FIX — `/billing/` Internal Error — 2026-07-14
