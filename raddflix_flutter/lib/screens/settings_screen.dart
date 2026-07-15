@@ -72,6 +72,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _clearImageCache() async {
+    final t = RaddTheme.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: t.card,
+        shape: RoundedRectangleBorder(borderRadius: RaddRadius.mdRadius),
+        title: Text('Clear Image Cache',
+            style: TextStyle(color: t.textPrimary, fontWeight: FontWeight.w700)),
+        content: Text(
+            'This will remove all cached poster and thumbnail images. '
+            'They will reload automatically next time you browse.',
+            style: TextStyle(color: t.textSecondary, height: 1.5)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel', style: TextStyle(color: t.textMuted))),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('Clear',
+                  style: TextStyle(
+                      color: context.accentWarning,
+                      fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    if (ok != true) return;
     PaintingBinding.instance.imageCache.clear();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
