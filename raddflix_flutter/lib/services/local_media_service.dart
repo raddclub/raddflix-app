@@ -2,7 +2,7 @@ import 'dart:io';
   import 'dart:typed_data';
   import 'package:flutter/services.dart';
   import 'package:path/path.dart' as p;
-  import 'media_kit_thumbnail_extractor.dart';
+  import 'thumb_service.dart';
   import '../core/constants.dart';
   import '../models/local_video.dart';
   import 'package:shared_preferences/shared_preferences.dart';
@@ -101,9 +101,13 @@ import 'dart:io';
 
     // ── File-path thumbnail fallback (filesystem / "Open With" URIs) ──────────
     // Uses timeMs:0 (first frame) — safe for clips of any length.
-    // G3: media_kit frame extraction — see MediaKitThumbnailExtractor for why.
+    // Routed through ThumbService (mem + disk cache keyed by path+timeMs) —
+    // this used to call MediaKitThumbnailExtractor.extractFrame directly with
+    // no caching at all, so every grid rebuild (e.g. scrolling a large local
+    // folder) re-opened the file and re-decoded a frame via mpv from scratch,
+    // which is exactly the jank this fallback exists to render around.
     static Future<Uint8List?> getThumbnail(String filePath, {int quality = 50, int maxDimension = 200}) {
-      return MediaKitThumbnailExtractor.extractFrame(filePath, timeMs: 0);
+      return ThumbService.getThumbnail(filePath, timeMs: 0, maxWidth: maxDimension, quality: quality);
     }
 
     // ── Mark files as seen ────────────────────────────────────────────────────

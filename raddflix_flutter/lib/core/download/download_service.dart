@@ -4,9 +4,29 @@ import 'package:path_provider/path_provider.dart';
 import '../db/local_db.dart';
 import '../services/jazzdrive_service.dart';
 import '../debug/debug_logger.dart';
-import '../constants.dart';
+import '../../core/constants.dart';
 import '../api/api_client.dart';
 import '../services/usage_service.dart';
+
+/// Picks the real container extension for a downloaded file instead of
+/// blindly assuming `.mp4`. Tries, in order: the episode/share filename the
+/// server told us about, then the resolved stream URL's own path — falling
+/// back to `mp4` only when neither yields a known video extension. Keeps a
+/// downloaded MKV/TS/AVI file honestly named on disk instead of an .mp4 that
+/// isn't really one (harmless for in-app playback, since mpv sniffs content
+/// not extension, but misleading for anything outside the app — sharing,
+/// "Open With", scoped-storage MediaStore scans, etc.).
+String _resolveDownloadExtension({String? targetFilename, required String resolvedUrl}) {
+  String? extFrom(String? nameOrUrl) {
+    if (nameOrUrl == null || nameOrUrl.isEmpty) return null;
+    final noQuery = nameOrUrl.split('?').first;
+    final dot = noQuery.lastIndexOf('.');
+    if (dot == -1 || dot == noQuery.length - 1) return null;
+    final ext = noQuery.substring(dot + 1).toLowerCase();
+    return AppConstants.playableVideoExtensions.contains(ext) ? ext : null;
+  }
+  return extFrom(targetFilename) ?? extFrom(resolvedUrl) ?? 'mp4';
+}
 
 class DownloadService {
   static final Dio _dio = Dio();
@@ -52,6 +72,7 @@ class DownloadService {
     await _checkDownloadQuota();
 
     String resolvedUrl = streamUrl;
+    String? resolvedFilename = targetFilename;
 
     // Path A: shareUrl passed in from caller (may be RF1:xxx scrambled from
     // CatalogItem.shareUrl — decode it before handing to JazzDriveService).
@@ -92,6 +113,7 @@ class DownloadService {
             remoteId: dbRemoteId > 0 ? dbRemoteId : remoteId,
           );
           resolvedUrl = link.streamUrl;
+          resolvedFilename = dbFilename ?? targetFilename;
           DebugLogger.log('DOWNLOAD', 'Stream link resolved (cached)');
         } catch (e) {
           DebugLogger.logWarn('DOWNLOAD', 'Cached stream link failed, using fallback');
@@ -99,7 +121,8 @@ class DownloadService {
       }
     }
     final dir = await _getDownloadDir();
-    final localPath = '${dir.path}/$fileId.mp4';
+    final ext = _resolveDownloadExtension(targetFilename: resolvedFilename, resolvedUrl: resolvedUrl);
+    final localPath = '${dir.path}/$fileId.$ext';
 
     await LocalDb.insertDownload(
       fileId: fileId,
@@ -192,23 +215,23 @@ class DownloadService {
     await LocalDb.deleteDownload(fileId);
   }
 
-  // H-07: isDownloaded previously fetched ALL downloads (full-table scan) to
-  // find one record. Fix: short-circuit via filesystem check — if the file does
-  // not exist on disk we skip the DB entirely (the common fast path).
+  // Real on-disk extension varies per file now (BUG-DL-EXT-01 fix — downloads
+  // used to always assume `$fileId.mp4`), so both lookups below go through the
+  // DB's recorded `local_path` rather than reconstructing a filename.
   static Future<bool> isDownloaded(String fileId) async {
-    final dir = await _getDownloadDir();
-    final localPath = dir.path + '/' + fileId + '.mp4';
-    if (!await File(localPath).exists()) return false;
-    // File present on disk — verify DB records it as completed, not partial
     final downloads = await LocalDb.getDownloads();
-    return downloads.any((d) => d['file_id'] == fileId && d['status'] == 'completed');
+    final match = downloads.where((d) => d['file_id'] == fileId && d['status'] == 'completed').firstOrNull;
+    final path = match?['local_path'] as String?;
+    if (path == null || path.isEmpty) return false;
+    return File(path).exists();
   }
 
-  // H-07: same fast-path as isDownloaded — filesystem check first
   static Future<String?> getLocalPath(String fileId) async {
-    final dir = await _getDownloadDir();
-    final localPath = dir.path + '/' + fileId + '.mp4';
-    return (await File(localPath).exists()) ? localPath : null;
+    final downloads = await LocalDb.getDownloads();
+    final match = downloads.where((d) => d['file_id'] == fileId).firstOrNull;
+    final path = match?['local_path'] as String?;
+    if (path == null || path.isEmpty) return null;
+    return (await File(path).exists()) ? path : null;
   }
 
   static Future<Directory> _getDownloadDir() async {
