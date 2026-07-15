@@ -676,9 +676,8 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                       const SizedBox(height: RaddSpace.lg),
                     ],
 
-                    // Cast rail (frosted chips)
-                    _FrostedCastRail(item: item, animConfig: animConfig),
-                    const SizedBox(height: RaddSpace.md),
+                    // Cast rail — UX3-08: delegated to _CastRailSection
+                    _CastRailSection(item: item, animConfig: animConfig),
 
                     // ── MOVIE: Watch Now + Download ─────────────────────
                     if (isMovie) ...[
@@ -986,154 +985,28 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
               ),
             ),
 
-            // ── Episode List ──────────────────────────────────────────────
+            // ── Episode List — UX3-08: delegated to _EpisodeListSection ──
             if (!widget.item.isMovie)
-              _loading
-                  ? SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (_, i) => _EpisodeShimmer(),
-                        childCount: 6,
-                      ),
-                    )
-                  : _currentEpisodes.isEmpty
-                      ? SliverToBoxAdapter(
-                          child: _ComingSoonBanner(
-                            episodeCount: widget.item.episodeCount,
-                            season: _selectedSeason,
-                          ),
-                        )
-                      : SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (_, i) {
-                              final withGaps = _currentEpisodesWithGaps;
-                              final ep = withGaps[i];
-                              final epNum =
-                                  ep['episode'] as int? ?? (i + 1);
-                              final season = ep['season'] as int? ??
-                                  _selectedSeason;
-                              final label = ep['label'] as String? ??
-                                  'S${season.toString().padLeft(2, '0')}E${epNum.toString().padLeft(2, '0')}';
-                              if (ep['_placeholder'] == true) {
-                                return _EpisodeUnavailableTile(
-                                  label: label,
-                                  statusOverride:
-                                      ep['_override'] as String?,
-                                  onLongPress: _adminMode
-                                      ? () => _showAdminSheet(
-                                          epNum, season)
-                                      : null,
-                                ).animate().fadeIn(
-                                    delay: Duration(
-                                        milliseconds: 50 + i * 40));
-                              }
-                              final realIdx =
-                                  ep['_realIndex'] as int;
-                              final fileId =
-                                  ep['file_id']?.toString() ?? '';
-                              final progress =
-                                  _watchProgress[fileId] ?? 0.0;
-                              final isFree = _parseFree(ep['is_free']) ||
-                                  widget.item.isFree;
-                              final quality =
-                                  ep['quality'] as String?;
-                              final epShareUrl =
-                                  ep['share_url'] as String? ?? '';
-                              final dlState =
-                                  ref.watch(downloadsProvider);
-                              final isDownloading =
-                                  dlState.isDownloading(fileId);
-                              final isDownloaded =
-                                  dlState.isDownloaded(fileId);
-                              return _GlassEpisodeCard(
-                                // E7 fix: use actual episode number from data (1-based → 0-based)
-                                // instead of list position (realIdx), which was wrong in
-                                // descending sort.
-                                index: (ep['episode'] as int? ??
-                                        realIdx + 1) -
-                                    1,
-                                label: label,
-                                isFree: isFree,
-                                isLocked:
-                                    !isFree && !_isSubscribed,
-                                quality: quality,
-                                progress: progress,
-                                isNowPlaying:
-                                    realIdx == _nowPlayingIdx,
-                                onTap: () =>
-                                    _playEpisode(realIdx),
-                                isDownloading: isDownloading,
-                                isDownloaded: isDownloaded,
-                                animConfig: animConfig,
-                                onDownload: fileId.isEmpty ||
-                                        isDownloaded ||
-                                        isDownloading
-                                    ? null
-                                    : () async {
-                                        if (!isFree && !_isSubscribed) {
-                                          _requireSub(context);
-                                          return;
-                                        }
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                              content: Text(
-                                                  'Downloading $label...'),
-                                              duration:
-                                                  const Duration(
-                                                      seconds: 2)),
-                                        );
-                                        try {
-                                          final decodedEpUrl =
-                                              epShareUrl.isNotEmpty
-                                                  ? (await LocalDb
-                                                              .decodeShareUrl(
-                                                                  epShareUrl) ??
-                                                          epShareUrl)
-                                                  : '';
-                                          await ref
-                                              .read(downloadsProvider
-                                                  .notifier)
-                                              .startDownload(
-                                                fileId: fileId,
-                                                titleText:
-                                                    '${widget.item.title} $label',
-                                                streamUrl: decodedEpUrl,
-                                                posterUrl:
-                                                    widget.item.posterUrl,
-                                                targetFilename:
-                                                    ep['filename']
-                                                        as String?,
-                                                remoteId:
-                                                    ep['remote_id']
-                                                            as int? ??
-                                                        0,
-                                                contentType:
-                                                    widget.item.mediaType,
-                                              );
-                                        } on DownloadQuotaException catch (e) {
-                                          if (context.mounted)
-                                            _showQuotaError(
-                                                context, e.userMessage);
-                                        }
-                                      },
-                              ).animate().fadeIn(
-                                    delay: Duration(
-                                        milliseconds: 50 + i * 40));
-                            },
-                            childCount: _currentEpisodesWithGaps.length,
-                          ),
-                        ),
-
-            // ── More Like This ────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: _MoreLikeThisSection(
-                current: item,
-                allItems: [
-                  ...ref.watch(catalogProvider).movies,
-                  ...ref.watch(catalogProvider).shows,
-                ],
+              _EpisodeListSection(
+                loading: _loading,
+                item: widget.item,
+                episodesWithGaps: _currentEpisodesWithGaps,
+                currentEpisodes: _currentEpisodes,
+                selectedSeason: _selectedSeason,
+                watchProgress: _watchProgress,
+                nowPlayingIdx: _nowPlayingIdx,
+                isSubscribed: _isSubscribed,
+                adminMode: _adminMode,
+                animConfig: animConfig,
+                onPlay: _playEpisode,
+                onAdminLongPress: _showAdminSheet,
+                onQuotaError: _showQuotaError,
+                onRequireSub: _requireSub,
               ),
-            ),
+
+            // ── More Like This — UX3-08+09: _RelatedRailSection handles
+            // catalog watch + skeleton shimmer internally ─────────────────
+            _RelatedRailSection(current: item),
 
             const SliverToBoxAdapter(child: SizedBox(height: 40)),
           ],
@@ -1162,6 +1035,229 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     } catch (_) {
       return [];
     }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UX3-08: CAST RAIL SECTION
+// Thin wrapper around _FrostedCastRail that owns the bottom spacing, keeping
+// the parent build() free of layout micro-decisions for this section.
+// ─────────────────────────────────────────────────────────────────────────────
+class _CastRailSection extends StatelessWidget {
+  final CatalogItem item;
+  final AnimConfig animConfig;
+  const _CastRailSection({required this.item, required this.animConfig});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _FrostedCastRail(item: item, animConfig: animConfig),
+        const SizedBox(height: RaddSpace.md),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UX3-08: EPISODE LIST SECTION (Sliver)
+// Owns the episode tile list sliver — loading shimmer, empty state, and actual
+// tile list — so the main build() stays free of this ~130-line block.
+// UX3-09: shimmer is already handled by _EpisodeShimmer when loading == true.
+// ─────────────────────────────────────────────────────────────────────────────
+class _EpisodeListSection extends ConsumerWidget {
+  final bool loading;
+  final CatalogItem item;
+  final List<Map<String, dynamic>> episodesWithGaps;
+  final List<Map<String, dynamic>> currentEpisodes;
+  final int selectedSeason;
+  final Map<String, double> watchProgress;
+  final int? nowPlayingIdx;
+  final bool isSubscribed;
+  final bool adminMode;
+  final AnimConfig animConfig;
+  final Future<void> Function(int) onPlay;
+  final Future<void> Function(int epNum, int season)? onAdminLongPress;
+  final void Function(BuildContext, String) onQuotaError;
+  final void Function(BuildContext) onRequireSub;
+
+  const _EpisodeListSection({
+    required this.loading,
+    required this.item,
+    required this.episodesWithGaps,
+    required this.currentEpisodes,
+    required this.selectedSeason,
+    required this.watchProgress,
+    required this.nowPlayingIdx,
+    required this.isSubscribed,
+    required this.adminMode,
+    required this.animConfig,
+    required this.onPlay,
+    required this.onAdminLongPress,
+    required this.onQuotaError,
+    required this.onRequireSub,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (loading) {
+      return SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (_, i) => _EpisodeShimmer(),
+          childCount: 6,
+        ),
+      );
+    }
+    if (currentEpisodes.isEmpty) {
+      return SliverToBoxAdapter(
+        child: _ComingSoonBanner(
+          episodeCount: item.episodeCount,
+          season: selectedSeason,
+        ),
+      );
+    }
+    final dlState = ref.watch(downloadsProvider);
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (_, i) {
+          final ep = episodesWithGaps[i];
+          final epNum = ep['episode'] as int? ?? (i + 1);
+          final season = ep['season'] as int? ?? selectedSeason;
+          final label = ep['label'] as String? ??
+              'S${season.toString().padLeft(2, '0')}E${epNum.toString().padLeft(2, '0')}';
+          if (ep['_placeholder'] == true) {
+            return _EpisodeUnavailableTile(
+              label: label,
+              statusOverride: ep['_override'] as String?,
+              onLongPress:
+                  adminMode ? () => onAdminLongPress?.call(epNum, season) : null,
+            ).animate().fadeIn(delay: Duration(milliseconds: 50 + i * 40));
+          }
+          final realIdx = ep['_realIndex'] as int;
+          final fileId = ep['file_id']?.toString() ?? '';
+          final progress = watchProgress[fileId] ?? 0.0;
+          // E7 note: _parseFree is a file-private static — accessible here.
+          final isFree =
+              _ShowDetailScreenState._parseFree(ep['is_free']) || item.isFree;
+          final quality = ep['quality'] as String?;
+          final epShareUrl = ep['share_url'] as String? ?? '';
+          final isDownloading = dlState.isDownloading(fileId);
+          final isDownloaded = dlState.isDownloaded(fileId);
+          return _GlassEpisodeCard(
+            // E7 fix: use actual episode number from data (1-based → 0-based)
+            // instead of list position, which was wrong in descending sort.
+            index: (ep['episode'] as int? ?? realIdx + 1) - 1,
+            label: label,
+            isFree: isFree,
+            isLocked: !isFree && !isSubscribed,
+            quality: quality,
+            progress: progress,
+            isNowPlaying: realIdx == nowPlayingIdx,
+            onTap: () => onPlay(realIdx),
+            isDownloading: isDownloading,
+            isDownloaded: isDownloaded,
+            animConfig: animConfig,
+            onDownload: fileId.isEmpty || isDownloaded || isDownloading
+                ? null
+                : () async {
+                    if (!isFree && !isSubscribed) {
+                      onRequireSub(context);
+                      return;
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text('Downloading $label...'),
+                        duration: const Duration(seconds: 2)));
+                    try {
+                      final decodedEpUrl = epShareUrl.isNotEmpty
+                          ? (await LocalDb.decodeShareUrl(epShareUrl) ??
+                              epShareUrl)
+                          : '';
+                      await ref.read(downloadsProvider.notifier).startDownload(
+                            fileId: fileId,
+                            titleText: '${item.title} $label',
+                            streamUrl: decodedEpUrl,
+                            posterUrl: item.posterUrl,
+                            targetFilename: ep['filename'] as String?,
+                            remoteId: ep['remote_id'] as int? ?? 0,
+                            contentType: item.mediaType,
+                          );
+                    } on DownloadQuotaException catch (e) {
+                      if (context.mounted) onQuotaError(context, e.userMessage);
+                    }
+                  },
+          ).animate().fadeIn(delay: Duration(milliseconds: 50 + i * 40));
+        },
+        childCount: episodesWithGaps.length,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UX3-08+09: RELATED RAIL SECTION (Sliver)
+// Reads catalogProvider internally so the parent doesn't need to watch it.
+// UX3-09: shows _RelatedShimmer while catalog.movies + catalog.shows are
+// still empty, giving the section an independent loading skeleton.
+// ─────────────────────────────────────────────────────────────────────────────
+class _RelatedRailSection extends ConsumerWidget {
+  final CatalogItem current;
+  const _RelatedRailSection({required this.current});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final catalog = ref.watch(catalogProvider);
+    final allItems = [...catalog.movies, ...catalog.shows];
+    if (allItems.isEmpty) {
+      // Catalog not yet loaded — show a shimmer skeleton so the section
+      // doesn't just disappear; it pops in once catalog resolves.
+      return SliverToBoxAdapter(child: _RelatedShimmer());
+    }
+    return SliverToBoxAdapter(
+      child: _MoreLikeThisSection(current: current, allItems: allItems),
+    );
+  }
+}
+
+/// Skeleton placeholder for the More Like This rail while catalog loads.
+class _RelatedShimmer extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(RaddSpace.md, 28, RaddSpace.md, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Shimmer.fromColors(
+          baseColor: t.surface,
+          highlightColor: t.surfaceHigh,
+          child: Container(
+              width: 120,
+              height: 16,
+              decoration: BoxDecoration(
+                  color: t.surface, borderRadius: BorderRadius.circular(4))),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 130,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 5,
+            itemBuilder: (_, __) => Shimmer.fromColors(
+              baseColor: t.surface,
+              highlightColor: t.surfaceHigh,
+              child: Container(
+                width: 90,
+                margin: const EdgeInsets.only(right: 10),
+                decoration: BoxDecoration(
+                    color: t.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.md)),
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
   }
 }
 
