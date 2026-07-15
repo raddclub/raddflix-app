@@ -27,6 +27,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   void _applySubtitleMargin({required bool controlsVisible});
   void _scheduleSavePrefs();
   void _showInfoSnackbar(String msg);
+  void _minimizePlayer();
 
   // ── Cross-cluster methods (defined in other mixins) ──────────────────────
   void _adjustAudioSync(double delta);
@@ -1042,9 +1043,12 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
 
             // UX3-10: Minimize — keeps playback running behind a live mini
             // bar on Home/Search/etc. instead of ending the session.
+            // Dimmed relative to Back so the two adjacent, differently-
+            // consequential actions aren't visually interchangeable.
             _RaddIconBtn(
               icon: Icons.keyboard_arrow_down_rounded,
               size: 22,
+              color: Colors.white70,
               onTap: _minimizePlayer,
             ),
 

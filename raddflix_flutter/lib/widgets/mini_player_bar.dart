@@ -340,6 +340,39 @@ class _LiveMiniPlayerBar extends StatelessWidget {
         .pushNamed(AppRoutes.player, arguments: service.buildResumeArgs());
   }
 
+  // Bug fix: this used to call service.stop() directly — one mistap on a
+  // small 16px icon killed a live paid stream outright, with no way back.
+  // Every other destructive control in the player (episode skip past
+  // unwatched content, exit during an active watch party, etc.) asks first;
+  // this one should too.
+  Future<void> _confirmStop(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Stop Playback?',
+            style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: const Text(
+          'This will end your session and close the mini player.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Stop',
+                style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) service.stop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final progress = service.duration.inMilliseconds > 0
@@ -439,7 +472,7 @@ class _LiveMiniPlayerBar extends StatelessWidget {
                         ),
                         // ── End session ───────────────────────────────────
                         GestureDetector(
-                          onTap: service.stop,
+                          onTap: () => _confirmStop(context),
                           child: Padding(
                             padding: const EdgeInsets.only(
                                 right: 10, left: 2),

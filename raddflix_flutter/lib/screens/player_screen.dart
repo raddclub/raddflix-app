@@ -339,9 +339,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _watchPartySub?.cancel();
     _voiceSub?.cancel();
     _voiceCmdTimer?.cancel();
-    WatchPartyService.instance.leaveRoom();
-    VoiceCommandsService.instance.stop();
-    _stopUsageTimer();
+    // Bug fixes (post-UX3-10 review): none of these should fire on the
+    // minimize path — the session is still live, just handed off to
+    // PlaybackService, not actually ending.
+    //  - leaveRoom()/stop() used to run unconditionally, so minimizing during
+    //    a watch party silently kicked the user out of the room and killed
+    //    voice commands even though the video kept playing.
+    //  - _stopUsageTimer() used to run unconditionally too, so a minimized
+    //    paid stream stopped being tracked/billed the instant you minimized
+    //    it. PlaybackService now runs its own equivalent heartbeat while a
+    //    session lives there (see playback_service.dart), so this only needs
+    //    to stop when the session is actually ending.
+    if (!_handedOffToService) {
+      WatchPartyService.instance.leaveRoom();
+      VoiceCommandsService.instance.stop();
+      _stopUsageTimer();
+    }
     _disposeBatteryMonitor();
     // Fix #1: unregister the log-message observer added in _initPlayer().
     // Without this, the C-level MPV callback fires into disposed Dart state.
@@ -1598,8 +1611,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final IconData icon;
     final double size;
     final VoidCallback? onTap;
+    // UX3-10 fix: Back (ends session) and Minimize (keeps it running) sit
+    // right next to each other and used to be visually identical, which made
+    // them easy to fumble. Letting callers dim non-destructive actions like
+    // minimize gives Back the stronger visual weight of the two.
+    final Color color;
 
-    const _RaddIconBtn({required this.icon, this.size = 22, this.onTap});
+    const _RaddIconBtn({
+      required this.icon,
+      this.size = 22,
+      this.onTap,
+      this.color = Colors.white,
+    });
 
     @override
     Widget build(BuildContext context) {
@@ -1612,7 +1635,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             width: size + 20,
             height: size + 20,
             alignment: Alignment.center,
-            child: Icon(icon, color: Colors.white, size: size,
+            child: Icon(icon, color: color, size: size,
                 shadows: const [Shadow(blurRadius: 6, color: Colors.black45)]),
           ),
         ),

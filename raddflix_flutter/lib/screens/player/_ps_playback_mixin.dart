@@ -241,6 +241,12 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       episodeIndex: _currentEpIdx,
       episodes: widget.episodes,
       backgroundAudioEnabled: _backgroundAudio,
+      // Bug fix: usage billing + resume-position saving used to stop the
+      // instant this screen disposed, even though playback kept running via
+      // PlaybackService. The service now runs its own equivalent timers, so
+      // hand off what it needs to keep them going for this session.
+      trackUsage: _trackUsage,
+      posKey: _posKey,
     );
     _handedOffToService = true;
     Navigator.of(context).pop();

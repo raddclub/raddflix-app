@@ -25,6 +25,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../core/services/usage_service.dart';
 
 // Same native bridge PlayerScreen already talks to for its "MX Player-style"
 // background audio (Kotlin PlaybackService + MediaSession, see
@@ -62,6 +64,18 @@ class PlaybackService extends ChangeNotifier with WidgetsBindingObserver {
   bool isFree = false;
   int episodeIndex = 0;
   List<Map<String, dynamic>>? episodes;
+
+  // ── Usage-tracking / resume-position bug fixes (post-UX3-10 review) ─────
+  // PlayerScreen used to own a 30s usage heartbeat + 10s position-save timer,
+  // and both got cancelled unconditionally in dispose() — including on the
+  // "minimize" path, even though the player kept running here. That meant a
+  // minimized paid stream stopped being billed/tracked, and its resume
+  // position froze at whatever it was when the user minimized. This service
+  // now runs the equivalent timers itself for as long as a session lives here.
+  bool trackUsage = false; // captured from PlayerScreen's _trackUsage at adopt time
+  String? posKey; // same key PlayerScreen's own _saveWatchPos() uses (wp_<fileId>)
+  Timer? _usageTimer;
+  Timer? _posSaveTimer;
 
   // ── Live state, mirrored from the player's own streams ──────────────────
   bool playing = false;
@@ -101,6 +115,8 @@ class PlaybackService extends ChangeNotifier with WidgetsBindingObserver {
     int episodeIndex = 0,
     List<Map<String, dynamic>>? episodes,
     bool backgroundAudioEnabled = false,
+    bool trackUsage = false,
+    String? posKey,
   }) {
     this.backgroundAudioEnabled = backgroundAudioEnabled;
     if (_player != null && !identical(_player, player)) {
@@ -118,11 +134,16 @@ class PlaybackService extends ChangeNotifier with WidgetsBindingObserver {
     this.isFree = isFree;
     this.episodeIndex = episodeIndex;
     this.episodes = episodes;
+    this.trackUsage = trackUsage;
+    this.posKey = posKey;
 
     playing = player.state.playing;
     position = player.state.position;
     duration = player.state.duration;
     buffering = player.state.buffering;
+
+    _startUsageTimer();
+    _startPosSaveTimer();
 
     for (final s in _subs) {
       s.cancel();
@@ -160,6 +181,8 @@ class PlaybackService extends ChangeNotifier with WidgetsBindingObserver {
   /// minimized again.
   void detachForReattach() {
     _stopNativeBgIfRunning();
+    _stopUsageTimer();
+    _stopPosSaveTimer();
     for (final s in _subs) {
       s.cancel();
     }
@@ -241,6 +264,57 @@ class PlaybackService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  // ── Usage heartbeat (mirrors PlayerScreen's own 30s timer) ───────────────
+  void _startUsageTimer() {
+    _usageTimer?.cancel();
+    if (!trackUsage) return;
+    _usageTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      final p = _player;
+      if (p == null || !trackUsage || !playing) return;
+      final w = p.state.width ?? 0;
+      final quality = w >= 1920 ? '1080p' : w >= 1280 ? '720p' : w >= 854 ? '480p' : '360p';
+      UsageService.addWatchSession(seconds: 30, quality: quality, fileId: fileId).ignore();
+    });
+  }
+
+  void _stopUsageTimer() {
+    _usageTimer?.cancel();
+    _usageTimer = null;
+  }
+
+  // ── Resume-position persistence while minimized ──────────────────────────
+  // PlayerScreen's own periodic save timer dies with the screen the instant
+  // it's disposed, even on the minimize path — without this, a session left
+  // minimized for a while (then killed before being reopened) would resume
+  // from wherever it was at the moment of minimizing, not where it actually
+  // got to.
+  void _startPosSaveTimer() {
+    _posSaveTimer?.cancel();
+    _posSaveTimer = Timer.periodic(const Duration(seconds: 10), (_) => _savePosition());
+  }
+
+  void _stopPosSaveTimer() {
+    _posSaveTimer?.cancel();
+    _posSaveTimer = null;
+  }
+
+  Future<void> _savePosition() async {
+    final key = posKey;
+    final ms = position.inMilliseconds;
+    if (key == null || key.isEmpty || ms < 5000) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(key, ms);
+    await prefs.setString('resume_title', title ?? '');
+    await prefs.setString('resume_file_id', fileId ?? '');
+    await prefs.setInt('resume_pos_ms', ms);
+    await prefs.setInt('resume_dur_ms', duration.inMilliseconds);
+    await prefs.setString('resume_content_type', contentType);
+    await prefs.setBool('resume_is_free', isFree);
+    if (streamUrl != null) await prefs.setString('resume_stream_url', streamUrl!);
+    if (localPath != null) await prefs.setString('resume_local_path', localPath!);
+    if (posterUrl != null) await prefs.setString('resume_poster_url', posterUrl!);
+  }
+
   void togglePlayPause() {
     final p = _player;
     if (p == null) return;
@@ -253,6 +327,8 @@ class PlaybackService extends ChangeNotifier with WidgetsBindingObserver {
 
   void _disposeCurrent() {
     _stopNativeBgIfRunning();
+    _stopUsageTimer();
+    _stopPosSaveTimer();
     for (final s in _subs) {
       s.cancel();
     }
