@@ -806,3 +806,48 @@ reattach's `_loadPrefs()` runs.
 
 ### Outcome
 CI `5cf5c0e` confirmed green (`build-apk.yml`, run completed with `conclusion: success`).
+
+---
+
+## 2026-07-15 — PLAYER-FORMAT-COVERAGE-AUDIT
+
+### Task
+"Make sure the video player plays every audio track and video format."
+
+### Investigation
+Playback engine side (media_kit + `media_kit_libs_android_video`, i.e. mpv with a bundled
+full ffmpeg) already handles essentially any container/codec it's handed, and the audio-track
+layer was already solid: `_AudioTrackPanel` lists every real track (filtered only to exclude
+the synthetic `auto`/`no` placeholder entries), track switching sets both the media_kit API and
+the native `aid` mpv property as a belt-and-braces fallback for DASH/HLS streams where the
+media_kit call has been observed to silently no-op, saved-language preference re-applies itself
+on every new file load, and EAC3/DTS/TrueHD/MLP already auto-fall back to the SW audio decoder
+(gated so `hwdec` is never flipped while frames are actively decoding — the MediaTek/Infinix
+black-screen rule). No engine-level or track-selection gap found.
+
+The real gap was upstream of the engine: three separately hand-maintained Dart extension
+allowlists that gate whether a *local* file is even offered to the player, all recognizing only
+~10 containers (`mp4/mkv/avi/mov/ts/m2ts/wmv/flv/webm/3gp`) despite mpv/ffmpeg supporting far
+more:
+- `VaultFile.isVideo` (`vault_service.dart`) — this one gated `_openFile` in `vault_screen.dart`
+  directly, so a file outside its list could never be opened from the Vault at all, not even a
+  "wrong format" error — the tap silently did nothing.
+- Vault folder-import filter (`vault_screen.dart`) — its own separate, slightly different list.
+- `local_media_service.dart` filesystem fallback scan — used when the MediaStore channel query
+  throws; MediaStore itself is not extension-filtered (it trusts Android's own MIME detection),
+  so this only affected the fallback path, but was still narrower than necessary.
+Remote/streamed content isn't affected — `_openMedia` always calls `_player.open(Media(...))`
+on whatever URL/path it's given regardless of extension, and downloads are byte-for-byte copies
+(never transcoded) saved under a fixed `.mp4` name that mpv still content-sniffs correctly
+regardless of the real container.
+
+### Fix
+Added `AppConstants.playableVideoExtensions` — one canonical set covering every container mpv/
+ffmpeg actually demuxes (`mp4, m4v, mkv, webm, avi, mov, wmv, flv, f4v, 3gp, 3g2, ts, m2ts, mts,
+mpg, mpeg, m2v, mpv, vob, ogv, ogm, divx, asf, rm, rmvb, y4m, mxf`). Repointed all three call
+sites (`vault_service.dart`'s `isVideo`, the Vault folder-import filter, and the
+`local_media_service.dart` fallback scan) at it so a file mpv can already decode is never hidden
+as "not a video" by a narrower Dart-side gate.
+
+### Outcome
+CI `2d419f4` confirmed green.
