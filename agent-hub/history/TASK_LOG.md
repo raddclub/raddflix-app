@@ -851,3 +851,34 @@ as "not a video" by a narrower Dart-side gate.
 
 ### Outcome
 CI `2d419f4` confirmed green.
+
+---
+
+## 2026-07-15 — UX-BATCH-3 Docs Catch-Up (UX3-01 through UX3-10 + BUG-DL-EXT-01)
+
+### Task
+TASKS.md was stale — all 10 UX-BATCH-3 tasks and BUG-DL-EXT-01 were already done in code by a prior agent in this session but never marked ✅ DONE in the docs.
+
+### Verification
+Checked each task by:
+1. `git log --oneline` — confirmed individual commits for every UX3 task exist on `main`.
+2. Grepped target files to confirm the code changes are present (showDialog in settings_screen, SharedPreferences key in watchlist_screen, try/catch + `_syncError` banner in history_screen, subscriptionProvider gate in mini_player_bar, OpenContainer in actor_screen, no-PIN dialog in downloads_screen, FadeTransition in profile_switcher_screen, extracted widgets in show_detail_screen).
+3. Checked GitHub Actions `build-apk.yml` for all commits — all green except `76a64295` (UX3-10 original, compile error) which was immediately fixed by `5cf5c0e0` (CI ✅).
+
+### Commits and CI
+| Commit | Task | CI |
+|---|---|---|
+| `613b6023` | UX3-01: Clear Image Cache confirmation dialog | ✅ |
+| `722b360e` | UX3-02: Watchlist sort order persisted to SharedPreferences | ✅ |
+| `f8f3ecbe` | UX3-03: History sync error banner with Retry | ✅ |
+| `3cccc1df` | UX3-04: MiniPlayerBar subscription gate → dialog | ✅ |
+| `dca97b15` | UX3-05: Actor filmography OpenContainer morph | ✅ |
+| `cd4b0aa9` | UX3-06: Downloads vault no-PIN setup dialog | ✅ |
+| `2c13acf0` | UX3-07: ProfileSwitcher Tier 0/1 fade transition | ✅ |
+| `c73ef055` | UX3-08+09: ShowDetail widget extraction + skeleton shimmer | ✅ |
+| `76a64295` | UX3-10: Background miniplayer + PlaybackService | ❌ (compile error) |
+| `5cf5c0e0` | UX3-10-FIXES: missing abstract decl + 4 runtime bugs | ✅ |
+| `70334a63` | BUG-DL-EXT-01: real extension in downloads + ThumbService cache | ✅ |
+
+### Doc Changes
+Updated `agent-hub/TASKS.md` (all UX3 rows → ✅ DONE with commit SHAs; BUG-DL-EXT-01 row added), `AGENT_HANDOFF.md` (new Current State section prepended), and this log.

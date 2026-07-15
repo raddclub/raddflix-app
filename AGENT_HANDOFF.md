@@ -5,6 +5,18 @@
 
 ---
 
+## Current State (2026-07-15 — UX-BATCH-3 All Complete + BUG-DL-EXT-01)
+
+All 10 UX-BATCH-3 tasks (UX3-01 through UX3-10) were already done in code by a prior agent in this same session. TASKS.md was stale — all rows updated to ✅ DONE this session. CI green on all commits.
+
+**BUG-DL-EXT-01 (commit `70334a63`, CI ✅):**
+- Downloads hardcoded `.mp4` as the saved extension for every file regardless of actual container — an MKV saved as `.mp4` broke vault cover-art detection and the extension-gated open logic. Fixed in `download_service.dart` to preserve the real container extension from the stream URL.
+- `LocalMediaService.getThumbnail` re-decoded a frame via MPV on every grid rebuild (no caching), causing scroll jank in Local Media/Local Folder screens. Fixed by routing through `ThumbService`'s existing mem+disk LRU cache.
+
+**No open tasks remain.** The board is clean — all 10/10 plan phases (A–L), all UI/UX migration phases (2–7), and all UX-BATCH tasks (1–10) are ✅ DONE.
+
+---
+
 ## Current State (2026-07-15 — Empty States + Shared-Element Transitions + Miniplayer)
 
 ### UX-BATCH-2 — Tasks 7-9 — 2026-07-15
