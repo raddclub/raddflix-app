@@ -23,6 +23,11 @@ class SettingsRow extends StatelessWidget {
   final Color? iconColor;
   final SettingsRowTrailing trailing;
   final String? valueText;
+  /// Optional override widget rendered in place of the standard trailing.
+  /// When provided together with [trailing], this widget takes precedence
+  /// and [trailing] is ignored (backward-compatible: callers that omit it
+  /// continue to work exactly as before).
+  final Widget? trailingWidget;
   final bool switchValue;
   final ValueChanged<bool>? onSwitchChanged;
   final VoidCallback? onTap;
@@ -36,6 +41,7 @@ class SettingsRow extends StatelessWidget {
     this.iconColor,
     this.trailing = SettingsRowTrailing.chevron,
     this.valueText,
+    this.trailingWidget,
     this.switchValue = false,
     this.onSwitchChanged,
     this.onTap,
@@ -46,27 +52,34 @@ class SettingsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.t;
 
-    Widget? trailingWidget;
-    switch (trailing) {
-      case SettingsRowTrailing.chevron:
-        trailingWidget = Icon(PhosphorIcons.caretRight(), size: 18, color: t.textMuted);
-        break;
-      case SettingsRowTrailing.switchControl:
-        trailingWidget = Switch(
-          value: switchValue,
-          onChanged: enabled ? onSwitchChanged : null,
-          activeColor: context.signalPrimary,
-        );
-        break;
-      case SettingsRowTrailing.valueText:
-        trailingWidget = Text(
-          valueText ?? '',
-          style: context.raddBody.copyWith(color: t.textSecondary),
-        );
-        break;
-      case SettingsRowTrailing.none:
-        trailingWidget = null;
-        break;
+    // If caller supplied an explicit trailingWidget override, use it directly.
+    // Otherwise resolve from the [trailing] enum as before.
+    Widget? resolvedTrailing = trailingWidget;
+    if (resolvedTrailing == null) {
+      switch (trailing) {
+        case SettingsRowTrailing.chevron:
+          resolvedTrailing = Icon(PhosphorIcons.caretRight(), size: 18, color: t.textMuted);
+          break;
+        case SettingsRowTrailing.switchControl:
+          resolvedTrailing = Switch(
+            value: switchValue,
+            onChanged: enabled ? onSwitchChanged : null,
+            activeColor: context.signalPrimary,
+            activeTrackColor: context.signalPrimary.withOpacity(0.35),
+            inactiveThumbColor: t.textMuted,
+            inactiveTrackColor: t.border.withOpacity(0.4),
+          );
+          break;
+        case SettingsRowTrailing.valueText:
+          resolvedTrailing = Text(
+            valueText ?? '',
+            style: context.raddBody.copyWith(color: t.textSecondary),
+          );
+          break;
+        case SettingsRowTrailing.none:
+          resolvedTrailing = null;
+          break;
+      }
     }
 
     return Semantics(
@@ -96,7 +109,7 @@ class SettingsRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (trailingWidget != null) trailingWidget,
+                if (resolvedTrailing != null) resolvedTrailing,
               ],
             ),
           ),

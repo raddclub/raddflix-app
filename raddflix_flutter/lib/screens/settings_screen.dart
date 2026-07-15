@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,11 +14,14 @@ import '../core/theme/radd_colors.dart';
 import '../design_system/components/settings_row.dart';
 import '../design_system/radius/radd_radius.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/elevation/radd_elevation.dart';
+import '../design_system/typography/radd_type.dart';
 import '../core/constants.dart';
 import '../core/app_container.dart';
 import '../providers/remote_values_provider.dart';
 import '../core/debug/debug_logger.dart';
 import '../providers/catalog_provider.dart';
+import '../core/utils/anim_config.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -113,6 +119,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
+    final animConfig = ref.watch(animConfigProvider);
+
     return Scaffold(
       backgroundColor: t.bg,
       appBar: AppBar(
@@ -133,163 +141,235 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 48),
+              padding: const EdgeInsets.fromLTRB(
+                  RaddSpace.md, RaddSpace.lg, RaddSpace.md, RaddSpace.xxl),
               children: [
 
-                // ── Playback ──────────────────────────────────────────────
-                _SettingsSection(t: t, title: 'Playback', children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
-                    child: SettingsRow(
-                      icon: AppIcons.subtitle,
-                      label: 'Subtitles On By Default',
-                      subtitle: 'Auto-enable subtitles when opening a video',
-                      trailing: SettingsRowTrailing.switchControl,
-                      switchValue: _subtitleDefault,
-                      onSwitchChanged: (v) => _set(StorageKeys.subtitleDefault, v,
-                          (x) => _subtitleDefault = x),
+                // ── Playback ────────────────────────────────────────────────
+                _SettingsSection(
+                  t: t,
+                  animConfig: animConfig,
+                  title: 'Playback',
+                  sectionIcon: AppIcons.play,
+                  sectionIconColor: context.signalPrimary,
+                  staggerIndex: 0,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RaddSpace.md),
+                      child: SettingsRow(
+                        icon: AppIcons.subtitle,
+                        label: 'Subtitles On By Default',
+                        subtitle: 'Auto-enable subtitles when opening a video',
+                        trailing: SettingsRowTrailing.switchControl,
+                        switchValue: _subtitleDefault,
+                        onSwitchChanged: (v) => _set(StorageKeys.subtitleDefault,
+                            v, (x) => _subtitleDefault = x),
+                      ),
                     ),
-                  ),
-                  _divider(t),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
-                    child: SettingsRow(
-                      icon: AppIcons.skipForward,
-                      label: 'Auto-play Next Episode',
-                      subtitle: 'Automatically play the next episode when one ends',
-                      trailing: SettingsRowTrailing.switchControl,
-                      switchValue: _autoPlayNext,
-                      onSwitchChanged: (v) => _set('jm_autoplay_next', v,
-                          (x) => _autoPlayNext = x),
+                    _divider(t),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RaddSpace.md),
+                      child: SettingsRow(
+                        icon: AppIcons.skipForward,
+                        label: 'Auto-play Next Episode',
+                        subtitle:
+                            'Automatically play the next episode when one ends',
+                        trailing: SettingsRowTrailing.switchControl,
+                        switchValue: _autoPlayNext,
+                        onSwitchChanged: (v) => _set(
+                            'jm_autoplay_next', v, (x) => _autoPlayNext = x),
+                      ),
                     ),
-                  ),
-                ]),
-                const SizedBox(height: 20),
+                  ],
+                ),
+                const SizedBox(height: RaddSpace.lg),
 
-                // ── Network & Data ────────────────────────────────────────
-                _SettingsSection(t: t, title: 'Network & Data', children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
-                    child: SettingsRow(
-                      icon: AppIcons.wifi,
-                      label: 'Download on WiFi Only',
-                      subtitle: 'Prevent downloads over mobile data',
-                      trailing: SettingsRowTrailing.switchControl,
-                      switchValue: _wifiOnly,
-                      iconColor: AppColors.info,
-                      onSwitchChanged: (v) => _set('jm_wifi_only', v,
-                          (x) => _wifiOnly = x),
+                // ── Network & Data ──────────────────────────────────────────
+                _SettingsSection(
+                  t: t,
+                  animConfig: animConfig,
+                  title: 'Network & Data',
+                  sectionIcon: AppIcons.wifi,
+                  sectionIconColor: AppColors.info,
+                  staggerIndex: 1,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RaddSpace.md),
+                      child: SettingsRow(
+                        icon: AppIcons.wifi,
+                        label: 'Download on WiFi Only',
+                        subtitle: 'Prevent downloads over mobile data',
+                        trailing: SettingsRowTrailing.switchControl,
+                        switchValue: _wifiOnly,
+                        iconColor: AppColors.info,
+                        onSwitchChanged: (v) =>
+                            _set('jm_wifi_only', v, (x) => _wifiOnly = x),
+                      ),
                     ),
-                  ),
-                  _divider(t),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
-                    child: SettingsRow(
-                      icon: AppIcons.dataSaver,
-                      label: 'Data Saver',
-                      subtitle: 'Reduces streaming buffer size to save mobile data',
-                      trailing: SettingsRowTrailing.switchControl,
-                      switchValue: _dataSaver,
-                      iconColor: AppColors.success,
-                      onSwitchChanged: (v) => _set('jm_data_saver', v,
-                          (x) => _dataSaver = x),
+                    _divider(t),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RaddSpace.md),
+                      child: SettingsRow(
+                        icon: AppIcons.dataSaver,
+                        label: 'Data Saver',
+                        subtitle:
+                            'Reduces streaming buffer size to save mobile data',
+                        trailing: SettingsRowTrailing.switchControl,
+                        switchValue: _dataSaver,
+                        iconColor: AppColors.success,
+                        onSwitchChanged: (v) =>
+                            _set('jm_data_saver', v, (x) => _dataSaver = x),
+                      ),
                     ),
-                  ),
-                ]),
-                const SizedBox(height: 20),
+                  ],
+                ),
+                const SizedBox(height: RaddSpace.lg),
 
-                // ── Storage & Cache ───────────────────────────────────────
-                _SettingsSection(t: t, title: 'Storage & Cache', children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
-                    child: SettingsRow(
-                      icon: AppIcons.clearCache,
-                      label: 'Clear Image Cache',
-                      subtitle: 'Frees cached poster and thumbnail images',
-                      onTap: _clearImageCache,
-                      iconColor: context.accentWarning,
+                // ── Storage & Cache ─────────────────────────────────────────
+                _SettingsSection(
+                  t: t,
+                  animConfig: animConfig,
+                  title: 'Storage & Cache',
+                  sectionIcon: AppIcons.folder2,
+                  sectionIconColor: context.accentWarning,
+                  staggerIndex: 2,
+                  children: [
+                    // Destructive action row — warning accent treatment
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RaddSpace.md),
+                      child: _DestructiveRow(
+                        t: t,
+                        child: SettingsRow(
+                          icon: AppIcons.clearCache,
+                          label: 'Clear Image Cache',
+                          subtitle: 'Frees cached poster and thumbnail images',
+                          onTap: _clearImageCache,
+                          iconColor: context.accentWarning,
+                        ),
+                      ),
                     ),
-                  ),
-                  _divider(t),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
-                    child: SettingsRow(
-                      icon: AppIcons.folder2,
-                      label: 'Manage Downloads',
-                      subtitle: 'View, delete and manage downloaded content',
-                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.downloads),
-                      iconColor: context.signalPrimary,
+                    _divider(t),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RaddSpace.md),
+                      child: SettingsRow(
+                        icon: AppIcons.folder2,
+                        label: 'Manage Downloads',
+                        subtitle:
+                            'View, delete and manage downloaded content',
+                        onTap: () => Navigator.of(context)
+                            .pushNamed(AppRoutes.downloads),
+                        iconColor: context.signalPrimary,
+                      ),
                     ),
-                  ),
-                ]),
-                const SizedBox(height: 20),
+                  ],
+                ),
+                const SizedBox(height: RaddSpace.lg),
 
-                // ── Catalog Sync ──────────────────────────────────────────
-                _SettingsSection(t: t, title: 'Catalog', children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
-                    child: _syncing
-                        ? _SyncingRow(signalColor: context.signalPrimary)
-                        : SettingsRow(
-                            icon: AppIcons.refresh,
-                            label: 'Refresh Catalog',
-                            subtitle: 'Force download the latest movies and shows',
-                            onTap: _syncNow,
-                            iconColor: context.signalPrimary,
-                          ),
-                  ),
-                ]),
-                const SizedBox(height: 20),
+                // ── Catalog Sync ────────────────────────────────────────────
+                _SettingsSection(
+                  t: t,
+                  animConfig: animConfig,
+                  title: 'Catalog',
+                  sectionIcon: AppIcons.refresh,
+                  sectionIconColor: context.signalPrimary,
+                  staggerIndex: 3,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RaddSpace.md),
+                      child: _syncing
+                          ? _SyncingRow(signalColor: context.signalPrimary)
+                          : SettingsRow(
+                              icon: AppIcons.refresh,
+                              label: 'Refresh Catalog',
+                              subtitle:
+                                  'Force download the latest movies and shows',
+                              onTap: _syncNow,
+                              iconColor: context.signalPrimary,
+                            ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: RaddSpace.lg),
 
-                // ── Support ───────────────────────────────────────────────
-                _SettingsSection(t: t, title: 'Support', children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
-                    child: SettingsRow(
-                      icon: AppIcons.support,
-                      label: 'Contact Support',
-                      subtitle: 'Chat with us on WhatsApp',
-                      onTap: _contactSupport,
-                      iconColor: const Color(0xFF25D366), // intentional: WhatsApp brand green
+                // ── Support ─────────────────────────────────────────────────
+                _SettingsSection(
+                  t: t,
+                  animConfig: animConfig,
+                  title: 'Support',
+                  sectionIcon: AppIcons.support,
+                  sectionIconColor: const Color(0xFF25D366), // intentional: WhatsApp brand green
+                  staggerIndex: 4,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RaddSpace.md),
+                      child: SettingsRow(
+                        icon: AppIcons.support,
+                        label: 'Contact Support',
+                        subtitle: 'Chat with us on WhatsApp',
+                        onTap: _contactSupport,
+                        iconColor: const Color(0xFF25D366), // intentional: WhatsApp brand green
+                      ),
                     ),
-                  ),
-                ]),
-                const SizedBox(height: 20),
+                  ],
+                ),
+                const SizedBox(height: RaddSpace.lg),
 
-                // ── About ─────────────────────────────────────────────────
-                _SettingsSection(t: t, title: 'About', children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
-                    child: SettingsRow(
-                      icon: AppIcons.info,
-                      label: 'App Version',
-                      subtitle: '$_version (build $_buildNumber)',
-                      trailing: SettingsRowTrailing.none,
+                // ── About ───────────────────────────────────────────────────
+                _SettingsSection(
+                  t: t,
+                  animConfig: animConfig,
+                  title: 'About',
+                  sectionIcon: AppIcons.info,
+                  sectionIconColor: t.textMuted,
+                  staggerIndex: 5,
+                  children: [
+                    // Version pill row
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RaddSpace.md),
+                      child: SettingsRow(
+                        icon: AppIcons.info,
+                        label: 'App Version',
+                        trailing: SettingsRowTrailing.none,
+                        trailingWidget:
+                            _VersionPill(version: _version, build: _buildNumber, t: t),
+                      ),
                     ),
-                  ),
-                  _divider(t),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
-                    child: SettingsRow(
-                      icon: AppIcons.lightning,
-                      label: 'Streaming Features',
-                      subtitle: 'HD quality video and offline downloads included',
-                      trailing: SettingsRowTrailing.none,
-                      iconColor: const Color(0xFFFFB800), // intentional: gold accent
+                    _divider(t),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RaddSpace.md),
+                      child: SettingsRow(
+                        icon: AppIcons.lightning,
+                        label: 'Streaming Features',
+                        subtitle:
+                            'HD quality video and offline downloads included',
+                        trailing: SettingsRowTrailing.none,
+                        iconColor: const Color(0xFFFFB800), // intentional: gold accent
+                      ),
                     ),
-                  ),
-                  _divider(t),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
-                    child: SettingsRow(
-                      icon: AppIcons.heart,
-                      label: 'Made in Pakistan',
-                      subtitle: 'RaddFlix — Streaming ki apni zubaan',
-                      trailing: SettingsRowTrailing.none,
-                      iconColor: const Color(0xFF00A550), // intentional: Pakistan flag green
+                    _divider(t),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RaddSpace.md),
+                      child: SettingsRow(
+                        icon: AppIcons.heart,
+                        label: 'Made in Pakistan',
+                        subtitle: 'RaddFlix — Streaming ki apni zubaan',
+                        trailing: SettingsRowTrailing.none,
+                        iconColor: const Color(0xFF00A550), // intentional: Pakistan flag green
+                      ),
                     ),
-                  ),
-                ]),
+                  ],
+                ),
               ],
             ),
     );
@@ -299,7 +379,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       height: 1, color: t.border.withOpacity(0.5), indent: 56, endIndent: 0);
 }
 
-// ── Shared section widgets ─────────────────────────────────────────────────
+// ── Shared section widgets ────────────────────────────────────────────────────
 
 class _SyncingRow extends StatelessWidget {
   final Color signalColor;
@@ -333,31 +413,185 @@ class _SyncingRow extends StatelessWidget {
   }
 }
 
+/// Thin warning-accent tint layered behind a destructive action row.
+/// Does not alter the row's interactivity or layout — purely decorative.
+class _DestructiveRow extends StatelessWidget {
+  final RaddTheme t;
+  final Widget child;
+  const _DestructiveRow({required this.t, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Subtle left accent bar in warning color
+        Positioned(
+          left: 0,
+          top: 8,
+          bottom: 8,
+          child: Container(
+            width: 2.5,
+            decoration: BoxDecoration(
+              color: context.accentWarning.withOpacity(0.7),
+              borderRadius: RaddRadius.pillRadius,
+            ),
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+}
+
+/// Glass pill showing version + build — used in the About section's App Version row.
+class _VersionPill extends StatelessWidget {
+  final String version;
+  final String build;
+  final RaddTheme t;
+  const _VersionPill({required this.version, required this.build, required this.t});
+
+  @override
+  Widget build(BuildContext context) {
+    if (version.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: RaddSpace.sm + 2, vertical: RaddSpace.xs),
+      decoration: BoxDecoration(
+        color: t.glass,
+        borderRadius: RaddRadius.pillRadius,
+        border: Border.all(color: t.border.withOpacity(0.6), width: 0.75),
+      ),
+      child: Text(
+        'v$version ($build)',
+        style: context.raddCaption.copyWith(
+          color: t.textSecondary,
+          // Slightly tighter tracking gives it a "build stamp" feel
+          letterSpacing: 0.4,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+  }
+}
+
+/// Premium glass grouped section card.
+///
+/// Visual anatomy:
+///   • Outer glass card: `t.card` fill, `t.cardBorder` 0.5px outline, `md` radius.
+///   • Specular highlight: 1px top inner edge in `t.glassHigh` — feels lit.
+///   • BackdropFilter blur (sigma 12) when `animConfig.canBlur`; solid-surface
+///     fallback (`t.surfaceHigh`) otherwise.
+///   • Section label: label-scale uppercase, left-indented to align with row
+///     icon containers, with a colour-coded dot accent.
 class _SettingsSection extends StatelessWidget {
   final String title;
   final List<Widget> children;
   final RaddTheme t;
-  const _SettingsSection({required this.title, required this.children, required this.t});
+  final AnimConfig animConfig;
+  final PhosphorIconData? sectionIcon; // optional left accent icon
+  final Color? sectionIconColor;
+  final int staggerIndex;
+
+  const _SettingsSection({
+    required this.title,
+    required this.children,
+    required this.t,
+    required this.animConfig,
+    this.sectionIcon,
+    this.sectionIconColor,
+    this.staggerIndex = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(4, 0, 0, 8),
-        child: Text(title.toUpperCase(), style: TextStyle(
-            color: t.textMuted, fontSize: 10.5,
-            fontWeight: FontWeight.w700, letterSpacing: 1.2)),
-      ),
-      Container(
-        decoration: BoxDecoration(
-          color: t.surface,
-          borderRadius: RaddRadius.mdRadius,
-          border: Border.all(color: t.border.withOpacity(0.7)),
+    final staggerDelay = animConfig.canStagger
+        ? Duration(milliseconds: 40 * staggerIndex)
+        : Duration.zero;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Section header label ────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(RaddSpace.xs, 0, 0, RaddSpace.sm),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Colour-coded accent dot — ties the section to its icon hue
+              if (sectionIconColor != null) ...[
+                Container(
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: sectionIconColor!.withOpacity(0.8),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: RaddSpace.sm),
+              ],
+              Text(
+                title.toUpperCase(),
+                style: context.raddLabel.copyWith(
+                  color: t.textMuted,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
         ),
-        child: Column(children: children),
+
+        // ── Glass card body ─────────────────────────────────────────────────
+        _buildCard(context),
+      ],
+    ).animate(delay: staggerDelay)
+        .fadeIn(duration: 300.ms)
+        .slideY(begin: 0.06, end: 0, curve: Curves.easeOut);
+  }
+
+  Widget _buildCard(BuildContext context) {
+    final decoration = BoxDecoration(
+      color: animConfig.canBlur
+          ? t.card.withOpacity(0.80)
+          : t.card,
+      borderRadius: RaddRadius.mdRadius,
+      border: Border.all(color: t.cardBorder.withOpacity(0.85), width: 0.5),
+    );
+
+    // Inner specular highlight — 1px top border lighter than card surface
+    final specularDecoration = BoxDecoration(
+      borderRadius: RaddRadius.mdRadius,
+      border: Border(
+        top: BorderSide(color: t.glassHigh, width: 1.0),
       ),
-    ]).animate().fadeIn(duration: 300.ms).slideY(begin: 0.08, end: 0);
+    );
+
+    Widget cardContent = DecoratedBox(
+      decoration: decoration,
+      child: Stack(
+        children: [
+          // Specular top-edge highlight
+          Positioned.fill(
+            child: DecoratedBox(decoration: specularDecoration),
+          ),
+          // Actual row content
+          Column(children: children),
+        ],
+      ),
+    );
+
+    if (animConfig.canBlur) {
+      return ClipRRect(
+        borderRadius: RaddRadius.mdRadius,
+        child: RaddElevation.blurWrap(
+          sigma: 12,
+          child: cardContent,
+        ),
+      );
+    }
+
+    return cardContent;
   }
 }
-
-// _SettingsTile and _SettingsSwitch removed — Phase F: all rows now use SettingsRow.
