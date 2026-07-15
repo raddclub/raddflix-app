@@ -4,6 +4,17 @@ class AppConstants {
   static const String appName = 'RaddFlix';
   static const String tagline = 'Pakistan ka entertainment, data-free';
 
+  /// Every container extension the bundled mpv/ffmpeg (media_kit_libs_android_video)
+  /// can actually demux. Used to decide whether a local/Vault file is playable —
+  /// keep this in sync across local_media_service.dart and vault_service.dart
+  /// instead of maintaining separate narrower lists that silently hide playable
+  /// files (e.g. .mpg/.vob/.m2ts/.divx used to fall through as "not video").
+  static const Set<String> playableVideoExtensions = {
+    'mp4', 'm4v', 'mkv', 'webm', 'avi', 'mov', 'wmv', 'flv', 'f4v',
+    '3gp', '3g2', 'ts', 'm2ts', 'mts', 'mpg', 'mpeg', 'm2v', 'mpv',
+    'vob', 'ogv', 'ogm', 'divx', 'asf', 'rm', 'rmvb', 'y4m', 'mxf',
+  };
+
   /// G5: hardcoded fallback only — the live, runtime-updatable value lives in
   /// `remoteValuesProvider` (see `providers/remote_values_provider.dart`).
   /// RemoteConfig no longer writes to this constant; it calls

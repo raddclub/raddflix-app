@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
+import '../core/constants.dart';
 
 class VaultService {
   static const _storage = FlutterSecureStorage(
@@ -456,7 +457,7 @@ class VaultFile {
 
   bool get isVideo {
     final ext = name.split('.').last.toLowerCase();
-    return ['mp4','mkv','avi','mov','ts','m2ts','wmv','flv','webm','3gp'].contains(ext);
+    return AppConstants.playableVideoExtensions.contains(ext);
   }
 
   IconData get icon {

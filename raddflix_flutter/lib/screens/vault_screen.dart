@@ -485,10 +485,9 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
     try {
       final dir = await FilePicker.platform.getDirectoryPath();
       if (dir == null) return;
-      const videoExts = ['mp4','mkv','avi','mov','ts','m2ts','wmv','flv','webm','3gp','m4v'];
       final videoFiles = Directory(dir).listSync(recursive: false)
           .whereType<File>()
-          .where((f) => videoExts.contains(f.path.split('.').last.toLowerCase()))
+          .where((f) => AppConstants.playableVideoExtensions.contains(f.path.split('.').last.toLowerCase()))
           .toList();
       if (videoFiles.isEmpty) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(

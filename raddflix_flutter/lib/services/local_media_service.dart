@@ -3,6 +3,7 @@ import 'dart:io';
   import 'package:flutter/services.dart';
   import 'package:path/path.dart' as p;
   import 'media_kit_thumbnail_extractor.dart';
+  import '../core/constants.dart';
   import '../models/local_video.dart';
   import 'package:shared_preferences/shared_preferences.dart';
 
@@ -140,15 +141,14 @@ import 'dart:io';
         '/storage/emulated/0/Download',
       ];
       final results = <LocalVideo>[];
-      const videoExtensions = {'.mp4', '.mkv', '.avi', '.mov', '.flv', '.wmv', '.m4v', '.3gp', '.ts', '.webm'};
 
       for (final dirPath in dirs) {
         final dir = Directory(dirPath);
         if (!await dir.exists()) continue;
         await for (final entity in dir.list(recursive: true, followLinks: false)) {
           if (entity is! File) continue;
-          final ext = p.extension(entity.path).toLowerCase();
-          if (!videoExtensions.contains(ext)) continue;
+          final ext = p.extension(entity.path).toLowerCase().replaceFirst('.', '');
+          if (!AppConstants.playableVideoExtensions.contains(ext)) continue;
           final stat = await entity.stat();
           final name = p.basenameWithoutExtension(entity.path);
           final folder = p.dirname(entity.path);
