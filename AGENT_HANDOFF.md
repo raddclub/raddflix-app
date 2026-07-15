@@ -7,7 +7,7 @@
 
 ## Current State (2026-07-15 — Vault UX Fixes: Restore + MediaStore + Progress + Unlock Gate)
 
-Four vault bugs found and fixed in one commit (`4c3c2574`, CI pending):
+Four vault bugs found and fixed in commits `4c3c2574` + `b91768e4` (CI ✅ green):
 
 1. **Restore crash + file stuck in vault** — `_restoreToGallery` hardcoded `/storage/emulated/0/Download`. On Android 11+ (API 30+) `WRITE_EXTERNAL_STORAGE` is `maxSdkVersion=29` so `File.copy()` threw before `File.delete()`, leaving the file permanently stuck in vault while showing an error. Fix: added `copyToDownloads` native method to `MEDIA_CHANNEL` in `MainActivity.kt` that uses `MediaStore.Downloads` content provider on API 29+ (no permission needed) and direct copy on older versions. New `VaultService.restoreFileToDownloads()` calls it and deletes the vault source only after successful copy.
 

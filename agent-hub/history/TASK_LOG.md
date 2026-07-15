@@ -893,7 +893,9 @@ All four vault-add code paths (`_processPickedFiles`, `_importVideoFolder` in va
 - `local_folder_screen.dart` — progress dialog + MediaStore cleanup + unlock gate in `_addToVault`
 
 ### Outcome
-Commit `4c3c2574` — CI pending at time of writing.
+Commit `4c3c2574` (main fixes) — CI failed: `setState` and `widget.folder` called inside `_VideoListTile extends StatelessWidget` where neither is available. Fix: removed the invalid `setState(() { widget.folder.videos.remove(video); })` call — the snackbar confirmation is sufficient; the tile is a StatelessWidget and cannot directly mutate parent state. Commit `b91768e4` — CI ✅ green.
+
+**Lesson:** `_VideoListTile` in `local_folder_screen.dart` is a `StatelessWidget`. Any future method added to it that needs to update the parent list must use a VoidCallback (e.g. `onMoved`) passed in from `_LocalFolderScreenState`, not `setState`/`widget.folder` directly.
 
 ---
 
