@@ -111,6 +111,16 @@ jobs:
               echo "  Done."
             fi
           done
+          # Fix C: AGP 8.1+ rejects package= attribute in library AndroidManifest.xml.
+          # It must live in build.gradle as namespace instead. Strip it from any
+          # pub-cache library manifests that still carry it (e.g. flutter_media_metadata 1.0.0+1).
+          find ~/.pub-cache -name "AndroidManifest.xml" -path "*/android/src/main/*" | while read f; do
+            if grep -q 'package=' "$f"; then
+              PKG=$(basename "$(dirname "$(dirname "$(dirname "$(dirname "$(dirname "$f")")")")")")
+              sed -i 's/ package="[^"]*"//g' "$f"
+              echo "Stripped package= from AndroidManifest: $PKG  ($f)"
+            fi
+          done
           echo "Gradle patch complete."
 
       - name: Set up keystore
