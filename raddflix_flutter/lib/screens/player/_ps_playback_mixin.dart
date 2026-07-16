@@ -114,6 +114,28 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   int _orientMode = 0;
   int _videoWidth = 0;
   int _videoHeight = 0;
+
+  /// True when the current media has no video track — audio-only mode.
+  ///
+  /// Two-pass detection:
+  ///   1. File extension (fast, decided at open time — covers local files).
+  ///   2. MPV dimension stream (catches streams and files without extensions):
+  ///      width and height stay 0 after the file opens → no video track.
+  bool get _isAudioOnly {
+    final path = widget.localPath ?? '';
+    if (path.isNotEmpty) {
+      final ext = path.split('.').last.toLowerCase();
+      if (const {
+        'mp3', 'flac', 'aac', 'ogg', 'opus', 'm4a', 'wav',
+        'wma', 'ape', 'alac', 'mka', 'aiff', 'aif', 'dsd', 'dsf',
+      }.contains(ext)) return true;
+    }
+    // MPV fallback: file is open, playing has a duration, but no video dims.
+    return _videoOpened &&
+        _videoWidth == 0 &&
+        _videoHeight == 0 &&
+        _duration > Duration.zero;
+  }
   // ── Watch position ──────────────────────────────────────────────────────────
   Timer? _posTimer;
   // ── P3: Auto-retry countdown ─────────────────────────────────────────────────

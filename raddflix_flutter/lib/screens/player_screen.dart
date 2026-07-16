@@ -52,6 +52,7 @@ import '../core/player/player_prefs_provider.dart';
 import '../design_system/components/radd_sheet.dart';
 import '../design_system/radius/radd_radius.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../widgets/player/audio_mode_backdrop.dart';
 
 // ── Phase J: panel classes extracted to part files ─────────────────────────
 part 'player/_ps_panels_subtitle.dart';

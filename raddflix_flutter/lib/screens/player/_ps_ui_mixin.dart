@@ -83,6 +83,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   bool get _longPressFast; set _longPressFast(bool v);
   bool get _loopEnabled;
   int get _orientMode; set _orientMode(int v);
+  bool get _isAudioOnly;
   bool get _playing;
   Duration get _position;
   List<SubtitleTrack> get _realSubtitleTracks;
@@ -1885,6 +1886,29 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
               children: [
                 // Video surface
                 Positioned.fill(child: RepaintBoundary(child: _buildVideoSurface())),
+
+                // Audio-mode backdrop — sits above the (blank) video SurfaceView
+                // whenever MPV opens a file with no video track. Gives audio-only
+                // playback a blurred art backdrop, rotating vinyl disc, and a
+                // frosted-glass controls card instead of a dead black screen.
+                if (_isAudioOnly)
+                  Positioned.fill(
+                    child: AudioModeBackdrop(
+                      isPlaying: _playing,
+                      position: _position,
+                      duration: _duration,
+                      title: _currentTitle,
+                      localPath: widget.localPath,
+                      onPlayPause: () {
+                        if (_playing) {
+                          _player.pause();
+                        } else {
+                          _player.play();
+                        }
+                      },
+                      onSeek: (pos) => _player.seek(pos),
+                    ),
+                  ),
 
                 // AI Dub progress overlay
                 if (_dubGenerating) _buildDubProgressOverlay(),
