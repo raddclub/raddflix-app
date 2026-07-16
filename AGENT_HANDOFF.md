@@ -5,7 +5,20 @@
 
 ---
 
-## Current State (2026-07-16 — Y1: player UI + vault bug-fix batch, CI ✅ `459244b5`)
+## Current State (2026-07-16 — Y2: vault logic audit + 5 follow-up fixes, CI ✅ `4da50433`)
+
+Deep audit of vault vs MX Player. Five logic bugs found and fixed:
+1. **Sidecar stored FilePicker temp-cache paths** — `moveFileToVault`/`moveFilesToVaultBatch` now only write `.raddmeta` for paths starting with `/storage/` or `/sdcard/`; cache paths under `/data/` are skipped.
+2. **`restoreFile(vaultPath, destDir)` orphan skipped sidecar cleanup** — added sidecar delete.
+3. **`deleteFromMediaStore` result silently ignored** — all three callers now capture the `bool` and append "• May still appear in gallery" to the snackbar (5s duration) when the Android 11+ permission dialog is dismissed.
+4. **`totalVaultSize()` counted `.raddmeta` files** — now skipped.
+5. **`notifyMediaStore(vaultPath)` in `restoreFileToDownloads` was a no-op with wrong comment** — vault is app-internal, never in MediaStore; removed the call and corrected the comment.
+
+See TASK_LOG.md (Y2 entry) for full MX Player comparison writeup.
+
+---
+
+## Previous State (2026-07-16 — Y1: player UI + vault bug-fix batch, CI ✅ `459244b5`)
 
 Five bugs found in APK testing, all fixed in one commit:
 1. **Duplicate reload icon** — "Replay from start" `_RaddIconBtn` was sitting in the title bar next to battery/clock; removed it. The skip-back button in the transport row is the only replay icon now.

@@ -1057,3 +1057,46 @@ Root cause: `restoreFileToDownloads` deleted the vault source file but never cal
 
 **5 — Restore always goes to Downloads, creates duplicate**
 Root cause: vault never stored where a file came from. Added a `.raddmeta` sidecar file alongside each vault entry on import (both `moveFileToVault` and `moveFilesToVaultBatch`) containing the original filesystem path. New `restoreToOriginal()` method reads the sidecar; if the original directory still exists, copies back there; otherwise falls back to Downloads. `vault_screen._restoreToGallery` now calls `restoreToOriginal` and shows "Restored to original folder" or "Restored to Downloads folder" accordingly. Sidecar files are filtered out of `listFiles` (`.raddmeta` suffix skip) and cleaned up on `deleteVaultFile`.
+
+---
+
+## 2026-07-16 — Y2 VAULT-LOGIC-AUDIT
+
+**Commit:** `4da50433` | **Files:** `vault_service.dart`, `local_folder_screen.dart`, `local_media_screen.dart`, `vault_screen.dart` | **CI:** ✅ green
+
+### Research: How MX Player Vault Works vs Ours
+
+**MX Player:**
+- Stores files on **external storage** (`/storage/emulated/0/…` or SD card), NOT app-internal. Files survive uninstall.
+- Hiding method: moves file to a folder containing `.nomedia` — prevents MediaStore scanner from indexing that directory.
+- **No encryption** in older versions. Newer versions (2023+) appear to add encryption: users report files are findable in a file manager after uninstall but cannot be opened (V2EX thread, July 2023).
+- Has `MANAGE_EXTERNAL_STORAGE` (confirmed via XDA: "Why does MX Player now require All Files Access?"). This lets it delete from MediaStore without the system permission dialog.
+- Restore: user selects a destination folder. MX Player does NOT track the original path.
+
+**Ours:**
+- Stores in `getApplicationDocumentsDirectory()` = `/data/user/0/com.raddflix.app/app_flutter/.vault/` (app-internal). Files are **deleted on uninstall** — a significant difference from MX Player.
+- Hiding method: same `.nomedia` trick, but the folder is already hidden from MediaStore because it is app-internal. Double-hidden.
+- No encryption.
+- No `MANAGE_EXTERNAL_STORAGE`. On Android 11+ (API 30+) must use `MediaStore.createDeleteRequest` which requires a system permission dialog.
+- Restore: `.raddmeta` sidecar records original path (better than MX Player). Falls back to Downloads.
+
+### Bugs Fixed
+
+**1 — Sidecar wrote FilePicker temp-cache paths as "original location"**
+`moveFileToVault` and `moveFilesToVaultBatch` always wrote a `.raddmeta` sidecar with whatever `sourcePath` they received. When called from vault_screen.dart `_processPickedFiles`, the path is a FilePicker temp copy under `/data/user/0/…/cache/file_picker/foo.mp4`. This path doesn't exist when restore runs, so it always fell back to Downloads anyway — but the sidecar was meaningless noise and could theoretically confuse restore on edge-case devices.
+Fix: Only write sidecar when `sourcePath.startsWith('/storage/')` or `.startsWith('/sdcard/')`.
+
+**2 — Orphan `restoreFile(vaultPath, destDir)` didn't clean up sidecar**
+The old `restoreFile(String vaultPath, String destDir)` method at line 465 predates the sidecar system. It deleted the vault file and notified MediaStore for the destination, but left any `.raddmeta` file behind. Added sidecar delete.
+
+**3 — `deleteFromMediaStore` return value silently ignored — no user feedback**
+On Android 11+ (API 30+), `MediaStore.createDeleteRequest` shows a system dialog. If the user taps "Don't allow", the file stays visible in gallery and other players, but all three callers (local_folder_screen, local_media_screen, vault_screen) discarded the `bool` return value with no feedback. Fixed by capturing the result and appending " • May still appear in gallery" to the success snackbar (shown for 5s instead of 3s) when the delete was denied.
+
+**4 — `totalVaultSize()` counted `.raddmeta` sidecar files**
+The recursive file sum included `.raddmeta` sidecar files, slightly inflating the displayed vault size. Fixed with an `endsWith('.raddmeta')` skip.
+
+**5 — Misleading `notifyMediaStore(vaultPath)` in `restoreFileToDownloads`**
+The comment said "Remove stale MediaStore entry pointing to the now-deleted vault path" but the vault is in app-internal storage — MediaStore never indexed it, so the call was a silent no-op. The actual ghost-entry removal happens at import time via `notifyMediaStore(sourcePath)`. Removed the call and replaced it with a correct explanatory comment.
+
+### Architecture Note
+The real limitation vs MX Player: without `MANAGE_EXTERNAL_STORAGE`, on Android 11+ we cannot silently delete MediaStore entries — we must prompt the user. MX Player gets around this via `MANAGE_EXTERNAL_STORAGE`. Getting that permission requires a special Google Play declaration and review; most apps avoid it. Our current approach (prompt + warn if declined) is correct for a Play Store app.
