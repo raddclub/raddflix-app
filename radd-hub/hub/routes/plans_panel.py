@@ -204,7 +204,7 @@ _HTML = """
           {{ p.sub_count }} active subscribers
         </div>
         <div class="plan-actions">
-          <button class="btn-edit" onclick="editPlan({{ p|tojson }})">✏ Edit</button>
+          <button class="btn-edit" onclick="editPlan({{ p.id }})">✏ Edit</button>
           <form method="post" action="/plans/{{ p.id }}/toggle" style="display:contents">
             <button class="{% if p.is_active %}btn-toggle-off{% else %}btn-toggle-on{% endif %}" type="submit">
               {{ '⏸' if p.is_active else '▶' }}
@@ -249,6 +249,8 @@ _HTML = """
 
 <script>
 const COLORS = {{ colors|tojson }};
+/* _PLANS: keyed by id (int) so editPlan(id) is safe — no tojson inside onclick attrs */
+const _PLANS = {{ plans_map|tojson }};
 
 function openModal(data){
   const m = document.getElementById('planModal');
@@ -279,7 +281,7 @@ function openModal(data){
   m.classList.add('open');
 }
 function closeModal(){document.getElementById('planModal').classList.remove('open')}
-function editPlan(data){openModal(data)}
+function editPlan(id){openModal(_PLANS[id])}
 function selectColor(c, el){
   document.getElementById('f_color').value = c;
   document.querySelectorAll('.color-opt').forEach(e=>e.classList.remove('selected'));
@@ -288,6 +290,23 @@ function selectColor(c, el){
 document.getElementById('planModal').addEventListener('click', function(e){
   if(e.target === this) closeModal();
 });
+/* Escape key closes modal */
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape') closeModal();
+});
+/* Show success toast from redirect ?ok= param, then clean URL */
+(function(){
+  const p = new URLSearchParams(window.location.search);
+  const ok = p.get('ok');
+  const msgs = {
+    created: 'Plan created ✓',
+    updated: 'Plan updated ✓',
+    deleted: 'Plan deleted ✓',
+    toggled: 'Plan status updated ✓'
+  };
+  if(ok && msgs[ok]){ setTimeout(()=>toast(msgs[ok]), 150); }
+  if(ok) history.replaceState({}, '', window.location.pathname);
+})();
 </script>
 {% endblock %}
 """
@@ -319,8 +338,10 @@ def index():
 
     plans = _plan_data(plans_raw, now)
     monthly_rev = sum(p['price_pkr'] * p['sub_count'] for p in plans if p['is_active'])
+    plans_map = {p['id']: p for p in plans}
     return render_template_string(_HTML, plans=plans, total_subs=total_subs,
-                                   monthly_rev=int(monthly_rev), colors=COLORS)
+                                   monthly_rev=int(monthly_rev), colors=COLORS,
+                                   plans_map=plans_map)
 
 
 @bp.route("/create", methods=["POST"])
@@ -338,7 +359,7 @@ def create():
              d.get('badge','').strip().upper(), d.get('color','#7c5cff'),
              json.dumps(feats), int(time.time())))
     log.info("Created plan: %s", d.get('name'))
-    return redirect(url_for('plans_panel.index'))
+    return redirect(url_for('plans_panel.index') + '?ok=created')
 
 
 @bp.route("/<int:plan_id>/edit", methods=["POST"])
@@ -355,7 +376,7 @@ def edit(plan_id: int):
              d.get('badge','').strip().upper(), d.get('color','#7c5cff'),
              json.dumps(feats), plan_id))
     log.info("Updated plan #%d", plan_id)
-    return redirect(url_for('plans_panel.index'))
+    return redirect(url_for('plans_panel.index') + '?ok=updated')
 
 
 @bp.route("/<int:plan_id>/toggle", methods=["POST"])
@@ -365,7 +386,7 @@ def toggle(plan_id: int):
         cur = c.execute("SELECT is_active FROM plans WHERE id=?", (plan_id,)).fetchone()
         if cur:
             c.execute("UPDATE plans SET is_active=? WHERE id=?", (0 if cur['is_active'] else 1, plan_id))
-    return redirect(url_for('plans_panel.index'))
+    return redirect(url_for('plans_panel.index') + '?ok=toggled')
 
 
 @bp.route("/<int:plan_id>/delete", methods=["POST"])
@@ -374,7 +395,7 @@ def delete(plan_id: int):
     with db.conn() as c:
         c.execute("DELETE FROM plans WHERE id=?", (plan_id,))
     log.info("Deleted plan #%d", plan_id)
-    return redirect(url_for('plans_panel.index'))
+    return redirect(url_for('plans_panel.index') + '?ok=deleted')
 
 
 @bp.route("/api/list")
