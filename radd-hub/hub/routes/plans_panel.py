@@ -1,4 +1,8 @@
-"""Plans & Pricing Admin Panel — Full CRUD for subscription plans."""
+"""Plans & Pricing Admin Panel — Full CRUD for subscription plans.
+
+Create / Edit use dedicated server-rendered pages (no JavaScript modal).
+Toggle and Delete use direct POST forms (unchanged).
+"""
 from __future__ import annotations
 import time, json, logging
 from flask import Blueprint, render_template_string, request, redirect, url_for, jsonify
@@ -8,11 +12,10 @@ from hub.auth import login_required
 log = logging.getLogger("hub.plans_panel")
 bp = Blueprint("plans_panel", __name__, url_prefix="/plans")
 
-_HTML = """
-{% extends "base.html" %}
-{% set active="plans" %}
-{% block title %}Plans & Pricing{% endblock %}
-{% block content %}
+COLORS = ['#7c5cff','#E8002D','#00C853','#FF6D00','#00B0FF','#FFD600','#AA00FF','#00E5FF','#FF4081','#1de9b6']
+
+# ── Shared CSS ────────────────────────────────────────────────────────────────
+_SHARED_CSS = """
 <style>
 .plans-page{max-width:1200px;margin:0 auto}
 .plans-page h2{margin:0 0 4px}
@@ -22,7 +25,6 @@ _HTML = """
 .s-tile{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
 .s-tile .k{font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
 .s-tile .v{font-size:2rem;font-weight:700;margin-top:4px}
-/* Plan cards grid */
 .plans-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;margin-bottom:28px}
 .plan-card{background:var(--panel);border:1px solid var(--border);border-radius:16px;overflow:hidden;position:relative;transition:transform .15s,box-shadow .15s}
 .plan-card:hover{transform:translateY(-2px);box-shadow:0 8px 32px #0004}
@@ -43,101 +45,47 @@ _HTML = """
 .plan-meta{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
 .plan-chip{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:11px;color:var(--muted)}
 .plan-actions{display:flex;gap:8px;margin-top:16px}
-.btn-edit{background:rgba(124,92,255,.12);color:#7c5cff;border:1px solid rgba(124,92,255,.3);padding:6px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;flex:1}
-.btn-edit:hover{background:rgba(124,92,255,.2);filter:none}
+.btn-edit{display:inline-block;text-align:center;background:rgba(124,92,255,.12);color:#7c5cff;border:1px solid rgba(124,92,255,.3);padding:6px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;flex:1;text-decoration:none;line-height:1.6}
+.btn-edit:hover{background:rgba(124,92,255,.2)}
 .btn-toggle-on {background:rgba(92,214,111,.12);color:var(--ok);border:1px solid rgba(92,214,111,.3);padding:6px 10px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer}
 .btn-toggle-on:hover{background:rgba(92,214,111,.2);filter:none}
 .btn-toggle-off{background:rgba(255,107,107,.08);color:var(--err);border:1px solid rgba(255,107,107,.25);padding:6px 10px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer}
 .btn-toggle-off:hover{background:rgba(255,107,107,.15);filter:none}
 .btn-del{background:rgba(255,107,107,.08);color:var(--err);border:1px solid rgba(255,107,107,.25);padding:6px 10px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer}
 .btn-del:hover{background:rgba(255,107,107,.15);filter:none}
-.add-plan-card{border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;cursor:pointer;border-radius:16px;transition:border-color .15s,background .15s}
+.add-plan-card{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;border-radius:16px;border:2px dashed var(--border);text-decoration:none;transition:border-color .15s,background .15s}
 .add-plan-card:hover{border-color:var(--accent);background:rgba(124,92,255,.04)}
 .add-plan-icon{font-size:40px;margin-bottom:12px;color:var(--muted)}
 .add-plan-text{color:var(--muted);font-size:.9rem}
-/* Subscriber table */
-.sub-table{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-.sub-table table{width:100%;border-collapse:collapse}
-.sub-table th{background:var(--panel2);padding:10px 14px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:left}
-.sub-table td{padding:10px 14px;font-size:13px;border-top:1px solid var(--border);vertical-align:middle}
-/* Modal */
-.modal-overlay{display:none;position:fixed;inset:0;background:#000a;z-index:1000;align-items:center;justify-content:center}
-.modal-overlay.open{display:flex}
-.modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;position:relative}
-.modal h3{margin:0 0 20px;font-size:18px}
-.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;padding:4px 8px}
-.modal-close:hover{color:var(--text);filter:none}
-.form-row{margin-bottom:14px}
-.form-row label{display:block;margin-bottom:5px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
-.form-row input,.form-row textarea,.form-row select{width:100%;padding:9px 12px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px;font-family:inherit}
-.form-row input:focus,.form-row textarea:focus{outline:none;border-color:var(--accent)}
-.form-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.color-row{display:flex;gap:8px;flex-wrap:wrap}
-.color-opt{width:32px;height:32px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:border-color .12s}
-.color-opt.selected,.color-opt:hover{border-color:#fff}
-.modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+/* Form page */
+.form-page{max-width:600px;margin:0 auto}
+.form-page h2{margin:0 0 4px}
+.plan-form-card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px;margin-top:20px}
+.pf-row{margin-bottom:16px}
+.pf-row label{display:block;margin-bottom:5px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.pf-row input,.pf-row textarea,.pf-row select{width:100%;padding:10px 12px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box}
+.pf-row input:focus,.pf-row textarea:focus{outline:none;border-color:var(--accent)}
+.pf-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:500px){.pf-2col{grid-template-columns:1fr}}
+.color-grid{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.color-swatch{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+.color-swatch input[type=radio]{display:none}
+.color-swatch span{display:block;width:34px;height:34px;border-radius:50%;border:3px solid transparent;transition:border-color .12s}
+.color-swatch input[type=radio]:checked + span{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
+.color-swatch:hover span{border-color:#aaa}
+.form-actions{display:flex;gap:10px;margin-top:24px;justify-content:flex-end}
+.btn-back{display:inline-block;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;color:var(--muted);background:var(--panel2);border:1px solid var(--border)}
+.btn-back:hover{color:var(--text)}
 </style>
+"""
 
-<!-- Modal -->
-<div class="modal-overlay" id="planModal">
-  <div class="modal">
-    <button class="modal-close" onclick="closeModal()">✕</button>
-    <h3 id="modalTitle">New Plan</h3>
-    <form id="planForm" method="post">
-      <input type="hidden" name="plan_id" id="f_plan_id" value="">
-      <div class="form-row">
-        <label>Plan Name</label>
-        <input name="name" id="f_name" required placeholder="e.g. Premium">
-      </div>
-      <div class="form-2col">
-        <div class="form-row">
-          <label>Price (PKR)</label>
-          <input name="price_pkr" id="f_price" type="number" min="0" step="1" required placeholder="299">
-        </div>
-        <div class="form-row">
-          <label>Duration (days)</label>
-          <input name="duration_days" id="f_duration" type="number" min="1" value="30">
-        </div>
-      </div>
-      <div class="form-2col">
-        <div class="form-row">
-          <label>Max Devices</label>
-          <input name="max_devices" id="f_devices" type="number" min="1" value="1">
-        </div>
-        <div class="form-row">
-          <label>Monthly Data Limit (GB, 0=unlimited)</label>
-          <input name="monthly_limit_gb" id="f_data" type="number" min="0" step="0.1" value="0">
-        </div>
-      </div>
-      <div class="form-row">
-        <label>Description</label>
-        <input name="description" id="f_desc" placeholder="Short description for internal use">
-      </div>
-      <div class="form-row">
-        <label>Badge Label (optional, e.g. POPULAR)</label>
-        <input name="badge" id="f_badge" placeholder="POPULAR / BEST VALUE / NEW">
-      </div>
-      <div class="form-row">
-        <label>Features (one per line — shown in app)</label>
-        <textarea name="features" id="f_features" rows="5" placeholder="HD quality&#10;2 devices&#10;30-day access"></textarea>
-      </div>
-      <div class="form-row">
-        <label>Card Color</label>
-        <div class="color-row" id="colorRow">
-          {% for c in colors %}
-          <div class="color-opt {% if loop.first %}selected{% endif %}" data-color="{{ c }}" style="background:{{ c }}" onclick="selectColor('{{ c }}', this)"></div>
-          {% endfor %}
-        </div>
-        <input type="hidden" name="color" id="f_color" value="{{ colors[0] }}">
-      </div>
-      <div class="modal-actions">
-        <button type="button" class="ghost" onclick="closeModal()">Cancel</button>
-        <button type="submit" id="submitBtn">Save Plan</button>
-      </div>
-    </form>
-  </div>
-</div>
-
+# ── Index page ────────────────────────────────────────────────────────────────
+_INDEX_HTML = """
+{% extends "base.html" %}
+{% set active="plans" %}
+{% block title %}Plans & Pricing{% endblock %}
+{% block content %}
+""" + _SHARED_CSS + """
 <div class="plans-page">
   <div class="h-row">
     <div>
@@ -147,31 +95,23 @@ _HTML = """
   </div>
 
   <div class="stat-grid">
-    <div class="s-tile">
-      <div class="k">Total Plans</div>
-      <div class="v">{{ plans|length }}</div>
-    </div>
-    <div class="s-tile">
-      <div class="k">Active Plans</div>
-      <div class="v" style="color:var(--ok)">{{ plans|selectattr('is_active')|list|length }}</div>
-    </div>
-    <div class="s-tile">
-      <div class="k">Total Subscribers</div>
-      <div class="v" style="color:var(--accent)">{{ total_subs }}</div>
-    </div>
-    <div class="s-tile">
-      <div class="k">Monthly Revenue</div>
-      <div class="v" style="color:var(--warn)">₨{{ "{:,}".format(monthly_rev) }}</div>
-    </div>
+    <div class="s-tile"><div class="k">Total Plans</div><div class="v">{{ plans|length }}</div></div>
+    <div class="s-tile"><div class="k">Active Plans</div><div class="v" style="color:var(--ok)">{{ plans|selectattr('is_active')|list|length }}</div></div>
+    <div class="s-tile"><div class="k">Total Subscribers</div><div class="v" style="color:var(--accent)">{{ total_subs }}</div></div>
+    <div class="s-tile"><div class="k">Monthly Revenue</div><div class="v" style="color:var(--warn)">₨{{ "{:,}".format(monthly_rev) }}</div></div>
   </div>
+
+  {% if ok_msg %}
+  <div class="card" style="background:rgba(92,214,111,.08);border-color:rgba(92,214,111,.3);color:var(--ok);margin-bottom:20px;padding:14px 18px;font-weight:600">
+    ✓ {{ ok_msg }}
+  </div>
+  {% endif %}
 
   <div class="plans-grid">
     {% for p in plans %}
     <div class="plan-card {% if not p.is_active %}inactive{% endif %}" style="--card-color:{{ p.color or '#7c5cff' }}">
       <div class="plan-card-header">
-        {% if p.badge %}
-        <div class="plan-badge-label">{{ p.badge }}</div><br>
-        {% endif %}
+        {% if p.badge %}<div class="plan-badge-label">{{ p.badge }}</div><br>{% endif %}
         <div class="plan-name">{{ p.name }}</div>
         <div class="plan-desc">{{ p.description or '' }}</div>
         <div class="plan-price-row">
@@ -195,22 +135,16 @@ _HTML = """
         {% set feats = p.features_list %}
         {% if feats %}
         <ul class="plan-features">
-          {% for f in feats[:5] %}
-          <li>{{ f }}</li>
-          {% endfor %}
+          {% for f in feats[:5] %}<li>{{ f }}</li>{% endfor %}
         </ul>
         {% endif %}
-        <div class="plan-meta" style="color:var(--muted);font-size:11px">
-          {{ p.sub_count }} active subscribers
-        </div>
+        <div class="plan-meta" style="color:var(--muted);font-size:11px">{{ p.sub_count }} active subscribers</div>
         <div class="plan-actions">
-          <button class="btn-edit" onclick="editPlan({{ p.id }})">✏ Edit</button>
+          <a class="btn-edit" href="/plans/{{ p.id }}/edit_form">✏ Edit</a>
           <form method="post" action="/plans/{{ p.id }}/toggle" style="display:contents">
-            <button class="{% if p.is_active %}btn-toggle-off{% else %}btn-toggle-on{% endif %}" type="submit">
-              {{ '⏸' if p.is_active else '▶' }}
-            </button>
+            <button class="{% if p.is_active %}btn-toggle-off{% else %}btn-toggle-on{% endif %}" type="submit">{{ '⏸' if p.is_active else '▶' }}</button>
           </form>
-          <form method="post" action="/plans/{{ p.id }}/delete" style="display:contents" onsubmit="return confirm('Delete this plan? Existing subscribers keep access until expiry.')">
+          <form method="post" action="/plans/{{ p.id }}/delete" style="display:contents" onsubmit="return confirm('Delete this plan?')">
             <button class="btn-del" type="submit">🗑</button>
           </form>
         </div>
@@ -218,14 +152,12 @@ _HTML = """
     </div>
     {% endfor %}
 
-    <!-- Add new plan card -->
-    <div class="add-plan-card" onclick="openModal()">
+    <a class="add-plan-card" href="/plans/new">
       <div class="add-plan-icon">＋</div>
       <div class="add-plan-text">Add New Plan</div>
-    </div>
+    </a>
   </div>
 
-  <!-- Subscriber breakdown table -->
   <div class="card">
     <h3>📊 Subscribers by Plan</h3>
     <div class="table-wrap">
@@ -246,73 +178,123 @@ _HTML = """
     </div>
   </div>
 </div>
-
-<script>
-const COLORS = {{ colors|tojson }};
-/* _PLANS: keyed by id (int) so editPlan(id) is safe — no tojson inside onclick attrs */
-const _PLANS = {{ plans_map|tojson }};
-
-function openModal(data){
-  const m = document.getElementById('planModal');
-  if(data){
-    document.getElementById('modalTitle').textContent = 'Edit Plan';
-    document.getElementById('planForm').action = '/plans/' + data.id + '/edit';
-    document.getElementById('f_plan_id').value = data.id;
-    document.getElementById('f_name').value = data.name || '';
-    document.getElementById('f_price').value = data.price_pkr || '';
-    document.getElementById('f_duration').value = data.duration_days || 30;
-    document.getElementById('f_devices').value = data.max_devices || 1;
-    document.getElementById('f_data').value = data.monthly_limit_gb || 0;
-    document.getElementById('f_desc').value = data.description || '';
-    document.getElementById('f_badge').value = data.badge || '';
-    document.getElementById('f_features').value = (data.features_list || []).join('\n');
-    document.getElementById('f_color').value = data.color || COLORS[0];
-    // Select correct color
-    document.querySelectorAll('.color-opt').forEach(el=>{
-      el.classList.toggle('selected', el.dataset.color === (data.color || COLORS[0]));
-    });
-  } else {
-    document.getElementById('modalTitle').textContent = 'New Plan';
-    document.getElementById('planForm').action = '/plans/create';
-    document.getElementById('planForm').reset();
-    document.getElementById('f_color').value = COLORS[0];
-    document.querySelectorAll('.color-opt').forEach((el,i)=>el.classList.toggle('selected',i===0));
-  }
-  m.classList.add('open');
-}
-function closeModal(){document.getElementById('planModal').classList.remove('open')}
-function editPlan(id){openModal(_PLANS[id])}
-function selectColor(c, el){
-  document.getElementById('f_color').value = c;
-  document.querySelectorAll('.color-opt').forEach(e=>e.classList.remove('selected'));
-  el.classList.add('selected');
-}
-document.getElementById('planModal').addEventListener('click', function(e){
-  if(e.target === this) closeModal();
-});
-/* Escape key closes modal */
-document.addEventListener('keydown', function(e){
-  if(e.key === 'Escape') closeModal();
-});
-/* Show success toast from redirect ?ok= param, then clean URL */
-(function(){
-  const p = new URLSearchParams(window.location.search);
-  const ok = p.get('ok');
-  const msgs = {
-    created: 'Plan created ✓',
-    updated: 'Plan updated ✓',
-    deleted: 'Plan deleted ✓',
-    toggled: 'Plan status updated ✓'
-  };
-  if(ok && msgs[ok]){ setTimeout(()=>toast(msgs[ok]), 150); }
-  if(ok) history.replaceState({}, '', window.location.pathname);
-})();
-</script>
 {% endblock %}
 """
 
-COLORS = ['#7c5cff','#E8002D','#00C853','#FF6D00','#00B0FF','#FFD600','#AA00FF','#00E5FF','#FF4081','#1de9b6']
+# ── Shared form fields template (used by both new + edit pages) ───────────────
+_FORM_FIELDS = """
+      <div class="pf-row">
+        <label>Plan Name *</label>
+        <input name="name" required placeholder="e.g. Premium" value="{{ plan.name if plan else '' }}">
+      </div>
+      <div class="pf-2col">
+        <div class="pf-row">
+          <label>Price (PKR) *</label>
+          <input name="price_pkr" type="number" min="0" step="1" required placeholder="299"
+                 value="{{ plan.price_pkr if plan else '' }}">
+        </div>
+        <div class="pf-row">
+          <label>Duration (days)</label>
+          <input name="duration_days" type="number" min="1"
+                 value="{{ plan.duration_days if plan else 30 }}">
+        </div>
+      </div>
+      <div class="pf-2col">
+        <div class="pf-row">
+          <label>Max Devices</label>
+          <input name="max_devices" type="number" min="1"
+                 value="{{ plan.max_devices if plan else 1 }}">
+        </div>
+        <div class="pf-row">
+          <label>Monthly Data Limit (GB, 0 = unlimited)</label>
+          <input name="monthly_limit_gb" type="number" min="0" step="0.1"
+                 value="{{ plan.monthly_limit_gb if plan else 0 }}">
+        </div>
+      </div>
+      <div class="pf-row">
+        <label>Description</label>
+        <input name="description" placeholder="Short description for internal use"
+               value="{{ plan.description or '' if plan else '' }}">
+      </div>
+      <div class="pf-row">
+        <label>Badge Label (optional — e.g. POPULAR, BEST VALUE)</label>
+        <input name="badge" placeholder="POPULAR / BEST VALUE / NEW"
+               value="{{ plan.badge or '' if plan else '' }}">
+      </div>
+      <div class="pf-row">
+        <label>Features (one per line — shown in app)</label>
+        <textarea name="features" rows="5" placeholder="HD quality&#10;2 devices&#10;30-day access">{{ plan.features_list|join('\n') if plan else '' }}</textarea>
+      </div>
+      <div class="pf-row">
+        <label>Card Colour</label>
+        <div class="color-grid">
+          {% for c in colors %}
+          <label class="color-swatch">
+            <input type="radio" name="color" value="{{ c }}"
+              {% if plan and plan.color == c %}checked
+              {% elif not plan and loop.first %}checked{% endif %}>
+            <span style="background:{{ c }}"></span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+"""
 
+# ── New plan page ─────────────────────────────────────────────────────────────
+_NEW_HTML = """
+{% extends "base.html" %}
+{% set active="plans" %}
+{% block title %}New Plan{% endblock %}
+{% block content %}
+""" + _SHARED_CSS + """
+<div class="form-page">
+  <div class="h-row">
+    <div>
+      <h2>💎 New Plan</h2>
+      <p class="sub-sub">Fill in the details and click Save.</p>
+    </div>
+  </div>
+  <div class="plan-form-card">
+    <form method="post" action="/plans/create">
+""" + _FORM_FIELDS + """
+      <div class="form-actions">
+        <a class="btn-back" href="/plans/">← Back</a>
+        <button type="submit">💾 Save Plan</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+"""
+
+# ── Edit plan page ────────────────────────────────────────────────────────────
+_EDIT_HTML = """
+{% extends "base.html" %}
+{% set active="plans" %}
+{% block title %}Edit Plan{% endblock %}
+{% block content %}
+""" + _SHARED_CSS + """
+<div class="form-page">
+  <div class="h-row">
+    <div>
+      <h2>✏ Edit Plan — {{ plan.name }}</h2>
+      <p class="sub-sub">Update the fields below and click Save.</p>
+    </div>
+  </div>
+  <div class="plan-form-card">
+    <form method="post" action="/plans/{{ plan.id }}/edit">
+""" + _FORM_FIELDS + """
+      <div class="form-actions">
+        <a class="btn-back" href="/plans/">← Back</a>
+        <button type="submit">💾 Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+"""
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 def _plan_data(plans_raw, now):
     result = []
     for p in plans_raw:
@@ -324,6 +306,14 @@ def _plan_data(plans_raw, now):
         result.append(d)
     return result
 
+_OK_MESSAGES = {
+    'created': 'Plan created successfully.',
+    'updated': 'Plan updated successfully.',
+    'deleted': 'Plan deleted.',
+    'toggled': 'Plan status updated.',
+}
+
+# ── Routes ────────────────────────────────────────────────────────────────────
 
 @bp.route("/")
 @login_required
@@ -331,33 +321,65 @@ def index():
     now = int(time.time())
     with db.conn() as c:
         plans_raw = c.execute(
-            "SELECT p.*, (SELECT COUNT(*) FROM app_subscriptions s WHERE s.plan=LOWER(p.name) AND s.is_active=1 AND s.expires_at>?) AS sub_count FROM plans p ORDER BY p.price_pkr ASC",
+            "SELECT p.*, (SELECT COUNT(*) FROM app_subscriptions s "
+            "WHERE s.plan=LOWER(p.name) AND s.is_active=1 AND s.expires_at>?) AS sub_count "
+            "FROM plans p ORDER BY p.price_pkr ASC",
             (now,)
         ).fetchall()
-        total_subs = c.execute("SELECT COUNT(*) AS n FROM app_subscriptions WHERE is_active=1 AND expires_at>?", (now,)).fetchone()["n"]
+        total_subs = c.execute(
+            "SELECT COUNT(*) AS n FROM app_subscriptions WHERE is_active=1 AND expires_at>?",
+            (now,)
+        ).fetchone()["n"]
 
     plans = _plan_data(plans_raw, now)
     monthly_rev = sum(p['price_pkr'] * p['sub_count'] for p in plans if p['is_active'])
-    plans_map = {p['id']: p for p in plans}
-    return render_template_string(_HTML, plans=plans, total_subs=total_subs,
-                                   monthly_rev=int(monthly_rev), colors=COLORS,
-                                   plans_map=plans_map)
+    ok_msg = _OK_MESSAGES.get(request.args.get('ok', ''), '')
+    return render_template_string(_INDEX_HTML, plans=plans, total_subs=total_subs,
+                                   monthly_rev=int(monthly_rev), ok_msg=ok_msg)
+
+
+@bp.route("/new")
+@login_required
+def new():
+    return render_template_string(_NEW_HTML, plan=None, colors=COLORS)
+
+
+@bp.route("/<int:plan_id>/edit_form")
+@login_required
+def edit_form(plan_id: int):
+    with db.conn() as c:
+        row = c.execute("SELECT * FROM plans WHERE id=?", (plan_id,)).fetchone()
+    if not row:
+        return redirect(url_for('plans_panel.index'))
+    plan = dict(row)
+    try:
+        plan['features_list'] = json.loads(plan.get('features_json') or '[]')
+    except Exception:
+        plan['features_list'] = []
+    return render_template_string(_EDIT_HTML, plan=plan, colors=COLORS)
 
 
 @bp.route("/create", methods=["POST"])
 @login_required
 def create():
     d = request.form
-    feats = [f.strip() for f in (d.get('features','').strip().splitlines()) if f.strip()]
+    feats = [f.strip() for f in (d.get('features', '').strip().splitlines()) if f.strip()]
     with db.conn() as c:
-        c.execute("""INSERT INTO plans(name,price_pkr,monthly_limit_gb,max_devices,duration_days,
-            description,badge,color,features_json,is_active,created_at)
-            VALUES(?,?,?,?,?,?,?,?,?,1,?)""",
-            (d.get('name','').strip(), float(d.get('price_pkr',0) or 0),
-             float(d.get('monthly_limit_gb',0) or 0), int(d.get('max_devices',1) or 1),
-             int(d.get('duration_days',30) or 30), d.get('description','').strip(),
-             d.get('badge','').strip().upper(), d.get('color','#7c5cff'),
-             json.dumps(feats), int(time.time())))
+        c.execute(
+            "INSERT INTO plans(name,price_pkr,monthly_limit_gb,max_devices,duration_days,"
+            "description,badge,color,features_json,is_active,created_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?,1,?)",
+            (d.get('name', '').strip(),
+             float(d.get('price_pkr', 0) or 0),
+             float(d.get('monthly_limit_gb', 0) or 0),
+             int(d.get('max_devices', 1) or 1),
+             int(d.get('duration_days', 30) or 30),
+             d.get('description', '').strip(),
+             d.get('badge', '').strip().upper(),
+             d.get('color', '#7c5cff'),
+             json.dumps(feats),
+             int(time.time()))
+        )
     log.info("Created plan: %s", d.get('name'))
     return redirect(url_for('plans_panel.index') + '?ok=created')
 
@@ -366,15 +388,22 @@ def create():
 @login_required
 def edit(plan_id: int):
     d = request.form
-    feats = [f.strip() for f in (d.get('features','').strip().splitlines()) if f.strip()]
+    feats = [f.strip() for f in (d.get('features', '').strip().splitlines()) if f.strip()]
     with db.conn() as c:
-        c.execute("""UPDATE plans SET name=?,price_pkr=?,monthly_limit_gb=?,max_devices=?,
-            duration_days=?,description=?,badge=?,color=?,features_json=? WHERE id=?""",
-            (d.get('name','').strip(), float(d.get('price_pkr',0) or 0),
-             float(d.get('monthly_limit_gb',0) or 0), int(d.get('max_devices',1) or 1),
-             int(d.get('duration_days',30) or 30), d.get('description','').strip(),
-             d.get('badge','').strip().upper(), d.get('color','#7c5cff'),
-             json.dumps(feats), plan_id))
+        c.execute(
+            "UPDATE plans SET name=?,price_pkr=?,monthly_limit_gb=?,max_devices=?,"
+            "duration_days=?,description=?,badge=?,color=?,features_json=? WHERE id=?",
+            (d.get('name', '').strip(),
+             float(d.get('price_pkr', 0) or 0),
+             float(d.get('monthly_limit_gb', 0) or 0),
+             int(d.get('max_devices', 1) or 1),
+             int(d.get('duration_days', 30) or 30),
+             d.get('description', '').strip(),
+             d.get('badge', '').strip().upper(),
+             d.get('color', '#7c5cff'),
+             json.dumps(feats),
+             plan_id)
+        )
     log.info("Updated plan #%d", plan_id)
     return redirect(url_for('plans_panel.index') + '?ok=updated')
 
@@ -385,7 +414,8 @@ def toggle(plan_id: int):
     with db.conn() as c:
         cur = c.execute("SELECT is_active FROM plans WHERE id=?", (plan_id,)).fetchone()
         if cur:
-            c.execute("UPDATE plans SET is_active=? WHERE id=?", (0 if cur['is_active'] else 1, plan_id))
+            c.execute("UPDATE plans SET is_active=? WHERE id=?",
+                      (0 if cur['is_active'] else 1, plan_id))
     return redirect(url_for('plans_panel.index') + '?ok=toggled')
 
 
@@ -409,7 +439,9 @@ def api_list():
     result = []
     for p in rows:
         d = dict(p)
-        try: d['features_list'] = json.loads(p['features_json'] or '[]')
-        except: d['features_list'] = []
+        try:
+            d['features_list'] = json.loads(p['features_json'] or '[]')
+        except Exception:
+            d['features_list'] = []
         result.append(d)
     return jsonify({"plans": result})
