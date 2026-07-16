@@ -88,8 +88,9 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   // Set by _minimizePlayer() right before popping the screen. Tells
   // dispose() to leave the live Player alone — PlaybackService now owns it.
   bool _handedOffToService = false;
-  // Loop
+  // Loop / shuffle
   bool _loopEnabled = false;
+  bool _shuffleEnabled = false;
   bool _isMuted = false;
   // A-B repeat (enforced natively by MPV via ab-loop-a/ab-loop-b — Dart only
   // mirrors state for the UI pins/labels, it never seeks manually anymore)
@@ -954,7 +955,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
             _autoAdvanceCountdown--;
           } else {
             t.cancel();
-            _playEpisodeAt(_currentEpIdx + 1);
+            _playEpisodeAt(_shuffleEnabled ? _randomEpIdx() : _currentEpIdx + 1);
           }
         });
       });
@@ -1128,6 +1129,20 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
     _loopEnabled = !_loopEnabled;
     try { _np.setProperty('loop-file', _loopEnabled ? 'inf' : 'no'); } catch (_) {}
     setState(() {});
+  }
+
+  void _toggleShuffle() {
+    setState(() => _shuffleEnabled = !_shuffleEnabled);
+  }
+
+  /// Returns a random episode index different from the current one.
+  int _randomEpIdx() {
+    if (_eps.length <= 1) return 0;
+    int next;
+    do {
+      next = math.Random().nextInt(_eps.length);
+    } while (next == _currentEpIdx);
+    return next;
   }
 
   void _applyAutoOrientation() {

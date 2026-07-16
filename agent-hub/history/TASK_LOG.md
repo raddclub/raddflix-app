@@ -1100,3 +1100,34 @@ The comment said "Remove stale MediaStore entry pointing to the now-deleted vaul
 
 ### Architecture Note
 The real limitation vs MX Player: without `MANAGE_EXTERNAL_STORAGE`, on Android 11+ we cannot silently delete MediaStore entries — we must prompt the user. MX Player gets around this via `MANAGE_EXTERNAL_STORAGE`. Getting that permission requires a special Google Play declaration and review; most apps avoid it. Our current approach (prompt + warn if declined) is correct for a Play Store app.
+
+---
+
+## Z1 — AUDIO-MODE-CONTROLS-AND-EMBEDDED-ART (2026-07-16)
+
+**Goal:** Complete the audio-mode music player — add embedded cover art extraction, Prev/Next skip buttons, and Shuffle/Repeat toggles. CI commit pending.
+
+### Files Changed
+
+| File | Change |
+|---|---|
+| `raddflix_flutter/pubspec.yaml` | Added `flutter_media_metadata: ^1.0.3` |
+| `raddflix_flutter/lib/widgets/player/audio_mode_backdrop.dart` | Full update — see below |
+| `raddflix_flutter/lib/screens/player/_ps_playback_mixin.dart` | `_shuffleEnabled`, `_toggleShuffle()`, `_randomEpIdx()`, auto-advance shuffle |
+| `raddflix_flutter/lib/screens/player/_ps_ui_mixin.dart` | Threaded new params through injection site |
+
+### Embedded Cover Art (flutter_media_metadata)
+
+`_AudioModeBackdropState` now has two cover art fields: `File? _coverArtFile` (sidecar) and `Uint8List? _embeddedArtBytes` (embedded tags). `_scanCoverArt()` probes sidecar filenames first (unchanged); only if none match does it call `MetadataRetriever.fromFile(File(path))` and read `metadata.albumArt`. The bytes are stored and passed as a `MemoryImage` to `_Disc`, `_Backdrop`, and `_extractPalette()`. `_Disc` and `_Backdrop` now accept `ImageProvider?` (was `FileImage?`) so both sidecar and embedded artwork flow through the same code path.
+
+### Prev / Next Buttons
+
+New `_SkipButton` widget: `Icon` wrapped in `GestureDetector` with `AnimatedOpacity(opacity: enabled ? 1.0 : 0.35)`. Placed in a `Row` flanking the play/pause circle (`⏮ — ⏸/▶ — ⏭`). Callbacks: `onPrev` → `_playEpisodeAt(_currentEpIdx - 1)`, `onNext` → `_playEpisodeAt(_currentEpIdx + 1)`. Disabled (null callback + dimmed) when `_hasPrev`/`_hasNext` is false.
+
+### Shuffle / Repeat Toggles
+
+New `_ToggleIcon` widget: `Icon` on a translucent accent-coloured circle when active; white38 / transparent when inactive. Two icons (`Icons.shuffle_rounded`, `Icons.repeat_rounded`) in a centred `Row` above the seek bar. Repeat wired to existing `_toggleLoop()`. Shuffle adds `bool _shuffleEnabled` + `_toggleShuffle()` to `_PlayerPlaybackMixin`; `_randomEpIdx()` picks a random episode index ≠ current; auto-advance at track end uses it instead of `+1` when shuffle is on.
+
+### Backwards Compatibility
+
+All new `AudioModeBackdrop` params have safe defaults (`hasPrev: false`, `hasNext: false`, `loopEnabled: false`, `shuffleEnabled: false`, `onLoopToggle`/`onShuffleToggle` defaulting to a static `_noop`). Any existing call-site that doesn't pass these params compiles unchanged.

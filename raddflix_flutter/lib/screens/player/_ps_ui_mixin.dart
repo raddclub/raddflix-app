@@ -1899,6 +1899,10 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                       duration: _duration,
                       title: _currentTitle,
                       localPath: widget.localPath,
+                      hasPrev: _hasPrev,
+                      hasNext: _hasNext,
+                      loopEnabled: _loopEnabled,
+                      shuffleEnabled: _shuffleEnabled,
                       onPlayPause: () {
                         if (_playing) {
                           _player.pause();
@@ -1907,6 +1911,14 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                         }
                       },
                       onSeek: (pos) => _player.seek(pos),
+                      onPrev: _hasPrev
+                          ? () => _playEpisodeAt(_currentEpIdx - 1)
+                          : null,
+                      onNext: _hasNext
+                          ? () => _playEpisodeAt(_currentEpIdx + 1)
+                          : null,
+                      onLoopToggle: _toggleLoop,
+                      onShuffleToggle: _toggleShuffle,
                     ),
                   ),
 

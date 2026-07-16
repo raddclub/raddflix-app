@@ -6,15 +6,18 @@
 // Architecture: entirely self-contained StatefulWidget. Caller passes the
 // minimum playback state it already has — no additional platform channels.
 //
-// Cover art strategy (no extra packages):
+// Cover art strategy:
 //   1. Scan the audio file's parent directory for common cover-image filenames.
 //   2. If found → FileImage + palette_generator accent extraction.
-//   3. If not   → animated procedural gradient blobs based on title hash.
+//   3. If not   → try flutter_media_metadata to read embedded ID3/Vorbis/MP4 art.
+//   4. If not   → animated procedural gradient blobs based on title hash.
 
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_media_metadata/flutter_media_metadata.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:path/path.dart' as p;
 
@@ -31,6 +34,18 @@ class AudioModeBackdrop extends StatefulWidget {
   final VoidCallback onPlayPause;
   final ValueChanged<Duration> onSeek;
 
+  // Skip controls — null when no episode list is available.
+  final bool hasPrev;
+  final bool hasNext;
+  final VoidCallback? onPrev;
+  final VoidCallback? onNext;
+
+  // Shuffle / Repeat toggles.
+  final bool loopEnabled;
+  final bool shuffleEnabled;
+  final VoidCallback onLoopToggle;
+  final VoidCallback onShuffleToggle;
+
   const AudioModeBackdrop({
     super.key,
     required this.isPlaying,
@@ -40,7 +55,19 @@ class AudioModeBackdrop extends StatefulWidget {
     required this.onPlayPause,
     required this.onSeek,
     this.localPath,
-  });
+    // skip / shuffle / repeat — safe defaults so existing callers compile:
+    this.hasPrev = false,
+    this.hasNext = false,
+    this.onPrev,
+    this.onNext,
+    this.loopEnabled = false,
+    this.shuffleEnabled = false,
+    VoidCallback? onLoopToggle,
+    VoidCallback? onShuffleToggle,
+  })  : onLoopToggle = onLoopToggle ?? _noop,
+        onShuffleToggle = onShuffleToggle ?? _noop;
+
+  static void _noop() {}
 
   @override
   State<AudioModeBackdrop> createState() => _AudioModeBackdropState();
@@ -57,7 +84,8 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
   late final AnimationController _pulseCtrl;
 
   // ── Cover art & palette ───────────────────────────────────────────────────
-  File? _coverArtFile;
+  File? _coverArtFile;           // sidecar image file
+  Uint8List? _embeddedArtBytes;  // embedded ID3 / Vorbis / MP4 art
   Color _accent = const Color(0xFF7C5CFF); // default purple; overridden by palette
 
   // ── Seek interaction state ───────────────────────────────────────────────
@@ -112,7 +140,10 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
     // New track → re-scan for cover art.
     if (widget.localPath != old.localPath || widget.title != old.title) {
       if (widget.localPath != _lastScannedPath) {
-        setState(() => _coverArtFile = null);
+        setState(() {
+          _coverArtFile = null;
+          _embeddedArtBytes = null;
+        });
         _scanCoverArt();
       }
     }
@@ -132,6 +163,8 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
     final path = widget.localPath;
     if (path == null || path.isEmpty) return;
     _lastScannedPath = path;
+
+    // 1. Probe sibling cover image files.
     final dir = p.dirname(path);
     for (final name in _coverNames) {
       final f = File(p.join(dir, name));
@@ -139,8 +172,22 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
         if (!mounted) return;
         setState(() => _coverArtFile = f);
         _extractPalette(FileImage(f));
-        return;
+        return; // sidecar found — no need for embedded extraction
       }
+    }
+
+    // 2. Fall back to embedded ID3 / Vorbis / MP4 tags.
+    try {
+      final metadata = await MetadataRetriever.fromFile(File(path));
+      final bytes = metadata.albumArt;
+      if (bytes != null && bytes.isNotEmpty) {
+        if (!mounted) return;
+        setState(() => _embeddedArtBytes = bytes);
+        _extractPalette(MemoryImage(bytes));
+      }
+    } catch (_) {
+      // Package not supported for this file type or platform — fall through
+      // to the procedural gradient blobs path, which is already the default.
     }
   }
 
@@ -179,7 +226,13 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
   @override
   Widget build(BuildContext context) {
     final gradColors = _gradientColors();
-    final coverArt = _coverArtFile != null ? FileImage(_coverArtFile!) : null;
+
+    // Resolved cover art provider: sidecar > embedded > null (procedural blobs).
+    final ImageProvider? coverArt = _coverArtFile != null
+        ? FileImage(_coverArtFile!)
+        : _embeddedArtBytes != null
+            ? MemoryImage(_embeddedArtBytes!)
+            : null;
 
     return Stack(
       fit: StackFit.expand,
@@ -225,7 +278,15 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
                 accentColor: _accent,
                 seeking: _seeking,
                 seekFrac: _seekFrac,
+                hasPrev: widget.hasPrev,
+                hasNext: widget.hasNext,
+                loopEnabled: widget.loopEnabled,
+                shuffleEnabled: widget.shuffleEnabled,
                 onPlayPause: widget.onPlayPause,
+                onPrev: widget.onPrev,
+                onNext: widget.onNext,
+                onLoopToggle: widget.onLoopToggle,
+                onShuffleToggle: widget.onShuffleToggle,
                 onSeekStart: (frac) => setState(() {
                   _seeking = true;
                   _seekFrac = frac;
@@ -260,7 +321,7 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _Backdrop extends StatelessWidget {
-  final FileImage? coverArt;
+  final ImageProvider? coverArt;
   final List<Color> gradColors;
   final Color accentColor;
   final AnimationController kenBurnsCtrl;
@@ -364,7 +425,7 @@ class _Backdrop extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _Disc extends StatelessWidget {
-  final FileImage? coverArt;
+  final ImageProvider? coverArt;
   final List<Color> gradColors;
   final Color accentColor;
   final AnimationController discCtrl;
@@ -557,6 +618,20 @@ class _GlassCard extends StatelessWidget {
   final Color accentColor;
   final bool seeking;
   final double seekFrac;
+
+  // Skip controls.
+  final bool hasPrev;
+  final bool hasNext;
+  final VoidCallback? onPrev;
+  final VoidCallback? onNext;
+
+  // Shuffle / repeat.
+  final bool loopEnabled;
+  final bool shuffleEnabled;
+  final VoidCallback onLoopToggle;
+  final VoidCallback onShuffleToggle;
+
+  // Seek callbacks.
   final VoidCallback onPlayPause;
   final ValueChanged<double> onSeekStart;
   final ValueChanged<double> onSeekUpdate;
@@ -570,6 +645,14 @@ class _GlassCard extends StatelessWidget {
     required this.accentColor,
     required this.seeking,
     required this.seekFrac,
+    required this.hasPrev,
+    required this.hasNext,
+    required this.onPrev,
+    required this.onNext,
+    required this.loopEnabled,
+    required this.shuffleEnabled,
+    required this.onLoopToggle,
+    required this.onShuffleToggle,
     required this.onPlayPause,
     required this.onSeekStart,
     required this.onSeekUpdate,
@@ -598,10 +681,32 @@ class _GlassCard extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(28, 18, 28, 20),
+            padding: const EdgeInsets.fromLTRB(28, 14, 28, 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // ── Shuffle / Repeat toggle row ────────────────────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _ToggleIcon(
+                      icon: Icons.shuffle_rounded,
+                      active: shuffleEnabled,
+                      accentColor: accentColor,
+                      onTap: onShuffleToggle,
+                    ),
+                    const SizedBox(width: 40),
+                    _ToggleIcon(
+                      icon: Icons.repeat_rounded,
+                      active: loopEnabled,
+                      accentColor: accentColor,
+                      onTap: onLoopToggle,
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
                 // ── Seek bar ───────────────────────────────────────────────
                 LayoutBuilder(
                   builder: (_, box) => GestureDetector(
@@ -638,37 +743,61 @@ class _GlassCard extends StatelessWidget {
                   ],
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
 
-                // ── Play / Pause ───────────────────────────────────────────
-                GestureDetector(
-                  onTap: onPlayPause,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOut,
-                    width: 66,
-                    height: 66,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accentColor,
-                      boxShadow: [
-                        BoxShadow(
-                          color: accentColor.withOpacity(0.48),
-                          blurRadius: 24,
-                          spreadRadius: 2,
-                        ),
-                      ],
+                // ── Prev / Play-Pause / Next ───────────────────────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Prev button.
+                    _SkipButton(
+                      icon: Icons.skip_previous_rounded,
+                      enabled: hasPrev,
+                      onTap: hasPrev ? onPrev : null,
                     ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
-                      child: Icon(
-                        isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                        key: ValueKey(isPlaying),
-                        color: Colors.white,
-                        size: 34,
+
+                    const SizedBox(width: 28),
+
+                    // Play / Pause button (accent-coloured circle).
+                    GestureDetector(
+                      onTap: onPlayPause,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOut,
+                        width: 66,
+                        height: 66,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: accentColor,
+                          boxShadow: [
+                            BoxShadow(
+                              color: accentColor.withOpacity(0.48),
+                              blurRadius: 24,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          child: Icon(
+                            isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                            key: ValueKey(isPlaying),
+                            color: Colors.white,
+                            size: 34,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+
+                    const SizedBox(width: 28),
+
+                    // Next button.
+                    _SkipButton(
+                      icon: Icons.skip_next_rounded,
+                      enabled: hasNext,
+                      onTap: hasNext ? onNext : null,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -683,6 +812,68 @@ class _GlassCard extends StatelessWidget {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return h > 0 ? '$h:$m:$s' : '$m:$s';
+  }
+}
+
+// ── Skip button (prev / next) ─────────────────────────────────────────────────
+
+class _SkipButton extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  const _SkipButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedOpacity(
+        opacity: enabled ? 1.0 : 0.35,
+        duration: const Duration(milliseconds: 200),
+        child: Icon(icon, color: Colors.white, size: 38),
+      ),
+    );
+  }
+}
+
+// ── Shuffle / Repeat toggle icon ──────────────────────────────────────────────
+
+class _ToggleIcon extends StatelessWidget {
+  final IconData icon;
+  final bool active;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  const _ToggleIcon({
+    required this.icon,
+    required this.active,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: active ? accentColor.withOpacity(0.20) : Colors.transparent,
+        ),
+        child: Icon(
+          icon,
+          size: 22,
+          color: active ? accentColor : Colors.white38,
+        ),
+      ),
+    );
   }
 }
 

@@ -5,7 +5,19 @@
 
 ---
 
-## Current State (2026-07-16 — Y2: vault logic audit + 5 follow-up fixes, CI ✅ `4da50433`)
+## Current State (2026-07-16 — Z1: audio-mode controls + embedded cover art, CI pending)
+
+Completed the audio-mode music player UX:
+1. **Embedded cover art** — `flutter_media_metadata: ^1.0.3` added to pubspec; `_scanCoverArt()` now falls back to `MetadataRetriever.fromFile()` after sidecar probe fails. Embedded bytes stored as `_embeddedArtBytes: Uint8List?`; passed as `MemoryImage` to disc, backdrop, and `_extractPalette()`. Sidecar path still wins when both exist.
+2. **Prev / Next buttons** — flanking the play/pause circle in the glass card. `_SkipButton` widget with `AnimatedOpacity` dims to 0.35 when disabled. Wired to `_playEpisodeAt(_currentEpIdx - 1/+1)` via existing `_hasPrev`/`_hasNext` getters.
+3. **Shuffle / Repeat toggles** — `_ToggleIcon` row above the seek bar; active state shows accent-coloured icon on a translucent accent circle. Repeat wired to `_toggleLoop()`. Shuffle adds `_shuffleEnabled` bool + `_toggleShuffle()` + `_randomEpIdx()` to `_PlayerPlaybackMixin`; auto-advance picks `_randomEpIdx()` instead of `+1` when active.
+4. **No architectural changes** — `AudioModeBackdrop` widget signature extended with optional-default params; all existing call-sites compile unchanged.
+
+See TASK_LOG.md (Z1 entry) for file-by-file details.
+
+---
+
+## Previous State (2026-07-16 — Y2: vault logic audit + 5 follow-up fixes, CI ✅ `4da50433`)
 
 Deep audit of vault vs MX Player. Five logic bugs found and fixed:
 1. **Sidecar stored FilePicker temp-cache paths** — `moveFileToVault`/`moveFilesToVaultBatch` now only write `.raddmeta` for paths starting with `/storage/` or `/sdcard/`; cache paths under `/data/` are skipped.
