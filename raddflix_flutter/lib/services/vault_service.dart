@@ -392,7 +392,12 @@ class VaultService {
     // but the deleteFromMediaStore() call in vault_screen.dart handles that.
     await notifyMediaStore(sourcePath);
     // Record original path so Restore can return the file to its source location.
-    try { await File(_metaPath(dest.path)).writeAsString(sourcePath); } catch (_) {}
+    // Only persist for real external-storage paths (/storage/… or /sdcard/…).
+    // FilePicker temp-cache paths (/data/…/cache/file_picker/…) are useless as
+    // restore targets — the cache dir is wiped by Android between sessions.
+    if (sourcePath.startsWith('/storage/') || sourcePath.startsWith('/sdcard/')) {
+      try { await File(_metaPath(dest.path)).writeAsString(sourcePath); } catch (_) {}
+    }
   }
 
   /// Batch version of [moveFileToVault] optimised for large folders.
@@ -437,8 +442,11 @@ class VaultService {
             await src.copy(dest.path);
             if (await src.exists()) await src.delete();
           }
-          // Record original path for Restore.
-          try { await File(_metaPath(dest.path)).writeAsString(srcPath); } catch (_) {}
+          // Record original path for Restore (external storage paths only —
+          // FilePicker cache paths under /data/ are not valid restore targets).
+          if (srcPath.startsWith('/storage/') || srcPath.startsWith('/sdcard/')) {
+            try { await File(_metaPath(dest.path)).writeAsString(srcPath); } catch (_) {}
+          }
         } catch (_) {
           // Isolate per-file failures — one bad file must not abort the batch.
         }
@@ -467,7 +475,9 @@ class VaultService {
     final dest = File(p.join(destDir, p.basename(vaultPath)));
     await src.copy(dest.path);
     await src.delete();
-    // Tell MediaStore about the restored file so it appears in gallery
+    final meta = File(_metaPath(vaultPath));
+    if (meta.existsSync()) await meta.delete();
+    // Tell MediaStore about the restored file so it appears in gallery.
     await notifyMediaStore(dest.path);
   }
 
@@ -492,7 +502,10 @@ class VaultService {
     final dir = await getVaultDir();
     int total = 0;
     await for (final f in dir.list(recursive: true)) {
-      if (f is File) total += f.statSync().size;
+      // Skip .raddmeta sidecar files — they are bookkeeping, not user data.
+      if (f is File && !p.basename(f.path).endsWith('.raddmeta')) {
+        total += f.statSync().size;
+      }
     }
     return total;
   }
@@ -516,14 +529,16 @@ class VaultService {
     if (dest == null || dest.isEmpty) {
       throw Exception('copyToDownloads returned no destination path');
     }
-    // Copy succeeded — now safe to delete the vault original
+    // Copy succeeded — now safe to delete the vault original.
+    // NOTE: the vault lives in app-internal storage (/data/user/0/…/app_flutter/.vault/)
+    // which Android's MediaStore never indexes, so notifyMediaStore(vaultPath) would
+    // be a silent no-op. The original MediaStore entry was already removed at import
+    // time by the notifyMediaStore(sourcePath) call in moveFileToVault / the
+    // deleteFromMediaStore call in each screen's add-to-vault handler.
     final src = File(vaultPath);
     if (await src.exists()) await src.delete();
-    // Remove any stale MediaStore entry pointing to the now-deleted vault path —
-    // without this, file managers show a ghost entry until the next full scan.
-    await notifyMediaStore(vaultPath);
-    // For legacy path-based result (API < 29), also scan the destination so the
-    // file shows up in gallery/file-manager immediately.
+    // For legacy path-based result (API < 29), scan the destination so the
+    // restored file appears in gallery / file-manager immediately.
     if (!dest.startsWith('content://')) {
       await notifyMediaStore(dest);
     }

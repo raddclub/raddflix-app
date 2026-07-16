@@ -1126,8 +1126,11 @@ class _VideoListTile extends StatelessWidget {
 
       // Delete from Android MediaStore so the file stops appearing in file
       // managers (Mi File Manager, Files by Google) and MX Player immediately.
+      // On Android 11+ (API 30+) this shows a one-time system permission dialog;
+      // returns false if the user dismisses it.
+      bool mediaDeleted = true;
       if (video.id > 0) {
-        await VaultService.deleteFromMediaStore(
+        mediaDeleted = await VaultService.deleteFromMediaStore(
             ['content://media/external/video/media/${video.id}']);
       }
 
@@ -1136,9 +1139,13 @@ class _VideoListTile extends StatelessWidget {
         dialogShown = false;
       }
       if (context.mounted) {
+        final vaultMsg = mediaDeleted
+            ? '"${video.title}" moved to Vault'
+            : '"${video.title}" moved to Vault • May still appear in gallery';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('"${video.title}" moved to Vault'),
+          content: Text(vaultMsg),
           backgroundColor: t.surface,
+          duration: Duration(seconds: mediaDeleted ? 3 : 5),
         ));
       }
     } catch (e) {

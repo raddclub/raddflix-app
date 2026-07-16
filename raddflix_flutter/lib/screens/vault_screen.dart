@@ -606,6 +606,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
       ),
     ).ignore();
 
+    bool mediaDeleted = true;
     try {
       await VaultService.moveFilesToVaultBatch(
         paths,
@@ -615,7 +616,9 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
           progress.value = done;
         },
       );
-      if (contentUris.isNotEmpty) await VaultService.deleteFromMediaStore(contentUris);
+      if (contentUris.isNotEmpty) {
+        mediaDeleted = await VaultService.deleteFromMediaStore(contentUris);
+      }
     } finally {
       progress.dispose();
       if (mounted) {
@@ -626,10 +629,12 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
     if (mounted && imported > 0) {
       final msg = hadBytesOnly
           ? '$imported file${imported > 1 ? "s" : ""} added. Some originals may still appear in gallery.'
-          : '$imported video${imported > 1 ? "s" : ""} added to vault';
+          : !mediaDeleted
+              ? '$imported video${imported > 1 ? "s" : ""} added to vault • May still appear in gallery'
+              : '$imported video${imported > 1 ? "s" : ""} added to vault';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(msg), backgroundColor: t.surface,
-        duration: Duration(seconds: hadBytesOnly ? 5 : 3)));
+        duration: Duration(seconds: hadBytesOnly || !mediaDeleted ? 5 : 3)));
       await _load();
     }
   }

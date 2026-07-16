@@ -483,13 +483,14 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
         if (v.id > 0) 'content://media/external/video/media/${v.id}',
     ];
     int count = 0;
+    bool mediaDeleted = true;
     try {
       await VaultService.moveFilesToVaultBatch(
         videos.map((v) => v.filePath).toList(),
         onProgress: (done, _) { count = done; progress.value = done; },
       );
       if (contentUris.isNotEmpty) {
-        await VaultService.deleteFromMediaStore(contentUris);
+        mediaDeleted = await VaultService.deleteFromMediaStore(contentUris);
       }
     } finally {
       progress.dispose();
@@ -498,12 +499,15 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
       }
     }
     if (!mounted) return;
+    final baseMsg = count > 0
+        ? '$count video${count != 1 ? "s" : ""} moved to vault'
+        : 'No accessible files to move';
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(count > 0
-          ? '$count video${count != 1 ? "s" : ""} moved to vault'
-          : 'No accessible files to move'),
+      content: Text(count > 0 && !mediaDeleted
+          ? '$baseMsg • May still appear in gallery'
+          : baseMsg),
       backgroundColor: t.surface,
-      duration: const Duration(seconds: 3)));
+      duration: Duration(seconds: count > 0 && !mediaDeleted ? 5 : 3)));
     if (count > 0) _load(refresh: true);
   }
 
