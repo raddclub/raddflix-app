@@ -22,6 +22,8 @@ import '../providers/remote_values_provider.dart';
 import '../core/debug/debug_logger.dart';
 import '../providers/catalog_provider.dart';
 import '../core/utils/anim_config.dart';
+import '../services/app_lock_service.dart';
+import 'app_lock_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -42,6 +44,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _buildNumber    = '';
   bool   _isLoading      = true;
   bool   _syncing        = false;
+  // App Lock
+  bool _appLockEnabled  = false;
+  bool _appLockBiometric = false;
+  int  _appLockTimeout  = 0;
+  bool _appLockBioAvail = false;
 
   @override
   void initState() {
@@ -50,17 +57,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final info  = await PackageInfo.fromPlatform();
+    final prefs       = await SharedPreferences.getInstance();
+    final info        = await PackageInfo.fromPlatform();
+    final alHasPin    = await AppLockService.hasPin();
+    final alBiometric = await AppLockService.isBiometricEnabled();
+    final alTimeout   = await AppLockService.getAutoLockTimeout();
+    final alBioAvail  = await AppLockService.isBiometricAvailable();
     if (mounted) {
       setState(() {
-        _subtitleDefault = prefs.getBool(StorageKeys.subtitleDefault) ?? false;
-        _autoPlayNext    = prefs.getBool('jm_autoplay_next')           ?? true;
-        _wifiOnly        = prefs.getBool('jm_wifi_only')               ?? false;
-        _dataSaver       = prefs.getBool('jm_data_saver')              ?? false;
-        _version         = info.version;
-        _buildNumber     = info.buildNumber;
-        _isLoading       = false;
+        _subtitleDefault  = prefs.getBool(StorageKeys.subtitleDefault) ?? false;
+        _autoPlayNext     = prefs.getBool('jm_autoplay_next')           ?? true;
+        _wifiOnly         = prefs.getBool('jm_wifi_only')               ?? false;
+        _dataSaver        = prefs.getBool('jm_data_saver')              ?? false;
+        _version          = info.version;
+        _buildNumber      = info.buildNumber;
+        _isLoading        = false;
+        _appLockEnabled   = alHasPin;
+        _appLockBiometric = alBiometric;
+        _appLockTimeout   = alTimeout;
+        _appLockBioAvail  = alBioAvail;
       });
     }
   }
@@ -140,6 +155,127 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         );
       }
     }
+  }
+
+  // ── App Lock action methods ─────────────────────────────────────────────
+  String _timeoutLabel(int secs) => switch (secs) {
+    0   => 'Immediately',
+    30  => 'After 30 seconds',
+    60  => 'After 1 minute',
+    300 => 'After 5 minutes',
+    _   => 'Never',
+  };
+
+  Future<void> _enableAppLock() async {
+    // Optimistically show the switch as ON before pushing setup.
+    setState(() => _appLockEnabled = true);
+    // Briefly disable FLAG_SECURE so the user can see their PIN digits during setup.
+    await AppLockService.setFlagSecure(false);
+    final ok = await Navigator.of(context).push<bool>(AppLockSetupScreen.route());
+    if (!mounted) return;
+    if (ok == true) {
+      await AppLockService.setFlagSecure(true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('App lock enabled')),
+      );
+    } else {
+      // Setup was cancelled — revert the toggle.
+      setState(() => _appLockEnabled = false);
+    }
+  }
+
+  Future<void> _disableAppLock() async {
+    final t = RaddTheme.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: t.card,
+        shape: RoundedRectangleBorder(borderRadius: RaddRadius.mdRadius),
+        title: Text('Disable App Lock',
+            style: TextStyle(color: t.textPrimary, fontWeight: FontWeight.w700)),
+        content: Text(
+            'Anyone with your phone will be able to open the app without a PIN.',
+            style: TextStyle(color: t.textSecondary, height: 1.5)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel', style: TextStyle(color: t.textMuted))),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('Disable',
+                  style: TextStyle(
+                      color: context.accentError,
+                      fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (ok != true) {
+      // Cancelled — revert the toggle back to ON (PIN still exists).
+      setState(() => _appLockEnabled = true);
+      return;
+    }
+    await AppLockService.removePin();
+    await AppLockService.setFlagSecure(false);
+    if (mounted) {
+      setState(() { _appLockEnabled = false; _appLockBiometric = false; });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('App lock disabled')),
+      );
+    }
+  }
+
+  Future<void> _changeAppLockPin() async {
+    // Remove FLAG_SECURE briefly so the user can see what they type.
+    await AppLockService.setFlagSecure(false);
+    final ok = await Navigator.of(context).push<bool>(AppLockChangePinScreen.route());
+    if (!mounted) return;
+    if (_appLockEnabled) await AppLockService.setFlagSecure(true);
+    if (ok == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PIN changed')),
+      );
+    }
+  }
+
+  Future<void> _toggleAppLockBiometric(bool v) async {
+    await AppLockService.setBiometricEnabled(v);
+    if (mounted) setState(() => _appLockBiometric = v);
+  }
+
+  Future<void> _selectAppLockTimeout() async {
+    final t = RaddTheme.of(context);
+    const options = [
+      (0,   'Immediately'),
+      (30,  'After 30 seconds'),
+      (60,  'After 1 minute'),
+      (300, 'After 5 minutes'),
+      (-1,  'Never'),
+    ];
+    final selected = await showDialog<int>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: t.card,
+        shape: RoundedRectangleBorder(borderRadius: RaddRadius.mdRadius),
+        title: Text('Auto-lock After',
+            style: TextStyle(
+                color: t.textPrimary, fontWeight: FontWeight.w700)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options.map((opt) => RadioListTile<int>(
+            value: opt.$1,
+            groupValue: _appLockTimeout,
+            activeColor: context.signalPrimary,
+            title: Text(opt.$2,
+                style: TextStyle(color: t.textPrimary, fontSize: 14)),
+            onChanged: (v) => Navigator.pop(context, v),
+          )).toList(),
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    await AppLockService.setAutoLockTimeout(selected);
+    setState(() => _appLockTimeout = selected);
   }
 
   @override
@@ -348,6 +484,77 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(height: RaddSpace.lg),
 
+                // ── App Lock ────────────────────────────────────────────────
+                _SettingsSection(
+                  t: t,
+                  animConfig: animConfig,
+                  title: 'App Lock',
+                  sectionIcon: AppIcons.lock,
+                  sectionIconColor: context.signalPrimary,
+                  staggerIndex: 5,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RaddSpace.md),
+                      child: SettingsRow(
+                        icon: AppIcons.lock,
+                        label: 'Enable App Lock',
+                        subtitle:
+                            'Require PIN or biometric to open the app',
+                        trailing: SettingsRowTrailing.switchControl,
+                        switchValue: _appLockEnabled,
+                        iconColor: context.signalPrimary,
+                        onSwitchChanged: (v) =>
+                            v ? _enableAppLock() : _disableAppLock(),
+                      ),
+                    ),
+                    if (_appLockEnabled) ...[
+                      _divider(t),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: RaddSpace.md),
+                        child: SettingsRow(
+                          icon: AppIcons.shield,
+                          label: 'Change PIN',
+                          subtitle: 'Update your app lock PIN',
+                          onTap: _changeAppLockPin,
+                          iconColor: context.signalPrimary,
+                        ),
+                      ),
+                      if (_appLockBioAvail) ...[
+                        _divider(t),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: RaddSpace.md),
+                          child: SettingsRow(
+                            icon: AppIcons.fingerprint,
+                            label: 'Biometric Unlock',
+                            subtitle:
+                                'Use fingerprint or face to unlock',
+                            trailing: SettingsRowTrailing.switchControl,
+                            switchValue: _appLockBiometric,
+                            iconColor: context.signalPrimary,
+                            onSwitchChanged: _toggleAppLockBiometric,
+                          ),
+                        ),
+                      ],
+                      _divider(t),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: RaddSpace.md),
+                        child: SettingsRow(
+                          icon: AppIcons.timerIcon,
+                          label: 'Auto-lock After',
+                          subtitle: _timeoutLabel(_appLockTimeout),
+                          onTap: _selectAppLockTimeout,
+                          iconColor: context.signalPrimary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: RaddSpace.lg),
+
                 // ── About ───────────────────────────────────────────────────
                 _SettingsSection(
                   t: t,
@@ -355,7 +562,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: 'About',
                   sectionIcon: AppIcons.info,
                   sectionIconColor: t.textMuted,
-                  staggerIndex: 5,
+                  staggerIndex: 6,
                   children: [
                     // Version pill row
                     Padding(

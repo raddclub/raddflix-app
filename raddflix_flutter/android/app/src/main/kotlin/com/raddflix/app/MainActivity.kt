@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Rational
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -385,6 +386,16 @@ class MainActivity : FlutterActivity() {
                             "/data/local/xbin/su"
                         )
                         result.success(suPaths.any { java.io.File(it).exists() })
+                    }
+                    // App-lock FLAG_SECURE toggle.
+                    // Hides app content from the recents thumbnail and blocks
+                    // screenshots while the lock screen is covering the UI.
+                    // Called by AppLockService.setFlagSecure(bool) via Dart.
+                    "setFlagSecure" -> {
+                        val on = call.argument<Boolean>("enabled") ?: true
+                        if (on) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                        else    window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                        result.success(null)
                     }
                     else -> result.notImplemented()
                 }

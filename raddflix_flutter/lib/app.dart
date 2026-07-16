@@ -39,6 +39,8 @@ import 'core/services/app_update_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'core/debug/debug_logger.dart';
 import 'providers/app_navigation_provider.dart';
+import 'services/app_lock_service.dart';
+import 'screens/app_lock_screen.dart';
 
 /// Logs every Navigator push / pop / replace to DebugLogger.
 /// Registered in MaterialApp.navigatorObservers so ALL screens are covered.
@@ -199,7 +201,7 @@ class RaddFlixApp extends ConsumerWidget {
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.0)),
-          child: _ForceUpdateGuard(child: child!),
+          child: _AppLockGuard(child: _ForceUpdateGuard(child: child!)),
         );
       },
     );
@@ -371,6 +373,80 @@ class _ForceUpdateScreen extends StatelessWidget {
   }
 }
 
+
+// ── App lock guard — renders AppLockScreen over all content while locked ───────
+//
+// Sits between MediaQuery and _ForceUpdateGuard in the MaterialApp builder so
+// it covers 100 % of the screen regardless of which route is active.
+// WidgetsBindingObserver drives the lock/unlock lifecycle automatically.
+class _AppLockGuard extends StatefulWidget {
+  final Widget child;
+  const _AppLockGuard({required this.child});
+  @override
+  State<_AppLockGuard> createState() => _AppLockGuardState();
+}
+
+class _AppLockGuardState extends State<_AppLockGuard>
+    with WidgetsBindingObserver {
+  bool _pinSet = false;
+  bool _locked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _init();
+  }
+
+  Future<void> _init() async {
+    // Populate _cachedTimeout before the first lifecycle event fires.
+    await AppLockService.warmCache();
+    final pinSet = await AppLockService.hasPin();
+    if (!mounted) return;
+    if (pinSet) {
+      AppLockService.lock(); // always lock on cold start if a PIN is configured
+      setState(() { _pinSet = true; _locked = true; });
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      AppLockService.onAppPaused();
+    } else if (state == AppLifecycleState.resumed) {
+      _handleResumed();
+    }
+  }
+
+  Future<void> _handleResumed() async {
+    // Re-check hasPin() here — the user may have added or removed their PIN
+    // since the guard was first initialised (e.g. in the Settings screen).
+    final pinSet    = await AppLockService.hasPin();
+    final shouldLock = AppLockService.onAppResumed();
+    if (!mounted) return;
+    if (pinSet && shouldLock) {
+      setState(() { _pinSet = true; _locked = true; });
+    } else if (!pinSet) {
+      setState(() { _pinSet = false; _locked = false; });
+    }
+  }
+
+  void _onUnlocked() => setState(() => _locked = false);
+
+  @override
+  Widget build(BuildContext context) {
+    if (_locked && _pinSet) {
+      return AppLockScreen(onUnlocked: _onUnlocked);
+    }
+    return widget.child;
+  }
+}
 
 // ── Route loader: opens PlayerSettingsScreen with persisted prefs ─────────────
 class _PlayerSettingsLoader extends StatelessWidget {
