@@ -560,19 +560,20 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
           _buildTabBar(),
           if (_searching) _buildSearchBar(),
           Expanded(
-            child: _permissionDenied
-                ? _buildPermissionError()
-                : TabBarView(
-                    controller: _tabController,
-                    // Disable swipe — the folder list and track list are horizontal
-                    // scroll containers themselves; swipe-to-switch tabs would
-                    // conflict and mis-fire constantly while scrolling content.
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      _buildVideosTab(),
-                      _buildMusicTab(),
-                    ],
-                  ),
+            // _permissionDenied (video) is handled inside _buildVideosTab() so
+            // it does not mask the Music tab on API 33+ devices that granted
+            // READ_MEDIA_AUDIO but denied READ_MEDIA_VIDEO.
+            child: TabBarView(
+              controller: _tabController,
+              // Disable swipe — the folder list and track list are horizontal
+              // scroll containers themselves; swipe-to-switch tabs would
+              // conflict and mis-fire constantly while scrolling content.
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                _buildVideosTab(),
+                _buildMusicTab(),
+              ],
+            ),
           ),
         ]),
       ),
@@ -729,6 +730,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
 
   // ── Videos tab ─────────────────────────────────────────────────────────────
   Widget _buildVideosTab() {
+    if (_permissionDenied) return _buildPermissionError();
     if (_loading) return _buildShimmer();
     if (_videoFolders.isEmpty) return _buildEmpty(isMusic: false);
     return Column(children: [
