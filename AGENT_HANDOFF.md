@@ -5,7 +5,13 @@
 
 ---
 
-## Current State (2026-07-16 — PLANS-ADMIN-FIX: admin panel plans, features_json, TID DB lookup)
+## Current State (2026-07-16 — PLANS-NO-JS-FIX: replaced JS modal with server-rendered form pages)
+
+JS modal approach for create/edit was still failing after the previous fix — browser-side JavaScript blocking (extension or policy) prevented the modal from opening and setting the form's `action`. Replaced the entire modal with dedicated server-rendered pages (`GET /plans/new`, `GET /plans/<id>/edit_form`) so zero JavaScript is required for any CRUD operation. Edit buttons and Add New Plan card are now plain `<a>` links. Deployed as `e1cb9da3`. All four plans CRUD operations confirmed working server-side.
+
+---
+
+## Previous State (2026-07-16 — PLANS-ADMIN-FIX: admin panel plans, features_json, TID DB lookup)
 
 Four backend bugs fixed and deployed to Oracle in commit `b545d78b`. No Flutter changes. No new packages.
 

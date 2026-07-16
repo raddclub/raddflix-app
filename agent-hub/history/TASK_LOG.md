@@ -1014,3 +1014,23 @@ Admin reported that clicking ✏ Edit on any plan card did nothing, and after su
 
 ### Audit — Other Panels
 Grepped all route files for `onclick.*tojson` pattern — only `plans_panel.py` had this bug. Analytics uses `tojson` only inside `<script>` blocks (correct). No other panels affected.
+
+---
+
+## PLANS-NO-JS-FIX — 2026-07-16 — commit `e1cb9da3`
+
+**Problem:** Plans admin create/edit still not working after PLANS-FORM-FIX. The JS-based modal approach (integer onclick + _PLANS map) was correctly deployed and verified via curl — server was serving the right HTML — but admin reported no change. Diagnosis: the entire create/edit flow depended on inline JavaScript running to (a) open the modal and (b) set the form's `action` attribute at click time. If anything blocks JS execution (browser extension, security policy, mid-page JS error), the form has no `action` attribute and silently POSTs to the current page URL (`/plans/`) which returns 405, appearing to do nothing.
+
+**Root cause:** Architecture depended on JS for both UI visibility and form routing. No JS = no modal = no working forms.
+
+**Fix applied to `radd-hub/hub/routes/plans_panel.py`:**
+- Removed the JS modal entirely
+- Added `GET /plans/new` route → server-rendered full-page create form (POSTs to `/plans/create`)
+- Added `GET /plans/<id>/edit_form` route → server-rendered full-page edit form, data fetched from DB server-side, pre-filled (POSTs to `/plans/<id>/edit`)
+- "Add New Plan" card changed from `onclick="openModal()"` div → `<a href="/plans/new">` link
+- Edit buttons changed from `onclick="editPlan(id)"` → `<a href="/plans/X/edit_form">` link
+- Success feedback changed from JS toast (requires JS) → `?ok=` query param rendered as a green server-side banner on the index page
+- Color picker uses `<input type="radio">` + CSS label trick — no JS needed
+- Toggle and Delete unchanged (already direct POST forms, working fine)
+
+**Result:** Zero JavaScript required for any CRUD operation. Works in any browser regardless of extensions or JS policy. Verified via curl: `/plans/new` renders 47 KB form page with `action="/plans/create"`. `/plans/1/edit_form` renders pre-filled form with `action="/plans/1/edit"` and `value="Starter"` etc.
