@@ -1034,3 +1034,26 @@ Grepped all route files for `onclick.*tojson` pattern — only `plans_panel.py` 
 - Toggle and Delete unchanged (already direct POST forms, working fine)
 
 **Result:** Zero JavaScript required for any CRUD operation. Works in any browser regardless of extensions or JS policy. Verified via curl: `/plans/new` renders 47 KB form page with `action="/plans/create"`. `/plans/1/edit_form` renders pre-filled form with `action="/plans/1/edit"` and `value="Starter"` etc.
+
+---
+
+## 2026-07-16 — Y1 PLAYER-VAULT-BUGFIX-BATCH
+
+**Commit:** `459244b5` | **Files:** `_ps_ui_mixin.dart`, `vault_service.dart`, `vault_screen.dart` | **CI:** ✅ green
+
+### Problems (reported from APK testing)
+5 bugs found in the latest APK build.
+
+### Fixes Applied
+
+**1 — Duplicate reload icon in player header**
+`_ps_ui_mixin.dart` had a "Replay from start" `_RaddIconBtn(Icons.replay_rounded)` sitting directly in the title bar row next to the battery badge and clock. The transport controls row has its own `replay_rounded` skip-back button — identical icon, different function, looked like a duplicate to users. Removed the title-bar instance; the transport row skip-back remains untouched.
+
+**2 — BG Audio shortcut missing from sidebar**
+`_backgroundAudio` / `pref_bgaudio` existed in player state and prefs but was never wired into the customizable sidebar shortcut system. Added `'bgaudio'` entry to the `defs` map in `_buildSidebar` — toggles `_backgroundAudio`, calls `_scheduleSavePrefs()`. Icon: `music_note_rounded` (active) / `music_off_rounded` (inactive).
+
+**3 & 4 — Vault file still visible in file managers after add + no ghost cleanup on restore**
+Root cause: `restoreFileToDownloads` deleted the vault source file but never called `notifyMediaStore(vaultPath)` — MediaStore kept a stale entry pointing to the now-deleted vault path, which file managers showed as a ghost. Fixed: added `await notifyMediaStore(vaultPath)` immediately after the delete in `restoreFileToDownloads`.
+
+**5 — Restore always goes to Downloads, creates duplicate**
+Root cause: vault never stored where a file came from. Added a `.raddmeta` sidecar file alongside each vault entry on import (both `moveFileToVault` and `moveFilesToVaultBatch`) containing the original filesystem path. New `restoreToOriginal()` method reads the sidecar; if the original directory still exists, copies back there; otherwise falls back to Downloads. `vault_screen._restoreToGallery` now calls `restoreToOriginal` and shows "Restored to original folder" or "Restored to Downloads folder" accordingly. Sidecar files are filtered out of `listFiles` (`.raddmeta` suffix skip) and cleaned up on `deleteVaultFile`.

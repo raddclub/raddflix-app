@@ -5,7 +5,20 @@
 
 ---
 
-## Current State (2026-07-16 — PLANS-NO-JS-FIX: replaced JS modal with server-rendered form pages)
+## Current State (2026-07-16 — Y1: player UI + vault bug-fix batch, CI ✅ `459244b5`)
+
+Five bugs found in APK testing, all fixed in one commit:
+1. **Duplicate reload icon** — "Replay from start" `_RaddIconBtn` was sitting in the title bar next to battery/clock; removed it. The skip-back button in the transport row is the only replay icon now.
+2. **BG Audio shortcut missing** — added `'bgaudio'` to `_buildSidebar` defs; toggles background audio and persists with `_scheduleSavePrefs()`.
+3. **Vaulted files still visible in file managers** — `restoreFileToDownloads` was deleting the vault source file but not calling `notifyMediaStore(vaultPath)`, leaving a stale MediaStore ghost. Fixed.
+4. **Restore creates duplicate** — same root cause as #3; the ghost entry persisted alongside the newly restored Downloads entry. Fixed by the same `notifyMediaStore(vaultPath)` call.
+5. **Restore always goes to Downloads** — vault never stored original path. Added `.raddmeta` sidecar on every import (`moveFileToVault` + `moveFilesToVaultBatch`). New `restoreToOriginal()` reads the sidecar and returns the file to its original folder, falling back to Downloads if the folder is gone. `listFiles` skips `.raddmeta` files; `deleteVaultFile` cleans them up.
+
+No Oracle or backend changes this session.
+
+---
+
+## Previous State (2026-07-16 — PLANS-NO-JS-FIX: replaced JS modal with server-rendered form pages)
 
 JS modal approach for create/edit was still failing after the previous fix — browser-side JavaScript blocking (extension or policy) prevented the modal from opening and setting the form's `action`. Replaced the entire modal with dedicated server-rendered pages (`GET /plans/new`, `GET /plans/<id>/edit_form`) so zero JavaScript is required for any CRUD operation. Edit buttons and Add New Plan card are now plain `<a>` links. Deployed as `e1cb9da3`. All four plans CRUD operations confirmed working server-side.
 
