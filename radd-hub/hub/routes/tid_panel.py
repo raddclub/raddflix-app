@@ -322,12 +322,22 @@ def approve(payment_id: int):
     plan          = payment["plan"]
     user_id       = payment["user_id"]
     phone         = payment["phone"]
-    duration_days = PLAN_DURATIONS.get(plan, 30)
+
+    # ── Look up plan from DB for duration + expected price ──────────────────
+    # Falls back to hardcoded defaults only if the plan name isn't found in DB
+    # (e.g. legacy subscriptions created before plans were added to the DB).
+    with db.conn() as c:
+        plan_row = c.execute(
+            "SELECT duration_days, price_pkr FROM plans WHERE LOWER(name)=LOWER(?) AND is_active=1 LIMIT 1",
+            (plan,)
+        ).fetchone()
+    duration_days = plan_row["duration_days"] if plan_row else PLAN_DURATIONS.get(plan, 30)
+    db_price      = plan_row["price_pkr"]     if plan_row else None
 
     # ── SMS Amount validation ───────────────────────────────────────────────
     # If the admin hasn't force-confirmed, warn them if amount doesn't match plan price.
     amount_pkr    = dict(payment).get("amount_pkr")
-    expected_price = PLAN_PRICES.get(plan)
+    expected_price = db_price if db_price is not None else PLAN_PRICES.get(plan)
     force_approve  = request.form.get("force_approve") == "1"
     if (not force_approve and amount_pkr is not None and expected_price is not None):
         try:

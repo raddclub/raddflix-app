@@ -646,6 +646,33 @@ def init_db() -> None:
             c.execute("INSERT OR IGNORE INTO settings(k,v) VALUES('sms_gateway_key',?)",
                       (_sec.token_hex(24),))
 
+    # ── Seed default subscription plans if table is empty ───────────────────
+    # These match the hardcoded fallback in mobile_api.py /api/subscription/plans.
+    # Once seeded the admin can edit/add/remove plans freely via /plans/.
+    import json as _json
+    _default_plans = [
+        ("Starter",  150, 10.0,  1, 30, "#E8002D",
+         _json.dumps(["Zero-data streaming", "HD quality", "All content"]),           ""),
+        ("Basic",    250, 30.0,  1, 30, "#7C5CFF",
+         _json.dumps(["Zero-data streaming", "HD 720p quality", "All content"]),      "POPULAR"),
+        ("Standard", 400, 60.0,  1, 30, "#2563EB",
+         _json.dumps(["Zero-data streaming", "Full HD 1080p", "All content"]),        "BEST VALUE"),
+        ("Premium",  700, 100.0, 2, 30, "#22C55E",
+         _json.dumps(["Zero-data streaming", "Full HD 1080p", "All content", "2 devices"]), ""),
+    ]
+    with _lock, _conn() as c:
+        existing = c.execute("SELECT COUNT(*) AS n FROM plans").fetchone()["n"]
+        if existing == 0:
+            _now = int(time.time())
+            for _name, _price, _gb, _devs, _days, _color, _feats, _badge in _default_plans:
+                c.execute(
+                    """INSERT OR IGNORE INTO plans
+                       (name,price_pkr,monthly_limit_gb,max_devices,duration_days,
+                        color,features_json,badge,is_active,created_at)
+                       VALUES(?,?,?,?,?,?,?,?,1,?)""",
+                    (_name, _price, _gb, _devs, _days, _color, _feats, _badge, _now)
+                )
+
     # Run schema check at startup — logs WARNING for any missing critical columns.
     validate_schema()
 
@@ -1520,7 +1547,8 @@ def list_plans(active_only: bool = True) -> list:
 def upsert_plan(rec: dict) -> int:
     now = int(time.time())
     cols = ["name","price_pkr","daily_limit_gb","monthly_limit_gb",
-            "max_devices","duration_days","description","is_active"]
+            "max_devices","duration_days","description","badge","color",
+            "features_json","is_active"]
     vals = [rec.get(c) for c in cols]
     with _lock, _conn() as c:
         existing = None

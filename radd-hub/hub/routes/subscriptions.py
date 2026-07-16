@@ -8,8 +8,6 @@ from hub.auth import login_required
 log = logging.getLogger("hub.subscriptions")
 bp = Blueprint("subscriptions", __name__, url_prefix="/subscriptions")
 
-PLAN_DURATIONS = {"basic": 30, "standard": 30, "premium": 30}
-
 _HTML = """
 {% extends "base.html" %}
 {% set active="subscriptions" %}
