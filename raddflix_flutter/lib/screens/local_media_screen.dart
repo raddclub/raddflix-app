@@ -1448,7 +1448,7 @@ class _FolderListTile extends StatelessWidget {
                 ]),
               ],
             )),
-            Icon(AppIcons.chevronRight, color: t.textMuted, size: 16),
+            Icon(AppIcons.caretRight, color: t.textMuted, size: 16),
           ]),
         ),
       ),
