@@ -5,7 +5,31 @@
 
 ---
 
-## Current State (2026-07-15 — Vault UX Fixes: Restore + MediaStore + Progress + Unlock Gate)
+## Current State (2026-07-16 — APP-LOCK: full app PIN / biometric gate)
+
+Full app-level lock implemented in commit `11950d5e`. No new pub packages — `flutter_secure_storage`, `local_auth`, `shared_preferences`, `crypto` were already in `pubspec.yaml`.
+
+**5 files changed:**
+
+1. **`lib/services/app_lock_service.dart`** (new) — standalone service, independent of `VaultService`. SHA-256 + salt `raddflix_app_lock_salt_` PIN hash stored under key `app_lock_pin_hash` in `FlutterSecureStorage`. `onAppPaused()` records `_pausedAt`; `onAppResumed() → bool` compares elapsed time against cached timeout (0=immediately, -1=never, >0=seconds). `authenticateBiometric()` mirrors the Infinix/MediaTek Class 2 fix from VaultService (uses `getAvailableBiometrics()` not `canCheckBiometrics`). `setFlagSecure(bool)` calls `com.raddflix.app/security` channel.
+
+2. **`lib/screens/app_lock_screen.dart`** (new) — three widgets in one file: `AppLockScreen` (overlay, `PopScope(canPop:false)`, auto-triggers biometric on open), `AppLockSetupScreen` (2-step route, returns bool), `AppLockChangePinScreen` (3-step: verify old → enter new → confirm new, returns bool). All use `RaddLockPad` with `RaddLockPadAccent.standard`.
+
+3. **`lib/app.dart`** — new `_AppLockGuard` StatefulWidget + WidgetsBindingObserver inserted in `MaterialApp.builder` between MediaQuery and `_ForceUpdateGuard`. Locks on cold start (always, if PIN set). `_handleResumed()` re-checks `hasPin()` on every resume so enabling/disabling PIN in Settings takes effect without re-init.
+
+4. **`lib/screens/settings_screen.dart`** — new "App Lock" section (staggerIndex 5; About shifted to 6). Rows: Enable toggle (setup on first enable, confirmation dialog on disable), Change PIN (temporarily removes FLAG_SECURE during entry), Biometric toggle (hidden if unavailable), Auto-lock After selector (RadioListTile dialog: immediately / 30s / 1min / 5min / never). Toggle optimistically updates then reverts if action is cancelled.
+
+5. **`android/app/src/main/kotlin/…/MainActivity.kt`** — added `import android.view.WindowManager` and `"setFlagSecure"` case to `SECURITY_CHANNEL`: `window.addFlags` / `clearFlags(WindowManager.LayoutParams.FLAG_SECURE)`.
+
+**Key design decisions:**
+- Lock screen is an overlay widget (replaces child in builder), NOT a pushed route — always covers 100 % of screen regardless of which route is active, no race conditions with Navigator readiness.
+- App lock PIN and vault PIN are fully independent: different SecureStorage keys, different salts, different services.
+- FLAG_SECURE is cleared before PIN setup/change screens open so digits are visible; restored on pop.
+- Auto-lock "Never" (-1): `onAppResumed()` returns false, so lock screen never shows after first unlock that session.
+
+---
+
+## Previous State (2026-07-15 — Vault UX Fixes: Restore + MediaStore + Progress + Unlock Gate)
 
 Four vault bugs found and fixed in commits `4c3c2574` + `b91768e4` (CI ✅ green):
 

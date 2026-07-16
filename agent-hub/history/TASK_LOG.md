@@ -13,11 +13,24 @@
 | Month | File | Sessions |
 |---|---|---|
 | June 2026 | [`2026-06.md`](2026-06.md) | 34 |
-| July 2026 | [`2026-07.md`](2026-07.md) | 14 |
+| July 2026 | [`2026-07.md`](2026-07.md) | 15 |
 
 ---
 
 ## Session index (title only — full detail in the linked archive)
+
+### July 2026 — Session 17 (2026-07-16) — APP-LOCK (full app PIN/biometric gate)
+
+**Task:** APP-LOCK-2026-07-16 — whole-app PIN/biometric lock, independent of the vault PIN.
+Five files changed in commit `11950d5e`. No new pub packages — all dependencies already present.
+
+Key decisions:
+- `_AppLockGuard` inserted in `MaterialApp.builder` as a `StatefulWidget + WidgetsBindingObserver` — overlays `AppLockScreen` widget (not a route push) when `_locked && _pinSet`, covering 100 % of the screen regardless of active route.
+- Cold start: `_AppLockGuard._init()` always calls `AppLockService.lock()` if a PIN is set, so every fresh launch requires authentication.
+- Resumed-from-background: `_handleResumed()` re-checks `hasPin()` on every resume, so enabling/disabling PIN in Settings is always reflected without needing the guard to re-init.
+- `FLAG_SECURE` added to existing `SECURITY_CHANNEL` in `MainActivity.kt` (+ `import android.view.WindowManager`). Toggled on PIN enable, cleared on PIN remove. Also temporarily cleared while setup/change PIN screens are open so digits are visible.
+- Settings screen: App Lock section (staggerIndex 5, About bumped to 6) with enable toggle, Change PIN, Biometric toggle (hidden if device has no biometrics), and Auto-lock After dialog (RadioListTile: immediately/30s/1min/5min/never).
+- `app_lock_screen.dart` contains three widgets: `AppLockScreen` (overlay), `AppLockSetupScreen` (setup route), `AppLockChangePinScreen` (change-PIN route, 3-step: verify old → enter new → confirm new).
 
 ### July 2026 — Session 16 (2026-07-15) — UX-BATCH-2 (Tasks 7-9: empty state consistency, shared-element transitions on Watchlist/History, miniplayer bar replacing Home-only ResumeFab; CI green)
 
