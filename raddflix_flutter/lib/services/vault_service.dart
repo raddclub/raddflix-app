@@ -323,8 +323,12 @@ class VaultService {
     await for (final entity in scanDir.list(followLinks: false)) {
       final name = p.basename(entity.path);
       if (name.startsWith('.')) continue;
+      if (name.endsWith('.raddmeta')) continue; // sidecar metadata, not a vault entry
       if (entity is Directory) {
-        final count = entity.listSync().where((f) => !p.basename(f.path).startsWith('.')).length;
+        final count = entity.listSync().where((f) {
+          final n = p.basename(f.path);
+          return !n.startsWith('.') && !n.endsWith('.raddmeta');
+        }).length;
         results.add(VaultFile(
           name: name, path: entity.path, isFolder: true,
           fileCount: count, size: 0,
@@ -343,6 +347,21 @@ class VaultService {
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
     return results;
+  }
+
+  /// Path of the sidecar file that records a vault file's original location.
+  static String _metaPath(String vaultFilePath) => '$vaultFilePath.raddmeta';
+
+  /// Read the original filesystem path stored alongside a vault file.
+  /// Returns null if no sidecar exists (older vault file without this metadata).
+  static Future<String?> readOriginalPath(String vaultPath) async {
+    try {
+      final meta = File(_metaPath(vaultPath));
+      if (!meta.existsSync()) return null;
+      return meta.readAsStringSync().trim();
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Move [sourcePath] (a local file path, typically a FilePicker cache copy
@@ -372,6 +391,8 @@ class VaultService {
     // On Android 11+ this is a no-op (temp-cache path not in MediaStore),
     // but the deleteFromMediaStore() call in vault_screen.dart handles that.
     await notifyMediaStore(sourcePath);
+    // Record original path so Restore can return the file to its source location.
+    try { await File(_metaPath(dest.path)).writeAsString(sourcePath); } catch (_) {}
   }
 
   /// Batch version of [moveFileToVault] optimised for large folders.
@@ -416,6 +437,8 @@ class VaultService {
             await src.copy(dest.path);
             if (await src.exists()) await src.delete();
           }
+          // Record original path for Restore.
+          try { await File(_metaPath(dest.path)).writeAsString(srcPath); } catch (_) {}
         } catch (_) {
           // Isolate per-file failures — one bad file must not abort the batch.
         }
@@ -451,6 +474,8 @@ class VaultService {
   static Future<void> deleteVaultFile(String path) async {
     final f = File(path);
     if (f.existsSync()) await f.delete();
+    final meta = File(_metaPath(path));
+    if (meta.existsSync()) await meta.delete();
   }
 
   static Future<void> createFolder(String name) async {
@@ -494,11 +519,43 @@ class VaultService {
     // Copy succeeded — now safe to delete the vault original
     final src = File(vaultPath);
     if (await src.exists()) await src.delete();
-    // For legacy path-based result (API < 29), trigger a MediaStore scan so the
+    // Remove any stale MediaStore entry pointing to the now-deleted vault path —
+    // without this, file managers show a ghost entry until the next full scan.
+    await notifyMediaStore(vaultPath);
+    // For legacy path-based result (API < 29), also scan the destination so the
     // file shows up in gallery/file-manager immediately.
     if (!dest.startsWith('content://')) {
       await notifyMediaStore(dest);
     }
+  }
+
+  /// Restore a vault file to its original location (if known) or Downloads.
+  ///
+  /// Returns 'original' if the file was returned to its source folder,
+  /// or 'downloads' if it was placed in the public Downloads folder instead.
+  static Future<String> restoreToOriginal(String vaultPath) async {
+    final originalPath = await readOriginalPath(vaultPath);
+    if (originalPath != null) {
+      final originalDir = Directory(p.dirname(originalPath));
+      if (originalDir.existsSync()) {
+        final filename = p.basename(vaultPath);
+        final dest = File(p.join(originalDir.path, filename));
+        final src = File(vaultPath);
+        await src.copy(dest.path);
+        await src.delete();
+        final meta = File(_metaPath(vaultPath));
+        if (meta.existsSync()) await meta.delete();
+        // Notify MediaStore: register restored file + remove stale vault entry.
+        await notifyMediaStore(dest.path);
+        await notifyMediaStore(vaultPath);
+        return 'original';
+      }
+    }
+    // Original dir unknown or gone — fall back to Downloads.
+    await restoreFileToDownloads(vaultPath);
+    final meta = File(_metaPath(vaultPath));
+    if (meta.existsSync()) await meta.delete();
+    return 'downloads';
   }
 
   static Future<void> changePin(String oldPin, String newPin) async {

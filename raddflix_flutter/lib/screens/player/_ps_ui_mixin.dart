@@ -1145,13 +1145,6 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                 ),
               ),
 
-            // Replay from start
-            _RaddIconBtn(
-              icon: Icons.replay_rounded,
-              size: 20,
-              onTap: () => _player.seek(Duration.zero),
-            ),
-
             // Battery HUD (icon + % + charging pulse) — mirrors the device
             // status bar so viewers can track charge without leaving the video.
             _buildBatteryBadge(),
@@ -1639,6 +1632,16 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
           active: false,
           available: true,
           onTap: _openMoreMenu,
+        ),
+        'bgaudio': (
+          icon: _backgroundAudio ? Icons.music_note_rounded : Icons.music_off_rounded,
+          label: 'BG Audio',
+          active: _backgroundAudio,
+          available: true,
+          onTap: () {
+            setState(() => _backgroundAudio = !_backgroundAudio);
+            _scheduleSavePrefs();
+          },
         ),
       };
 

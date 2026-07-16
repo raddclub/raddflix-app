@@ -467,14 +467,17 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
           ),
         ).ignore();
       }
-      await VaultService.restoreFileToDownloads(f.path);
+      final restoreDest = await VaultService.restoreToOriginal(f.path);
       if (dialogOpen && mounted) {
         Navigator.of(context, rootNavigator: true).pop();
         dialogOpen = false;
       }
       if (mounted) {
+        final msg = restoreDest == 'original'
+            ? 'Restored to original folder'
+            : 'Restored to Downloads folder';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text('Restored to Downloads folder'),
+          content: Text(msg),
           backgroundColor: t.surface,
         ));
         await _load();
