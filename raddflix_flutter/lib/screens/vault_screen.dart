@@ -107,9 +107,7 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
       ),
     );
     if (ok != true) return;
-    for (final path in _selected) {
-      await VaultService.deleteVaultFile(path);
-    }
+    await Future.wait(_selected.map(VaultService.deleteVaultFile));
     HapticFeedback.mediumImpact();
     setState(() { _selected.clear(); _selectMode = false; });
     await _load();
@@ -544,11 +542,14 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
 
       int moved = 0;
       try {
-        for (final f in videoFiles) {
-          await VaultService.moveFileToVault(f.path, folder: folder);
-          moved++;
-          progress.value = moved;
-        }
+        await VaultService.moveFilesToVaultBatch(
+          videoFiles.map((f) => f.path).toList(),
+          folder: folder,
+          onProgress: (done, _) {
+            moved = done;
+            progress.value = done;
+          },
+        );
       } finally {
         progress.dispose();
         if (mounted) {
@@ -571,10 +572,24 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
 
   Future<void> _processPickedFiles(List<PlatformFile> files) async {
     if (files.isEmpty) return;
-    int imported = 0; bool hadBytesOnly = false;
+    int imported = 0;
+    bool hadBytesOnly = false;
     final contentUris = <String>[];
+    final paths       = <String>[];
     final folder = widget.folderPath != null ? widget.folderPath!.split('/').last : null;
-    final total = files.length;
+
+    // Separate path-backed files from bytes-only entries (sync, instant).
+    for (final file in files) {
+      if (file.path != null) {
+        paths.add(file.path!);
+        final uri = file.identifier;
+        if (uri != null && uri.isNotEmpty) contentUris.add(uri);
+      } else {
+        hadBytesOnly = true;
+      }
+    }
+
+    final total    = paths.length;
     final progress = ValueNotifier<int>(0);
 
     if (!mounted) { progress.dispose(); return; }
@@ -589,16 +604,14 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
     ).ignore();
 
     try {
-      for (final file in files) {
-        final src = file.path;
-        if (src != null) {
-          await VaultService.moveFileToVault(src, folder: folder);
-          final uri = file.identifier;
-          if (uri != null && uri.isNotEmpty) contentUris.add(uri);
-          imported++;
-        } else { hadBytesOnly = true; }
-        progress.value = imported;
-      }
+      await VaultService.moveFilesToVaultBatch(
+        paths,
+        folder: folder,
+        onProgress: (done, _) {
+          imported = done;
+          progress.value = done;
+        },
+      );
       if (contentUris.isNotEmpty) await VaultService.deleteFromMediaStore(contentUris);
     } finally {
       progress.dispose();

@@ -416,23 +416,21 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
       ),
     ).ignore();
 
+    // Pre-collect MediaStore content URIs (sync, instant) before the batch move.
+    final contentUris = <String>[
+      for (final v in videos)
+        if (v.id > 0) 'content://media/external/video/media/${v.id}',
+    ];
+
     int count = 0;
-    final contentUris = <String>[];
     try {
-      for (final v in videos) {
-        try {
-          await VaultService.moveFileToVault(v.filePath);
-          // Build the MediaStore content URI from the video's _ID so file
-          // managers (Mi File Manager, Files by Google) and MX Player stop
-          // showing the entry immediately after the move. Without this call,
-          // the MediaStore record stays even though the file is gone.
-          if (v.id > 0) {
-            contentUris.add('content://media/external/video/media/${v.id}');
-          }
-          count++;
-          progress.value = count;
-        } catch (_) {}
-      }
+      await VaultService.moveFilesToVaultBatch(
+        videos.map((v) => v.filePath).toList(),
+        onProgress: (done, _) {
+          count = done;
+          progress.value = done;
+        },
+      );
       if (contentUris.isNotEmpty) {
         await VaultService.deleteFromMediaStore(contentUris);
       }

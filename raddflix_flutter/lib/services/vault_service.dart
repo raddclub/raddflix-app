@@ -374,6 +374,63 @@ class VaultService {
     await notifyMediaStore(sourcePath);
   }
 
+  /// Batch version of [moveFileToVault] optimised for large folders.
+  ///
+  /// Improvements over calling [moveFileToVault] in a serial loop:
+  ///   1. Target directory resolved ONCE — eliminates N × [getVaultFolder] calls.
+  ///   2. Files moved in parallel chunks of [_kMoveConcurrency] — removes the
+  ///      serial-await bottleneck; on the same filesystem each rename is ~0 ms.
+  ///   3. [notifyMediaStore] fired concurrently for all paths at the end instead
+  ///      of one blocking IPC round-trip per file.
+  ///
+  /// Per-file errors are swallowed so a single bad file never aborts the batch.
+  /// [onProgress] is called after each chunk with (done, total).
+  static const int _kMoveConcurrency = 4;
+
+  static Future<void> moveFilesToVaultBatch(
+    List<String> sourcePaths, {
+    String? folder,
+    void Function(int done, int total)? onProgress,
+  }) async {
+    if (sourcePaths.isEmpty) return;
+    final total = sourcePaths.length;
+
+    // ── 1. Resolve target directory once ────────────────────────────────────
+    final targetDir = folder != null
+        ? await getVaultFolder(folder)
+        : await getVaultDir();
+
+    // ── 2. Parallel file moves in chunks ────────────────────────────────────
+    int done = 0;
+    for (int i = 0; i < total; i += _kMoveConcurrency) {
+      final end   = (i + _kMoveConcurrency).clamp(0, total);
+      final chunk = sourcePaths.sublist(i, end);
+      await Future.wait(chunk.map((srcPath) async {
+        try {
+          final src  = File(srcPath);
+          final dest = File(p.join(targetDir.path, p.basename(srcPath)));
+          try {
+            await src.rename(dest.path);
+          } on FileSystemException {
+            // Cross-filesystem: copy first, then delete source.
+            await src.copy(dest.path);
+            if (await src.exists()) await src.delete();
+          }
+        } catch (_) {
+          // Isolate per-file failures — one bad file must not abort the batch.
+        }
+      }));
+      done += chunk.length;
+      onProgress?.call(done, total);
+    }
+
+    // ── 3. Batch MediaStore notify ───────────────────────────────────────────
+    // All scans fired concurrently. On Android 11+ these are temp-cache paths
+    // not indexed by MediaStore — benign no-op. On ≤10 they notify the scanner
+    // that the files are gone and should be removed from the media database.
+    await Future.wait(sourcePaths.map(notifyMediaStore));
+  }
+
   static Future<void> importFileBytes(Uint8List bytes, String name, {String? folder}) async {
     final targetDir = folder != null
         ? await getVaultFolder(folder)
