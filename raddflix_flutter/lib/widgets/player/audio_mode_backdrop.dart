@@ -228,11 +228,14 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
     final gradColors = _gradientColors();
 
     // Resolved cover art provider: sidecar > embedded > null (procedural blobs).
-    final ImageProvider? coverArt = _coverArtFile != null
-        ? FileImage(_coverArtFile!)
-        : _embeddedArtBytes != null
-            ? MemoryImage(_embeddedArtBytes!)
-            : null;
+    // Use explicit if/else — nested ternary confuses Dart's type inference
+    // when both branches return different ImageProvider subtypes.
+    ImageProvider? coverArt;
+    if (_coverArtFile != null) {
+      coverArt = FileImage(_coverArtFile!);
+    } else if (_embeddedArtBytes != null) {
+      coverArt = MemoryImage(_embeddedArtBytes!);
+    }
 
     return Stack(
       fit: StackFit.expand,

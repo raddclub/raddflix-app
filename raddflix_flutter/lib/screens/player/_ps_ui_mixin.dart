@@ -47,6 +47,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   Future<void> _setSpeed(double speed);
   void _syncNativeAbLoop();
   void _toggleLoop();
+  void _toggleShuffle();
   void _toggleMute();
 
   // ── Cross-cluster fields (defined in other mixins) ────────────────────────
@@ -82,6 +83,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   bool get _labVocal; set _labVocal(bool v);
   bool get _longPressFast; set _longPressFast(bool v);
   bool get _loopEnabled;
+  bool get _shuffleEnabled;
   int get _orientMode; set _orientMode(int v);
   bool get _isAudioOnly;
   bool get _playing;
