@@ -65,10 +65,22 @@ class _AppLockScreenState extends State<AppLockScreen> {
 
   Future<void> _tryBiometric() async {
     setState(() => _loading = true);
-    final ok = await AppLockService.authenticateBiometric();
-    if (!mounted) return;
-    setState(() => _loading = false);
-    if (ok) widget.onUnlocked();
+    try {
+      final ok = await AppLockService.authenticateBiometric();
+      if (!mounted) return;
+      setState(() => _loading = false);
+      if (ok) widget.onUnlocked();
+    } on BiometricHardwareException catch (e) {
+      if (!mounted) return;
+      // Hardware can't do biometric on this device — show the error and hide
+      // the fingerprint button so the user knows they must use their PIN.
+      setState(() {
+        _loading            = false;
+        _biometricAvailable = false;
+        _error              = true;
+        _errorMsg           = e.message;
+      });
+    }
   }
 
   Future<void> _onPinSubmit(String code) async {

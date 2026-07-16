@@ -15,6 +15,8 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Rational
+import android.hardware.fingerprint.FingerprintManager
+import android.os.CancellationSignal
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -85,6 +87,14 @@ class MainActivity : FlutterActivity() {
 
     private var intentMethodChannel: MethodChannel? = null
     private var pendingDeleteResult: MethodChannel.Result? = null
+
+    // ── Legacy FingerprintManager fallback (Infinix / Transsion fix) ─────────
+    // Transsion side-mounted sensors register with FingerprintManager but NOT
+    // with BiometricManager, so BiometricPrompt fails silently on Infinix Hot
+    // series. These fields hold the pending Flutter result and cancellation
+    // signal while a legacy fingerprint authentication is in progress.
+    private var pendingBiometricResult: MethodChannel.Result? = null
+    private var fingerprintCancellationSignal: CancellationSignal? = null
 
     private var castContext: CastContext? = null
     private var castSession: CastSession? = null
@@ -396,6 +406,69 @@ class MainActivity : FlutterActivity() {
                         if (on) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
                         else    window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
                         result.success(null)
+                    }
+                    // Legacy FingerprintManager fallback — called by Dart when
+                    // BiometricPrompt throws a PlatformException on Infinix / Transsion
+                    // Hot series phones. Their side-mounted sensor is bound to the old
+                    // FingerprintManager driver but not to BiometricManager, so
+                    // BiometricPrompt fails. FingerprintManager still works on those
+                    // devices — the same path AppLock-type apps use.
+                    //
+                    // Returns: true  → fingerprint matched
+                    //          false → user cancelled / wrong finger (no error shown)
+                    // Error BIOMETRIC_HW_ERROR → hardware genuinely absent; Dart surfaces
+                    //   "Fingerprint not supported on your device — use your PIN".
+                    "fingerprintAuthenticate" -> {
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                            result.error("BIOMETRIC_HW_ERROR",
+                                "Fingerprint requires Android 6.0 or higher", null)
+                            return@setMethodCallHandler
+                        }
+                        @Suppress("DEPRECATION")
+                        val fm = getSystemService(FingerprintManager::class.java)
+                        @Suppress("DEPRECATION")
+                        if (fm == null || !fm.isHardwareDetected) {
+                            result.error("BIOMETRIC_HW_ERROR",
+                                "No fingerprint hardware detected on this device", null)
+                            return@setMethodCallHandler
+                        }
+                        @Suppress("DEPRECATION")
+                        if (!fm.hasEnrolledFingerprints()) {
+                            result.error("BIOMETRIC_HW_ERROR",
+                                "No fingerprints enrolled — go to Settings → Security to add one", null)
+                            return@setMethodCallHandler
+                        }
+                        // Cancel any previously pending auth before starting a new one.
+                        pendingBiometricResult?.error("CANCELLED", "Replaced by new auth", null)
+                        pendingBiometricResult = result
+                        fingerprintCancellationSignal?.cancel()
+                        val signal = CancellationSignal()
+                        fingerprintCancellationSignal = signal
+                        @Suppress("DEPRECATION")
+                        fm.authenticate(
+                            null, signal, 0,
+                            object : FingerprintManager.AuthenticationCallback() {
+                                override fun onAuthenticationSucceeded(
+                                    r: FingerprintManager.AuthenticationResult?
+                                ) {
+                                    pendingBiometricResult?.success(true)
+                                    pendingBiometricResult = null
+                                }
+                                override fun onAuthenticationFailed() {
+                                    // Wrong fingerprint — keep prompt open, user can retry.
+                                }
+                                override fun onAuthenticationError(
+                                    errorCode: Int, errString: CharSequence?
+                                ) {
+                                    // ERROR_CANCELED / ERROR_USER_CANCELED → user dismissed.
+                                    // Any other error code still resolves false so the lock
+                                    // screen stays visible rather than crashing.
+                                    pendingBiometricResult?.success(false)
+                                    pendingBiometricResult = null
+                                }
+                            },
+                            null // handler — null = run callbacks on main thread
+                        )
                     }
                     else -> result.notImplemented()
                 }

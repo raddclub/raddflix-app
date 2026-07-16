@@ -22,6 +22,21 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 
+/// Thrown by [AppLockService.authenticateBiometric] when the device hardware
+/// cannot complete biometric authentication (driver incompatibility, sensor
+/// not bound to BiometricManager, etc.).
+///
+/// The UI should display [message] and hide the biometric button — PIN is the
+/// only option on this device.
+class BiometricHardwareException implements Exception {
+  final String message;
+  const BiometricHardwareException([
+    this.message = 'Fingerprint not supported on your device — use your PIN',
+  ]);
+  @override
+  String toString() => 'BiometricHardwareException: $message';
+}
+
 class AppLockService {
   AppLockService._();
 
@@ -178,6 +193,16 @@ class AppLockService {
 
   /// Authenticate with device biometric / device credential.
   /// On success: calls [unlock] and returns true.
+  ///
+  /// Two-step strategy for Infinix / Transsion Hot-series phones:
+  ///   Step 1 — standard BiometricPrompt via local_auth (works on most devices).
+  ///   Step 2 — if Step 1 throws [PlatformException], fall back to the native
+  ///             FingerprintManager path in MainActivity ("fingerprintAuthenticate").
+  ///             Transsion side-mounted sensors register with FingerprintManager
+  ///             but NOT with BiometricManager, so Step 1 fails silently on them.
+  ///
+  /// Throws [BiometricHardwareException] if neither path can work on the device.
+  /// The UI catches this, shows the message, and hides the biometric button.
   static Future<bool> authenticateBiometric() async {
     final enabled = await isBiometricEnabled();
     if (!enabled) return false;
@@ -185,6 +210,7 @@ class AppLockService {
     final available = await _auth.getAvailableBiometrics();
     if (available.isEmpty && !await _auth.isDeviceSupported()) return false;
 
+    // ── Step 1: standard BiometricPrompt (local_auth) ────────────────────────
     try {
       final ok = await _auth.authenticate(
         localizedReason: 'Touch the fingerprint sensor to unlock RaddFlix',
@@ -196,6 +222,29 @@ class AppLockService {
       );
       if (ok) unlock();
       return ok;
+    } on PlatformException {
+      // BiometricPrompt failed with a hardware / driver error.
+      // Fall through to the legacy FingerprintManager fallback.
+    } catch (_) {
+      return false; // user cancelled, wrong finger, etc.
+    }
+
+    // ── Step 2: legacy FingerprintManager fallback (Infinix / Transsion fix) ─
+    try {
+      final ok = await _securityChannel.invokeMethod<bool>(
+        'fingerprintAuthenticate',
+        {'reason': 'Touch the fingerprint sensor to unlock RaddFlix'},
+      );
+      if (ok == true) {
+        unlock();
+        return true;
+      }
+      return false; // ok == false → user cancelled
+    } on PlatformException catch (e) {
+      // Native side returned BIOMETRIC_HW_ERROR — hardware genuinely absent.
+      throw BiometricHardwareException(
+        e.message ?? 'Fingerprint not supported on your device — use your PIN',
+      );
     } catch (_) {
       return false;
     }

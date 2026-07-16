@@ -11,6 +11,21 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
 import '../core/constants.dart';
 
+/// Thrown by [VaultService.authenticateBiometric] when the device hardware
+/// cannot complete biometric authentication (driver incompatibility, sensor
+/// not bound to BiometricManager, etc.).
+///
+/// The UI should display [message] and hide the biometric button — PIN is the
+/// only option on this device.
+class BiometricHardwareException implements Exception {
+  final String message;
+  const BiometricHardwareException([
+    this.message = 'Fingerprint not supported on your device — use your PIN',
+  ]);
+  @override
+  String toString() => 'BiometricHardwareException: $message';
+}
+
 class VaultService {
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(
@@ -31,7 +46,9 @@ class VaultService {
 
   static final _auth = LocalAuthentication();
   // com.raddflix.app/media — handles scanFile + deleteMediaFiles (for vault import cleanup)
-  static const _mediaChannel = MethodChannel('com.raddflix.app/media');
+  static const _mediaChannel    = MethodChannel('com.raddflix.app/media');
+  // com.raddflix.app/security — used for the legacy FingerprintManager fallback
+  static const _securityChannel = MethodChannel('com.raddflix.app/security');
 
   /// Notify Android MediaStore that [path] was created/changed.
   /// Scanner adds or removes the entry automatically based on whether the file exists.
@@ -135,41 +152,67 @@ class VaultService {
 
   /// Authenticate with device biometric (fingerprint / face ID).
   ///
-  /// FIX-VAULT-02: uses the same dual-check as [isBiometricAvailable] so
-  /// Infinix / MediaTek phones where [canCheckBiometrics] incorrectly returns
-  /// false but [isDeviceSupported] returns true are handled correctly.
+  /// Two-step strategy for Infinix / Transsion Hot-series phones:
+  ///   Step 1 — standard BiometricPrompt via local_auth (works on most devices).
+  ///   Step 2 — if Step 1 throws [PlatformException], fall back to the native
+  ///             FingerprintManager path in MainActivity ("fingerprintAuthenticate").
+  ///             Transsion side-mounted sensors register with FingerprintManager
+  ///             but NOT with BiometricManager, so Step 1 fails silently on them.
   ///
-  /// FIX-VAULT-01: biometricOnly changed to false — biometricOnly:true throws a silent
-  /// accepted. The device screen-lock PIN/pattern can no longer bypass the
-  /// vault PIN (they are separate credentials).
+  /// Throws [BiometricHardwareException] if neither path can work on the device.
+  /// The UI catches this, shows the message, and hides the biometric button.
   static Future<bool> authenticateBiometric(BuildContext context) async {
     final enabled = await isBiometricEnabled();
     if (!enabled) return false;
 
     // FIX-BIOMETRIC-02: Use getAvailableBiometrics() directly — works on Infinix/MediaTek
     // Class 2 (Helio G25) where canCheckBiometrics incorrectly returns false.
-    // canCheckBiometrics only returns true for Class 3 (Strong) sensors; MediaTek Helio G25
-    // ships Class 2 which causes canCheckBiometrics to return false even with enrolled fingerprints.
     final available = await _auth.getAvailableBiometrics();
     if (available.isEmpty && !await _auth.isDeviceSupported()) return false;
 
+    // ── Step 1: standard BiometricPrompt (local_auth) ────────────────────────
     try {
       final ok = await _auth.authenticate(
         localizedReason: 'Touch the fingerprint sensor to unlock your vault',
         options: const AuthenticationOptions(
-          biometricOnly: false,  // FIX-VAULT-01: biometricOnly:true throws PlatformException on Infinix/MediaTek (no Class 3); swallowed by catch(_){return false}
+          biometricOnly: false, // FIX-VAULT-01: biometricOnly:true throws PlatformException on Infinix/MediaTek (no Class 3)
           stickyAuth: true,
           useErrorDialogs: true,
         ),
-
       );
       if (ok) {
-        _unlocked = true;
+        _unlocked    = true;
         _isFakeVault = false;
-        _unlockedAt = DateTime.now();
+        _unlockedAt  = DateTime.now();
         await _resetAttempts();
       }
       return ok;
+    } on PlatformException {
+      // BiometricPrompt failed with a hardware / driver error.
+      // Fall through to the legacy FingerprintManager fallback.
+    } catch (_) {
+      return false; // user cancelled, wrong finger, etc.
+    }
+
+    // ── Step 2: legacy FingerprintManager fallback (Infinix / Transsion fix) ─
+    try {
+      final ok = await _securityChannel.invokeMethod<bool>(
+        'fingerprintAuthenticate',
+        {'reason': 'Touch the fingerprint sensor to unlock your vault'},
+      );
+      if (ok == true) {
+        _unlocked    = true;
+        _isFakeVault = false;
+        _unlockedAt  = DateTime.now();
+        await _resetAttempts();
+        return true;
+      }
+      return false; // ok == false → user cancelled
+    } on PlatformException catch (e) {
+      // Native side returned BIOMETRIC_HW_ERROR — hardware genuinely absent.
+      throw BiometricHardwareException(
+        e.message ?? 'Fingerprint not supported on your device — use your PIN',
+      );
     } catch (_) {
       return false;
     }

@@ -58,10 +58,22 @@ class _VaultLockScreenState extends State<VaultLockScreen> {
 
   Future<void> _tryBiometric() async {
     setState(() => _loading = true);
-    final ok = await VaultService.authenticateBiometric(context);
-    if (!mounted) return;
-    setState(() => _loading = false);
-    if (ok) Navigator.of(context).pushReplacementNamed(AppRoutes.vault);
+    try {
+      final ok = await VaultService.authenticateBiometric(context);
+      if (!mounted) return;
+      setState(() => _loading = false);
+      if (ok) Navigator.of(context).pushReplacementNamed(AppRoutes.vault);
+    } on BiometricHardwareException catch (e) {
+      if (!mounted) return;
+      // Hardware can't do biometric on this device — show the error and hide
+      // the fingerprint button so the user knows they must use their PIN.
+      setState(() {
+        _loading            = false;
+        _biometricAvailable = false;
+        _error              = true;
+        _errorMsg           = e.message;
+      });
+    }
   }
 
   /// Called by `RaddLockPad` once the active field (PIN, or confirm-PIN
