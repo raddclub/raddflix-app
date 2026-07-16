@@ -112,7 +112,7 @@ dependencies:
   flutter_colorpicker: ^1.1.0
   audio_session: ^0.1.21
   palette_generator: ^0.3.3+3
-  flutter_media_metadata: ^1.0.3
+  flutter_media_metadata: ^1.0.0+1
 
   # Phase 59: Android on-device TTS for AI dubbing
   flutter_tts: ">=4.2.5 <5.0.0" # Fix #22: pin to known-good range (Kotlin-2.2.0 + minSdk-24 confirmed)
