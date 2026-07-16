@@ -19,6 +19,17 @@
 
 ## Session index (title only — full detail in the linked archive)
 
+### July 2026 — Session 18 (2026-07-16) — VAULT-SPEED (parallel bulk-add)
+
+**Task:** VAULT-SPEED-2026-07-16 — eliminate serial awaits in vault bulk-add operations.
+Three files changed in commit `9cf5631f`.
+
+Key changes:
+- New `VaultService.moveFilesToVaultBatch`: resolves dir once, parallel chunks of 4, concurrent end-of-batch MediaStore notify.
+- `vault_screen.dart`: `_importVideoFolder` and `_processPickedFiles` use batch; `_deleteSelected` uses `Future.wait`.
+- `local_media_screen.dart`: `_addFolderToVault` uses batch; URIs pre-collected sync before async work starts.
+- `moveFileToVault` (single-file path) left intact for `local_folder_screen._addToVault`.
+
 ### July 2026 — Session 17 (2026-07-16) — APP-LOCK (full app PIN/biometric gate)
 
 **Task:** APP-LOCK-2026-07-16 — whole-app PIN/biometric lock, independent of the vault PIN.

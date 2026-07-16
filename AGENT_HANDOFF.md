@@ -5,7 +5,33 @@
 
 ---
 
-## Current State (2026-07-16 — APP-LOCK: full app PIN / biometric gate)
+## Current State (2026-07-16 — VAULT-SPEED: parallel bulk-add + single dir resolve)
+
+Vault bulk-add speed improvements in commit `9cf5631f`. No new packages, no API changes.
+
+**Root cause:** every serial `for (final f in files) { await moveFileToVault(f.path); }` loop stacked 3 sequential IPC/IO calls per file: (1) `getVaultFolder()` — dir exist check + .nomedia check, (2) `File.rename()`, (3) `notifyMediaStore()` — one MethodChannel round-trip per file. A 50-episode season = 150 serial awaits.
+
+**What changed:**
+
+1. **`vault_service.dart`** — new `moveFilesToVaultBatch(sourcePaths, {folder, onProgress})`:
+   - Resolves target directory **once** before the loop (eliminates N × `getVaultFolder` calls)
+   - Moves files in **parallel chunks of 4** via `Future.wait` — same concurrency pattern already used for thumbnail loading
+   - Per-file errors swallowed inside each chunk so one bad file never aborts the batch
+   - Fires **all `notifyMediaStore` calls concurrently** (`Future.wait(paths.map(notifyMediaStore))`) at the end instead of one blocking IPC per file
+   - `moveFileToVault` (single-file) unchanged — still used by `local_folder_screen._addToVault`
+
+2. **`vault_screen.dart`**:
+   - `_importVideoFolder` — serial loop replaced with `moveFilesToVaultBatch`
+   - `_processPickedFiles` — paths + content URIs collected sync up-front, then `moveFilesToVaultBatch`; `deleteFromMediaStore` (already batched on Kotlin side) unchanged
+   - `_deleteSelected` — `for-await` replaced with `Future.wait(_selected.map(deleteVaultFile))`
+
+3. **`local_media_screen.dart`** — `_addFolderToVault`: content URIs pre-collected sync via collection-if, serial loop replaced with `moveFilesToVaultBatch`
+
+**Expected impact:** for a 50-file season folder, folder-resolve overhead drops from 50 async calls → 1, MediaStore scans from 50 serial IPCs → concurrent batch. Rename operations (same filesystem) run 4-at-a-time instead of sequentially.
+
+---
+
+## Previous State (2026-07-16 — APP-LOCK: full app PIN / biometric gate)
 
 Full app-level lock implemented in commit `11950d5e`. No new pub packages — `flutter_secure_storage`, `local_auth`, `shared_preferences`, `crypto` were already in `pubspec.yaml`.
 
