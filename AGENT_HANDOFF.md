@@ -5,7 +5,27 @@
 
 ---
 
-## Current State (2026-07-16 — VAULT-SPEED: parallel bulk-add + single dir resolve)
+## Current State (2026-07-16 — PLANS-ADMIN-FIX: admin panel plans, features_json, TID DB lookup)
+
+Four backend bugs fixed and deployed to Oracle in commit `b545d78b`. No Flutter changes. No new packages.
+
+**Root cause:** `plans` table was never seeded — `init_db()` seeds payment methods and settings but had no plan rows. The admin panel at `/plans/` queries the DB directly so showed 0 plans. The Flutter app appeared to work because `mobile_api.py` `/api/subscription/plans` has a hardcoded 4-plan fallback triggered when `plan_rows` is empty — meaning the app always showed the fallback cards, never the DB.
+
+**4 fixes:**
+
+1. **`db.py` — `init_db()` seeds default plans when table is empty** — Starter/Basic/Standard/Premium matching the fallback plans in `mobile_api.py`. Seeding is idempotent: only runs when `COUNT(*) FROM plans = 0`. After the server restart the plans table now has 4 rows; admin at `/plans/` shows them with full edit/toggle/delete/add CRUD.
+
+2. **`mobile_api.py` — features read from correct field** — Line 730 was `json.loads(p.get("description") or "[]")`. Features are stored in `features_json` column (added in a prior migration). Fixed to `p.get("features_json")`. Previously features were always empty in the app even when set via the admin panel.
+
+3. **`tid_panel.py` — TID approval uses DB duration/price, not hardcoded dicts** — `approve()` was hardcoded `PLAN_DURATIONS = {"basic": 30, "standard": 30, "premium": 30}` and `PLAN_PRICES = {"basic": 149, ...}`. Any duration_days or price_pkr change made in the admin panel was silently ignored on approval. Now does `SELECT duration_days, price_pkr FROM plans WHERE LOWER(name)=LOWER(?)` and falls back to the old hardcoded dicts only for legacy plan names not found in DB.
+
+4. **`subscriptions.py` — dead `PLAN_DURATIONS` dict removed** — Line 11 had the same hardcoded dict but it was never referenced anywhere in the file. Removed.
+
+**Smoke test:** `curl http://92.4.95.252/api/subscription/plans` returns 4 plans from DB (ids 1–4, real integer IDs) with correct features arrays, colors, and jazz savings messages.
+
+---
+
+## Previous State (2026-07-16 — VAULT-SPEED: parallel bulk-add + single dir resolve)
 
 Vault bulk-add speed improvements in commit `9cf5631f`. No new packages, no API changes.
 

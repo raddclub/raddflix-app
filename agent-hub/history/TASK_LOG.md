@@ -951,3 +951,35 @@ Checked each task by:
 
 ### Doc Changes
 Updated `agent-hub/TASKS.md` (all UX3 rows → ✅ DONE with commit SHAs; BUG-DL-EXT-01 row added), `AGENT_HANDOFF.md` (new Current State section prepended), and this log.
+
+---
+
+## 2026-07-16 — PLANS-ADMIN-FIX
+
+**Commit:** `b545d78b` | **Files:** `radd-hub/hub/db.py`, `mobile_api.py`, `tid_panel.py`, `subscriptions.py` | **Oracle:** deployed same session
+
+### Problem
+Admin panel at `/plans/` showed 0 plans. App showed plan cards. These appeared to be two separate bugs but shared one root cause.
+
+### Root Causes (4)
+
+1. **`init_db()` never seeded plans** — `plans` table was empty on Oracle. Admin panel queries DB directly; 0 rows = nothing displayed. App appeared fine because `mobile_api.py /api/subscription/plans` has a hardcoded 4-plan fallback that fires when `plan_rows` is empty — the app was always running off the fallback, never the DB.
+
+2. **`mobile_api.py` line 730: wrong field name** — `json.loads(p.get("description") or "[]")`. Features are stored in `features_json` (added via ALTER TABLE migration); `description` is a text field. Result: features always empty in app even when edited via admin panel.
+
+3. **`tid_panel.py` hardcoded plan durations/prices** — `PLAN_DURATIONS = {"basic": 30, ...}` and `PLAN_PRICES = {"basic": 149, ...}` used in `approve()`. Any `duration_days` or `price_pkr` change in the admin panel was silently ignored — subscriptions always granted 30-day duration regardless of what the admin set.
+
+4. **`upsert_plan()` in `db.py` missing new columns** — `badge`, `color`, `features_json` not in the `cols` list. Not on a hot path (plans_panel uses direct SQL) but would silently drop those fields if called.
+
+### Fixes
+
+| File | Change |
+|---|---|
+| `db.py` `init_db()` | Added plan seeding block after payment methods seeding — inserts Starter/Basic/Standard/Premium matching the `mobile_api.py` fallback. Guard: `COUNT(*) == 0`. |
+| `db.py` `upsert_plan()` | Added `badge`, `color`, `features_json` to `cols` list. |
+| `mobile_api.py` | `p.get("description")` → `p.get("features_json")` |
+| `tid_panel.py` `approve()` | Replaced hardcoded dict lookup with `SELECT duration_days, price_pkr FROM plans WHERE LOWER(name)=LOWER(?)`. Falls back to old dict if plan name not in DB (legacy safety). |
+| `subscriptions.py` | Removed dead `PLAN_DURATIONS = {"basic": 30, ...}` (never referenced). |
+
+### Smoke Test
+`curl http://92.4.95.252/api/subscription/plans` returned 4 plans from DB (ids 1–4) with correct features, colors, and jazz savings messages. Server restarted cleanly via `push_to_oracle.sh`.
