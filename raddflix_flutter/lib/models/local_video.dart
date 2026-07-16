@@ -16,6 +16,11 @@ import 'dart:typed_data';
     Uint8List? thumbnail;
     String? subtitlePath;
 
+    // ── Audio metadata (populated by queryAllAudio; null for video files) ──────
+    final String? artist;
+    final String? album;
+    final int? albumId;
+
     LocalVideo({
       required this.id,
       required this.title,
@@ -31,6 +36,9 @@ import 'dart:typed_data';
       this.mimeType,
       this.thumbnail,
       this.subtitlePath,
+      this.artist,
+      this.album,
+      this.albumId,
     });
 
     // ── Audio detection ────────────────────────────────────────────────────────

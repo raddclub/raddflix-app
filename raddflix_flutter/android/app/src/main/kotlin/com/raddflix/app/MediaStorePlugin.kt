@@ -57,15 +57,20 @@ import android.provider.MediaStore
       override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
           when (call.method) {
               "checkMediaPermission"   -> result.success(hasPermission())
+              "checkAudioPermission"   -> result.success(hasAudioPermission())
               "requestMediaPermission" -> { pendingResult = result; requestPermission() }
               "queryVideos"            -> queryVideos(result)
+              "queryAudio"             -> queryAudio(result)
               "getThumbnail"           -> getThumbnail(call, result)
+              "getAlbumArt"            -> getAlbumArt(call, result)
               "openAppSettings"        -> { openAppSettings(); result.success(null) }
               else                     -> result.notImplemented()
           }
       }
 
       // ── Permission helpers ────────────────────────────────────────────────────
+
+      // Video permission — unchanged for backward compat (Videos tab depends on this)
       private fun hasPermission(): Boolean {
           return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
               ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VIDEO) ==
@@ -76,17 +81,37 @@ import android.provider.MediaStore
           }
       }
 
+      // Audio permission — separate check for Music tab (API 33+ has granular permissions)
+      private fun hasAudioPermission(): Boolean {
+          return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+              ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) ==
+                      PackageManager.PERMISSION_GRANTED
+          } else {
+              // Below API 33, READ_EXTERNAL_STORAGE covers both video and audio
+              ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) ==
+                      PackageManager.PERMISSION_GRANTED
+          }
+      }
+
+      // Request both video + audio at once on API 33+; READ_EXTERNAL_STORAGE covers both below.
       private fun requestPermission() {
           val activity = activityBinding?.activity ?: run {
               pendingResult?.success(false); return
           }
-          val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-              Manifest.permission.READ_MEDIA_VIDEO
+          val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+              arrayOf(
+                  Manifest.permission.READ_MEDIA_VIDEO,
+                  Manifest.permission.READ_MEDIA_AUDIO,
+              )
           else
-              Manifest.permission.READ_EXTERNAL_STORAGE
-          activity.requestPermissions(arrayOf(permission), PERMISSION_REQUEST_CODE)
+              arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+          activity.requestPermissions(permissions, PERMISSION_REQUEST_CODE)
       }
 
+      // grantResults[0] = READ_MEDIA_VIDEO (or READ_EXTERNAL_STORAGE on API < 33).
+      // We report "granted" based on the video permission — the Videos tab is primary.
+      // Audio permission (grantResults[1] on API 33+) is independently checked via
+      // hasAudioPermission() before queryAudio() runs.
       override fun onRequestPermissionsResult(
           requestCode: Int, permissions: Array<out String>, grantResults: IntArray
       ): Boolean {
@@ -107,7 +132,7 @@ import android.provider.MediaStore
           activity.startActivity(intent)
       }
 
-      // ── MediaStore query ──────────────────────────────────────────────────────
+      // ── Video MediaStore query ────────────────────────────────────────────────
       private fun queryVideos(result: MethodChannel.Result) {
           if (!hasPermission()) { result.success(emptyList<Any>()); return }
 
@@ -159,7 +184,7 @@ import android.provider.MediaStore
 
                       videos.add(mapOf(
                           "id"            to id.toInt(),
-                          "title"         to (cursor.getString(titleCol) ?: filePath.substringAfterLast("/").substringBeforeLast(".")),
+                          "title"         to (cursor.getString(titleCol) ?: ""),
                           "display_name"  to (cursor.getString(displayCol) ?: ""),
                           "file_path"     to filePath,
                           "folder_name"   to bucketName,
@@ -180,7 +205,81 @@ import android.provider.MediaStore
 
           result.success(videos)
       }
-  
+
+      // ── Audio MediaStore query ────────────────────────────────────────────────
+      // Queries MediaStore.Audio.Media — returns tracks with artist/album/album_id
+      // so the Music tab can display metadata and load album art separately.
+      // Skips tracks < 50 KB (ringtones, notification sounds, etc.).
+      // MediaStore returns "<unknown>" for artist/album when tags are absent —
+      // normalised to empty string so the UI doesn't display that literal.
+      private fun queryAudio(result: MethodChannel.Result) {
+          if (!hasAudioPermission()) { result.success(emptyList<Any>()); return }
+
+          val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+          val projection = arrayOf(
+              MediaStore.Audio.Media._ID,
+              MediaStore.Audio.Media.TITLE,
+              MediaStore.Audio.Media.ARTIST,
+              MediaStore.Audio.Media.ALBUM,
+              MediaStore.Audio.Media.ALBUM_ID,
+              MediaStore.Audio.Media.DURATION,
+              MediaStore.Audio.Media.SIZE,
+              MediaStore.Audio.Media.DATE_MODIFIED,
+              MediaStore.Audio.Media.DATA,
+              MediaStore.Audio.Media.DISPLAY_NAME,
+              MediaStore.Audio.Media.MIME_TYPE,
+              MediaStore.Audio.Media.BUCKET_DISPLAY_NAME,
+          )
+          val sortOrder = "${MediaStore.Audio.Media.DATE_MODIFIED} DESC"
+          val tracks = mutableListOf<Map<String, Any?>>()
+
+          try {
+              context.contentResolver.query(collection, projection, null, null, sortOrder)?.use { cursor ->
+                  val idCol      = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                  val titleCol   = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                  val artistCol  = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                  val albumCol   = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                  val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                  val durCol     = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                  val sizeCol    = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+                  val dateCol    = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+                  val dataCol    = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                  val dispCol    = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+                  val mimeCol    = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+                  val bucketCol  = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.BUCKET_DISPLAY_NAME)
+
+                  while (cursor.moveToNext()) {
+                      val filePath = cursor.getString(dataCol) ?: continue
+                      val size     = cursor.getLong(sizeCol)
+                      if (size < 50 * 1024) continue // skip ringtones / notif sounds
+                      val folderPath = filePath.substringBeforeLast("/")
+                      // Normalise MediaStore "<unknown>" tags to empty string
+                      val artist = cursor.getString(artistCol)?.takeIf { it != "<unknown>" } ?: ""
+                      val album  = cursor.getString(albumCol)?.takeIf  { it != "<unknown>" } ?: ""
+                      tracks.add(mapOf(
+                          "id"            to cursor.getLong(idCol).toInt(),
+                          "title"         to (cursor.getString(titleCol) ?: ""),
+                          "artist"        to artist,
+                          "album"         to album,
+                          "album_id"      to cursor.getLong(albumIdCol).toInt(),
+                          "duration"      to cursor.getLong(durCol).toInt(),
+                          "size"          to size.toInt(),
+                          "date_modified" to cursor.getLong(dateCol).toInt(),
+                          "file_path"     to filePath,
+                          "display_name"  to (cursor.getString(dispCol) ?: ""),
+                          "mime_type"     to (cursor.getString(mimeCol) ?: "audio/mpeg"),
+                          "folder_name"   to (cursor.getString(bucketCol) ?: "Music"),
+                          "folder_path"   to folderPath,
+                      ))
+                  }
+              }
+          } catch (e: Exception) {
+              result.error("QUERY_FAILED", e.message, null)
+              return
+          }
+          result.success(tracks)
+      }
+
       // ── Video thumbnail (fast — reads MediaStore cached thumbnail DB on API 29+) ─
       private fun getThumbnail(call: MethodCall, result: MethodChannel.Result) {
           val id   = (call.argument<Any>("id") as? Number)?.toLong()
@@ -207,6 +306,51 @@ import android.provider.MediaStore
                   java.io.ByteArrayOutputStream().also { out ->
                       bmp.compress(Bitmap.CompressFormat.JPEG, 82, out)
                   }.toByteArray()
+              }
+              result.success(bytes)
+          } catch (e: Exception) {
+              result.success(null)
+          }
+      }
+
+      // ── Album art (reads MediaStore audio/albumart content URI) ───────────────
+      // API 29+: uses loadThumbnail on the content://media/external/audio/albumart/<id> URI.
+      // API < 29: falls back to the deprecated ALBUM_ART column from MediaStore.Audio.Albums.
+      // Returns null (not an error) when no art exists — callers show a music-note placeholder.
+      private fun getAlbumArt(call: MethodCall, result: MethodChannel.Result) {
+          val albumId = (call.argument<Any>("album_id") as? Number)?.toLong()
+          val size    = call.argument<Int>("size") ?: 200
+          if (albumId == null) { result.success(null); return }
+          try {
+              val bytes: ByteArray? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                  try {
+                      val artUri = Uri.parse("content://media/external/audio/albumart/$albumId")
+                      val sz  = android.util.Size(size, size)
+                      val bmp = context.contentResolver.loadThumbnail(artUri, sz, null)
+                      java.io.ByteArrayOutputStream().also { out ->
+                          bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                      }.toByteArray()
+                  } catch (_: Exception) { null }
+              } else {
+                  try {
+                      @Suppress("DEPRECATION")
+                      val cursor = context.contentResolver.query(
+                          MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+                          arrayOf(MediaStore.Audio.Albums.ALBUM_ART),
+                          "${MediaStore.Audio.Albums._ID} = ?",
+                          arrayOf(albumId.toString()),
+                          null
+                      )
+                      val artPath = cursor?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+                      if (artPath != null) {
+                          val bmp = android.graphics.BitmapFactory.decodeFile(artPath)
+                              ?: return result.success(null)
+                          val scaled = Bitmap.createScaledBitmap(bmp, size, size, true)
+                          java.io.ByteArrayOutputStream().also { out ->
+                              scaled.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                          }.toByteArray()
+                      } else null
+                  } catch (_: Exception) { null }
               }
               result.success(bytes)
           } catch (e: Exception) {

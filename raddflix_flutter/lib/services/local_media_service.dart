@@ -12,6 +12,7 @@ import 'dart:io';
     static const _seenKey = 'lm_seen_files';
 
     // ── Permission ─────────────────────────────────────────────────────────────
+
     static Future<bool> requestPermission() async {
       try {
         final granted = await _channel.invokeMethod<bool>('requestMediaPermission');
@@ -24,6 +25,18 @@ import 'dart:io';
     static Future<bool> checkPermission() async {
       try {
         final granted = await _channel.invokeMethod<bool>('checkMediaPermission');
+        return granted ?? false;
+      } on PlatformException {
+        return false;
+      }
+    }
+
+    // Audio permission — checked independently for the Music tab.
+    // On API < 33, READ_EXTERNAL_STORAGE covers audio too, so this mirrors
+    // the video check. On API 33+, READ_MEDIA_AUDIO is a separate grant.
+    static Future<bool> checkAudioPermission() async {
+      try {
+        final granted = await _channel.invokeMethod<bool>('checkAudioPermission');
         return granted ?? false;
       } on PlatformException {
         return false;
@@ -72,6 +85,44 @@ import 'dart:io';
       }
     }
 
+    // ── Query all audio tracks from MediaStore (Music tab) ────────────────────
+    // Returns tracks sorted by date descending. Skips tracks < 50 KB (the
+    // Kotlin side already applies this filter, but double-check here too).
+    // Does NOT run _fallbackScan for audio — MediaStore is reliable for music.
+    static Future<List<LocalVideo>> queryAllAudio() async {
+      try {
+        final List<dynamic> raw =
+            await _channel.invokeMethod<List<dynamic>>('queryAudio') ?? [];
+        final maps = raw.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+        final tracks = <LocalVideo>[];
+        for (final m in maps) {
+          final v = LocalVideo(
+            id:             m['id'] as int? ?? 0,
+            title:          (m['title'] as String? ?? '').isNotEmpty
+                                ? m['title'] as String
+                                : (m['display_name'] as String? ?? 'Unknown'),
+            displayName:    m['display_name'] as String? ?? '',
+            filePath:       m['file_path'] as String? ?? '',
+            folderName:     m['folder_name'] as String? ?? 'Music',
+            folderPath:     m['folder_path'] as String? ?? '',
+            durationMs:     m['duration'] as int? ?? 0,
+            sizeBytes:      m['size'] as int? ?? 0,
+            width:          0,
+            height:         0,
+            dateModifiedMs: (m['date_modified'] as int? ?? 0) * 1000,
+            mimeType:       m['mime_type'] as String?,
+            artist:         (m['artist'] as String? ?? '').isNotEmpty ? m['artist'] as String : null,
+            album:          (m['album'] as String? ?? '').isNotEmpty  ? m['album']  as String : null,
+            albumId:        m['album_id'] as int?,
+          );
+          if (v.sizeBytes > 50 * 1024) tracks.add(v);
+        }
+        return tracks;
+      } on PlatformException catch (_) {
+        return [];
+      }
+    }
+
     // ── Group videos into folders ─────────────────────────────────────────────
     static List<LocalFolder> groupByFolder(List<LocalVideo> videos) {
       final map = <String, List<LocalVideo>>{};
@@ -100,14 +151,23 @@ import 'dart:io';
     }
 
     // ── File-path thumbnail fallback (filesystem / "Open With" URIs) ──────────
-    // Uses timeMs:0 (first frame) — safe for clips of any length.
-    // Routed through ThumbService (mem + disk cache keyed by path+timeMs) —
-    // this used to call MediaKitThumbnailExtractor.extractFrame directly with
-    // no caching at all, so every grid rebuild (e.g. scrolling a large local
-    // folder) re-opened the file and re-decoded a frame via mpv from scratch,
-    // which is exactly the jank this fallback exists to render around.
     static Future<Uint8List?> getThumbnail(String filePath, {int quality = 50, int maxDimension = 200}) {
       return ThumbService.getThumbnail(filePath, timeMs: 0, maxWidth: maxDimension, quality: quality);
+    }
+
+    // ── Album art from MediaStore.Audio.Albums ────────────────────────────────
+    // Returns null when no embedded art is available — callers show a
+    // music-note placeholder instead. Cached at the call site by album_id.
+    static Future<Uint8List?> getAlbumArt(int albumId, {int size = 200}) async {
+      try {
+        final bytes = await _channel.invokeMethod<Uint8List>('getAlbumArt', {
+          'album_id': albumId,
+          'size': size,
+        });
+        return bytes;
+      } catch (_) {
+        return null;
+      }
     }
 
     // ── Mark files as seen ────────────────────────────────────────────────────
@@ -175,4 +235,3 @@ import 'dart:io';
       return results;
     }
   }
-  
