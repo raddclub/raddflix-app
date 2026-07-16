@@ -1553,6 +1553,29 @@ MPV colour helpers: `_toMpvColor(Color)` → `#RRGGBB`, `_toMpvBackColor(Color)`
 
 ---
 
+## 2026-07-16 — PLANS-FORM-FIX — COMPLETE ✅
+
+**Commit:** `61027c1b` | **Deployed to Oracle** ✅
+
+### Problem
+Admin reported Edit button did nothing; Add New Plan gave no feedback.
+
+### Root Cause
+`onclick="editPlan({{ p|tojson }})"` — tojson puts double-quoted JSON inside a double-quoted HTML attribute. Browser closes the attribute at the first `"` inside the JSON; clicking Edit executed `editPlan({` (SyntaxError). Silent fail. Bug was latent until the PLANS-ADMIN-FIX seeded real plans (previously no plans = no edit buttons = bug never triggered).
+
+No feedback issue: all POST routes redirected silently — admin saw the same page and assumed nothing happened.
+
+### Fixes Applied
+- `onclick="editPlan({{ p.id }})"` (integer, no quoting issues) + `const _PLANS = {{ plans_map|tojson }};` in `<script>` block (safe context for tojson)
+- `plans_map` dict passed from `index()` route
+- `?ok=created/updated/toggled/deleted` redirect params + JS toast for all four actions
+- Escape key closes modal
+
+### Audit
+Only `plans_panel.py` had the onclick+tojson pattern. All other panels confirmed clean.
+
+---
+
 ## Bug-Fix Batch 2026-07-02 — COMPLETE ✅
 
 All 15 verified issues from the full-app audit fixed. CI green on commit `3c38f31` (run #28588429103).

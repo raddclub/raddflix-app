@@ -983,3 +983,34 @@ Admin panel at `/plans/` showed 0 plans. App showed plan cards. These appeared t
 
 ### Smoke Test
 `curl http://92.4.95.252/api/subscription/plans` returned 4 plans from DB (ids 1–4) with correct features, colors, and jazz savings messages. Server restarted cleanly via `push_to_oracle.sh`.
+
+---
+
+## 2026-07-16 — PLANS-FORM-FIX
+
+**Commit:** `61027c1b` | **File:** `radd-hub/hub/routes/plans_panel.py` | **Oracle:** deployed same session
+
+### Problem
+Admin reported that clicking ✏ Edit on any plan card did nothing, and after submitting "Add New Plan" the user couldn't tell if anything had happened.
+
+### Root Causes
+
+1. **`onclick="editPlan({{ p|tojson }})"` — double-quote collision in HTML attribute.**
+   Jinja2's `tojson` filter produces standard JSON with double-quoted keys and string values (e.g. `{"name": "Basic", ...}`). When this is interpolated directly into a double-quoted HTML `onclick="..."` attribute, the browser's HTML attribute parser closes the attribute at the very first `"` inside the JSON — before any plan data. The button's actual onclick value becomes `editPlan({` which is a JavaScript SyntaxError at runtime. Click → nothing happens. This bug was invisible before the previous session's plan-seeding fix because the plans table was empty → no plan cards rendered → no Edit buttons → the broken pattern was never triggered.
+
+2. **No success feedback on any form action.**
+   All four POST routes (create/edit/toggle/delete) redirect back to `/plans/` silently. With no toast or flash, the admin saw a page that looked identical after submitting a form and assumed the submission had failed.
+
+### Fixes
+
+| Change | Detail |
+|---|---|
+| Edit button onclick | `onclick="editPlan({{ p|tojson }})"` → `onclick="editPlan({{ p.id }})"` — integer literal, zero quoting issues. |
+| `_PLANS` map in `<script>` | Added `const _PLANS = {{ plans_map\|tojson }};` inside the `<script>` block (safe context). `tojson` inside `<script>` is the correct pattern; it's only dangerous in HTML attribute values. |
+| `editPlan(id)` | Updated JS function to `function editPlan(id){openModal(_PLANS[id])}` — ID lookup instead of object pass. |
+| `plans_map` in route | `index()` now builds `{p['id']: p for p in plans}` and passes it as `plans_map` to `render_template_string`. |
+| Success toast | All four POST routes now redirect with `?ok=created/updated/toggled/deleted`. JS on page load reads the param, fires a `toast()` call, then cleans the URL via `history.replaceState`. |
+| Escape key | Added `document.addEventListener('keydown', ...)` to close the plan modal on Escape. |
+
+### Audit — Other Panels
+Grepped all route files for `onclick.*tojson` pattern — only `plans_panel.py` had this bug. Analytics uses `tojson` only inside `<script>` blocks (correct). No other panels affected.
