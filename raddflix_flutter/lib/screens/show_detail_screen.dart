@@ -59,8 +59,10 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   bool _isDownloadingAll = false;
 
   // Parallax / scroll
+  // UX4-04: ValueNotifier replaces state var — scroll updates only rebuild the
+  // CinematicHero parallax via ValueListenableBuilder, not the full 3100-line tree.
   final ScrollController _scrollController = ScrollController();
-  double _scrollOffset = 0.0;
+  final ValueNotifier<double> _scrollOffset = ValueNotifier(0.0);
 
   // Pulse animation for Watch Now / Resume button
   AnimationController? _pulseCtrl;
@@ -77,9 +79,9 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
   }
 
   void _onScroll() {
-    if (mounted) {
-      setState(() => _scrollOffset = _scrollController.offset);
-    }
+    // UX4-04: direct ValueNotifier update — no setState, no tree rebuild.
+    // The ValueListenableBuilder in _CinematicHero's background handles the repaint.
+    _scrollOffset.value = _scrollController.offset;
   }
 
   /// Called once animConfig is available (after first build) to initialise
@@ -109,6 +111,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
     DebugLogger.logLifecycle('ShowDetail', 'dispose id=${widget.item.id}');
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _scrollOffset.dispose(); // UX4-04
     _seasonTab?.dispose();
     _pulseCtrl?.dispose();
     super.dispose();
@@ -601,11 +604,16 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
                   StretchMode.zoomBackground,
                   StretchMode.blurBackground,
                 ],
-                background: _CinematicHero(
-                  item: item,
-                  scrollOffset: _scrollOffset,
-                  animConfig: animConfig,
-                  posterFallback: _posterFallback(item),
+                // UX4-04: ValueListenableBuilder scopes rebuild to the hero
+                // background only — nothing else repaints on scroll.
+                background: ValueListenableBuilder<double>(
+                  valueListenable: _scrollOffset,
+                  builder: (_, offset, __) => _CinematicHero(
+                    item: item,
+                    scrollOffset: offset,
+                    animConfig: animConfig,
+                    posterFallback: _posterFallback(item),
+                  ),
                 ),
               ),
             ),
