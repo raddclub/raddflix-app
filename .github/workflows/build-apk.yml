@@ -58,7 +58,17 @@ jobs:
 
       - name: Dart analyze (catch type errors before the 8-min build)
         working-directory: raddflix_flutter
-        run: flutter analyze --no-fatal-warnings
+        # flutter analyze exits 1 for warnings too; we only want to block on errors.
+        # Capture output, print it, then exit 1 only if "error •" lines are present.
+        run: |
+          flutter analyze 2>&1 | tee /tmp/analyze_out.txt || true
+          if grep -q "  error •" /tmp/analyze_out.txt; then
+            echo ""
+            echo "❌ Dart errors detected — fix before build:"
+            grep "  error •" /tmp/analyze_out.txt
+            exit 1
+          fi
+          echo "✅ No Dart errors (warnings/infos are non-fatal)"
 
       - name: Apply brand assets (Brand Studio)
         if: github.event.inputs.brand_build == 'true'
