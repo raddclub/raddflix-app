@@ -140,6 +140,10 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
     // New track → re-scan for cover art.
     if (widget.localPath != old.localPath || widget.title != old.title) {
       if (widget.localPath != _lastScannedPath) {
+        // Stamp _lastScannedPath immediately (not inside _scanCoverArt) so
+        // rapid didUpdateWidget calls during a rebuild storm don't fire
+        // multiple concurrent scans for the same path.
+        _lastScannedPath = widget.localPath;
         setState(() {
           _coverArtFile = null;
           _embeddedArtBytes = null;
@@ -177,8 +181,10 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
     }
 
     // 2. Fall back to embedded ID3 / Vorbis / MP4 tags.
+    //    Timeout guards against MetadataRetriever hanging on corrupt/very large files.
     try {
-      final metadata = await MetadataRetriever.fromFile(File(path));
+      final metadata = await MetadataRetriever.fromFile(File(path))
+          .timeout(const Duration(seconds: 5));
       final bytes = metadata.albumArt;
       if (bytes != null && bytes.isNotEmpty) {
         if (!mounted) return;
@@ -186,8 +192,8 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
         _extractPalette(MemoryImage(bytes));
       }
     } catch (_) {
-      // Package not supported for this file type or platform — fall through
-      // to the procedural gradient blobs path, which is already the default.
+      // Covers: unsupported format, platform limitation, timeout on corrupt file.
+      // Fall through to procedural gradient blobs — already the default.
     }
   }
 

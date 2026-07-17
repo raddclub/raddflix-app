@@ -470,6 +470,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _subSync        = prefs.getDouble('pref_sub_sync') ?? 0.0;
       _prefSubLang    = prefs.getString('pref_sub_lang');
       _prefAudioLang  = prefs.getString('pref_audio_lang');
+      // Loop / shuffle — Z1: was never persisted; lost on restart
+      _loopEnabled    = prefs.getBool('pref_loop')    ?? false;
+      _shuffleEnabled = prefs.getBool('pref_shuffle') ?? false;
       // Sprint 2 keys
       _endAction           = prefs.getString('pref_end_action') ?? 'play_next';
       _silenceSkipEnabled  = prefs.getBool('pref_silence_skip') ?? false;
@@ -562,6 +565,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (_useSWDecoder) {
       try { _np.setProperty('hwdec', 'no'); } catch (_) {}
     }
+    // Z1: restore loop state to MPV — pref_loop was loaded into Dart state
+    // but MPV's loop-file was never set, so repeat didn't actually work after restart.
+    if (_loopEnabled) {
+      try { _np.setProperty('loop-file', 'inf'); } catch (_) {}
+    }
     // BUG-SUB-STYLE-STARTUP: saved subtitle style (font, size, bold, color,
     // opacity, shadow, alignment, edge padding, fit) was only applied when the
     // subtitle panel opened — not at player startup. Apply all saved style props
@@ -627,6 +635,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     await prefs.setDouble('pref_sub_sync', _subSync);
     if (_prefSubLang != null)   await prefs.setString('pref_sub_lang',   _prefSubLang!);
     if (_prefAudioLang != null) await prefs.setString('pref_audio_lang', _prefAudioLang!);
+    // Loop / shuffle — Z1: was never persisted
+    await prefs.setBool('pref_loop',    _loopEnabled);
+    await prefs.setBool('pref_shuffle', _shuffleEnabled);
     // Sprint 2 keys
     await prefs.setString('pref_end_action', _endAction);
     await prefs.setBool('pref_silence_skip', _silenceSkipEnabled);

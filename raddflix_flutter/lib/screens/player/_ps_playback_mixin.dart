@@ -18,6 +18,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   void _applySubtitleMargin({required bool controlsVisible});
   String _formatDuration(Duration d);
   void _setNativeOrientation(String mode);
+  void _scheduleSavePrefs();
 
   // ── Cross-cluster fields (defined in _PlayerScreenState) ─────────────────
   double get _audioSync; set _audioSync(double v);
@@ -1129,18 +1130,23 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
     _loopEnabled = !_loopEnabled;
     try { _np.setProperty('loop-file', _loopEnabled ? 'inf' : 'no'); } catch (_) {}
     setState(() {});
+    _scheduleSavePrefs();
   }
 
   void _toggleShuffle() {
     setState(() => _shuffleEnabled = !_shuffleEnabled);
+    _scheduleSavePrefs();
   }
+
+  /// Shared Random instance — avoids allocating a new object on every shuffle advance.
+  final _rng = math.Random();
 
   /// Returns a random episode index different from the current one.
   int _randomEpIdx() {
     if (_eps.length <= 1) return 0;
     int next;
     do {
-      next = math.Random().nextInt(_eps.length);
+      next = _rng.nextInt(_eps.length);
     } while (next == _currentEpIdx);
     return next;
   }

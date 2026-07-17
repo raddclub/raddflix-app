@@ -56,6 +56,10 @@ jobs:
         working-directory: raddflix_flutter
         run: flutter pub get
 
+      - name: Dart analyze (catch type errors before the 8-min build)
+        working-directory: raddflix_flutter
+        run: flutter analyze --no-fatal-warnings
+
       - name: Apply brand assets (Brand Studio)
         if: github.event.inputs.brand_build == 'true'
         working-directory: raddflix_flutter
@@ -158,7 +162,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'RaddFlix_2024_Store' }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'raddflix' }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'RaddFlix_2024_Key' }}
-        run: flutter build apk --release --obfuscate --split-debug-info=build/debug-info --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }} --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
+        run: flutter build apk --release --obfuscate --split-debug-info=build/debug-info --dart-define=TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
 
       - name: Rename APK with version
         id: apk
