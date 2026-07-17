@@ -24,6 +24,7 @@ import '../providers/catalog_provider.dart';
 import '../core/utils/anim_config.dart';
 import '../services/app_lock_service.dart';
 import 'app_lock_screen.dart';
+import '../widgets/theme_picker_sheet.dart'; // UX4-05
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -484,6 +485,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(height: RaddSpace.lg),
 
+                // ── Appearance ───────────────────────────────────────────────
+                // UX4-05: Moved from Profile → Settings; uses shared ThemePickerSheet
+                _SettingsSection(
+                  t: t,
+                  animConfig: animConfig,
+                  title: 'Appearance',
+                  sectionIcon: AppIcons.colorPalette,
+                  sectionIconColor: AppColors.primary,
+                  staggerIndex: 5,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: RaddSpace.md),
+                      child: SettingsRow(
+                        icon: AppIcons.colorPalette,
+                        label: 'Theme',
+                        subtitle: 'Choose app colour theme',
+                        trailingWidget: const ThemePickerTrailing(),
+                        iconColor: AppColors.primary,
+                        onTap: () => showThemePickerSheet(context),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: RaddSpace.lg),
+
                 // ── App Lock ────────────────────────────────────────────────
                 _SettingsSection(
                   t: t,
@@ -491,7 +518,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: 'App Lock',
                   sectionIcon: AppIcons.lock,
                   sectionIconColor: context.signalPrimary,
-                  staggerIndex: 5,
+                  staggerIndex: 6,
                   children: [
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -562,7 +589,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: 'About',
                   sectionIcon: AppIcons.info,
                   sectionIconColor: t.textMuted,
-                  staggerIndex: 6,
+                  staggerIndex: 7,
                   children: [
                     // Version pill row
                     Padding(
