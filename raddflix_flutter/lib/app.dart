@@ -199,10 +199,9 @@ class RaddFlixApp extends ConsumerWidget {
         return null;
       },
       builder: (context, child) {
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.0)),
-          child: _AppLockGuard(child: _ForceUpdateGuard(child: child!)),
-        );
+        // UX4-03: removed forced textScaler=1.0 — restore system font-size
+        // accessibility so Android's Display Size / Font Size settings work.
+        return _AppLockGuard(child: _ForceUpdateGuard(child: child!));
       },
     );
   }

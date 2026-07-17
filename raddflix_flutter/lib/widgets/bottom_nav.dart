@@ -238,7 +238,8 @@ class _NavButton extends StatelessWidget {
                 fontWeight:  isActive ? FontWeight.w700 : FontWeight.w400,
                 letterSpacing: isActive ? 0.25 : 0.0,
               ),
-              child: Text(item.label, textScaler: TextScaler.noScaling),
+              // UX4-03: removed TextScaler.noScaling — nav labels now respect system font size
+              child: Text(item.label),
             ),
           ],
         ),
