@@ -8,6 +8,7 @@ import '../design_system/spacing/radd_space.dart';
 import '../design_system/radius/radd_radius.dart';
 import '../design_system/elevation/radd_elevation.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../widgets/animated_empty_icons.dart';
 import '../widgets/offline_banner.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
