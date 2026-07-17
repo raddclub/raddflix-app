@@ -49,9 +49,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   int _navIndex = 0;
   String _selectedCategory = 'All';
   final ScrollController _scroll = ScrollController();
-  bool _scrolled = false;
+  final _scrolledOffset = ValueNotifier<double>(0.0); // UX4-06: smooth AppBar interpolation
   Timer? _notifTimer;
-  static const _categories = ['All', 'Movies', 'Shows', 'Dramas', 'Urdu', 'Punjabi', 'English'];
+  List<String> _categories = const ['All', 'Movies', 'Shows', 'Dramas', 'Urdu', 'Punjabi', 'English']; // UX4-14: server-updatable
 
   // A8: greeting cached once per widget lifetime — no DateTime.now() in build()
   late String _greetingTod;
@@ -64,8 +64,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     DebugLogger.logLifecycle('HomeScreen', 'initState');
     WidgetsBinding.instance.addObserver(this);
     _scroll.addListener(() {
-      final now = _scroll.offset > 50;
-      if (now != _scrolled) setState(() => _scrolled = now);
+      _scrolledOffset.value = _scroll.offset; // UX4-06: ValueNotifier, no setState → no full rebuild
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(catalogProvider.notifier).initialize();
@@ -82,6 +81,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     WidgetsBinding.instance.removeObserver(this);
     _notifTimer?.cancel();
     _scroll.dispose();
+    _scrolledOffset.dispose(); // UX4-06
     super.dispose();
   }
 
@@ -112,6 +112,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       final resp    = await ApiClient.instance.get('/api/app/config');
       final data    = resp.data as Map<String, dynamic>? ?? {};
       final minCode = (data['min_version_code'] as num?)?.toInt() ?? 0;
+      // UX4-14: apply server-driven home category list when available
+      final rawCats = data['home_categories'];
+      if (rawCats is List && rawCats.isNotEmpty && mounted) {
+        setState(() => _categories = ['All', ...rawCats.cast<String>()]);
+      }
       if (minCode <= 0 || !mounted) return;
       final info      = await PackageInfo.fromPlatform();
       final buildCode = int.tryParse(info.buildNumber) ?? 0;
@@ -242,17 +247,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
   }
 
   PreferredSizeWidget _buildAppBar(dynamic user) {
-    return AppBar(
-      backgroundColor: _scrolled ? t.surface.withOpacity(0.96) : Colors.transparent,
-      elevation: 0,
-      flexibleSpace: _scrolled
-          ? null
-          : Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                  colors: [t.bg, Colors.transparent]),
-              )),
+    // UX4-06: ValueListenableBuilder isolates AppBar rebuilds from scroll
+    // events — the rest of the scaffold is never touched.
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(kToolbarHeight),
+      child: ValueListenableBuilder<double>(
+        valueListenable: _scrolledOffset,
+        builder: (_, offset, __) {
+          final opacity = (offset / 200.0).clamp(0.0, 1.0);
+          final scrolled = offset > 50;
+          return AppBar(
+            backgroundColor: t.surface.withOpacity(opacity * 0.96),
+            elevation: 0,
+            flexibleSpace: scrolled
+                ? null
+                : Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                        colors: [t.bg, Colors.transparent]),
+                    )),
       title: RichText(
         text: TextSpan(
           style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900, letterSpacing: -0.8),
@@ -302,7 +316,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               ]),
             ),
           ),
-      ],
+          ],
+          );
+        },
+      ),
     );
   }
 
@@ -1103,18 +1120,23 @@ class _ContentSection extends StatelessWidget {
                           : null),
                   if (onRemove != null)
                     Positioned(
-                      top: 5, right: 5,
+                      top: -4, right: -4, // UX4-09: 44×44 hit area centred on 22×22 visual
                       child: GestureDetector(
                         onTap: () => _showRemoveDialog(context, items[i]),
-                        child: Container(
-                          width: 22, height: 22,
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.65),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white24, width: 0.5),
+                        child: SizedBox(
+                          width: 44, height: 44,
+                          child: Center(
+                            child: Container(
+                              width: 22, height: 22,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.65),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white24, width: 0.5),
+                              ),
+                              child: Icon(AppIcons.close,
+                                  size: 13, color: Colors.white70),
+                            ),
                           ),
-                          child: Icon(AppIcons.close,
-                              size: 13, color: Colors.white70),
                         ),
                       ),
                     ),
