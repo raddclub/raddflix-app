@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (2026-07-16 — Z1: audio-mode controls + embedded cover art, CI ✅ `32355924`)
+## Current State (2026-07-17 — Z2: broad improvements, CI ✅ `90bf0a3`)
 
 Completed the audio-mode music player UX:
 1. **Embedded cover art** — `flutter_media_metadata: ^1.0.3` added to pubspec; `_scanCoverArt()` now falls back to `MetadataRetriever.fromFile()` after sidecar probe fails. Embedded bytes stored as `_embeddedArtBytes: Uint8List?`; passed as `MemoryImage` to disc, backdrop, and `_extractPalette()`. Sidecar path still wins when both exist.

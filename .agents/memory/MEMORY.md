@@ -1,2 +1,4 @@
-- [Phase J part-file extraction](phase-j-part-files.md) — panel classes extracted to part files; preflight false-positive pattern for part files.
-- [Phase J mixin plan](phase-j-mixin-plan.md) — precise J2 PlaybackMixin abstract-declaration map for next session.
+- [Flutter analyze CI gate](flutter-analyze-ci.md) — analyze runs before the build; only errors block it (warnings non-fatal via grep pattern).
+- [Loop/shuffle persistence](loop-shuffle-prefs.md) — both states now persisted (pref_loop / pref_shuffle) and restored to MPV on startup.
+- [Cross-mixin abstract decl pattern](cross-mixin-abstracts.md) — any method/getter used across mixins needs an abstract decl in the consuming mixin; missing one breaks compile.
+- [ImageProvider type inference](image-provider-type.md) — nested ternary with FileImage vs MemoryImage fails Dart type inference; use explicit if/else block.
