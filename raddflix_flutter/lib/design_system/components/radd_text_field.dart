@@ -135,15 +135,35 @@ class _RaddTextFieldState extends State<RaddTextField> {
                         widget.onChanged?.call(v);
                       },
                       decoration: InputDecoration(
-                        border: InputBorder.none,
+                        // Override the global inputDecorationTheme which sets
+                        // filled:true — without this the theme injects its own
+                        // fillColor, creating a visible inner box inside our
+                        // custom Container border.
+                        filled: false,
+                        // Explicitly clear every border state so no state
+                        // transition (focus, error, disabled) can draw a border.
+                        border:             InputBorder.none,
+                        enabledBorder:      InputBorder.none,
+                        focusedBorder:      InputBorder.none,
+                        errorBorder:        InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        disabledBorder:     InputBorder.none,
                         hintText: widget.hint,
                         hintStyle: context.raddBody.copyWith(color: t.textMuted),
-                        suffixIcon: widget.suffixIcon,
+                        // suffixIcon intentionally NOT here — putting it inside
+                        // InputDecorator lets Flutter add its own internal chrome
+                        // around the text+suffix area. It is rendered in the
+                        // outer Row below instead, so all visual layout is owned
+                        // by our Container.
                         isCollapsed: true,
                         counterText: widget.maxLength != null ? '' : null,
                       ),
                     ),
                   ),
+                  // Suffix lives in the outer Row, not inside InputDecoration,
+                  // so it shares the same 52dp Container height and is aligned
+                  // by our own layout rather than Flutter's InputDecorator chrome.
+                  if (widget.suffixIcon != null) widget.suffixIcon!,
                 ],
               ),
             ),
