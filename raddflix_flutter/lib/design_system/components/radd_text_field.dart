@@ -35,6 +35,11 @@ class RaddTextField extends StatefulWidget {
   // their character limit or capitalization behaviour.
   final int? maxLength;
   final TextCapitalization textCapitalization;
+  // D4: keyboard action + input formatters + submit callback for form-chain
+  // navigation and phone number formatting (UX4-08, UX4-10).
+  final TextInputAction? textInputAction;
+  final List<TextInputFormatter>? inputFormatters;
+  final ValueChanged<String>? onFieldSubmitted;
 
   const RaddTextField({
     super.key,
@@ -53,6 +58,9 @@ class RaddTextField extends StatefulWidget {
     this.focusNode,
     this.maxLength,
     this.textCapitalization = TextCapitalization.none,
+    this.textInputAction,
+    this.inputFormatters,
+    this.onFieldSubmitted,
   });
 
   @override
@@ -129,6 +137,9 @@ class _RaddTextFieldState extends State<RaddTextField> {
                       maxLength: widget.maxLength,
                       textCapitalization: widget.textCapitalization,
                       enabled: widget.enabled,
+                      textInputAction: widget.textInputAction,
+                      inputFormatters: widget.inputFormatters,
+                      onSubmitted: widget.onFieldSubmitted,
                       style: context.raddBody.copyWith(color: t.textPrimary),
                       onChanged: (v) {
                         field.didChange(v);
