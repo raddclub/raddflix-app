@@ -148,7 +148,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     ref.watch(catalogProvider.select((c) => (
       c.status, c.movies.length, c.shows.length, c.recentlyWatched.length,
       c.trending.length, c.freeContent.length, c.ongoingShows.length,
-      c.newlyAdded.length, c.recommendations.length,
+      c.newlyAdded.length,
     )));
     final catalog = ref.read(catalogProvider);
     final user       = ref.watch(authProvider).user;
@@ -448,12 +448,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           SliverToBoxAdapter(child: _ContentSection(
             title: 'Trending Now',
             items: catalog.trending,
-          ).animate().fadeIn(duration: 400.ms)),
-
-        // Recommended for You — TMDB engine (BUG-A26 resolved)
-        if (catalog.recommendations.isNotEmpty)
-          SliverToBoxAdapter(child: _RecommendationsSection(
-            recommendations: catalog.recommendations,
           ).animate().fadeIn(duration: 400.ms)),
 
         // Main content grid or rows
@@ -1243,159 +1237,6 @@ class _CategoryChip extends StatelessWidget {
             fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
             letterSpacing: isSelected ? 0.1 : 0)),
         ]),
-      ),
-    );
-  }
-}
-
-// ── Recommendations Section ───────────────────────────────────────────────────
-class _RecommendationsSection extends StatelessWidget {
-  final List<Map<String, dynamic>> recommendations;
-  const _RecommendationsSection({required this.recommendations});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-        child: Row(children: [
-          Container(width: 3, height: 20, margin: const EdgeInsets.only(right: 10),
-              decoration: BoxDecoration(gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(2))),
-          Text('You Might Like',
-              style: TextStyle(color: t.textPrimary, fontSize: 17,
-                  fontWeight: FontWeight.w800, letterSpacing: -0.4)),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: t.surface,
-              borderRadius: BorderRadius.circular(AppRadius.round),
-              border: Border.all(color: t.border),
-            ),
-            child: Text('TMDB',
-                style: TextStyle(color: t.textMuted, fontSize: 9,
-                    fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-          ),
-        ]),
-      ),
-      SizedBox(
-        height: 190,
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          physics: const BouncingScrollPhysics(),
-          itemCount: recommendations.length,
-          itemBuilder: (_, i) {
-            final rec    = recommendations[i];
-            final title  = rec['title']      as String? ?? '';
-            final poster = rec['poster_url'] as String? ?? '';
-            final rating = (rec['rating'] as num?)?.toDouble() ?? 0.0;
-            return RepaintBoundary(
-              child: Padding(
-                padding: EdgeInsets.only(right: i < recommendations.length - 1 ? 10 : 0),
-                child: SizedBox(
-                  width: 126,
-                  child: _RecommendCard(title: title, poster: poster, rating: rating),
-                ).animate(delay: (i * 30).ms).fadeIn(duration: 300.ms)
-                    .slideX(begin: 0.1, end: 0, duration: 300.ms,
-                        curve: AppCurves.standard),
-              ),
-            );
-          },
-        ),
-      ),
-    ]);
-  }
-}
-
-class _RecommendCard extends StatelessWidget {
-  final String title;
-  final String poster;
-  final double rating;
-  const _RecommendCard({required this.title, required this.poster, required this.rating});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
-    return GestureDetector(
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('"$title" is not in the RaddFlix library yet'),
-          backgroundColor: t.surface,
-          behavior: SnackBarBehavior.floating,
-          action: SnackBarAction(
-            label: 'Search',
-            textColor: AppColors.primary,
-            onPressed: () => Navigator.of(context).pushNamed(AppRoutes.search),
-          ),
-        ));
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          boxShadow: AppShadows.soft,
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          child: Stack(fit: StackFit.expand, children: [
-            poster.isNotEmpty
-                ? CachedNetworkImage(imageUrl: poster, fit: BoxFit.cover,
-                    placeholder: (_, __) => Shimmer.fromColors(
-                      baseColor: t.card,
-                      highlightColor: t.surfaceHigh,
-                      child: Container(color: t.card)),
-                    errorWidget: (_, __, ___) => Container(color: t.card,
-                        child: Icon(AppIcons.movie,
-                            color: t.textMuted, size: 28)))
-                : Container(color: t.card,
-                    child: Icon(AppIcons.movie,
-                        color: t.textMuted, size: 28)),
-            // Gradient overlay
-            Positioned(bottom: 0, left: 0, right: 0,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(8, 32, 8, 8),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Color(0xDD000000)],
-                  ),
-                ),
-                child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white, fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        shadows: [Shadow(color: Colors.black, blurRadius: 8)])),
-              )),
-            // Rating
-            if (rating > 0)
-              Positioned(top: 6, right: 6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.black54,
-                      borderRadius: BorderRadius.circular(4)),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(AppIcons.starFill, color: Colors.amber, size: 10),
-                    const SizedBox(width: 2),
-                    Text(rating.toStringAsFixed(1), style: const TextStyle(
-                        color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600)),
-                  ]),
-                )),
-            // "Request" badge
-            Positioned(top: 6, left: 6,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.5)),
-                ),
-                child: const Text('COMING',
-                    style: TextStyle(color: AppColors.primary, fontSize: 7,
-                        fontWeight: FontWeight.w800, letterSpacing: 0.5)),
-              )),
-          ]),
-        ),
       ),
     );
   }
