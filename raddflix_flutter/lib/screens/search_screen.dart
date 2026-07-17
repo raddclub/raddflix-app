@@ -146,7 +146,9 @@ List<Color> _gradientForGenre(int index) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+  // UX4-01: showBottomNav=false when embedded inside the HomeScreen IndexedStack shell
+  final bool showBottomNav;
+  const SearchScreen({super.key, this.showBottomNav = true});
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
@@ -193,7 +195,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     _loadHistory();
     _loadFilterMeta();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focus.requestFocus();
+      // UX4-01: don't auto-pop the keyboard when embedded in the IndexedStack
+      // shell (showBottomNav=false) — the tab isn't visible on first build.
+      if (widget.showBottomNav) _focus.requestFocus();
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       final f = args?['initialFilter'] as String?;
       if (f != null && f != 'All' && mounted) {
@@ -378,7 +382,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
     return Scaffold(
       backgroundColor: t.bg,
-      bottomNavigationBar: MiniPlayerDock(
+      // UX4-01: nav bar hidden when embedded in HomeScreen's IndexedStack shell
+      bottomNavigationBar: widget.showBottomNav ? MiniPlayerDock(
         child: RaddFlixBottomNav(
         currentIndex: 1,
         onTap: (i) {
@@ -389,7 +394,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile);
         },
         ),
-      ),
+      ) : null,
       body: SafeArea(
         child: Column(children: [
           const OfflineBanner(),

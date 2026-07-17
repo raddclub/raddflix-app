@@ -21,7 +21,9 @@ import '../core/db/local_db.dart';
 import '../services/vault_service.dart';
 
 class LocalMediaScreen extends StatefulWidget {
-  const LocalMediaScreen({super.key});
+  // UX4-01: showBottomNav=false when embedded inside the HomeScreen IndexedStack shell
+  final bool showBottomNav;
+  const LocalMediaScreen({super.key, this.showBottomNav = true});
   @override
   State<LocalMediaScreen> createState() => _LocalMediaScreenState();
 }
@@ -546,7 +548,8 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
               ),
             )
           : null,
-      bottomNavigationBar: MiniPlayerDock(
+      // UX4-01: nav bar hidden when embedded in HomeScreen's IndexedStack shell
+      bottomNavigationBar: widget.showBottomNav ? MiniPlayerDock(
         child: RaddFlixBottomNav(
           currentIndex: 2,
           onTap: (i) {
@@ -557,7 +560,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
             else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile);
           },
         ),
-      ),
+      ) : null,
       body: SafeArea(
         child: Column(children: [
           _buildTopBar(),

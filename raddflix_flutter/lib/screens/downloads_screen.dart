@@ -32,7 +32,9 @@ enum _Section { all, movies, tv }
 enum _ViewMode { grid, list }
 
 class DownloadsScreen extends ConsumerStatefulWidget {
-  const DownloadsScreen({super.key});
+  // UX4-01: showBottomNav=false when embedded inside the HomeScreen IndexedStack shell
+  final bool showBottomNav;
+  const DownloadsScreen({super.key, this.showBottomNav = true});
   @override
   ConsumerState<DownloadsScreen> createState() => _DownloadsScreenState();
 }
@@ -189,7 +191,8 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     return Scaffold(
       backgroundColor: null,
       appBar: _buildAppBar(state),
-      bottomNavigationBar: MiniPlayerDock(
+      // UX4-01: nav bar hidden when embedded in HomeScreen's IndexedStack shell
+      bottomNavigationBar: widget.showBottomNav ? MiniPlayerDock(
         child: RaddFlixBottomNav(
         currentIndex: 3,
         onTap: (i) {
@@ -200,7 +203,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile);
         },
         ),
-      ),
+      ) : null,
       body: Column(children: [
         if (!_isOnline) _buildOfflineBanner(),
         DownloadStorageStrip(

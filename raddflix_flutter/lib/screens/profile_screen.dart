@@ -32,7 +32,9 @@ import '../providers/profile_provider.dart';
 import 'profile_switcher_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
-  const ProfileScreen({super.key});
+  // UX4-01: showBottomNav=false when embedded inside the HomeScreen IndexedStack shell
+  final bool showBottomNav;
+  const ProfileScreen({super.key, this.showBottomNav = true});
   @override
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
@@ -163,7 +165,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       loading: _loggingOut,
       child: Scaffold(
         backgroundColor: null,
-        bottomNavigationBar: MiniPlayerDock(
+        // UX4-01: nav bar hidden when embedded in HomeScreen's IndexedStack shell
+        bottomNavigationBar: widget.showBottomNav ? MiniPlayerDock(
           child: RaddFlixBottomNav(
           currentIndex: 4,
           onTap: (i) {
@@ -174,7 +177,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.downloads);
           },
           ),
-        ),
+        ) : null,
         body: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [

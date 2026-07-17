@@ -31,6 +31,11 @@ import 'show_detail_screen.dart';
 import '../core/api/api_client.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+// UX4-01: IndexedStack tab-shell — persistent children
+import 'search_screen.dart';
+import 'downloads_screen.dart';
+import 'local_media_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -152,68 +157,78 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     final canAnimate = animConfig.canStagger && animConfig.shouldAnimate(context);
     final canMorph   = animConfig.canMorph   && animConfig.shouldAnimate(context);
 
+    // UX4-01: IndexedStack shell keeps all 5 tabs alive in the widget tree.
+    // Switching tabs is a single setState — no pushNamed, no back-stack, no
+    // state loss. extendBodyBehindAppBar/extendBody only apply on the home
+    // feed (tab 0); other tabs manage their own chrome inside their Scaffolds.
     return Scaffold(
       backgroundColor: null,
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: _navIndex == 0,
       // Phase 47 ANIM-47-03: content renders behind frosted nav on Tier 2+
-      extendBody: true,
-      appBar: _buildAppBar(user),
-      body: Stack(
+      // (home tab only — other tabs must not bleed under the nav bar)
+      extendBody: _navIndex == 0,
+      appBar: _navIndex == 0 ? _buildAppBar(user) : null,
+      body: IndexedStack(
+        index: _navIndex,
         children: [
-          // Ambient radial glow — warm light source at top of screen,
-          // gives the whole scaffold a glass-lit atmospheric depth.
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: const Alignment(0.0, -0.85),
-                    radius: 0.90,
-                    colors: [
-                      AppColors.primary.withOpacity(0.07),
-                      Colors.transparent,
-                    ],
+          // ── Tab 0: Home feed ─────────────────────────────────────────────
+          Stack(
+            children: [
+              // Ambient radial glow — warm light source at top of screen,
+              // gives the whole scaffold a glass-lit atmospheric depth.
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: const Alignment(0.0, -0.85),
+                        radius: 0.90,
+                        colors: [
+                          AppColors.primary.withOpacity(0.07),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+              Column(children: [
+                const OfflineBanner(),
+                Expanded(
+                  child: RefreshIndicator(
+                    color: AppColors.primary,
+                    backgroundColor: t.surface,
+                    onRefresh: () {
+                      HapticFeedback.lightImpact();
+                      return ref.read(catalogProvider.notifier).syncFromServer();
+                    },
+                    child: catalog.isEmpty && ref.watch(syncProvider).isSyncing
+                        ? _buildShimmer()
+                        : _buildContent(catalog, animConfig: animConfig, canAnimate: canAnimate, canMorph: canMorph),
+                  ),
+                ),
+              ]),
+            ],
           ),
-          Column(children: [
-            const OfflineBanner(),
-            Expanded(
-              child: RefreshIndicator(
-                color: AppColors.primary,
-                backgroundColor: t.surface,
-                onRefresh: () {
-                  HapticFeedback.lightImpact();
-                  return ref.read(catalogProvider.notifier).syncFromServer();
-                },
-                child: catalog.isEmpty && ref.watch(syncProvider).isSyncing
-                    ? _buildShimmer()
-                    : _buildContent(catalog, animConfig: animConfig, canAnimate: canAnimate, canMorph: canMorph),
-              ),
-            ),
-          ]),
+          // ── Tab 1: Search ─────────────────────────────────────────────────
+          const SearchScreen(showBottomNav: false),
+          // ── Tab 2: Local media ────────────────────────────────────────────
+          const LocalMediaScreen(showBottomNav: false),
+          // ── Tab 3: Downloads ──────────────────────────────────────────────
+          const DownloadsScreen(showBottomNav: false),
+          // ── Tab 4: Profile ────────────────────────────────────────────────
+          const ProfileScreen(showBottomNav: false),
         ],
       ),
       bottomNavigationBar: MiniPlayerDock(
         child: RaddFlixBottomNav(
-        currentIndex: _navIndex,
-        onTap: (i) {
-          setState(() => _navIndex = i);
-          DebugLogger.logTap('Home', 'bottomNav tab=$i', i == 0 ? 'Home' : i == 1 ? 'Search' : i == 2 ? 'Local' : i == 3 ? 'Download' : 'Profile');
-          // M-01: pop to root before pushing so tapping the same icon repeatedly
-          // doesn't build an unbounded back-stack (e.g. Profile → Profile → …).
-          if (i == 1 || i == 2 || i == 3 || i == 4) {
-            Navigator.of(context).popUntil((route) => route.isFirst);
-          }
-          // Await so _navIndex resets to Home (0) when the user presses back,
-          // preventing the indicator from staying on a non-Home tab.
-          if (i == 1) Navigator.of(context).pushNamed(AppRoutes.search).then((_) { if (mounted) setState(() => _navIndex = 0); });
-          else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.localMedia).then((_) { if (mounted) setState(() => _navIndex = 0); });
-          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.downloads).then((_) { if (mounted) setState(() => _navIndex = 0); });
-          else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile).then((_) { if (mounted) setState(() => _navIndex = 0); });
-        },
+          currentIndex: _navIndex,
+          onTap: (i) {
+            if (i == _navIndex) return; // already on this tab — no-op
+            setState(() => _navIndex = i);
+            DebugLogger.logTap('Shell', 'bottomNav tab=$i',
+                i == 0 ? 'Home' : i == 1 ? 'Search' : i == 2 ? 'Local' : i == 3 ? 'Download' : 'Profile');
+          },
         ),
       ),
     );
