@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
+import '../design_system/radius/radd_radius.dart';
+import '../widgets/theme_picker_sheet.dart'; // UX4-05
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -134,12 +136,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _logout() async {
+    final t = RaddTheme.of(context);
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      title: const Text('Sign Out'),
-      content: const Text('Are you sure you want to sign out?'),
+      // UX4-13: themed dialog — uses surface token + md radius
+      backgroundColor: t.card,
+      shape: RoundedRectangleBorder(borderRadius: RaddRadius.mdRadius),
+      title: Text('Sign Out', style: TextStyle(color: t.textPrimary)),
+      content: Text('Are you sure you want to sign out?',
+          style: TextStyle(color: t.textSecondary)),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel')),
+            child: Text('Cancel', style: TextStyle(color: t.textMuted))),
         TextButton(onPressed: () => Navigator.pop(context, true),
             child: const Text('Sign Out', style: TextStyle(color: AppColors.error))),
       ],
@@ -450,8 +457,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _SectionTile(
                       icon: AppIcons.colorPalette,
                       label: 'Theme',
-                      trailing: _ThemeTrailing(),
-                      onTap: () => _showThemePicker(context),
+                      trailing: ThemePickerTrailing(), // UX4-05
+                      onTap: () => showThemePickerSheet(context), // UX4-05
                     ),
                   ]),
                   const SizedBox(height: 12),
