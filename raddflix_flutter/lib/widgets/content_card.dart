@@ -107,7 +107,7 @@ class ContentCard extends StatelessWidget {
                 ]),
               )),
             // ── Glint sweep (Tier 1+) — diagonal light reflection animation ──
-            if (animConfig.canStagger) const _GlintOverlay(),
+            if (animConfig.canMorph) const _GlintOverlay(), // UX4-11: raised tier gate — saves timers on mid-range devices
             // Top badges
             Positioned(top: 6, left: 6, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // FIX-13: show only one badge at a time — FREE takes priority over NEW
@@ -215,68 +215,74 @@ class ContentCard extends StatelessWidget {
       );
     }
 
-    // Phase 55: long-press card context menu — compact quick-action popup
-    // anchored to the press point (Play / Watchlist toggle / More Info),
-    // instead of jumping straight to the full quick-view sheet.
+    // UX4-12: replaced position-anchored showMenu with showModalBottomSheet —
+    // consistent with every other action sheet in the app.
     void _showQuickActions(BuildContext context, Offset globalPosition) {
       HapticFeedback.mediumImpact();
-      final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-      final screenSize = overlay.size;
-      final consumerContainer = ProviderScope.containerOf(context, listen: false);
-      final isInWatchlist = consumerContainer.read(watchlistProvider).isInWatchlist(item.id);
-
-      showMenu<String>(
-        context: context,
-        position: RelativeRect.fromLTRB(
-          globalPosition.dx, globalPosition.dy,
-          screenSize.width - globalPosition.dx,
-          screenSize.height - globalPosition.dy,
-        ),
-        color: RaddTheme.of(context).surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: RaddRadius.mdRadius,
-          side: BorderSide(color: RaddTheme.of(context).border),
-        ),
-        elevation: 12,
-        items: [
-          _quickActionItem('play', AppIcons.play, 'Play', context),
-          _quickActionItem(
-            'watchlist',
-            isInWatchlist ? AppIcons.bookmarkFill : AppIcons.bookmark,
-            isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist',
-            context,
-          ),
-          _quickActionItem('info', AppIcons.info, 'More Info', context),
-        ],
-      ).then((action) {
-        if (action == null) return;
-        HapticFeedback.selectionClick();
-        switch (action) {
-          case 'play':
-            _onTap(context);
-            break;
-          case 'watchlist':
-            consumerContainer.read(watchlistProvider.notifier).toggle(item);
-            break;
-          case 'info':
-            _showQuickView(context);
-            break;
-        }
-      });
-    }
-
-    PopupMenuItem<String> _quickActionItem(
-        String value, IconData icon, String label, BuildContext context) {
+      final container   = ProviderScope.containerOf(context, listen: false);
+      final isInWatchlist = container.read(watchlistProvider).isInWatchlist(item.id);
       final t = RaddTheme.of(context);
-      return PopupMenuItem<String>(
-        value: value,
-        height: 44,
-        child: Row(children: [
-          Icon(icon, size: 18, color: t.textPrimary),
-          const SizedBox(width: 12),
-          Text(label, style: TextStyle(
-              color: t.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
-        ]),
+
+      Widget sheetRow(IconData icon, String label, VoidCallback onTap) =>
+          InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              height: 52,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(children: [
+                  Icon(icon, size: 20, color: t.textPrimary),
+                  const SizedBox(width: 14),
+                  Text(label, style: TextStyle(
+                      color: t.textPrimary, fontSize: 14,
+                      fontWeight: FontWeight.w600)),
+                ]),
+              ),
+            ),
+          );
+
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (_) => Container(
+          decoration: BoxDecoration(
+            color: t.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(0, 12, 0, 34),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            // Handle bar
+            Center(child: Container(
+              width: 36, height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: t.textMuted.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            )),
+            sheetRow(AppIcons.play, 'Play', () {
+              Navigator.pop(context);
+              HapticFeedback.selectionClick();
+              _onTap(context);
+            }),
+            Divider(height: 1, color: t.border),
+            sheetRow(
+              isInWatchlist ? AppIcons.bookmarkFill : AppIcons.bookmark,
+              isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist',
+              () {
+                Navigator.pop(context);
+                HapticFeedback.selectionClick();
+                container.read(watchlistProvider.notifier).toggle(item);
+              },
+            ),
+            Divider(height: 1, color: t.border),
+            sheetRow(AppIcons.info, 'More Info', () {
+              Navigator.pop(context);
+              HapticFeedback.selectionClick();
+              _showQuickView(context);
+            }),
+          ]),
+        ),
       );
     }
 
