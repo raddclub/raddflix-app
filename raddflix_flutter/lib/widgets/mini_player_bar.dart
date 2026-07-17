@@ -274,11 +274,13 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
                               // ── Dismiss ───────────────────────────────────
                               GestureDetector(
                                 onTap: _dismissStatic,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(
-                                      right: 10, left: 2),
-                                  child: Icon(AppIcons.close,
-                                      size: 16, color: Colors.white38),
+                                // UX4-09: 44×44 WCAG-compliant tap target
+                                child: SizedBox(
+                                  width: 44, height: 44,
+                                  child: Center(
+                                    child: Icon(AppIcons.close,
+                                        size: 16, color: Colors.white38),
+                                  ),
                                 ),
                               ),
                             ],
@@ -458,26 +460,30 @@ class _LiveMiniPlayerBar extends StatelessWidget {
                         // ── Real play/pause control ──────────────────────
                         GestureDetector(
                           onTap: service.togglePlayPause,
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 6),
-                            child: Icon(
-                              service.playing
-                                  ? AppIcons.pause
-                                  : AppIcons.play,
-                              color: Colors.white,
-                              size: 26,
+                          // UX4-09: 44×44 WCAG-compliant tap target
+                          child: SizedBox(
+                            width: 44, height: 44,
+                            child: Center(
+                              child: Icon(
+                                service.playing
+                                    ? AppIcons.pause
+                                    : AppIcons.play,
+                                color: Colors.white,
+                                size: 26,
+                              ),
                             ),
                           ),
                         ),
                         // ── End session ───────────────────────────────────
                         GestureDetector(
                           onTap: () => _confirmStop(context),
-                          child: Padding(
-                            padding: const EdgeInsets.only(
-                                right: 10, left: 2),
-                            child: Icon(AppIcons.close,
-                                size: 16, color: Colors.white38),
+                          // UX4-09: 44×44 WCAG-compliant tap target
+                          child: SizedBox(
+                            width: 44, height: 44,
+                            child: Center(
+                              child: Icon(AppIcons.close,
+                                  size: 16, color: Colors.white38),
+                            ),
                           ),
                         ),
                       ],
