@@ -54,20 +54,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       return;
     }
     setState(() => _loadingCandidates = true);
-    final genres = _selectedGenres.take(3).toList();
-    final seen = <int>{};
-    final results = <CatalogItem>[];
-    for (final genre in genres) {
-      final found = await LocalDb.searchAdvanced(genre: genre, limit: 6);
-      for (final r in found) {
-        if (seen.add(r.item.id)) results.add(r.item);
+    try {
+      final genres = _selectedGenres.take(3).toList();
+      final seen = <int>{};
+      final results = <CatalogItem>[];
+      for (final genre in genres) {
+        final found = await LocalDb.searchAdvanced(genre: genre, limit: 6);
+        for (final r in found) {
+          if (seen.add(r.item.id)) results.add(r.item);
+        }
       }
+      if (!mounted) return;
+      setState(() {
+        _candidateItems = results.take(18).toList();
+        _loadingCandidates = false;
+      });
+    } catch (_) {
+      // DB failure — clear the spinner so the user is not stuck.
+      if (mounted) setState(() { _candidateItems = []; _loadingCandidates = false; });
     }
-    if (!mounted) return;
-    setState(() {
-      _candidateItems = results.take(18).toList();
-      _loadingCandidates = false;
-    });
   }
 
   Future<void> _goToStep(int step) async {

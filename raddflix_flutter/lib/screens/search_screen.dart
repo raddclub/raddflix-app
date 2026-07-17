@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
@@ -9,12 +8,9 @@ import '../design_system/spacing/radd_space.dart';
 import '../design_system/radius/radd_radius.dart';
 import '../design_system/elevation/radd_elevation.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../widgets/animated_empty_icons.dart';
 import '../widgets/offline_banner.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:shimmer/shimmer.dart';
 import '../core/constants.dart';
 import '../core/db/local_db.dart';
 import '../widgets/bottom_nav.dart';
@@ -301,8 +297,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
       if (mounted) setState(() { _results = results; _loading = false; });
       if (_ctrl.text.trim().isNotEmpty) await _saveToHistory(_ctrl.text.trim());
-    } catch (_) {
-      if (mounted) setState(() { _results = []; _loading = false; });
+    } catch (e) {
+      // M-03: surface search errors so the user knows something went wrong.
+      if (mounted) setState(() {
+        _results = [];
+        _loading = false;
+        _searchError = 'Search failed. Please try again.';
+      });
+      DebugLogger.logError('Search', '_doSearch', e);
     }
   }
 

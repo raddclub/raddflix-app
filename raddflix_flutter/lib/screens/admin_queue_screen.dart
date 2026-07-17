@@ -20,6 +20,7 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
 
   List<Map<String, dynamic>> _jobs = [];
   bool _loading = true;
+  bool _loadInFlight = false; // guard: prevent overlapping _load() calls on slow network
   String? _error;
   Timer? _timer;
 
@@ -37,6 +38,8 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
   }
 
   Future<void> _load() async {
+    if (_loadInFlight) return; // skip if the previous request is still in flight
+    _loadInFlight = true;
     try {
       final res  = await ApiClient.instance.get(ApiPaths.adminQueue);
       final data = res.data as Map<String, dynamic>;
@@ -50,6 +53,8 @@ class _AdminQueueScreenState extends State<AdminQueueScreen> {
     } catch (e) {
       if (kDebugMode) debugPrint('[AdminQueue] load error: $e');
       if (mounted) setState(() { _loading = false; _error = 'Could not load queue. Please try again.'; });
+    } finally {
+      _loadInFlight = false;
     }
   }
 
