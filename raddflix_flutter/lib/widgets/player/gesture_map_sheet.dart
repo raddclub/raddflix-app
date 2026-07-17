@@ -8,7 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Every gesture zone maps to any player action. Persisted in SharedPreferences.
 
 // Gesture → (label, icon)
-const kGestureActions = <String, (String, IconData)>{
+// Not const: AppIcons.block is a getter (PhosphorIcons.prohibit(...)) which
+// is not a compile-time constant, making the whole map non-constant.
+final kGestureActions = <String, (String, IconData)>{
   'play_pause':       ('Play / Pause',         Icons.play_arrow_rounded),
   'seek_back_5':      ('Seek Back 5s',          Icons.replay_5_rounded),
   'seek_fwd_5':       ('Seek Forward 5s',       Icons.forward_5_rounded),

@@ -120,7 +120,7 @@ class _ChapterPainter extends CustomPainter {
 
     final totalMs = totalDuration.inMilliseconds.toDouble();
     final posMs   = position.inMilliseconds.toDouble();
-    final posX    = (posMs / totalMs * size.width).clamp(0, size.width);
+    final posX    = (posMs / totalMs * size.width).clamp(0.0, size.width);
     final trackY  = size.height / 2;
     const trackH  = 4.0;
 

@@ -61,6 +61,12 @@ class AppConstants {
   ///   Set this to false and rebuild.
   static const bool otpDeviceSwitchEnabled = true;
 
+  // ── Onboarding ────────────────────────────────────────────────────────────
+  /// SharedPreferences key — list of content IDs queued from the onboarding flow.
+  static const String onboardingPendingItemsKey = 'ob_pending_items';
+  /// SharedPreferences key — true once the user has completed onboarding at least once.
+  static const String onboardingSeenKey = 'ob_seen';
+
   // ── SIMOSA (Phase 9) ─────────────────────────────────────────────────────
   /// Play Store URL for the SIMOSA app (Jazz daily free MB offer).
   static const String simosaPlayStoreUrl =

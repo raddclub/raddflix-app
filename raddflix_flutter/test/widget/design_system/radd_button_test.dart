@@ -90,8 +90,11 @@ void main() {
     });
 
     test('non-icon variant without a label throws an assertion error', () {
+      // Cannot use const here — the assertion fires at runtime, not compile time,
+      // and Dart's const evaluation cannot catch it statically.
       expect(
-        () => const RaddButton(),
+        // ignore: prefer_const_constructors
+        () => RaddButton(),
         throwsAssertionError,
       );
     });
