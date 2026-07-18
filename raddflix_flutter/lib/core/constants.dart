@@ -81,19 +81,21 @@ class AppConstants {
 
 // ── Brand Colors ─────────────────────────────────────────────────────────────
 class AppColors {
-  // Primary brand
-  static const Color primary       = Color(0xFFE8002D);
-  static const Color primaryDark   = Color(0xFFB5001F);
-  static const Color primaryGlow   = Color(0x40E8002D);
-  static const Color primaryLight  = Color(0xFFFF4D6A);
+  // Primary brand — Warm Hearth palette
+  // Amber-terracotta: calm, home, no pressure. Unclaimed in streaming category.
+  static const Color primary       = Color(0xFFD4784A);
+  static const Color primaryDark   = Color(0xFFA85A32);
+  static const Color primaryGlow   = Color(0x40D4784A);
+  static const Color primaryLight  = Color(0xFFE8A070);
 
   // Backgrounds (Dark theme) — kept in sync with RaddTheme.dark
-  static const Color background    = Color(0xFF07070F);
-  static const Color backgroundAlt = Color(0xFF0B0B1C);
-  static const Color surface       = Color(0xFF0F0F22);
-  static const Color surfaceHigh   = Color(0xFF18183A);
-  static const Color card          = Color(0xFF1E1E3C);
-  static const Color cardBorder    = Color(0xFF30305A);
+  // Warm brown-black: like a dimly lit living room, not a cold cinema.
+  static const Color background    = Color(0xFF130F0C);
+  static const Color backgroundAlt = Color(0xFF1A1410);
+  static const Color surface       = Color(0xFF211A15);
+  static const Color surfaceHigh   = Color(0xFF2C2219);
+  static const Color card          = Color(0xFF352A1F);
+  static const Color cardBorder    = Color(0xFF4A3828);
 
   // Glassmorphism
   static const Color glass         = Color(0x0DFFFFFF);
@@ -105,63 +107,63 @@ class AppColors {
   static const Color amoledSurface = Color(0xFF0A0A0A);
   static const Color amoledCard    = Color(0xFF111111);
 
-  // Light theme
-  static const Color lightBg       = Color(0xFFF0F0F7);
+  // Light theme — warm linen/paper: sunlit room, not sterile office
+  static const Color lightBg       = Color(0xFFFAF6F0);
   static const Color lightSurface  = Color(0xFFFFFFFF);
-  static const Color lightCard     = Color(0xFFF5F5FA);
-  static const Color lightBorder   = Color(0xFFE0E0EC);
+  static const Color lightCard     = Color(0xFFF0E8DC);
+  static const Color lightBorder   = Color(0xFFE0CEB8);
 
-  // Text
-  static const Color textPrimary   = Color(0xFFF2F2FF);
-  static const Color textSecondary = Color(0xFFB0B0CC);
-  static const Color textMuted     = Color(0xFF6A6A90);
-  static const Color textDisabled  = Color(0xFF404060);
+  // Text — warm cream, not cold blue-white
+  static const Color textPrimary   = Color(0xFFF5EFE6);
+  static const Color textSecondary = Color(0xFFC8B5A0);
+  static const Color textMuted     = Color(0xFF8A7060);
+  static const Color textDisabled  = Color(0xFF5A4838);
 
-  // Text (light mode)
-  static const Color lightTextPrimary   = Color(0xFF0A0A1A);
-  static const Color lightTextSecondary = Color(0xFF444466);
-  static const Color lightTextMuted     = Color(0xFF888899);
+  // Text (light mode) — warm dark brown, not cold near-black
+  static const Color lightTextPrimary   = Color(0xFF1A110A);
+  static const Color lightTextSecondary = Color(0xFF5A4435);
+  static const Color lightTextMuted     = Color(0xFF8A7060);
 
   // Shorthand aliases
   static const Color text      = textPrimary;
   static const Color border    = glassBorder;
 
-  // Status
+  // Status — unchanged (semantic colours must stay readable)
   static const Color success       = Color(0xFF22C55E);
   static const Color successGlow   = Color(0x2222C55E);
   static const Color error         = Color(0xFFEF4444);
   static const Color errorGlow     = Color(0x22EF4444);
   static const Color warning       = Color(0xFFF59E0B);
   static const Color warningGlow   = Color(0x22F59E0B);
-  static const Color info          = Color(0xFF3B82F6);
-  static const Color accent        = Color(0xFF3B82F6); // alias for info, used in year filter chips
+  static const Color info          = Color(0xFF5B9BD4);   // softened to dusty blue — calmer
+  static const Color accent        = Color(0xFF5B9BD4);   // alias for info, used in year filter chips
 
   // Divider
-  static const Color divider       = Color(0xFF1E1E42);
-  static const Color dividerLight  = Color(0xFFE0E0F0);
+  static const Color divider       = Color(0xFF2A2018);
+  static const Color dividerLight  = Color(0xFFE8D8C8);
 
   // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFFE8002D), Color(0xFFFF5C5C)],
+    colors: [Color(0xFFD4784A), Color(0xFFE8A070)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient darkGradient = LinearGradient(
-    colors: [Color(0xFF07070F), Color(0xFF0B0B1C)],
+    colors: [Color(0xFF130F0C), Color(0xFF1A1410)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
 
   static const LinearGradient heroGradient = LinearGradient(
-    colors: [Colors.transparent, Color(0xFF07070F)],
+    colors: [Colors.transparent, Color(0xFF130F0C)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     stops: [0.3, 1.0],
   );
 
   static const LinearGradient cardGradient = LinearGradient(
-    colors: [Color(0xFF18183A), Color(0xFF0F0F22)],
+    colors: [Color(0xFF2C2219), Color(0xFF211A15)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -178,9 +180,9 @@ class AppColors {
   static const Color simosaBgLight2 = Color(0xFFD8C8FF); // Simosa light bg gradient end
 
   // ── Layout designer ────────────────────────────────────────────────────────
-  static const Color layoutDeep     = Color(0xFF0B0B1C); // Layout designer scaffold bg
-  static const Color layoutPanel    = Color(0xFF0F0F22); // Layout designer header/footer panel
-  static const Color layoutSheet    = Color(0xFF1E1E3C); // Layout designer bottom sheet
+  static const Color layoutDeep     = Color(0xFF1A1410); // Layout designer scaffold bg
+  static const Color layoutPanel    = Color(0xFF211A15); // Layout designer header/footer panel
+  static const Color layoutSheet    = Color(0xFF352A1F); // Layout designer bottom sheet
 
   // ── Semantic — Volume II (accent.dataFree, protected color) ────────────────
   /// Reserved EXCLUSIVELY for zero-rated/data-free indicators. Never use for

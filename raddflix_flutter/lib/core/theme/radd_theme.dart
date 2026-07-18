@@ -75,24 +75,25 @@ class RaddTheme {
   // ══════════════════════════════════════════════════════════════════════════
   //  DARK  — default deep navy-black (richer depth + visible card borders)
   // ══════════════════════════════════════════════════════════════════════════
+  // ── Warm Hearth dark: brown-black warmth, amber primary, cream text ──────────
   static const RaddTheme dark = RaddTheme(
-    bg:               Color(0xFF07070F),
-    bgAlt:            Color(0xFF0B0B1C),
-    surface:          Color(0xFF0F0F22),
-    surfaceHigh:      Color(0xFF18183A),
-    card:             Color(0xFF1E1E3C),
-    cardBorder:       Color(0xFF30305A),
-    glass:            Color(0x12FFFFFF),
-    glassHigh:        Color(0x20FFFFFF),
-    border:           Color(0x18FFFFFF),
-    textPrimary:      Color(0xFFF2F2FF),
-    textSecondary:    Color(0xFFB8B8D8),
-    textMuted:        Color(0xFF7070A0),
-    textDisabled:     Color(0xFF404068),
-    divider:          Color(0xFF1E1E42),
-    shimmerBase:      Color(0xFF0F0F22),
-    shimmerHighlight: Color(0xFF18183A),
-    heroStop:         Color(0xFF07070F),
+    bg:               Color(0xFF130F0C),
+    bgAlt:            Color(0xFF1A1410),
+    surface:          Color(0xFF211A15),
+    surfaceHigh:      Color(0xFF2C2219),
+    card:             Color(0xFF352A1F),
+    cardBorder:       Color(0xFF4A3828),
+    glass:            Color(0x10FFFFFF),
+    glassHigh:        Color(0x1AFFFFFF),
+    border:           Color(0x15FFFFFF),
+    textPrimary:      Color(0xFFF5EFE6),
+    textSecondary:    Color(0xFFC8B5A0),
+    textMuted:        Color(0xFF8A7060),
+    textDisabled:     Color(0xFF5A4838),
+    divider:          Color(0xFF2A2018),
+    shimmerBase:      Color(0xFF211A15),
+    shimmerHighlight: Color(0xFF2C2219),
+    heroStop:         Color(0xFF130F0C),
   );
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -108,10 +109,10 @@ class RaddTheme {
     glass:            Color(0x0DFFFFFF),
     glassHigh:        Color(0x1AFFFFFF),
     border:           Color(0x12FFFFFF),
-    textPrimary:      Color(0xFFF2F2FF),
-    textSecondary:    Color(0xFFB0B0CC),
-    textMuted:        Color(0xFF6A6A90),
-    textDisabled:     Color(0xFF333355),
+    textPrimary:      Color(0xFFF5EFE6),
+    textSecondary:    Color(0xFFC8B5A0),
+    textMuted:        Color(0xFF8A7060),
+    textDisabled:     Color(0xFF5A4838),
     divider:          Color(0xFF141414),
     shimmerBase:      Color(0xFF0A0A0A),
     shimmerHighlight: Color(0xFF111111),
@@ -121,24 +122,25 @@ class RaddTheme {
   // ══════════════════════════════════════════════════════════════════════════
   //  LIGHT
   // ══════════════════════════════════════════════════════════════════════════
+  // ── Warm Hearth light: linen/paper warmth — sunlit room, not sterile office ──
   static const RaddTheme light = RaddTheme(
-    bg:               Color(0xFFF0F0F7),
-    bgAlt:            Color(0xFFE8E8F2),
+    bg:               Color(0xFFFAF6F0),
+    bgAlt:            Color(0xFFF0E8DC),
     surface:          Color(0xFFFFFFFF),
-    surfaceHigh:      Color(0xFFF5F5FA),
-    card:             Color(0xFFF5F5FA),
-    cardBorder:       Color(0xFFE0E0EC),
+    surfaceHigh:      Color(0xFFFAF4EC),
+    card:             Color(0xFFF0E8DC),
+    cardBorder:       Color(0xFFE0CEB8),
     glass:            Color(0x0A000000),
     glassHigh:        Color(0x14000000),
-    border:           Color(0xFFE0E0EC),
-    textPrimary:      Color(0xFF0A0A1A),
-    textSecondary:    Color(0xFF444466),
-    textMuted:        Color(0xFF888899),
-    textDisabled:     Color(0xFFBBBBCC),
-    divider:          Color(0xFFE0E0F0),
-    shimmerBase:      Color(0xFFE8E8F4),
-    shimmerHighlight: Color(0xFFF5F5FA),
-    heroStop:         Color(0xFFF0F0F7),
+    border:           Color(0xFFE0CEB8),
+    textPrimary:      Color(0xFF1A110A),
+    textSecondary:    Color(0xFF5A4435),
+    textMuted:        Color(0xFF8A7060),
+    textDisabled:     Color(0xFFC0A888),
+    divider:          Color(0xFFE8D8C8),
+    shimmerBase:      Color(0xFFF0E8DC),
+    shimmerHighlight: Color(0xFFFAF4EC),
+    heroStop:         Color(0xFFFAF6F0),
   );
 
   // ══════════════════════════════════════════════════════════════════════════
