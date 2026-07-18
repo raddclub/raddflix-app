@@ -72,7 +72,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   Color  _subColor     = Colors.white;
   Color  _subBgColor   = Colors.transparent;
   double _subOpacity   = 1.0;
-  int    _subShadowIdx = 1;       // 0=None  1=Outline  2=Drop Shadow  3=Box
+  int    _subShadowIdx = 2;       // 0=None  1=Outline  2=Drop Shadow  3=Box
 
   // ── Position ──────────────────────────────────────────────────────────────
   int    _subAlignX       = 1;    // 0=Left   1=Center   2=Right
@@ -147,23 +147,27 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     final colorVal   = prefs.getInt('pref_sub_color')       ?? Colors.white.value;
     final bgColorVal = prefs.getInt('pref_sub_bg_color')    ?? Colors.transparent.value;
     final opacity    = prefs.getDouble('pref_sub_opacity')  ?? 1.0;
-    final shadowIdx  = prefs.getInt('pref_sub_shadow')      ?? 1;
+    final shadowIdx  = prefs.getInt('pref_sub_shadow')      ?? 2;
     final alignX     = prefs.getInt('pref_sub_align_x')     ?? 1;
     final alignY     = prefs.getInt('pref_sub_align_y')     ?? 2;
     final edgePad    = prefs.getDouble('pref_sub_edge_pad') ?? 16.0;
     final fitToVideo = prefs.getBool('pref_sub_fit')        ?? true;
+    // Load saved bottom margin so the slider reflects the actual active value
+    // instead of always resetting to 100 when the panel reopens.
+    final margin     = prefs.getDouble('pref_sub_margin')   ?? 100.0;
     setState(() {
-      _subFontIdx   = fontIdx;
-      _subSize      = size;
-      _subBold      = bold;
-      _subColor     = Color(colorVal);
-      _subBgColor   = Color(bgColorVal);
-      _subOpacity   = opacity;
-      _subShadowIdx = shadowIdx;
-      _subAlignX    = alignX;
-      _subAlignY    = alignY;
+      _subFontIdx      = fontIdx;
+      _subSize         = size;
+      _subBold         = bold;
+      _subColor        = Color(colorVal);
+      _subBgColor      = Color(bgColorVal);
+      _subOpacity      = opacity;
+      _subShadowIdx    = shadowIdx;
+      _subAlignX       = alignX;
+      _subAlignY       = alignY;
       _subEdgePadding  = edgePad;
       _subFitToVideo   = fitToVideo;
+      _subBottomMargin = margin;
     });
     if (!mounted) return;
     // Re-apply all saved settings to MPV so the live video matches prefs.

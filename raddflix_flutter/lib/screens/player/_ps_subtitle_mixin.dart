@@ -110,7 +110,7 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
     final colorVal   = prefs.getInt('pref_sub_color')       ?? Colors.white.value;
     final bgColorVal = prefs.getInt('pref_sub_bg_color')    ?? Colors.transparent.value;
     final opacity    = prefs.getDouble('pref_sub_opacity')  ?? 1.0;
-    final shadowIdx  = prefs.getInt('pref_sub_shadow')      ?? 1;
+    final shadowIdx  = prefs.getInt('pref_sub_shadow')      ?? 2;
     final alignX     = prefs.getInt('pref_sub_align_x')     ?? 1;
     final alignY     = prefs.getInt('pref_sub_align_y')     ?? 2;
     final edgePad    = prefs.getDouble('pref_sub_edge_pad') ?? 16.0;
