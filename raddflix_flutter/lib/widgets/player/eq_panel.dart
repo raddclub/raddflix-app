@@ -41,7 +41,7 @@ class _EqPanelState extends State<EqPanel> with SingleTickerProviderStateMixin {
   late bool _normalization;
   late TabController _tabCtrl;
 
-  static const _accent = Color(0xFFE8002D);
+  static const _accent = Color(0xFFD4784A);
   static const _blue = Color(0xFF1565C0);
 
   @override

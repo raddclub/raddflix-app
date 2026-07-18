@@ -194,7 +194,7 @@ class _ModeSettingsSheetState extends State<_ModeSettingsSheet> {
                                   width: 34, height: 34,
                                   decoration: const BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: Color(0xFFE8002D),
+                                    color: Color(0xFFD4784A),
                                   ),
                                   child: const Icon(Icons.pause_rounded,
                                       color: Colors.white, size: 18),

@@ -26,7 +26,7 @@ class _ColorPickerSheetState extends State<ColorPickerSheet> {
   static const _bg = Color(0xFF12121E);
 
   static const _swatches = <_Swatch>[
-    _Swatch('RaddFlix Red',  Color(0xFFE8002D)),
+    _Swatch('RaddFlix Amber', Color(0xFFD4784A)),
     _Swatch('Hot Pink',      Color(0xFFFF4081)),
     _Swatch('Sakura',        Color(0xFFFF80AB)),
     _Swatch('Purple',        Color(0xFF9C27B0)),

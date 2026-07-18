@@ -250,7 +250,7 @@ class SeekBarPainter extends CustomPainter {
     const trackH = 6.0;
     final boundaries = [0.0, ...chapterFractions, 1.0];
     const chapterColors = [
-      Color(0xFFE8002D), Color(0xFF9C27B0), Color(0xFF2196F3),
+      Color(0xFFD4784A), Color(0xFF9C27B0), Color(0xFF2196F3),
       Color(0xFF4CAF50), Color(0xFFFF9800), Color(0xFF00BCD4),
       Color(0xFFFF4081), Color(0xFFFFD700),
     ];

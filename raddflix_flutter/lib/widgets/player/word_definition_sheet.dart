@@ -10,7 +10,7 @@ import '../../core/player/word_dict.dart';
 /// Shows the definition sheet for [word]. Returns a Future so the caller
 /// can await dismissal if needed.
 Future<void> showWordDefinition(BuildContext context, String word,
-    {Color accentColor = const Color(0xFFE8002D)}) {
+    {Color accentColor = const Color(0xFFD4784A)}) {
   final entry = WordDict.instance.lookup(word);
   return showModalBottomSheet<void>(
     context: context,

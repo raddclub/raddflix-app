@@ -26,7 +26,7 @@ class VideoEnhancePanel extends StatelessWidget {
         Expanded(child: Slider(
           value: value.clamp(min, max),
           min: min, max: max,
-          activeColor: const Color(0xFFE8002D),
+          activeColor: const Color(0xFFD4784A),
           inactiveColor: Colors.white12,
           onChanged: onChange,
         )),
@@ -50,7 +50,7 @@ class VideoEnhancePanel extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
           child: Row(children: [
-            const Icon(Icons.tune_rounded, color: Color(0xFFE8002D), size: 18),
+            const Icon(Icons.tune_rounded, color: Color(0xFFD4784A), size: 18),
             const SizedBox(width: 8),
             const Text('Video Enhancement', style: TextStyle(
                 color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
@@ -73,7 +73,7 @@ class VideoEnhancePanel extends StatelessWidget {
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: Text('ADJUSTMENTS', style: TextStyle(
-                    color: Color(0xFFE8002D), fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+                    color: Color(0xFFD4784A), fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
               ),
               _slider('Brightness', prefs.brightness, -0.5, 0.5,
                   (v) => '${v >= 0 ? '+' : ''}${v.toStringAsFixed(2)}',
@@ -92,7 +92,7 @@ class VideoEnhancePanel extends StatelessWidget {
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: Text('MODES', style: TextStyle(
-                    color: Color(0xFFE8002D), fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+                    color: Color(0xFFD4784A), fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
               ),
               SwitchListTile(
                 dense: true,
@@ -101,7 +101,7 @@ class VideoEnhancePanel extends StatelessWidget {
                 subtitle: const Text('Warm tint, easier on eyes',
                     style: TextStyle(color: Colors.white38, fontSize: 11)),
                 value: prefs.nightMode,
-                activeColor: const Color(0xFFE8002D),
+                activeColor: const Color(0xFFD4784A),
                 onChanged: (v) => onChanged(prefs.copyWith(nightMode: v)),
               ),
               if (prefs.nightMode)
@@ -112,7 +112,7 @@ class VideoEnhancePanel extends StatelessWidget {
                 dense: true,
                 title: const Text('Sharpness', style: TextStyle(color: Colors.white, fontSize: 13)),
                 value: prefs.sharpnessEnabled,
-                activeColor: const Color(0xFFE8002D),
+                activeColor: const Color(0xFFD4784A),
                 onChanged: (v) => onChanged(prefs.copyWith(sharpnessEnabled: v)),
               ),
               if (prefs.sharpnessEnabled)

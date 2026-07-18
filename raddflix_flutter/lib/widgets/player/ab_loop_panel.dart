@@ -35,7 +35,7 @@ class AbLoopPanel extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         // Header
         Row(children: [
-          const Icon(Icons.loop_rounded, color: Color(0xFFE8002D), size: 18),
+          const Icon(Icons.loop_rounded, color: Color(0xFFD4784A), size: 18),
           const SizedBox(width: 8),
           const Text('A-B Loop', style: TextStyle(
               color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
@@ -44,7 +44,7 @@ class AbLoopPanel extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8002D),
+                color: const Color(0xFFD4784A),
                 borderRadius: BorderRadius.circular(10)),
               child: const Text('LOOPING', style: TextStyle(
                   color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
@@ -91,7 +91,7 @@ class AbLoopPanel extends StatelessWidget {
 
           // Arrow
           Icon(Icons.arrow_forward_rounded,
-              color: looping ? const Color(0xFFE8002D) : Colors.white24, size: 20),
+              color: looping ? const Color(0xFFD4784A) : Colors.white24, size: 20),
           const SizedBox(width: 12),
 
           // Set B button
@@ -110,20 +110,20 @@ class AbLoopPanel extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 14),
               decoration: BoxDecoration(
-                color: bSet ? const Color(0xFFE8002D).withOpacity(0.15) : Colors.white.withOpacity(0.06),
+                color: bSet ? const Color(0xFFD4784A).withOpacity(0.15) : Colors.white.withOpacity(0.06),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: bSet ? const Color(0xFFE8002D) : Colors.white24,
+                  color: bSet ? const Color(0xFFD4784A) : Colors.white24,
                   width: bSet ? 1.5 : 1),
               ),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Text('B', style: TextStyle(
-                    color: bSet ? const Color(0xFFE8002D) : Colors.white54,
+                    color: bSet ? const Color(0xFFD4784A) : Colors.white54,
                     fontSize: 22, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 2),
                 Text(bSet ? fmtDur(controller.pointB!) : 'Tap to set',
                     style: TextStyle(
-                        color: bSet ? const Color(0xFFE8002D) : Colors.white38,
+                        color: bSet ? const Color(0xFFD4784A) : Colors.white38,
                         fontSize: 11)),
               ]),
             ),

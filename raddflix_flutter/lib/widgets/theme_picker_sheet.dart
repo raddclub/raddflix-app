@@ -49,8 +49,8 @@ class ThemePickerTrailing extends ConsumerWidget {
       case JazzTheme.rose:     return const Color(0xFF2E1822);
       case JazzTheme.charcoal: return const Color(0xFF272729);
       case JazzTheme.amoled:   return const Color(0xFF000000);
-      case JazzTheme.light:    return const Color(0xFFF0F0F7);
-      default:                 return const Color(0xFF1A1A2E);
+      case JazzTheme.light:    return const Color(0xFFFAF6F0);
+      default:                 return const Color(0xFF352A1F);
     }
   }
 

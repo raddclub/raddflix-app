@@ -60,7 +60,7 @@ class _SyncPanelState extends State<SyncPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final accent = const Color(0xFFE8002D);
+    final accent = const Color(0xFFD4784A);
     final delayStr = _delay == 0
         ? '0 ms'
         : '${_delay > 0 ? '+' : ''}$_delay ms';
@@ -82,7 +82,7 @@ class _SyncPanelState extends State<SyncPanel> {
           Text('${widget.label} Sync',
             style:const TextStyle(color:Colors.white,fontSize:16,fontWeight:FontWeight.w600)),
           TextButton(onPressed:widget.onDone,
-            child:const Text('Done',style:TextStyle(color:Color(0xFFE8002D)))),
+            child:const Text('Done',style:TextStyle(color:Color(0xFFD4784A)))),
         ]),
         const SizedBox(height:12),
 
@@ -165,8 +165,8 @@ class _ResetBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) => TextButton.icon(
     onPressed:onTap,
-    icon:const Icon(Icons.refresh_rounded,size:14,color:Color(0xFFE8002D)),
-    label:const Text('Reset ↺',style:TextStyle(fontSize:12,color:Color(0xFFE8002D))),
+    icon:const Icon(Icons.refresh_rounded,size:14,color:Color(0xFFD4784A)),
+    label:const Text('Reset ↺',style:TextStyle(fontSize:12,color:Color(0xFFD4784A))),
     style:TextButton.styleFrom(
       backgroundColor:const Color(0x22E8002D),
       minimumSize:const Size(72,36),

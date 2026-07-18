@@ -35,7 +35,7 @@ class SceneBookmarksPanel extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
           child: Row(children: [
-            const Icon(Icons.bookmark_rounded, color: Color(0xFFE8002D), size: 18),
+            const Icon(Icons.bookmark_rounded, color: Color(0xFFD4784A), size: 18),
             const SizedBox(width: 8),
             Text('Scene Bookmarks (${bookmarks.length})',
                 style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),

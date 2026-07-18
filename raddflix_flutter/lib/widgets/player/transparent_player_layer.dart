@@ -37,7 +37,7 @@ class TransparentPlayerSlider extends StatelessWidget {
             child: Slider(
               value: opacity.clamp(0.2, 1.0),
               min: 0.2, max: 1.0,
-              activeColor: const Color(0xFFE8002D),
+              activeColor: const Color(0xFFD4784A),
               inactiveColor: Colors.white24,
               onChanged: onChanged,
             ),

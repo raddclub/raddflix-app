@@ -315,21 +315,21 @@ class AppCurves {
 class AppGradients {
   // Brand — primary action buttons, active indicators
   static const LinearGradient brand = LinearGradient(
-    colors: [Color(0xFFE8002D), Color(0xFFFF5C5C)],
+    colors: [Color(0xFFD4784A), Color(0xFFE8A070)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   // Nav capsule — transparent tinted background behind active nav item
   static const LinearGradient navCapsule = LinearGradient(
-    colors: [Color(0x2AE8002D), Color(0x15FF5C5C)],
+    colors: [Color(0x2AD4784A), Color(0x15E8A070)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  // Hero overlay — fades content to background at bottom of cards
+  // Hero overlay — fades content to warm background at bottom of cards
   static const LinearGradient hero = LinearGradient(
-    colors: [Colors.transparent, Color(0xFF07070F)],
+    colors: [Colors.transparent, Color(0xFF130F0C)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     stops: [0.3, 1.0],
@@ -337,14 +337,14 @@ class AppGradients {
 
   // Dark background — scaffold/screen backgrounds
   static const LinearGradient dark = LinearGradient(
-    colors: [Color(0xFF07070F), Color(0xFF0B0B1C)],
+    colors: [Color(0xFF130F0C), Color(0xFF1A1410)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
 
   // Card surface — elevated card backgrounds
   static const LinearGradient card = LinearGradient(
-    colors: [Color(0xFF18183A), Color(0xFF0F0F22)],
+    colors: [Color(0xFF2C2219), Color(0xFF211A15)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
