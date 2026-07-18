@@ -208,8 +208,14 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
         },
         onDubRequested: _startDubGeneration,  // P59
         onStyleSynced: ({required fontIdx, required size, required bold,
-            required color, required bgColor, required opacity}) {
+            required color, required bgColor, required opacity,
+            required shadowIdx}) {
           const fontNames = ['Sans Serif', 'Serif', 'Monospace', 'Casual'];
+          // Map shadow style index to the outline thickness used by the Flutter
+          // subtitle overlay (SubtitleOverlay / DualSubtitleOverlay).
+          // Mirrors the sub-outline-size values sent to MPV in _applyShadow():
+          //   0=None → 0.0   1=Outline → 2.0   2=Drop Shadow → 0.5   3=Box → 0.0
+          const outlineThicknesses = [0.0, 2.0, 0.5, 0.0];
           ref.read(playerPrefsProvider.notifier).update((p) => p.copyWith(
                 subtitleFontFamily: fontNames[fontIdx.clamp(0, fontNames.length - 1)],
                 subtitleFontSize: size,
@@ -220,6 +226,7 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
                 subtitleTextColorValue: color.withOpacity(opacity).value,
                 subtitleBackgroundColorValue: bgColor.value,
                 subtitleBackgroundOpacity: bgColor.opacity,
+                subtitleOutlineThickness: outlineThicknesses[shadowIdx.clamp(0, 3)],
               ));
         },
       );

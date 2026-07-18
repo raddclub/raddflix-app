@@ -34,6 +34,7 @@ class _SubtitlePanel extends StatefulWidget {
     required Color color,
     required Color bgColor,
     required double opacity,
+    required int shadowIdx,
   })? onStyleSynced;
 
   const _SubtitlePanel({
@@ -181,12 +182,13 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     await prefs.setDouble('pref_sub_edge_pad',  _subEdgePadding);
     await prefs.setBool('pref_sub_fit',         _subFitToVideo);
     widget.onStyleSynced?.call(
-      fontIdx: _subFontIdx,
-      size:    _subSize,
-      bold:    _subBold,
-      color:   _subColor,
-      bgColor: _subBgColor,
-      opacity: _subOpacity,
+      fontIdx:   _subFontIdx,
+      size:      _subSize,
+      bold:      _subBold,
+      color:     _subColor,
+      bgColor:   _subBgColor,
+      opacity:   _subOpacity,
+      shadowIdx: _subShadowIdx,
     );
   }
 
