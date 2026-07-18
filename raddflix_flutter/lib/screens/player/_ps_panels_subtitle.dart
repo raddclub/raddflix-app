@@ -546,7 +546,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         borderRadius: BorderRadius.circular(10),
         gradient: const LinearGradient(
           begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [Color(0xFF0D1F35), Color(0xFF122012), Color(0xFF1F0D35)],
+          colors: [AppColors.surface, AppColors.card, AppColors.surface],
         ),
         border: Border.all(color: Colors.white12),
       ),

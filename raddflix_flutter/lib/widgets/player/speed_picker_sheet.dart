@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../core/constants.dart';
 
 /// Phase G — Enhanced Playback Speed Picker
 /// Replaces the basic speed list with a premium sheet featuring:
@@ -58,7 +59,7 @@ class _SpeedPickerSheetState extends State<SpeedPickerSheet> {
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.65),
       decoration: const BoxDecoration(
-        color: Color(0xFF12121E),
+        color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [

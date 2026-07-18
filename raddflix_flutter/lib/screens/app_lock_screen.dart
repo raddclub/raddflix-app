@@ -107,7 +107,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: const Color(0xFF130F0C),
+        backgroundColor: AppColors.background,
         body: SafeArea(
           child: Column(
             children: [

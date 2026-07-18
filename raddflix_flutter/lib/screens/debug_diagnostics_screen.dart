@@ -280,9 +280,9 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF130F0C),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1410),
+        backgroundColor: AppColors.backgroundAlt,
         elevation: 0,
         leading: IconButton(
           icon: Icon(AppIcons.back, size: 18),

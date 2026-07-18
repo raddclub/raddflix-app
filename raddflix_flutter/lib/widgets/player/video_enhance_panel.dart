@@ -41,7 +41,7 @@ class VideoEnhancePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF0F0F1A),
+        color: AppColors.background,
         border: Border(top: BorderSide(color: Colors.white12)),
       ),
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),

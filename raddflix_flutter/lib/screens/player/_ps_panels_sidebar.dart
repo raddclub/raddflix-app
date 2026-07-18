@@ -263,7 +263,7 @@ class _DubProgressCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 32),
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: const Color(0xFF0D1117),
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white10, width: 1),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 40)],

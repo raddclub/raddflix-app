@@ -968,7 +968,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1C1C),
+        backgroundColor: AppColors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: const Text('Episode Finished', style: TextStyle(color: Colors.white, fontSize: 16)),
         content: const Text('What would you like to do?',
@@ -1026,7 +1026,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
     final cont = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1C1C),
+        backgroundColor: AppColors.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: const Text('Resume Playback', style: TextStyle(color: Colors.white, fontSize: 16)),
         content: Text(
@@ -1041,7 +1041,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Resume', style: TextStyle(
-                color: Color(0xFFE8950A), fontWeight: FontWeight.bold)),
+                color: AppColors.primary, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1226,7 +1226,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(msg, style: const TextStyle(color: Colors.white)),
-          backgroundColor: const Color(0xFF2A2A2A),
+          backgroundColor: AppColors.surfaceHigh,
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

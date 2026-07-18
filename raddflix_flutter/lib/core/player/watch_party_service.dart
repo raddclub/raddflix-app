@@ -329,7 +329,7 @@ class _WatchPartySheetState extends State<WatchPartySheet> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
+        color: const Color(0xFF211A15), // Warm Hearth surface
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         border: Border.all(color: Colors.white10),
       ),

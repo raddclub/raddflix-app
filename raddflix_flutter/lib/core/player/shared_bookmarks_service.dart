@@ -230,7 +230,7 @@ class _AddBookmarkSheetState extends State<AddBookmarkSheet> {
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A),
+          color: const Color(0xFF211A15), // Warm Hearth surface
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           border: Border.all(color: Colors.white10),
         ),

@@ -182,7 +182,7 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
               child: Container(
                 width: 220,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A1A),
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: Colors.white10),
                   boxShadow: [
@@ -302,7 +302,7 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
   }
 
   Widget _posterFallback() => Container(
-    color: const Color(0xFF2C2219),
+    color: AppColors.surfaceHigh,
     child: Center(
       child: Icon(AppIcons.movieFill, color: Colors.white24, size: 40),
     ),

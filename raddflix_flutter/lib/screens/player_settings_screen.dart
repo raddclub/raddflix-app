@@ -33,9 +33,9 @@ class _State extends State<PlayerSettingsScreen> {
   Widget build(BuildContext ctx) {
     final a = _p.accentColor;
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D1A),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF12121E), foregroundColor: Colors.white,
+        backgroundColor: AppColors.surface, foregroundColor: Colors.white,
         title: const Text('Player Settings',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         actions: [if (_dirty) TextButton(onPressed: _save, child: Text('Save',
@@ -183,7 +183,7 @@ class _State extends State<PlayerSettingsScreen> {
             onPressed: () async {
               final ok = await showDialog<bool>(context: context,
                 builder: (c) => AlertDialog(
-                  backgroundColor: const Color(0xFF1E1E2E),
+                  backgroundColor: AppColors.surfaceHigh,
                   title: const Text('Reset all?', style: TextStyle(color: Colors.white)),
                   content: const Text('Resets to defaults.',
                       style: TextStyle(color: Colors.white54, fontSize: 13)),
@@ -211,7 +211,7 @@ class _State extends State<PlayerSettingsScreen> {
         child: Text(t.toUpperCase(), style: const TextStyle(
             color: Colors.white38, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.0))),
     Container(
-      decoration: BoxDecoration(color: const Color(0xFF12121E),
+      decoration: BoxDecoration(color: AppColors.surface,
           border: Border(top: BorderSide(color: Colors.white10),
               bottom: BorderSide(color: Colors.white10))),
       child: Column(children: [...ch.map((c) => Column(children: [c,

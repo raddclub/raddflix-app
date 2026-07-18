@@ -414,13 +414,13 @@ class _DeviceConflictPanelState extends State<_DeviceConflictPanel> {
         if (AppConstants.otpDeviceSwitchEnabled) ...[
           SizedBox(height: 14),
           Row(children: [
-            Expanded(child: Divider(color: Color(0x33FFFFFF))),
+            Expanded(child: Divider(color: t.border)),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 10),
               child: Text('or switch yourself',
                   style: TextStyle(color: t.textMuted, fontSize: 11)),
             ),
-            const Expanded(child: Divider(color: Color(0x33FFFFFF))),
+            Expanded(child: Divider(color: t.border)),
           ]),
           const SizedBox(height: 12),
           if (!_otpSent) ...[

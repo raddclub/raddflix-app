@@ -5,6 +5,7 @@ library word_definition_sheet;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/constants.dart';
 import '../../core/player/word_dict.dart';
 
 /// Shows the definition sheet for [word]. Returns a Future so the caller
@@ -75,7 +76,7 @@ class _WordDefinitionSheetState extends State<_WordDefinitionSheet> {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF141420),
+        color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.only(

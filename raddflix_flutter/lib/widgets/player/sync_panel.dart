@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../core/constants.dart';
 
 /// Reusable Audio/Subtitle sync panel — ±50/100/500ms buttons + slider + Reset.
 /// [label]: 'Audio' or 'Subtitle'
@@ -168,7 +169,7 @@ class _ResetBtn extends StatelessWidget {
     icon:const Icon(Icons.refresh_rounded,size:14,color:Color(0xFFD4784A)),
     label:const Text('Reset ↺',style:TextStyle(fontSize:12,color:Color(0xFFD4784A))),
     style:TextButton.styleFrom(
-      backgroundColor:const Color(0x22E8002D),
+      backgroundColor:const Color(0x22D4784A),
       minimumSize:const Size(72,36),
       shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(8)),
     ),

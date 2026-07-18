@@ -387,8 +387,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   : '${_daysLeft}d remaining',
                               style: TextStyle(
                                 color: _subExpiring
-                                    ? const Color(0xFFFFB300)
-                                    : const Color(0xFF00C853),
+                                    ? AppColors.warning
+                                    : AppColors.success,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
                               ),

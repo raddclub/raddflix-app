@@ -239,7 +239,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                         decoration: BoxDecoration(
                           color: _preset == i
                               ? const Color(0xFF3A6ECC).withOpacity(0.6)
-                              : const Color(0xFF2A2A2A),
+                              : AppColors.surfaceHigh,
                           borderRadius: RaddRadius.smRadius,
                           border: Border.all(
                             color: _preset == i ? const Color(0xFF4A7EDD) : Colors.transparent,
@@ -737,7 +737,7 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1C1C),
+        backgroundColor: AppColors.card,
         title: const Text('Sleep Timer', style: TextStyle(color: Colors.white)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -767,7 +767,7 @@ class _QuickShortcutsPanelState extends State<_QuickShortcutsPanel> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1C1C),
+        backgroundColor: AppColors.card,
         title: const Text('Playback Speed', style: TextStyle(color: Colors.white)),
         content: Column(
           mainAxisSize: MainAxisSize.min,

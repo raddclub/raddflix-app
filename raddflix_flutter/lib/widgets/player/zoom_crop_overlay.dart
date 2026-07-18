@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../core/constants.dart';
 
 /// Phase V — Zoom & Crop Overlay
 /// Shows zoom percentage, aspect ratio mode, crop presets.
@@ -68,7 +69,7 @@ class _ZoomCropOverlayState extends State<ZoomCropOverlay> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       decoration: const BoxDecoration(
-        color: Color(0xFF12121E),
+        color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Center(child: Container(width: 36, height: 4,

@@ -213,7 +213,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [Color(0xFF130F0C), Color(0xFF1A1410), Color(0xFF130F0C)],
+              colors: [AppColors.background, AppColors.backgroundAlt, AppColors.background],
             ),
           ),
           child: const Center(
@@ -269,7 +269,7 @@ class _LayoutDesignerScreenState extends State<LayoutDesignerScreen> {
       top: false,
       child: Container(
         padding: const EdgeInsets.all(12),
-        color: const Color(0xFF1A1410),
+        color: AppColors.backgroundAlt,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           // Preset chips
           SizedBox(

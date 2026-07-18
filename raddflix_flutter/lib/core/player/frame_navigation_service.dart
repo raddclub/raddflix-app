@@ -107,7 +107,7 @@ Future<int?> showJumpToFrameDialog(
   return showDialog<int>(
     context: context,
     builder: (_) => AlertDialog(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: const Color(0xFF2C2219), // Warm Hearth surfaceHigh
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: const Text('Jump to Frame',
           style: TextStyle(color: Colors.white, fontSize: 16,

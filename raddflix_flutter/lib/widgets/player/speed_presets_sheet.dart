@@ -5,6 +5,7 @@ library speed_presets;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/constants.dart';
 
 // Default speed list
 const List<double> _defaultSpeeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
@@ -111,7 +112,7 @@ class _SpeedPresetsSheetState extends State<SpeedPresetsSheet> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF161616),
+        color: AppColors.card,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         border: Border.all(color: Colors.white10),
       ),

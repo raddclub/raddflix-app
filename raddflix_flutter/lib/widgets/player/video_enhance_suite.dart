@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../core/constants.dart';
 
 /// Phase C — Video Enhancement Suite
 /// Advanced colour, sharpness, noise, deband, and crop controls.
@@ -93,7 +94,7 @@ class _VideoEnhanceSuiteState extends State<VideoEnhanceSuite>
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.72),
       decoration: const BoxDecoration(
-        color: Color(0xFF12121E),
+        color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
